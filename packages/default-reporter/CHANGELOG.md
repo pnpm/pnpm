@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 7.4.0
+
+### Minor Changes
+
+- 2ebb7af33: New reporter added for request retries.
+
+### Patch Changes
+
+- Updated dependencies [2ebb7af33]
+  - @pnpm/core-loggers@4.1.0
+
 ## 7.3.0
 
 ### Minor Changes

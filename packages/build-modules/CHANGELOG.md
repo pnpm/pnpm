@@ -1,5 +1,16 @@
 # @pnpm/build-modules
 
+## 5.0.2
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [d3ddd023c]
+- Updated dependencies [2ebb7af33]
+- Updated dependencies [68d8dc68f]
+  - @pnpm/lifecycle@9.1.1
+  - @pnpm/core-loggers@4.1.0
+
 ## 5.0.1
 
 ### Patch Changes

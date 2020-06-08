@@ -1,5 +1,11 @@
 # @pnpm-private/updater
 
+## 0.0.3
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@2.2.4
+
 ## 0.0.2
 
 ### Patch Changes

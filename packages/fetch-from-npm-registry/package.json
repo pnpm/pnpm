@@ -1,6 +1,6 @@
 {
   "name": "fetch-from-npm-registry",
-  "version": "4.0.3",
+  "version": "4.1.0",
   "description": "A fetch lib specifically for using with the npm registry",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/fetch": "workspace:1.0.3",
+    "@pnpm/fetch": "workspace:2.0.0",
     "@pnpm/npm-registry-agent": "workspace:2.0.3"
   },
   "devDependencies": {

@@ -1,5 +1,15 @@
 # @pnpm/store-connection-manager
 
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [d3ddd023c]
+  - @pnpm/package-store@9.0.4
+  - @pnpm/server@8.0.2
+  - @pnpm/default-resolver@8.0.2
+  - @pnpm/default-fetcher@6.0.4
+
 ## 0.3.5
 
 ### Patch Changes

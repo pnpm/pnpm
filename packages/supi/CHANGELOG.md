@@ -1,5 +1,27 @@
 # supi
 
+## 0.39.10
+
+### Patch Changes
+
+- 0e7ec4533: Remove @pnpm/check-package from dependencies.
+- 13630c659: Perform headless installation when dependencies should not be linked from the workspace, and they are not indeed linked from the workspace.
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [d3ddd023c]
+- Updated dependencies [2ebb7af33]
+- Updated dependencies [68d8dc68f]
+  - @pnpm/build-modules@5.0.2
+  - @pnpm/headless@13.0.4
+  - @pnpm/lifecycle@9.1.1
+  - @pnpm/package-requester@12.0.3
+  - @pnpm/core-loggers@4.1.0
+  - @pnpm/resolve-dependencies@15.1.2
+  - @pnpm/get-context@2.1.2
+  - @pnpm/modules-cleaner@9.0.1
+  - @pnpm/symlink-dependency@3.0.6
+  - @pnpm/filter-lockfile@4.0.1
+  - @pnpm/hoist@3.0.1
+
 ## 0.39.9
 
 ### Patch Changes

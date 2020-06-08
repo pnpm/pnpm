@@ -1,5 +1,16 @@
 # @pnpm/package-store
 
+## 9.0.4
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [d3ddd023c]
+- Updated dependencies [2ebb7af33]
+  - @pnpm/cafs@1.0.2
+  - @pnpm/package-requester@12.0.3
+  - @pnpm/core-loggers@4.1.0
+
 ## 9.0.3
 
 ### Patch Changes

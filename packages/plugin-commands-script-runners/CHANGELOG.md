@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1.2.1
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [d3ddd023c]
+- Updated dependencies [68d8dc68f]
+  - @pnpm/lifecycle@9.1.1
+  - @pnpm/cli-utils@0.4.7
+
 ## 1.2.0
 
 ### Minor Changes

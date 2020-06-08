@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 9.1.1
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- 68d8dc68f: Update node-gyp to v7.
+- Updated dependencies [2ebb7af33]
+  - @pnpm/core-loggers@4.1.0
+
 ## 9.1.0
 
 ### Minor Changes

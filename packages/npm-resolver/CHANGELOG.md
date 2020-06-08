@@ -1,5 +1,17 @@
 # @pnpm/npm-resolver
 
+## 8.1.0
+
+### Minor Changes
+
+- 4cf7ef367: Reducing filesystem operations required to write the metadata file to the cache.
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [2ebb7af33]
+  - fetch-from-npm-registry@4.1.0
+
 ## 8.0.1
 
 ### Patch Changes

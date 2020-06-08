@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [4cf7ef367]
+- Updated dependencies [d3ddd023c]
+- Updated dependencies [68d8dc68f]
+  - @pnpm/npm-resolver@8.1.0
+  - @pnpm/lifecycle@9.1.1
+  - @pnpm/cli-utils@0.4.7
+
 ## 2.0.2
 
 ### Patch Changes

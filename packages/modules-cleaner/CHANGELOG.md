@@ -1,5 +1,13 @@
 # @pnpm/modules-cleaner
 
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [2ebb7af33]
+  - @pnpm/core-loggers@4.1.0
+  - @pnpm/filter-lockfile@4.0.1
+
 ## 9.0.0
 
 ### Major Changes

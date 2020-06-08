@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -13,9 +13,7 @@
   "private": true,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "files": [
-    "lib/"
-  ],
+  "files": ["lib/"],
   "devDependencies": {
     "@pnpm/assert-project": "link:",
     "@types/is-windows": "^1.0.0",
@@ -43,7 +41,7 @@
     "test": "pnpm run tsc && ts-node test"
   },
   "dependencies": {
-    "@pnpm/assert-store": "workspace:1.0.2",
+    "@pnpm/assert-store": "workspace:1.0.3",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/modules-yaml": "workspace:*",

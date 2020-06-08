@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 1.0.2
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+
 ## 1.0.1
 
 ### Patch Changes

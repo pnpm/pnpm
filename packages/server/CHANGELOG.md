@@ -1,5 +1,13 @@
 # @pnpm/server
 
+## 8.0.2
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [2ebb7af33]
+  - @pnpm/fetch@2.0.0
+
 ## 8.0.1
 
 ### Patch Changes

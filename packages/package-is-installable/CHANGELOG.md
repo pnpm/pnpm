@@ -1,5 +1,12 @@
 # @pnpm/package-is-installable
 
+## 4.0.9
+
+### Patch Changes
+
+- Updated dependencies [2ebb7af33]
+  - @pnpm/core-loggers@4.1.0
+
 ## 4.0.8
 
 ### Patch Changes

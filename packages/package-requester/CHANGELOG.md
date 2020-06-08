@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 12.0.3
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [d3ddd023c]
+- Updated dependencies [2ebb7af33]
+  - @pnpm/cafs@1.0.2
+  - @pnpm/core-loggers@4.1.0
+
 ## 12.0.2
 
 ### Patch Changes

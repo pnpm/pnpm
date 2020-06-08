@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/find-workspace-packages",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "description": "Finds packages inside a workspace",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,7 +31,7 @@
     "@pnpm/find-workspace-packages": "link:"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.6",
+    "@pnpm/cli-utils": "workspace:0.4.7",
     "@pnpm/config": "workspace:9.1.0",
     "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/types": "workspace:6.0.0",

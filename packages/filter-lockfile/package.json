@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-lockfile",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Filters a lockfile",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -47,7 +47,7 @@
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.12",
     "@pnpm/lockfile-walker": "workspace:3.0.0",
-    "@pnpm/package-is-installable": "workspace:4.0.8",
+    "@pnpm/package-is-installable": "workspace:4.0.9",
     "@pnpm/types": "workspace:6.0.0",
     "dependency-path": "workspace:4.0.7",
     "ramda": "0.27.0"

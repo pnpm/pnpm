@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.11
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [0e7ec4533]
+- Updated dependencies [13630c659]
+- Updated dependencies [d3ddd023c]
+  - supi@0.39.10
+  - @pnpm/package-store@9.0.4
+  - @pnpm/plugin-commands-rebuild@2.0.8
+  - @pnpm/store-connection-manager@0.3.6
+  - @pnpm/pnpmfile@0.1.10
+  - @pnpm/outdated@7.0.26
+  - @pnpm/cli-utils@0.4.7
+  - @pnpm/find-workspace-packages@2.2.4
+  - @pnpm/filter-workspace-packages@2.0.17
+
 ## 2.0.10
 
 ### Patch Changes

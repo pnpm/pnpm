@@ -1,5 +1,18 @@
 # @pnpm/tarball-fetcher
 
+## 7.1.0
+
+### Minor Changes
+
+- 2ebb7af33: Print a warning when tarball request fails.
+
+### Patch Changes
+
+- Updated dependencies [2ebb7af33]
+- Updated dependencies [2ebb7af33]
+  - fetch-from-npm-registry@4.1.0
+  - @pnpm/core-loggers@4.1.0
+
 ## 7.0.1
 
 ### Patch Changes

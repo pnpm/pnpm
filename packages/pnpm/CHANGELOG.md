@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.1.5
+
+### Patch Changes
+
+- Print a warning when an HTTP request fails (#2615).
+- Perform headless installation when dependencies should not be linked from the workspace, and they are not indeed linked from the workspace (#2619).
+
 ## 5.1.4
 
 ### Patch Changes

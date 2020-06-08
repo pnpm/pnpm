@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 4.0.28
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+
 ## 4.0.27
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.8
+
+### Patch Changes
+
+- 0e7ec4533: Remove @pnpm/check-package from dependencies.
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [d3ddd023c]
+  - @pnpm/cafs@1.0.2
+  - @pnpm/store-connection-manager@0.3.6
+  - @pnpm/get-context@2.1.2
+  - @pnpm/cli-utils@0.4.7
+
 ## 2.0.7
 
 ### Patch Changes

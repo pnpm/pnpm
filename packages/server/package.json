@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "8.0.1",
+  "version": "8.0.2",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -50,7 +50,7 @@
     "tempy": "0.5.0"
   },
   "dependencies": {
-    "@pnpm/fetch": "workspace:1.0.3",
+    "@pnpm/fetch": "workspace:2.0.0",
     "@pnpm/store-controller-types": "workspace:8.0.0",
     "@pnpm/types": "workspace:6.0.0",
     "p-limit": "^3.0.1",

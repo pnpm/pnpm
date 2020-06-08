@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.0.8
+
+### Patch Changes
+
+- d3ddd023c: Update p-limit to v3.
+- Updated dependencies [d3ddd023c]
+- Updated dependencies [2ebb7af33]
+- Updated dependencies [68d8dc68f]
+  - @pnpm/lifecycle@9.1.1
+  - @pnpm/core-loggers@4.1.0
+  - @pnpm/store-connection-manager@0.3.6
+  - @pnpm/get-context@2.1.2
+  - @pnpm/cli-utils@0.4.7
+  - @pnpm/find-workspace-packages@2.2.4
+
 ## 2.0.7
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/cli-utils
 
+## 0.4.7
+
+### Patch Changes
+
+- @pnpm/package-is-installable@4.0.9
+
 ## 0.4.6
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -45,7 +45,7 @@
     "@pnpm/lockfile-utils": "workspace:2.0.12",
     "@pnpm/lockfile-walker": "workspace:3.0.0",
     "@pnpm/pkgid-to-filename": "3.0.0",
-    "@pnpm/symlink-dependency": "workspace:3.0.5",
+    "@pnpm/symlink-dependency": "workspace:3.0.6",
     "@pnpm/types": "workspace:6.0.0",
     "dependency-path": "workspace:4.0.7",
     "ramda": "0.27.0"
