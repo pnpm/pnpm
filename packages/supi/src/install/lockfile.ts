@@ -15,7 +15,7 @@ export function depPathToRef (
   if (opts.resolution.type) return depPath
 
   const registryName = encodeRegistry(getRegistryByPackageName(opts.registries, opts.realName))
-  if (depPath.startsWith(`${registryName}/`) && !depPath.includes('/-/')) {
+  if (depPath.startsWith(`${registryName}/`)) {
     depPath = depPath.replace(`${registryName}/`, '/')
   }
   if (depPath[0] === '/' && opts.alias === opts.realName) {

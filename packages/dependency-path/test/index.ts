@@ -109,7 +109,6 @@ test('relative()', t => {
   t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0'), '/foo/1.0.0')
   t.equal(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0'), '/@foo/foo/1.0.0')
   t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw'), '/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
-  t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/-/foo-1.0.0'), 'registry.npmjs.org/foo/-/foo-1.0.0', 'a tarball ID should remain absolute')
   t.end()
 })
 
