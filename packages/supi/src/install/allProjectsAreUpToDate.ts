@@ -19,6 +19,7 @@ import semver = require('semver')
 export default async function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
+    preserveWorkspaceProtocol: boolean,
     wantedLockfile: Lockfile,
     workspacePackages: WorkspacePackages,
   }
@@ -30,7 +31,7 @@ export default async function allProjectsAreUpToDate (
     const importer = opts.wantedLockfile.importers[project.id]
     return importer && !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(project.manifest, project.id) &&
-      _linkedPackagesAreUpToDate(project.manifest, importer, project.rootDir)
+      _linkedPackagesAreUpToDate(project.manifest, importer, project.rootDir, opts.preserveWorkspaceProtocol)
   })
 }
 
@@ -49,7 +50,8 @@ async function linkedPackagesAreUpToDate (
   workspacePackages: WorkspacePackages,
   manifest: ProjectManifest,
   projectSnapshot: ProjectSnapshot,
-  projectDir: string
+  projectDir: string,
+  preserveWorkspaceProtocol: boolean
 ) {
   for (const depField of DEPENDENCIES_FIELDS) {
     const lockfileDeps = projectSnapshot[depField]
@@ -74,6 +76,11 @@ async function linkedPackagesAreUpToDate (
         ? path.join(projectDir, lockfileRef.substr(5))
         : workspacePackages?.[depName]?.[lockfileRef]?.dir
       if (!linkedDir) continue
+      if (preserveWorkspaceProtocol && !currentSpec.startsWith('workspace:')) {
+        // we found a linked dir, but we don't want to use it, because it's not specified as a
+        // workspace:x.x.x dependency
+        continue
+      }
       const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPkgFromDir(linkedDir)
       const availableRange = getVersionRange(currentSpec)
       // This should pass the same options to semver as @pnpm/npm-resolver

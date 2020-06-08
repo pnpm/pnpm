@@ -170,7 +170,11 @@ export async function mutateModules (
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
-        await allProjectsAreUpToDate(ctx.projects, { wantedLockfile: ctx.wantedLockfile, workspacePackages: opts.workspacePackages })
+        await allProjectsAreUpToDate(ctx.projects, {
+          preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
+          wantedLockfile: ctx.wantedLockfile,
+          workspacePackages: opts.workspacePackages,
+        })
       )
     ) {
       if (!ctx.existsWantedLockfile) {
