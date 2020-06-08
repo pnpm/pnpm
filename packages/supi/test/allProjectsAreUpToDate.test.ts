@@ -34,7 +34,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async (t
       rootDir: 'foo',
     },
   ], {
-    preserveWorkspaceProtocol: false,
+    linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
         bar: {
@@ -72,7 +72,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
       rootDir: 'foo',
     },
   ], {
-    preserveWorkspaceProtocol: false,
+    linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
         bar: {
@@ -110,7 +110,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
       rootDir: 'foo',
     },
   ], {
-    preserveWorkspaceProtocol: false,
+    linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
         bar: {
@@ -131,7 +131,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
   }))
 })
 
-test('allProjectsAreUpToDate(): use link and registry version if preserveWorkspaceProtocol = true', async (t: tape.Test) => {
+test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePackages = false', async (t: tape.Test) => {
   t.ok(
     await allProjectsAreUpToDate(
       [
@@ -160,7 +160,7 @@ test('allProjectsAreUpToDate(): use link and registry version if preserveWorkspa
         },
       ],
       {
-        preserveWorkspaceProtocol: true,
+        linkWorkspacePackages: false,
         wantedLockfile: {
           importers: {
             bar: {
