@@ -34,6 +34,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async (t
       rootDir: 'foo',
     },
   ], {
+    linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
         bar: {
@@ -71,6 +72,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
       rootDir: 'foo',
     },
   ], {
+    linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
         bar: {
@@ -108,6 +110,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
       rootDir: 'foo',
     },
   ], {
+    linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
         bar: {
@@ -126,4 +129,64 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
     },
     workspacePackages,
   }))
+})
+
+test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePackages = false', async (t: tape.Test) => {
+  t.ok(
+    await allProjectsAreUpToDate(
+      [
+        {
+          id: 'bar',
+          manifest: {
+            dependencies: {
+              foo: 'workspace:*',
+            },
+          },
+          rootDir: 'bar',
+        },
+        {
+          id: 'bar2',
+          manifest: {
+            dependencies: {
+              foo: '1.0.0',
+            },
+          },
+          rootDir: 'bar2',
+        },
+        {
+          id: 'foo',
+          manifest: fooManifest,
+          rootDir: 'foo',
+        },
+      ],
+      {
+        linkWorkspacePackages: false,
+        wantedLockfile: {
+          importers: {
+            bar: {
+              dependencies: {
+                foo: 'link:../foo',
+              },
+              specifiers: {
+                foo: 'workspace:*',
+              },
+            },
+            bar2: {
+              dependencies: {
+                foo: '1.0.0',
+              },
+              specifiers: {
+                foo: '1.0.0',
+              },
+            },
+            foo: {
+              specifiers: {},
+            },
+          },
+          lockfileVersion: 5,
+        },
+        workspacePackages,
+      }
+    )
+  )
 })

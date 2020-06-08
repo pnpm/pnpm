@@ -19,18 +19,27 @@ import semver = require('semver')
 export default async function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
+    linkWorkspacePackages: boolean,
     wantedLockfile: Lockfile,
     workspacePackages: WorkspacePackages,
   }
 ) {
   const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
   const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, opts.wantedLockfile)
-  const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, manifestsByDir, opts.workspacePackages)
+  const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, {
+    linkWorkspacePackages: opts.linkWorkspacePackages,
+    manifestsByDir,
+    workspacePackages: opts.workspacePackages,
+  })
   return pEvery(projects, async (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
     return importer && !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(project.manifest, project.id) &&
-      _linkedPackagesAreUpToDate(project.manifest, importer, project.rootDir)
+      _linkedPackagesAreUpToDate({
+        dir: project.rootDir,
+        manifest: project.manifest,
+        snapshot: importer,
+      })
   })
 }
 
@@ -45,15 +54,24 @@ function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages) 
 }
 
 async function linkedPackagesAreUpToDate (
-  manifestsByDir: Record<string, DependencyManifest>,
-  workspacePackages: WorkspacePackages,
-  manifest: ProjectManifest,
-  projectSnapshot: ProjectSnapshot,
-  projectDir: string
+  {
+    linkWorkspacePackages,
+    manifestsByDir,
+    workspacePackages,
+  }: {
+    linkWorkspacePackages: boolean,
+    manifestsByDir: Record<string, DependencyManifest>,
+    workspacePackages: WorkspacePackages,
+  },
+  project: {
+    dir: string,
+    manifest: ProjectManifest,
+    snapshot: ProjectSnapshot,
+  }
 ) {
   for (const depField of DEPENDENCIES_FIELDS) {
-    const lockfileDeps = projectSnapshot[depField]
-    const manifestDeps = manifest[depField]
+    const lockfileDeps = project.snapshot[depField]
+    const manifestDeps = project.manifest[depField]
     if (!lockfileDeps || !manifestDeps) continue
     const depNames = Object.keys(lockfileDeps)
     for (const depName of depNames) {
@@ -71,9 +89,14 @@ async function linkedPackagesAreUpToDate (
         continue
       }
       const linkedDir = isLinked
-        ? path.join(projectDir, lockfileRef.substr(5))
+        ? path.join(project.dir, lockfileRef.substr(5))
         : workspacePackages?.[depName]?.[lockfileRef]?.dir
       if (!linkedDir) continue
+      if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
+        // we found a linked dir, but we don't want to use it, because it's not specified as a
+        // workspace:x.x.x dependency
+        continue
+      }
       const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPkgFromDir(linkedDir)
       const availableRange = getVersionRange(currentSpec)
       // This should pass the same options to semver as @pnpm/npm-resolver

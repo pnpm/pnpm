@@ -402,6 +402,77 @@ test('headless install is used with an up-to-date lockfile when package referenc
   await projects['project-2'].has('is-negative')
 })
 
+test('headless install is used when packages are not linked from the workspace (unless workspace ranges are used)', async (t) => {
+  const foo = {
+    name: 'foo',
+    version: '1.0.0',
+
+    dependencies: {
+      'qar': 'workspace:*',
+    },
+  }
+  const bar = {
+    name: 'bar',
+    version: '1.0.0',
+
+    dependencies: {
+      'qar': '100.0.0',
+    },
+  }
+  const qar = {
+    name: 'qar',
+    version: '100.0.0',
+  }
+  const projects = preparePackages(t, [foo, bar, qar])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: foo,
+      mutation: 'install',
+      rootDir: path.resolve('foo'),
+    },
+    {
+      buildIndex: 0,
+      manifest: bar,
+      mutation: 'install',
+      rootDir: path.resolve('bar'),
+    },
+    {
+      buildIndex: 0,
+      manifest: qar,
+      mutation: 'install',
+      rootDir: path.resolve('qar'),
+    },
+  ]
+  const workspacePackages = {
+    'qar': {
+      '100.0.0': {
+        dir: path.resolve('qar'),
+        manifest: qar,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({
+    linkWorkspacePackagesDepth: -1,
+    lockfileOnly: true,
+    workspacePackages,
+  }))
+
+  const reporter = sinon.spy()
+  await mutateModules(importers, await testDefaults({
+    linkWorkspacePackagesDepth: -1,
+    reporter,
+    workspacePackages,
+  }))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'info',
+    message: 'Lockfile is up-to-date, resolution step is skipped',
+    name: 'pnpm',
+  }), 'start of headless installation logged')
+})
+
 test('current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile', async (t) => {
   const pkg1 = {
     name: 'project-1',
