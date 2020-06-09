@@ -8,12 +8,7 @@ export default async function resolveTarball (
   }
 
   return {
-    id: wantedDependency.pref
-      .replace(/^.*:\/\/(git@)?/, '')
-      .replace(/\.tgz$/, ''),
-      // TODO BREAKING CHANGE: uncomment the following: (or never remove extensions)
-      // .replace(/\.tar.gz$/, ''),
-      // .replace(/\.tar$/, ''),
+    id: `@${wantedDependency.pref.replace(/^.*:\/\/(git@)?/, '')}`,
     normalizedPref: wantedDependency.pref,
     resolution: {
       tarball: wantedDependency.pref,

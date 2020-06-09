@@ -800,7 +800,7 @@ test('packages installed via tarball URL from the default registry are normalize
 
   t.deepEqual(lockfile, {
     dependencies: {
-      'is-positive': 'registry.npmjs.org/is-positive/-/is-positive-1.0.0',
+      'is-positive': '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       'pkg-with-tarball-dep-from-registry': '1.0.0',
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -820,7 +820,7 @@ test('packages installed via tarball URL from the default registry are normalize
           integrity: getIntegrity('pkg-with-tarball-dep-from-registry', '1.0.0'),
         },
       },
-      'registry.npmjs.org/is-positive/-/is-positive-1.0.0': {
+      '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
         dev: false,
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
@@ -1183,5 +1183,49 @@ test('tarball domain differs from registry domain', async (t: tape.Test) => {
       },
     },
     specifiers: { 'is-positive': '^3.1.0' },
+  })
+})
+
+test('tarball installed through non-standard URL endpoint from the registry domain', async (t: tape.Test) => {
+  nock('https://registry.npmjs.org', { allowUnmocked: true })
+    .get('/is-positive/download/is-positive-3.1.0.tgz')
+    .replyWithFile(200, tarballPath)
+
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({},
+    [
+      'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
+    ], await testDefaults({
+      fastUnpack: false,
+      lockfileOnly: true,
+      registries: {
+        default: 'https://registry.npmjs.org/',
+      },
+      save: true,
+    })
+  )
+
+  const lockfile = await project.readLockfile()
+
+  t.deepEqual(lockfile, {
+    dependencies: {
+      'is-positive': '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
+        dev: false,
+        engines: { node: '>=0.10.0' },
+        name: 'is-positive',
+        resolution: {
+          tarball: 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
+        },
+        version: '3.1.0',
+      },
+    },
+    specifiers: {
+      'is-positive': 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
+    },
   })
 })
