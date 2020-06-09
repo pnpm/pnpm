@@ -1,5 +1,17 @@
 # @pnpm/default-resolver
 
+## 9.0.0
+
+### Major Changes
+
+- 41d92948b: The direct tarball dependency ID starts with a @ and the tarball extension is not removed.
+
+### Patch Changes
+
+- Updated dependencies [41d92948b]
+  - @pnpm/tarball-resolver@4.0.0
+  - @pnpm/local-resolver@5.0.7
+
 ## 8.0.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 0.1.11
+
+### Patch Changes
+
+- e934b1a48: Update chalk to v4.1.0.
+
 ## 0.1.10
 
 ### Patch Changes

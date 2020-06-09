@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.12
+
+### Patch Changes
+
+- e934b1a48: Update chalk to v4.1.0.
+- Updated dependencies [41d92948b]
+- Updated dependencies [e934b1a48]
+  - supi@0.40.0
+  - @pnpm/cli-utils@0.4.8
+  - @pnpm/pnpmfile@0.1.11
+  - @pnpm/outdated@7.0.27
+  - @pnpm/plugin-commands-rebuild@2.0.9
+  - @pnpm/store-connection-manager@0.3.7
+  - @pnpm/find-workspace-packages@2.2.5
+  - @pnpm/filter-workspace-packages@2.0.18
+  - @pnpm/package-store@9.0.5
+
 ## 2.0.11
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-audit
 
+## 1.0.12
+
+### Patch Changes
+
+- e934b1a48: Update chalk to v4.1.0.
+- Updated dependencies [e934b1a48]
+  - @pnpm/cli-utils@0.4.8
+  - @pnpm/audit@1.1.4
+
 ## 1.0.11
 
 ### Patch Changes

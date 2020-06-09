@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 7.4.1
+
+### Patch Changes
+
+- e934b1a48: Update chalk to v4.1.0.
+
 ## 7.4.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @pnpm/cli-utils
 
+## 0.4.8
+
+### Patch Changes
+
+- e934b1a48: Update chalk to v4.1.0.
+- Updated dependencies [57c510f00]
+  - @pnpm/read-project-manifest@1.0.7
+
 ## 0.4.7
 
 ### Patch Changes

@@ -1,5 +1,33 @@
 # supi
 
+## 0.40.0
+
+### Minor Changes
+
+- 41d92948b: It should be possible to install a tarball through a non-standard URL endpoint served via the registry domain.
+
+  For instance, the configured registry is `https://registry.npm.taobao.org/`.
+  It should be possible to run `pnpm add https://registry.npm.taobao.org/vue/download/vue-2.0.0.tgz`
+
+### Patch Changes
+
+- Updated dependencies [41d92948b]
+- Updated dependencies [57c510f00]
+- Updated dependencies [41d92948b]
+  - dependency-path@5.0.0
+  - @pnpm/read-project-manifest@1.0.7
+  - @pnpm/resolve-dependencies@16.0.0
+  - @pnpm/filter-lockfile@4.0.2
+  - @pnpm/headless@13.0.5
+  - @pnpm/hoist@3.0.2
+  - @pnpm/lockfile-utils@2.0.13
+  - @pnpm/lockfile-walker@3.0.1
+  - @pnpm/modules-cleaner@9.0.2
+  - @pnpm/prune-lockfile@2.0.9
+  - @pnpm/link-bins@5.3.4
+  - @pnpm/build-modules@5.0.3
+  - @pnpm/package-requester@12.0.3
+
 ## 0.39.10
 
 ### Patch Changes

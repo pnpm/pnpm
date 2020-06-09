@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/local-resolver",
-  "version": "5.0.6",
+  "version": "5.0.7",
   "description": "Resolver for local packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/local-resolver#readme",
   "dependencies": {
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/read-project-manifest": "workspace:1.0.6",
+    "@pnpm/read-project-manifest": "workspace:1.0.7",
     "@pnpm/resolver-base": "workspace:7.0.1",
     "@pnpm/types": "workspace:6.0.0",
     "graceful-fs": "4.2.1",

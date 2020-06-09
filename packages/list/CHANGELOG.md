@@ -1,5 +1,14 @@
 # @pnpm/list
 
+## 4.0.29
+
+### Patch Changes
+
+- e934b1a48: Update chalk to v4.1.0.
+- Updated dependencies [57c510f00]
+  - @pnpm/read-project-manifest@1.0.7
+  - dependencies-hierarchy@8.0.22
+
 ## 4.0.28
 
 ### Patch Changes

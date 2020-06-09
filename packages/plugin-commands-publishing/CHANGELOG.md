@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [57c510f00]
+- Updated dependencies [e934b1a48]
+  - @pnpm/read-project-manifest@1.0.7
+  - @pnpm/cli-utils@0.4.8
+
 ## 2.0.3
 
 ### Patch Changes

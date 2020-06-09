@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 16.0.0
+
+### Major Changes
+
+- 41d92948b: Expects direct tarball IDs to start with @.
+
+### Patch Changes
+
+- Updated dependencies [41d92948b]
+  - dependency-path@5.0.0
+  - @pnpm/lockfile-utils@2.0.13
+
 ## 15.1.2
 
 ### Patch Changes

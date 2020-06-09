@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 7.0.27
+
+### Patch Changes
+
+- Updated dependencies [41d92948b]
+- Updated dependencies [41d92948b]
+  - dependency-path@5.0.0
+  - @pnpm/default-resolver@9.0.0
+  - @pnpm/lockfile-utils@2.0.13
+
 ## 7.0.26
 
 ### Patch Changes

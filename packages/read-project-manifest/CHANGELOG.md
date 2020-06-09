@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 1.0.7
+
+### Patch Changes
+
+- 57c510f00: Update fast-deep-equal to v3.1.3.
+
 ## 1.0.6
 
 ### Patch Changes

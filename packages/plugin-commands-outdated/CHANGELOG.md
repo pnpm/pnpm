@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 2.0.4
+
+### Patch Changes
+
+- e934b1a48: Update chalk to v4.1.0.
+- Updated dependencies [41d92948b]
+- Updated dependencies [e934b1a48]
+  - @pnpm/default-resolver@9.0.0
+  - @pnpm/cli-utils@0.4.8
+  - @pnpm/outdated@7.0.27
+
 ## 2.0.3
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 5.3.4
+
+### Patch Changes
+
+- Updated dependencies [57c510f00]
+  - @pnpm/read-project-manifest@1.0.7
+
 ## 5.3.3
 
 ### Patch Changes
