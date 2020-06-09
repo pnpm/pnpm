@@ -1,4 +1,5 @@
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
+import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 import nopt = require('nopt')
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
@@ -13,7 +14,7 @@ export interface ParsedCliArgs {
   // tslint:disable-next-line: no-any
   options: Record<string, any>
   cmd: string | null
-  unknownOptions: string[]
+  unknownOptions: Map<string, string | null>
   workspaceDir?: string
 }
 
@@ -50,7 +51,7 @@ export default async function parseCliArgs (
       cmd: 'help',
       options: {},
       params: noptExploratoryResults.argv.remain,
-      unknownOptions: [] as string[],
+      unknownOptions: new Map(),
     }
   }
 
@@ -127,10 +128,11 @@ export default async function parseCliArgs (
   }
 
   const allowedOptions = new Set(Object.keys(types))
-  const unknownOptions = [] as string[]
+  const unknownOptions = new Map<string, string | null>()
+  const allowedOptionsArray = Array.from(allowedOptions)
   for (const cliOption of Object.keys(options)) {
     if (!allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
-      unknownOptions.push(cliOption)
+      unknownOptions.set(cliOption, didYouMean(cliOption, allowedOptionsArray, { returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH }) as (string | null))
     }
   }
   return {

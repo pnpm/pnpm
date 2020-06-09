@@ -53,21 +53,27 @@ export default async function run (inputArgv: string[]) {
     process.exit(1)
   }
 
-  if (unknownOptions.length > 0) {
-    if (unknownOptions.every((option) => DEPRECATED_OPTIONS.has(option))) {
+  if (unknownOptions.size > 0) {
+    const unknownOptionsArray = Array.from(unknownOptions.keys())
+    if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
-      if (unknownOptions.length === 1) {
-        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${unknownOptions[0]}'`)}`
+      if (unknownOptionsArray.length === 1) {
+        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${unknownOptionsArray[0]}'`)}`
       } else {
-        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptions.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
       }
       console.log(deprecationMsg)
     } else {
       let errorMsg = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
-      if (unknownOptions.length === 1) {
-        errorMsg += ` ${chalk.red(`Unknown option: '${unknownOptions[0]}'`)}`
+      if (unknownOptionsArray.length === 1) {
+        const unknownOption = unknownOptionsArray[0]
+        errorMsg += ` ${chalk.red(`Unknown option: '${unknownOption}'`)}`
+        const possiblyMeant = unknownOptions.get(unknownOption)
+        if (possiblyMeant) {
+          errorMsg += `\nDid you mean '${possiblyMeant}'?`
+        }
       } else {
-        errorMsg += ` ${chalk.red(`Unknown options: ${unknownOptions.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+        errorMsg += ` ${chalk.red(`Unknown options: ${unknownOptionsArray.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
       }
       console.error(errorMsg)
       console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)

@@ -1371,6 +1371,7 @@ importers:
   packages/parse-cli-args:
     dependencies:
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
+      didyoumean2: 4.0.0
       nopt: 4.0.3
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
@@ -1379,6 +1380,7 @@ importers:
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
+      didyoumean2: ^4.0.0
       nopt: 4.0.3
   packages/parse-wanted-dependency:
     dependencies:
@@ -5934,6 +5936,15 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-bOICKN2/UvsTjEnJpUld3/2SDahgHH6KvG7umRv9WNlYTXOlwplM5ZkJBQh72swRjI5D3iu2Aqde1STulCWUWg==
+  /didyoumean2/4.0.0:
+    dependencies:
+      leven: 3.1.0
+      lodash.deburr: 4.1.0
+    dev: false
+    engines:
+      node: '>=10.13'
+    resolution:
+      integrity: sha512-7+OMIHqPDJ4uxeExQx8cSk26oD3KUloAQzi2R+3rmTU4IHvSDDmWZTQ6bmC4+MTw61DkYoh5ARxwS9MRoz0t2A==
   /diff-dates/1.0.12:
     dependencies:
       date-unit-ms: 1.1.13
@@ -8218,6 +8229,12 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-94++VFO3qN95cM/d6eBXvd894oJE0w3cInq9USsyQzzoJxmiYzPAocNcuGCPGGjoXqDVJcr3C1jzt1TSjyaiLQ==
+  /leven/3.1.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==
   /levn/0.3.0:
     dependencies:
       prelude-ls: 1.1.2
@@ -8340,6 +8357,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-GVhwRQ9aExkkeN9Lw9I9LeoZB7Y=
+  /lodash.deburr/4.1.0:
+    dev: false
+    resolution:
+      integrity: sha1-3bG7s+8HRYwBd7oH3hRCLLAz/5s=
   /lodash.get/4.4.2:
     dev: true
     resolution:
