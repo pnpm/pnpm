@@ -39,12 +39,12 @@
     "@pnpm/read-project-manifest": "workspace:1.0.6",
     "@pnpm/types": "workspace:6.0.0",
     "@zkochan/npm-package-arg": "1.0.2",
-    "archy": "1.0.0",
+    "archy": "^1.0.0",
     "chalk": "^4.1.0",
-    "cli-columns": "3.1.2",
+    "cli-columns": "^3.1.2",
     "dependencies-hierarchy": "workspace:8.0.21",
     "p-limit": "^3.0.1",
-    "ramda": "0.27.0",
+    "ramda": "^0.27.0",
     "semver": "^7.3.2"
   },
   "devDependencies": {

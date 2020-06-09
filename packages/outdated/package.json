@@ -48,8 +48,8 @@
     "@pnpm/store-path": "^4.0.0",
     "@pnpm/types": "workspace:6.0.0",
     "dependency-path": "workspace:4.0.7",
-    "lru-cache": "5.1.1",
-    "ramda": "0.27.0",
+    "lru-cache": "^5.1.1",
+    "ramda": "^0.27.0",
     "semver": "^7.3.2"
   },
   "devDependencies": {

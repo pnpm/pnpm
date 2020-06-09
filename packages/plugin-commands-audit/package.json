@@ -44,9 +44,9 @@
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/lockfile-file": "workspace:3.0.9",
     "chalk": "^4.1.0",
-    "ramda": "0.27.0",
-    "render-help": "1.0.0",
-    "table": "5.4.6"
+    "ramda": "^0.27.0",
+    "render-help": "^1.0.0",
+    "table": "^5.4.6"
   },
   "funding": "https://opencollective.com/pnpm"
 }
