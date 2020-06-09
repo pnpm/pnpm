@@ -36,7 +36,7 @@
     "@pnpm/types": "workspace:6.0.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",
-    "chalk": "4.0.0",
+    "chalk": "^4.1.0",
     "common-tags": "1.8.0",
     "most": "^1.8.1",
     "normalize-path": "3.0.0",

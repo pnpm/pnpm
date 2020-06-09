@@ -62,7 +62,7 @@
     "@pnpm/outdated": "workspace:7.0.26",
     "@pnpm/semver-diff": "1.0.2",
     "@pnpm/store-path": "^4.0.0",
-    "chalk": "4.0.0",
+    "chalk": "^4.1.0",
     "common-tags": "1.8.0",
     "lru-cache": "5.1.1",
     "ramda": "0.27.0",

@@ -37,7 +37,7 @@
     "@pnpm/core-loggers": "workspace:4.1.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/types": "workspace:6.0.0",
-    "chalk": "4.0.0",
+    "chalk": "^4.1.0",
     "path-absolute": "1.0.1",
     "ramda": "0.27.0"
   },

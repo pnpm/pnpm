@@ -76,7 +76,7 @@
     "@pnpm/store-connection-manager": "workspace:0.3.6",
     "@pnpm/types": "workspace:6.0.0",
     "camelcase-keys": "6.2.2",
-    "chalk": "4.0.0",
+    "chalk": "^4.1.0",
     "common-tags": "1.8.0",
     "enquirer": "2.3.5",
     "is-ci": "2.0.0",

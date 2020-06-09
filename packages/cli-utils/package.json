@@ -40,7 +40,7 @@
     "@pnpm/manifest-utils": "workspace:1.0.1",
     "@pnpm/package-is-installable": "workspace:4.0.9",
     "@pnpm/read-project-manifest": "workspace:1.0.6",
-    "chalk": "4.0.0",
+    "chalk": "^4.1.0",
     "load-json-file": "6.2.0"
   },
   "peerDependencies": {
