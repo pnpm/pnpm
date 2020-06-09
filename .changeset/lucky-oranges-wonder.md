@@ -1,4 +1,5 @@
 ---
+"@pnpm/default-resolver": major
 "@pnpm/tarball-resolver": major
 ---
 
