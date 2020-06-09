@@ -43,7 +43,7 @@
     "@pnpm/tabtab": "0.0.1",
     "@pnpm/types": "workspace:6.0.0",
     "@types/nopt": "^3.0.29",
-    "@zkochan/libnpx": "11.0.3",
+    "@zkochan/libnpx": "12.0.0",
     "chalk": "^4.1.0",
     "common-tags": "1.8.0",
     "graceful-fs": "4.2.1",
