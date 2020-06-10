@@ -1,4 +1,5 @@
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
+import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 import nopt = require('nopt')
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
@@ -13,7 +14,7 @@ export interface ParsedCliArgs {
   // tslint:disable-next-line: no-any
   options: Record<string, any>
   cmd: string | null
-  unknownOptions: string[]
+  unknownOptions: Map<string, string[]>
   workspaceDir?: string
 }
 
@@ -50,7 +51,7 @@ export default async function parseCliArgs (
       cmd: 'help',
       options: {},
       params: noptExploratoryResults.argv.remain,
-      unknownOptions: [] as string[],
+      unknownOptions: new Map(),
     }
   }
 
@@ -126,13 +127,8 @@ export default async function parseCliArgs (
     cmd = 'recursive'
   }
 
-  const allowedOptions = new Set(Object.keys(types))
-  const unknownOptions = [] as string[]
-  for (const cliOption of Object.keys(options)) {
-    if (!allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
-      unknownOptions.push(cliOption)
-    }
-  }
+  const knownOptions = new Set(Object.keys(types))
+  const unknownOptions = getUnknownOptions(Object.keys(options), knownOptions)
   return {
     argv,
     cmd,
@@ -141,4 +137,22 @@ export default async function parseCliArgs (
     unknownOptions,
     workspaceDir,
   }
+}
+
+function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
+  const unknownOptions = new Map<string, string[]>()
+  const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
+  for (const usedOption of usedOptions) {
+    if (knownOptions.has(usedOption) || usedOption.startsWith('//')) continue
+
+    unknownOptions.set(usedOption, closestMatches(usedOption))
+  }
+  return unknownOptions
+
+}
+
+function getClosestOptionMatches (knownOptions: string[], option: string) {
+  return didYouMean(option, knownOptions, {
+    returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
+  }) as (string[] | null) ?? []
 }

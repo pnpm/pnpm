@@ -120,6 +120,7 @@ test('detect unknown options', async (t) => {
     getTypesByCommandName: (commandName: string) => {
       if (commandName === 'install') {
         return {
+          bar: Boolean,
           recursive: Boolean,
           registry: String,
         }
@@ -128,7 +129,10 @@ test('detect unknown options', async (t) => {
     },
     universalOptionsTypes: { filter: [String, Array] },
   }, ['install', '--save-dev', '--registry=https://example.com', '--qar', '--filter=packages'])
-  t.deepEqual(unknownOptions, ['save-dev', 'qar'])
+  t.deepEqual(
+    Array.from(unknownOptions.entries()),
+    [['save-dev', []], ['qar', ['bar']]]
+  )
   t.end()
 })
 
