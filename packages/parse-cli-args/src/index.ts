@@ -142,10 +142,10 @@ export default async function parseCliArgs (
 function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
   const unknownOptions = new Map<string, string[]>()
   const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
-  for (const cliOption of usedOptions) {
-    if (knownOptions.has(cliOption) || cliOption.startsWith('//')) continue
+  for (const usedOption of usedOptions) {
+    if (knownOptions.has(usedOption) || usedOption.startsWith('//')) continue
 
-    unknownOptions.set(cliOption, closestMatches(cliOption) ?? [])
+    unknownOptions.set(usedOption, closestMatches(usedOption))
   }
   return unknownOptions
 
@@ -154,5 +154,5 @@ function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
 function getClosestOptionMatches (knownOptions: string[], option: string) {
   return didYouMean(option, knownOptions, {
     returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
-  }) as (string[] | null)
+  }) as (string[] | null) ?? []
 }
