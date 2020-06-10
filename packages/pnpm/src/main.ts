@@ -217,4 +217,3 @@ export default async function run (inputArgv: string[]) {
     process.exit(1)
   }
 }
-
