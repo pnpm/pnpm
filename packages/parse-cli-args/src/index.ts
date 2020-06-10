@@ -127,17 +127,8 @@ export default async function parseCliArgs (
     cmd = 'recursive'
   }
 
-  const allowedOptions = new Set(Object.keys(types))
-  const unknownOptions = new Map<string, string[]>()
-  const allowedOptionsArray = Array.from(allowedOptions)
-  for (const cliOption of Object.keys(options)) {
-    if (!allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
-      const didYouMeanOptions = didYouMean(cliOption, allowedOptionsArray, {
-        returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
-      }) as (string[] | null)
-      unknownOptions.set(cliOption, didYouMeanOptions ?? [])
-    }
-  }
+  const knownOptions = new Set(Object.keys(types))
+  const unknownOptions = getUnknownOptions(Object.keys(options), knownOptions)
   return {
     argv,
     cmd,
@@ -146,4 +137,22 @@ export default async function parseCliArgs (
     unknownOptions,
     workspaceDir,
   }
+}
+
+function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
+  const unknownOptions = new Map<string, string[]>()
+  const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
+  for (const cliOption of usedOptions) {
+    if (knownOptions.has(cliOption) || cliOption.startsWith('//')) continue
+
+    unknownOptions.set(cliOption, closestMatches(cliOption) ?? [])
+  }
+  return unknownOptions
+
+}
+
+function getClosestOptionMatches (knownOptions: string[], option: string) {
+  return didYouMean(option, knownOptions, {
+    returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
+  }) as (string[] | null)
 }
