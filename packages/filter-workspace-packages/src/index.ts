@@ -18,13 +18,17 @@ interface Graph {
 
 export async function readProjects (
   workspaceDir: string,
-  pkgSelectors: PackageSelector[]
+  pkgSelectors: PackageSelector[],
+  opts?: {
+    linkWorkspacePackages?: boolean,
+  }
 ) {
   const allProjects = await findWorkspacePackages(workspaceDir, {})
   const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     pkgSelectors,
     {
+      linkWorkspacePackages: opts?.linkWorkspacePackages,
       workspaceDir,
     }
   )
@@ -35,6 +39,7 @@ export async function filterPackages<T> (
   pkgs: Array<Package & T>,
   filter: string[],
   opts: {
+    linkWorkspacePackages?: boolean,
     prefix: string,
     workspaceDir: string,
   }
@@ -52,13 +57,14 @@ export async function filterPkgsBySelectorObjects<T> (
   pkgs: Array<Package & T>,
   packageSelectors: PackageSelector[],
   opts: {
+    linkWorkspacePackages?: boolean,
     workspaceDir: string,
   }
 ): Promise<{
   selectedProjectsGraph: PackageGraph<T>,
   unmatchedFilters: string[],
 }> {
-  const { graph } = createPkgGraph<T>(pkgs)
+  const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
   if (packageSelectors && packageSelectors.length) {
     return filterGraph(graph, packageSelectors, {
       workspaceDir: opts.workspaceDir,

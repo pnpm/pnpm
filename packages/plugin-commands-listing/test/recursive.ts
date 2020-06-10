@@ -186,6 +186,57 @@ test('recursive list --filter', async (t) => {
     ]),
   }, [])
 
+  test('recursive list --filter link-workspace-packages=false', async (t) => {
+    const projects = preparePackages(t, [
+      {
+        dependencies: {
+          'is-positive': '1.0.0',
+          'project-2': 'workspace:*',
+        },
+        name: 'project-1',
+        version: '1.0.0',
+      },
+      {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+      {
+        name: 'is-positive',
+        version: '1.0.0',
+      },
+    ])
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      ...await readProjects(process.cwd(), [], { linkWorkspacePackages: false }),
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      recursive: true,
+      workspaceDir: process.cwd(),
+    })
+
+    const output = await list.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      ...await readProjects(process.cwd(), [
+        { includeDependencies: true, namePattern: 'project-1' },
+      ], { linkWorkspacePackages: false }),
+    }, [])
+
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
+      Legend: production dependency, optional only, dev only
+
+      project-1@1.0.0 ${path.resolve('project-1')}
+
+      dependencies:
+      is-positive 1.0.0
+      project-2 link:../project-2
+
+    `)
+    t.end()
+  })
+
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
 
