@@ -64,18 +64,7 @@ export default async function run (inputArgv: string[]) {
       }
       console.log(deprecationMsg)
     } else {
-      let errorMsg = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
-      if (unknownOptionsArray.length === 1) {
-        const unknownOption = unknownOptionsArray[0]
-        errorMsg += ` ${chalk.red(`Unknown option: '${unknownOption}'`)}`
-        const possiblyMeant = unknownOptions.get(unknownOption)
-        if (possiblyMeant) {
-          errorMsg += `\nDid you mean '${possiblyMeant}'?`
-        }
-      } else {
-        errorMsg += ` ${chalk.red(`Unknown options: ${unknownOptionsArray.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
-      }
-      console.error(errorMsg)
+      console.error(formatUnknownOptionsError(unknownOptions))
       console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
       process.exit(1)
     }
@@ -226,4 +215,20 @@ export default async function run (inputArgv: string[]) {
   if (!cmd) {
     process.exit(1)
   }
+}
+
+function formatUnknownOptionsError (unknownOptions: Map<string, string[]>) {
+  let output = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
+  const unknownOptionsArray = Array.from(unknownOptions.keys())
+  if (unknownOptionsArray.length === 1) {
+    const unknownOption = unknownOptionsArray[0]
+    output += ` ${chalk.red(`Unknown option: '${unknownOption}'`)}`
+    const didYouMeanOptions = unknownOptions.get(unknownOption)
+    if (didYouMeanOptions) {
+      output += `\nDid you mean '${didYouMeanOptions.join("', '")}'?`
+    }
+  } else {
+    output += ` ${chalk.red(`Unknown options: ${unknownOptionsArray.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+  }
+  return output
 }

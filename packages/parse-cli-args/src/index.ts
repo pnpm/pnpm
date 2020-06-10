@@ -14,7 +14,7 @@ export interface ParsedCliArgs {
   // tslint:disable-next-line: no-any
   options: Record<string, any>
   cmd: string | null
-  unknownOptions: Map<string, string | null>
+  unknownOptions: Map<string, string[]>
   workspaceDir?: string
 }
 
@@ -128,11 +128,14 @@ export default async function parseCliArgs (
   }
 
   const allowedOptions = new Set(Object.keys(types))
-  const unknownOptions = new Map<string, string | null>()
+  const unknownOptions = new Map<string, string[]>()
   const allowedOptionsArray = Array.from(allowedOptions)
   for (const cliOption of Object.keys(options)) {
     if (!allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
-      unknownOptions.set(cliOption, didYouMean(cliOption, allowedOptionsArray, { returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH }) as (string | null))
+      const didYouMeanOptions = didYouMean(cliOption, allowedOptionsArray, {
+        returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
+      }) as (string[] | null)
+      unknownOptions.set(cliOption, didYouMeanOptions ?? [])
     }
   }
   return {

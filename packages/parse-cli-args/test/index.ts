@@ -131,7 +131,7 @@ test('detect unknown options', async (t) => {
   }, ['install', '--save-dev', '--registry=https://example.com', '--qar', '--filter=packages'])
   t.deepEqual(
     Array.from(unknownOptions.entries()),
-    [['save-dev', null], ['qar', 'bar']]
+    [['save-dev', []], ['qar', ['bar']]]
   )
   t.end()
 })
