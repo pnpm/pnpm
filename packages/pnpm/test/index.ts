@@ -1,6 +1,7 @@
 ///<reference path="../../../typings/index.d.ts" />
 import './cli'
 import './complete.test'
+import './formatError.test'
 import './getOptionType.test'
 import './help.spec'
 import './install'

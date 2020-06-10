@@ -28,6 +28,7 @@ import R = require('ramda')
 import which = require('which')
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { getRCOptionsTypes } from './cmd'
+import { formatUnknownOptionsError } from './formatError'
 import './logging/fileLogger'
 import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
@@ -217,18 +218,3 @@ export default async function run (inputArgv: string[]) {
   }
 }
 
-function formatUnknownOptionsError (unknownOptions: Map<string, string[]>) {
-  let output = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
-  const unknownOptionsArray = Array.from(unknownOptions.keys())
-  if (unknownOptionsArray.length === 1) {
-    const unknownOption = unknownOptionsArray[0]
-    output += ` ${chalk.red(`Unknown option: '${unknownOption}'`)}`
-    const didYouMeanOptions = unknownOptions.get(unknownOption)
-    if (didYouMeanOptions) {
-      output += `\nDid you mean '${didYouMeanOptions.join("', '")}'?`
-    }
-  } else {
-    output += ` ${chalk.red(`Unknown options: ${unknownOptionsArray.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
-  }
-  return output
-}
