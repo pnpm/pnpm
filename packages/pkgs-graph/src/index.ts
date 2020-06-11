@@ -27,7 +27,9 @@ export type PackageNode<T> = {
   dependencies: string[],
 }
 
-export default function<T> (pkgs: Array<Package & T>): {
+export default function<T> (pkgs: Array<Package & T>, opts?: {
+  linkWorkspacePackages?: boolean
+}): {
   graph: {[id: string]: PackageNode<T>},
   unmatched: Array<{pkgName: string, range: string}>,
 } {
@@ -54,8 +56,9 @@ export default function<T> (pkgs: Array<Package & T>): {
       .map(depName => {
         let spec!: { fetchSpec: string, type: string }
         let rawSpec = dependencies[depName]
+        const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
-          if (rawSpec.startsWith('workspace:')) {
+          if (isWorkspaceSpec) {
             rawSpec = rawSpec.substr(10)
           }
           spec = npa.resolve(depName, rawSpec, pkg.dir)
@@ -77,6 +80,13 @@ export default function<T> (pkgs: Array<Package & T>): {
         if (!pkgs.length) return ''
         const versions = pkgs.filter(({ manifest }) => manifest.version)
           .map(pkg => pkg.manifest.version) as string[]
+
+        // explicitly check if false, backwards-compatibility (can be undefined)
+        const strictWorkspaceMatching = opts?.linkWorkspacePackages === false && !isWorkspaceSpec
+        if (strictWorkspaceMatching) {
+          unmatched.push({ pkgName: depName, range: rawSpec })
+          return ''
+        }
         if (versions.includes(rawSpec)) {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
           return matchedPkg!.dir

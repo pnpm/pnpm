@@ -146,6 +146,7 @@ export default async function run (inputArgv: string[]) {
       return
     }
     const filterResults = await filterPackages(allProjects, config.filter ?? [], {
+      linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,
     })
