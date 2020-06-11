@@ -85,11 +85,12 @@ export interface HeadlessOptions {
     rootDir: string,
   }>,
   hoistedAliases: {[depPath: string]: string[]}
+  publicHoistedAliases: Set<string>,
   hoistPattern?: string[],
+  publicHoistPattern?: string[],
   lockfileDir: string,
   modulesDir?: string,
   virtualStoreDir?: string,
-  shamefullyHoist: boolean,
   storeController: StoreController,
   sideEffectsCacheRead: boolean,
   sideEffectsCacheWrite: boolean,
@@ -128,8 +129,8 @@ export default async (opts: HeadlessOptions) => {
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-  const hoistedModulesDir = opts.shamefullyHoist
-    ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
+  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const publicHoistedModulesDir = rootModulesDir
 
   for (const { id, manifest, rootDir } of opts.projects) {
     if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
@@ -167,6 +168,8 @@ export default async (opts: HeadlessOptions) => {
         include: opts.include,
         lockfileDir,
         pruneStore: opts.pruneStore,
+        publicHoistedAliases: opts.publicHoistedAliases,
+        publicHoistedModulesDir: opts.publicHoistPattern && publicHoistedModulesDir || undefined,
         registries: opts.registries,
         skipped,
         storeController: opts.storeController,
@@ -240,18 +243,25 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  const rootImporterWithFlatModules = opts.hoistPattern && opts.projects.find(({ id }) => id === '.')
+  const rootImporterWithFlatModules = (opts.hoistPattern || opts.publicHoistPattern) && opts.projects.find(({ id }) => id === '.')
   let newHoistedAliases!: {[depPath: string]: string[]}
+  let newPubliclyHoistedAliases!: Set<string>
   if (rootImporterWithFlatModules) {
-    newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
+    const hoistResult = await hoist({
       lockfile: filteredLockfile,
       lockfileDir,
-      modulesDir: hoistedModulesDir,
+      privateHoistDir: hoistedModulesDir,
+      privateHoistPattern: opts.hoistPattern ?? [],
+      publicHoistDir: publicHoistedModulesDir,
+      publicHoistPattern: opts.publicHoistPattern ?? [],
       registries: opts.registries,
       virtualStoreDir,
     })
+    newHoistedAliases = hoistResult.hoistedDeps
+    newPubliclyHoistedAliases = hoistResult.publiclyHoistedAliases
   } else {
     newHoistedAliases = {}
+    newPubliclyHoistedAliases = new Set()
   }
 
   await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
@@ -302,7 +312,7 @@ export default async (opts: HeadlessOptions) => {
         })
     }
     const extraBinPaths = [...opts.extraBinPaths || []]
-    if (opts.hoistPattern && !opts.shamefullyHoist) {
+    if (opts.hoistPattern) {
       extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
     }
     await buildModules(graph, Array.from(directNodes), {
@@ -333,8 +343,9 @@ export default async (opts: HeadlessOptions) => {
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
+    publicHoistedAliases: Array.from(newPubliclyHoistedAliases),
+    publicHoistPattern: opts.publicHoistPattern,
     registries: opts.registries,
-    shamefullyHoist: opts.shamefullyHoist || false,
     skipped: Array.from(skipped),
     storeDir: opts.storeDir,
     virtualStoreDir,

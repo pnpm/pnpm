@@ -36,7 +36,9 @@ export default async function prune (
     dryRun?: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
     hoistedAliases: {[depPath: string]: string[]},
+    publicHoistedAliases: Set<string>,
     hoistedModulesDir?: string,
+    publicHoistedModulesDir?: string,
     wantedLockfile: Lockfile,
     currentLockfile: Lockfile,
     pruneStore?: boolean,
@@ -114,13 +116,18 @@ export default async function prune (
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-      if (opts.currentLockfile.packages && opts.hoistedModulesDir) {
-        const modulesDir = opts.hoistedModulesDir
+      if (
+        opts.currentLockfile.packages &&
+        opts.hoistedModulesDir &&
+        opts.publicHoistedModulesDir
+      ) {
         const binsDir = path.join(opts.hoistedModulesDir, '.bin')
         const prefix = path.join(opts.virtualStoreDir, '../..')
         await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
           if (opts.hoistedAliases[orphanDepPath]) {
             await Promise.all(opts.hoistedAliases[orphanDepPath].map((alias) => {
+              const modulesDir = opts.publicHoistedAliases.has(alias)
+                ? opts.publicHoistedModulesDir! : opts.hoistedModulesDir!
               return removeDirectDependency({
                 name: alias,
               }, {

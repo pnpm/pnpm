@@ -6,6 +6,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger from '@pnpm/logger'
+import matcher from '@pnpm/matcher'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { Registries } from '@pnpm/types'
@@ -14,16 +15,21 @@ import path = require('path')
 import R = require('ramda')
 
 export default async function hoistByLockfile (
-  match: (dependencyName: string) => boolean,
   opts: {
     lockfile: Lockfile,
     lockfileDir: string,
-    modulesDir: string,
+    privateHoistPattern: string[],
+    privateHoistDir: string,
+    publicHoistPattern: string[],
+    publicHoistDir: string,
     registries: Registries,
     virtualStoreDir: string,
   }
 ) {
-  if (!opts.lockfile.packages) return {}
+  if (!opts.lockfile.packages) return {
+    hoistedDeps: {},
+    publiclyHoistedAliases: new Set<string>(),
+  }
 
   const { directDeps, step } = lockfileWalker(
     opts.lockfile,
@@ -53,27 +59,52 @@ export default async function hoistByLockfile (
     ),
   ]
 
-  const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+  const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
+
+  const { hoistedDeps, publiclyHoistedAliases } = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     dryRun: false,
-    match,
-    modulesDir: opts.modulesDir,
+    getAliasHoistType,
+    privateHoistDir: opts.privateHoistDir,
+    publicHoistDir: opts.publicHoistDir,
   })
 
-  const bin = path.join(opts.modulesDir, '.bin')
+  await linkAllBins(opts.privateHoistDir)
+  if (publiclyHoistedAliases.size) {
+    await linkAllBins(opts.publicHoistDir)
+  }
+
+  return { hoistedDeps, publiclyHoistedAliases }
+}
+
+type GetAliasHoistType = (alias: string) => 'private' | 'public' | false
+
+function createGetAliasHoistType (
+  publicHoistPattern: string[],
+  privateHoistPattern: string[]
+): GetAliasHoistType {
+  const publicMatcher = matcher(publicHoistPattern)
+  const privateMatcher = matcher(privateHoistPattern)
+  return (alias: string) => {
+    if (publicMatcher(alias)) return 'public'
+    if (privateMatcher(alias)) return 'private'
+    return false
+  }
+}
+
+async function linkAllBins (modulesDir: string) {
+  const bin = path.join(modulesDir, '.bin')
   const warn: WarnFunction = (message, code) => {
     if (code === 'BINARIES_CONFLICT') return
-    logger.warn({ message, prefix: path.join(opts.modulesDir, '../..') })
+    logger.warn({ message, prefix: path.join(modulesDir, '../..') })
   }
   try {
-    await linkBins(opts.modulesDir, bin, { allowExoticManifests: true, warn })
+    await linkBins(modulesDir, bin, { allowExoticManifests: true, warn })
   } catch (err) {
     // Some packages generate their commands with lifecycle hooks.
     // At this stage, such commands are not generated yet.
     // For now, we don't hoist such generated commands.
     // Related issue: https://github.com/pnpm/pnpm/issues/2071
   }
-
-  return aliasesByDependencyPath
 }
 
 async function getDependencies (
@@ -131,13 +162,18 @@ async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
-    match: (dependencyName: string) => boolean,
-    modulesDir: string,
+    getAliasHoistType: GetAliasHoistType,
+    privateHoistDir: string,
+    publicHoistDir: string,
     dryRun: boolean,
   }
-): Promise<{[alias: string]: string[]}> {
-  const hoistedAliases = new Set(R.keys(currentSpecifiers))
-  const aliasesByDependencyPath: {[depPath: string]: string[]} = {}
+): Promise<{
+  hoistedDeps: Record<string, string[]>,
+  publiclyHoistedAliases: Set<string>,
+}> {
+  const hoistedAliasesSet = new Set(R.keys(currentSpecifiers))
+  const hoistedDeps: {[depPath: string]: string[]} = {}
+  const publiclyHoistedAliases = new Set<string>()
 
   await Promise.all(depNodes
     // sort by depth and then alphabetically
@@ -148,22 +184,26 @@ async function hoistGraph (
     // build the alias map and the id map
     .map((depNode) => {
       for (const childAlias of Object.keys(depNode.children)) {
-        if (!opts.match(childAlias)) continue
+        const hoist = opts.getAliasHoistType(childAlias)
+        if (!hoist) continue
         // if this alias has already been taken, skip it
-        if (hoistedAliases.has(childAlias)) {
+        if (hoistedAliasesSet.has(childAlias)) {
           continue
         }
-        hoistedAliases.add(childAlias)
+        hoistedAliasesSet.add(childAlias)
         const childPath = depNode.children[childAlias]
-        if (!aliasesByDependencyPath[childPath]) {
-          aliasesByDependencyPath[childPath] = []
+        if (!hoistedDeps[childPath]) {
+          hoistedDeps[childPath] = []
         }
-        aliasesByDependencyPath[childPath].push(childAlias)
+        hoistedDeps[childPath].push(childAlias)
+        if (hoist === 'public') {
+          publiclyHoistedAliases.add(childAlias)
+        }
       }
       return depNode
     })
     .map(async (depNode) => {
-      const pkgAliases = aliasesByDependencyPath[depNode.depPath]
+      const pkgAliases = hoistedDeps[depNode.depPath]
       if (!pkgAliases) {
         return
       }
@@ -171,10 +211,14 @@ async function hoistGraph (
       // TODO look how it is done in linkPackages
       if (!opts.dryRun) {
         await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependency(depNode.location, opts.modulesDir, pkgAlias)
+          if (publiclyHoistedAliases.has(pkgAlias)) {
+            await symlinkDependency(depNode.location, opts.publicHoistDir, pkgAlias)
+          } else {
+            await symlinkDependency(depNode.location, opts.privateHoistDir, pkgAlias)
+          }
         }))
       }
     }))
 
-  return aliasesByDependencyPath
+  return { hoistedDeps, publiclyHoistedAliases }
 }

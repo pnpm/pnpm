@@ -34,6 +34,7 @@ export function rcOptionsTypes () {
     'prefer-frozen-lockfile',
     'prefer-offline',
     'production',
+    'public-hoist-pattern',
     'registry',
     'reporter',
     'shamefully-flatten',
@@ -132,7 +133,7 @@ export function help () {
             name: '--no-hoist',
           },
           {
-            description: 'The subdeps will be hoisted into the root node_modules. Your code will have access to them',
+            description: 'All the subdeps will be hoisted into the root node_modules. Your code will have access to them',
             name: '--shamefully-hoist',
           },
           {
@@ -141,6 +142,10 @@ export function help () {
               The default pattern is * and matches everything. Hoisted packages can be required
               by any dependencies, so it is an emulation of a flat node_modules`,
             name: '--hoist-pattern <pattern>',
+          },
+          {
+            description: `Hoist all dependencies matching the pattern to the root of the modules directory`,
+            name: '--public-hoist-pattern <pattern>',
           },
           OPTIONS.storeDir,
           OPTIONS.virtualStoreDir,

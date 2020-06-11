@@ -33,6 +33,7 @@ export function rcOptionsTypes () {
     'pnpmfile',
     'prefer-offline',
     'production',
+    'public-hoist-pattern',
     'registry',
     'reporter',
     'save-dev',

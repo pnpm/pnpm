@@ -19,8 +19,10 @@ export default async function <T>(
   }
 ): Promise<{
   currentHoistPattern?: string[],
+  currentPublicHoistPattern?: string[],
   hoist?: boolean,
   hoistedAliases: { [depPath: string]: string[] },
+  publicHoistedAliases: Set<string>,
   projects: Array<{
     id: string,
   } & T & Required<ProjectOptions>>,
@@ -29,7 +31,6 @@ export default async function <T>(
   pendingBuilds: string[],
   registries: Registries | null | undefined,
   rootModulesDir: string,
-  shamefullyHoist?: boolean,
   skipped: Set<string>,
 }> {
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
@@ -37,6 +38,7 @@ export default async function <T>(
   const modules = await readModulesYaml(rootModulesDir)
   return {
     currentHoistPattern: modules?.hoistPattern || undefined,
+    currentPublicHoistPattern: modules?.publicHoistPattern || undefined,
     hoist: !modules ? undefined : Boolean(modules.hoistPattern),
     hoistedAliases: modules?.hoistedAliases || {},
     include: modules?.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
@@ -54,9 +56,9 @@ export default async function <T>(
           modulesDir,
         }
       })),
+    publicHoistedAliases: new Set(modules?.publicHoistedAliases ?? []),
     registries: modules?.registries && normalizeRegistries(modules.registries),
     rootModulesDir,
-    shamefullyHoist: modules?.shamefullyHoist || undefined,
     skipped: new Set(modules?.skipped || []),
   }
 }

@@ -20,7 +20,9 @@ export interface Modules {
   packageManager: string,
   pendingBuilds: string[],
   registries?: Registries, // nullable for backward compatibility
-  shamefullyHoist: boolean,
+  shamefullyHoist?: boolean, // for backward compatibility
+  publicHoistPattern?: string[]
+  publicHoistedAliases?: string[],
   skipped: string[],
   storeDir: string,
   virtualStoreDir: string,
@@ -57,6 +59,11 @@ export function write (
   if (!saveModules.hoistPattern) {
     // Because the YAML writer fails on undefined fields
     delete saveModules.hoistPattern
+  }
+  if (!saveModules.publicHoistPattern) {
+    delete saveModules.publicHoistPattern
+  }
+  if (!saveModules.hoistedAliases || !saveModules.hoistPattern && !saveModules.publicHoistPattern) {
     delete saveModules.hoistedAliases
   }
   // We should store the absolute virtual store directory path on Windows

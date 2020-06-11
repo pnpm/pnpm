@@ -14,7 +14,6 @@ import {
 import hoist from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
-import matcher from '@pnpm/matcher'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
@@ -63,6 +62,9 @@ export default async function linkPackages (
     hoistedAliases: {[depPath: string]: string[]},
     hoistedModulesDir: string,
     hoistPattern?: string[],
+    publicHoistedModulesDir: string,
+    publicHoistPattern?: string[],
+    publicHoistedAliases: Set<string>,
     include: IncludedDependencies,
     lockfileDir: string,
     makePartialCurrentLockfile: boolean,
@@ -84,6 +86,7 @@ export default async function linkPackages (
   depGraph: DependenciesGraph,
   newDepPaths: string[],
   newHoistedAliases: {[depPath: string]: string[]},
+  newPublicHoistedAliases: Set<string>,
   removedDepPaths: Set<string>,
   wantedLockfile: Lockfile,
 }> {
@@ -153,6 +156,8 @@ export default async function linkPackages (
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     pruneStore: opts.pruneStore,
+    publicHoistedAliases: opts.publicHoistedAliases,
+    publicHoistedModulesDir: opts.publicHoistPattern && opts.publicHoistedModulesDir || undefined,
     registries: opts.registries,
     skipped: opts.skipped,
     storeController: opts.storeController,
@@ -304,14 +309,22 @@ export default async function linkPackages (
   }
 
   let newHoistedAliases: Record<string, string[]> = {}
-  if (opts.hoistPattern && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
-    newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
+  let newPublicHoistedAliases!: Set<string>
+  if ((opts.hoistPattern || opts.publicHoistPattern) && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
+    const hoistResult = await hoist({
       lockfile: currentLockfile,
       lockfileDir: opts.lockfileDir,
-      modulesDir: opts.hoistedModulesDir,
+      privateHoistDir: opts.hoistedModulesDir,
+      privateHoistPattern: opts.hoistPattern ?? [],
+      publicHoistDir: opts.publicHoistedModulesDir,
+      publicHoistPattern: opts.publicHoistPattern ?? [],
       registries: opts.registries,
       virtualStoreDir: opts.virtualStoreDir,
     })
+    newHoistedAliases = hoistResult.hoistedDeps
+    newPublicHoistedAliases = hoistResult.publiclyHoistedAliases
+  } else {
+    newPublicHoistedAliases = new Set()
   }
 
   if (!opts.dryRun) {
@@ -334,6 +347,7 @@ export default async function linkPackages (
     depGraph,
     newDepPaths,
     newHoistedAliases,
+    newPublicHoistedAliases,
     removedDepPaths,
     wantedLockfile: newWantedLockfile,
   }

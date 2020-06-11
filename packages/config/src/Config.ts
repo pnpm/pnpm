@@ -99,6 +99,7 @@ export interface Config {
   pnpmfile: string,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone',
   hoistPattern?: string[],
+  publicHoistPattern?: string[],
   useStoreServer?: boolean,
   useRunningStoreServer?: boolean,
   workspaceConcurrency: number,

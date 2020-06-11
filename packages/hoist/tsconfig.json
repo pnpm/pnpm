@@ -25,6 +25,9 @@
       "path": "../lockfile-walker"
     },
     {
+      "path": "../matcher"
+    },
+    {
       "path": "../symlink-dependency"
     },
     {

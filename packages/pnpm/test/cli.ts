@@ -112,10 +112,10 @@ test('command does not fail when deprecated options are used', async (t) => {
   t.ok(stdout.toString().includes("Deprecated options: 'lock', 'independent-leaves'"))
 })
 
-test('adding new dep does not fail if node_modules was created with --hoist-pattern=eslint-* and --shamefully-hoist', async (t: tape.Test) => {
+test('adding new dep does not fail if node_modules was created with --public-hoist-pattern=eslint-*', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm(['add', 'is-positive', '--hoist-pattern=eslint-*', '--shamefully-hoist'])
+  await execPnpm(['add', 'is-positive', '--public-hoist-pattern=eslint-*'])
 
   t.equal(execPnpmSync(['add', 'is-negative', '--no-hoist']).status, 1)
   t.equal(execPnpmSync(['add', 'is-negative', '--no-shamefully-hoist']).status, 1)

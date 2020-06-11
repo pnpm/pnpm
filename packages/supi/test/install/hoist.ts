@@ -32,12 +32,12 @@ test('should hoist dependencies', async (t) => {
   await project.isExecutable('.pnpm/node_modules/.bin/mime')
 })
 
-test('should shamefully hoist dependencies', async (t) => {
+test('should hoist dependencies to the root of node_modules when publicHoistPattern is used', async (t) => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({},
     ['express', '@foo/has-dep-from-same-scope'],
-    await testDefaults({ fastUnpack: false, hoistPattern: '*', shamefullyHoist: true }))
+    await testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
 
   await project.has('express')
   await project.has('debug')
@@ -48,6 +48,24 @@ test('should shamefully hoist dependencies', async (t) => {
 
   // should also hoist bins
   await project.isExecutable('.bin/mime')
+})
+
+test('should hoist some dependencies to the root of node_modules when publicHoistPattern is used and others to the virtual store directory', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({},
+    ['express', '@foo/has-dep-from-same-scope'],
+    await testDefaults({ fastUnpack: false, hoistPattern: '*', publicHoistPattern: '@foo/*' }))
+
+  await project.has('express')
+  await project.has('.pnpm/node_modules/debug')
+  await project.has('.pnpm/node_modules/cookie')
+  await project.has('.pnpm/node_modules/mime')
+  await project.has('@foo/has-dep-from-same-scope')
+  await project.has('@foo/no-deps')
+
+  // should also hoist bins
+  await project.isExecutable('.pnpm/node_modules/.bin/mime')
 })
 
 test('should hoist dependencies by pattern', async (t) => {
@@ -167,8 +185,7 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
     }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err['code'], 'ERR_PNPM_HOISTING_NOT_WANTED') // tslint:disable-line:no-string-literal
-    t.ok(err.message.indexOf('This modules directory was created without the --hoist-pattern option.') === 0)
+    t.equal(err['code'], 'ERR_PNPM_HOIST_PATTERN_DIFF') // tslint:disable-line:no-string-literal
   }
 })
 
@@ -185,8 +202,7 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
     })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err['code'], 'ERR_PNPM_HOISTING_WANTED') // tslint:disable-line:no-string-literal
-    t.ok(err.message.indexOf('This modules directory was created using the --hoist-pattern option.') === 0)
+    t.equal(err['code'], 'ERR_PNPM_HOIST_PATTERN_DIFF') // tslint:disable-line:no-string-literal
   }
 
   // Instatll doesn't fail if the value of hoistPattern isn't forced

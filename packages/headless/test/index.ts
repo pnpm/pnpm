@@ -537,12 +537,12 @@ test('installing with hoistPattern=*', async (t) => {
   t.end()
 })
 
-test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
+test('installing with publicHoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
   await rimraf(path.join(prefix, 'node_modules'))
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*', shamefullyHoist: true }))
+  await headless(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: '*' }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')

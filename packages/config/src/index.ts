@@ -60,6 +60,7 @@ export const types = Object.assign({
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
   'production': [null, true],
+  'public-hoist-pattern': Array,
   'publish-branch': String,
   'reporter': String,
   'save-peer': Boolean,
@@ -149,7 +150,6 @@ export default async (
     'registry': npmDefaults.registry,
     'save-peer': false,
     'save-workspace-protocol': true,
-    'shamefully-hoist': false,
     'shared-workspace-lockfile': true,
     'shared-workspace-shrinkwrap': true,
     'shrinkwrap': npmDefaults.shrinkwrap,
@@ -310,6 +310,14 @@ export default async (
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
+  }
+  switch (pnpmConfig.shamefullyHoist) {
+    case false:
+      delete pnpmConfig.publicHoistPattern
+      break
+    case true:
+      pnpmConfig.publicHoistPattern = ['*']
+      break
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {

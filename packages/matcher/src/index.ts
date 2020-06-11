@@ -2,7 +2,10 @@ import escapeStringRegexp = require('escape-string-regexp')
 
 export default function matcher (patterns: string[] | string) {
   if (typeof patterns === 'string') return matcherFromPattern(patterns)
-  if (patterns.length === 0) return matcherFromPattern(patterns[0])
+  switch (patterns.length) {
+    case 0: return () => false
+    case 1: return matcherFromPattern(patterns[0])
+  }
   const matchArr = patterns.map(matcherFromPattern)
   return (input: string) => matchArr.some((match) => match(input))
 }
