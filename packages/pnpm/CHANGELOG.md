@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.1.7
+
+### Patch Changes
+
+- When `link-workspace-packages` is `false`, filtering by dependencies/dependents should ignore any packages that are not specified via `workspace:` ranges (#2625).
+- Print a "Did you mean" line under the unknown option error with any option that look similar to the typed one (#2603).
+
 ## 5.1.6
 
 ### Patch Changes

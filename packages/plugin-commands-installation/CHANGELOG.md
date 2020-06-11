@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.13
+
+### Patch Changes
+
+- Updated dependencies [e37a5a175]
+  - @pnpm/filter-workspace-packages@2.1.0
+  - @pnpm/plugin-commands-rebuild@2.0.9
+
 ## 2.0.12
 
 ### Patch Changes

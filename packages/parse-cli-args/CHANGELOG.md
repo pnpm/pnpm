@@ -1,5 +1,13 @@
 # @pnpm/parse-cli-args
 
+## 2.0.0
+
+### Major Changes
+
+- 561f38955: `unknownOptions` in the result object is a `Map` instead of an `Array`.
+
+  `unknownOptions` is a map of unknown options to options that are similar to the unknown options.
+
 ## 1.1.0
 
 ### Minor Changes

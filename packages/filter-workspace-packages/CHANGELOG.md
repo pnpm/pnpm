@@ -1,5 +1,16 @@
 # @pnpm/filter-workspace-packages
 
+## 2.1.0
+
+### Minor Changes
+
+- e37a5a175: Support linkedWorkspacePackages=false.
+
+### Patch Changes
+
+- Updated dependencies [e37a5a175]
+  - pkgs-graph@5.2.0
+
 ## 2.0.18
 
 ### Patch Changes
