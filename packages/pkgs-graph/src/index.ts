@@ -78,14 +78,14 @@ export default function<T> (pkgs: Array<Package & T>, opts?: {
 
         const pkgs = R.values(pkgMap).filter(pkg => pkg.manifest.name === depName)
         if (!pkgs.length) return ''
-        let versions = pkgs.filter(({ manifest }) => manifest.version)
+        const versions = pkgs.filter(({ manifest }) => manifest.version)
           .map(pkg => pkg.manifest.version) as string[]
 
         // explicitly check if false, backwards-compatibility (can be undefined)
         const strictWorkspaceMatching = opts?.linkWorkspacePackages === false && !isWorkspaceSpec
         if (strictWorkspaceMatching) {
-          // keep any versions that do not equal the raw spec
-          versions = versions.filter(v => v !== rawSpec)
+          unmatched.push({ pkgName: depName, range: rawSpec })
+          return ''
         }
         if (versions.includes(rawSpec)) {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
