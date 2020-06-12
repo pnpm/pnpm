@@ -1,5 +1,12 @@
 # supi
 
+## 0.40.1
+
+### Patch Changes
+
+- @pnpm/package-requester@12.0.4
+- @pnpm/headless@13.0.6
+
 ## 0.40.0
 
 ### Minor Changes

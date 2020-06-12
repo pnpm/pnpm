@@ -37,7 +37,7 @@
     "@pnpm/filter-workspace-packages": "workspace:2.1.0",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-outdated": "link:",
-    "@pnpm/prepare": "workspace:0.0.4",
+    "@pnpm/prepare": "workspace:0.0.5",
     "@pnpm/types": "workspace:6.0.0",
     "@types/common-tags": "^1.8.0",
     "@types/lru-cache": "^5.1.0",

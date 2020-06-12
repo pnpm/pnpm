@@ -37,7 +37,7 @@
     "@pnpm/logger": "^3.2.2",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-listing": "link:",
-    "@pnpm/prepare": "workspace:0.0.4",
+    "@pnpm/prepare": "workspace:0.0.5",
     "@types/common-tags": "^1.8.0",
     "@types/mz": "^2.7.1",
     "@types/ramda": "^0.27.6",

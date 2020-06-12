@@ -1,5 +1,12 @@
 # @pnpm/default-fetcher
 
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/git-fetcher@3.0.2
+- @pnpm/tarball-fetcher@7.1.0
+
 ## 6.0.4
 
 ### Patch Changes

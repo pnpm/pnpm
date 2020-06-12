@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 1.0.3
+
+### Patch Changes
+
+- 492805ee3: Strip byte order mark (BOM) before parsing the content of a package manifest (package.json).
+
 ## 1.0.2
 
 ### Patch Changes

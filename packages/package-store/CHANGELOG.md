@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [492805ee3]
+  - @pnpm/cafs@1.0.3
+  - @pnpm/package-requester@12.0.4
+
 ## 9.0.5
 
 ### Patch Changes

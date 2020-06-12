@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:2.1.0",
     "@pnpm/plugin-commands-publishing": "link:",
-    "@pnpm/prepare": "workspace:0.0.4",
+    "@pnpm/prepare": "workspace:0.0.5",
     "@types/cross-spawn": "^6.0.2",
     "@types/lru-cache": "^5.1.0",
     "@types/mz": "^2.7.1",
