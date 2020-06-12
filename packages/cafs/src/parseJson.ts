@@ -1,13 +1,14 @@
 import { DeferredManifestPromise } from '@pnpm/fetcher-base'
 import concatStream = require('concat-stream')
 import { PassThrough } from 'stream'
+import stripBom = require('strip-bom')
 
 export function parseJsonBuffer (
   buffer: Buffer,
   deferred: DeferredManifestPromise
 ) {
   try {
-    deferred.resolve(JSON.parse(buffer.toString()))
+    deferred.resolve(JSON.parse(stripBom(buffer.toString())))
   } catch (err) {
     deferred.reject(err)
   }

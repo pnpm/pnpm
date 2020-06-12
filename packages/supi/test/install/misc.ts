@@ -1135,3 +1135,16 @@ test('globally installed package which don\'t have bins should log warning messa
 
   t.end()
 })
+
+// Covers issue: https://github.com/pnpm/pnpm/issues/2629
+test('installing a package that has a manifest with byte order mark (BOM)', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await install({
+    dependencies: {
+      'paralleljs': '0.2.1',
+    },
+  }, await testDefaults())
+
+  await project.has('paralleljs')
+})
