@@ -768,7 +768,7 @@ importers:
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/types': 'link:../types'
-      '@zkochan/cmd-shim': 4.3.0
+      '@zkochan/cmd-shim': 5.0.0
       is-subdir: 1.1.1
       is-windows: 1.0.2
       mz: 2.7.0
@@ -805,7 +805,7 @@ importers:
       '@types/ramda': ^0.27.6
       '@types/sinon': ^9.0.4
       '@types/tape': ^4.13.0
-      '@zkochan/cmd-shim': ^4.3.0
+      '@zkochan/cmd-shim': ^5.0.0
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
       mz: ^2.7.0
@@ -3850,15 +3850,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==
-  /@zkochan/cmd-shim/4.3.0:
+  /@zkochan/cmd-shim/5.0.0:
     dependencies:
       is-windows: 1.0.2
-      make-dir: 3.1.0
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10.13'
     resolution:
-      integrity: sha512-i3eTvq0VnWRb9U2Hj22unmiN5Gg+J776xhrr/fAtuaf5xL+/qf4QIu+6tQgo9Soll489dWF4yJmzXJ8pv8oUiw==
+      integrity: sha512-9hBJPDVzyfoKvwG1x5BpL4djQt7yCWpnpGgomtvZWaMcB6C5UWtfOZBf3f/oYXVhRK89mKgfbpiD/JhwnbSQ1Q==
   /@zkochan/istanbul-reports/3.0.2:
     dependencies:
       html-escaper: 2.0.2
