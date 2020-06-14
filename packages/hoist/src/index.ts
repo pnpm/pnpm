@@ -9,7 +9,7 @@ import logger from '@pnpm/logger'
 import matcher from '@pnpm/matcher'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
-import { HoistedDependencies, Registries } from '@pnpm/types'
+import { HoistedDependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import path = require('path')
 import R = require('ramda')
@@ -22,7 +22,6 @@ export default async function hoistByLockfile (
     privateHoistedModulesDir: string,
     publicHoistPattern: string[],
     publicHoistedModulesDir: string,
-    registries: Registries,
     virtualStoreDir: string,
   }
 ) {
@@ -43,17 +42,8 @@ export default async function hoistByLockfile (
         }, {}),
       depPath: '',
       depth: -1,
-      location: '',
     },
-    ...await getDependencies(
-      step,
-      0,
-      {
-        lockfileDir: opts.lockfileDir,
-        registries: opts.registries,
-        virtualStoreDir: opts.virtualStoreDir,
-      }
-    ),
+    ...await getDependencies(step, 0),
   ]
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
@@ -61,8 +51,11 @@ export default async function hoistByLockfile (
   const hoistedDependencies = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     dryRun: false,
     getAliasHoistType,
+    lockfile: opts.lockfile,
+    lockfileDir: opts.lockfileDir,
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
+    virtualStoreDir: opts.virtualStoreDir,
   })
 
   await linkAllBins(opts.privateHoistedModulesDir)
@@ -103,18 +96,11 @@ async function linkAllBins (modulesDir: string) {
 
 async function getDependencies (
   step: LockfileWalkerStep,
-  depth: number,
-  opts: {
-    registries: Registries,
-    lockfileDir: string,
-    virtualStoreDir: string,
-  }
+  depth: number
 ): Promise<Dependency[]> {
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {
-    const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
@@ -126,7 +112,6 @@ async function getDependencies (
       }, {}),
       depPath,
       depth,
-      location: path.join(modules, pkgName),
     })
 
     nextSteps.push(next())
@@ -140,13 +125,12 @@ async function getDependencies (
 
   return (
     await Promise.all(
-      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1, opts))
+      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1))
     )
   ).reduce((acc, deps) => [...acc, ...deps], deps)
 }
 
 export interface Dependency {
-  location: string,
   children: {[alias: string]: string},
   depPath: string,
   depth: number,
@@ -156,54 +140,57 @@ async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
+    dryRun: boolean,
     getAliasHoistType: GetAliasHoistType,
+    lockfile: Lockfile,
+    lockfileDir: string,
     privateHoistedModulesDir: string,
     publicHoistedModulesDir: string,
-    dryRun: boolean,
+    virtualStoreDir: string,
   }
 ): Promise<HoistedDependencies> {
-  const hoistedAliasesSet = new Set(R.keys(currentSpecifiers))
-  const hoistedDeps: HoistedDependencies = {}
+  const hoistedAliases = new Set(R.keys(currentSpecifiers))
+  const hoistedDependencies: HoistedDependencies = {}
 
-  await Promise.all(depNodes
+  depNodes
     // sort by depth and then alphabetically
     .sort((a, b) => {
       const depthDiff = a.depth - b.depth
       return depthDiff === 0 ? a.depPath.localeCompare(b.depPath) : depthDiff
     })
     // build the alias map and the id map
-    .map((depNode) => {
+    .forEach((depNode) => {
       for (const childAlias of Object.keys(depNode.children)) {
         const hoist = opts.getAliasHoistType(childAlias)
         if (!hoist) continue
         // if this alias has already been taken, skip it
-        if (hoistedAliasesSet.has(childAlias)) {
+        if (hoistedAliases.has(childAlias)) {
           continue
         }
-        hoistedAliasesSet.add(childAlias)
+        hoistedAliases.add(childAlias)
         const childPath = depNode.children[childAlias]
-        if (!hoistedDeps[childPath]) {
-          hoistedDeps[childPath] = {}
+        if (!hoistedDependencies[childPath]) {
+          hoistedDependencies[childPath] = {}
         }
-        hoistedDeps[childPath][childAlias] = hoist
+        hoistedDependencies[childPath][childAlias] = hoist
       }
-      return depNode
     })
-    .map(async (depNode) => {
-      const pkgAliases = hoistedDeps[depNode.depPath]
-      if (!pkgAliases) {
-        return
-      }
-      // TODO when putting logs back in for hoisted packages, you've to put back the condition inside the map,
-      // TODO look how it is done in linkPackages
-      if (!opts.dryRun) {
+
+  if (opts.dryRun) return hoistedDependencies
+
+  await Promise.all(
+    Object.entries(hoistedDependencies)
+      .map(async ([depPath, pkgAliases]) => {
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
+          const pkgName = nameVerFromPkgSnapshot(depPath, opts.lockfile.packages![depPath]).name
+          const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+          const location = path.join(modules, pkgName)
           const targetDir = hoistType === 'public'
             ? opts.publicHoistedModulesDir : opts.privateHoistedModulesDir
-          await symlinkDependency(depNode.location, targetDir, pkgAlias)
+          await symlinkDependency(location, targetDir, pkgAlias)
         }))
       }
-    }))
+    ))
 
-  return hoistedDeps
+  return hoistedDependencies
 }

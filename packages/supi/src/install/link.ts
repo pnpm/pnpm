@@ -318,7 +318,6 @@ export default async function linkPackages (
       privateHoistPattern: opts.hoistPattern ?? [],
       publicHoistedModulesDir: opts.publicHoistedModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
-      registries: opts.registries,
       virtualStoreDir: opts.virtualStoreDir,
     })
   } else {

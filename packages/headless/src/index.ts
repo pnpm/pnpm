@@ -251,7 +251,6 @@ export default async (opts: HeadlessOptions) => {
       privateHoistPattern: opts.hoistPattern ?? [],
       publicHoistedModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
-      registries: opts.registries,
       virtualStoreDir,
     })
   } else {
