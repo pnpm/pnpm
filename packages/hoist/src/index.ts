@@ -19,9 +19,9 @@ export default async function hoistByLockfile (
     lockfile: Lockfile,
     lockfileDir: string,
     privateHoistPattern: string[],
-    privateHoistDir: string,
+    privateHoistedModulesDir: string,
     publicHoistPattern: string[],
-    publicHoistDir: string,
+    publicHoistedModulesDir: string,
     registries: Registries,
     virtualStoreDir: string,
   }
@@ -61,11 +61,11 @@ export default async function hoistByLockfile (
   const hoistedDependencies = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     dryRun: false,
     getAliasHoistType,
-    privateHoistDir: opts.privateHoistDir,
-    publicHoistDir: opts.publicHoistDir,
+    privateHoistedModulesDir: opts.privateHoistedModulesDir,
+    publicHoistedModulesDir: opts.publicHoistedModulesDir,
   })
 
-  await linkAllBins(opts.privateHoistDir)
+  await linkAllBins(opts.privateHoistedModulesDir)
 
   return hoistedDependencies
 }
@@ -157,8 +157,8 @@ async function hoistGraph (
   currentSpecifiers: {[alias: string]: string},
   opts: {
     getAliasHoistType: GetAliasHoistType,
-    privateHoistDir: string,
-    publicHoistDir: string,
+    privateHoistedModulesDir: string,
+    publicHoistedModulesDir: string,
     dryRun: boolean,
   }
 ): Promise<HoistedDependencies> {
@@ -199,7 +199,7 @@ async function hoistGraph (
       if (!opts.dryRun) {
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'
-            ? opts.publicHoistDir : opts.privateHoistDir
+            ? opts.publicHoistedModulesDir : opts.privateHoistedModulesDir
           await symlinkDependency(depNode.location, targetDir, pkgAlias)
         }))
       }

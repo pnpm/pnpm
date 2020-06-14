@@ -247,9 +247,9 @@ export default async (opts: HeadlessOptions) => {
     newHoistedDependencies = await hoist({
       lockfile: filteredLockfile,
       lockfileDir,
-      privateHoistDir: hoistedModulesDir,
+      privateHoistedModulesDir: hoistedModulesDir,
       privateHoistPattern: opts.hoistPattern ?? [],
-      publicHoistDir: publicHoistedModulesDir,
+      publicHoistedModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
       registries: opts.registries,
       virtualStoreDir,
