@@ -40,7 +40,6 @@ export interface PnpmContext<T> {
   hoistPattern: string[] | undefined,
   hoistedModulesDir: string,
   publicHoistPattern: string[] | undefined,
-  publicHoistedModulesDir: string,
   lockfileDir: string,
   virtualStoreDir: string,
   skipped: Set<string>,
@@ -143,7 +142,6 @@ export default async function getContext<T> (
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
     projects: importersContext.projects,
-    publicHoistedModulesDir: importersContext.rootModulesDir,
     publicHoistPattern: opts.publicHoistPattern,
     registries: {
       ...opts.registries,
@@ -297,7 +295,6 @@ export interface PnpmSingleContext {
   modulesFile: Modules | null,
   pendingBuilds: string[],
   publicHoistPattern: string[] | undefined,
-  publicHoistedModulesDir: string,
   registries: Registries,
   rootModulesDir: string,
   lockfileDir: string,
@@ -408,7 +405,6 @@ export async function getContextForSingleImporter (
     modulesFile: modules,
     pendingBuilds,
     prefix: opts.dir,
-    publicHoistedModulesDir: rootModulesDir,
     publicHoistPattern: opts.publicHoistPattern,
     registries: {
       ...opts.registries,
