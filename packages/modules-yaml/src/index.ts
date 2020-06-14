@@ -44,11 +44,19 @@ export async function read (modulesDir: string): Promise<Modules | null> {
   } else if (!path.isAbsolute(modules.virtualStoreDir)) {
     modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
   }
-  if (modules.shamefullyHoist === true) {
-    if (!modules.publicHoistPattern) {
-      modules.publicHoistPattern = ['*']
-    }
-    modules.publicHoistedAliases = Object.keys(modules.hoistedAliases ?? {})
+  switch (modules.shamefullyHoist) {
+    case true:
+      if (!modules.publicHoistPattern) {
+        modules.publicHoistPattern = ['*']
+      }
+      modules.publicHoistedAliases = Object.keys(modules.hoistedAliases ?? {})
+      break
+    case false:
+      if (!modules.publicHoistPattern) {
+        modules.publicHoistPattern = []
+      }
+      modules.publicHoistedAliases = []
+      break
   }
   return modules
 }
