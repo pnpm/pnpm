@@ -36,3 +36,14 @@ test('write() and read()', async (t) => {
 
   t.end()
 })
+
+test('backward compatible read', async (t) => {
+  const modulesYaml = await read(path.join(__dirname, 'fixtures/old-shamefully-hoist'))
+  t.deepEqual(modulesYaml.publicHoistPattern, ['*'])
+  t.deepEqual(modulesYaml.publicHoistedAliases, [
+    '/accepts/1.3.7',
+    '/array-flatten/1.1.1',
+    '/body-parser/1.19.0',
+  ])
+  t.end()
+})

@@ -1,0 +1,23 @@
+hoistPattern:
+  - '*'
+hoistedAliases:
+  /accepts/1.3.7:
+    - accepts
+  /array-flatten/1.1.1:
+    - array-flatten
+  /body-parser/1.19.0:
+    - body-parser
+included:
+  dependencies: true
+  devDependencies: true
+  optionalDependencies: true
+layoutVersion: 4
+packageManager: pnpm@5.1.8
+pendingBuilds: []
+registries:
+  default: 'https://registry.npmjs.org/'
+shamefullyHoist: true
+skipped: []
+storeDir: /home/zoli/.pnpm-store/v3
+virtualStoreDir: .pnpm
+

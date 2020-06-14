@@ -30,20 +30,27 @@ export interface Modules {
 
 export async function read (modulesDir: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
+  let modules!: Modules
   try {
-    const modules = await readYamlFile<Modules>(modulesYamlPath)
-    if (!modules.virtualStoreDir) {
-      modules.virtualStoreDir = path.join(modulesDir, '.pnpm')
-    } else if (!path.isAbsolute(modules.virtualStoreDir)) {
-      modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
-    }
-    return modules
+    modules = await readYamlFile<Modules>(modulesYamlPath)
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
     return null
   }
+  if (!modules.virtualStoreDir) {
+    modules.virtualStoreDir = path.join(modulesDir, '.pnpm')
+  } else if (!path.isAbsolute(modules.virtualStoreDir)) {
+    modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
+  }
+  if (modules.shamefullyHoist === true) {
+    if (!modules.publicHoistPattern) {
+      modules.publicHoistPattern = ['*']
+    }
+    modules.publicHoistedAliases = Object.keys(modules.hoistedAliases ?? {})
+  }
+  return modules
 }
 
 const YAML_OPTS = { sortKeys: true }
