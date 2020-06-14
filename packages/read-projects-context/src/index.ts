@@ -1,7 +1,7 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
 import normalizeRegistries from '@pnpm/normalize-registries'
-import { DependenciesField, Registries } from '@pnpm/types'
+import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
 import path = require('path')
 import realpathMissing = require('realpath-missing')
 
@@ -21,8 +21,7 @@ export default async function <T>(
   currentHoistPattern?: string[],
   currentPublicHoistPattern?: string[],
   hoist?: boolean,
-  hoistedAliases: { [depPath: string]: string[] },
-  publicHoistedAliases: Set<string>,
+  hoistedDependencies: HoistedDependencies,
   projects: Array<{
     id: string,
   } & T & Required<ProjectOptions>>,
@@ -40,7 +39,7 @@ export default async function <T>(
     currentHoistPattern: modules?.hoistPattern || undefined,
     currentPublicHoistPattern: modules?.publicHoistPattern || undefined,
     hoist: !modules ? undefined : Boolean(modules.hoistPattern),
-    hoistedAliases: modules?.hoistedAliases || {},
+    hoistedDependencies: modules?.hoistedDependencies ?? {},
     include: modules?.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
     modules,
     pendingBuilds: modules?.pendingBuilds || [],
@@ -56,7 +55,6 @@ export default async function <T>(
           modulesDir,
         }
       })),
-    publicHoistedAliases: new Set(modules?.publicHoistedAliases ?? []),
     registries: modules?.registries && normalizeRegistries(modules.registries),
     rootModulesDir,
     skipped: new Set(modules?.skipped || []),

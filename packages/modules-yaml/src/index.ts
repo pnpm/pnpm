@@ -1,4 +1,4 @@
-import { DependenciesField, Registries } from '@pnpm/types'
+import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
 import isWindows = require('is-windows')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
@@ -13,8 +13,9 @@ export type IncludedDependencies = {
 }
 
 export interface Modules {
-  hoistedAliases: {[depPath: string]: string[]}
-  hoistPattern?: string[]
+  hoistedAliases?: {[depPath: string]: string[]}, // for backward compatibility
+  hoistedDependencies: HoistedDependencies,
+  hoistPattern?: string[],
   included: IncludedDependencies,
   layoutVersion: number,
   packageManager: string,
@@ -22,7 +23,6 @@ export interface Modules {
   registries?: Registries, // nullable for backward compatibility
   shamefullyHoist?: boolean, // for backward compatibility
   publicHoistPattern?: string[]
-  publicHoistedAliases?: string[],
   skipped: string[],
   storeDir: string,
   virtualStoreDir: string,
@@ -49,13 +49,29 @@ export async function read (modulesDir: string): Promise<Modules | null> {
       if (!modules.publicHoistPattern) {
         modules.publicHoistPattern = ['*']
       }
-      modules.publicHoistedAliases = Object.keys(modules.hoistedAliases ?? {})
+      if (modules.hoistedAliases && !modules.hoistedDependencies) {
+        modules.hoistedDependencies = {}
+        for (const depPath of Object.keys(modules.hoistedAliases)) {
+          modules.hoistedDependencies[depPath] = {}
+          for (const alias of modules.hoistedAliases[depPath]) {
+            modules.hoistedDependencies[depPath][alias] = 'public'
+          }
+        }
+      }
       break
     case false:
       if (!modules.publicHoistPattern) {
         modules.publicHoistPattern = []
       }
-      modules.publicHoistedAliases = []
+      if (modules.hoistedAliases && !modules.hoistedDependencies) {
+        modules.hoistedDependencies = {}
+        for (const depPath of Object.keys(modules.hoistedAliases)) {
+          modules.hoistedDependencies[depPath] = {}
+          for (const alias of modules.hoistedAliases[depPath]) {
+            modules.hoistedDependencies[depPath][alias] = 'private'
+          }
+        }
+      }
       break
   }
   return modules

@@ -51,7 +51,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { DependencyManifest, ProjectManifest, Registries } from '@pnpm/types'
+import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
 import dp = require('dependency-path')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
@@ -84,8 +84,7 @@ export interface HeadlessOptions {
     pruneDirectDependencies?: boolean,
     rootDir: string,
   }>,
-  hoistedAliases: {[depPath: string]: string[]}
-  publicHoistedAliases: Set<string>,
+  hoistedDependencies: HoistedDependencies,
   hoistPattern?: string[],
   publicHoistPattern?: string[],
   lockfileDir: string,
@@ -163,12 +162,11 @@ export default async (opts: HeadlessOptions) => {
       {
         currentLockfile,
         dryRun: false,
-        hoistedAliases: opts.hoistedAliases,
+        hoistedDependencies: opts.hoistedDependencies,
         hoistedModulesDir: opts.hoistPattern && hoistedModulesDir || undefined,
         include: opts.include,
         lockfileDir,
         pruneStore: opts.pruneStore,
-        publicHoistedAliases: opts.publicHoistedAliases,
         publicHoistedModulesDir: opts.publicHoistPattern && publicHoistedModulesDir || undefined,
         registries: opts.registries,
         skipped,
@@ -244,10 +242,9 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const rootImporterWithFlatModules = (opts.hoistPattern || opts.publicHoistPattern) && opts.projects.find(({ id }) => id === '.')
-  let newHoistedAliases!: {[depPath: string]: string[]}
-  let newPubliclyHoistedAliases!: Set<string>
+  let newHoistedDependencies!: HoistedDependencies
   if (rootImporterWithFlatModules) {
-    const hoistResult = await hoist({
+    newHoistedDependencies = await hoist({
       lockfile: filteredLockfile,
       lockfileDir,
       privateHoistDir: hoistedModulesDir,
@@ -257,11 +254,8 @@ export default async (opts: HeadlessOptions) => {
       registries: opts.registries,
       virtualStoreDir,
     })
-    newHoistedAliases = hoistResult.hoistedDeps
-    newPubliclyHoistedAliases = hoistResult.publiclyHoistedAliases
   } else {
-    newHoistedAliases = {}
-    newPubliclyHoistedAliases = new Set()
+    newHoistedDependencies = {}
   }
 
   await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
@@ -337,13 +331,12 @@ export default async (opts: HeadlessOptions) => {
   }
   await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
   await writeModulesYaml(rootModulesDir, {
-    hoistedAliases: newHoistedAliases,
+    hoistedDependencies: newHoistedDependencies,
     hoistPattern: opts.hoistPattern,
     included: opts.include,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
-    publicHoistedAliases: Array.from(newPubliclyHoistedAliases),
     publicHoistPattern: opts.publicHoistPattern,
     registries: opts.registries,
     skipped: Array.from(skipped),

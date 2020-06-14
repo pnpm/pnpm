@@ -172,13 +172,12 @@ export async function rebuild (
 
   await writeModulesYaml(ctx.rootModulesDir, {
     ...ctx.modulesFile,
-    hoistedAliases: ctx.hoistedAliases,
+    hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
-    publicHoistedAliases: Array.from(ctx.publicHoistedAliases),
     publicHoistPattern: ctx.publicHoistPattern,
     registries: ctx.registries,
     skipped: Array.from(ctx.skipped),

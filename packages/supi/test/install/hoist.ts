@@ -131,7 +131,7 @@ test('should rehoist when uninstalling a package', async (t: tape.Test) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases[`/debug/2.6.9`], ['debug'], 'new hoisted debug added to .modules.yaml')
+  t.deepEqual(modules!.hoistedDependencies[`/debug/2.6.9`], { debug: 'private' }, 'new hoisted debug added to .modules.yaml')
 })
 
 test('should rehoist after running a general install', async (t) => {
@@ -226,7 +226,7 @@ test('hoist by alias', async (t: tape.Test) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases, { [`/dep-of-pkg-with-1-dep/100.1.0`]: [ 'dep' ] }, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.hoistedDependencies, { [`/dep-of-pkg-with-1-dep/100.1.0`]: { dep: 'private' } }, '.modules.yaml updated correctly')
 })
 
 test('should remove aliased hoisted dependencies', async (t) => {
@@ -254,7 +254,7 @@ test('should remove aliased hoisted dependencies', async (t) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases, {}, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.hoistedDependencies, {}, '.modules.yaml updated correctly')
 })
 
 test('should update .modules.yaml when pruning if we are flattening', async (t) => {
@@ -270,7 +270,7 @@ test('should update .modules.yaml when pruning if we are flattening', async (t) 
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases, {}, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.hoistedDependencies, {}, '.modules.yaml updated correctly')
 })
 
 test('should rehoist after pruning', async (t) => {
@@ -448,9 +448,9 @@ test('hoist when updating in one of the workspace projects', async (t) => {
   const rootModules = assertProject(t, process.cwd())
   {
     const modulesManifest = await rootModules.readModulesManifest()
-    t.deepEqual(modulesManifest?.hoistedAliases, {
-      [`/dep-of-pkg-with-1-dep/100.0.0`]: ['dep-of-pkg-with-1-dep'],
-      [`/foo/100.0.0`]: ['foo'],
+    t.deepEqual(modulesManifest?.hoistedDependencies, {
+      [`/dep-of-pkg-with-1-dep/100.0.0`]: { 'dep-of-pkg-with-1-dep': 'private' },
+      [`/foo/100.0.0`]: { 'foo': 'private' },
     })
   }
 
@@ -476,8 +476,8 @@ test('hoist when updating in one of the workspace projects', async (t) => {
 
   {
     const modulesManifest = await rootModules.readModulesManifest()
-    t.deepEqual(modulesManifest?.hoistedAliases, {
-      [`/dep-of-pkg-with-1-dep/100.0.0`]: ['dep-of-pkg-with-1-dep'],
+    t.deepEqual(modulesManifest?.hoistedDependencies, {
+      [`/dep-of-pkg-with-1-dep/100.0.0`]: { 'dep-of-pkg-with-1-dep': 'private' },
     })
   }
 })
@@ -490,7 +490,7 @@ test('should recreate node_modules with hoisting', async (t: tape.Test) => {
   {
     const modulesManifest = await project.readModulesManifest()
     t.notOk(modulesManifest.hoistPattern)
-    t.notOk(modulesManifest.hoistedAliases)
+    t.deepEqual(modulesManifest.hoistedDependencies, {})
   }
 
   await mutateModules([
@@ -507,6 +507,6 @@ test('should recreate node_modules with hoisting', async (t: tape.Test) => {
   {
     const modulesManifest = await project.readModulesManifest()
     t.ok(modulesManifest.hoistPattern)
-    t.ok(modulesManifest.hoistedAliases)
+    t.ok(Object.keys(modulesManifest.hoistedDependencies).length > 0)
   }
 })

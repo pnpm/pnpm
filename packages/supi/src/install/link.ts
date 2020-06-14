@@ -19,7 +19,11 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { ProjectManifest, Registries } from '@pnpm/types'
+import {
+  HoistedDependencies,
+  ProjectManifest,
+  Registries,
+} from '@pnpm/types'
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
 import path = require('path')
@@ -59,12 +63,11 @@ export default async function linkPackages (
     currentLockfile: Lockfile,
     dryRun: boolean,
     force: boolean,
-    hoistedAliases: {[depPath: string]: string[]},
+    hoistedDependencies: HoistedDependencies,
     hoistedModulesDir: string,
     hoistPattern?: string[],
     publicHoistedModulesDir: string,
     publicHoistPattern?: string[],
-    publicHoistedAliases: Set<string>,
     include: IncludedDependencies,
     lockfileDir: string,
     makePartialCurrentLockfile: boolean,
@@ -85,8 +88,7 @@ export default async function linkPackages (
   currentLockfile: Lockfile,
   depGraph: DependenciesGraph,
   newDepPaths: string[],
-  newHoistedAliases: {[depPath: string]: string[]},
-  newPublicHoistedAliases: Set<string>,
+  newHoistedDependencies: HoistedDependencies,
   removedDepPaths: Set<string>,
   wantedLockfile: Lockfile,
 }> {
@@ -151,12 +153,11 @@ export default async function linkPackages (
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     dryRun: opts.dryRun,
-    hoistedAliases: opts.hoistedAliases,
+    hoistedDependencies: opts.hoistedDependencies,
     hoistedModulesDir: opts.hoistPattern && opts.hoistedModulesDir || undefined,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     pruneStore: opts.pruneStore,
-    publicHoistedAliases: opts.publicHoistedAliases,
     publicHoistedModulesDir: opts.publicHoistPattern && opts.publicHoistedModulesDir || undefined,
     registries: opts.registries,
     skipped: opts.skipped,
@@ -308,10 +309,9 @@ export default async function linkPackages (
     currentLockfile = newCurrentLockfile
   }
 
-  let newHoistedAliases: Record<string, string[]> = {}
-  let newPublicHoistedAliases!: Set<string>
+  let newHoistedDependencies!: HoistedDependencies
   if ((opts.hoistPattern || opts.publicHoistPattern) && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
-    const hoistResult = await hoist({
+    newHoistedDependencies = await hoist({
       lockfile: currentLockfile,
       lockfileDir: opts.lockfileDir,
       privateHoistDir: opts.hoistedModulesDir,
@@ -321,10 +321,8 @@ export default async function linkPackages (
       registries: opts.registries,
       virtualStoreDir: opts.virtualStoreDir,
     })
-    newHoistedAliases = hoistResult.hoistedDeps
-    newPublicHoistedAliases = hoistResult.publiclyHoistedAliases
   } else {
-    newPublicHoistedAliases = new Set()
+    newHoistedDependencies = {}
   }
 
   if (!opts.dryRun) {
@@ -346,8 +344,7 @@ export default async function linkPackages (
     currentLockfile,
     depGraph,
     newDepPaths,
-    newHoistedAliases,
-    newPublicHoistedAliases,
+    newHoistedDependencies,
     removedDepPaths,
     wantedLockfile: newWantedLockfile,
   }

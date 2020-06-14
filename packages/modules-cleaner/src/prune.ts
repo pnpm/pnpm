@@ -16,6 +16,7 @@ import { StoreController } from '@pnpm/store-controller-types'
 import {
   DependenciesField,
   DEPENDENCIES_FIELDS,
+  HoistedDependencies,
   Registries,
 } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
@@ -35,8 +36,7 @@ export default async function prune (
   opts: {
     dryRun?: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
-    hoistedAliases: {[depPath: string]: string[]},
-    publicHoistedAliases: Set<string>,
+    hoistedDependencies: HoistedDependencies,
     hoistedModulesDir?: string,
     publicHoistedModulesDir?: string,
     wantedLockfile: Lockfile,
@@ -124,9 +124,9 @@ export default async function prune (
         const binsDir = path.join(opts.hoistedModulesDir, '.bin')
         const prefix = path.join(opts.virtualStoreDir, '../..')
         await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-          if (opts.hoistedAliases[orphanDepPath]) {
-            await Promise.all(opts.hoistedAliases[orphanDepPath].map((alias) => {
-              const modulesDir = opts.publicHoistedAliases.has(alias)
+          if (opts.hoistedDependencies[orphanDepPath]) {
+            await Promise.all(Object.entries(opts.hoistedDependencies[orphanDepPath]).map(([alias, hoistType]) => {
+              const modulesDir = hoistType === 'public'
                 ? opts.publicHoistedModulesDir! : opts.hoistedModulesDir!
               return removeDirectDependency({
                 name: alias,
@@ -138,7 +138,7 @@ export default async function prune (
               })
             }))
           }
-          delete opts.hoistedAliases[orphanDepPath]
+          delete opts.hoistedDependencies[orphanDepPath]
         }))
       }
 

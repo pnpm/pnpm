@@ -532,7 +532,7 @@ test('installing with hoistPattern=*', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases['/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedDependencies['/balanced-match/1.0.0'], { 'balanced-match': 'private' }, 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -591,7 +591,7 @@ test('installing with publicHoistPattern=*', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases['/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedDependencies['/balanced-match/1.0.0'], { 'balanced-match': 'public' }, 'hoisted field populated in .modules.yaml')
 
   t.end()
 })

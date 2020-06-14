@@ -9,6 +9,7 @@ import {
 import readProjectsContext from '@pnpm/read-projects-context'
 import {
   DEPENDENCIES_FIELDS,
+  HoistedDependencies,
   ProjectManifest,
   ReadPackageHook,
   Registries,
@@ -27,8 +28,7 @@ export interface PnpmContext<T> {
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   extraBinPaths: string[],
-  hoistedAliases: {[depPath: string]: string[]},
-  publicHoistedAliases: Set<string>,
+  hoistedDependencies: HoistedDependencies,
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
@@ -135,7 +135,7 @@ export default async function getContext<T> (
   }
   const ctx: PnpmContext<T> = {
     extraBinPaths,
-    hoistedAliases: importersContext.hoistedAliases,
+    hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
     include: opts.include || importersContext.include,
@@ -143,7 +143,6 @@ export default async function getContext<T> (
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
     projects: importersContext.projects,
-    publicHoistedAliases: importersContext.publicHoistedAliases,
     publicHoistedModulesDir: importersContext.rootModulesDir,
     publicHoistPattern: opts.publicHoistPattern,
     registries: {
@@ -287,7 +286,7 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   extraBinPaths: string[],
-  hoistedAliases: {[depPath: string]: string[]},
+  hoistedDependencies: HoistedDependencies,
   hoistedModulesDir: string,
   hoistPattern: string[] | undefined,
   manifest: ProjectManifest,
@@ -297,7 +296,6 @@ export interface PnpmSingleContext {
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
-  publicHoistedAliases: Set<string>,
   publicHoistPattern: string[] | undefined,
   publicHoistedModulesDir: string,
   registries: Registries,
@@ -339,9 +337,8 @@ export async function getContextForSingleImporter (
   const {
     currentHoistPattern,
     currentPublicHoistPattern,
-    hoistedAliases,
+    hoistedDependencies,
     projects,
-    publicHoistedAliases,
     include,
     modules,
     pendingBuilds,
@@ -400,7 +397,7 @@ export async function getContextForSingleImporter (
   }
   const ctx: PnpmSingleContext = {
     extraBinPaths,
-    hoistedAliases,
+    hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
     importerId,
@@ -411,7 +408,6 @@ export async function getContextForSingleImporter (
     modulesFile: modules,
     pendingBuilds,
     prefix: opts.dir,
-    publicHoistedAliases,
     publicHoistedModulesDir: rootModulesDir,
     publicHoistPattern: opts.publicHoistPattern,
     registries: {

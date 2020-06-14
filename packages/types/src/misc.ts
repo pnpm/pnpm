@@ -11,3 +11,5 @@ export interface Registries {
   default: string,
   [scope: string]: string,
 }
+
+export type HoistedDependencies = Record<string, Record<string, 'public' | 'private'>>
