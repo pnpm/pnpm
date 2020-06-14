@@ -58,6 +58,11 @@ export default async function hoistByLockfile (
     virtualStoreDir: opts.virtualStoreDir,
   })
 
+  // Here we only link the bins of the privately hoisted modules.
+  // The bins of the publicly hoisted modules will be linked together with
+  // the bins of the project's direct dependencies.
+  // This is possible because the publicly hoisted modules
+  // are in the same directory as the regular dependencies.
   await linkAllBins(opts.privateHoistedModulesDir)
 
   return hoistedDependencies
