@@ -49,8 +49,10 @@ export default async function hoistByLockfile (
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
   const hoistedDependencies = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
-    dryRun: false,
     getAliasHoistType,
+  })
+
+  await symlinkHoistedDependencies(hoistedDependencies, {
     lockfile: opts.lockfile,
     lockfileDir: opts.lockfileDir,
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
@@ -145,13 +147,7 @@ async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
-    dryRun: boolean,
     getAliasHoistType: GetAliasHoistType,
-    lockfile: Lockfile,
-    lockfileDir: string,
-    privateHoistedModulesDir: string,
-    publicHoistedModulesDir: string,
-    virtualStoreDir: string,
   }
 ): Promise<HoistedDependencies> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
@@ -181,21 +177,30 @@ async function hoistGraph (
       }
     })
 
-  if (opts.dryRun) return hoistedDependencies
+  return hoistedDependencies
+}
 
+async function symlinkHoistedDependencies (
+  hoistedDependencies: HoistedDependencies,
+  opts: {
+    lockfile: Lockfile,
+    lockfileDir: string,
+    privateHoistedModulesDir: string,
+    publicHoistedModulesDir: string,
+    virtualStoreDir: string,
+  }
+) {
   await Promise.all(
     Object.entries(hoistedDependencies)
       .map(async ([depPath, pkgAliases]) => {
+        const pkgName = nameVerFromPkgSnapshot(depPath, opts.lockfile.packages![depPath]).name
+        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const depLocation = path.join(modules, pkgName)
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
-          const pkgName = nameVerFromPkgSnapshot(depPath, opts.lockfile.packages![depPath]).name
-          const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
-          const location = path.join(modules, pkgName)
           const targetDir = hoistType === 'public'
             ? opts.publicHoistedModulesDir : opts.privateHoistedModulesDir
-          await symlinkDependency(location, targetDir, pkgAlias)
+          await symlinkDependency(depLocation, targetDir, pkgAlias)
         }))
       }
     ))
-
-  return hoistedDependencies
 }
