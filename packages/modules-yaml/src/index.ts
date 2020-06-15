@@ -77,7 +77,11 @@ export async function read (modulesDir: string): Promise<Modules | null> {
   return modules
 }
 
-const YAML_OPTS = { sortKeys: true }
+const YAML_OPTS = {
+  noCompatMode: true,
+  noRefs: true,
+  sortKeys: true,
+}
 
 export function write (
   modulesDir: string,
