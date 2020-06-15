@@ -2576,7 +2576,6 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
       '@pnpm/manifest-utils': 'link:../manifest-utils'
-      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
@@ -2678,7 +2677,6 @@ importers:
       '@pnpm/lockfile-walker': 'workspace:3.0.1'
       '@pnpm/logger': 3.2.2
       '@pnpm/manifest-utils': 'workspace:1.0.1'
-      '@pnpm/matcher': 'workspace:1.0.2'
       '@pnpm/modules-cleaner': 'workspace:9.0.2'
       '@pnpm/modules-yaml': 'workspace:7.0.0'
       '@pnpm/normalize-registries': 'workspace:1.0.1'

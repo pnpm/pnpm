@@ -52,9 +52,6 @@
       "path": "../manifest-utils"
     },
     {
-      "path": "../matcher"
-    },
-    {
       "path": "../modules-cleaner"
     },
     {
