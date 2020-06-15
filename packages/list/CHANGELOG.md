@@ -1,5 +1,17 @@
 # @pnpm/list
 
+## 4.0.30
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/matcher@1.0.3
+  - dependencies-hierarchy@8.0.23
+  - @pnpm/read-package-json@3.1.2
+  - @pnpm/read-project-manifest@1.0.8
+
 ## 4.0.29
 
 ### Patch Changes

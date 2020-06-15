@@ -1,5 +1,17 @@
 # @pnpm/store-connection-manager
 
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/config@9.2.0
+  - @pnpm/cli-meta@1.0.0
+  - @pnpm/package-store@9.0.7
+  - @pnpm/server@8.0.3
+  - @pnpm/default-fetcher@6.0.6
+  - @pnpm/default-resolver@9.0.1
+
 ## 0.3.8
 
 ### Patch Changes

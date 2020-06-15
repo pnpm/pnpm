@@ -1,5 +1,20 @@
 # @pnpm/resolve-dependencies
 
+## 16.0.1
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/core-loggers@4.1.1
+  - dependency-path@5.0.1
+  - @pnpm/lockfile-utils@2.0.14
+  - @pnpm/npm-resolver@8.1.1
+  - @pnpm/package-is-installable@4.0.10
+  - @pnpm/pick-registry-for-package@1.0.2
+  - @pnpm/resolver-base@7.0.2
+  - @pnpm/store-controller-types@8.0.1
+
 ## 16.0.0
 
 ### Major Changes

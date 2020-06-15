@@ -1,5 +1,19 @@
 # dependencies-hierarchy
 
+## 8.0.23
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/modules-yaml@8.0.0
+  - dependency-path@5.0.1
+  - @pnpm/lockfile-file@3.0.10
+  - @pnpm/lockfile-utils@2.0.14
+  - @pnpm/normalize-registries@1.0.2
+  - @pnpm/read-package-json@3.1.2
+
 ## 8.0.22
 
 ### Patch Changes

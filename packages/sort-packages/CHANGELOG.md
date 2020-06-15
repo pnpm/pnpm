@@ -1,5 +1,12 @@
 # @pnpm/sort-packages
 
+## 1.0.12
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/config@9.2.0
+
 ## 1.0.11
 
 ### Patch Changes

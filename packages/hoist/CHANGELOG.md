@@ -1,5 +1,24 @@
 # @pnpm/hoist
 
+## 4.0.0
+
+### Major Changes
+
+- 71a8c8ce3: Breaking changes in the API.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [e1ca9fc13]
+  - @pnpm/types@6.1.0
+  - @pnpm/matcher@1.0.3
+  - @pnpm/link-bins@5.3.5
+  - dependency-path@5.0.1
+  - @pnpm/lockfile-utils@2.0.14
+  - @pnpm/lockfile-walker@3.0.2
+  - @pnpm/symlink-dependency@3.0.7
+
 ## 3.0.2
 
 ### Patch Changes

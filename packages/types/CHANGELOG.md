@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 6.1.0
+
+### Minor Changes
+
+- 71a8c8ce3: Added a new type: HoistedDependencies.
+
 ## 6.0.0
 
 ### Major Changes

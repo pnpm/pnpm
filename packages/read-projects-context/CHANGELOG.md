@@ -1,5 +1,22 @@
 # @pnpm/read-projects-context
 
+## 4.0.0
+
+### Major Changes
+
+- 71a8c8ce3: `hoistedDependencies` is returned instead of `hoistedAliases`.
+
+  `currentPublicHoistPattern` is returned instead of `shamefullyHoist`.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/modules-yaml@8.0.0
+  - @pnpm/lockfile-file@3.0.10
+  - @pnpm/normalize-registries@1.0.2
+
 ## 3.0.0
 
 ### Major Changes

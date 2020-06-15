@@ -1,5 +1,13 @@
 # @pnpm/store-controller-types
 
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/resolver-base@7.0.2
+
 ## 8.0.0
 
 ### Major Changes

@@ -1,5 +1,49 @@
 # supi
 
+## 0.41.0
+
+### Minor Changes
+
+- 71a8c8ce3: `shamefullyHoist` replaced by `publicHoistPattern` and `forcePublicHoistPattern`.
+- 71a8c8ce3: Breaking changes to the `node_modules/.modules.yaml` file:
+  - `hoistedAliases` replaced with `hoistedDependencies`.
+  - `shamefullyHoist` replaced with `publicHoistPattern`.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [e1ca9fc13]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/hoist@4.0.0
+  - @pnpm/link-bins@5.3.5
+  - @pnpm/modules-cleaner@10.0.0
+  - @pnpm/headless@14.0.0
+  - @pnpm/get-context@3.0.0
+  - @pnpm/modules-yaml@8.0.0
+  - @pnpm/build-modules@5.0.4
+  - @pnpm/core-loggers@4.1.1
+  - dependency-path@5.0.1
+  - @pnpm/filter-lockfile@4.0.3
+  - @pnpm/lifecycle@9.1.2
+  - @pnpm/lockfile-file@3.0.10
+  - @pnpm/lockfile-utils@2.0.14
+  - @pnpm/lockfile-walker@3.0.2
+  - @pnpm/manifest-utils@1.0.2
+  - @pnpm/normalize-registries@1.0.2
+  - @pnpm/package-requester@12.0.5
+  - @pnpm/prune-lockfile@2.0.10
+  - @pnpm/read-package-json@3.1.2
+  - @pnpm/read-project-manifest@1.0.8
+  - @pnpm/resolve-dependencies@16.0.1
+  - @pnpm/resolver-base@7.0.2
+  - @pnpm/store-controller-types@8.0.1
+  - @pnpm/symlink-dependency@3.0.7
+
 ## 0.40.1
 
 ### Patch Changes

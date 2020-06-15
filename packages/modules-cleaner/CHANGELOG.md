@@ -1,5 +1,25 @@
 # @pnpm/modules-cleaner
 
+## 10.0.0
+
+### Major Changes
+
+- 71a8c8ce3: Replaced `hoistedAliases` with `hoistedDependencies`.
+
+  Added `publicHoistedModulesDir` option.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/core-loggers@4.1.1
+  - dependency-path@5.0.1
+  - @pnpm/filter-lockfile@4.0.3
+  - @pnpm/lockfile-utils@2.0.14
+  - @pnpm/package-bins@4.0.5
+  - @pnpm/read-package-json@3.1.2
+  - @pnpm/store-controller-types@8.0.1
+
 ## 9.0.2
 
 ### Patch Changes

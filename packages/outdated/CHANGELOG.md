@@ -1,5 +1,28 @@
 # @pnpm/outdated
 
+## 7.1.0
+
+### Minor Changes
+
+- 6808c43fa: Don't request the full metadata just for getting the list of dist-tags.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/matcher@1.0.3
+  - @pnpm/config@9.2.0
+  - @pnpm/modules-yaml@8.0.0
+  - dependency-path@5.0.1
+  - @pnpm/lockfile-file@3.0.10
+  - @pnpm/lockfile-utils@2.0.14
+  - @pnpm/manifest-utils@1.0.2
+  - @pnpm/pick-registry-for-package@1.0.2
+  - @pnpm/default-resolver@9.0.1
+
 ## 7.0.27
 
 ### Patch Changes

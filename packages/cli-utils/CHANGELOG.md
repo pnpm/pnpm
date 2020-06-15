@@ -1,5 +1,16 @@
 # @pnpm/cli-utils
 
+## 0.4.9
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/config@9.2.0
+  - @pnpm/cli-meta@1.0.0
+  - @pnpm/manifest-utils@1.0.2
+  - @pnpm/package-is-installable@4.0.10
+  - @pnpm/read-project-manifest@1.0.8
+
 ## 0.4.8
 
 ### Patch Changes

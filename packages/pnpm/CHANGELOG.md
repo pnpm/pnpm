@@ -1,5 +1,26 @@
 # pnpm
 
+## 5.2.0-0
+
+### Minor Changes
+
+- Added a new setting: `public-hoist-pattern`. This setting can be overwritten by `shamefully-hoist`. The default value of `public-hoist-pattern` is `types/*`.
+
+  If `shamefully-hoist` is `true`, `public-hoist-pattern` is set to `*`.
+
+  If `shamefully-hoist` is `false`, `public-hoist-pattern` is set to nothing.
+
+  `public-hoist-pattern` example configuration (through a `.npmrc` file):
+
+  ```
+  public-hoist-pattern[]=@types/*
+  public-hoist-pattern[]=@angular/*
+  ```
+
+  Related PR: #2631
+
+- Don't request the full metadata of package when running `pnpm outdated` or `pnpm publish -r` (#2633)
+
 ## 5.1.8
 
 ### Patch Changes

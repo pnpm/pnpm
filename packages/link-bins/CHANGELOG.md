@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 5.3.5
+
+### Patch Changes
+
+- e1ca9fc13: Update @zkochan/cmd-shim to v5.
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/package-bins@4.0.5
+  - @pnpm/read-package-json@3.1.2
+  - @pnpm/read-project-manifest@1.0.8
+
 ## 5.3.4
 
 ### Patch Changes

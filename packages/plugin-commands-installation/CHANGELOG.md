@@ -1,5 +1,33 @@
 # @pnpm/plugin-commands-installation
 
+## 2.1.0
+
+### Minor Changes
+
+- 71a8c8ce3: Added a new setting: `public-hoist-pattern`. This setting can be overwritten by `--[no-]shamefully-hoist`. The default value of `public-hoist-pattern` is `types/*`.
+
+### Patch Changes
+
+- Updated dependencies [6808c43fa]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/outdated@7.1.0
+  - @pnpm/types@6.1.0
+  - @pnpm/config@9.2.0
+  - supi@0.41.0
+  - @pnpm/cli-utils@0.4.9
+  - @pnpm/find-workspace-packages@2.2.6
+  - @pnpm/manifest-utils@1.0.2
+  - @pnpm/package-store@9.0.7
+  - @pnpm/plugin-commands-rebuild@2.0.11
+  - @pnpm/pnpmfile@0.1.12
+  - @pnpm/resolver-base@7.0.2
+  - @pnpm/filter-workspace-packages@2.1.1
+  - @pnpm/sort-packages@1.0.12
+  - @pnpm/store-connection-manager@0.3.9
+
 ## 2.0.14
 
 ### Patch Changes

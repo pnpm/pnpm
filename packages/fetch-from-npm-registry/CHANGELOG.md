@@ -1,5 +1,11 @@
 # fetch-from-npm-registry
 
+## 4.1.1
+
+### Patch Changes
+
+- @pnpm/fetch@2.0.1
+
 ## 4.1.0
 
 ### Minor Changes

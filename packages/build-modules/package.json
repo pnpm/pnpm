@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "5.0.3",
+  "version": "5.0.4",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,12 +31,12 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/build-modules#readme",
   "dependencies": {
     "@pnpm/constants": "workspace:4.0.0",
-    "@pnpm/core-loggers": "workspace:4.1.0",
-    "@pnpm/lifecycle": "workspace:9.1.1",
-    "@pnpm/link-bins": "workspace:5.3.4",
-    "@pnpm/read-package-json": "workspace:3.1.1",
-    "@pnpm/store-controller-types": "workspace:8.0.0",
-    "@pnpm/types": "workspace:6.0.0",
+    "@pnpm/core-loggers": "workspace:4.1.1",
+    "@pnpm/lifecycle": "workspace:9.1.2",
+    "@pnpm/link-bins": "workspace:5.3.5",
+    "@pnpm/read-package-json": "workspace:3.1.2",
+    "@pnpm/store-controller-types": "workspace:8.0.1",
+    "@pnpm/types": "workspace:6.1.0",
     "graph-sequencer": "2.0.0",
     "ramda": "0.27.0",
     "run-groups": "^3.0.1"

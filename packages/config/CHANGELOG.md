@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 9.2.0
+
+### Minor Changes
+
+- 71a8c8ce3: Added a new setting: `public-hoist-pattern`. This setting can be overwritten by `--[no-]shamefully-hoist`. The default value of `public-hoist-pattern` is `types/*`.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+
 ## 9.1.0
 
 ### Minor Changes

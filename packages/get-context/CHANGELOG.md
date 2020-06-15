@@ -1,5 +1,26 @@
 # @pnpm/get-context
 
+## 3.0.0
+
+### Major Changes
+
+- 71a8c8ce3: `hoistedAliases` replaced with `hoistedDependencies`.
+
+  `shamefullyHoist` replaced with `publicHoistPattern`.
+
+  `forceShamefullyHoist` replaced with `forcePublicHoistPattern`.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/read-projects-context@4.0.0
+  - @pnpm/types@6.1.0
+  - @pnpm/modules-yaml@8.0.0
+  - @pnpm/core-loggers@4.1.1
+  - @pnpm/lockfile-file@3.0.10
+
 ## 2.1.2
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/modules-yaml
 
+## 8.0.0
+
+### Major Changes
+
+- 71a8c8ce3: Breaking changes to the `node_modules/.modules.yaml` file:
+  - `hoistedAliases` replaced with `hoistedDependencies`.
+  - `shamefullyHoist` replaced with `publicHoistPattern`.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+
 ## 7.0.0
 
 ### Major Changes

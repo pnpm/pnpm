@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/write-project-manifest",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Write a project manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/write-project-manifest#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:^6.0.0",
+    "@pnpm/types": "workspace:^6.1.0",
     "write-json-file": "4.0.0",
     "write-json5-file": "^3.0.0",
     "write-yaml-file": "^4.1.0"

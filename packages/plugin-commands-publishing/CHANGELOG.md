@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.0
+
+### Minor Changes
+
+- 6808c43fa: Don't request the full metadata just for getting the list of published versions.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - @pnpm/config@9.2.0
+  - @pnpm/cli-utils@0.4.9
+  - @pnpm/lifecycle@9.1.2
+  - @pnpm/npm-resolver@8.1.1
+  - @pnpm/pick-registry-for-package@1.0.2
+  - @pnpm/read-project-manifest@1.0.8
+  - @pnpm/resolver-base@7.0.2
+  - @pnpm/sort-packages@1.0.12
+
 ## 2.0.4
 
 ### Patch Changes
