@@ -15,7 +15,7 @@ export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
   const resolve = createResolver(Object.assign(opts, {
-    fullMetadata: true,
+    fullMetadata: false,
     metaCache: new LRU({
       max: 10000,
       maxAge: 120 * 1000, // 2 minutes
