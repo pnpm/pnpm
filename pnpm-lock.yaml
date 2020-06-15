@@ -612,7 +612,6 @@ importers:
       '@pnpm/link-bins': 'link:../link-bins'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
@@ -670,7 +669,6 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.9'
       '@pnpm/lockfile-utils': 'workspace:2.0.13'
       '@pnpm/logger': 3.2.2
-      '@pnpm/matcher': 'workspace:1.0.2'
       '@pnpm/modules-cleaner': 'workspace:9.0.2'
       '@pnpm/modules-yaml': 'workspace:7.0.0'
       '@pnpm/package-requester': 'workspace:12.0.4'
@@ -713,6 +711,7 @@ importers:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
@@ -728,6 +727,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.13'
       '@pnpm/lockfile-walker': 'workspace:3.0.1'
       '@pnpm/logger': 3.2.2
+      '@pnpm/matcher': 'workspace:^1.0.2'
       '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/symlink-dependency': 'workspace:3.0.6'
       '@pnpm/types': 'workspace:6.0.0'
@@ -2576,7 +2576,6 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
       '@pnpm/manifest-utils': 'link:../manifest-utils'
-      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
@@ -2678,7 +2677,6 @@ importers:
       '@pnpm/lockfile-walker': 'workspace:3.0.1'
       '@pnpm/logger': 3.2.2
       '@pnpm/manifest-utils': 'workspace:1.0.1'
-      '@pnpm/matcher': 'workspace:1.0.2'
       '@pnpm/modules-cleaner': 'workspace:9.0.2'
       '@pnpm/modules-yaml': 'workspace:7.0.0'
       '@pnpm/normalize-registries': 'workspace:1.0.1'

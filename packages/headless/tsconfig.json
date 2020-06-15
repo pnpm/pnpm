@@ -40,9 +40,6 @@
       "path": "../lockfile-utils"
     },
     {
-      "path": "../matcher"
-    },
-    {
       "path": "../modules-cleaner"
     },
     {

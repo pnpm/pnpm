@@ -532,17 +532,17 @@ test('installing with hoistPattern=*', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases['/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedDependencies['/balanced-match/1.0.0'], { 'balanced-match': 'private' }, 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
 
-test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
+test('installing with publicHoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
   await rimraf(path.join(prefix, 'node_modules'))
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*', shamefullyHoist: true }))
+  await headless(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: '*' }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -591,7 +591,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases['/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedDependencies['/balanced-match/1.0.0'], { 'balanced-match': 'public' }, 'hoisted field populated in .modules.yaml')
 
   t.end()
 })

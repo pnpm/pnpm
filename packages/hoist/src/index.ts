@@ -6,20 +6,22 @@ import {
 } from '@pnpm/lockfile-utils'
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger from '@pnpm/logger'
+import matcher from '@pnpm/matcher'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
-import { Registries } from '@pnpm/types'
+import { HoistedDependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import path = require('path')
 import R = require('ramda')
 
 export default async function hoistByLockfile (
-  match: (dependencyName: string) => boolean,
   opts: {
     lockfile: Lockfile,
     lockfileDir: string,
-    modulesDir: string,
-    registries: Registries,
+    privateHoistPattern: string[],
+    privateHoistedModulesDir: string,
+    publicHoistPattern: string[],
+    publicHoistedModulesDir: string,
     virtualStoreDir: string,
   }
 ) {
@@ -40,56 +42,72 @@ export default async function hoistByLockfile (
         }, {}),
       depPath: '',
       depth: -1,
-      location: '',
     },
-    ...await getDependencies(
-      step,
-      0,
-      {
-        lockfileDir: opts.lockfileDir,
-        registries: opts.registries,
-        virtualStoreDir: opts.virtualStoreDir,
-      }
-    ),
+    ...await getDependencies(step, 0),
   ]
 
-  const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
-    dryRun: false,
-    match,
-    modulesDir: opts.modulesDir,
+  const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
+
+  const hoistedDependencies = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+    getAliasHoistType,
   })
 
-  const bin = path.join(opts.modulesDir, '.bin')
+  await symlinkHoistedDependencies(hoistedDependencies, {
+    lockfile: opts.lockfile,
+    lockfileDir: opts.lockfileDir,
+    privateHoistedModulesDir: opts.privateHoistedModulesDir,
+    publicHoistedModulesDir: opts.publicHoistedModulesDir,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
+
+  // Here we only link the bins of the privately hoisted modules.
+  // The bins of the publicly hoisted modules will be linked together with
+  // the bins of the project's direct dependencies.
+  // This is possible because the publicly hoisted modules
+  // are in the same directory as the regular dependencies.
+  await linkAllBins(opts.privateHoistedModulesDir)
+
+  return hoistedDependencies
+}
+
+type GetAliasHoistType = (alias: string) => 'private' | 'public' | false
+
+function createGetAliasHoistType (
+  publicHoistPattern: string[],
+  privateHoistPattern: string[]
+): GetAliasHoistType {
+  const publicMatcher = matcher(publicHoistPattern)
+  const privateMatcher = matcher(privateHoistPattern)
+  return (alias: string) => {
+    if (publicMatcher(alias)) return 'public'
+    if (privateMatcher(alias)) return 'private'
+    return false
+  }
+}
+
+async function linkAllBins (modulesDir: string) {
+  const bin = path.join(modulesDir, '.bin')
   const warn: WarnFunction = (message, code) => {
     if (code === 'BINARIES_CONFLICT') return
-    logger.warn({ message, prefix: path.join(opts.modulesDir, '../..') })
+    logger.warn({ message, prefix: path.join(modulesDir, '../..') })
   }
   try {
-    await linkBins(opts.modulesDir, bin, { allowExoticManifests: true, warn })
+    await linkBins(modulesDir, bin, { allowExoticManifests: true, warn })
   } catch (err) {
     // Some packages generate their commands with lifecycle hooks.
     // At this stage, such commands are not generated yet.
     // For now, we don't hoist such generated commands.
     // Related issue: https://github.com/pnpm/pnpm/issues/2071
   }
-
-  return aliasesByDependencyPath
 }
 
 async function getDependencies (
   step: LockfileWalkerStep,
-  depth: number,
-  opts: {
-    registries: Registries,
-    lockfileDir: string,
-    virtualStoreDir: string,
-  }
+  depth: number
 ): Promise<Dependency[]> {
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {
-    const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
@@ -101,7 +119,6 @@ async function getDependencies (
       }, {}),
       depPath,
       depth,
-      location: path.join(modules, pkgName),
     })
 
     nextSteps.push(next())
@@ -115,13 +132,12 @@ async function getDependencies (
 
   return (
     await Promise.all(
-      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1, opts))
+      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1))
     )
   ).reduce((acc, deps) => [...acc, ...deps], deps)
 }
 
 export interface Dependency {
-  location: string,
   children: {[alias: string]: string},
   depPath: string,
   depth: number,
@@ -131,50 +147,60 @@ async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
-    match: (dependencyName: string) => boolean,
-    modulesDir: string,
-    dryRun: boolean,
+    getAliasHoistType: GetAliasHoistType,
   }
-): Promise<{[alias: string]: string[]}> {
+): Promise<HoistedDependencies> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
-  const aliasesByDependencyPath: {[depPath: string]: string[]} = {}
+  const hoistedDependencies: HoistedDependencies = {}
 
-  await Promise.all(depNodes
+  depNodes
     // sort by depth and then alphabetically
     .sort((a, b) => {
       const depthDiff = a.depth - b.depth
       return depthDiff === 0 ? a.depPath.localeCompare(b.depPath) : depthDiff
     })
     // build the alias map and the id map
-    .map((depNode) => {
+    .forEach((depNode) => {
       for (const childAlias of Object.keys(depNode.children)) {
-        if (!opts.match(childAlias)) continue
+        const hoist = opts.getAliasHoistType(childAlias)
+        if (!hoist) continue
         // if this alias has already been taken, skip it
         if (hoistedAliases.has(childAlias)) {
           continue
         }
         hoistedAliases.add(childAlias)
         const childPath = depNode.children[childAlias]
-        if (!aliasesByDependencyPath[childPath]) {
-          aliasesByDependencyPath[childPath] = []
+        if (!hoistedDependencies[childPath]) {
+          hoistedDependencies[childPath] = {}
         }
-        aliasesByDependencyPath[childPath].push(childAlias)
+        hoistedDependencies[childPath][childAlias] = hoist
       }
-      return depNode
     })
-    .map(async (depNode) => {
-      const pkgAliases = aliasesByDependencyPath[depNode.depPath]
-      if (!pkgAliases) {
-        return
-      }
-      // TODO when putting logs back in for hoisted packages, you've to put back the condition inside the map,
-      // TODO look how it is done in linkPackages
-      if (!opts.dryRun) {
-        await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependency(depNode.location, opts.modulesDir, pkgAlias)
+
+  return hoistedDependencies
+}
+
+async function symlinkHoistedDependencies (
+  hoistedDependencies: HoistedDependencies,
+  opts: {
+    lockfile: Lockfile,
+    lockfileDir: string,
+    privateHoistedModulesDir: string,
+    publicHoistedModulesDir: string,
+    virtualStoreDir: string,
+  }
+) {
+  await Promise.all(
+    Object.entries(hoistedDependencies)
+      .map(async ([depPath, pkgAliases]) => {
+        const pkgName = nameVerFromPkgSnapshot(depPath, opts.lockfile.packages![depPath]).name
+        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const depLocation = path.join(modules, pkgName)
+        await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
+          const targetDir = hoistType === 'public'
+            ? opts.publicHoistedModulesDir : opts.privateHoistedModulesDir
+          await symlinkDependency(depLocation, targetDir, pkgAlias)
         }))
       }
-    }))
-
-  return aliasesByDependencyPath
+    ))
 }

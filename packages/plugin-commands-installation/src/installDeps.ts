@@ -144,8 +144,10 @@ export default async function handler (
     storeDir: store.dir,
     workspacePackages,
 
-    forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
-    forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
+    forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined'
+      || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
+    forcePublicHoistPattern: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined'
+      || typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined',
   }
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir || dir, opts)

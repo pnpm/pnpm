@@ -26,8 +26,8 @@ interface StrictLinkOptions {
   hoistPattern: string[] | undefined,
   forceHoistPattern: boolean,
 
-  shamefullyHoist: boolean,
-  forceShamefullyHoist: boolean,
+  publicHoistPattern: string[] | undefined,
+  forcePublicHoistPattern: boolean,
 }
 
 export type LinkOptions = Partial<StrictLinkOptions> &
@@ -57,7 +57,6 @@ async function defaults (opts: LinkOptions) {
     hoistPattern: undefined,
     lockfileDir: opts.lockfileDir || dir,
     registries: DEFAULT_REGISTRIES,
-    shamefullyHoist: false,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
     useLockfile: true,

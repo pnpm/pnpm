@@ -37,7 +37,6 @@ import logger, {
   LogBase,
   streamParser,
 } from '@pnpm/logger'
-import matcher from '@pnpm/matcher'
 import { prune } from '@pnpm/modules-cleaner'
 import {
   IncludedDependencies,
@@ -51,7 +50,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { DependencyManifest, ProjectManifest, Registries } from '@pnpm/types'
+import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
 import dp = require('dependency-path')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
@@ -84,12 +83,12 @@ export interface HeadlessOptions {
     pruneDirectDependencies?: boolean,
     rootDir: string,
   }>,
-  hoistedAliases: {[depPath: string]: string[]}
+  hoistedDependencies: HoistedDependencies,
   hoistPattern?: string[],
+  publicHoistPattern?: string[],
   lockfileDir: string,
   modulesDir?: string,
   virtualStoreDir?: string,
-  shamefullyHoist: boolean,
   storeController: StoreController,
   sideEffectsCacheRead: boolean,
   sideEffectsCacheWrite: boolean,
@@ -128,8 +127,8 @@ export default async (opts: HeadlessOptions) => {
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-  const hoistedModulesDir = opts.shamefullyHoist
-    ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
+  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const publicHoistedModulesDir = rootModulesDir
 
   for (const { id, manifest, rootDir } of opts.projects) {
     if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
@@ -162,11 +161,12 @@ export default async (opts: HeadlessOptions) => {
       {
         currentLockfile,
         dryRun: false,
-        hoistedAliases: opts.hoistedAliases,
+        hoistedDependencies: opts.hoistedDependencies,
         hoistedModulesDir: opts.hoistPattern && hoistedModulesDir || undefined,
         include: opts.include,
         lockfileDir,
         pruneStore: opts.pruneStore,
+        publicHoistedModulesDir: opts.publicHoistPattern && publicHoistedModulesDir || undefined,
         registries: opts.registries,
         skipped,
         storeController: opts.storeController,
@@ -240,18 +240,20 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  const rootImporterWithFlatModules = opts.hoistPattern && opts.projects.find(({ id }) => id === '.')
-  let newHoistedAliases!: {[depPath: string]: string[]}
+  const rootImporterWithFlatModules = (opts.hoistPattern || opts.publicHoistPattern) && opts.projects.find(({ id }) => id === '.')
+  let newHoistedDependencies!: HoistedDependencies
   if (rootImporterWithFlatModules) {
-    newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
+    newHoistedDependencies = await hoist({
       lockfile: filteredLockfile,
       lockfileDir,
-      modulesDir: hoistedModulesDir,
-      registries: opts.registries,
+      privateHoistedModulesDir: hoistedModulesDir,
+      privateHoistPattern: opts.hoistPattern ?? [],
+      publicHoistedModulesDir,
+      publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir,
     })
   } else {
-    newHoistedAliases = {}
+    newHoistedDependencies = {}
   }
 
   await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
@@ -302,7 +304,7 @@ export default async (opts: HeadlessOptions) => {
         })
     }
     const extraBinPaths = [...opts.extraBinPaths || []]
-    if (opts.hoistPattern && !opts.shamefullyHoist) {
+    if (opts.hoistPattern) {
       extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
     }
     await buildModules(graph, Array.from(directNodes), {
@@ -327,14 +329,14 @@ export default async (opts: HeadlessOptions) => {
   }
   await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
   await writeModulesYaml(rootModulesDir, {
-    hoistedAliases: newHoistedAliases,
+    hoistedDependencies: newHoistedDependencies,
     hoistPattern: opts.hoistPattern,
     included: opts.include,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
+    publicHoistPattern: opts.publicHoistPattern,
     registries: opts.registries,
-    shamefullyHoist: opts.shamefullyHoist || false,
     skipped: Array.from(skipped),
     storeDir: opts.storeDir,
     virtualStoreDir,

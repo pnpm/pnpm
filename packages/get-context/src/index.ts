@@ -9,6 +9,7 @@ import {
 import readProjectsContext from '@pnpm/read-projects-context'
 import {
   DEPENDENCIES_FIELDS,
+  HoistedDependencies,
   ProjectManifest,
   ReadPackageHook,
   Registries,
@@ -27,7 +28,7 @@ export interface PnpmContext<T> {
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   extraBinPaths: string[],
-  hoistedAliases: {[depPath: string]: string[]}
+  hoistedDependencies: HoistedDependencies,
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
@@ -38,9 +39,9 @@ export interface PnpmContext<T> {
   rootModulesDir: string,
   hoistPattern: string[] | undefined,
   hoistedModulesDir: string,
+  publicHoistPattern: string[] | undefined,
   lockfileDir: string,
   virtualStoreDir: string,
-  shamefullyHoist: boolean,
   skipped: Set<string>,
   storeDir: string,
   wantedLockfile: Lockfile,
@@ -75,8 +76,8 @@ export default async function getContext<T> (
     hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
 
-    shamefullyHoist?: boolean,
-    forceShamefullyHoist?: boolean,
+    publicHoistPattern?: string[] | undefined,
+    forcePublicHoistPattern?: boolean,
   }
 ): Promise<PnpmContext<T>> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
@@ -86,6 +87,7 @@ export default async function getContext<T> (
   if (importersContext.modules) {
     const { purged } = await validateModules(importersContext.modules, importersContext.projects, {
       currentHoistPattern: importersContext.currentHoistPattern,
+      currentPublicHoistPattern: importersContext.currentPublicHoistPattern,
       forceNewModules: opts.forceNewModules === true,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
@@ -97,8 +99,8 @@ export default async function getContext<T> (
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
 
-      forceShamefullyHoist: opts.forceShamefullyHoist,
-      shamefullyHoist: opts.shamefullyHoist,
+      forcePublicHoistPattern: opts.forcePublicHoistPattern,
+      publicHoistPattern: opts.publicHoistPattern,
     })
     if (purged) {
       importersContext = await readProjectsContext(projects, {
@@ -126,28 +128,26 @@ export default async function getContext<T> (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
-  const shamefullyHoist = Boolean(typeof importersContext.shamefullyHoist === 'undefined' ? opts.shamefullyHoist : importersContext.shamefullyHoist)
-  if (opts.hoistPattern && !shamefullyHoist) {
-    extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  if (opts.hoistPattern?.length) {
+    extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
-  const hoistedModulesDir = shamefullyHoist
-    ? importersContext.rootModulesDir : path.join(virtualStoreDir, 'node_modules')
   const ctx: PnpmContext<T> = {
     extraBinPaths,
-    hoistedAliases: importersContext.hoistedAliases,
+    hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
-    hoistPattern: opts.hoistPattern,
+    hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
     include: opts.include || importersContext.include,
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
     projects: importersContext.projects,
+    publicHoistPattern: importersContext.currentPublicHoistPattern ?? opts.publicHoistPattern,
     registries: {
       ...opts.registries,
       ...importersContext.registries,
     },
     rootModulesDir: importersContext.rootModulesDir,
-    shamefullyHoist,
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
     virtualStoreDir,
@@ -174,6 +174,7 @@ async function validateModules (
   }>,
   opts: {
     currentHoistPattern?: string[],
+    currentPublicHoistPattern?: string[],
     forceNewModules: boolean,
     include?: IncludedDependencies,
     lockfileDir: string,
@@ -185,44 +186,30 @@ async function validateModules (
     hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
 
-    shamefullyHoist?: boolean | undefined,
-    forceShamefullyHoist?: boolean,
+    publicHoistPattern?: string[] | undefined,
+    forcePublicHoistPattern?: boolean,
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
-  if (opts.forceShamefullyHoist && modules.shamefullyHoist !== opts.shamefullyHoist) {
+  if (opts.forcePublicHoistPattern && !R.equals(modules.publicHoistPattern, opts.publicHoistPattern)) {
     if (opts.forceNewModules && rootProject) {
       await purgeModulesDirsOfImporter(rootProject)
       return { purged: true }
     }
-    if (modules.shamefullyHoist) {
-      throw new PnpmError(
-        'SHAMEFULLY_HOIST_WANTED',
-        'This modules directory was created using the --shamefully-hoist option.'
-        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.'
-      )
-    }
     throw new PnpmError(
-      'SHAMEFULLY_HOIST_NOT_WANTED',
-      'This modules directory was created without the --shamefully-hoist option.'
-      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.'
+      'PUBLIC_HOIST_PATTERN_DIFF',
+      'This modules directory was created using a different public-hoist-pattern value.'
+      + ' Run "pnpm install" to recreate the modules directory.'
     )
   }
   let purged = false
   if (opts.forceHoistPattern && rootProject) {
     try {
       if (!R.equals(opts.currentHoistPattern, (opts.hoistPattern || undefined))) {
-        if (opts.currentHoistPattern) {
-          throw new PnpmError(
-            'HOISTING_WANTED',
-            'This modules directory was created using the --hoist-pattern option.'
-            + ' You must add this option, or else add the --force option to recreate the modules directory.'
-          )
-        }
         throw new PnpmError(
-          'HOISTING_NOT_WANTED',
-          'This modules directory was created without the --hoist-pattern option.'
-          + ' You must remove that option, or else run "pnpm install" to recreate the modules directory.'
+          'HOIST_PATTERN_DIFF',
+          'This modules directory was created using a different hoist-pattern value.'
+          + ' Run "pnpm install" to recreate the modules directory.'
         )
       }
     } catch (err) {
@@ -297,7 +284,7 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   extraBinPaths: string[],
-  hoistedAliases: {[depPath: string]: string[]},
+  hoistedDependencies: HoistedDependencies,
   hoistedModulesDir: string,
   hoistPattern: string[] | undefined,
   manifest: ProjectManifest,
@@ -307,11 +294,11 @@ export interface PnpmSingleContext {
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
+  publicHoistPattern: string[] | undefined,
   registries: Registries,
   rootModulesDir: string,
   lockfileDir: string,
   virtualStoreDir: string,
-  shamefullyHoist: boolean,
   skipped: Set<string>,
   storeDir: string,
   wantedLockfile: Lockfile,
@@ -339,20 +326,20 @@ export async function getContextForSingleImporter (
     hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
 
-    shamefullyHoist?: boolean,
-    forceShamefullyHoist?: boolean,
+    publicHoistPattern?: string[] | undefined,
+    forcePublicHoistPattern?: boolean,
   },
   alreadyPurged: boolean = false
 ): Promise<PnpmSingleContext> {
   const {
     currentHoistPattern,
-    hoistedAliases,
+    currentPublicHoistPattern,
+    hoistedDependencies,
     projects,
     include,
     modules,
     pendingBuilds,
     registries,
-    shamefullyHoist,
     skipped,
     rootModulesDir,
   } = await readProjectsContext(
@@ -377,6 +364,7 @@ export async function getContextForSingleImporter (
   if (modules && !alreadyPurged) {
     const { purged } = await validateModules(modules, projects, {
       currentHoistPattern,
+      currentPublicHoistPattern,
       forceNewModules: opts.forceNewModules === true,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
@@ -388,8 +376,8 @@ export async function getContextForSingleImporter (
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
 
-      forceShamefullyHoist: opts.forceShamefullyHoist,
-      shamefullyHoist: opts.shamefullyHoist,
+      forcePublicHoistPattern: opts.forcePublicHoistPattern,
+      publicHoistPattern: opts.publicHoistPattern,
     })
     if (purged) {
       return getContextForSingleImporter(manifest, opts, true)
@@ -400,17 +388,15 @@ export async function getContextForSingleImporter (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
-  const sHoist = Boolean(typeof shamefullyHoist === 'undefined' ? opts.shamefullyHoist : shamefullyHoist)
-  if (opts.hoistPattern && !sHoist) {
-    extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  if (opts.hoistPattern?.length) {
+    extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
-  const hoistedModulesDir = sHoist
-    ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
   const ctx: PnpmSingleContext = {
     extraBinPaths,
-    hoistedAliases,
+    hoistedDependencies,
     hoistedModulesDir,
-    hoistPattern: opts.hoistPattern,
+    hoistPattern: currentHoistPattern ?? opts.hoistPattern,
     importerId,
     include: opts.include || include,
     lockfileDir: opts.lockfileDir,
@@ -419,12 +405,12 @@ export async function getContextForSingleImporter (
     modulesFile: modules,
     pendingBuilds,
     prefix: opts.dir,
+    publicHoistPattern: currentPublicHoistPattern ?? opts.publicHoistPattern,
     registries: {
       ...opts.registries,
       ...registries,
     },
     rootModulesDir,
-    shamefullyHoist: sHoist,
     skipped,
     storeDir,
     virtualStoreDir,

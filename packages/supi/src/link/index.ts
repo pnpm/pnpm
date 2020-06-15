@@ -110,10 +110,11 @@ export default async function link (
     ],
     {
       currentLockfile,
-      hoistedAliases: ctx.hoistedAliases,
+      hoistedDependencies: ctx.hoistedDependencies,
       hoistedModulesDir: opts.hoistPattern && ctx.hoistedModulesDir || undefined,
       include: ctx.include,
       lockfileDir: opts.lockfileDir,
+      publicHoistedModulesDir: opts.publicHoistPattern && ctx.rootModulesDir || undefined,
       registries: ctx.registries,
       skipped: ctx.skipped,
       storeController: opts.storeController,
