@@ -51,7 +51,7 @@ export default async function (
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const storeDir = await storePath(opts.workspaceDir, opts.storeDir)
   const resolve = createResolver(Object.assign(opts, {
-    fullMetadata: true,
+    fullMetadata: false,
     metaCache: new LRU({
       max: 10000,
       maxAge: 120 * 1000, // 2 minutes
