@@ -37,7 +37,6 @@ import logger, {
   LogBase,
   streamParser,
 } from '@pnpm/logger'
-import matcher from '@pnpm/matcher'
 import { prune } from '@pnpm/modules-cleaner'
 import {
   IncludedDependencies,

@@ -612,7 +612,6 @@ importers:
       '@pnpm/link-bins': 'link:../link-bins'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
@@ -670,7 +669,6 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.9'
       '@pnpm/lockfile-utils': 'workspace:2.0.13'
       '@pnpm/logger': 3.2.2
-      '@pnpm/matcher': 'workspace:1.0.2'
       '@pnpm/modules-cleaner': 'workspace:9.0.2'
       '@pnpm/modules-yaml': 'workspace:7.0.0'
       '@pnpm/package-requester': 'workspace:12.0.4'
