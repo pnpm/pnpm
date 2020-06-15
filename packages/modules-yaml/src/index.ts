@@ -100,7 +100,6 @@ export function write (
   }
   if (!saveModules.hoistedAliases || !saveModules.hoistPattern && !saveModules.publicHoistPattern) {
     delete saveModules.hoistedAliases
-    delete saveModules.hoistedDependencies
   }
   // We should store the absolute virtual store directory path on Windows
   // because junctions are used on Windows. Junctions will break even if
