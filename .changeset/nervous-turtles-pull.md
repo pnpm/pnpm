@@ -2,4 +2,6 @@
 "@pnpm/modules-cleaner": major
 ---
 
-Replace `hoistedAliases` with `hoistedDependencies`.
+Replaced `hoistedAliases` with `hoistedDependencies`.
+
+Added `publicHoistedModulesDir` option.
