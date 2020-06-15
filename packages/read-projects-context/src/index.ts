@@ -36,8 +36,8 @@ export default async function <T>(
   const rootModulesDir = await realpathMissing(path.join(opts.lockfileDir, relativeModulesDir))
   const modules = await readModulesYaml(rootModulesDir)
   return {
-    currentHoistPattern: modules?.hoistPattern || undefined,
-    currentPublicHoistPattern: modules?.publicHoistPattern || undefined,
+    currentHoistPattern: modules?.hoistPattern,
+    currentPublicHoistPattern: modules?.publicHoistPattern,
     hoist: !modules ? undefined : Boolean(modules.hoistPattern),
     hoistedDependencies: modules?.hoistedDependencies ?? {},
     include: modules?.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
