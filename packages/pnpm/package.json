@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "5.2.0-0",
+  "version": "5.2.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bin": {
     "pnpm": "bin/pnpm.js",
