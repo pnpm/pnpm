@@ -5,6 +5,7 @@ import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
+import PATH = require('path-name')
 import readYamlFile from 'read-yaml-file'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -51,7 +52,12 @@ test('link global bin', async function (t: tape.Test) {
   process.chdir('..')
 
   const global = path.resolve('global')
-  const env = { NPM_CONFIG_PREFIX: global }
+  const globalBin = path.join(global, 'nodejs')
+  await fs.mkdir(globalBin, { recursive: true })
+  const env = {
+    NPM_CONFIG_PREFIX: global,
+    [PATH]: `${globalBin}${path.delimiter}${process.env[PATH]}`,
+  }
   if (process.env.APPDATA) env['APPDATA'] = global
 
   await writePkg('package-with-bin', { name: 'package-with-bin', version: '1.0.0', bin: 'bin.js' })
@@ -61,7 +67,6 @@ test('link global bin', async function (t: tape.Test) {
 
   await execPnpm(['link'], { env })
 
-  const globalBin = isWindows() ? global : path.join(global, 'bin')
   await isExecutable(t, path.join(globalBin, 'package-with-bin'))
 })
 

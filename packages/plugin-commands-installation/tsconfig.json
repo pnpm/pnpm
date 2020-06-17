@@ -37,6 +37,9 @@
       "path": "../find-workspace-packages"
     },
     {
+      "path": "../global-bin-dir"
+    },
+    {
       "path": "../manifest-utils"
     },
     {

@@ -1,8 +1,10 @@
 import prepare from '@pnpm/prepare'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import isWindows = require('is-windows')
+import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
+import PATH = require('path-name')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from './utils'
@@ -34,9 +36,13 @@ test('uninstall global package with its bin files', async (t: tape.Test) => {
   process.chdir('..')
 
   const global = path.resolve('global')
-  const globalBin = isWindows() ? path.join(global, 'npm') : path.join(global, 'bin')
+  const globalBin = path.join(global, 'nodejs')
+  await fs.mkdir(globalBin, { recursive: true })
 
-  const env = { NPM_CONFIG_PREFIX: global }
+  const env = {
+    NPM_CONFIG_PREFIX: global,
+    [PATH]: `${globalBin}${path.delimiter}${process.env[PATH]}`,
+  }
   if (process.env.APPDATA) env['APPDATA'] = global
 
   await execPnpm(['add', '-g', 'sh-hello-world@1.0.1'], { env })
