@@ -5,7 +5,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import logger from '@pnpm/logger'
+import logger, { globalWarn } from '@pnpm/logger'
 import matcher from '@pnpm/matcher'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
@@ -192,7 +192,13 @@ async function symlinkHoistedDependencies (
   await Promise.all(
     Object.entries(hoistedDependencies)
       .map(async ([depPath, pkgAliases]) => {
-        const pkgName = nameVerFromPkgSnapshot(depPath, opts.lockfile.packages![depPath]).name
+        const pkgSnapshot = opts.lockfile.packages![depPath]
+        if (!pkgSnapshot) {
+          globalWarn(`Failed to find "${depPath}" in lockfile during hoisting. `
+            + `Next aliases will not be hoisted: ${Object.keys(pkgAliases).join(', ')}`)
+          return
+        }
+        const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
         const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const depLocation = path.join(modules, pkgName)
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
