@@ -108,13 +108,13 @@ async function getDependencies (
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {
-    const allDeps = {
+    const allDeps: Record<string, string> = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
     }
     deps.push({
-      children: Object.keys(allDeps).reduce((children, alias) => {
-        children[alias] = dp.refToRelative(allDeps[alias], alias)
+      children: Object.entries(allDeps).reduce((children, [alias, ref]) => {
+        children[alias] = dp.refToRelative(ref, alias)
         return children
       }, {}),
       depPath,
@@ -161,7 +161,7 @@ async function hoistGraph (
     })
     // build the alias map and the id map
     .forEach((depNode) => {
-      for (const childAlias of Object.keys(depNode.children)) {
+      for (const [childAlias, childPath] of Object.entries(depNode.children)) {
         const hoist = opts.getAliasHoistType(childAlias)
         if (!hoist) continue
         // if this alias has already been taken, skip it
@@ -169,7 +169,6 @@ async function hoistGraph (
           continue
         }
         hoistedAliases.add(childAlias)
-        const childPath = depNode.children[childAlias]
         if (!hoistedDependencies[childPath]) {
           hoistedDependencies[childPath] = {}
         }
