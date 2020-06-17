@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.2.1
+
+### Patch Changes
+
+- Hoisting should not fail if some of the aliases cannot be hoisted due to issues with the lockfile.
+
 ## 5.2.0
 
 ### Minor Changes

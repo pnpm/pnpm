@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 14.0.1
+
+### Patch Changes
+
+- Updated dependencies [0a2f3ecc6]
+  - @pnpm/hoist@4.0.1
+
 ## 14.0.0
 
 ### Major Changes

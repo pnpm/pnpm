@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 4.0.1
+
+### Patch Changes
+
+- 0a2f3ecc6: Hoisting should not fail if some of the aliases cannot be hoisted due to issues with the lockfile.
+
 ## 4.0.0
 
 ### Major Changes
