@@ -1373,7 +1373,7 @@ importers:
   packages/parse-cli-args:
     dependencies:
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
-      didyoumean2: 4.0.0
+      didyoumean2: 4.1.0
       nopt: 4.0.3
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
@@ -1382,7 +1382,7 @@ importers:
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
-      didyoumean2: ^4.0.0
+      didyoumean2: ^4.1.0
       nopt: 4.0.3
   packages/parse-wanted-dependency:
     dependencies:
@@ -2983,7 +2983,6 @@ packages:
   /@babel/runtime/7.10.2:
     dependencies:
       regenerator-runtime: 0.13.5
-    dev: true
     resolution:
       integrity: sha512-6sF3uQw2ivImfVIl62RZ7MXhO2tap69WeWK57vAaimT6AZbE4FbqjdEJIN1UqoD6wI6B+1n9UiagafH1sxjOtg==
   /@bcoe/v8-coverage/0.2.3:
@@ -5936,15 +5935,16 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-bOICKN2/UvsTjEnJpUld3/2SDahgHH6KvG7umRv9WNlYTXOlwplM5ZkJBQh72swRjI5D3iu2Aqde1STulCWUWg==
-  /didyoumean2/4.0.0:
+  /didyoumean2/4.1.0:
     dependencies:
+      '@babel/runtime': 7.10.2
       leven: 3.1.0
       lodash.deburr: 4.1.0
     dev: false
     engines:
       node: '>=10.13'
     resolution:
-      integrity: sha512-7+OMIHqPDJ4uxeExQx8cSk26oD3KUloAQzi2R+3rmTU4IHvSDDmWZTQ6bmC4+MTw61DkYoh5ARxwS9MRoz0t2A==
+      integrity: sha512-qTBmfQoXvhKO75D/05C8m+fteQmn4U46FWYiLhXtZQInzitXLWY0EQ/2oKnpAz9g2lQWW8jYcLcT+hPJGT+kig==
   /diff-dates/1.0.12:
     dependencies:
       date-unit-ms: 1.1.13
@@ -10518,7 +10518,6 @@ packages:
     resolution:
       integrity: sha512-MguG95oij0fC3QV3URf4V2SDYGJhJnJGqvIIgdECeODCT98wSWDAJ94SSuVpYQUoTcGUIL6L4yNB7j1DFFHSBg==
   /regenerator-runtime/0.13.5:
-    dev: true
     resolution:
       integrity: sha512-ZS5w8CpKFinUzOwW3c83oPeVXoNsrLsaCoLtJvAClH135j/R77RuymhiSErhm2lKcwSCIpmvIWSbDkIfAqKQlA==
   /regex-escape/3.4.9:
