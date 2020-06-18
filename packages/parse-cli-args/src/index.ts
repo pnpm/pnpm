@@ -154,5 +154,5 @@ function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
 function getClosestOptionMatches (knownOptions: string[], option: string) {
   return didYouMean(option, knownOptions, {
     returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
-  }) as (string[] | null) ?? []
+  })
 }
