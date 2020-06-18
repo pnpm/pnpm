@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
@@ -8,7 +9,12 @@ import exists = require('path-exists')
 import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
-import { addDependenciesToPackage, install, mutateModules } from 'supi'
+import {
+  addDependenciesToPackage,
+  install,
+  MutatedProject,
+  mutateModules,
+} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -200,6 +206,69 @@ test('don\'t skip optional dependency that does not support the current OS when 
 
   await project.has('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/2636
+test('optional subdependency is not removed from current lockfile when new dependency added', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'pkg-with-optional': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers,
+    await testDefaults({ hoistPattern: ['*'] })
+  )
+
+  {
+    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    t.deepEqual(modulesInfo.skipped, ['/dep-of-optional-pkg/1.0.0', '/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
+
+    const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+    t.ok(currentLockfile.packages?.['/not-compatible-with-any-os/1.0.0'])
+  }
+
+  await mutateModules([
+    {
+      ...importers[0],
+      dependencySelectors: ['is-positive@1.0.0'],
+      mutation: 'installSome',
+    },
+  ], await testDefaults({ fastUnpack: false, hoistPattern: ['*'] }))
+
+  {
+    const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+    t.ok(currentLockfile.packages?.['/not-compatible-with-any-os/1.0.0'])
+  }
 })
 
 test('optional subdependency is skipped', async (t: tape.Test) => {
