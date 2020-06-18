@@ -36,8 +36,8 @@
     "@pnpm/read-project-manifest": "workspace:1.0.8",
     "@pnpm/resolver-base": "workspace:7.0.2",
     "@pnpm/types": "workspace:6.1.0",
-    "graceful-fs": "4.2.1",
-    "normalize-path": "3.0.0",
+    "graceful-fs": "^4.2.4",
+    "normalize-path": "^3.0.0",
     "ssri": "6.0.1"
   },
   "devDependencies": {
