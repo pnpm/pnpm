@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 5.3.6
+
+### Patch Changes
+
+- Updated dependencies [1520e3d6f]
+  - @pnpm/package-bins@4.0.6
+
 ## 5.3.5
 
 ### Patch Changes

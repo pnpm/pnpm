@@ -1,5 +1,12 @@
 # @pnpm/modules-cleaner
 
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [1520e3d6f]
+  - @pnpm/package-bins@4.0.6
+
 ## 10.0.0
 
 ### Major Changes

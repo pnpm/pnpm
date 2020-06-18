@@ -1,5 +1,11 @@
 # @pnpm/package-bins
 
+## 4.0.6
+
+### Patch Changes
+
+- 1520e3d6f: Update graceful-fs to v4.2.4
+
 ## 4.0.5
 
 ### Patch Changes

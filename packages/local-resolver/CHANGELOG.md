@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 5.0.9
+
+### Patch Changes
+
+- 1520e3d6f: Update graceful-fs to v4.2.4
+
 ## 5.0.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.1
+
+### Patch Changes
+
+- 1520e3d6f: Update fast-glob to v3.2.4
+
 ## 2.1.0
 
 ### Minor Changes

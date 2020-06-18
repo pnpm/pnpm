@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 7.1.2
+
+### Patch Changes
+
+- 1520e3d6f: Update graceful-fs to v4.2.4
+
 ## 7.1.1
 
 ### Patch Changes

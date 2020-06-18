@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [1520e3d6f]
+  - @pnpm/local-resolver@5.0.9
+
 ## 9.0.1
 
 ### Patch Changes

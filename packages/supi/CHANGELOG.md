@@ -1,5 +1,18 @@
 # supi
 
+## 0.41.2
+
+### Patch Changes
+
+- 17b598c18: Don't remove skipped optional dependencies from the current lockfile on partial installation.
+- 1520e3d6f: Update graceful-fs to v4.2.4
+  - @pnpm/package-requester@12.0.5
+  - @pnpm/link-bins@5.3.6
+  - @pnpm/modules-cleaner@10.0.1
+  - @pnpm/headless@14.0.2
+  - @pnpm/build-modules@5.0.5
+  - @pnpm/hoist@4.0.2
+
 ## 0.41.1
 
 ### Patch Changes

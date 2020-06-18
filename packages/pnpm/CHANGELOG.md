@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.2.2
+
+### Patch Changes
+
+- Don't remove skipped optional dependencies from the current lockfile on partial installation.
+
 ## 5.2.1
 
 ### Patch Changes

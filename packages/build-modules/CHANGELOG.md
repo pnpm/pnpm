@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.6
+
 ## 5.0.4
 
 ### Patch Changes

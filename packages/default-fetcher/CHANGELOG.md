@@ -1,5 +1,12 @@
 # @pnpm/default-fetcher
 
+## 6.0.7
+
+### Patch Changes
+
+- Updated dependencies [1520e3d6f]
+  - @pnpm/tarball-fetcher@7.1.2
+
 ## 6.0.6
 
 ### Patch Changes

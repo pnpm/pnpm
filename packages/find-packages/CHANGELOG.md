@@ -1,5 +1,11 @@
 # find-packages
 
+## 7.0.11
+
+### Patch Changes
+
+- 1520e3d6f: Update fast-glob to v3.2.4
+
 ## 7.0.10
 
 ### Patch Changes

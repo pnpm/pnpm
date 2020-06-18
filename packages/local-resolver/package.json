@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/local-resolver",
-  "version": "5.0.8",
+  "version": "5.0.9",
   "description": "Resolver for local packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

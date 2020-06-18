@@ -1,5 +1,11 @@
 # @pnpm/outdated
 
+## 7.1.1
+
+### Patch Changes
+
+- @pnpm/default-resolver@9.0.2
+
 ## 7.1.0
 
 ### Minor Changes
