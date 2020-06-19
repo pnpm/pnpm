@@ -31,21 +31,18 @@
     "@pnpm/filter-lockfile": "workspace:4.0.3",
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.14",
-    "@pnpm/package-bins": "workspace:4.0.6",
     "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/read-package-json": "workspace:3.1.2",
+    "@pnpm/remove-bins": "workspace:1.0.0",
     "@pnpm/store-controller-types": "workspace:8.0.1",
     "@pnpm/types": "workspace:6.1.0",
     "@zkochan/rimraf": "1.0.0",
     "dependency-path": "workspace:5.0.1",
-    "is-windows": "1.0.2",
     "ramda": "0.27.0"
   },
   "devDependencies": {
     "@pnpm/logger": "3.2.2",
     "@pnpm/modules-cleaner": "link:",
-    "@types/is-windows": "^1.0.0",
     "@types/ramda": "^0.27.6"
   },
   "bugs": {

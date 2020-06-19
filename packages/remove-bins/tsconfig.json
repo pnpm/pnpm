@@ -16,10 +16,10 @@
       "path": "../package-bins"
     },
     {
-      "path": "../types"
+      "path": "../read-package-json"
     },
     {
-      "path": "../utils"
+      "path": "../types"
     }
   ]
 }

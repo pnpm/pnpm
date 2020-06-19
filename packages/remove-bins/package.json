@@ -27,17 +27,17 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:4.0.1",
-    "@pnpm/package-bins": "workspace:4.0.3",
-    "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.12.4",
+    "@pnpm/core-loggers": "workspace:4.1.1",
+    "@pnpm/package-bins": "workspace:4.0.6",
+    "@pnpm/read-package-json": "workspace:3.1.2",
+    "@pnpm/types": "workspace:6.1.0",
     "@zkochan/rimraf": "1.0.0",
     "is-windows": "1.0.2"
   },
   "devDependencies": {
-    "@pnpm/logger": "3.1.0",
+    "@pnpm/logger": "3.2.2",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "^0.26.44"
+    "@types/ramda": "^0.27.6"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

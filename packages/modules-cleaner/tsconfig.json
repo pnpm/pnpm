@@ -22,13 +22,10 @@
       "path": "../lockfile-utils"
     },
     {
-      "path": "../read-modules-dir"
-    },
-    {
       "path": "../remove-bins"
     },
     {
-      "path": "../read-package-json"
+      "path": "../read-modules-dir"
     },
     {
       "path": "../store-controller-types"

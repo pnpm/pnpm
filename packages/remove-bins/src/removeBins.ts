@@ -2,8 +2,8 @@ import {
   removalLogger,
 } from '@pnpm/core-loggers'
 import binify from '@pnpm/package-bins'
+import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependencyManifest } from '@pnpm/types'
-import { safeReadPackageFromDir } from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
 import isWindows = require('is-windows')
 import path = require('path')
@@ -30,7 +30,7 @@ export async function removeBins (
     dryRun?: boolean,
     modulesDir: string,
     binsDir: string,
-  },
+  }
 ) {
   const uninstalledPkgPath = path.join(opts.modulesDir, uninstalledPkg)
   const uninstalledPkgJson = await safeReadPackageFromDir(uninstalledPkgPath) as DependencyManifest
@@ -42,7 +42,7 @@ export async function removeBins (
     await Promise.all(
       cmds
         .map((cmd) => path.join(opts.binsDir, cmd.name))
-        .map(remove),
+        .map(remove)
     )
   }
 
