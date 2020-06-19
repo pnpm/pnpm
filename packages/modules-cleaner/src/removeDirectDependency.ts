@@ -1,7 +1,7 @@
 import {
   rootLogger,
 } from '@pnpm/core-loggers'
-import { remove, removeBins } from '@pnpm/remove-bins';
+import { remove, removeBins } from '@pnpm/remove-bins'
 import { DependenciesField } from '@pnpm/types'
 import path = require('path')
 
