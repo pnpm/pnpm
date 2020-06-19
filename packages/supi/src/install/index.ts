@@ -305,7 +305,7 @@ export async function mutateModules (
           break
         }
         case 'unlinkSome': {
-          if (project.manifest?.name) {
+          if (project.manifest?.name && opts.globalBin) {
             await remove(path.join(opts.globalBin, project.manifest?.name))
           }
           const packagesToInstall: string[] = []
