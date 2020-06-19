@@ -1,5 +1,4 @@
 import {
-  removalLogger,
   rootLogger,
 } from '@pnpm/core-loggers'
 import binify from '@pnpm/package-bins'

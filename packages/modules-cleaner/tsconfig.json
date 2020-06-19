@@ -22,10 +22,10 @@
       "path": "../lockfile-utils"
     },
     {
-      "path": "../package-bins"
+      "path": "../read-modules-dir"
     },
     {
-      "path": "../read-modules-dir"
+      "path": "../remove-bins"
     },
     {
       "path": "../read-package-json"
