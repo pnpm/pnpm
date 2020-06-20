@@ -1,6 +1,7 @@
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import npx = require('@zkochan/libnpx/index')
 import path = require('path')
+import PATH = require('path-name')
 
 const PNPM_PATH = path.join(__dirname, '../../bin/pnpm.js')
 
@@ -8,7 +9,7 @@ const PNPM_PATH = path.join(__dirname, '../../bin/pnpm.js')
 ; (async () => {
   const workspaceRoot = await findWorkspaceDir(process.cwd())
   if (workspaceRoot) {
-    process.env.PATH = `${path.join(workspaceRoot, 'node_modules/.bin')}${path.delimiter}${process.env.PATH}`
+    process.env[PATH] = `${path.join(workspaceRoot, 'node_modules/.bin')}${path.delimiter}${process.env[PATH]}`
   }
   npx({
     ...npx.parseArgs(process.argv, PNPM_PATH),
