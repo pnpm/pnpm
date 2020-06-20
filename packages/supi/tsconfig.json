@@ -79,6 +79,9 @@
       "path": "../read-project-manifest"
     },
     {
+      "path": "../remove-bins"
+    },
+    {
       "path": "../resolve-dependencies"
     },
     {

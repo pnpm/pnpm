@@ -27,6 +27,7 @@ import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
+import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
   ResolvedDirectDependency,
   ResolvedPackage,
@@ -304,6 +305,9 @@ export async function mutateModules (
           break
         }
         case 'unlinkSome': {
+          if (project.manifest?.name && opts.globalBin) {
+            await removeBin(path.join(opts.globalBin, project.manifest?.name))
+          }
           const packagesToInstall: string[] = []
           const allDeps = getAllDependenciesFromManifest(project.manifest)
           for (const depName of project.dependencyNames) {

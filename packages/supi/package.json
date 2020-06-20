@@ -40,6 +40,7 @@
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.1.2",
     "@pnpm/read-project-manifest": "workspace:1.0.8",
+    "@pnpm/remove-bins": "workspace:0.0.0",
     "@pnpm/resolve-dependencies": "workspace:16.0.1",
     "@pnpm/resolver-base": "workspace:7.0.2",
     "@pnpm/store-controller-types": "workspace:8.0.1",

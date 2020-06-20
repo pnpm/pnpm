@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/modules-cleaner",
-  "version": "10.0.1",
-  "description": "Exports util functions to clean up node_modules",
+  "name": "@pnpm/remove-bins",
+  "version": "0.0.0",
+  "description": "Remove bins from .bin",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -17,8 +17,8 @@
   "engines": {
     "node": ">=10.13"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/modules-cleaner",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/modules-cleaner#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/remove-bins",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/remove-bins#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "test": "pnpm run compile",
@@ -28,21 +28,15 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.1.1",
-    "@pnpm/filter-lockfile": "workspace:4.0.3",
-    "@pnpm/lockfile-types": "workspace:2.0.1",
-    "@pnpm/lockfile-utils": "workspace:2.0.14",
-    "@pnpm/pkgid-to-filename": "^3.0.0",
-    "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/remove-bins": "workspace:0.0.0",
-    "@pnpm/store-controller-types": "workspace:8.0.1",
+    "@pnpm/package-bins": "workspace:4.0.6",
+    "@pnpm/read-package-json": "workspace:3.1.2",
     "@pnpm/types": "workspace:6.1.0",
     "@zkochan/rimraf": "1.0.0",
-    "dependency-path": "workspace:5.0.1",
-    "ramda": "0.27.0"
+    "is-windows": "1.0.2"
   },
   "devDependencies": {
     "@pnpm/logger": "3.2.2",
-    "@pnpm/modules-cleaner": "link:",
+    "@types/is-windows": "^1.0.0",
     "@types/ramda": "^0.27.6"
   },
   "bugs": {
