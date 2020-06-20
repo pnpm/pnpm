@@ -15,7 +15,7 @@ export default async function prune (storeDir: string) {
   const pkgIndexFiles = [] as string[]
   const removedHashes = new Set<string>()
   const dirs = (await fs.readdir(cafsDir, { withFileTypes: true }))
-    .filter(dir => dir.isDirectory)
+    .filter(entry => entry.isDirectory())
     .map(dir => dir.name)
   let fileCounter = 0
   for (const dir of dirs) {
