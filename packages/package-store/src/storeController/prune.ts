@@ -14,7 +14,9 @@ export default async function prune (storeDir: string) {
   globalInfo('Removed all cached metadata files')
   const pkgIndexFiles = [] as string[]
   const removedHashes = new Set<string>()
-  const dirs = await fs.readdir(cafsDir)
+  const dirs = (await fs.readdir(cafsDir, { withFileTypes: true }))
+    .filter(entry => entry.isDirectory())
+    .map(dir => dir.name)
   let fileCounter = 0
   for (const dir of dirs) {
     const subdir = path.join(cafsDir, dir)
