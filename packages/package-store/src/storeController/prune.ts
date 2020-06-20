@@ -6,7 +6,6 @@ import path = require('path')
 import ssri = require('ssri')
 
 const BIG_ONE = BigInt(1) as unknown
-const skipDirs = ['.DS_store']
 
 export default async function prune (storeDir: string) {
   const cafsDir = path.join(storeDir, 'files')
@@ -15,12 +14,11 @@ export default async function prune (storeDir: string) {
   globalInfo('Removed all cached metadata files')
   const pkgIndexFiles = [] as string[]
   const removedHashes = new Set<string>()
-  const dirs = await fs.readdir(cafsDir)
+  const dirs = (await fs.readdir(cafsDir, { withFileTypes: true }))
+    .filter(dir => dir.isDirectory)
+    .map(dir => dir.name)
   let fileCounter = 0
   for (const dir of dirs) {
-    if (skipDirs.includes(dir)) {
-      continue
-    }
     const subdir = path.join(cafsDir, dir)
     for (const fileName of await fs.readdir(subdir)) {
       const filePath = path.join(subdir, fileName)
