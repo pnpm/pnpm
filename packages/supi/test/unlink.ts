@@ -293,20 +293,20 @@ test('unlink would remove global bin', async (t: tape.Test) => {
 
   await Promise.all([
     writeJsonFile('is-subdir/package.json', {
+      bin: 'index.js',
       dependencies: {
         'is-windows': '^1.0.0',
       },
       name: 'is-subdir',
       version: '1.0.0',
-      bin: 'index.js',
-    })
+    }),
   ])
 
   const opts = await testDefaults({
     fastUnpack: false,
-    store: path.resolve('.store'),
     globalBin: path.resolve('bin'),
     linkToBin: path.resolve('bin'),
+    store: path.resolve('.store'),
   })
 
   let manifest = await link(
@@ -316,10 +316,10 @@ test('unlink would remove global bin', async (t: tape.Test) => {
       ...opts,
       dir: path.resolve('project'),
       manifest: {
-        name: 'is-subdir',
         dependencies: {
           'is-subdir': '^1.0.0',
         },
+        name: 'is-subdir',
       },
     }
   )
