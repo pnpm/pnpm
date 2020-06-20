@@ -1,7 +1,7 @@
 ---
 "@pnpm/remove-bins": major
-"@pnpm/modules-cleaner": minor
-"supi": minor
+"@pnpm/modules-cleaner": patch
+"supi": patch
 ---
 
-remove global bins when unlink
+Remove global bins when unlinking.
