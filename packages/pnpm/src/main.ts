@@ -125,7 +125,7 @@ export default async function run (inputArgv: string[]) {
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // tslint:disable-line:no-any
     try {
-      config.globalBin = path.dirname(which.sync('pnpm'))
+      config.bin = path.dirname(which.sync('pnpm'))
     } catch (err) {
       // if pnpm not found, then ignore
     }
