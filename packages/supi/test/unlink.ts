@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
+import fs = require('fs')
 import isInnerLink = require('is-inner-link')
 import path = require('path')
 import exists = require('path-exists')
@@ -281,4 +282,60 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
     level: 'warn',
     message: 'is-positive is not an external link',
   }), 'reported warning')
+})
+
+test('unlink would remove global bin', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  process.chdir('..')
+  fs.mkdirSync('bin')
+  fs.mkdirSync('is-subdir')
+  fs.writeFileSync('is-subdir/index.js', ' ')
+
+  await Promise.all([
+    writeJsonFile('is-subdir/package.json', {
+      dependencies: {
+        'is-windows': '^1.0.0',
+      },
+      name: 'is-subdir',
+      version: '1.0.0',
+      bin: 'index.js',
+    })
+  ])
+
+  const opts = await testDefaults({
+    fastUnpack: false,
+    store: path.resolve('.store'),
+    globalBin: path.resolve('bin'),
+    linkToBin: path.resolve('bin'),
+  })
+
+  let manifest = await link(
+    ['is-subdir'],
+    path.join('project', 'node_modules'),
+    {
+      ...opts,
+      dir: path.resolve('project'),
+      manifest: {
+        name: 'is-subdir',
+        dependencies: {
+          'is-subdir': '^1.0.0',
+        },
+      },
+    }
+  )
+  t.ok(fs.existsSync(path.resolve('bin/is-subdir')), 'bin is installed in global bin directory')
+
+  await mutateModules(
+    [
+      {
+        dependencyNames: ['is-subdir'],
+        manifest,
+        mutation: 'unlinkSome',
+        rootDir: process.cwd(),
+      },
+    ],
+    opts
+  )
+
+  t.notOk(fs.existsSync(path.resolve('bin/is-subdir')), 'bin is removed in global bin directory')
 })
