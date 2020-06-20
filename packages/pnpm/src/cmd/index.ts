@@ -19,6 +19,7 @@ import { server } from '@pnpm/plugin-commands-server'
 import { store } from '@pnpm/plugin-commands-store'
 import R = require('ramda')
 import { PnpmOptions } from '../types'
+import * as bin from './bin'
 import createCompletion from './completion'
 import createHelp from './help'
 import * as installTest from './installTest'
@@ -54,6 +55,7 @@ const commands: Array<{
 }> = [
   add,
   audit,
+  bin,
   exec,
   importCommand,
   install,

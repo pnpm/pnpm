@@ -2173,6 +2173,7 @@ importers:
       npm-run-all: 4.1.5
       p-any: 3.0.0
       path-exists: 4.0.0
+      path-name: 1.0.0
       pnpm: 'link:'
       read-yaml-file: 2.0.0
       semver: 7.3.2
@@ -2257,6 +2258,7 @@ importers:
       npm-run-all: 4.1.5
       p-any: 3.0.0
       path-exists: 4.0.0
+      path-name: ^1.0.0
       pkgs-graph: 'workspace:5.2.0'
       pnpm: 'link:'
       ramda: ^0.27.0

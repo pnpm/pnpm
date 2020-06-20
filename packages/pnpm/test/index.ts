@@ -1,4 +1,5 @@
 ///<reference path="../../../typings/index.d.ts" />
+import './bin'
 import './cli'
 import './complete.test'
 import './formatError.test'

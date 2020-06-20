@@ -25,7 +25,6 @@ const argv = process.argv.slice(2)
     // commands that are passed through to npm:
     case 'access':
     case 'adduser':
-    case 'bin':
     case 'bugs':
     case 'c':
     case 'config':
