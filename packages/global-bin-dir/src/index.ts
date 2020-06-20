@@ -20,6 +20,7 @@ function pickBestGlobalBinDir (dirs: string[]) {
       isUnderDir('node', dir) ||
       isUnderDir('nodejs', dir) ||
       isUnderDir('npm', dir) ||
+      isUnderDir('pnpm', dir) ||
       nodeBinDir === dir
     ) {
       if (canWriteToDirAndExists(dir)) return dir
@@ -28,7 +29,7 @@ function pickBestGlobalBinDir (dirs: string[]) {
   }
   if (noWriteAccessDirs.length === 0) {
     throw new PnpmError('NO_GLOBAL_BIN_DIR', "Couldn't find a suitable global executables directory.", {
-      hint: `There should be a node, nodejs, or npm directory in the "${PATH}" environment variable`,
+      hint: `There should be a node, nodejs, npm, or pnpm directory in the "${PATH}" environment variable`,
     })
   }
   throw new PnpmError('GLOBAL_BIN_DIR_PERMISSION', 'No write access to the found global executable directories', {

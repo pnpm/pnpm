@@ -23,25 +23,28 @@ const globalBinDir = proxiquire('../lib/index.js', {
 const userGlobalBin = makePath('usr', 'local', 'bin')
 const nodeGlobalBin = makePath('home', 'z', '.nvs', 'node', '12.0.0', 'x64', 'bin')
 const npmGlobalBin = makePath('home', 'z', '.npm')
+const pnpmGlobalBin = makePath('home', 'z', '.pnpm')
 const otherDir = makePath('some', 'dir')
 const currentExecDir = makePath('current', 'exec')
 process.env[FAKE_PATH] = [
   userGlobalBin,
   nodeGlobalBin,
   npmGlobalBin,
+  pnpmGlobalBin,
   otherDir,
   currentExecDir,
 ].join(path.delimiter)
 
-test('prefer a directory that has "nodejs" in the path', (t) => {
+test('prefer a directory that has "nodejs", "npm", or "pnpm" in the path', (t) => {
   canWriteToDir = () => true
   t.equal(globalBinDir(), nodeGlobalBin)
-  t.end()
-})
 
-test('prefer the first directory that has "nodejs" or "npm" in the path and to which the process has write access', (t) => {
   canWriteToDir = (dir) => dir !== nodeGlobalBin
   t.equal(globalBinDir(), npmGlobalBin)
+
+  canWriteToDir = (dir) => dir !== nodeGlobalBin && dir !== npmGlobalBin
+  t.equal(globalBinDir(), pnpmGlobalBin)
+
   t.end()
 })
 
@@ -61,7 +64,7 @@ test("ignore directories that don't exist", (t) => {
 test('prefer the directory of the currently executed nodejs command', (t) => {
   const originalExecPath = process.execPath
   process.execPath = path.join(currentExecDir, 'n')
-  canWriteToDir = (dir) => dir !== nodeGlobalBin && dir !== npmGlobalBin
+  canWriteToDir = (dir) => dir !== nodeGlobalBin && dir !== npmGlobalBin && dir !== pnpmGlobalBin
   t.equal(globalBinDir(), currentExecDir)
   process.execPath = originalExecPath
   t.end()
