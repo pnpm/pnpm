@@ -14,7 +14,7 @@ export default function () {
 
 function pickBestGlobalBinDir (dirs: string[]) {
   const nodeBinDir = path.dirname(process.execPath)
-  const secondaryDirs = [] as string[]
+  const noWriteAccessDirs = [] as string[]
   for (const dir of dirs) {
     if (
       isUnderDir('node', dir) ||
@@ -23,14 +23,18 @@ function pickBestGlobalBinDir (dirs: string[]) {
       nodeBinDir === dir
     ) {
       if (canWriteToDirAndExists(dir)) return dir
-    } else {
-      secondaryDirs.push(dir)
+      noWriteAccessDirs.push(dir)
     }
   }
-  for (const dir of secondaryDirs) {
-    if (canWriteToDirAndExists(dir)) return dir
+  if (noWriteAccessDirs.length === 0) {
+    throw new PnpmError('NO_GLOBAL_BIN_DIR', "Couldn't find a suitable global executables directory.", {
+      hint: `There should be a node, nodejs, or npm directory in the "${PATH}" environment variable`,
+    })
   }
-  return undefined
+  throw new PnpmError('GLOBAL_BIN_DIR_PERMISSION', 'No write access to the found global executable directories', {
+    hint: `The found directories:
+${noWriteAccessDirs.join('\n')}`,
+  })
 }
 
 function isUnderDir (dir: string, target: string) {

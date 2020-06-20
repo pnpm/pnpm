@@ -107,7 +107,7 @@ export async function handler (
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
       // A temporary workaround. global bin/prefix are always defined when --global is set
-      globalBin: globalBinDir()!,
+      globalBin: globalBinDir(),
       globalDir: linkOpts.globalDir!,
       manifest: manifest || {},
     })

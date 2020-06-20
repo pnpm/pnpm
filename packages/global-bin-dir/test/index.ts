@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { sync as _canWriteToDir } from 'can-write-to-dir'
 import isWindows = require('is-windows')
 import path = require('path')
@@ -66,9 +67,32 @@ test('prefer the directory of the currently executed nodejs command', (t) => {
   t.end()
 })
 
-test('when the process has write access only to one of the directories, return it', (t) => {
+test('when the process has no write access to any of the suitable directories, throw an error', (t) => {
   canWriteToDir = (dir) => dir === otherDir
-  t.equal(globalBinDir(), otherDir)
+  let err!: PnpmError
+  try {
+    globalBinDir()
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_GLOBAL_BIN_DIR_PERMISSION')
+  t.end()
+})
+
+test('throw an exception if non of the directories in the PATH are suitable', (t) => {
+  const pathEnv = process.env[FAKE_PATH]
+  process.env[FAKE_PATH] = [otherDir].join(path.delimiter)
+  canWriteToDir = () => true
+  let err!: PnpmError
+  try {
+    globalBinDir()
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_NO_GLOBAL_BIN_DIR')
+  process.env[FAKE_PATH] = pathEnv
   t.end()
 })
 
