@@ -22,27 +22,26 @@ function removeOnNonWin (p: string) {
   return rimraf(p)
 }
 
-export const remove = isWindows() ? removeOnWin : removeOnNonWin
+export const removeBin = isWindows() ? removeOnWin : removeOnNonWin
 
-export async function removeBins (
-  uninstalledPkg: string,
+export async function removeBinsOfDependency (
+  dependencyDir: string,
   opts: {
     dryRun?: boolean,
-    modulesDir: string,
     binsDir: string,
   }
 ) {
-  const uninstalledPkgPath = path.join(opts.modulesDir, uninstalledPkg)
-  const uninstalledPkgJson = await safeReadPackageFromDir(uninstalledPkgPath) as DependencyManifest
+
+  const uninstalledPkgJson = await safeReadPackageFromDir(dependencyDir) as DependencyManifest
 
   if (!uninstalledPkgJson) return
-  const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)
+  const cmds = await binify(uninstalledPkgJson, dependencyDir)
 
   if (!opts.dryRun) {
     await Promise.all(
       cmds
         .map((cmd) => path.join(opts.binsDir, cmd.name))
-        .map(remove)
+        .map(removeBin)
     )
   }
 

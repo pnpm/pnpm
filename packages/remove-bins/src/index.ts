@@ -1,6 +1,6 @@
-import { remove, removeBins } from './removeBins'
+import { removeBin, removeBinsOfDependency } from './removeBins'
 
 export {
-  remove,
-  removeBins,
+  removeBin,
+  removeBinsOfDependency,
 }

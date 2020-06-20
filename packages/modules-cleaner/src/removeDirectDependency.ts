@@ -1,7 +1,7 @@
 import {
   rootLogger,
 } from '@pnpm/core-loggers'
-import { remove, removeBins } from '@pnpm/remove-bins'
+import { removeBin, removeBinsOfDependency } from '@pnpm/remove-bins'
 import { DependenciesField } from '@pnpm/types'
 import path = require('path')
 
@@ -18,9 +18,10 @@ export default async function removeDirectDependency (
     rootDir: string,
   }
 ) {
+  const dependencyDir = path.join(opts.modulesDir, dependency.name)
   const results = await Promise.all([
-    removeBins(dependency.name, opts),
-    !opts.dryRun && remove(path.join(opts.modulesDir, dependency.name)) as any, // tslint:disable-line:no-any
+    removeBinsOfDependency(dependencyDir, opts),
+    !opts.dryRun && removeBin(dependencyDir) as any, // tslint:disable-line:no-any
   ])
 
   const uninstalledPkg = results[0]
