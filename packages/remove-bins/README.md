@@ -10,9 +10,9 @@ pnpm install @pnpm/remove-bins
 
 ## API
 
-### `remove(...args)`
+### `removeBin(...args)`
 
-### `removeBins(...args)`
+### `removeBinsOfDependency(...args)`
 
 ## License
 
