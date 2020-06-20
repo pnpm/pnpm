@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "10.0.1",
+  "version": "10.0.2",
   "description": "Exports util functions to clean up node_modules",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
@@ -33,7 +33,7 @@
     "@pnpm/lockfile-utils": "workspace:2.0.14",
     "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/remove-bins": "workspace:0.0.0",
+    "@pnpm/remove-bins": "workspace:1.0.0",
     "@pnpm/store-controller-types": "workspace:8.0.1",
     "@pnpm/types": "workspace:6.1.0",
     "@zkochan/rimraf": "1.0.0",

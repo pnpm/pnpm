@@ -1,5 +1,15 @@
 # supi
 
+## 0.41.3
+
+### Patch Changes
+
+- 57d08f303: Remove global bins when unlinking.
+- Updated dependencies [57d08f303]
+  - @pnpm/remove-bins@1.0.0
+  - @pnpm/modules-cleaner@10.0.2
+  - @pnpm/headless@14.0.3
+
 ## 0.41.2
 
 ### Patch Changes

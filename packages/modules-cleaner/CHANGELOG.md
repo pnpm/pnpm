@@ -1,5 +1,13 @@
 # @pnpm/modules-cleaner
 
+## 10.0.2
+
+### Patch Changes
+
+- 57d08f303: Remove global bins when unlinking.
+- Updated dependencies [57d08f303]
+  - @pnpm/remove-bins@1.0.0
+
 ## 10.0.1
 
 ### Patch Changes

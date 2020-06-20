@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 14.0.3
+
+### Patch Changes
+
+- Updated dependencies [57d08f303]
+  - @pnpm/modules-cleaner@10.0.2
+
 ## 14.0.2
 
 ### Patch Changes

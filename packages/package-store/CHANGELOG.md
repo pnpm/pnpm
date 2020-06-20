@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 9.0.9
+
+### Patch Changes
+
+- 1adacd41e: only scan diretories when doing store prune
+
 ## 9.0.8
 
 ### Patch Changes

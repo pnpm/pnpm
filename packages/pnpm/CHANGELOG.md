@@ -1,5 +1,15 @@
 # pnpm
 
+## 5.2.3
+
+### Patch Changes
+
+- Own implementation of the `pnpm bin` command added (previously it was passed through to `npm bin`).
+- Read the correct PATH env variable on all systems, when running pnpx. One Windows the correct path name might be Path or other.
+- Install the pnpm bin executable to the directory of the globally installed pnpm executable, when running `pnpm add -g pnpm`.
+- `pnpm store prune` should not fail when the store has some foreign files.
+- `pnpm unlink --global` should unlink bin files from the global executables directory.
+
 ## 5.2.2
 
 ### Patch Changes
