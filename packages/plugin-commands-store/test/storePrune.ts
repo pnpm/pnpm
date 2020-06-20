@@ -151,7 +151,7 @@ test('prune will skip scanning non-directory in storeDir', async (t) => {
   const project = prepare(t)
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
-  fs.writeFileSync(storeDir + '/.DS_store', 'foobar')
+  fs.writeFileSync(path.join(storeDir, STORE_VERSION, 'files/.DS_store'), 'foobar')
 
   await store.handler({
     dir: process.cwd(),
