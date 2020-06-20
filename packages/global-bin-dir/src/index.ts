@@ -1,9 +1,18 @@
+import PnpmError from '@pnpm/error'
 import { sync as canWriteToDir } from 'can-write-to-dir'
 import path = require('path')
 import PATH = require('path-name')
 
 export default function () {
+  if (!process.env[PATH]) {
+    throw new PnpmError('NO_PATH_ENV',
+      `Couldn't find a global directory for executables because the "${PATH}" environment variable is not set.`)
+  }
   const dirs = process.env[PATH]?.split(path.delimiter) ?? []
+  return pickBestGlobalBinDir(dirs)
+}
+
+function pickBestGlobalBinDir (dirs: string[]) {
   const nodeBinDir = path.dirname(process.execPath)
   const secondaryDirs = [] as string[]
   for (const dir of dirs) {

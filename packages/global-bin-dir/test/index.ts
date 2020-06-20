@@ -71,3 +71,11 @@ test('when the process has write access only to one of the directories, return i
   t.equal(globalBinDir(), otherDir)
   t.end()
 })
+
+test('throw exception if PATH is not set', (t) => {
+  const pathEnv = process.env[FAKE_PATH]
+  delete process.env[FAKE_PATH]
+  t.throws(() => globalBinDir(), /Couldn't find a global directory/)
+  process.env[FAKE_PATH] = pathEnv
+  t.end()
+})
