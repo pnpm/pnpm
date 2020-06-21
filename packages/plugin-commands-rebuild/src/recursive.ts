@@ -4,15 +4,13 @@ import {
 } from '@pnpm/cli-utils'
 import {
   Config,
-  Project,
-  ProjectsGraph,
   types as allTypes,
 } from '@pnpm/config'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { PackageManifest, ProjectManifest } from '@pnpm/types'
+import { Project, ProjectManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import mem = require('mem')
 import pLimit = require('p-limit')

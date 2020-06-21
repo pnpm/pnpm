@@ -1,6 +1,6 @@
-import { Config, Project } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import logger from '@pnpm/logger'
-import { IncludedDependencies } from '@pnpm/types'
+import { IncludedDependencies, Project } from '@pnpm/types'
 import { render } from './list'
 
 export default async (

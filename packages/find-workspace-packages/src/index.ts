@@ -1,6 +1,6 @@
 import { packageIsInstallable } from '@pnpm/cli-utils'
-import { Project } from '@pnpm/config'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { Project } from '@pnpm/types'
 import findPackages from 'find-packages'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'

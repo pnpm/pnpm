@@ -503,7 +503,6 @@ importers:
   packages/find-workspace-packages:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
-      '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/types': 'link:../types'
       find-packages: 'link:../find-packages'
@@ -512,7 +511,6 @@ importers:
       '@pnpm/find-workspace-packages': 'link:'
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.9'
-      '@pnpm/config': 'workspace:9.2.0'
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/find-workspace-packages': 'link:'
       '@pnpm/types': 'workspace:6.1.0'
@@ -2525,13 +2523,13 @@ importers:
       uuid: ^3.4.0
   packages/sort-packages:
     dependencies:
-      '@pnpm/config': 'link:../config'
+      '@pnpm/types': 'link:../types'
       graph-sequencer: 2.0.0
     devDependencies:
       '@pnpm/sort-packages': 'link:'
     specifiers:
-      '@pnpm/config': 'workspace:9.2.0'
       '@pnpm/sort-packages': 'link:'
+      '@pnpm/types': 'workspace:^6.1.0'
       graph-sequencer: 2.0.0
   packages/store-connection-manager:
     dependencies:

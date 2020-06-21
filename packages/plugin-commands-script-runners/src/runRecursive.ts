@@ -1,10 +1,9 @@
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
-import { Config, ProjectsGraph } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
-import { PackageManifest } from '@pnpm/types'
 import pLimit = require('p-limit')
 import path = require('path')
 import realpathMissing = require('realpath-missing')

@@ -2,7 +2,7 @@ import {
   RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { Config, Project, ProjectsGraph } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
@@ -15,7 +15,9 @@ import { createOrConnectStoreController, CreateStoreControllerOptions } from '@p
 import {
   IncludedDependencies,
   PackageManifest,
+  Project,
   ProjectManifest,
+  ProjectsGraph,
 } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import isSubdir = require('is-subdir')

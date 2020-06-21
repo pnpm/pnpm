@@ -9,14 +9,12 @@ import whichcb = require('which')
 import {
   Config,
   ConfigWithDeprecatedSettings,
-  Project,
-  ProjectsGraph,
   UniversalOptions,
 } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 
-export { Config, UniversalOptions, Project, ProjectsGraph }
+export { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
 

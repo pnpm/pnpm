@@ -32,7 +32,6 @@
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.4.9",
-    "@pnpm/config": "workspace:9.2.0",
     "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/types": "workspace:6.1.0",
     "find-packages": "workspace:7.0.11",

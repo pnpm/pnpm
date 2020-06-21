@@ -1,4 +1,4 @@
-import { ProjectsGraph } from '@pnpm/config'
+import { ProjectsGraph } from '@pnpm/types'
 import graphSequencer = require('graph-sequencer')
 
 export default function sortPackages (pkgGraph: ProjectsGraph): string[][] {

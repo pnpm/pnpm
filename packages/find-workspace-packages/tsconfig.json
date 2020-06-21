@@ -13,9 +13,6 @@
       "path": "../cli-utils"
     },
     {
-      "path": "../config"
-    },
-    {
       "path": "../constants"
     },
     {

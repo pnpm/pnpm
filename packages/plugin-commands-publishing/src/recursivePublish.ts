@@ -1,4 +1,4 @@
-import { Config, Project } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import createResolver from '@pnpm/npm-resolver'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { ResolveFunction } from '@pnpm/resolver-base'
