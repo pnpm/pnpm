@@ -1,6 +1,5 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
-import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import {
@@ -26,9 +25,9 @@ export const commandNames = ['start']
 
 export function help () {
   return renderHelp({
-    description: oneLine`
-      Runs an arbitrary command specified in the package's "start" property of its "scripts" object.
-      If no "start" property is specified on the "scripts" object, it will run node server.js.`,
+    description: `\
+Runs an arbitrary command specified in the package's "start" property of its "scripts" object. \
+If no "start" property is specified on the "scripts" object, it will run node server.js.`,
     descriptionLists: [
       {
         title: 'Options',

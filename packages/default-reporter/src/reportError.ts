@@ -1,7 +1,6 @@
 import { Log } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import chalk = require('chalk')
-import commonTags = require('common-tags')
 import R = require('ramda')
 import StackTracey = require('stacktracey')
 import { EOL } from './constants'
@@ -12,8 +11,6 @@ StackTracey.maxColumnWidths = {
   sourceLine: 25,
 }
 
-const stripIndent = commonTags.stripIndent
-const stripIndents = commonTags.stripIndents
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
@@ -72,11 +69,10 @@ function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: 
 
 function formatNoMatchingVersion (err: Error, msg: object) {
   const meta = msg['packageMeta']
-  let output = stripIndent`
-    ${formatErrorSummary(err.message)}
+  let output = `\
+${formatErrorSummary(err.message)}
 
-    The latest release of ${meta.name} is "${meta['dist-tags'].latest}".
-  ` + EOL
+The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
 
   if (!R.equals(R.keys(meta['dist-tags']), ['latest'])) {
     output += EOL + 'Other releases are:' + EOL
@@ -93,41 +89,36 @@ function formatNoMatchingVersion (err: Error, msg: object) {
 }
 
 function reportUnexpectedStore (err: Error, msg: object) {
-  return stripIndent`
-    ${formatErrorSummary(err.message)}
+  return `${formatErrorSummary(err.message)}
 
-    The dependencies at "${msg['modulesDir']}" are currently linked from the store at "${msg['expectedStorePath']}".
+The dependencies at "${msg['modulesDir']}" are currently linked from the store at "${msg['expectedStorePath']}".
 
-    pnpm now wants to use the store at "${msg['actualStorePath']}" to link dependencies.
+pnpm now wants to use the store at "${msg['actualStorePath']}" to link dependencies.
 
-    If you want to use the new store location, reinstall your dependencies with "pnpm install".
+If you want to use the new store location, reinstall your dependencies with "pnpm install".
 
-    You may change the global store location by running "pnpm config set store-dir <dir>".
-      (This error may happen if the node_modules was installed with a different major version of pnpm)
-    `
+You may change the global store location by running "pnpm config set store-dir <dir>".
+(This error may happen if the node_modules was installed with a different major version of pnpm)`
 }
 
 function reportUnexpectedVirtualStoreDir (err: Error, msg: object) {
-  return stripIndent`
-    ${formatErrorSummary(err.message)}
+  return `${formatErrorSummary(err.message)}
 
-    The dependencies at "${msg['modulesDir']}" are currently symlinked from the virtual store directory at "${msg['expected']}".
+The dependencies at "${msg['modulesDir']}" are currently symlinked from the virtual store directory at "${msg['expected']}".
 
-    pnpm now wants to use the virtual store at "${msg['actual']}" to link dependencies from the store.
+pnpm now wants to use the virtual store at "${msg['actual']}" to link dependencies from the store.
 
-    If you want to use the new virtual store location, reinstall your dependencies with "pnpm install".
+If you want to use the new virtual store location, reinstall your dependencies with "pnpm install".
 
-    You may change the virtual store location by changing the value of the virtual-store-dir config.
-    `
+You may change the virtual store location by changing the value of the virtual-store-dir config.`
 }
 
 function reportStoreBreakingChange (msg: object) {
-  let output = stripIndent`
-    ${formatErrorSummary(`The store used for the current node_modules is incomatible with the current version of pnpm`)}
-    Store path: ${colorPath(msg['storePath'])}
+  let output = `\
+${formatErrorSummary(`The store used for the current node_modules is incomatible with the current version of pnpm`)}
+Store path: ${colorPath(msg['storePath'])}
 
-    Run "pnpm install" to recreate node_modules.
-  `
+Run "pnpm install" to recreate node_modules.`
 
   if (msg['additionalInformation']) {
     output += EOL + EOL + msg['additionalInformation']
@@ -138,12 +129,11 @@ function reportStoreBreakingChange (msg: object) {
 }
 
 function reportModulesBreakingChange (msg: object) {
-  let output = stripIndent`
-    ${formatErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)}
-    node_modules path: ${colorPath(msg['modulesPath'])}
+  let output = `\
+${formatErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)}
+node_modules path: ${colorPath(msg['modulesPath'])}
 
-    Run ${highlight('pnpm install')} to recreate node_modules.
-  `
+Run ${highlight('pnpm install')} to recreate node_modules.`
 
   if (msg['additionalInformation']) {
     output += EOL + EOL + msg['additionalInformation']
@@ -180,10 +170,7 @@ function formatGenericError (errorMessage: string, stack: object) {
       prettyStack = undefined
     }
     if (prettyStack) {
-      return stripIndents`
-          ${formatErrorSummary(errorMessage)}
-          ${prettyStack}
-        `
+      return `${formatErrorSummary(errorMessage)}${EOL}${prettyStack}`
     }
   }
   return formatErrorSummary(errorMessage)
@@ -194,22 +181,20 @@ function formatErrorSummary (message: string) {
 }
 
 function reportModifiedDependency (msg: object) {
-  return stripIndent`
-    ${formatErrorSummary('Packages in the store have been mutated')}
+  return `\
+${formatErrorSummary('Packages in the store have been mutated')}
 
-    These packages are modified:
-    ${msg['modified'].map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
+These packages are modified:
+${msg['modified'].map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
 
-    You can run ${highlight('pnpm install')} to refetch the modified packages
-  `
+You can run ${highlight('pnpm install')} to refetch the modified packages`
 }
 
 function reportLockfileBreakingChange (err: Error, msg: object) {
-  return stripIndent`
-    ${formatErrorSummary(err.message)}
+  return `\
+${formatErrorSummary(err.message)}
 
-    Run with the ${highlight('--force')} parameter to recreate the lockfile.
-  `
+Run with the ${highlight('--force')} parameter to recreate the lockfile.`
 }
 
 function formatRecursiveCommandSummary (msg: { fails: Array<Error & {prefix: string}>, passes: number }) {
@@ -221,24 +206,23 @@ function formatRecursiveCommandSummary (msg: { fails: Array<Error & {prefix: str
 }
 
 function reportBadTarballSize (err: Error, msg: object) {
-  return stripIndent`
-    ${formatErrorSummary(err.message)}
+  return `\
+${formatErrorSummary(err.message)}
 
-    Seems like you have internet connection issues.
-    Try running the same command again.
-    If that doesn't help, try one of the following:
+Seems like you have internet connection issues.
+Try running the same command again.
+If that doesn't help, try one of the following:
 
-    - Set a bigger value for the \`fetch-retries\` config.
-        To check the current value of \`fetch-retries\`, run \`pnpm get fetch-retries\`.
-        To set a new value, run \`pnpm set fetch-retries <number>\`.
+- Set a bigger value for the \`fetch-retries\` config.
+    To check the current value of \`fetch-retries\`, run \`pnpm get fetch-retries\`.
+    To set a new value, run \`pnpm set fetch-retries <number>\`.
 
-    - Set \`network-concurrency\` to 1.
-        This change will slow down installation times, so it is recommended to
-        delete the config once the internet connection is good again: \`pnpm config delete network-concurrency\`
+- Set \`network-concurrency\` to 1.
+    This change will slow down installation times, so it is recommended to
+    delete the config once the internet connection is good again: \`pnpm config delete network-concurrency\`
 
-    NOTE: You may also override configs via flags.
-    For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\`
-  `
+NOTE: You may also override configs via flags.
+For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\``
 }
 
 function reportLifecycleError (
@@ -273,30 +257,28 @@ function reportEngineError (
 ) {
   let output = ''
   if (msg.wanted.pnpm) {
-    output += stripIndent`
-      ${formatErrorSummary(`Your pnpm version is incompatible with "${msg.packageId}".`)}
+    output += `\
+${formatErrorSummary(`Your pnpm version is incompatible with "${msg.packageId}".`)}
 
-      Expected version: ${msg.wanted.pnpm}
-      Got: ${msg.current.pnpm}
+Expected version: ${msg.wanted.pnpm}
+Got: ${msg.current.pnpm}
 
-      This is happening because the package's manifest has an engines.pnpm field specified.
-      To fix this issue, install the required pnpm version globally.
+This is happening because the package's manifest has an engines.pnpm field specified.
+To fix this issue, install the required pnpm version globally.
 
-      To install the latest version of pnpm, run "pnpm i -g pnpm".
-      To check your pnpm version, run "pnpm -v".
-    `
+To install the latest version of pnpm, run "pnpm i -g pnpm".
+To check your pnpm version, run "pnpm -v".`
   }
   if (msg.wanted.node) {
     if (output) output += EOL + EOL
-    output += stripIndent`
-      ${formatErrorSummary(`Your Node version is incompatible with "${msg.packageId}".`)}
+    output += `\
+${formatErrorSummary(`Your Node version is incompatible with "${msg.packageId}".`)}
 
-      Expected version: ${msg.wanted.node}
-      Got: ${msg.current.node}
+Expected version: ${msg.wanted.node}
+Got: ${msg.current.node}
 
-      This is happening because the package's manifest has an engines.node field specified.
-      To fix this issue, install the required Node version.
-    `
+This is happening because the package's manifest has an engines.node field specified.
+To fix this issue, install the required Node version.`
   }
   return output || formatErrorSummary(err.message)
 }

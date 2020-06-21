@@ -3,7 +3,6 @@ import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import start from './start'
@@ -37,9 +36,9 @@ export function help () {
 
         list: [
           {
-            description: oneLine`
-              Starts a service that does all interactions with the store.
-              Other commands will delegate any store-related tasks to this service`,
+            description: `\
+Starts a service that does all interactions with the store. \
+Other commands will delegate any store-related tasks to this service`,
             name: 'start',
           },
           {

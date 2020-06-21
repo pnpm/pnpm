@@ -2,7 +2,6 @@ import PnpmError from '@pnpm/error'
 import { why } from '@pnpm/plugin-commands-listing'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { stripIndent } from 'common-tags'
 import execa = require('execa')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
@@ -40,16 +39,14 @@ test('"why" should find non-direct dependency', async (t) => {
     optional: false,
   }, ['dep-of-pkg-with-1-dep'])
 
-  t.equal(stripAnsi(output), stripIndent`
-    Legend: production dependency, optional only, dev only
+  t.equal(stripAnsi(output), `Legend: production dependency, optional only, dev only
 
-    project@0.0.0 ${process.cwd()}
+project@0.0.0 ${process.cwd()}
 
-    dependencies:
-    dep-of-pkg-with-1-dep 100.0.0
-    pkg-with-1-dep 100.0.0
-    └── dep-of-pkg-with-1-dep 100.0.0
-  `, 'prints prod deps only')
+dependencies:
+dep-of-pkg-with-1-dep 100.0.0
+pkg-with-1-dep 100.0.0
+└── dep-of-pkg-with-1-dep 100.0.0`, 'prints prod deps only')
 
   t.end()
 })

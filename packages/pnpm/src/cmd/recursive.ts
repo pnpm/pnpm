@@ -1,7 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { oneLine } from 'common-tags'
 import renderHelp = require('render-help')
 
 export const rcOptionsTypes = () => ({})
@@ -11,9 +10,8 @@ export const commandNames = ['recursive', 'multi', 'm']
 
 export function help () {
   return renderHelp({
-    description: oneLine`
-      Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules).
-      A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.`,
+    description: `Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules). \
+A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.`,
     descriptionLists: [
       {
         title: 'Commands',
@@ -49,10 +47,9 @@ export function help () {
             name: 'outdated [<pkg>...]',
           },
           {
-            description: oneLine`
-              This runs an arbitrary command from each package's "scripts" object.
-              If a package doesn't have the command, it is skipped.
-              If none of the packages have the command, the command fails.`,
+            description: `This runs an arbitrary command from each package's "scripts" object. \
+If a package doesn't have the command, it is skipped. \
+If none of the packages have the command, the command fails.`,
             name: 'run <command> [-- <args>...]',
           },
           {
@@ -60,10 +57,9 @@ export function help () {
             name: 'test [-- <args>...]',
           },
           {
-            description: oneLine`
-              This command runs the "npm build" command on each package.
-              This is useful when you install a new version of node,
-              and must recompile all your C++ addons with the new binary.`,
+            description: `This command runs the "npm build" command on each package. \
+This is useful when you install a new version of node, \
+and must recompile all your C++ addons with the new binary.`,
             name: 'rebuild [[<@scope>/<name>]...]',
           },
           {
@@ -89,9 +85,8 @@ export function help () {
             name: '--workspace-concurrency <number>',
           },
           {
-            description: oneLine`
-              Locally available packages are linked to node_modules instead of being downloaded from the registry.
-              Convenient to use in a multi-package repository.`,
+            description: `Locally available packages are linked to node_modules instead of being downloaded from the registry. \
+Convenient to use in a multi-package repository.`,
             name: '--link-workspace-packages',
           },
           {
@@ -99,9 +94,8 @@ export function help () {
             name: '--sort',
           },
           {
-            description: oneLine`
-              Creates a single ${WANTED_LOCKFILE} file in the root of the workspace.
-              A shared lockfile also means that all dependencies of all projects will be in a single node_modules.`,
+            description: `Creates a single ${WANTED_LOCKFILE} file in the root of the workspace. \
+A shared lockfile also means that all dependencies of all projects will be in a single node_modules.`,
             name: '--shared-workspace-lockfile',
           },
         ],

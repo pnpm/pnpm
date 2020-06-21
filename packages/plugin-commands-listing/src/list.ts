@@ -3,7 +3,6 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import { IncludedDependencies } from '@pnpm/types'
-import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import listRecursive from './recursive'
@@ -38,18 +37,18 @@ export const commandNames = ['list', 'ls']
 export function help () {
   return renderHelp({
     aliases: ['list', 'ls', 'la', 'll'],
-    description: oneLine`When run as ll or la, it shows extended information by default.
-      All dependencies are printed by default. Search by patterns is supported.
-      For example: pnpm ls babel-* eslint-*`,
+    description: `When run as ll or la, it shows extended information by default. \
+All dependencies are printed by default. Search by patterns is supported. \
+For example: pnpm ls babel-* eslint-*`,
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: oneLine`Perform command on every package in subdirectories
-              or on every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            description: `Perform command on every package in subdirectories \
+or on every workspace package, when executed inside a workspace. \
+For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
           },

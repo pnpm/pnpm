@@ -2,7 +2,6 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import { oneLine, stripIndent } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { handler as list, ListCommandOptions } from './list'
@@ -30,18 +29,17 @@ export const commandNames = ['why']
 
 export function help () {
   return renderHelp({
-    description: stripIndent`
-      Shows the packages that depend on <pkg>
-      For example: pnpm why babel-* eslint-*`,
+    description: `Shows the packages that depend on <pkg>
+For example: pnpm why babel-* eslint-*`,
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: oneLine`Perform command on every package in subdirectories
-              or on every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            description: `Perform command on every package in subdirectories \
+or on every workspace package, when executed inside a workspace. \
+For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
           },

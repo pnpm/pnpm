@@ -4,7 +4,6 @@ import logger, {
   createStreamParser,
 } from '@pnpm/logger'
 import chalk = require('chalk')
-import { stripIndent, stripIndents } from 'common-tags'
 import loadJsonFile = require('load-json-file')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
@@ -28,10 +27,8 @@ test('prints generic error', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        ${ERROR} ${chalk.red('some error')}
-        ${new StackTracey(err.stack).pretty}
-      `)
+      t.equal(output, `${ERROR} ${chalk.red('some error')}
+${new StackTracey(err.stack).pretty}`)
     },
   })
 })
@@ -52,11 +49,9 @@ test('prints generic error when recursive install fails', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        /home/src/:
-        ${ERROR} ${chalk.red('some error')}
-        ${new StackTracey(err.stack).pretty}
-      `)
+      t.equal(output, `/home/src/:
+${ERROR} ${chalk.red('some error')}
+${new StackTracey(err.stack).pretty}`)
     },
   })
 })
@@ -73,18 +68,16 @@ test('prints no matching version error when many dist-tags exist', async (t) => 
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('No matching version found for pnpm@1000.0.0')}
+      t.equal(output, `${ERROR} ${chalk.red('No matching version found for pnpm@1000.0.0')}
 
-        The latest release of pnpm is "2.4.0".
+The latest release of pnpm is "2.4.0".
 
-        Other releases are:
-          * stable: 2.2.2
-          * next: 2.4.0
-          * latest-1: 1.43.1
+Other releases are:
+  * stable: 2.2.2
+  * next: 2.4.0
+  * latest-1: 1.43.1
 
-        If you need the full list of all 281 published versions run "$ pnpm view pnpm versions".
-      `)
+If you need the full list of all 281 published versions run "$ pnpm view pnpm versions".`)
     },
   })
 
@@ -105,13 +98,11 @@ test('prints no matching version error when only the latest dist-tag exists', as
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('No matching version found for is-positive@1000.0.0')}
+      t.equal(output, `${ERROR} ${chalk.red('No matching version found for is-positive@1000.0.0')}
 
-        The latest release of is-positive is "3.1.0".
+The latest release of is-positive is "3.1.0".
 
-        If you need the full list of all 4 published versions run "$ pnpm view is-positive versions".
-      `)
+If you need the full list of all 4 published versions run "$ pnpm view is-positive versions".`)
     },
   })
 
@@ -132,24 +123,22 @@ test('prints suggestions when an internet-connection related error happens', asy
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
+      t.equal(output, `${ERROR} ${chalk.red('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
 
-        Seems like you have internet connection issues.
-        Try running the same command again.
-        If that doesn't help, try one of the following:
+Seems like you have internet connection issues.
+Try running the same command again.
+If that doesn't help, try one of the following:
 
-        - Set a bigger value for the \`fetch-retries\` config.
-            To check the current value of \`fetch-retries\`, run \`pnpm get fetch-retries\`.
-            To set a new value, run \`pnpm set fetch-retries <number>\`.
+- Set a bigger value for the \`fetch-retries\` config.
+    To check the current value of \`fetch-retries\`, run \`pnpm get fetch-retries\`.
+    To set a new value, run \`pnpm set fetch-retries <number>\`.
 
-        - Set \`network-concurrency\` to 1.
-            This change will slow down installation times, so it is recommended to
-            delete the config once the internet connection is good again: \`pnpm config delete network-concurrency\`
+- Set \`network-concurrency\` to 1.
+    This change will slow down installation times, so it is recommended to
+    delete the config once the internet connection is good again: \`pnpm config delete network-concurrency\`
 
-        NOTE: You may also override configs via flags.
-        For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\`
-      `)
+NOTE: You may also override configs via flags.
+For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\``)
     },
   })
 
@@ -238,18 +227,16 @@ test('prints unsupported pnpm version error', async (t) => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+      t.equal(output, `${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
 
-        Expected version: 2
-        Got: 3.0.0
+Expected version: 2
+Got: 3.0.0
 
-        This is happening because the package's manifest has an engines.pnpm field specified.
-        To fix this issue, install the required pnpm version globally.
+This is happening because the package's manifest has an engines.pnpm field specified.
+To fix this issue, install the required pnpm version globally.
 
-        To install the latest version of pnpm, run "pnpm i -g pnpm".
-        To check your pnpm version, run "pnpm -v".
-      `)
+To install the latest version of pnpm, run "pnpm i -g pnpm".
+To check your pnpm version, run "pnpm -v".`)
     },
   })
 
@@ -272,15 +259,13 @@ test('prints unsupported Node version error', async (t) => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+      t.equal(output, `${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
 
-        Expected version: >=12
-        Got: 10.0.0
+Expected version: >=12
+Got: 10.0.0
 
-        This is happening because the package's manifest has an engines.node field specified.
-        To fix this issue, install the required Node version.
-      `)
+This is happening because the package's manifest has an engines.node field specified.
+To fix this issue, install the required Node version.`)
     },
   })
 
@@ -303,25 +288,23 @@ test('prints unsupported pnpm and Node versions error', async (t) => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+      t.equal(output, `${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
 
-        Expected version: 2
-        Got: 3.0.0
+Expected version: 2
+Got: 3.0.0
 
-        This is happening because the package's manifest has an engines.pnpm field specified.
-        To fix this issue, install the required pnpm version globally.
+This is happening because the package's manifest has an engines.pnpm field specified.
+To fix this issue, install the required pnpm version globally.
 
-        To install the latest version of pnpm, run "pnpm i -g pnpm".
-        To check your pnpm version, run "pnpm -v".` + '\n\n' + stripIndent`
-        ${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+To install the latest version of pnpm, run "pnpm i -g pnpm".
+To check your pnpm version, run "pnpm -v".` + '\n\n' + `\
+${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
 
-        Expected version: >=12
-        Got: 10.0.0
+Expected version: >=12
+Got: 10.0.0
 
-        This is happening because the package's manifest has an engines.node field specified.
-        To fix this issue, install the required Node version.
-      `)
+This is happening because the package's manifest has an engines.node field specified.
+To fix this issue, install the required Node version.`)
     },
   })
 
@@ -347,9 +330,7 @@ test('prints error even if the error object not passed in through the message ob
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, ERROR + ' ' + stripIndents`
-        ${chalk.red('some error')}
-      `)
+      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}`)
     },
   })
 })
@@ -370,9 +351,7 @@ test('prints error without packages stacktrace when pkgsStack is empty', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, ERROR + ' ' + stripIndents`
-        ${chalk.red('some error')}
-      `)
+      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}`)
     },
   })
 })
@@ -399,11 +378,9 @@ test('prints error with packages stacktrace - depth 1 and hint', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, ERROR + ' ' + stripIndents`
-        ${chalk.red('some error')}
-        This error happened while installing the dependencies of foo@1.0.0
-        hint
-      `)
+      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+This error happened while installing the dependencies of foo@1.0.0
+hint`)
     },
   })
 })
@@ -435,11 +412,9 @@ test('prints error with packages stacktrace - depth 2', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, ERROR + ' ' + stripIndent`
-        ${chalk.red('some error')}
-        This error happened while installing the dependencies of foo@1.0.0
-         at bar@1.0.0
-      `)
+      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+This error happened while installing the dependencies of foo@1.0.0
+ at bar@1.0.0`)
     },
   })
 })
@@ -459,10 +434,8 @@ test('prints error and hint', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, ERROR + ' ' + stripIndents`
-        ${chalk.red('some error')}
-        some hint
-      `)
+      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+some hint`)
     },
   })
 })

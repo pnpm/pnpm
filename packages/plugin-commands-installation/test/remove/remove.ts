@@ -1,7 +1,6 @@
 import PnpmError from '@pnpm/error'
 import { remove } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import { oneLine } from 'common-tags'
 import test = require('tape')
 import { DEFAULT_OPTS } from '../utils'
 
@@ -111,8 +110,8 @@ test('remove should fail if the project does not have one of the removed depende
       err = _err
     }
     t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, oneLine`Cannot remove 'dev-dep-1', 'optional-dep-1':
-      no such dependencies found in 'dependencies'`)
+    t.equal(err.message, `Cannot remove 'dev-dep-1', 'optional-dep-1': \
+no such dependencies found in 'dependencies'`)
     t.equal(err.hint, 'Available dependencies: prod-dep-1, prod-dep-2')
   }
   {
@@ -127,8 +126,8 @@ test('remove should fail if the project does not have one of the removed depende
       err = _err
     }
     t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, oneLine`Cannot remove 'prod-dep-1', 'optional-dep-1':
-      no such dependencies found in 'devDependencies'`)
+    t.equal(err.message, `Cannot remove 'prod-dep-1', 'optional-dep-1': \
+no such dependencies found in 'devDependencies'`)
     t.equal(err.hint, 'Available dependencies: dev-dep-1, dev-dep-2')
   }
   {
@@ -143,8 +142,8 @@ test('remove should fail if the project does not have one of the removed depende
       err = _err
     }
     t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, oneLine`Cannot remove 'prod-dep-1', 'dev-dep-1':
-      no such dependencies found in 'optionalDependencies'`)
+    t.equal(err.message, `Cannot remove 'prod-dep-1', 'dev-dep-1': \
+no such dependencies found in 'optionalDependencies'`)
     t.equal(err.hint, 'Available dependencies: optional-dep-1, optional-dep-2')
   }
   {
@@ -159,8 +158,8 @@ test('remove should fail if the project does not have one of the removed depende
     }
     t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
     t.equal(err.message, "Cannot remove 'express': no such dependency found")
-    t.equal(err.hint, oneLine`Available dependencies: dev-dep-1, dev-dep-2,
-      prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2`)
+    t.equal(err.hint, `Available dependencies: dev-dep-1, dev-dep-2, \
+prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2`)
   }
   t.end()
 })

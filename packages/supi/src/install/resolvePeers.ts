@@ -11,7 +11,6 @@ import {
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import { Dependencies, DependencyManifest } from '@pnpm/types'
-import { oneLine } from 'common-tags'
 import crypto = require('crypto')
 import importFrom = require('import-from')
 import path = require('path')
@@ -317,9 +316,8 @@ function resolvePeers (
           continue
         }
         const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
-        const message = oneLine`
-          ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)}
-          requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
+        const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
+requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
         if (ctx.strictPeerDependencies) {
           throw new PnpmError('MISSING_PEER_DEPENDENCY', message)
         }
@@ -333,9 +331,8 @@ function resolvePeers (
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
       const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
-      const message = oneLine`
-        ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)}
-        requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
+      const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
+requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
       if (ctx.strictPeerDependencies) {
         throw new PnpmError('INVALID_PEER_DEPENDENCY', message)
       }

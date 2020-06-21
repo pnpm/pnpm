@@ -10,7 +10,6 @@ import logger, {
   createStreamParser,
 } from '@pnpm/logger'
 import chalk = require('chalk')
-import { stripIndents } from 'common-tags'
 import delay from 'delay'
 import most = require('most')
 import normalizeNewline = require('normalize-newline')
@@ -260,9 +259,7 @@ test('prints "Already up-to-date"', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Already up-to-date
-      `)
+      t.equal(output, `Already up-to-date`)
     },
   })
 })
@@ -294,52 +291,47 @@ test('prints progress of big files download', async t => {
 
   stream$.push(
     output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}
-      `))
+      .tap(output => t.equal(output, `\
+Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}`))
   )
 
   output$ = output$.skip(1)
 
   stream$.push(
     output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}
-      `))
+      .tap(output => t.equal(output, `\
+Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}`))
   )
 
   output$ = output$.skip(2)
 
   stream$.push(
     output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-      `, 'downloading of small package not reported'))
+      .tap(output => t.equal(output, `\
+Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}`, 'downloading of small package not reported'))
   )
 
   output$ = output$.skip(3)
 
   stream$.push(
     output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
-      `))
+      .tap(output => t.equal(output, `\
+Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
   )
 
   output$ = output$.skip(1)
 
   stream$.push(
     output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
-        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
-      `))
+      .tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
+Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
   )
 
   most.mergeArray(stream$)

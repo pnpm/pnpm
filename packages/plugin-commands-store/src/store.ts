@@ -5,7 +5,6 @@ import logger, { globalInfo, LogBase } from '@pnpm/logger'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
-import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import storeAdd from './storeAdd'
@@ -33,10 +32,9 @@ export function help () {
 
         list: [
           {
-            description: oneLine`
-              Checks for modified packages in the store.
-              Returns exit code 0 if the content of the package is the same as it was at the time of unpacking
-            `,
+            description: `\
+Checks for modified packages in the store. \
+Returns exit code 0 if the content of the package is the same as it was at the time of unpacking`,
             name: 'status',
           },
           {
@@ -44,11 +42,10 @@ export function help () {
             name: 'add <pkg>...',
           },
           {
-            description: oneLine`
-              Removes unreferenced (extraneous, orphan) packages from the store.
-              Pruning the store is not harmful, but might slow down future installations.
-              Visit the documentation for more information on unreferenced packages and why they occur
-            `,
+            description: `\
+Removes unreferenced (extraneous, orphan) packages from the store. \
+Pruning the store is not harmful, but might slow down future installations. \
+Visit the documentation for more information on unreferenced packages and why they occur`,
             name: 'prune',
           },
         ],

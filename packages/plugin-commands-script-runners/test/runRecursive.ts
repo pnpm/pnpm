@@ -3,7 +3,6 @@ import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspac
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
-import { stripIndent } from 'common-tags'
 import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
@@ -369,15 +368,14 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async (t) =
       workspaceDir: process.cwd(),
     }, [])
 
-    t.equal(output, stripIndent`
-      Lifecycle scripts:
-        test
-          ts-node test
+    t.equal(output, `\
+Lifecycle scripts:
+  test
+    ts-node test
 
-      Commands available via "pnpm run":
-        foo
-          echo hi`
-    )
+Commands available via "pnpm run":
+  foo
+    echo hi`)
   }
   t.comment('throws an error if several projects are selected')
   {

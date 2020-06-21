@@ -2,7 +2,6 @@ import { Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
-import { stripIndents } from 'common-tags'
 import path = require('path')
 
 export default async (
@@ -18,9 +17,7 @@ export default async (
     globalInfo(`No server is running for the store at ${storeDir}`)
     return
   }
-  console.log(stripIndents`
-    store: ${storeDir}
-    process id: ${serverJson.pid}
-    remote prefix: ${serverJson.connectionOptions.remotePrefix}
-  `)
+  console.log(`store: ${storeDir}
+process id: ${serverJson.pid}
+remote prefix: ${serverJson.connectionOptions.remotePrefix}`)
 }

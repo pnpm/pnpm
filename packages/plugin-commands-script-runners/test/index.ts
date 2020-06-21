@@ -7,7 +7,6 @@ import {
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import prepare from '@pnpm/prepare'
-import { stripIndent } from 'common-tags'
 import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
@@ -236,15 +235,14 @@ test('"pnpm run" prints the list of available commands', async (t) => {
     rawConfig: {},
   }, [])
 
-  t.equal(output, stripIndent`
-    Lifecycle scripts:
-      test
-        ts-node test
+  t.equal(output, `\
+Lifecycle scripts:
+  test
+    ts-node test
 
-    Commands available via "pnpm run":
-      foo
-        echo hi`
-  )
+Commands available via "pnpm run":
+  foo
+    echo hi`)
   t.end()
 })
 

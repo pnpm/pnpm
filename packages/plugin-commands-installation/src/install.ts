@@ -3,7 +3,6 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { oneLine } from 'common-tags'
 import isCI = require('is-ci')
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -72,17 +71,16 @@ export const commandNames = ['install', 'i']
 export function help () {
   return renderHelp({
     aliases: ['i'],
-    description: oneLine`Installs all dependencies of the project in the current working directory.
-      When executed inside a workspace, installs all dependencies of all projects.`,
+    description: `Installs all dependencies of the project in the current working directory. \
+When executed inside a workspace, installs all dependencies of all projects.`,
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: oneLine`
-              Run installation recursively in every package found in subdirectories.
-              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            description: `Run installation recursively in every package found in subdirectories. \
+For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -137,10 +135,9 @@ export function help () {
             name: '--shamefully-hoist',
           },
           {
-            description: oneLine`
-              Hoist all dependencies matching the pattern to \`node_modules/.pnpm/node_modules\`.
-              The default pattern is * and matches everything. Hoisted packages can be required
-              by any dependencies, so it is an emulation of a flat node_modules`,
+            description: `Hoist all dependencies matching the pattern to \`node_modules/.pnpm/node_modules\`. \
+The default pattern is * and matches everything. Hoisted packages can be required \
+by any dependencies, so it is an emulation of a flat node_modules`,
             name: '--hoist-pattern <pattern>',
           },
           {

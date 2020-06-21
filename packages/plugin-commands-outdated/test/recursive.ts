@@ -2,7 +2,6 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { preparePackages } from '@pnpm/prepare'
-import { stripIndent } from 'common-tags'
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import { DEFAULT_OPTS } from './utils'
@@ -58,19 +57,19 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    ┌───────────────────┬─────────┬────────┬──────────────────────┐
-    │ Package           │ Current │ Latest │ Dependents           │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive       │ 2.0.0   │ 3.1.0  │ project-2            │
-    └───────────────────┴─────────┴────────┴──────────────────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output as unknown as string), `\
+┌───────────────────┬─────────┬────────┬──────────────────────┐
+│ Package           │ Current │ Latest │ Dependents           │
+├───────────────────┼─────────┼────────┼──────────────────────┤
+│ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            │
+├───────────────────┼─────────┼────────┼──────────────────────┤
+│ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │
+├───────────────────┼─────────┼────────┼──────────────────────┤
+│ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
+├───────────────────┼─────────┼────────┼──────────────────────┤
+│ is-positive       │ 2.0.0   │ 3.1.0  │ project-2            │
+└───────────────────┴─────────┴────────┴──────────────────────┘
+`)
   }
 
   {
@@ -83,13 +82,13 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    ┌───────────────────┬─────────┬────────┬────────────┐
-    │ Package           │ Current │ Latest │ Dependents │
-    ├───────────────────┼─────────┼────────┼────────────┤
-    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3  │
-    └───────────────────┴─────────┴────────┴────────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output as unknown as string), `\
+┌───────────────────┬─────────┬────────┬────────────┐
+│ Package           │ Current │ Latest │ Dependents │
+├───────────────────┼─────────┼────────┼────────────┤
+│ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3  │
+└───────────────────┴─────────┴────────┴────────────┘
+`)
   }
 
   {
@@ -102,19 +101,19 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    ┌───────────────────┬─────────┬────────┬──────────────────────┬─────────────────────────────────────────────┐
-    │ Package           │ Current │ Latest │ Dependents           │ Details                                     │
-    ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
-    │ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            │ https://github.com/kevva/is-negative#readme │
-    ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
-    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │ https://github.com/kevva/is-negative#readme │
-    ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
-    │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │ https://github.com/kevva/is-positive#readme │
-    ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
-    │ is-positive       │ 2.0.0   │ 3.1.0  │ project-2            │ https://github.com/kevva/is-positive#readme │
-    └───────────────────┴─────────┴────────┴──────────────────────┴─────────────────────────────────────────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output as unknown as string), `\
+┌───────────────────┬─────────┬────────┬──────────────────────┬─────────────────────────────────────────────┐
+│ Package           │ Current │ Latest │ Dependents           │ Details                                     │
+├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
+│ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            │ https://github.com/kevva/is-negative#readme │
+├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
+│ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │ https://github.com/kevva/is-negative#readme │
+├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
+│ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │ https://github.com/kevva/is-positive#readme │
+├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
+│ is-positive       │ 2.0.0   │ 3.1.0  │ project-2            │ https://github.com/kevva/is-positive#readme │
+└───────────────────┴─────────┴────────┴──────────────────────┴─────────────────────────────────────────────┘
+`)
   }
 
   {
@@ -127,23 +126,23 @@ test('pnpm recursive outdated', async (t) => {
       table: false,
     })
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    is-negative
-    1.0.0 => 2.1.0
-    Dependent: project-2
+    t.equal(stripAnsi(output as unknown as string), `\
+is-negative
+1.0.0 => 2.1.0
+Dependent: project-2
 
-    is-negative (dev)
-    1.0.0 => 2.1.0
-    Dependent: project-3
+is-negative (dev)
+1.0.0 => 2.1.0
+Dependent: project-3
 
-    is-positive
-    1.0.0 => 3.1.0
-    Dependents: project-1, project-3
+is-positive
+1.0.0 => 3.1.0
+Dependents: project-1, project-3
 
-    is-positive
-    2.0.0 => 3.1.0
-    Dependent: project-2
-    ` + '\n')
+is-positive
+2.0.0 => 3.1.0
+Dependent: project-2
+`)
   }
 
   {
@@ -157,27 +156,27 @@ test('pnpm recursive outdated', async (t) => {
       table: false,
     })
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    is-negative
-    1.0.0 => 2.1.0
-    Dependent: project-2
-    https://github.com/kevva/is-negative#readme
+    t.equal(stripAnsi(output as unknown as string), `\
+is-negative
+1.0.0 => 2.1.0
+Dependent: project-2
+https://github.com/kevva/is-negative#readme
 
-    is-negative (dev)
-    1.0.0 => 2.1.0
-    Dependent: project-3
-    https://github.com/kevva/is-negative#readme
+is-negative (dev)
+1.0.0 => 2.1.0
+Dependent: project-3
+https://github.com/kevva/is-negative#readme
 
-    is-positive
-    1.0.0 => 3.1.0
-    Dependents: project-1, project-3
-    https://github.com/kevva/is-positive#readme
+is-positive
+1.0.0 => 3.1.0
+Dependents: project-1, project-3
+https://github.com/kevva/is-positive#readme
 
-    is-positive
-    2.0.0 => 3.1.0
-    Dependent: project-2
-    https://github.com/kevva/is-positive#readme
-    ` + '\n')
+is-positive
+2.0.0 => 3.1.0
+Dependent: project-2
+https://github.com/kevva/is-positive#readme
+`)
   }
 
   {
@@ -189,15 +188,15 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     }, ['is-positive'])
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    ┌─────────────┬─────────┬────────┬──────────────────────┐
-    │ Package     │ Current │ Latest │ Dependents           │
-    ├─────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
-    ├─────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive │ 2.0.0   │ 3.1.0  │ project-2            │
-    └─────────────┴─────────┴────────┴──────────────────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output as unknown as string), `\
+┌─────────────┬─────────┬────────┬──────────────────────┐
+│ Package     │ Current │ Latest │ Dependents           │
+├─────────────┼─────────┼────────┼──────────────────────┤
+│ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
+├─────────────┼─────────┼────────┼──────────────────────┤
+│ is-positive │ 2.0.0   │ 3.1.0  │ project-2            │
+└─────────────┴─────────┴────────┴──────────────────────┘
+`)
   }
   t.end()
 })
@@ -252,17 +251,17 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    ┌───────────────────┬─────────┬────────┬──────────────────────┐
-    │ Package           │ Current │ Latest │ Dependents           │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
-    └───────────────────┴─────────┴────────┴──────────────────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output as unknown as string), `\
+┌───────────────────┬─────────┬────────┬──────────────────────┐
+│ Package           │ Current │ Latest │ Dependents           │
+├───────────────────┼─────────┼────────┼──────────────────────┤
+│ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            │
+├───────────────────┼─────────┼────────┼──────────────────────┤
+│ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │
+├───────────────────┼─────────┼────────┼──────────────────────┤
+│ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
+└───────────────────┴─────────┴────────┴──────────────────────┘
+`)
   }
 
   {
@@ -275,13 +274,13 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    ┌───────────────────┬─────────┬────────┬────────────┐
-    │ Package           │ Current │ Latest │ Dependents │
-    ├───────────────────┼─────────┼────────┼────────────┤
-    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3  │
-    └───────────────────┴─────────┴────────┴────────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output as unknown as string), `\
+┌───────────────────┬─────────┬────────┬────────────┐
+│ Package           │ Current │ Latest │ Dependents │
+├───────────────────┼─────────┼────────┼────────────┤
+│ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3  │
+└───────────────────┴─────────┴────────┴────────────┘
+`)
   }
 
   {
@@ -293,13 +292,13 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     }, ['is-positive'])
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-    ┌─────────────┬─────────┬────────┬──────────────────────┐
-    │ Package     │ Current │ Latest │ Dependents           │
-    ├─────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
-    └─────────────┴─────────┴────────┴──────────────────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output as unknown as string), `\
+┌─────────────┬─────────┬────────┬──────────────────────┐
+│ Package     │ Current │ Latest │ Dependents           │
+├─────────────┼─────────┼────────┼──────────────────────┤
+│ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
+└─────────────┴─────────┴────────┴──────────────────────┘
+`)
   }
   t.end()
 })

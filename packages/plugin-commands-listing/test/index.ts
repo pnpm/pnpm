@@ -2,7 +2,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import { stripIndent } from 'common-tags'
 import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
@@ -34,14 +33,12 @@ test('listing packages', async (t) => {
       optional: false,
     }, [])
 
-    t.equal(stripAnsi(output), stripIndent`
-      Legend: production dependency, optional only, dev only
+    t.equal(stripAnsi(output), `Legend: production dependency, optional only, dev only
 
-      project@0.0.0 ${process.cwd()}
+project@0.0.0 ${process.cwd()}
 
-      dependencies:
-      is-positive 1.0.0
-    `, 'prints prod deps only')
+dependencies:
+is-positive 1.0.0`, 'prints prod deps only')
   }
 
   {
@@ -51,14 +48,12 @@ test('listing packages', async (t) => {
       production: false,
     }, [])
 
-    t.equal(stripAnsi(output), stripIndent`
-      Legend: production dependency, optional only, dev only
+    t.equal(stripAnsi(output), `Legend: production dependency, optional only, dev only
 
-      project@0.0.0 ${process.cwd()}
+project@0.0.0 ${process.cwd()}
 
-      devDependencies:
-      is-negative 1.0.0
-    `, 'prints dev deps only')
+devDependencies:
+is-negative 1.0.0`, 'prints dev deps only')
   }
 
   {
@@ -66,17 +61,15 @@ test('listing packages', async (t) => {
       dir: process.cwd(),
     }, [])
 
-    t.equal(stripAnsi(output), stripIndent`
-      Legend: production dependency, optional only, dev only
+    t.equal(stripAnsi(output), `Legend: production dependency, optional only, dev only
 
-      project@0.0.0 ${process.cwd()}
+project@0.0.0 ${process.cwd()}
 
-      dependencies:
-      is-positive 1.0.0
+dependencies:
+is-positive 1.0.0
 
-      devDependencies:
-      is-negative 1.0.0
-    `, 'prints all deps')
+devDependencies:
+is-negative 1.0.0`, 'prints all deps')
   }
   t.end()
 })
@@ -105,14 +98,12 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
     lockfileDir: path.resolve('..'),
   }, [])
 
-  t.equal(stripAnsi(output), stripIndent`
-    Legend: production dependency, optional only, dev only
+  t.equal(stripAnsi(output), `Legend: production dependency, optional only, dev only
 
-    pkg@1.0.0 ${process.cwd()}
+pkg@1.0.0 ${process.cwd()}
 
-    dependencies:
-    is-positive 1.0.0
-  `, 'prints all deps')
+dependencies:
+is-positive 1.0.0`, 'prints all deps')
   t.end()
 })
 
@@ -129,16 +120,14 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
       dir: process.cwd(),
     }, [])
 
-    t.equal(stripAnsi(output), stripIndent`
-      Legend: production dependency, optional only, dev only
+    t.equal(stripAnsi(output), `Legend: production dependency, optional only, dev only
 
-      project@0.0.0 ${process.cwd()}
+project@0.0.0 ${process.cwd()}
 
-      dependencies:
-      is-positive 1.0.0
-      pkg-with-optional 1.0.0
-      └── not-compatible-with-any-os 1.0.0 skipped
-    `)
+dependencies:
+is-positive 1.0.0
+pkg-with-optional 1.0.0
+└── not-compatible-with-any-os 1.0.0 skipped`)
   }
 
   {
@@ -147,15 +136,13 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
       dir: process.cwd(),
     }, ['not-compatible-with-any-os'])
 
-    t.equal(stripAnsi(output), stripIndent`
-      Legend: production dependency, optional only, dev only
+    t.equal(stripAnsi(output), `Legend: production dependency, optional only, dev only
 
-      project@0.0.0 ${process.cwd()}
+project@0.0.0 ${process.cwd()}
 
-      dependencies:
-      pkg-with-optional 1.0.0
-      └── not-compatible-with-any-os 1.0.0 skipped
-    `)
+dependencies:
+pkg-with-optional 1.0.0
+└── not-compatible-with-any-os 1.0.0 skipped`)
   }
 
   {
@@ -163,15 +150,13 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
       dir: process.cwd(),
     }, ['not-compatible-with-any-os'])
 
-    t.equal(stripAnsi(output), stripIndent`
-      Legend: production dependency, optional only, dev only
+    t.equal(stripAnsi(output), `Legend: production dependency, optional only, dev only
 
-      project@0.0.0 ${process.cwd()}
+project@0.0.0 ${process.cwd()}
 
-      dependencies:
-      pkg-with-optional 1.0.0
-      └── not-compatible-with-any-os 1.0.0 skipped
-    `)
+dependencies:
+pkg-with-optional 1.0.0
+└── not-compatible-with-any-os 1.0.0 skipped`)
   }
   t.end()
 })

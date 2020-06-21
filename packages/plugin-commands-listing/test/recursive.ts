@@ -4,7 +4,6 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
 import path = require('path')
 import stripAnsi = require('strip-ansi')
@@ -54,21 +53,19 @@ test('recursive list', async (t) => {
     selectedProjectsGraph,
   }, [])
 
-  t.equal(stripAnsi(output as unknown as string), stripIndent`
-    Legend: production dependency, optional only, dev only
+  t.equal(stripAnsi(output as unknown as string), `Legend: production dependency, optional only, dev only
 
-    project-1@1.0.0 ${path.resolve('project-1')}
+project-1@1.0.0 ${path.resolve('project-1')}
 
-    dependencies:
-    is-positive 1.0.0
+dependencies:
+is-positive 1.0.0
 
-    Legend: production dependency, optional only, dev only
+Legend: production dependency, optional only, dev only
 
-    project-2@1.0.0 ${path.resolve('project-2')}
+project-2@1.0.0 ${path.resolve('project-2')}
 
-    dependencies:
-    is-negative 1.0.0
-  `)
+dependencies:
+is-negative 1.0.0`)
 
   t.end()
 })
@@ -120,22 +117,20 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
     selectedProjectsGraph,
   }, [])
 
-  t.equal(stripAnsi(output as unknown as string), stripIndent`
-    Legend: production dependency, optional only, dev only
+  t.equal(stripAnsi(output as unknown as string), `Legend: production dependency, optional only, dev only
 
-    project-1@1.0.0 ${path.resolve('project-1')}
+project-1@1.0.0 ${path.resolve('project-1')}
 
-    dependencies:
-    pkg-with-1-dep 100.0.0
-    └── dep-of-pkg-with-1-dep 100.1.0
+dependencies:
+pkg-with-1-dep 100.0.0
+└── dep-of-pkg-with-1-dep 100.1.0
 
-    Legend: production dependency, optional only, dev only
+Legend: production dependency, optional only, dev only
 
-    project-2@1.0.0 ${path.resolve('project-2')}
+project-2@1.0.0 ${path.resolve('project-2')}
 
-    dependencies:
-    is-negative 1.0.0
-  `)
+dependencies:
+is-negative 1.0.0`)
   t.end()
 })
 
@@ -224,35 +219,30 @@ test('recursive list --filter', async (t) => {
       ], { linkWorkspacePackages: false }),
     }, [])
 
-    t.equal(stripAnsi(output as unknown as string), stripIndent`
-      Legend: production dependency, optional only, dev only
+    t.equal(stripAnsi(output as unknown as string), `Legend: production dependency, optional only, dev only
 
-      project-1@1.0.0 ${path.resolve('project-1')}
+project-1@1.0.0 ${path.resolve('project-1')}
 
-      dependencies:
-      is-positive 1.0.0
-      project-2 link:../project-2
-
-    `)
+dependencies:
+is-positive 1.0.0
+project-2 link:../project-2`)
     t.end()
   })
 
-  t.equal(stripAnsi(output as unknown as string), stripIndent`
-    Legend: production dependency, optional only, dev only
+  t.equal(stripAnsi(output as unknown as string), `Legend: production dependency, optional only, dev only
 
-    project-1@1.0.0 ${path.resolve('project-1')}
+project-1@1.0.0 ${path.resolve('project-1')}
 
-    dependencies:
-    is-positive 1.0.0
-    project-2 link:../project-2
+dependencies:
+is-positive 1.0.0
+project-2 link:../project-2
 
-    Legend: production dependency, optional only, dev only
+Legend: production dependency, optional only, dev only
 
-    project-2@1.0.0 ${path.resolve('project-2')}
+project-2@1.0.0 ${path.resolve('project-2')}
 
-    dependencies:
-    is-negative 1.0.0
-  `)
+dependencies:
+is-negative 1.0.0`)
   t.end()
 })
 

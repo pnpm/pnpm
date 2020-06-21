@@ -2,7 +2,6 @@ import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { oneLine } from 'common-tags'
 import renderHelp = require('render-help')
 import { mutateModules } from 'supi'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
@@ -22,10 +21,9 @@ export function help () {
 
         list: [
           {
-            description: oneLine`
-              Unlink in every package found in subdirectories
-              or in every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            description: `Unlink in every package found in subdirectories \
+or in every workspace package, when executed inside a workspace. \
+For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
           },

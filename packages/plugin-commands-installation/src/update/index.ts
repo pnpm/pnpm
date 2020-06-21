@@ -8,7 +8,6 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import chalk = require('chalk')
-import { oneLine } from 'common-tags'
 import { prompt } from 'enquirer'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -87,9 +86,9 @@ export function help () {
 
         list: [
           {
-            description: oneLine`Update in every package found in subdirectories
-              or every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            description: `Update in every package found in subdirectories \
+or every workspace package, when executed inside a workspace. \
+For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -122,10 +121,10 @@ export function help () {
             name: '--no-optional',
           },
           {
-            description:  oneLine`Tries to link all packages from the workspace.
-              Versions are updated to match the versions of packages inside the workspace.
-              If specific packages are updated, the command will fail if any of the updated
-              dependencies is not found inside the workspace`,
+            description:  `Tries to link all packages from the workspace. \
+Versions are updated to match the versions of packages inside the workspace. \
+If specific packages are updated, the command will fail if any of the updated \
+dependencies is not found inside the workspace`,
             name: '--workspace',
           },
           {

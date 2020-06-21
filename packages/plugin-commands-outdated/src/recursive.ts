@@ -10,7 +10,6 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import chalk = require('chalk')
-import { stripIndent } from 'common-tags'
 import R = require('ramda')
 import { table } from 'table'
 import {
@@ -116,9 +115,8 @@ function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, 
 function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
   return sortOutdatedPackages(Object.values(outdatedMap))
     .map((outdatedPkg) => {
-      let info = stripIndent`
-        ${chalk.bold(renderPackageName(outdatedPkg))}
-        ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
+      let info = `${chalk.bold(renderPackageName(outdatedPkg))}
+${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 
       const dependents = dependentPackages(outdatedPkg)
 

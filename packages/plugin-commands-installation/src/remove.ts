@@ -12,7 +12,6 @@ import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependenciesField } from '@pnpm/types'
-import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import {
@@ -83,11 +82,9 @@ export function help () {
 
         list: [
           {
-            description: oneLine`
-              Remove from every package found in subdirectories
-              or from every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"
-            `,
+            description: `Remove from every package found in subdirectories \
+or from every workspace package, when executed inside a workspace. \
+For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
           },

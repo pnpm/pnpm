@@ -14,7 +14,6 @@ import {
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import chalk = require('chalk')
-import { oneLine, stripIndent } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import stripAnsi = require('strip-ansi')
@@ -56,13 +55,12 @@ export const commandNames = ['outdated']
 
 export function help () {
   return renderHelp({
-    description: stripIndent`
-      Check for outdated packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
+    description: `Check for outdated packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
-      Examples:
-      pnpm outdated
-      pnpm outdated --long
-      pnpm outdated gulp-* @babel/core`,
+Examples:
+pnpm outdated
+pnpm outdated --long
+pnpm outdated gulp-* @babel/core`,
     descriptionLists: [
       {
         title: 'Options',
@@ -73,16 +71,14 @@ export function help () {
             name: '--compatible',
           },
           {
-            description: oneLine`
-            By default, details about the outdated packages (such as a link to the repo) are not displayed.
-            To display the details, pass this option.`,
+            description: `By default, details about the outdated packages (such as a link to the repo) are not displayed. \
+To display the details, pass this option.`,
             name: '--long',
           },
           {
-            description: oneLine`
-              Check for outdated dependencies in every package found in subdirectories
-              or in every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            description: `Check for outdated dependencies in every package found in subdirectories \
+or in every workspace package, when executed inside a workspace. \
+For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -217,9 +213,8 @@ function renderOutdatedTable (outdatedPackages: ReadonlyArray<OutdatedPackage>, 
 function renderOutdatedList (outdatedPackages: ReadonlyArray<OutdatedPackage>, opts: { long?: boolean }) {
   return sortOutdatedPackages(outdatedPackages)
     .map((outdatedPkg) => {
-      let info = stripIndent`
-        ${chalk.bold(renderPackageName(outdatedPkg))}
-        ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
+      let info = `${chalk.bold(renderPackageName(outdatedPkg))}
+${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 
       if (opts.long) {
         const details = renderDetails(outdatedPkg)

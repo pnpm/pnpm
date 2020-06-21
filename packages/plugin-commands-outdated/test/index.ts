@@ -4,7 +4,6 @@ import PnpmError from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
 import path = require('path')
 import stripAnsi = require('strip-ansi')
@@ -49,20 +48,20 @@ test('pnpm outdated: show details', async (t) => {
     long: true,
   })
 
-  t.equal(stripAnsi(output), stripIndent`
-  ┌───────────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
-  │ Package           │ Current │ Latest     │ Details                                     │
-  ├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-  │ deprecated        │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum     │
-  │                   │         │            │ dolor sit amet, consectetur adipiscing      │
-  │                   │         │            │ elit.                                       │
-  │                   │         │            │ https://foo.bar/qar                         │
-  ├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-  │ is-negative       │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme │
-  ├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-  │ is-positive (dev) │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
-  └───────────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
-  ` + '\n')
+  t.equal(stripAnsi(output), `\
+┌───────────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
+│ Package           │ Current │ Latest     │ Details                                     │
+├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+│ deprecated        │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum     │
+│                   │         │            │ dolor sit amet, consectetur adipiscing      │
+│                   │         │            │ elit.                                       │
+│                   │         │            │ https://foo.bar/qar                         │
+├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+│ is-negative       │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme │
+├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+│ is-positive (dev) │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
+└───────────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
+`)
   t.end()
 })
 
@@ -80,13 +79,13 @@ test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
       production: false,
     })
 
-    t.equal(stripAnsi(output), stripIndent`
-    ┌───────────────────┬─────────┬────────┐
-    │ Package           │ Current │ Latest │
-    ├───────────────────┼─────────┼────────┤
-    │ is-positive (dev) │ 1.0.0   │ 3.1.0  │
-    └───────────────────┴─────────┴────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output), `\
+┌───────────────────┬─────────┬────────┐
+│ Package           │ Current │ Latest │
+├───────────────────┼─────────┼────────┤
+│ is-positive (dev) │ 1.0.0   │ 3.1.0  │
+└───────────────────┴─────────┴────────┘
+`)
   }
 
   {
@@ -96,15 +95,15 @@ test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
       dir: process.cwd(),
     })
 
-    t.equal(stripAnsi(output), stripIndent`
-    ┌─────────────┬─────────┬────────────┐
-    │ Package     │ Current │ Latest     │
-    ├─────────────┼─────────┼────────────┤
-    │ deprecated  │ 1.0.0   │ Deprecated │
-    ├─────────────┼─────────┼────────────┤
-    │ is-negative │ 1.0.0   │ 2.1.0      │
-    └─────────────┴─────────┴────────────┘
-    ` + '\n')
+    t.equal(stripAnsi(output), `\
+┌─────────────┬─────────┬────────────┐
+│ Package     │ Current │ Latest     │
+├─────────────┼─────────┼────────────┤
+│ deprecated  │ 1.0.0   │ Deprecated │
+├─────────────┼─────────┼────────────┤
+│ is-negative │ 1.0.0   │ 2.1.0      │
+└─────────────┴─────────┴────────────┘
+`)
   }
 
   t.end()
@@ -124,16 +123,15 @@ test('pnpm outdated: no table', async (t) => {
       table: false,
     })
 
-    t.equal(stripAnsi(output), stripIndent`
-    deprecated
-    1.0.0 => Deprecated
+    t.equal(stripAnsi(output), `deprecated
+1.0.0 => Deprecated
 
-    is-negative
-    1.0.0 => 2.1.0
+is-negative
+1.0.0 => 2.1.0
 
-    is-positive (dev)
-    1.0.0 => 3.1.0
-    ` + '\n')
+is-positive (dev)
+1.0.0 => 3.1.0
+`)
   }
 
   {
@@ -144,22 +142,21 @@ test('pnpm outdated: no table', async (t) => {
       table: false,
     })
 
-    t.equal(stripAnsi(output), stripIndent`
-    deprecated
-    1.0.0 => Deprecated
-    This package is deprecated. Lorem ipsum
-    dolor sit amet, consectetur adipiscing
-    elit.
-    https://foo.bar/qar
+    t.equal(stripAnsi(output), `deprecated
+1.0.0 => Deprecated
+This package is deprecated. Lorem ipsum
+dolor sit amet, consectetur adipiscing
+elit.
+https://foo.bar/qar
 
-    is-negative
-    1.0.0 => 2.1.0
-    https://github.com/kevva/is-negative#readme
+is-negative
+1.0.0 => 2.1.0
+https://github.com/kevva/is-negative#readme
 
-    is-positive (dev)
-    1.0.0 => 3.1.0
-    https://github.com/kevva/is-positive#readme
-    ` + '\n')
+is-positive (dev)
+1.0.0 => 3.1.0
+https://github.com/kevva/is-positive#readme
+`)
   }
   t.end()
 })
@@ -176,17 +173,17 @@ test('pnpm outdated: only current lockfile is available', async (t) => {
     dir: process.cwd(),
   })
 
-  t.equal(stripAnsi(output), stripIndent`
-  ┌───────────────────┬─────────┬────────────┐
-  │ Package           │ Current │ Latest     │
-  ├───────────────────┼─────────┼────────────┤
-  │ deprecated        │ 1.0.0   │ Deprecated │
-  ├───────────────────┼─────────┼────────────┤
-  │ is-negative       │ 1.0.0   │ 2.1.0      │
-  ├───────────────────┼─────────┼────────────┤
-  │ is-positive (dev) │ 1.0.0   │ 3.1.0      │
-  └───────────────────┴─────────┴────────────┘
-  ` + '\n')
+  t.equal(stripAnsi(output), `\
+┌───────────────────┬─────────┬────────────┐
+│ Package           │ Current │ Latest     │
+├───────────────────┼─────────┼────────────┤
+│ deprecated        │ 1.0.0   │ Deprecated │
+├───────────────────┼─────────┼────────────┤
+│ is-negative       │ 1.0.0   │ 2.1.0      │
+├───────────────────┼─────────┼────────────┤
+│ is-positive (dev) │ 1.0.0   │ 3.1.0      │
+└───────────────────┴─────────┴────────────┘
+`)
   t.end()
 })
 
@@ -201,17 +198,17 @@ test('pnpm outdated: only wanted lockfile is available', async (t) => {
     dir: process.cwd(),
   })
 
-  t.equal(stripAnsi(output), stripIndent`
-  ┌───────────────────┬────────────────────────┬────────────┐
-  │ Package           │ Current                │ Latest     │
-  ├───────────────────┼────────────────────────┼────────────┤
-  │ deprecated        │ missing (wanted 1.0.0) │ Deprecated │
-  ├───────────────────┼────────────────────────┼────────────┤
-  │ is-positive (dev) │ missing (wanted 3.1.0) │ 3.1.0      │
-  ├───────────────────┼────────────────────────┼────────────┤
-  │ is-negative       │ missing (wanted 1.1.0) │ 2.1.0      │
-  └───────────────────┴────────────────────────┴────────────┘
-  ` + '\n')
+  t.equal(stripAnsi(output), `\
+┌───────────────────┬────────────────────────┬────────────┐
+│ Package           │ Current                │ Latest     │
+├───────────────────┼────────────────────────┼────────────┤
+│ deprecated        │ missing (wanted 1.0.0) │ Deprecated │
+├───────────────────┼────────────────────────┼────────────┤
+│ is-positive (dev) │ missing (wanted 3.1.0) │ 3.1.0      │
+├───────────────────┼────────────────────────┼────────────┤
+│ is-negative       │ missing (wanted 1.1.0) │ 2.1.0      │
+└───────────────────┴────────────────────────┴────────────┘
+`)
   t.end()
 })
 
@@ -236,15 +233,15 @@ test('pnpm outdated with external lockfile', async (t) => {
     lockfileDir: path.resolve('..'),
   })
 
-  t.equal(stripAnsi(output), stripIndent`
-  ┌─────────────┬──────────────────────┬────────┐
-  │ Package     │ Current              │ Latest │
-  ├─────────────┼──────────────────────┼────────┤
-  │ is-positive │ 1.0.0 (wanted 3.1.0) │ 3.1.0  │
-  ├─────────────┼──────────────────────┼────────┤
-  │ is-negative │ 1.0.0 (wanted 1.1.0) │ 2.1.0  │
-  └─────────────┴──────────────────────┴────────┘
-  ` + '\n')
+  t.equal(stripAnsi(output), `\
+┌─────────────┬──────────────────────┬────────┐
+│ Package     │ Current              │ Latest │
+├─────────────┼──────────────────────┼────────┤
+│ is-positive │ 1.0.0 (wanted 3.1.0) │ 3.1.0  │
+├─────────────┼──────────────────────┼────────┤
+│ is-negative │ 1.0.0 (wanted 1.1.0) │ 2.1.0  │
+└─────────────┴──────────────────────┴────────┘
+`)
   t.end()
 })
 
@@ -283,12 +280,12 @@ test('pnpm outdated: print only compatible versions', async (t) => {
     dir: hasMajorOutdatedDepsFixture,
   })
 
-  t.equal(stripAnsi(output), stripIndent`
-  ┌─────────────┬─────────┬────────┐
-  │ Package     │ Current │ Latest │
-  ├─────────────┼─────────┼────────┤
-  │ is-negative │ 1.0.0   │ 1.0.1  │
-  └─────────────┴─────────┴────────┘
-  ` + '\n')
+  t.equal(stripAnsi(output), `\
+┌─────────────┬─────────┬────────┐
+│ Package     │ Current │ Latest │
+├─────────────┼─────────┼────────┤
+│ is-negative │ 1.0.0   │ 1.0.1  │
+└─────────────┴─────────┴────────┘
+`)
   t.end()
 })

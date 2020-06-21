@@ -5,7 +5,6 @@ import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import { ProjectManifest } from '@pnpm/types'
-import { oneLine } from 'common-tags'
 import path = require('path')
 import R = require('ramda')
 import realpathMissing = require('realpath-missing')
@@ -22,10 +21,10 @@ export const IF_PRESENT_OPTION_HELP = {
 }
 
 export const PARALLEL_OPTION_HELP = {
-  description: oneLine`Completely disregard concurrency and topological sorting,
-    running a given script immediately in all matching packages
-    with prefixed streaming output. This is the preferred flag
-    for long-running processes such as watch run over many packages.`,
+  description: `Completely disregard concurrency and topological sorting, \
+running a given script immediately in all matching packages \
+with prefixed streaming output. This is the preferred flag \
+for long-running processes such as watch run over many packages.`,
   name: '--parallel',
 }
 
@@ -79,9 +78,9 @@ export function help () {
 
         list: [
           {
-            description: oneLine`Run the defined package script in every package found in subdirectories
-              or every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            description: `Run the defined package script in every package found in subdirectories \
+or every workspace package, when executed inside a workspace. \
+For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
           },

@@ -2,7 +2,6 @@ import { lifecycleLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import chalk = require('chalk')
-import { stripIndents } from 'common-tags'
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import test = require('tape')
@@ -119,21 +118,20 @@ test('groups lifecycle output', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), stripIndents`
-        packages/foo ${PREINSTALL}$ node foo
-        ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
-        ${STATUS_INDENTATION} ${STATUS_RUNNING}
-        packages/foo ${POSTINSTALL}$ node foo
-        ${OUTPUT_INDENTATION} foo I
-        ${OUTPUT_INDENTATION} foo II
-        ${OUTPUT_INDENTATION} foo III
-        ${STATUS_INDENTATION} ${STATUS_RUNNING}
-        packages/bar ${POSTINSTALL}$ node bar
-        ${OUTPUT_INDENTATION} bar I
-        ${STATUS_INDENTATION} ${STATUS_RUNNING}
-        packages/qar ${INSTALL}$ node qar
-        ${STATUS_INDENTATION} ${STATUS_DONE}
-      `)
+      t.equal(replaceTimeWith1Sec(output), `\
+packages/foo ${PREINSTALL}$ node foo
+${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+${STATUS_INDENTATION} ${STATUS_RUNNING}
+packages/foo ${POSTINSTALL}$ node foo
+${OUTPUT_INDENTATION} foo I
+${OUTPUT_INDENTATION} foo II
+${OUTPUT_INDENTATION} foo III
+${STATUS_INDENTATION} ${STATUS_RUNNING}
+packages/bar ${POSTINSTALL}$ node bar
+${OUTPUT_INDENTATION} bar I
+${STATUS_INDENTATION} ${STATUS_RUNNING}
+packages/qar ${INSTALL}$ node qar
+${STATUS_INDENTATION} ${STATUS_DONE}`)
     },
   })
 })
@@ -239,19 +237,18 @@ test('groups lifecycle output when append-only is used', t => {
 
   output$.take(11).map(normalizeNewline).subscribe({
     complete: () => {
-      t.equal(allOutputs.join(EOL), stripIndents`
-        ${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
-        ${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
-        ${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I
-        ${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar
-        ${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
-        ${chalk.blue('packages/qar')} ${INSTALL}$ node qar
-        ${chalk.blue('packages/qar')} ${INSTALL}: Done
-      `)
+      t.equal(allOutputs.join(EOL), `\
+${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
+${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
+${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo
+${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I
+${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar
+${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I
+${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
+${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
+${chalk.blue('packages/qar')} ${INSTALL}$ node qar
+${chalk.blue('packages/qar')} ${INSTALL}: Done`)
       t.end()
     },
     error: t.end,
@@ -360,20 +357,19 @@ test('groups lifecycle output when streamLifecycleOutput is used', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(output, stripIndents`
-        ${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
-        ${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
-        ${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I
-        ${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar
-        ${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
-        ${chalk.blue('packages/qar')} ${INSTALL}$ node qar
-        ${chalk.blue('packages/qar')} ${INSTALL}: Done
-        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: Done
-      `)
+      t.equal(output, `\
+${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
+${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
+${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo
+${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I
+${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar
+${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I
+${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
+${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
+${chalk.blue('packages/qar')} ${INSTALL}$ node qar
+${chalk.blue('packages/qar')} ${INSTALL}: Done
+${chalk.cyan('packages/foo')} ${POSTINSTALL}: Done`)
     },
   })
 })
@@ -415,21 +411,20 @@ test('collapse lifecycle output when it has too many lines', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), stripIndents`
-        packages/foo ${POSTINSTALL}$ node foo
-        [90 lines collapsed]
-        ${OUTPUT_INDENTATION} foo 90
-        ${OUTPUT_INDENTATION} foo 91
-        ${OUTPUT_INDENTATION} foo 92
-        ${OUTPUT_INDENTATION} foo 93
-        ${OUTPUT_INDENTATION} foo 94
-        ${OUTPUT_INDENTATION} foo 95
-        ${OUTPUT_INDENTATION} foo 96
-        ${OUTPUT_INDENTATION} foo 97
-        ${OUTPUT_INDENTATION} foo 98
-        ${OUTPUT_INDENTATION} foo 99
-        ${STATUS_INDENTATION} ${STATUS_DONE}
-      `)
+      t.equal(replaceTimeWith1Sec(output), `\
+packages/foo ${POSTINSTALL}$ node foo
+[90 lines collapsed]
+${OUTPUT_INDENTATION} foo 90
+${OUTPUT_INDENTATION} foo 91
+${OUTPUT_INDENTATION} foo 92
+${OUTPUT_INDENTATION} foo 93
+${OUTPUT_INDENTATION} foo 94
+${OUTPUT_INDENTATION} foo 95
+${OUTPUT_INDENTATION} foo 96
+${OUTPUT_INDENTATION} foo 97
+${OUTPUT_INDENTATION} foo 98
+${OUTPUT_INDENTATION} foo 99
+${STATUS_INDENTATION} ${STATUS_DONE}`)
     },
   })
 })
@@ -530,12 +525,11 @@ test('collapses lifecycle output of packages from node_modules', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), stripIndents`
-        ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running preinstall script...
-        ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running postinstall script, done in 1s
-        ${chalk.gray('node_modules/.registry.npmjs.org/bar/1.0.0/node_modules/')}bar: Running postinstall script...
-        ${chalk.gray('node_modules/.registry.npmjs.org/qar/1.0.0/node_modules/')}qar: Running install script, done in 1s
-      `)
+      t.equal(replaceTimeWith1Sec(output), `\
+${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running preinstall script...
+${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running postinstall script, done in 1s
+${chalk.gray('node_modules/.registry.npmjs.org/bar/1.0.0/node_modules/')}bar: Running postinstall script...
+${chalk.gray('node_modules/.registry.npmjs.org/qar/1.0.0/node_modules/')}qar: Running install script, done in 1s`)
     },
   })
 })
@@ -577,9 +571,7 @@ test('output of failed optional dependency is not shown', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), stripIndents`
-        ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s (skipped as optional)
-      `)
+      t.equal(replaceTimeWith1Sec(output), `${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s (skipped as optional)`)
     },
   })
 })
@@ -621,12 +613,11 @@ test('output of failed non-optional dependency is printed', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), stripIndents`
-        ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
-        .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
-        ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9
-        ${STATUS_INDENTATION} ${STATUS_FAILED}
-      `)
+      t.equal(replaceTimeWith1Sec(output), `\
+${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
+.../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
+${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9
+${STATUS_INDENTATION} ${STATUS_FAILED}`)
     },
   })
 })
@@ -682,12 +673,11 @@ test['skip']('prints lifecycle progress', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo I')}
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}! ${childOutputError('foo II')}
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo III')}
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOutputColor('bar I')}
-      `)
+      t.equal(output, `\
+Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo I')}
+Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}! ${childOutputError('foo II')}
+Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo III')}
+Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOutputColor('bar I')}`)
     },
   })
 })

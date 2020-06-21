@@ -10,7 +10,6 @@ import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { IncludedDependencies } from '@pnpm/types'
-import { oneLine } from 'common-tags'
 import R = require('ramda')
 import {
   install,
@@ -91,10 +90,10 @@ export default async function handler (
     }
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
       if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
-        throw new PnpmError('BAD_OPTIONS', oneLine`This workspace has link-workspace-packages turned off,
-          so dependencies are linked from the workspace only when the workspace protocol is used.
-          Either set link-workspace-packages to true or don't use the --no-save-workspace-protocol option
-          when running add/update with the --workspace option`)
+        throw new PnpmError('BAD_OPTIONS', `This workspace has link-workspace-packages turned off, \
+so dependencies are linked from the workspace only when the workspace protocol is used. \
+Either set link-workspace-packages to true or don't use the --no-save-workspace-protocol option \
+when running add/update with the --workspace option`)
       } else {
         opts.saveWorkspaceProtocol = true
       }

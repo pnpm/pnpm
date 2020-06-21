@@ -15,7 +15,6 @@ import logger, {
   createStreamParser,
 } from '@pnpm/logger'
 import chalk = require('chalk')
-import { stripIndent, stripIndents } from 'common-tags'
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import R = require('ramda')
@@ -189,28 +188,28 @@ test('prints summary (of current package only)', t => {
       t.equal(output,
         `packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
         `${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla${EOL}${EOL}` +
-        stripIndents`
-        ${h1('dependencies:')}
-        ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
-        ${SUB} foo ${versionColor('0.1.0')}
-        ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
-        ${SUB} is-13 ${versionColor('^1.0.0')}
-        ${ADD} is-negative ${versionColor('^1.0.0')}
-        ${ADD} winston <- winst0n ${versionColor('1.0.0')}
+        `\
+${h1('dependencies:')}
+${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
+${SUB} foo ${versionColor('0.1.0')}
+${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+${SUB} is-13 ${versionColor('^1.0.0')}
+${ADD} is-negative ${versionColor('^1.0.0')}
+${ADD} winston <- winst0n ${versionColor('1.0.0')}
 
-        ${h1('optionalDependencies:')}
-        ${ADD} is-linked ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked')}`)}
-        ${SUB} is-positive
-        ${ADD} lala ${versionColor('1.1.0')}
+${h1('optionalDependencies:')}
+${ADD} is-linked ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked')}`)}
+${SUB} is-positive
+${ADD} lala ${versionColor('1.1.0')}
 
-        ${h1('devDependencies:')}
-        ${ADD} is-13 ${versionColor('^1.0.0')}
-        ${SUB} is-negative ${versionColor('^1.0.0')}
-        ${ADD} qar ${versionColor('2.0.0')}
+${h1('devDependencies:')}
+${ADD} is-13 ${versionColor('^1.0.0')}
+${SUB} is-negative ${versionColor('^1.0.0')}
+${ADD} qar ${versionColor('2.0.0')}
 
-        ${h1('node_modules:')}
-        ${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
-        ` + '\n')
+${h1('node_modules:')}
+${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
+`)
     },
   })
 })
@@ -269,11 +268,11 @@ test('prints summary for global installation', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, EOL + stripIndents`
-        ${h1(`${prefix}:`)}
-        ${ADD} bar ${versionColor('2.0.0')}
-        ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
-        ` + '\n')
+      t.equal(output, EOL + `\
+${h1(`${prefix}:`)}
+${ADD} bar ${versionColor('2.0.0')}
+${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+`)
     },
   })
 })
@@ -313,13 +312,13 @@ test('prints added peer dependency', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, EOL + stripIndents`
-        ${h1('peerDependencies:')}
-        ${ADD} is-negative ${versionColor('^1.0.0')}
+      t.equal(output, EOL + `\
+${h1('peerDependencies:')}
+${ADD} is-negative ${versionColor('^1.0.0')}
 
-        ${h1('devDependencies:')}
-        ${ADD} is-negative ${versionColor('^1.0.0')}
-        ` + '\n')
+${h1('devDependencies:')}
+${ADD} is-negative ${versionColor('^1.0.0')}
+`)
     },
   })
 })
@@ -380,10 +379,10 @@ test('prints summary correctly when the same package is specified both in option
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, EOL + stripIndents`
-        ${h1('dependencies:')}
-        ${ADD} bar ${versionColor('2.0.0')}
-        ` + '\n')
+      t.equal(output, EOL + `\
+${h1('dependencies:')}
+${ADD} bar ${versionColor('2.0.0')}
+`)
     },
   })
 })
@@ -400,27 +399,25 @@ test('prints summary when some packages fail', async (t) => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, EOL + stripIndent`
-        Summary: ${chalk.red('6 fails')}, 7 passes
+      t.equal(output, EOL + `Summary: ${chalk.red('6 fails')}, 7 passes
 
-        /a:
-        ${ERROR} ${chalk.red('a failed')}
+/a:
+${ERROR} ${chalk.red('a failed')}
 
-        /b:
-        ${ERROR} ${chalk.red('b failed')}
+/b:
+${ERROR} ${chalk.red('b failed')}
 
-        /c:
-        ${ERROR} ${chalk.red('c failed')}
+/c:
+${ERROR} ${chalk.red('c failed')}
 
-        /d:
-        ${ERROR} ${chalk.red('d failed')}
+/d:
+${ERROR} ${chalk.red('d failed')}
 
-        /e:
-        ${ERROR} ${chalk.red('e failed')}
+/e:
+${ERROR} ${chalk.red('e failed')}
 
-        /f:
-        ${ERROR} ${chalk.red('f failed')}
-      `)
+/f:
+${ERROR} ${chalk.red('f failed')}`)
     },
   })
 
@@ -490,9 +487,8 @@ test('prints added/removed stats during installation', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+5')} ${chalk.red('-1')}
-        ${ADD + ADD + ADD + ADD + ADD + SUB}`
+      t.equal(output, `Packages: ${chalk.green('+5')} ${chalk.red('-1')}
+${ADD + ADD + ADD + ADD + ADD + SUB}`
       )
     },
   })
@@ -514,9 +510,8 @@ test('prints added/removed stats during installation when 0 removed', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+2')}
-        ${ADD + ADD}`
+      t.equal(output, `Packages: ${chalk.green('+2')}
+${ADD + ADD}`
       )
     },
   })
@@ -538,10 +533,8 @@ test('prints only the added stats if nothing was removed', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+1')}
-        ${ADD}`
-      )
+      t.equal(output, `Packages: ${chalk.green('+1')}
+${ADD}`)
     },
   })
 })
@@ -562,10 +555,8 @@ test('prints only the removed stats if nothing was added', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.red('-1')}
-        ${SUB}`
-      )
+      t.equal(output, `Packages: ${chalk.red('-1')}
+${SUB}`)
     },
   })
 })
@@ -587,10 +578,8 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+100')}
-        ${R.repeat(ADD, 20).join('')}`
-      )
+      t.equal(output, `Packages: ${chalk.green('+100')}
+${R.repeat(ADD, 20).join('')}`)
     },
   })
 })
@@ -612,10 +601,8 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.red('-100')}
-        ${R.repeat(SUB, 20).join('')}`
-      )
+      t.equal(output, `Packages: ${chalk.red('-100')}
+${R.repeat(SUB, 20).join('')}`)
     },
   })
 })
@@ -637,9 +624,8 @@ test('prints at least one remove sign when removed !== 0', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+100')} ${chalk.red('-1')}
-        ${R.repeat(ADD, 19).join('') + SUB}`
+      t.equal(output, `Packages: ${chalk.green('+100')} ${chalk.red('-1')}
+${R.repeat(ADD, 19).join('') + SUB}`
       )
     },
   })
@@ -662,10 +648,8 @@ test('prints at least one add sign when added !== 0', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+1')} ${chalk.red('-100')}
-        ${ADD + R.repeat(SUB, 19).join('')}`
-      )
+      t.equal(output, `Packages: ${chalk.green('+1')} ${chalk.red('-100')}
+${ADD + R.repeat(SUB, 19).join('')}`)
     },
   })
 })
@@ -685,10 +669,8 @@ test('prints just removed during uninstallation', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.red('-4')}
-        ${SUB + SUB + SUB + SUB}`
-      )
+      t.equal(output, `Packages: ${chalk.red('-4')}
+${SUB + SUB + SUB + SUB}`)
     },
   })
 })
@@ -740,17 +722,16 @@ test('prints added/removed stats and warnings during recursive installation', t 
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-5                                    | ${WARN} Some issue
-        .                                        | ${WARN} Some other issue
-        .                                        |   ${chalk.red('-1')} ${SUB}
-        pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
-        dir/pkg-2                                | ${WARN} ${DEPRECATED} bar@2.0.0
-        dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
-        .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
-        ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
-        .                                        | ${WARN} ${DEPRECATED} foo@1.0.0`
-      )
+      t.equal(output, `\
+pkg-5                                    | ${WARN} Some issue
+.                                        | ${WARN} Some other issue
+.                                        |   ${chalk.red('-1')} ${SUB}
+pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
+dir/pkg-2                                | ${WARN} ${DEPRECATED} bar@2.0.0
+dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
+.../pkg-3                                |   ${chalk.green('+1')} ${ADD}
+...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
+.                                        | ${WARN} ${DEPRECATED} foo@1.0.0`)
     },
   })
 })
@@ -774,9 +755,7 @@ test('recursive installation: prints only the added stats if nothing was removed
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.green('+190')} ${R.repeat(ADD, 12).join('')}`
-      )
+      t.equal(output, `pkg-1                                    | ${chalk.green('+190')} ${R.repeat(ADD, 12).join('')}`)
     },
   })
 })
@@ -800,9 +779,7 @@ test('recursive installation: prints only the removed stats if nothing was added
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.red('-190')} ${R.repeat(SUB, 12).join('')}`
-      )
+      t.equal(output, `pkg-1                                    | ${chalk.red('-190')} ${R.repeat(SUB, 12).join('')}`)
     },
   })
 })
@@ -826,9 +803,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${R.repeat(ADD, 8).join('') + SUB}`
-      )
+      t.equal(output, `pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${R.repeat(ADD, 8).join('') + SUB}`)
     },
   })
 })
@@ -852,9 +827,7 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + R.repeat(SUB, 8).join('')}`
-      )
+      t.equal(output, `pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + R.repeat(SUB, 8).join('')}`)
     },
   })
 })
@@ -877,9 +850,7 @@ test('recursive uninstall: prints removed packages number', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    |   ${chalk.red('-1')} ${SUB}`
-      )
+      t.equal(output, `pkg-1                                    |   ${chalk.red('-1')} ${SUB}`)
     },
   })
 })
@@ -906,9 +877,7 @@ test('install: print hook message', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        ${chalk.magentaBright('readPackage')}: foo`
-      )
+      t.equal(output, `${chalk.magentaBright('readPackage')}: foo`)
     },
   })
 })
@@ -935,9 +904,7 @@ test('recursive: print hook message', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`
-      )
+      t.equal(output, `pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`)
     },
   })
 })
