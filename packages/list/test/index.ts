@@ -21,12 +21,13 @@ const UNSAVED_DEPENDENCIES = chalk.cyanBright('not saved (you should add these d
 
 const highlighted = chalk.bold.inverse
 
-const fixture = path.join(__dirname, 'fixture')
-const fixtureWithNoPkgNameAndNoVersion = path.join(__dirname, 'fixture-with-no-pkg-name-and-no-version')
-const fixtureWithNoPkgVersion = path.join(__dirname, 'fixture-with-no-pkg-version')
-const fixtureWithExternalLockfile = path.join(__dirname, 'fixture-with-external-shrinkwrap', 'pkg')
-const emptyFixture = path.join(__dirname, 'empty')
-const fixtureWithAliasedDep = path.join(__dirname, 'with-aliased-dep')
+const fixtures = path.join(__dirname, '../../../fixtures')
+const fixture = path.join(fixtures, 'fixture')
+const fixtureWithNoPkgNameAndNoVersion = path.join(fixtures, 'fixture-with-no-pkg-name-and-no-version')
+const fixtureWithNoPkgVersion = path.join(fixtures, 'fixture-with-no-pkg-version')
+const fixtureWithExternalLockfile = path.join(fixtures, 'fixture-with-external-shrinkwrap', 'pkg')
+const emptyFixture = path.join(fixtures, 'empty')
+const fixtureWithAliasedDep = path.join(fixtures, 'with-aliased-dep')
 
 test('list all deps of a package that has an external lockfile', async (t) => {
   t.equal(await list([fixtureWithExternalLockfile], {
@@ -226,26 +227,30 @@ write-json-file ${VERSION_CLR('2.3.0')}
 
 ${DEV_DEPENDENCIES}
 ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
-  [Could not find additional info about this dependency]
+  Check if something is a positive number
+  git+https://github.com/kevva/is-positive.git
+  https://github.com/kevva/is-positive#readme
 
 ${OPTIONAL_DEPENDENCIES}
 ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
-  [Could not find additional info about this dependency]`)
+  Check if something is a negative number
+  git+https://github.com/kevva/is-negative.git
+  https://github.com/kevva/is-negative#readme`)
 
   t.end()
 })
 
 test('parseable list with depth 1', async t => {
   t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture }), `${fixture}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/detect-indent/5.0.0')}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/graceful-fs/4.2.2')}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/is-negative/2.1.0')}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/is-positive/3.1.0')}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/make-dir/1.3.0')}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/pify/3.0.0')}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/sort-keys/2.0.0')}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/write-file-atomic/2.4.3')}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/write-json-file/2.3.0')}`)
+${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0')}
+${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2')}
+${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0')}
+${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0')}
+${path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0')}
+${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0')}
+${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0')}
+${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3')}
+${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0')}`)
 
   t.end()
 })
@@ -374,7 +379,7 @@ test('parseable list with depth 1 and dev only', async t => {
       reportAs: 'parseable',
     }),
     `${fixture}
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/is-positive/3.1.0')}`
+${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0')}`
   )
 
   t.end()
@@ -382,15 +387,15 @@ ${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/is-positive/3.1.0')}
 
 test('long parseable list with depth 1', async t => {
   t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true }), `${fixture}:fixture@1.0.0
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/graceful-fs/4.2.2')}:graceful-fs@4.2.2
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/is-negative/2.1.0')}:is-negative@2.1.0
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/is-positive/3.1.0')}:is-positive@3.1.0
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/make-dir/1.3.0')}:make-dir@1.3.0
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/pify/3.0.0')}:pify@3.0.0
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/sort-keys/2.0.0')}:sort-keys@2.0.0
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/write-file-atomic/2.4.3')}:write-file-atomic@2.4.3
-${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/write-json-file/2.3.0')}:write-json-file@2.3.0`)
+${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
+${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
+${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0')}:is-negative@2.1.0
+${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0')}:is-positive@3.1.0
+${path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0')}:make-dir@1.3.0
+${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0')}:pify@3.0.0
+${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0')}:sort-keys@2.0.0
+${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
+${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`)
 
   t.end()
 })
@@ -398,15 +403,15 @@ ${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/write-json-file/2.3.
 test('long parseable list with depth 1 when package has no version', async t => {
   t.equal(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true }), `\
 ${fixtureWithNoPkgVersion}:fixture
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/graceful-fs/4.2.2')}:graceful-fs@4.2.2
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/is-negative/2.1.0')}:is-negative@2.1.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/is-positive/3.1.0')}:is-positive@3.1.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/make-dir/1.3.0')}:make-dir@1.3.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/pify/3.0.0')}:pify@3.0.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/sort-keys/2.0.0')}:sort-keys@2.0.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/write-file-atomic/2.4.3')}:write-file-atomic@2.4.3
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/write-json-file/2.3.0')}:write-json-file@2.3.0`)
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/is-negative@2.1.0')}:is-negative@2.1.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/is-positive@3.1.0')}:is-positive@3.1.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/make-dir@1.3.0')}:make-dir@1.3.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/pify@3.0.0')}:pify@3.0.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/sort-keys@2.0.0')}:sort-keys@2.0.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`)
 
   t.end()
 })
@@ -418,15 +423,15 @@ test('long parseable list with depth 1 when package has no name and no version',
       { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true }
     ),
     `${fixtureWithNoPkgNameAndNoVersion}
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/graceful-fs/4.2.2')}:graceful-fs@4.2.2
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/is-negative/2.1.0')}:is-negative@2.1.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/is-positive/3.1.0')}:is-positive@3.1.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/make-dir/1.3.0')}:make-dir@1.3.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/pify/3.0.0')}:pify@3.0.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/sort-keys/2.0.0')}:sort-keys@2.0.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/write-file-atomic/2.4.3')}:write-file-atomic@2.4.3
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/write-json-file/2.3.0')}:write-json-file@2.3.0`
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/is-negative@2.1.0')}:is-negative@2.1.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/is-positive@3.1.0')}:is-positive@3.1.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/make-dir@1.3.0')}:make-dir@1.3.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/pify@3.0.0')}:pify@3.0.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/sort-keys@2.0.0')}:sort-keys@2.0.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`
   )
 
   t.end()
@@ -676,7 +681,7 @@ foo ${VERSION_CLR('1.0.0')}
 })
 
 test('peer dependencies are marked', async (t) => {
-  const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
+  const fixture = path.join(fixtures, 'with-peer')
   const output = await list([fixture], { depth: 1, lockfileDir: fixture })
   compareOutputs(t, output, `${LEGEND}
 
@@ -694,7 +699,7 @@ ajv-keywords ${VERSION_CLR('3.4.1')}
 })
 
 test('peer dependencies are marked when searching', async (t) => {
-  const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
+  const fixture = path.join(fixtures, 'with-peer')
   const output = await listForPackages(['ajv'], [fixture], { depth: 1, lockfileDir: fixture })
   compareOutputs(t, output, `${LEGEND}
 

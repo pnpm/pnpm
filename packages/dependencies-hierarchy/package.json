@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "pre_test": "pnpm install -rf -C fixtures --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages && pnpm install -rf -C fixtureWithLinks --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/dependencies-hierarchy/coverage ts-node packages/dependencies-hierarchy/test --type-check",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
@@ -37,6 +36,7 @@
     "@pnpm/lockfile-utils": "workspace:2.0.14",
     "@pnpm/modules-yaml": "workspace:8.0.0",
     "@pnpm/normalize-registries": "workspace:1.0.2",
+    "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.1.2",
     "@pnpm/types": "workspace:6.1.0",

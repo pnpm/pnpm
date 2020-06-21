@@ -1,7 +1,0 @@
-{
-  "name": "with-aliased-dep",
-  "version": "1.0.0",
-  "dependencies": {
-    "positive": "npm:is-positive@1.0.0"
-  }
-}

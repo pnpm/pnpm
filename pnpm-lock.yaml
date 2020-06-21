@@ -322,6 +322,7 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
+      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/types': 'link:../types'
@@ -341,6 +342,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@pnpm/modules-yaml': 'workspace:8.0.0'
       '@pnpm/normalize-registries': 'workspace:1.0.2'
+      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:3.1.2'
       '@pnpm/types': 'workspace:6.1.0'

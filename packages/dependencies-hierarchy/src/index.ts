@@ -13,10 +13,11 @@ import {
 } from '@pnpm/lockfile-utils'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import normalizeRegistries from '@pnpm/normalize-registries'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
-import { refToAbsolute, refToRelative } from 'dependency-path'
+import { refToRelative } from 'dependency-path'
 import normalizePath = require('normalize-path')
 import path = require('path')
 import realpathMissing = require('realpath-missing')
@@ -129,6 +130,7 @@ async function dependenciesHierarchyForPackage (
     currentDepth: 1,
     currentPackages: currentLockfile.packages || {},
     includeOptionalDependencies: opts.include.optionalDependencies === true,
+    lockfileDir: opts.lockfileDir,
     maxDepth: opts.depth,
     modulesDir,
     registries: opts.registries,
@@ -144,6 +146,7 @@ async function dependenciesHierarchyForPackage (
       const { packageInfo, packageAbsolutePath } = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages || {},
+        lockfileDir: opts.lockfileDir,
         modulesDir,
         ref: topDeps[alias],
         registries: opts.registries,
@@ -224,6 +227,7 @@ function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
 type GetTreeOpts = {
   currentDepth: number,
   maxDepth: number,
+  lockfileDir: string,
   modulesDir: string,
   includeOptionalDependencies: boolean,
   search?: SearchFunction,
@@ -274,6 +278,7 @@ function getTreeHelper (
     const { packageInfo, packageAbsolutePath } = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
+      lockfileDir: opts.lockfileDir,
       modulesDir: opts.modulesDir,
       peers,
       ref: deps[alias],
@@ -337,6 +342,7 @@ function getTreeHelper (
 function getPkgInfo (
   opts: {
     alias: string,
+    lockfileDir: string,
     modulesDir: string,
     ref: string,
     currentPackages: PackageSnapshots,
@@ -381,14 +387,14 @@ function getPkgInfo (
     name = opts.alias
     version = opts.ref
   }
-  const packageAbsolutePath = refToAbsolute(opts.ref, opts.alias, opts.registries)
+  const packageAbsolutePath = refToRelative(opts.ref, opts.alias)
   const packageInfo = {
     alias: opts.alias,
     isMissing,
     isPeer: Boolean(opts.peers && opts.peers.has(opts.alias)),
     isSkipped,
     name,
-    path: packageAbsolutePath && path.join(opts.modulesDir, '.pnpm', packageAbsolutePath) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
+    path: depPath ? path.join(opts.modulesDir, '.pnpm', pkgIdToFilename(depPath, opts.lockfileDir)) : path.join(opts.modulesDir, '..', opts.ref.substr(5)),
     version,
   }
   if (resolved) {
