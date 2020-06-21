@@ -1138,7 +1138,6 @@ importers:
       version-selector-type: ^3.0.0
   packages/outdated:
     dependencies:
-      '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/error': 'link:../error'
@@ -1162,7 +1161,6 @@ importers:
       '@types/semver': 7.2.0
       npm-run-all: 4.1.5
     specifiers:
-      '@pnpm/config': 'workspace:9.2.0'
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/default-resolver': 'workspace:9.0.2'
       '@pnpm/error': 'workspace:1.2.0'
