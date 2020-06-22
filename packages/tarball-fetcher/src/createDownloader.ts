@@ -98,12 +98,22 @@ export default (
     userAgent?: string,
   }
 ): DownloadFunction => {
-  // The fetch library can retry requests on bad HTTP responses.
-  // However, it is not enough to retry on bad HTTP responses only.
-  // Requests should also be retried when the tarball's integrity check fails.
-  // Hence, we tell fetch to not retry,
-  // and we perform the retries from this function instead.
-  const fetchFromNpmRegistry = createFetcher({ retry: { retries: 0 } })
+  const fetchFromNpmRegistry = createFetcher({
+    ca: gotOpts.ca,
+    cert: gotOpts.cert,
+    key: gotOpts.key,
+    localAddress: gotOpts.localAddress,
+    proxy: gotOpts.proxy,
+    strictSSL: gotOpts.strictSSL,
+    userAgent: gotOpts.userAgent,
+
+    // The fetch library can retry requests on bad HTTP responses.
+    // However, it is not enough to retry on bad HTTP responses only.
+    // Requests should also be retried when the tarball's integrity check fails.
+    // Hence, we tell fetch to not retry,
+    // and we perform the retries from this function instead.
+    retry: { retries: 0 },
+  })
 
   const retryOpts = {
     factor: 10,
