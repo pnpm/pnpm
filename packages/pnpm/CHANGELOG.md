@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.2.5
+
+### Patch Changes
+
+- Fixing some regressions with global bin directory caused by v5.2.4.
+
 ## 5.2.4
 
 ### Patch Changes

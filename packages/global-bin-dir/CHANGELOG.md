@@ -1,6 +1,16 @@
 # @pnpm/global-bin-dir
 
+## 1.0.1
+
+### Patch Changes
+
+- 2c190d49d: When looking for suitable directories for global executables, ignore case.
+
+  When comparing to the currently running Node.js executable directory,
+  ignore any trailing slash. `/foo/bar` is the same as `/foo/bar/`.
+
 ## 1.0.0
+
 ### Major Changes
 
 - 1146b76d2: Finds a directory that is in PATH and we have permission to write to it.

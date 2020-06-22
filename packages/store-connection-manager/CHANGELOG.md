@@ -1,5 +1,11 @@
 # @pnpm/store-connection-manager
 
+## 0.3.13
+
+### Patch Changes
+
+- @pnpm/config@10.0.1
+
 ## 0.3.12
 
 ### Patch Changes
