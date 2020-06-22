@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 7.1.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@4.1.2
+- @pnpm/fetcher-base@8.0.2
+- fetch-from-npm-registry@4.1.2
+
 ## 7.1.2
 
 ### Patch Changes

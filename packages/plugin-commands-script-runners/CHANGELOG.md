@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1.2.4
+
+### Patch Changes
+
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [1146b76d2]
+- Updated dependencies [db17f6f7b]
+  - @pnpm/config@10.0.0
+  - @pnpm/types@6.2.0
+  - @pnpm/cli-utils@0.4.10
+  - @pnpm/lifecycle@9.1.3
+  - @pnpm/sort-packages@1.0.13
+
 ## 1.2.3
 
 ### Patch Changes

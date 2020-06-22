@@ -1,5 +1,23 @@
 # @pnpm/list
 
+## 5.0.0
+
+### Major Changes
+
+- c776db1a7: Look for dependencies at the correct location.
+  The dependency paths have changed in the `node_modules` created by pnpm v5.
+
+### Patch Changes
+
+- 674376757: Highlight searched items with inverse. Works better in terminals with light theme.
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [c776db1a7]
+- Updated dependencies [db17f6f7b]
+  - dependencies-hierarchy@9.0.0
+  - @pnpm/types@6.2.0
+  - @pnpm/read-package-json@3.1.3
+  - @pnpm/read-project-manifest@1.0.9
+
 ## 4.0.30
 
 ### Patch Changes

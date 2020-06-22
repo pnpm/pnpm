@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.14
+
+### Patch Changes
+
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [1146b76d2]
+- Updated dependencies [db17f6f7b]
+  - @pnpm/config@10.0.0
+  - @pnpm/types@6.2.0
+  - @pnpm/cli-utils@0.4.10
+  - @pnpm/store-connection-manager@0.3.12
+  - dependency-path@5.0.2
+  - @pnpm/get-context@3.0.1
+  - @pnpm/lockfile-utils@2.0.15
+  - @pnpm/normalize-registries@1.0.3
+  - @pnpm/pick-registry-for-package@1.0.3
+  - @pnpm/store-controller-types@8.0.2
+  - @pnpm/cafs@1.0.5
+
 ## 2.0.13
 
 ### Patch Changes

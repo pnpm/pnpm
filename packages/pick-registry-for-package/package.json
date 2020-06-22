@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pick-registry-for-package",
   "description": "Picks the right registry for the package from a registries config",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -28,7 +28,7 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:6.1.0"
+    "@pnpm/types": "workspace:6.2.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pick-registry-for-package#readme",
   "funding": "https://opencollective.com/pnpm"

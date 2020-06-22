@@ -1,5 +1,21 @@
 # @pnpm/outdated
 
+## 7.1.2
+
+### Patch Changes
+
+- c85768310: Remove @pnpm/config from dependencies (as it is not used).
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - dependency-path@5.0.2
+  - @pnpm/lockfile-file@3.0.11
+  - @pnpm/lockfile-utils@2.0.15
+  - @pnpm/manifest-utils@1.0.3
+  - @pnpm/modules-yaml@8.0.1
+  - @pnpm/pick-registry-for-package@1.0.3
+  - @pnpm/default-resolver@9.0.3
+
 ## 7.1.1
 
 ### Patch Changes

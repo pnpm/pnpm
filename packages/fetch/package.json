@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch#readme",
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:^4.1.1",
+    "@pnpm/core-loggers": "workspace:^4.1.2",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "2.6.0",
     "node-fetch-unix": "2.3.0"

@@ -1,5 +1,12 @@
 # @pnpm/lockfile-file
 
+## 3.0.11
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+
 ## 3.0.10
 
 ### Patch Changes

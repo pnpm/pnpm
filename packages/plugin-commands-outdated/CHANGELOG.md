@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-outdated
 
+## 2.0.7
+
+### Patch Changes
+
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [c85768310]
+- Updated dependencies [1146b76d2]
+- Updated dependencies [220896511]
+  - @pnpm/config@10.0.0
+  - @pnpm/outdated@7.1.2
+  - @pnpm/cli-utils@0.4.10
+  - @pnpm/lockfile-file@3.0.11
+  - @pnpm/modules-yaml@8.0.1
+  - @pnpm/default-resolver@9.0.3
+
 ## 2.0.6
 
 ### Patch Changes

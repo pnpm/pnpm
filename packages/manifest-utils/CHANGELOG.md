@@ -1,5 +1,12 @@
 # @pnpm/manifest-utils
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+
 ## 1.0.2
 
 ### Patch Changes

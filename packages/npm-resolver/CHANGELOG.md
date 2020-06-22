@@ -1,5 +1,14 @@
 # @pnpm/npm-resolver
 
+## 8.1.2
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - @pnpm/resolver-base@7.0.3
+  - fetch-from-npm-registry@4.1.2
+
 ## 8.1.1
 
 ### Patch Changes

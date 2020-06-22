@@ -1,5 +1,23 @@
 # dependencies-hierarchy
 
+## 9.0.0
+
+### Major Changes
+
+- c776db1a7: Look for dependencies at the correct location.
+  The dependency paths have changed in the `node_modules` created by pnpm v5.
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - dependency-path@5.0.2
+  - @pnpm/lockfile-file@3.0.11
+  - @pnpm/lockfile-utils@2.0.15
+  - @pnpm/modules-yaml@8.0.1
+  - @pnpm/normalize-registries@1.0.3
+  - @pnpm/read-package-json@3.1.3
+
 ## 8.0.23
 
 ### Patch Changes

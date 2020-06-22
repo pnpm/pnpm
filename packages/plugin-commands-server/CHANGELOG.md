@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-server
 
+## 2.0.12
+
+### Patch Changes
+
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [1146b76d2]
+  - @pnpm/config@10.0.0
+  - @pnpm/cli-utils@0.4.10
+  - @pnpm/store-connection-manager@0.3.12
+  - @pnpm/cli-meta@1.0.0
+  - @pnpm/server@8.0.4
+
 ## 2.0.11
 
 ### Patch Changes

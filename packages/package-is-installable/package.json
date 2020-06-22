@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "4.0.10",
+  "version": "4.0.11",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
@@ -28,9 +28,9 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:4.1.1",
+    "@pnpm/core-loggers": "workspace:4.1.2",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/types": "workspace:6.1.0",
+    "@pnpm/types": "workspace:6.2.0",
     "semver": "^7.3.2"
   },
   "devDependencies": {

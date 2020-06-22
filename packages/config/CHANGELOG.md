@@ -1,5 +1,21 @@
 # @pnpm/config
 
+## 10.0.0
+
+### Major Changes
+
+- db17f6f7b: Move Project and ProjectsGraph to @pnpm/types.
+- 1146b76d2: `globalBin` is removed from the returned object.
+
+  The value of `bin` is set by the `@pnpm/global-bin-dir` package when the `--global` option is used.
+
+### Patch Changes
+
+- Updated dependencies [1146b76d2]
+- Updated dependencies [db17f6f7b]
+  - @pnpm/global-bin-dir@1.0.0
+  - @pnpm/types@6.2.0
+
 ## 9.2.0
 
 ### Minor Changes

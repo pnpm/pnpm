@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 7.4.3
+
+### Patch Changes
+
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [1146b76d2]
+- Updated dependencies [db17f6f7b]
+  - @pnpm/config@10.0.0
+  - @pnpm/types@6.2.0
+  - @pnpm/core-loggers@4.1.2
+
 ## 7.4.2
 
 ### Patch Changes

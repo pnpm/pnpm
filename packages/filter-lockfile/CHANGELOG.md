@@ -1,5 +1,16 @@
 # @pnpm/filter-lockfile
 
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - dependency-path@5.0.2
+  - @pnpm/lockfile-utils@2.0.15
+  - @pnpm/lockfile-walker@3.0.3
+  - @pnpm/package-is-installable@4.0.11
+
 ## 4.0.3
 
 ### Patch Changes

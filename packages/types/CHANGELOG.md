@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 6.2.0
+
+### Minor Changes
+
+- db17f6f7b: Add Project and ProjectsGraph types.
+
 ## 6.1.0
 
 ### Minor Changes

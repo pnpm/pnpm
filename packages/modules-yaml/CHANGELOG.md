@@ -1,5 +1,12 @@
 # @pnpm/modules-yaml
 
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+
 ## 8.0.0
 
 ### Major Changes

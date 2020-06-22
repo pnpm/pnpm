@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.2.4
+
+### Patch Changes
+
+- Find the proper directory for linking executables during global installation.
+- Fix `pnpm list --long`. This was a regression in pnpm v5.0.0.
+
 ## 5.2.3
 
 ### Patch Changes

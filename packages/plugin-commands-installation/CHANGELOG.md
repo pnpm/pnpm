@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-installation
 
+## 2.1.4
+
+### Patch Changes
+
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [c85768310]
+- Updated dependencies [1146b76d2]
+- Updated dependencies [1146b76d2]
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [220896511]
+  - @pnpm/config@10.0.0
+  - @pnpm/outdated@7.1.2
+  - @pnpm/global-bin-dir@1.0.0
+  - @pnpm/types@6.2.0
+  - @pnpm/plugin-commands-rebuild@2.0.14
+  - supi@0.41.4
+  - @pnpm/cli-utils@0.4.10
+  - @pnpm/store-connection-manager@0.3.12
+  - @pnpm/find-workspace-packages@2.2.8
+  - @pnpm/manifest-utils@1.0.3
+  - @pnpm/package-store@9.0.10
+  - @pnpm/pnpmfile@0.1.13
+  - @pnpm/resolver-base@7.0.3
+  - @pnpm/sort-packages@1.0.13
+  - @pnpm/filter-workspace-packages@2.1.3
+
 ## 2.1.3
 
 ### Patch Changes

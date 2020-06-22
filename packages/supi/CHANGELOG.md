@@ -1,5 +1,38 @@
 # supi
 
+## 0.41.4
+
+### Patch Changes
+
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - @pnpm/build-modules@5.0.6
+  - @pnpm/core-loggers@4.1.2
+  - dependency-path@5.0.2
+  - @pnpm/filter-lockfile@4.0.4
+  - @pnpm/get-context@3.0.1
+  - @pnpm/headless@14.0.4
+  - @pnpm/hoist@4.0.3
+  - @pnpm/lifecycle@9.1.3
+  - @pnpm/link-bins@5.3.7
+  - @pnpm/lockfile-file@3.0.11
+  - @pnpm/lockfile-utils@2.0.15
+  - @pnpm/lockfile-walker@3.0.3
+  - @pnpm/manifest-utils@1.0.3
+  - @pnpm/modules-cleaner@10.0.3
+  - @pnpm/modules-yaml@8.0.1
+  - @pnpm/normalize-registries@1.0.3
+  - @pnpm/package-requester@12.0.6
+  - @pnpm/prune-lockfile@2.0.11
+  - @pnpm/read-package-json@3.1.3
+  - @pnpm/read-project-manifest@1.0.9
+  - @pnpm/remove-bins@1.0.1
+  - @pnpm/resolve-dependencies@16.0.2
+  - @pnpm/resolver-base@7.0.3
+  - @pnpm/store-controller-types@8.0.2
+  - @pnpm/symlink-dependency@3.0.8
+
 ## 0.41.3
 
 ### Patch Changes

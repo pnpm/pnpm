@@ -1,5 +1,13 @@
 # find-packages
 
+## 7.0.12
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - @pnpm/read-project-manifest@1.0.9
+
 ## 7.0.11
 
 ### Patch Changes

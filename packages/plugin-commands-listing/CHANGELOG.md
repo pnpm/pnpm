@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-listing
 
+## 2.0.5
+
+### Patch Changes
+
+- 220896511: Remove common-tags from dependencies.
+- Updated dependencies [c776db1a7]
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [674376757]
+- Updated dependencies [1146b76d2]
+- Updated dependencies [db17f6f7b]
+- Updated dependencies [220896511]
+  - @pnpm/list@5.0.0
+  - @pnpm/config@10.0.0
+  - @pnpm/types@6.2.0
+  - @pnpm/cli-utils@0.4.10
+
 ## 2.0.4
 
 ### Patch Changes
