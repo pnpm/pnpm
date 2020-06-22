@@ -44,6 +44,7 @@ export async function handler (
     Pick<Config,
       | 'allProjects'
       | 'bail'
+      | 'bin'
       | 'engineStrict'
       | 'linkWorkspacePackages'
       | 'selectedProjectsGraph'
@@ -62,6 +63,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const unlinkOpts = Object.assign(opts, {
+    globalBin: opts.bin,
     storeController: store.ctrl,
     storeDir: store.dir,
   })

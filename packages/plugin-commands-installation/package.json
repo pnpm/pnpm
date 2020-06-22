@@ -63,6 +63,7 @@
     "@pnpm/filter-workspace-packages": "workspace:2.1.2",
     "@pnpm/find-workspace-dir": "workspace:1.0.0",
     "@pnpm/find-workspace-packages": "workspace:2.2.7",
+    "@pnpm/global-bin-dir": "workspace:^0.0.0",
     "@pnpm/manifest-utils": "workspace:1.0.2",
     "@pnpm/outdated": "workspace:7.1.1",
     "@pnpm/package-store": "workspace:9.0.9",

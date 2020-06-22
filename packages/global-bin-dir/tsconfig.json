@@ -10,16 +10,7 @@
   ],
   "references": [
     {
-      "path": "../constants"
-    },
-    {
       "path": "../error"
-    },
-    {
-      "path": "../global-bin-dir"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

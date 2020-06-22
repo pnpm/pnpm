@@ -19,7 +19,6 @@ export interface Config {
   filter: string[],
   rawLocalConfig: Record<string, any>, // tslint:disable-line
   rawConfig: Record<string, any>, // tslint:disable-line
-  globalBin: string,
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
   globalDir: string,

@@ -1,5 +1,6 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
+import globalBinDir from '@pnpm/global-bin-dir'
 import loadNpmConf = require('@zkochan/npm-conf')
 import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase from 'camelcase'
@@ -195,9 +196,6 @@ export default async (
         ? npmConfig.globalPrefix
         : findBestGlobalPrefixOnWindows(npmConfig.globalPrefix, process.env)
     )
-  pnpmConfig.globalBin = process.platform === 'win32'
-    ? npmGlobalPrefix
-    : path.resolve(npmGlobalPrefix, 'bin')
   pnpmConfig.globalDir = pnpmConfig.globalDir ? npmGlobalPrefix : path.join(npmGlobalPrefix, 'pnpm-global')
   pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
   pnpmConfig.useLockfile = (() => {
@@ -221,7 +219,12 @@ export default async (
 
   if (cliOptions['global']) {
     pnpmConfig.dir = path.join(pnpmConfig.globalDir, LAYOUT_VERSION.toString())
-    pnpmConfig.bin = pnpmConfig.globalBin
+    pnpmConfig.bin = cliOptions['dir']
+      ? (
+        process.platform === 'win32'
+          ? cliOptions.dir : path.resolve(cliOptions.dir, 'bin')
+      )
+      : globalBinDir()
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
     pnpmConfig.saveProd = true

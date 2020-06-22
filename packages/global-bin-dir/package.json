@@ -1,0 +1,42 @@
+{
+  "name": "@pnpm/global-bin-dir",
+  "version": "0.0.0",
+  "description": "Finds a directory that is in PATH and we have permission to write to i",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=10.13"
+  },
+  "scripts": {
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/global-bin-dir/coverage ts-node packages/global-bin-dir/test --type-check"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/global-bin-dir",
+  "keywords": [
+    "pnpm"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/global-bin-dir#readme",
+  "funding": "https://opencollective.com/pnpm",
+  "dependencies": {
+    "@pnpm/error": "workspace:^1.2.0",
+    "can-write-to-dir": "^1.0.0",
+    "path-name": "^1.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/global-bin-dir": "link:",
+    "is-windows": "^1.0.2",
+    "proxyquire": "^2.1.3"
+  }
+}

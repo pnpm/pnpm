@@ -9,6 +9,7 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import globalBinDir from '@pnpm/global-bin-dir'
 import { StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import pLimit = require('p-limit')
@@ -77,7 +78,7 @@ export async function handler (
     | 'saveOptional'
     | 'saveProd'
     | 'workspaceDir'
-  > & Partial<Pick<Config, 'globalBin' | 'globalDir' | 'linkWorkspacePackages'>>,
+  > & Partial<Pick<Config, 'globalDir' | 'linkWorkspacePackages'>>,
   params: string[]
 ) {
   const cwd = opts?.dir ?? process.cwd()
@@ -106,7 +107,7 @@ export async function handler (
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
       // A temporary workaround. global bin/prefix are always defined when --global is set
-      globalBin: linkOpts.globalBin!,
+      globalBin: globalBinDir(),
       globalDir: linkOpts.globalDir!,
       manifest: manifest || {},
     })
