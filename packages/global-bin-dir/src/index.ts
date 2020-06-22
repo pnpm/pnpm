@@ -16,12 +16,13 @@ function pickBestGlobalBinDir (dirs: string[]) {
   const nodeBinDir = path.dirname(process.execPath)
   const noWriteAccessDirs = [] as string[]
   for (const dir of dirs) {
+    const lowCaseDir = dir.toLowerCase()
     if (
-      isUnderDir('node', dir) ||
-      isUnderDir('nodejs', dir) ||
-      isUnderDir('npm', dir) ||
-      isUnderDir('pnpm', dir) ||
-      nodeBinDir === dir
+      isUnderDir('node', lowCaseDir) ||
+      isUnderDir('nodejs', lowCaseDir) ||
+      isUnderDir('npm', lowCaseDir) ||
+      isUnderDir('pnpm', lowCaseDir) ||
+      path.relative(nodeBinDir, dir) === ''
     ) {
       if (canWriteToDirAndExists(dir)) return dir
       noWriteAccessDirs.push(dir)

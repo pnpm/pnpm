@@ -26,6 +26,7 @@ const npmGlobalBin = makePath('home', 'z', '.npm')
 const pnpmGlobalBin = makePath('home', 'z', '.pnpm')
 const otherDir = makePath('some', 'dir')
 const currentExecDir = makePath('current', 'exec')
+const dirWithTrailingSlash = `${makePath('current', 'slash')}${path.sep}`
 process.env[FAKE_PATH] = [
   userGlobalBin,
   nodeGlobalBin,
@@ -33,6 +34,7 @@ process.env[FAKE_PATH] = [
   pnpmGlobalBin,
   otherDir,
   currentExecDir,
+  dirWithTrailingSlash,
 ].join(path.delimiter)
 
 test('prefer a directory that has "nodejs", "npm", or "pnpm" in the path', (t) => {
@@ -66,6 +68,10 @@ test('prefer the directory of the currently executed nodejs command', (t) => {
   process.execPath = path.join(currentExecDir, 'n')
   canWriteToDir = (dir) => dir !== nodeGlobalBin && dir !== npmGlobalBin && dir !== pnpmGlobalBin
   t.equal(globalBinDir(), currentExecDir)
+
+  process.execPath = path.join(dirWithTrailingSlash, 'n')
+  t.equal(globalBinDir(), dirWithTrailingSlash)
+
   process.execPath = originalExecPath
   t.end()
 })
@@ -103,6 +109,18 @@ test('throw exception if PATH is not set', (t) => {
   const pathEnv = process.env[FAKE_PATH]
   delete process.env[FAKE_PATH]
   t.throws(() => globalBinDir(), /Couldn't find a global directory/)
+  process.env[FAKE_PATH] = pathEnv
+  t.end()
+})
+
+test('prefer a directory that has "Node" in the path', (t) => {
+  const capitalizedNodeGlobalBin = makePath('home', 'z', '.nvs', 'Node', '12.0.0', 'x64', 'bin')
+  const pathEnv = process.env[FAKE_PATH]
+  process.env[FAKE_PATH] = capitalizedNodeGlobalBin
+
+  canWriteToDir = () => true
+  t.equal(globalBinDir(), capitalizedNodeGlobalBin)
+
   process.env[FAKE_PATH] = pathEnv
   t.end()
 })
