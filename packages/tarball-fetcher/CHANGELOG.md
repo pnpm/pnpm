@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 7.1.4
+
+### Patch Changes
+
+- b7b026822: Pass the proxy settings to the fetcher.
+
 ## 7.1.3
 
 ### Patch Changes

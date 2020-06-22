@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.2.6
+
+### Patch Changes
+
+- Use the proxy settings not only during resolution but also when fetching tarballs.
+
 ## 5.2.5
 
 ### Patch Changes
