@@ -20,7 +20,6 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
     | 'alwaysAuth'
     | 'ca'
     | 'cert'
-    | 'httpsProxy'
     | 'key'
     | 'localAddress'
     | 'networkConcurrency'
@@ -51,7 +50,7 @@ export default async (
     }) as any, // tslint:disable-line:no-any
     offline: opts.offline,
     preferOffline: opts.preferOffline,
-    proxy: opts.httpsProxy ?? opts.proxy,
+    proxy: opts.proxy,
     rawConfig: opts.rawConfig,
     retry: {
       factor: opts.fetchRetryFactor,

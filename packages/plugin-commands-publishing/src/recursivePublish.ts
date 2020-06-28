@@ -27,7 +27,6 @@ Partial<Pick<Config,
   | 'fetchRetryFactor'
   | 'fetchRetryMaxtimeout'
   | 'fetchRetryMintimeout'
-  | 'httpsProxy'
   | 'key'
   | 'localAddress'
   | 'lockfileDir'

@@ -7,7 +7,6 @@ export default function (opts: {
   alwaysAuth?: boolean,
   ca?: string,
   cert?: string,
-  httpsProxy?: string,
   key?: string,
   localAddress?: string,
   proxy?: string,
