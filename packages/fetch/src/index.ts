@@ -1,5 +1,5 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import * as retry from '@zkochan/retry'
+import { operation, RetryTimeoutOptions } from '@zkochan/retry'
 import { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
 import fetch = require('node-fetch-unix')
 
@@ -9,14 +9,7 @@ const MAX_RETRIES = 5
 const MAX_RETRY_AFTER = 20
 const FACTOR = 6
 
-export { Response }
-
-export interface RetryOpts {
-  factor?: number
-  maxTimeout?: number
-  minTimeout?: number
-  retries?: number
-}
+export { Response, RetryTimeoutOptions }
 
 interface URLLike {
   href: string
@@ -25,7 +18,7 @@ interface URLLike {
 export type RequestInfo = string | URLLike | Request
 
 export interface RequestInit extends NodeRequestInit {
-  retry?: RetryOpts
+  retry?: RetryTimeoutOptions
 }
 
 export const isRedirect = fetch.isRedirect
@@ -40,7 +33,7 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
     retries: MAX_RETRIES,
   }, opts.retry)
 
-  const op = retry.operation(retryOpts)
+  const op = operation(retryOpts)
 
   try {
     return await new Promise((resolve, reject) => op.attempt(async (attempt) => {

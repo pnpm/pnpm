@@ -6,6 +6,7 @@ import runNpm from '@pnpm/run-npm'
 import sortPackages from '@pnpm/sort-packages'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
+import fetchFromNpmRegistry from 'fetch-from-npm-registry'
 import LRU = require('lru-cache')
 import pFilter = require('p-filter')
 import { handler as publish } from './publish'
@@ -50,8 +51,8 @@ export default async function (
 ) {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const storeDir = await storePath(opts.workspaceDir, opts.storeDir)
-  const resolve = createResolver(Object.assign(opts, {
-    fullMetadata: false,
+  const fetch = fetchFromNpmRegistry(opts)
+  const resolve = createResolver(fetch, Object.assign(opts, {
     metaCache: new LRU({
       max: 10000,
       maxAge: 120 * 1000, // 2 minutes

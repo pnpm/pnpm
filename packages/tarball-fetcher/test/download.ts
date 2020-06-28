@@ -1,10 +1,8 @@
 ///<reference path="../../../typings/index.d.ts" />
-import createCafs, { getFilePathByModeInCafs as _getFilePathByModeInCafs } from '@pnpm/cafs'
-import { LogBase, streamParser } from '@pnpm/logger'
-import readPackage from '@pnpm/read-package-json'
+import createCafs from '@pnpm/cafs'
 import createFetcher from '@pnpm/tarball-fetcher'
 import cpFile = require('cp-file')
-import { existsSync } from 'fs'
+import createFetchFromNpmRegistry from 'fetch-from-npm-registry'
 import fs = require('mz/fs')
 import nock = require('nock')
 import path = require('path')
@@ -15,20 +13,21 @@ import tempy = require('tempy')
 const cafsDir = tempy.directory()
 console.log(cafsDir)
 const cafs = createCafs(cafsDir)
-const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(_getFilePathByModeInCafs, cafsDir)
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const registry = 'http://example.com/'
-const fetch = createFetcher({
-  fetchRetries: 1,
-  fetchRetryMaxtimeout: 100,
-  fetchRetryMintimeout: 0,
+const fetchFromRegistry = createFetchFromNpmRegistry({})
+const fetch = createFetcher(fetchFromRegistry, {
   rawConfig: {
     registry,
   },
-  registry,
+  retry: {
+    maxTimeout: 100,
+    minTimeout: 0,
+    retries: 1,
+  },
 })
 
 test('fail when tarball size does not match content-length', async t => {
@@ -227,15 +226,16 @@ test("don't fail when fetching a local tarball in offline mode", async (t) => {
     tarball: `file:${tarballAbsoluteLocation}`,
   }
 
-  const fetch = createFetcher({
-    fetchRetries: 1,
-    fetchRetryMaxtimeout: 100,
-    fetchRetryMintimeout: 0,
+  const fetch = createFetcher(fetchFromRegistry, {
     offline: true,
     rawConfig: {
       registry,
     },
-    registry,
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
   })
   const { filesIndex } = await fetch.tarball(cafs, resolution, {
     lockfileDir: process.cwd(),
@@ -258,15 +258,16 @@ test('fail when trying to fetch a non-local tarball in offline mode', async (t) 
 
   let err!: Error
   try {
-    const fetch = createFetcher({
-      fetchRetries: 1,
-      fetchRetryMaxtimeout: 100,
-      fetchRetryMintimeout: 0,
+    const fetch = createFetcher(fetchFromRegistry, {
       offline: true,
       rawConfig: {
         registry,
       },
-      registry,
+      retry: {
+        maxTimeout: 100,
+        minTimeout: 0,
+        retries: 1,
+      },
     })
     await fetch.tarball(cafs, resolution, {
       lockfileDir: process.cwd(),
@@ -359,16 +360,17 @@ test('accessing private packages', async t => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const fetch = createFetcher({
+  const fetch = createFetcher(fetchFromRegistry, {
     alwaysAuth: true,
-    fetchRetries: 1,
-    fetchRetryMaxtimeout: 100,
-    fetchRetryMintimeout: 0,
     rawConfig: {
       '//example.com/:_authToken': 'ofjergrg349gj3f2',
       registry,
     },
-    registry,
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
   })
 
   const resolution = {

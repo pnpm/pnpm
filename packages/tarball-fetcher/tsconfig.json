@@ -23,9 +23,6 @@
     },
     {
       "path": "../cafs"
-    },
-    {
-      "path": "../read-package-json"
     }
   ]
 }

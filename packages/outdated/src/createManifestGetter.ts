@@ -1,6 +1,7 @@
 import createResolver, { ResolveFunction, ResolverFactoryOptions } from '@pnpm/default-resolver'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { DependencyManifest, Registries } from '@pnpm/types'
+import fetchFromNpmRegistry from 'fetch-from-npm-registry'
 import LRU = require('lru-cache')
 
 type GetManifestOpts = {
@@ -14,8 +15,8 @@ export type ManifestGetterOptions = Omit<ResolverFactoryOptions, 'metaCache'> & 
 export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
-  const resolve = createResolver(Object.assign(opts, {
-    fullMetadata: false,
+  const fetch = fetchFromNpmRegistry(opts)
+  const resolve = createResolver(fetch, Object.assign(opts, {
     metaCache: new LRU({
       max: 10000,
       maxAge: 120 * 1000, // 2 minutes

@@ -13,13 +13,10 @@
       "path": "../cli-meta"
     },
     {
+      "path": "../client"
+    },
+    {
       "path": "../config"
-    },
-    {
-      "path": "../default-fetcher"
-    },
-    {
-      "path": "../default-resolver"
     },
     {
       "path": "../error"

@@ -1,5 +1,6 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import createResolveFromNpm from '@pnpm/npm-resolver'
+import fetchFromNpmRegistry from 'fetch-from-npm-registry'
 import loadJsonFile = require('load-json-file')
 import nock = require('nock')
 import path = require('path')
@@ -17,6 +18,8 @@ const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', '
 const registry = 'https://registry.npmjs.org/'
 
 const delay = (time) => new Promise((resolve) => setTimeout(() => resolve(), time))
+
+const fetch = fetchFromNpmRegistry({})
 
 async function retryLoadJsonFile<T> (filePath: string) {
   let retry = 0
@@ -37,7 +40,7 @@ test('resolveFromNpm()', async t => {
     .reply(200, isPositiveMeta)
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -73,7 +76,7 @@ test('dry run', async t => {
     .reply(200, isPositiveMeta)
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -107,7 +110,7 @@ test('resolve to latest when no pref specified', async t => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -124,7 +127,7 @@ test('resolve to defaultTag when no pref specified', async t => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -142,7 +145,7 @@ test('resolve to biggest non-deprecated version that satisfies the range', async
     .get('/is-positive')
     .reply(200, isPositiveMetaWithDeprecated)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -159,7 +162,7 @@ test('resolve to a deprecated version if there are no non-deprecated ones that s
     .get('/is-positive')
     .reply(200, isPositiveMetaWithDeprecated)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -176,7 +179,7 @@ test('can resolve aliased dependency', async t => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -193,7 +196,7 @@ test('can resolve aliased dependency w/o version specifier', async t => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -210,7 +213,7 @@ test('can resolve aliased dependency w/o version specifier to default tag', asyn
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -228,7 +231,7 @@ test('can resolve aliased scoped dependency', async t => {
     .get('/@sindresorhus%2Fis')
     .reply(200, sindresorhusIsMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -245,7 +248,7 @@ test('can resolve aliased scoped dependency w/o version specifier', async t => {
     .get('/@sindresorhus%2Fis')
     .reply(200, sindresorhusIsMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -262,7 +265,7 @@ test('can resolve package with version prefixed with v', async t => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -279,7 +282,7 @@ test('can resolve package version loosely', async t => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -299,7 +302,7 @@ test("resolves to latest if it's inside the wanted range. Even if there are newe
       'dist-tags': { latest: '3.0.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -324,7 +327,7 @@ test("resolves to latest if it's inside the preferred range. Even if there are n
       'dist-tags': { latest: '3.0.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -352,7 +355,7 @@ test("resolve using the wanted range, when it doesn't intersect with the preferr
       'dist-tags': { latest: '2.0.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -379,7 +382,7 @@ test("use the preferred version if it's inside the wanted range", async t => {
       'dist-tags': { latest: '3.1.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -407,7 +410,7 @@ test("ignore the preferred version if it's not inside the wanted range", async t
       'dist-tags': { latest: '3.1.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -433,7 +436,7 @@ test('use the preferred range if it intersects with the wanted range', async t =
       'dist-tags': { latest: '1.0.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -461,7 +464,7 @@ test('use the preferred range if it intersects with the wanted range (an array o
       'dist-tags': { latest: '1.0.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -492,7 +495,7 @@ test("ignore the preferred range if it doesn't intersect with the wanted range",
       'dist-tags': { latest: '3.1.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -521,7 +524,7 @@ test("use the preferred dist-tag if it's inside the wanted range", async t => {
       },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -550,7 +553,7 @@ test("ignore the preferred dist-tag if it's not inside the wanted range", async 
       },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -578,7 +581,7 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
       },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -597,7 +600,7 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
 })
 
 test('offline resolution fails when package meta not found in the store', async t => {
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     offline: true,
     rawConfig: { registry },
@@ -621,7 +624,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
   const storeDir = tempy.directory()
 
   {
-    const resolve = createResolveFromNpm({
+    const resolve = createResolveFromNpm(fetch, {
       metaCache: new Map(),
       offline: false,
       rawConfig: { registry },
@@ -633,7 +636,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
   }
 
   {
-    const resolve = createResolveFromNpm({
+    const resolve = createResolveFromNpm(fetch, {
       metaCache: new Map(),
       offline: true,
       rawConfig: { registry },
@@ -652,7 +655,7 @@ test('prefer offline resolution does not fail when package meta not found in the
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     preferOffline: true,
     rawConfig: { registry },
@@ -676,7 +679,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
   const storeDir = tempy.directory()
 
   {
-    const resolve = createResolveFromNpm({
+    const resolve = createResolveFromNpm(fetch, {
       metaCache: new Map(),
       rawConfig: { registry },
       storeDir,
@@ -694,7 +697,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
     })
 
   {
-    const resolve = createResolveFromNpm({
+    const resolve = createResolveFromNpm(fetch, {
       metaCache: new Map(),
       preferOffline: true,
       rawConfig: { registry },
@@ -716,7 +719,7 @@ test('error is thrown when package is not found in the registry', async t => {
     .get(`/${notExistingPackage}`)
     .reply(404, {})
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -740,7 +743,7 @@ test('extra info is shown if package has valid semver appended', async t => {
     .get(`/${notExistingPackage}`)
     .reply(404, {})
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -762,7 +765,7 @@ test('error is thrown when there is no package found for the requested version',
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -783,7 +786,7 @@ test('error is thrown when package needs authorization', async t => {
     .get('/needs-auth')
     .reply(403)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -805,7 +808,7 @@ test('error is thrown when there is no package found for the requested range', a
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -824,7 +827,7 @@ test('error is thrown when there is no package found for the requested tag', asy
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -849,7 +852,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is alread c
   t.comment(`store at ${storeDir}`)
 
   {
-    const resolve = createResolveFromNpm({
+    const resolve = createResolveFromNpm(fetch, {
       fullMetadata: false,
       metaCache: new Map(),
       rawConfig: { registry },
@@ -862,7 +865,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is alread c
   }
 
   {
-    const resolve = createResolveFromNpm({
+    const resolve = createResolveFromNpm(fetch, {
       fullMetadata: true,
       metaCache: new Map(),
       rawConfig: { registry },
@@ -883,7 +886,7 @@ test('resolve when tarball URL is requested from the registry', async t => {
     .reply(200, isPositiveMeta)
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -920,7 +923,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
     .reply(200, isPositiveMeta)
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -957,7 +960,7 @@ test('resolve from local directory when it matches the latest version of the pac
     .reply(200, isPositiveMeta)
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -998,7 +1001,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
     .reply(200, isPositiveMeta)
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1037,7 +1040,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
 
 test('resolve from local directory when alwaysTryWorkspacePackages is false but workspace: is used', async t => {
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1080,7 +1083,7 @@ test('use version from the registry if it is newer than the local one', async t 
       'dist-tags': { latest: '3.1.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -1127,7 +1130,7 @@ test('use local version if it is newer than the latest in the registry', async t
       'dist-tags': { latest: '3.1.0' },
     })
 
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),
@@ -1171,7 +1174,7 @@ test('resolve from local directory when package is not found in the registry', a
     .reply(404, {})
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1226,7 +1229,7 @@ test('resolve from local directory when package is not found in the registry and
     .reply(404, {})
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1281,7 +1284,7 @@ test('resolve from local directory when package is not found in the registry and
     .reply(404, {})
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1336,7 +1339,7 @@ test('resolve from local directory when the requested version is not found in th
     .reply(200, isPositiveMeta)
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1373,7 +1376,7 @@ test('resolve from local directory when the requested version is not found in th
 
 test('workspace protocol: resolve from local directory even when it does not match the latest version of the package', async t => {
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1410,7 +1413,7 @@ test('workspace protocol: resolve from local directory even when it does not mat
 
 test('workspace protocol: resolve from local package that has a pre-release version', async t => {
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1451,7 +1454,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
     .reply(200, isPositiveMeta)
 
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1484,7 +1487,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
 
 test('workspace protocol: resolution fails if there is no matching local package', async t => {
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1510,7 +1513,7 @@ test('workspace protocol: resolution fails if there is no matching local package
 
 test('workspace protocol: resolution fails if there are no local packages', async t => {
   const storeDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const resolve = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir,
@@ -1533,7 +1536,7 @@ test('workspace protocol: resolution fails if there are no local packages', asyn
 })
 
 test('throws error when package name has "/" but not starts with @scope', async t => {
-  const resolveFromNpm = createResolveFromNpm({
+  const resolveFromNpm = createResolveFromNpm(fetch, {
     metaCache: new Map(),
     rawConfig: { registry },
     storeDir: tempy.directory(),

@@ -8,7 +8,7 @@ import {
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
-import createRegFetcher from 'fetch-from-npm-registry'
+import { FetchFromRegistry, RetryTimeoutOptions } from 'fetch-from-npm-registry'
 import mem = require('mem')
 import normalize = require('normalize-path')
 import pMemoize = require('p-memoize')
@@ -51,24 +51,14 @@ export interface ResolverFactoryOptions {
   rawConfig: object,
   metaCache: PackageMetaCache,
   storeDir: string,
-  cert?: string,
   fullMetadata?: boolean,
-  key?: string,
-  ca?: string,
-  strictSsl?: boolean,
-  proxy?: string,
-  httpsProxy?: string,
-  localAddress?: string,
-  userAgent?: string,
   offline?: boolean,
   preferOffline?: boolean,
-  fetchRetries?: number,
-  fetchRetryFactor?: number,
-  fetchRetryMintimeout?: number,
-  fetchRetryMaxtimeout?: number,
+  retry?: RetryTimeoutOptions,
 }
 
 export default function createResolver (
+  fetchFromNpmRegistry: FetchFromRegistry,
   opts: ResolverFactoryOptions
 ) {
   if (typeof opts.rawConfig !== 'object') { // tslint:disable-line
@@ -83,22 +73,7 @@ export default function createResolver (
   if (typeof opts.storeDir !== 'string') { // tslint:disable-line
     throw new TypeError('`opts.storeDir` is required and needs to be a string')
   }
-  const fetch = pMemoize(fromRegistry.bind(null, createRegFetcher({
-    ca: opts.ca,
-    cert: opts.cert,
-    fullMetadata: opts.fullMetadata,
-    key: opts.key,
-    localAddress: opts.localAddress,
-    proxy: opts.httpsProxy || opts.proxy,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    strictSSL: opts.strictSsl,
-    userAgent: opts.userAgent,
-  })), {
+  const fetch = pMemoize(fromRegistry.bind(null, fetchFromNpmRegistry, opts.retry ?? {}), {
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })

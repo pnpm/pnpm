@@ -7,7 +7,7 @@ import {
   FilesIndex,
 } from '@pnpm/fetcher-base'
 import * as retry from '@zkochan/retry'
-import createFetcher from 'fetch-from-npm-registry'
+import { FetchFromRegistry } from 'fetch-from-npm-registry'
 import { IncomingMessage } from 'http'
 import fs = require('mz/fs')
 import path = require('path')
@@ -76,17 +76,9 @@ export interface NpmRegistryClient {
 }
 
 export default (
+  fetchFromNpmRegistry: FetchFromRegistry,
   gotOpts: {
     alwaysAuth: boolean,
-    registry: string,
-    // proxy
-    proxy?: string,
-    localAddress?: string,
-    // ssl
-    ca?: string,
-    cert?: string,
-    key?: string,
-    strictSSL?: boolean,
     // retry
     retry?: {
       retries?: number,
@@ -95,26 +87,8 @@ export default (
       maxTimeout?: number,
       randomize?: boolean,
     },
-    userAgent?: string,
   }
 ): DownloadFunction => {
-  const fetchFromNpmRegistry = createFetcher({
-    ca: gotOpts.ca,
-    cert: gotOpts.cert,
-    key: gotOpts.key,
-    localAddress: gotOpts.localAddress,
-    proxy: gotOpts.proxy,
-    strictSSL: gotOpts.strictSSL,
-    userAgent: gotOpts.userAgent,
-
-    // The fetch library can retry requests on bad HTTP responses.
-    // However, it is not enough to retry on bad HTTP responses only.
-    // Requests should also be retried when the tarball's integrity check fails.
-    // Hence, we tell fetch to not retry,
-    // and we perform the retries from this function instead.
-    retry: { retries: 0 },
-  })
-
   const retryOpts = {
     factor: 10,
     maxTimeout: 6e4, // 1 minute
@@ -174,6 +148,12 @@ export default (
       try {
         const res = await fetchFromNpmRegistry(url, {
           authHeaderValue: shouldAuth ? opts.auth?.authHeaderValue : undefined,
+          // The fetch library can retry requests on bad HTTP responses.
+          // However, it is not enough to retry on bad HTTP responses only.
+          // Requests should also be retried when the tarball's integrity check fails.
+          // Hence, we tell fetch to not retry,
+          // and we perform the retries from this function instead.
+          retry: { retries: 0 },
         })
 
         if (res.status !== 200) {

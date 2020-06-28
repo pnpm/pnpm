@@ -9,6 +9,7 @@ import createResolveFromNpm, {
 } from '@pnpm/npm-resolver'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import resolveFromTarball from '@pnpm/tarball-resolver'
+import { FetchFromRegistry } from 'fetch-from-npm-registry'
 
 export {
   PackageMeta,
@@ -18,9 +19,10 @@ export {
 }
 
 export default function createResolver (
+  fetchFromNpmRegistry: FetchFromRegistry,
   pnpmOpts: ResolverFactoryOptions
 ): ResolveFunction {
-  const resolveFromNpm = createResolveFromNpm(pnpmOpts)
+  const resolveFromNpm = createResolveFromNpm(fetchFromNpmRegistry, pnpmOpts)
   const resolveFromGit = createResolveFromGit(pnpmOpts)
   return async (wantedDependency, opts) => {
     const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions)

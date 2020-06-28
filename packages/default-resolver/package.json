@@ -36,7 +36,8 @@
     "@pnpm/local-resolver": "workspace:5.0.10",
     "@pnpm/npm-resolver": "workspace:8.1.2",
     "@pnpm/resolver-base": "workspace:7.0.3",
-    "@pnpm/tarball-resolver": "workspace:4.0.2"
+    "@pnpm/tarball-resolver": "workspace:4.0.2",
+    "fetch-from-npm-registry": "workspace:^4.1.2"
   },
   "devDependencies": {
     "@pnpm/default-resolver": "link:",

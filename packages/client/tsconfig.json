@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../default-resolver"
+    },
+    {
       "path": "../git-fetcher"
     },
     {
@@ -17,6 +20,9 @@
     },
     {
       "path": "../tarball-fetcher"
+    },
+    {
+      "path": "../fetch-from-npm-registry"
     }
   ]
 }

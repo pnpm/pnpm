@@ -1,9 +1,8 @@
 ///<reference path="../../../typings/index.d.ts"/>
-import createResolver, { PackageMetaCache } from '@pnpm/npm-resolver'
+import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
-import { PackageFilesResponse, ResolveFunction } from '@pnpm/store-controller-types'
-import createFetcher from '@pnpm/tarball-fetcher'
+import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import rimraf = require('@zkochan/rimraf')
 import isPortReachable = require('is-port-reachable')
 import loadJsonFile = require('load-json-file')
@@ -20,16 +19,11 @@ async function createStoreController (storeDir?: string) {
     storeDir = tempy.directory()
   }
   const rawConfig = { registry }
-  const resolve = createResolver({
-    metaCache: new Map<string, object>() as PackageMetaCache,
+  const { resolve, fetchers } = createClient({
+    alwaysAuth: true,
+    metaCache: new Map(),
     rawConfig,
     storeDir,
-  }) as ResolveFunction
-  const fetchers = createFetcher({
-    alwaysAuth: true,
-    rawConfig,
-    registry,
-    strictSsl: true,
   })
   return createStore(resolve, fetchers, {
     networkConcurrency: 1,

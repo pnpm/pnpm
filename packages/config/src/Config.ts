@@ -55,6 +55,7 @@ export interface Config {
     name: string,
     version: string,
   },
+  preferOffline?: boolean,
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
   shamefullyHoist?: boolean,

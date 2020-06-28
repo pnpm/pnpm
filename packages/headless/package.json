@@ -17,8 +17,7 @@
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/default-fetcher": "workspace:*",
-    "@pnpm/default-resolver": "workspace:*",
+    "@pnpm/client": "workspace:^0.0.0",
     "@pnpm/headless": "link:",
     "@pnpm/logger": "3.2.2",
     "@pnpm/package-store": "workspace:*",
@@ -36,7 +35,6 @@
     "load-json-file": "6.2.0",
     "mz": "2.7.0",
     "npm-run-all": "4.1.5",
-    "read-yaml-file": "2.0.0",
     "sinon": "9.0.2",
     "tape-promise": "4.0.0",
     "tempy": "0.5.0",

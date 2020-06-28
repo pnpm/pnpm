@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import fetch, { RetryOpts } from '@pnpm/fetch'
+import fetch, { RetryTimeoutOptions } from '@pnpm/fetch'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 import lockfileToAuditTree from './lockfileToAuditTree'
@@ -12,7 +12,7 @@ export default async function audit (
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean },
     registry: string,
-    retry?: RetryOpts,
+    retry?: RetryTimeoutOptions,
   }
 ) {
   const auditTree = lockfileToAuditTree(lockfile, { include: opts.include })

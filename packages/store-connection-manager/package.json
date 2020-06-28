@@ -36,9 +36,8 @@
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.0",
+    "@pnpm/client": "workspace:^0.0.0",
     "@pnpm/config": "workspace:10.0.1",
-    "@pnpm/default-fetcher": "workspace:6.0.9",
-    "@pnpm/default-resolver": "workspace:9.0.3",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/package-store": "workspace:9.0.11",
     "@pnpm/server": "workspace:8.0.4",

@@ -41,6 +41,9 @@
     },
     {
       "path": "../dependency-path"
+    },
+    {
+      "path": "../fetch-from-npm-registry"
     }
   ]
 }

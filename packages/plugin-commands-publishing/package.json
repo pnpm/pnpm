@@ -68,6 +68,7 @@
     "cp-file": "^9.0.0",
     "enquirer": "^2.3.5",
     "fast-glob": "^3.2.4",
+    "fetch-from-npm-registry": "workspace:^4.1.2",
     "lru-cache": "^5.1.1",
     "mz": "^2.7.0",
     "p-filter": "^2.1.0",

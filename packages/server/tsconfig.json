@@ -19,16 +19,13 @@
       "path": "../types"
     },
     {
-      "path": "../npm-resolver"
+      "path": "../client"
     },
     {
       "path": "../package-requester"
     },
     {
       "path": "../package-store"
-    },
-    {
-      "path": "../tarball-fetcher"
     }
   ]
 }

@@ -7,6 +7,7 @@ import {
   FetchResult,
 } from '@pnpm/fetcher-base'
 import getCredentialsByURI = require('credentials-by-uri')
+import { FetchFromRegistry, RetryTimeoutOptions } from 'fetch-from-npm-registry'
 import mem = require('mem')
 import fs = require('mz/fs')
 import path = require('path')
@@ -14,45 +15,17 @@ import ssri = require('ssri')
 import createDownloader, { DownloadFunction } from './createDownloader'
 
 export default function (
+  fetchFromNpmRegistry: FetchFromRegistry,
   opts: {
-    registry: string,
     rawConfig: object,
     alwaysAuth?: boolean,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    cert?: string,
-    key?: string,
-    ca?: string,
-    strictSsl?: boolean,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMintimeout?: number,
-    fetchRetryMaxtimeout?: number,
-    userAgent?: string,
+    retry?: RetryTimeoutOptions,
     offline?: boolean,
   }
 ): { tarball: FetchFunction } {
-  const download = createDownloader({
-    alwaysAuth: opts.alwaysAuth || false,
-    ca: opts.ca,
-    cert: opts.cert,
-    key: opts.key,
-    localAddress: opts.localAddress,
-    proxy: opts.httpsProxy || opts.proxy,
-    registry: opts.registry,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    // TODO: cover with tests this option
-    // https://github.com/pnpm/pnpm/issues/1062
-    strictSSL: typeof opts.strictSsl === 'boolean'
-      ? opts.strictSsl
-      : true,
-    userAgent: opts.userAgent,
+  const download = createDownloader(fetchFromNpmRegistry, {
+    alwaysAuth: opts.alwaysAuth ?? false,
+    retry: opts.retry,
   })
   const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
   return {

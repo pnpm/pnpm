@@ -26,6 +26,9 @@
     },
     {
       "path": "../tarball-resolver"
+    },
+    {
+      "path": "../fetch-from-npm-registry"
     }
   ]
 }

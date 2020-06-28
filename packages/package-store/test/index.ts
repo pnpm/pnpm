@@ -1,8 +1,6 @@
 ///<reference path="../../../typings/index.d.ts"/>
-import createResolver from '@pnpm/npm-resolver'
+import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
-import { ResolveFunction } from '@pnpm/resolver-base'
-import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
@@ -12,16 +10,12 @@ test('store.importPackage()', async (t) => {
   const storeDir = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
   const rawConfig = { registry }
-  const resolver = createResolver({
+  const { resolve, fetchers } = createClient({
     metaCache: new Map(),
     rawConfig,
     storeDir,
-  }) as ResolveFunction
-  const fetcher = createFetcher({
-    rawConfig,
-    registry,
   })
-  const storeController = await createStore(resolver, fetcher, {
+  const storeController = await createStore(resolve, fetchers, {
     storeDir,
     verifyStoreIntegrity: true,
   })
@@ -49,16 +43,12 @@ test('store.importPackage() by copying', async (t) => {
   const storeDir = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
   const rawConfig = { registry }
-  const resolver = createResolver({
+  const { resolve, fetchers } = createClient({
     metaCache: new Map(),
     rawConfig,
     storeDir,
-  }) as ResolveFunction
-  const fetcher = createFetcher({
-    rawConfig,
-    registry,
   })
-  const storeController = await createStore(resolver, fetcher, {
+  const storeController = await createStore(resolve, fetchers, {
     packageImportMethod: 'copy',
     storeDir,
     verifyStoreIntegrity: true,

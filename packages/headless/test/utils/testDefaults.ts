@@ -1,5 +1,4 @@
-import createFetcher from '@pnpm/default-fetcher'
-import createResolver from '@pnpm/default-resolver'
+import createClient from '@pnpm/client'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -12,10 +11,10 @@ import tempy = require('tempy')
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 const retryOpts = {
-  fetchRetries: 2,
-  fetchRetryFactor: 10,
-  fetchRetryMaxtimeout: 60_000,
-  fetchRetryMintimeout: 10_000,
+  factor: 10,
+  retries: 2,
+  retryMaxtimeout: 60_000,
+  retryMintimeout: 10_000,
 }
 
 export default async function testDefaults (
@@ -36,22 +35,18 @@ export default async function testDefaults (
   )
   storeDir = await storePath(lockfileDir, storeDir)
   const rawConfig = { registry }
+  const { resolve, fetchers } = createClient({
+    alwaysAuth: true,
+    metaCache: new Map(),
+    rawConfig,
+    retry: retryOpts,
+    storeDir,
+    ...resolveOpts,
+    ...fetchOpts,
+  })
   const storeController = await createStore(
-    createResolver({
-      metaCache: new Map(),
-      rawConfig,
-      storeDir,
-      strictSsl: true,
-      ...retryOpts,
-      ...resolveOpts,
-    }),
-    createFetcher({
-      alwaysAuth: true,
-      rawConfig,
-      registry,
-      ...retryOpts,
-      ...fetchOpts,
-    }),
+    resolve,
+    fetchers,
     {
       storeDir,
       ...storeOpts,
