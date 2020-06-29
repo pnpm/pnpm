@@ -319,10 +319,12 @@ importers:
       '@pnpm/tarball-resolver': 'link:../tarball-resolver'
     devDependencies:
       '@pnpm/default-resolver': 'link:'
+      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/logger': 3.2.2
     specifiers:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/error': 'workspace:1.2.0'
+      '@pnpm/fetch': 'workspace:^2.0.2'
       '@pnpm/fetching-types': 'workspace:^0.0.0'
       '@pnpm/git-resolver': 'workspace:4.0.15'
       '@pnpm/local-resolver': 'workspace:5.0.10'
