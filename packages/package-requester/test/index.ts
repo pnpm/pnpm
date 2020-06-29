@@ -23,7 +23,6 @@ const ncp = promisify(ncpCB as any) // tslint:disable-line:no-any
 const rawConfig = { registry }
 
 const { resolve, fetchers } = createClient({
-  alwaysAuth: false,
   metaCache: new Map(),
   rawConfig,
   storeDir: '.store',
@@ -473,7 +472,6 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
     .replyWithFile(200, IS_POSTIVE_TARBALL)
 
   const noRetry = createClient({
-    alwaysAuth: false,
     metaCache: new Map(),
     rawConfig,
     retry: { retries: 0 },

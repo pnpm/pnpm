@@ -17,7 +17,6 @@ type CreateResolverOptions = Pick<Config,
 > & Required<Pick<Config, 'storeDir'>>
 
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
-    | 'alwaysAuth'
     | 'ca'
     | 'cert'
     | 'key'

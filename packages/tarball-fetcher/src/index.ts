@@ -19,13 +19,11 @@ export default function (
     alwaysAuth: boolean | undefined,
   },
   opts: {
-    alwaysAuth?: boolean,
     retry?: RetryTimeoutOptions,
     offline?: boolean,
   }
 ): { tarball: FetchFunction } {
   const download = createDownloader(fetchFromRegistry, {
-    alwaysAuth: opts.alwaysAuth ?? false,
     retry: opts.retry,
   })
   return {

@@ -10,7 +10,6 @@ import getCredentialsByURI = require('credentials-by-uri')
 import mem = require('mem')
 
 export default function (opts: {
-  alwaysAuth?: boolean,
   ca?: string,
   cert?: string,
   key?: string,
@@ -36,7 +35,6 @@ function createFetchers (
     alwaysAuth: boolean | undefined,
   },
   opts: {
-    alwaysAuth?: boolean,
     rawConfig: object,
     retry?: RetryTimeoutOptions,
   }

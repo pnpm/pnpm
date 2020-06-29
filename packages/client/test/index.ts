@@ -4,7 +4,6 @@ import test = require('tape')
 
 test('createClient()', t => {
   const client = createClient({
-    alwaysAuth: false,
     metaCache: new Map(),
     rawConfig: { registry: 'https://registry.npmjs.org/' },
     storeDir: '',

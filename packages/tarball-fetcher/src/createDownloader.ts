@@ -78,7 +78,6 @@ export interface NpmRegistryClient {
 export default (
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
-    alwaysAuth: boolean,
     // retry
     retry?: {
       retries?: number,
