@@ -15,13 +15,13 @@ export default function (opts: {
   key?: string,
   localAddress?: string,
   proxy?: string,
-  rawConfig: object,
+  authConfig: Record<string, string>,
   retry?: RetryTimeoutOptions,
   strictSSL?: boolean,
   userAgent?: string,
 } & ResolverFactoryOptions) {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.rawConfig, registry))
+  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry))
   return {
     fetchers: createFetchers(fetchFromRegistry, getCredentials, opts),
     resolve: createResolve(fetchFromRegistry, getCredentials, opts),
@@ -35,7 +35,6 @@ function createFetchers (
     alwaysAuth: boolean | undefined,
   },
   opts: {
-    rawConfig: object,
     retry?: RetryTimeoutOptions,
   }
 ) {

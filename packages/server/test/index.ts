@@ -18,10 +18,10 @@ async function createStoreController (storeDir?: string) {
   if (!storeDir) {
     storeDir = tempy.directory()
   }
-  const rawConfig = { registry }
+  const authConfig = { registry }
   const { resolve, fetchers } = createClient({
+    authConfig,
     metaCache: new Map(),
-    rawConfig,
     storeDir,
   })
   return createStore(resolve, fetchers, {

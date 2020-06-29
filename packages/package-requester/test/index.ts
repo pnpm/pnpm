@@ -20,11 +20,11 @@ const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
 const ncp = promisify(ncpCB as any) // tslint:disable-line:no-any
 
-const rawConfig = { registry }
+const authConfig = { registry }
 
 const { resolve, fetchers } = createClient({
+  authConfig,
   metaCache: new Map(),
-  rawConfig,
   storeDir: '.store',
 })
 
@@ -472,8 +472,8 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
     .replyWithFile(200, IS_POSTIVE_TARBALL)
 
   const noRetry = createClient({
+    authConfig,
     metaCache: new Map(),
-    rawConfig,
     retry: { retries: 0 },
     storeDir: '.pnpm',
   })

@@ -34,10 +34,10 @@ export default async function testDefaults (
     { lockfileDir }
   )
   storeDir = await storePath(lockfileDir, storeDir)
-  const rawConfig = { registry }
+  const authConfig = { registry }
   const { resolve, fetchers } = createClient({
+    authConfig,
     metaCache: new Map(),
-    rawConfig,
     retry: retryOpts,
     storeDir,
     ...resolveOpts,

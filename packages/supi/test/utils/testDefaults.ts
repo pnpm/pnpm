@@ -36,10 +36,10 @@ export default async function testDefaults<T> (
 > {
   let storeDir = opts && opts.storeDir || path.resolve('.store')
   storeDir = await storePath(opts && opts.prefix || process.cwd(), storeDir)
-  const rawConfig = { registry }
+  const authConfig = { registry }
   const { resolve, fetchers } = createClient({
+    authConfig,
     metaCache: new Map(),
-    rawConfig,
     retry: retryOpts,
     storeDir,
     ...resolveOpts,

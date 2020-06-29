@@ -357,7 +357,6 @@ test('accessing private packages', async t => {
     authHeaderValue: 'Bearer ofjergrg349gj3f2',
   })
   const fetch = createFetcher(fetchFromRegistry, getCredentials, {
-    alwaysAuth: true,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,

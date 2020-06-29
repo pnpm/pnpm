@@ -4,8 +4,8 @@ import test = require('tape')
 
 test('createClient()', t => {
   const client = createClient({
+    authConfig: { registry: 'https://registry.npmjs.org/' },
     metaCache: new Map(),
-    rawConfig: { registry: 'https://registry.npmjs.org/' },
     storeDir: '',
   })
   t.equal(typeof client, 'object')

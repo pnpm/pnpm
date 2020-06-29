@@ -38,6 +38,7 @@ export default async (
   opts: CreateNewStoreControllerOptions
 ) => {
   const { resolve, fetchers } = createClient({
+    authConfig: opts.rawConfig,
     ca: opts.ca,
     cert: opts.cert,
     fullMetadata: false,
@@ -50,7 +51,6 @@ export default async (
     offline: opts.offline,
     preferOffline: opts.preferOffline,
     proxy: opts.proxy,
-    rawConfig: opts.rawConfig,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

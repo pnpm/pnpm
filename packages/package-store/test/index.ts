@@ -9,10 +9,10 @@ import './createImportPackage.spec'
 test('store.importPackage()', async (t) => {
   const storeDir = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
-  const rawConfig = { registry }
+  const authConfig = { registry }
   const { resolve, fetchers } = createClient({
+    authConfig,
     metaCache: new Map(),
-    rawConfig,
     storeDir,
   })
   const storeController = await createStore(resolve, fetchers, {
@@ -42,10 +42,10 @@ test('store.importPackage()', async (t) => {
 test('store.importPackage() by copying', async (t) => {
   const storeDir = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
-  const rawConfig = { registry }
+  const authConfig = { registry }
   const { resolve, fetchers } = createClient({
+    authConfig,
     metaCache: new Map(),
-    rawConfig,
     storeDir,
   })
   const storeController = await createStore(resolve, fetchers, {
