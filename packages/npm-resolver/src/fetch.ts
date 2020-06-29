@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetch'
+import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import url = require('url')
 import { PackageMeta } from './pickPackage'
 

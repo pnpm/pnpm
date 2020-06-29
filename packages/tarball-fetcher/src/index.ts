@@ -1,5 +1,4 @@
 import PnpmError from '@pnpm/error'
-import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetch'
 import {
   Cafs,
   DeferredManifestPromise,
@@ -7,6 +6,11 @@ import {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
+import {
+  FetchFromRegistry,
+  GetCredentials,
+  RetryTimeoutOptions,
+} from '@pnpm/fetching-types'
 import fs = require('mz/fs')
 import path = require('path')
 import ssri = require('ssri')
@@ -14,10 +18,7 @@ import createDownloader, { DownloadFunction } from './createDownloader'
 
 export default function (
   fetchFromRegistry: FetchFromRegistry,
-  getCredentials: (registry: string) => {
-    authHeaderValue: string | undefined,
-    alwaysAuth: boolean | undefined,
-  },
+  getCredentials: GetCredentials,
   opts: {
     retry?: RetryTimeoutOptions,
     offline?: boolean,

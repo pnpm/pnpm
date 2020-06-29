@@ -1,18 +1,14 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
-import { FetchFromRegistry } from '@pnpm/fetch'
 import {
   Cafs,
   DeferredManifestPromise,
   FetchResult,
   FilesIndex,
 } from '@pnpm/fetcher-base'
+import { FetchFromRegistry } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
 import { IncomingMessage } from 'http'
-import fs = require('mz/fs')
-import path = require('path')
-import pathTemp = require('path-temp')
-import rimraf = require('rimraf')
 import ssri = require('ssri')
 import urlLib = require('url')
 import { BadTarballError } from './errorTypes'

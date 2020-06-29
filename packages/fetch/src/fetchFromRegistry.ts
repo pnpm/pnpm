@@ -1,20 +1,13 @@
+import { FetchFromRegistry } from '@pnpm/fetching-types'
 import npmRegistryAgent from '@pnpm/npm-registry-agent'
 import { URL } from 'url'
-import fetch, { isRedirect, Response, RetryTimeoutOptions } from './fetch'
+import fetch, { isRedirect, Response } from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
 const CORGI_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
-
-export type FetchFromRegistry = (
-  url: string,
-  opts?: {
-    authHeaderValue?: string,
-    retry?: RetryTimeoutOptions,
-  }
-) => Promise<Response>
 
 export default function (
   defaultOpts: {

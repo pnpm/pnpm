@@ -1,9 +1,6 @@
 import createResolve, { ResolverFactoryOptions } from '@pnpm/default-resolver'
-import {
-  createFetchFromRegistry,
-  FetchFromRegistry,
-  RetryTimeoutOptions,
-} from '@pnpm/fetch'
+import { createFetchFromRegistry } from '@pnpm/fetch'
+import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import fetchFromGit from '@pnpm/git-fetcher'
 import createTarballFetcher from '@pnpm/tarball-fetcher'
 import getCredentialsByURI = require('credentials-by-uri')
@@ -30,10 +27,7 @@ export default function (opts: {
 
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
-  getCredentials: (registry: string) => {
-    authHeaderValue: string | undefined,
-    alwaysAuth: boolean | undefined,
-  },
+  getCredentials: GetCredentials,
   opts: {
     retry?: RetryTimeoutOptions,
   }

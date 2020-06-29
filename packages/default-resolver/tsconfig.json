@@ -13,7 +13,7 @@
       "path": "../error"
     },
     {
-      "path": "../fetch"
+      "path": "../fetching-types"
     },
     {
       "path": "../git-resolver"

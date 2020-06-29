@@ -1,5 +1,6 @@
+import { FetchFromRegistry } from '@pnpm/fetching-types'
 import fetch, { RetryTimeoutOptions } from './fetch'
-import createFetchFromRegistry, { FetchFromRegistry } from './fetchFromRegistry'
+import createFetchFromRegistry from './fetchFromRegistry'
 
 export default fetch
 export { createFetchFromRegistry, FetchFromRegistry, RetryTimeoutOptions }

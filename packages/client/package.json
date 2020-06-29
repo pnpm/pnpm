@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/default-resolver": "workspace:^9.0.3",
     "@pnpm/fetch": "workspace:^2.0.2",
+    "@pnpm/fetching-types": "workspace:^0.0.0",
     "@pnpm/git-fetcher": "workspace:3.0.4",
     "@pnpm/resolver-base": "workspace:7.0.3",
     "@pnpm/tarball-fetcher": "workspace:7.1.4",

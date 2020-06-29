@@ -1,5 +1,9 @@
 import PnpmError from '@pnpm/error'
-import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetch'
+import {
+  FetchFromRegistry,
+  GetCredentials,
+  RetryTimeoutOptions,
+} from '@pnpm/fetching-types'
 import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
 import {
   PreferredVersions,
@@ -56,10 +60,7 @@ export interface ResolverFactoryOptions {
 
 export default function createResolver (
   fetchFromRegistry: FetchFromRegistry,
-  getCredentials: (registry: string) => {
-    authHeaderValue: string | undefined,
-    alwaysAuth: boolean | undefined,
-  },
+  getCredentials: GetCredentials,
   opts: ResolverFactoryOptions
 ) {
   if (typeof opts.metaCache !== 'object') { // tslint:disable-line
