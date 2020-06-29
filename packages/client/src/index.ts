@@ -27,7 +27,7 @@ export default function (opts: {
 }
 
 function createFetchers (
-  fetchFromNpmRegistry: FetchFromRegistry,
+  fetchFromRegistry: FetchFromRegistry,
   opts: {
     alwaysAuth?: boolean,
     rawConfig: object,
@@ -35,7 +35,7 @@ function createFetchers (
   }
 ) {
   return {
-    ...createTarballFetcher(fetchFromNpmRegistry, opts),
+    ...createTarballFetcher(fetchFromRegistry, opts),
     ...fetchFromGit(),
   }
 }

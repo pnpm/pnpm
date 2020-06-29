@@ -76,7 +76,7 @@ export interface NpmRegistryClient {
 }
 
 export default (
-  fetchFromNpmRegistry: FetchFromRegistry,
+  fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
     alwaysAuth: boolean,
     // retry
@@ -146,7 +146,7 @@ export default (
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       try {
-        const res = await fetchFromNpmRegistry(url, {
+        const res = await fetchFromRegistry(url, {
           authHeaderValue: shouldAuth ? opts.auth?.authHeaderValue : undefined,
           // The fetch library can retry requests on bad HTTP responses.
           // However, it is not enough to retry on bad HTTP responses only.

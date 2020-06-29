@@ -58,7 +58,7 @@ export interface ResolverFactoryOptions {
 }
 
 export default function createResolver (
-  fetchFromNpmRegistry: FetchFromRegistry,
+  fetchFromRegistry: FetchFromRegistry,
   opts: ResolverFactoryOptions
 ) {
   if (typeof opts.rawConfig !== 'object') { // tslint:disable-line
@@ -73,7 +73,7 @@ export default function createResolver (
   if (typeof opts.storeDir !== 'string') { // tslint:disable-line
     throw new TypeError('`opts.storeDir` is required and needs to be a string')
   }
-  const fetch = pMemoize(fromRegistry.bind(null, fetchFromNpmRegistry, opts.retry ?? {}), {
+  const fetch = pMemoize(fromRegistry.bind(null, fetchFromRegistry, opts.retry ?? {}), {
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })

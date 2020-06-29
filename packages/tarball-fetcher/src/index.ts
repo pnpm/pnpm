@@ -15,7 +15,7 @@ import ssri = require('ssri')
 import createDownloader, { DownloadFunction } from './createDownloader'
 
 export default function (
-  fetchFromNpmRegistry: FetchFromRegistry,
+  fetchFromRegistry: FetchFromRegistry,
   opts: {
     rawConfig: object,
     alwaysAuth?: boolean,
@@ -23,7 +23,7 @@ export default function (
     offline?: boolean,
   }
 ): { tarball: FetchFunction } {
-  const download = createDownloader(fetchFromNpmRegistry, {
+  const download = createDownloader(fetchFromRegistry, {
     alwaysAuth: opts.alwaysAuth ?? false,
     retry: opts.retry,
   })

@@ -19,10 +19,10 @@ export {
 }
 
 export default function createResolver (
-  fetchFromNpmRegistry: FetchFromRegistry,
+  fetchFromRegistry: FetchFromRegistry,
   pnpmOpts: ResolverFactoryOptions
 ): ResolveFunction {
-  const resolveFromNpm = createResolveFromNpm(fetchFromNpmRegistry, pnpmOpts)
+  const resolveFromNpm = createResolveFromNpm(fetchFromRegistry, pnpmOpts)
   const resolveFromGit = createResolveFromGit(pnpmOpts)
   return async (wantedDependency, opts) => {
     const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions)
