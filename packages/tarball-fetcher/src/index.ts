@@ -7,8 +7,6 @@ import {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import getCredentialsByURI = require('credentials-by-uri')
-import mem = require('mem')
 import fs = require('mz/fs')
 import path = require('path')
 import ssri = require('ssri')
@@ -16,8 +14,11 @@ import createDownloader, { DownloadFunction } from './createDownloader'
 
 export default function (
   fetchFromRegistry: FetchFromRegistry,
+  getCredentials: (registry: string) => {
+    authHeaderValue: string | undefined,
+    alwaysAuth: boolean | undefined,
+  },
   opts: {
-    rawConfig: object,
     alwaysAuth?: boolean,
     retry?: RetryTimeoutOptions,
     offline?: boolean,
@@ -27,11 +28,10 @@ export default function (
     alwaysAuth: opts.alwaysAuth ?? false,
     retry: opts.retry,
   })
-  const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
   return {
     tarball: fetchFromTarball.bind(null, {
       download,
-      getCredentialsByURI: mem((registry: string) => getCreds(registry)),
+      getCredentialsByURI: getCredentials,
       offline: opts.offline,
     }) as FetchFunction,
   }

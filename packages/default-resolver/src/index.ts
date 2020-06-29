@@ -20,9 +20,13 @@ export {
 
 export default function createResolver (
   fetchFromRegistry: FetchFromRegistry,
+  getCredentials: (registry: string) => {
+    authHeaderValue: string | undefined,
+    alwaysAuth: boolean | undefined,
+  },
   pnpmOpts: ResolverFactoryOptions
 ): ResolveFunction {
-  const resolveFromNpm = createResolveFromNpm(fetchFromRegistry, pnpmOpts)
+  const resolveFromNpm = createResolveFromNpm(fetchFromRegistry, getCredentials, pnpmOpts)
   const resolveFromGit = createResolveFromGit(pnpmOpts)
   return async (wantedDependency, opts) => {
     const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions)

@@ -8,8 +8,6 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
-import getCredentialsByURI = require('credentials-by-uri')
-import mem = require('mem')
 import normalize = require('normalize-path')
 import pMemoize = require('p-memoize')
 import path = require('path')
@@ -48,7 +46,6 @@ const META_DIR = 'metadata'
 const FULL_META_DIR = 'metadata-full'
 
 export interface ResolverFactoryOptions {
-  rawConfig: object,
   metaCache: PackageMetaCache,
   storeDir: string,
   fullMetadata?: boolean,
@@ -59,14 +56,12 @@ export interface ResolverFactoryOptions {
 
 export default function createResolver (
   fetchFromRegistry: FetchFromRegistry,
+  getCredentials: (registry: string) => {
+    authHeaderValue: string | undefined,
+    alwaysAuth: boolean | undefined,
+  },
   opts: ResolverFactoryOptions
 ) {
-  if (typeof opts.rawConfig !== 'object') { // tslint:disable-line
-    throw new TypeError('`opts.rawConfig` is required and needs to be an object')
-  }
-  if (typeof opts.rawConfig['registry'] !== 'string') { // tslint:disable-line
-    throw new TypeError('`opts.rawConfig.registry` is required and needs to be a string')
-  }
   if (typeof opts.metaCache !== 'object') { // tslint:disable-line
     throw new TypeError('`opts.metaCache` is required and needs to be an object')
   }
@@ -77,10 +72,7 @@ export default function createResolver (
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
-  const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
-  const getAuthHeaderValueByURI = mem(
-    (registry: string) => getCreds(registry).authHeaderValue
-  )
+  const getAuthHeaderValueByURI = (registry: string) => getCredentials(registry).authHeaderValue
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI,
     pickPackage: pickPackage.bind(null, {

@@ -19,10 +19,8 @@ const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const registry = 'http://example.com/'
 const fetchFromRegistry = createFetchFromRegistry({})
-const fetch = createFetcher(fetchFromRegistry, {
-  rawConfig: {
-    registry,
-  },
+const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
+const fetch = createFetcher(fetchFromRegistry, getCredentials, {
   retry: {
     maxTimeout: 100,
     minTimeout: 0,
@@ -226,11 +224,8 @@ test("don't fail when fetching a local tarball in offline mode", async (t) => {
     tarball: `file:${tarballAbsoluteLocation}`,
   }
 
-  const fetch = createFetcher(fetchFromRegistry, {
+  const fetch = createFetcher(fetchFromRegistry, getCredentials, {
     offline: true,
-    rawConfig: {
-      registry,
-    },
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -258,11 +253,8 @@ test('fail when trying to fetch a non-local tarball in offline mode', async (t) 
 
   let err!: Error
   try {
-    const fetch = createFetcher(fetchFromRegistry, {
+    const fetch = createFetcher(fetchFromRegistry, getCredentials, {
       offline: true,
-      rawConfig: {
-        registry,
-      },
       retry: {
         maxTimeout: 100,
         minTimeout: 0,
@@ -360,12 +352,12 @@ test('accessing private packages', async t => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const fetch = createFetcher(fetchFromRegistry, {
+  const getCredentials = () => ({
+    alwaysAuth: undefined,
+    authHeaderValue: 'Bearer ofjergrg349gj3f2',
+  })
+  const fetch = createFetcher(fetchFromRegistry, getCredentials, {
     alwaysAuth: true,
-    rawConfig: {
-      '//example.com/:_authToken': 'ofjergrg349gj3f2',
-      registry,
-    },
     retry: {
       maxTimeout: 100,
       minTimeout: 0,

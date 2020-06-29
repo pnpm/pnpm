@@ -8,6 +8,7 @@ test('getManifest()', async (t) => {
   const opts = {
     dir: '',
     lockfileDir: '',
+    rawConfig: {},
     registries: {
       '@scope': 'https://pnpm.js.org/',
       'default': 'https://registry.npmjs.org/',

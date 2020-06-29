@@ -2,11 +2,14 @@ import createResolver, { ResolveFunction, ResolverFactoryOptions } from '@pnpm/d
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { DependencyManifest, Registries } from '@pnpm/types'
+import getCredentialsByURI = require('credentials-by-uri')
 import LRU = require('lru-cache')
+import mem = require('mem')
 
 type GetManifestOpts = {
   dir: string,
   lockfileDir: string,
+  rawConfig: object,
   registries: Registries,
 }
 
@@ -16,7 +19,8 @@ export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
   const fetch = createFetchFromRegistry(opts)
-  const resolve = createResolver(fetch, Object.assign(opts, {
+  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.rawConfig, registry))
+  const resolve = createResolver(fetch, getCredentials, Object.assign(opts, {
     metaCache: new LRU({
       max: 10000,
       maxAge: 120 * 1000, // 2 minutes

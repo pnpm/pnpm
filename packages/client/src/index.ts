@@ -6,6 +6,8 @@ import {
 } from '@pnpm/fetch'
 import fetchFromGit from '@pnpm/git-fetcher'
 import createTarballFetcher from '@pnpm/tarball-fetcher'
+import getCredentialsByURI = require('credentials-by-uri')
+import mem = require('mem')
 
 export default function (opts: {
   alwaysAuth?: boolean,
@@ -20,14 +22,19 @@ export default function (opts: {
   userAgent?: string,
 } & ResolverFactoryOptions) {
   const fetchFromRegistry = createFetchFromRegistry(opts)
+  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.rawConfig, registry))
   return {
-    fetchers: createFetchers(fetchFromRegistry, opts),
-    resolve: createResolve(fetchFromRegistry, opts),
+    fetchers: createFetchers(fetchFromRegistry, getCredentials, opts),
+    resolve: createResolve(fetchFromRegistry, getCredentials, opts),
   }
 }
 
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
+  getCredentials: (registry: string) => {
+    authHeaderValue: string | undefined,
+    alwaysAuth: boolean | undefined,
+  },
   opts: {
     alwaysAuth?: boolean,
     rawConfig: object,
@@ -35,7 +42,7 @@ function createFetchers (
   }
 ) {
   return {
-    ...createTarballFetcher(fetchFromRegistry, opts),
+    ...createTarballFetcher(fetchFromRegistry, getCredentials, opts),
     ...fetchFromGit(),
   }
 }
