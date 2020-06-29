@@ -31,13 +31,7 @@
       "path": "../types"
     },
     {
-      "path": "../local-resolver"
-    },
-    {
-      "path": "../npm-resolver"
-    },
-    {
-      "path": "../tarball-fetcher"
+      "path": "../client"
     }
   ]
 }

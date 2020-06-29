@@ -10,6 +10,15 @@
   ],
   "references": [
     {
+      "path": "../default-resolver"
+    },
+    {
+      "path": "../fetch"
+    },
+    {
+      "path": "../fetching-types"
+    },
+    {
       "path": "../git-fetcher"
     },
     {

@@ -55,6 +55,7 @@ export interface Config {
     name: string,
     version: string,
   },
+  preferOffline?: boolean,
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
   shamefullyHoist?: boolean,
@@ -64,7 +65,6 @@ export interface Config {
 
   // proxy
   proxy?: string,
-  httpsProxy?: string,
   localAddress?: string,
 
   // ssl
@@ -116,9 +116,10 @@ export interface Config {
 export interface ConfigWithDeprecatedSettings extends Config {
   frozenShrinkwrap?: boolean,
   globalPrefix?: string,
+  httpsProxy?: string,
   lockfileDirectory?: string,
-  shrinkwrapDirectory?: string,
-  shrinkwrapOnly?: boolean,
   preferFrozenShrinkwrap?: boolean,
   sharedWorkspaceShrinkwrap?: boolean,
+  shrinkwrapDirectory?: string,
+  shrinkwrapOnly?: boolean,
 }

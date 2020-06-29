@@ -106,10 +106,7 @@
       "path": "../../privatePackages/assert-store"
     },
     {
-      "path": "../default-fetcher"
-    },
-    {
-      "path": "../default-resolver"
+      "path": "../client"
     },
     {
       "path": "../package-store"

@@ -1,14 +1,13 @@
-import fetch, { isRedirect, Response } from '@pnpm/fetch'
+import { FetchFromRegistry } from '@pnpm/fetching-types'
 import npmRegistryAgent from '@pnpm/npm-registry-agent'
 import { URL } from 'url'
+import fetch, { isRedirect, Response } from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
 const CORGI_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
-
-export type FetchFromRegistry = (url: string, opts?: { authHeaderValue?: string }) => Promise<Response>
 
 export default function (
   defaultOpts: {
@@ -21,14 +20,6 @@ export default function (
     cert?: string,
     key?: string,
     strictSSL?: boolean,
-    // retry
-    retry?: {
-      retries?: number,
-      factor?: number,
-      minTimeout?: number,
-      maxTimeout?: number,
-      randomize?: boolean,
-    },
     userAgent?: string,
   }
 ): FetchFromRegistry {
@@ -49,6 +40,7 @@ export default function (
       const agent = npmRegistryAgent(urlObject.href, {
         ...defaultOpts,
         ...opts,
+        strictSSL: defaultOpts.strictSSL ?? true,
       } as any) // tslint:disable-line
       headers['connection'] = agent ? 'keep-alive' : 'close'
 
@@ -60,7 +52,7 @@ export default function (
         compress: false,
         headers,
         redirect: 'manual',
-        retry: defaultOpts.retry,
+        retry: opts?.retry,
       })
       if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
         return response

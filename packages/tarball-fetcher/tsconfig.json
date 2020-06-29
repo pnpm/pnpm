@@ -19,13 +19,13 @@
       "path": "../fetcher-base"
     },
     {
-      "path": "../fetch-from-npm-registry"
+      "path": "../fetching-types"
     },
     {
       "path": "../cafs"
     },
     {
-      "path": "../read-package-json"
+      "path": "../fetch"
     }
   ]
 }

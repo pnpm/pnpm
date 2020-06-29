@@ -25,14 +25,14 @@ test('a package that need authentication', async (t: tape.Test) => {
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
-  let rawConfig = {
+  let authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     'registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
   const manifest = await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
-    rawConfig,
+    authConfig,
   }, {
-    rawConfig,
+    authConfig,
   }))
 
   await project.has('needs-auth')
@@ -42,15 +42,15 @@ test('a package that need authentication', async (t: tape.Test) => {
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
 
-  rawConfig = {
+  authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     'registry': 'https://registry.npmjs.org/',
   }
   await addDependenciesToPackage(manifest, ['needs-auth'], await testDefaults({}, {
-    rawConfig,
+    authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
-    rawConfig,
+    authConfig,
   }))
 
   await project.has('needs-auth')
@@ -72,15 +72,15 @@ test('installing a package that need authentication, using password', async (t: 
   }) as {token: string}
 
   const encodedPassword = Buffer.from('bar').toString('base64')
-  let rawConfig = {
+  let authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_password`]: encodedPassword,
     [`//localhost:${REGISTRY_MOCK_PORT}/:username`]: 'foo',
     'registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
   await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
-    rawConfig,
+    authConfig,
   }, {
-    rawConfig,
+    authConfig,
   }))
 
   await project.has('needs-auth')
@@ -101,15 +101,15 @@ test('a package that need authentication, legacy way', async (t: tape.Test) => {
     }, (err: Error, d: object) => err ? reject(err) : resolve(d))
   })
 
-  const rawConfig = {
+  const authConfig = {
     '_auth': 'Zm9vOmJhcg==', // base64 encoded foo:bar
     'always-auth': true,
     'registry': `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
   await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
-    rawConfig,
+    authConfig,
   }, {
-    rawConfig,
+    authConfig,
   }))
 
   await project.has('needs-auth')
@@ -130,16 +130,16 @@ test('a scoped package that need authentication specific to scope', async (t: ta
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
-  const rawConfig = {
+  const authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     '@private:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     'registry': 'https://registry.npmjs.org/',
   }
   let opts = await testDefaults({}, {
-    rawConfig,
+    authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
-    rawConfig,
+    authConfig,
   })
   const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
@@ -151,10 +151,10 @@ test('a scoped package that need authentication specific to scope', async (t: ta
 
   // Recreating options to have a new storeController with clean cache
   opts = await testDefaults({}, {
-    rawConfig,
+    authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
-    rawConfig,
+    authConfig,
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
@@ -176,17 +176,17 @@ test('a scoped package that need legacy authentication specific to scope', async
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   })
 
-  const rawConfig = {
+  const authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_auth`]: 'Zm9vOmJhcg==', // base64 encoded foo:bar
     [`//localhost:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
     '@private:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     'registry': 'https://registry.npmjs.org/',
   }
   let opts = await testDefaults({}, {
-    rawConfig,
+    authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
-    rawConfig,
+    authConfig,
   })
   const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
@@ -198,10 +198,10 @@ test('a scoped package that need legacy authentication specific to scope', async
 
   // Recreating options to have a new storeController with clean cache
   opts = await testDefaults({}, {
-    rawConfig,
+    authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
-    rawConfig,
+    authConfig,
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
@@ -223,7 +223,7 @@ test('a package that need authentication reuses authorization tokens for tarball
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
-  const rawConfig = {
+  const authConfig = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
     'registry': `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
@@ -233,10 +233,10 @@ test('a package that need authentication reuses authorization tokens for tarball
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    rawConfig,
+    authConfig,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    rawConfig,
+    authConfig,
   }))
 
   await project.has('needs-auth')
@@ -257,7 +257,7 @@ test('a package that need authentication reuses authorization tokens for tarball
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
-  const rawConfig = {
+  const authConfig = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
     'registry': `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
@@ -267,10 +267,10 @@ test('a package that need authentication reuses authorization tokens for tarball
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    rawConfig,
+    authConfig,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    rawConfig,
+    authConfig,
   })
 
   const manifest = await addDependenciesToPackage({}, ['needs-auth'], opts)
@@ -285,10 +285,10 @@ test('a package that need authentication reuses authorization tokens for tarball
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    rawConfig,
+    authConfig,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    rawConfig,
+    authConfig,
   })
   await install(manifest, opts)
 

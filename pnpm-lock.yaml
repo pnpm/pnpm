@@ -176,6 +176,30 @@ importers:
       '@types/ramda': ^0.27.6
       chalk: ^4.1.0
       load-json-file: ^6.2.0
+  packages/client:
+    dependencies:
+      '@pnpm/default-resolver': 'link:../default-resolver'
+      '@pnpm/fetch': 'link:../fetch'
+      '@pnpm/fetching-types': 'link:../fetching-types'
+      '@pnpm/git-fetcher': 'link:../git-fetcher'
+      '@pnpm/resolver-base': 'link:../resolver-base'
+      '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
+      credentials-by-uri: 2.0.0
+      mem: 6.1.0
+    devDependencies:
+      '@pnpm/client': 'link:'
+      '@pnpm/logger': 3.2.2
+    specifiers:
+      '@pnpm/client': 'link:'
+      '@pnpm/default-resolver': 'workspace:^9.0.3'
+      '@pnpm/fetch': 'workspace:^2.0.2'
+      '@pnpm/fetching-types': 'workspace:^0.0.0'
+      '@pnpm/git-fetcher': 'workspace:3.0.4'
+      '@pnpm/logger': 3.2.2
+      '@pnpm/resolver-base': 'workspace:7.0.3'
+      '@pnpm/tarball-fetcher': 'workspace:7.1.4'
+      credentials-by-uri: ^2.0.0
+      mem: ^6.1.0
   packages/command:
     specifiers: {}
   packages/common-cli-options-help:
@@ -224,20 +248,6 @@ importers:
     specifiers:
       '@pnpm/logger': 3.2.2
       '@pnpm/types': 'workspace:^6.2.0'
-  packages/default-fetcher:
-    dependencies:
-      '@pnpm/git-fetcher': 'link:../git-fetcher'
-      '@pnpm/resolver-base': 'link:../resolver-base'
-      '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
-    devDependencies:
-      '@pnpm/default-fetcher': 'link:'
-      '@pnpm/logger': 3.2.2
-    specifiers:
-      '@pnpm/default-fetcher': 'link:'
-      '@pnpm/git-fetcher': 'workspace:3.0.4'
-      '@pnpm/logger': 3.2.2
-      '@pnpm/resolver-base': 'workspace:7.0.3'
-      '@pnpm/tarball-fetcher': 'workspace:7.1.4'
   packages/default-reporter:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -301,6 +311,7 @@ importers:
   packages/default-resolver:
     dependencies:
       '@pnpm/error': 'link:../error'
+      '@pnpm/fetching-types': 'link:../fetching-types'
       '@pnpm/git-resolver': 'link:../git-resolver'
       '@pnpm/local-resolver': 'link:../local-resolver'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
@@ -308,10 +319,13 @@ importers:
       '@pnpm/tarball-resolver': 'link:../tarball-resolver'
     devDependencies:
       '@pnpm/default-resolver': 'link:'
+      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/logger': 3.2.2
     specifiers:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/error': 'workspace:1.2.0'
+      '@pnpm/fetch': 'workspace:^2.0.2'
+      '@pnpm/fetching-types': 'workspace:^0.0.0'
       '@pnpm/git-resolver': 'workspace:4.0.15'
       '@pnpm/local-resolver': 'workspace:5.0.10'
       '@pnpm/logger': 3.2.2
@@ -373,33 +387,29 @@ importers:
   packages/fetch:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/fetching-types': 'link:../fetching-types'
+      '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
       '@zkochan/retry': 0.2.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
     devDependencies:
+      '@pnpm/fetch': 'link:'
       '@pnpm/logger': 3.2.2
       '@types/node-fetch': 2.5.7
       cpy-cli: 3.1.1
+      nock: 13.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:^4.1.2'
+      '@pnpm/fetch': 'link:'
+      '@pnpm/fetching-types': 'workspace:^0.0.0'
       '@pnpm/logger': ^3.2.2
+      '@pnpm/npm-registry-agent': 'workspace:^2.0.3'
       '@types/node-fetch': ^2.5.7
       '@zkochan/retry': ^0.2.0
       cpy-cli: ^3.1.1
+      nock: ^13.0.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
-  packages/fetch-from-npm-registry:
-    dependencies:
-      '@pnpm/fetch': 'link:../fetch'
-      '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
-    devDependencies:
-      fetch-from-npm-registry: 'link:'
-      nock: 12.0.3
-    specifiers:
-      '@pnpm/fetch': 'workspace:2.0.2'
-      '@pnpm/npm-registry-agent': 'workspace:2.0.3'
-      fetch-from-npm-registry: 'link:'
-      nock: 12.0.3
   packages/fetcher-base:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -409,6 +419,13 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/ssri': ^6.0.3
+  packages/fetching-types:
+    dependencies:
+      '@types/node-fetch': 2.5.7
+      '@zkochan/retry': 0.2.0
+    specifiers:
+      '@types/node-fetch': ^2.5.7
+      '@zkochan/retry': ^0.2.0
   packages/filter-lockfile:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -643,8 +660,7 @@ importers:
       realpath-missing: 1.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/default-fetcher': 'link:../default-fetcher'
-      '@pnpm/default-resolver': 'link:../default-resolver'
+      '@pnpm/client': 'link:../client'
       '@pnpm/headless': 'link:'
       '@pnpm/logger': 3.2.2
       '@pnpm/package-store': 'link:../package-store'
@@ -662,7 +678,6 @@ importers:
       load-json-file: 6.2.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      read-yaml-file: 2.0.0
       sinon: 9.0.2
       tape-promise: 4.0.0
       tempy: 0.5.0
@@ -670,10 +685,9 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/build-modules': 'workspace:5.0.6'
+      '@pnpm/client': 'workspace:^0.0.0'
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/core-loggers': 'workspace:4.1.2'
-      '@pnpm/default-fetcher': 'workspace:*'
-      '@pnpm/default-resolver': 'workspace:*'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/filter-lockfile': 'workspace:4.0.4'
       '@pnpm/headless': 'link:'
@@ -712,7 +726,6 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       ramda: 0.27.0
-      read-yaml-file: 2.0.0
       realpath-missing: 1.0.0
       sinon: 9.0.2
       tape-promise: 4.0.0
@@ -1091,14 +1104,12 @@ importers:
   packages/npm-resolver:
     dependencies:
       '@pnpm/error': 'link:../error'
+      '@pnpm/fetching-types': 'link:../fetching-types'
       '@pnpm/resolve-workspace-range': 'link:../resolve-workspace-range'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
-      credentials-by-uri: 2.0.0
       encode-registry: 2.0.2
-      fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       load-json-file: 6.2.0
-      mem: 6.1.0
       mz: 2.7.0
       normalize-path: 3.0.0
       p-limit: 3.0.1
@@ -1110,6 +1121,7 @@ importers:
       ssri: 6.0.1
       version-selector-type: 3.0.0
     devDependencies:
+      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/logger': 3.2.2
       '@pnpm/npm-resolver': 'link:'
       '@types/mz': 2.7.1
@@ -1121,6 +1133,8 @@ importers:
       tempy: 0.5.0
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
+      '@pnpm/fetch': 'workspace:^2.0.2'
+      '@pnpm/fetching-types': 'workspace:^0.0.0'
       '@pnpm/logger': 3.2.2
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/resolve-workspace-range': 'workspace:1.0.1'
@@ -1130,11 +1144,8 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/semver': ^7.2.0
       '@types/ssri': ^6.0.3
-      credentials-by-uri: 2.0.0
       encode-registry: 2.0.2
-      fetch-from-npm-registry: 'workspace:4.1.2'
       load-json-file: 6.2.0
-      mem: ^6.1.0
       mz: ^2.7.0
       nock: 12.0.3
       normalize-path: 3.0.0
@@ -1153,6 +1164,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/error': 'link:../error'
+      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/manifest-utils': 'link:../manifest-utils'
@@ -1161,8 +1173,10 @@ importers:
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/store-path': 4.0.0
       '@pnpm/types': 'link:../types'
+      credentials-by-uri: 2.0.0
       dependency-path: 'link:../dependency-path'
       lru-cache: 5.1.1
+      mem: 6.1.0
       ramda: 0.27.0
       semver: 7.3.2
     devDependencies:
@@ -1176,6 +1190,7 @@ importers:
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/default-resolver': 'workspace:9.0.3'
       '@pnpm/error': 'workspace:1.2.0'
+      '@pnpm/fetch': 'workspace:^2.0.2'
       '@pnpm/lockfile-file': 'workspace:3.0.11'
       '@pnpm/lockfile-utils': 'workspace:2.0.15'
       '@pnpm/logger': 3.2.2
@@ -1189,8 +1204,10 @@ importers:
       '@types/lru-cache': ^5.1.0
       '@types/ramda': ^0.27.6
       '@types/semver': ^7.2.0
+      credentials-by-uri: ^2.0.0
       dependency-path: 'workspace:5.0.2'
       lru-cache: ^5.1.1
+      mem: ^6.1.0
       npm-run-all: 4.1.5
       ramda: ^0.27.0
       semver: ^7.3.2
@@ -1253,11 +1270,9 @@ importers:
       rename-overwrite: 3.0.0
       ssri: 6.0.1
     devDependencies:
-      '@pnpm/local-resolver': 'link:../local-resolver'
+      '@pnpm/client': 'link:../client'
       '@pnpm/logger': 3.2.2
-      '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-requester': 'link:'
-      '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 2.7.1
       '@types/ncp': 2.0.4
       '@types/normalize-path': 3.0.0
@@ -1272,17 +1287,15 @@ importers:
       tempy: 0.5.0
     specifiers:
       '@pnpm/cafs': 'workspace:1.0.5'
+      '@pnpm/client': 'workspace:*'
       '@pnpm/core-loggers': 'workspace:4.1.2'
       '@pnpm/fetcher-base': 'workspace:8.0.2'
-      '@pnpm/local-resolver': 'workspace:*'
       '@pnpm/logger': 3.2.2
-      '@pnpm/npm-resolver': 'workspace:*'
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-package-json': 'workspace:3.1.3'
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
-      '@pnpm/tarball-fetcher': 'workspace:*'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.4
@@ -1328,10 +1341,9 @@ importers:
       ssri: 8.0.0
       write-json-file: 4.0.0
     devDependencies:
+      '@pnpm/client': 'link:../client'
       '@pnpm/logger': 3.2.2
-      '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-store': 'link:'
-      '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 2.7.1
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.6
@@ -1342,15 +1354,14 @@ importers:
       tempy: 0.5.0
     specifiers:
       '@pnpm/cafs': 'workspace:1.0.5'
+      '@pnpm/client': 'workspace:^0.0.0'
       '@pnpm/core-loggers': 'workspace:4.1.2'
       '@pnpm/fetcher-base': 'workspace:8.0.2'
       '@pnpm/logger': 3.2.2
-      '@pnpm/npm-resolver': 'workspace:*'
       '@pnpm/package-requester': 'workspace:12.0.6'
       '@pnpm/package-store': 'link:'
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
-      '@pnpm/tarball-fetcher': 'workspace:*'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': ^2.7.1
       '@types/proxyquire': ^1.3.28
@@ -1725,6 +1736,7 @@ importers:
       '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
+      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
@@ -1736,9 +1748,11 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       cp-file: 9.0.0
+      credentials-by-uri: 2.0.0
       enquirer: 2.3.5
       fast-glob: 3.2.4
       lru-cache: 5.1.1
+      mem: 6.1.0
       mz: 2.7.0
       p-filter: 2.1.0
       ramda: 0.27.0
@@ -1766,6 +1780,7 @@ importers:
       '@pnpm/cli-utils': 'workspace:0.4.11'
       '@pnpm/config': 'workspace:10.0.1'
       '@pnpm/error': 'workspace:1.2.0'
+      '@pnpm/fetch': 'workspace:^2.0.2'
       '@pnpm/filter-workspace-packages': 'workspace:2.1.4'
       '@pnpm/lifecycle': 'workspace:9.1.3'
       '@pnpm/npm-resolver': 'workspace:8.1.2'
@@ -1786,11 +1801,13 @@ importers:
       '@types/sinon': ^9.0.4
       '@zkochan/rimraf': 1.0.0
       cp-file: ^9.0.0
+      credentials-by-uri: ^2.0.0
       cross-spawn: ^7.0.3
       enquirer: ^2.3.5
       execa: ^4.0.2
       fast-glob: ^3.2.4
       lru-cache: ^5.1.1
+      mem: ^6.1.0
       mz: ^2.7.0
       p-filter: ^2.1.0
       path-exists: 4.0.0
@@ -2464,12 +2481,11 @@ importers:
       promise-share: 1.0.0
       uuid: 3.4.0
     devDependencies:
+      '@pnpm/client': 'link:../client'
       '@pnpm/logger': 3.2.2
-      '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:'
-      '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 2.7.1
       '@types/node-fetch': 2.5.7
       '@types/uuid': 8.0.0
@@ -2480,14 +2496,13 @@ importers:
       node-fetch: 2.6.0
       tempy: 0.5.0
     specifiers:
+      '@pnpm/client': 'workspace:^0.0.0'
       '@pnpm/fetch': 'workspace:2.0.2'
       '@pnpm/logger': 3.2.2
-      '@pnpm/npm-resolver': 'workspace:*'
       '@pnpm/package-requester': 'workspace:*'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/server': 'link:'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
-      '@pnpm/tarball-fetcher': 'workspace:*'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': ^2.7.1
       '@types/node-fetch': ^2.5.7
@@ -2514,9 +2529,8 @@ importers:
   packages/store-connection-manager:
     dependencies:
       '@pnpm/cli-meta': 'link:../cli-meta'
+      '@pnpm/client': 'link:../client'
       '@pnpm/config': 'link:../config'
-      '@pnpm/default-fetcher': 'link:../default-fetcher'
-      '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/error': 'link:../error'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:../server'
@@ -2533,9 +2547,8 @@ importers:
       '@types/mz': 2.7.1
     specifiers:
       '@pnpm/cli-meta': 'workspace:1.0.0'
+      '@pnpm/client': 'workspace:^0.0.0'
       '@pnpm/config': 'workspace:10.0.1'
-      '@pnpm/default-fetcher': 'workspace:6.0.9'
-      '@pnpm/default-resolver': 'workspace:9.0.3'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/logger': 3.2.2
       '@pnpm/package-store': 'workspace:9.0.11'
@@ -2613,8 +2626,7 @@ importers:
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
-      '@pnpm/default-fetcher': 'link:../default-fetcher'
-      '@pnpm/default-resolver': 'link:../default-resolver'
+      '@pnpm/client': 'link:../client'
       '@pnpm/logger': 3.2.2
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
@@ -2656,10 +2668,9 @@ importers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/assert-store': 'workspace:*'
       '@pnpm/build-modules': 'workspace:5.0.6'
+      '@pnpm/client': 'workspace:^0.0.0'
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/core-loggers': 'workspace:4.1.2'
-      '@pnpm/default-fetcher': 'workspace:*'
-      '@pnpm/default-resolver': 'workspace:*'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/filter-lockfile': 'workspace:4.0.4'
       '@pnpm/get-context': 'workspace:3.0.1'
@@ -2767,19 +2778,15 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
+      '@pnpm/fetching-types': 'link:../fetching-types'
       '@zkochan/retry': 0.2.0
-      credentials-by-uri: 2.0.0
-      fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       graceful-fs: 4.2.4
-      mem: 6.1.0
       mz: 2.7.0
-      path-temp: 2.0.0
-      rimraf: 3.0.2
       ssri: 6.0.1
     devDependencies:
       '@pnpm/cafs': 'link:../cafs'
+      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/logger': 3.2.2
-      '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': 4.1.3
       '@types/mz': 2.7.1
@@ -2793,9 +2800,10 @@ importers:
       '@pnpm/cafs': 'workspace:1.0.5'
       '@pnpm/core-loggers': 'workspace:^4.1.2'
       '@pnpm/error': 'workspace:1.2.0'
+      '@pnpm/fetch': 'workspace:^2.0.2'
       '@pnpm/fetcher-base': 'workspace:8.0.2'
+      '@pnpm/fetching-types': 'workspace:^0.0.0'
       '@pnpm/logger': 3.2.2
-      '@pnpm/read-package-json': 'workspace:3.1.3'
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': ^4.1.3
       '@types/mz': ^2.7.1
@@ -2804,14 +2812,9 @@ importers:
       '@types/ssri': ^6.0.3
       '@zkochan/retry': ^0.2.0
       cp-file: 9.0.0
-      credentials-by-uri: ^2.0.0
-      fetch-from-npm-registry: 'workspace:4.1.2'
       graceful-fs: ^4.2.4
-      mem: ^6.1.0
       mz: ^2.7.0
       nock: 12.0.3
-      path-temp: ^2.0.0
-      rimraf: ^3.0.2
       ssri: 6.0.1
       tempy: 0.5.0
   packages/tarball-resolver:
@@ -3638,9 +3641,8 @@ packages:
       integrity: sha512-erpimpT1pH8QfeNg77ypnjwz6CGMqrnL4DewVbqFzD9FXzSULjmG3KzjZnLNe7bzTSZm2W9DpkHyqop1g1KmgQ==
   /@types/node-fetch/2.5.7:
     dependencies:
-      '@types/node': 14.0.13
+      '@types/node': 14.0.14
       form-data: 3.0.0
-    dev: true
     resolution:
       integrity: sha512-o2WVNf5UhWRkxlf6eq+jMZDu7kjgpgJfl4xVNlvryc95O/6F2ld8ztKX+qu+Rjyet93WAWm5LjeX9H5FGkODvw==
   /@types/node/12.12.47:
@@ -3654,6 +3656,9 @@ packages:
   /@types/node/14.0.13:
     resolution:
       integrity: sha512-rouEWBImiRaSJsVA+ITTFM6ZxibuAlTuNOCyxVbwreu6k6+ujs7DfnU9o+PShFhET78pMBl3eH+AGSI5eOTkPA==
+  /@types/node/14.0.14:
+    resolution:
+      integrity: sha512-syUgf67ZQpaJj01/tRTknkMNoBBLWJOBODF0Zm4NrXmiSuxjymFrxnTu1QVYRubhVkRcZLYZG8STTwJRdVm/WQ==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -6641,7 +6646,6 @@ packages:
       asynckit: 0.4.0
       combined-stream: 1.0.8
       mime-types: 2.1.27
-    dev: true
     engines:
       node: '>= 6'
     resolution:
@@ -8397,6 +8401,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DdOXEhPHxW34gJd9UEyI+0cal6w=
+  /lodash.set/4.3.2:
+    dev: true
+    resolution:
+      integrity: sha1-2HV7HagH3eJIFrDWqEvqGnYjCyM=
   /lodash.sortby/4.7.0:
     dev: true
     resolution:
@@ -9048,6 +9056,17 @@ packages:
       node: '>= 10.13'
     resolution:
       integrity: sha512-QNb/j8kbFnKCiyqi9C5DD0jH/FubFGj5rt9NQFONXwQm3IPB0CULECg/eS3AU1KgZb/6SwUa4/DTRKhVxkGABw==
+  /nock/13.0.0:
+    dependencies:
+      debug: 4.1.1
+      json-stringify-safe: 5.0.1
+      lodash.set: 4.3.2
+      propagate: 2.0.1
+    dev: true
+    engines:
+      node: '>= 10.13'
+    resolution:
+      integrity: sha512-FiW8t91Je5yG5MVT1r+go1Z9bX3rCYIEjenUYeZrEl2v8aTWdIX336itrmQaKUO8Ske5Z7RHR7OIzr/9p0Ujjg==
   /node-fetch-unix/2.3.0:
     dev: false
     engines:

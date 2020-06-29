@@ -70,10 +70,7 @@
       "path": "../../privatePackages/assert-project"
     },
     {
-      "path": "../default-fetcher"
-    },
-    {
-      "path": "../default-resolver"
+      "path": "../client"
     },
     {
       "path": "../package-store"

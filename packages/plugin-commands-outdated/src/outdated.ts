@@ -133,7 +133,6 @@ export type OutdatedCommandOptions = {
   | 'fetchRetryMaxtimeout'
   | 'fetchRetryMintimeout'
   | 'global'
-  | 'httpsProxy'
   | 'key'
   | 'localAddress'
   | 'lockfileDir'

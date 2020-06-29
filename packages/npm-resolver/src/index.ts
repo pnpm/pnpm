@@ -1,4 +1,9 @@
 import PnpmError from '@pnpm/error'
+import {
+  FetchFromRegistry,
+  GetCredentials,
+  RetryTimeoutOptions,
+} from '@pnpm/fetching-types'
 import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
 import {
   PreferredVersions,
@@ -7,9 +12,6 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
-import getCredentialsByURI = require('credentials-by-uri')
-import createRegFetcher from 'fetch-from-npm-registry'
-import mem = require('mem')
 import normalize = require('normalize-path')
 import pMemoize = require('p-memoize')
 import path = require('path')
@@ -48,64 +50,30 @@ const META_DIR = 'metadata'
 const FULL_META_DIR = 'metadata-full'
 
 export interface ResolverFactoryOptions {
-  rawConfig: object,
   metaCache: PackageMetaCache,
   storeDir: string,
-  cert?: string,
   fullMetadata?: boolean,
-  key?: string,
-  ca?: string,
-  strictSsl?: boolean,
-  proxy?: string,
-  httpsProxy?: string,
-  localAddress?: string,
-  userAgent?: string,
   offline?: boolean,
   preferOffline?: boolean,
-  fetchRetries?: number,
-  fetchRetryFactor?: number,
-  fetchRetryMintimeout?: number,
-  fetchRetryMaxtimeout?: number,
+  retry?: RetryTimeoutOptions,
 }
 
 export default function createResolver (
+  fetchFromRegistry: FetchFromRegistry,
+  getCredentials: GetCredentials,
   opts: ResolverFactoryOptions
 ) {
-  if (typeof opts.rawConfig !== 'object') { // tslint:disable-line
-    throw new TypeError('`opts.rawConfig` is required and needs to be an object')
-  }
-  if (typeof opts.rawConfig['registry'] !== 'string') { // tslint:disable-line
-    throw new TypeError('`opts.rawConfig.registry` is required and needs to be a string')
-  }
   if (typeof opts.metaCache !== 'object') { // tslint:disable-line
     throw new TypeError('`opts.metaCache` is required and needs to be an object')
   }
   if (typeof opts.storeDir !== 'string') { // tslint:disable-line
     throw new TypeError('`opts.storeDir` is required and needs to be a string')
   }
-  const fetch = pMemoize(fromRegistry.bind(null, createRegFetcher({
-    ca: opts.ca,
-    cert: opts.cert,
-    fullMetadata: opts.fullMetadata,
-    key: opts.key,
-    localAddress: opts.localAddress,
-    proxy: opts.httpsProxy || opts.proxy,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    strictSSL: opts.strictSsl,
-    userAgent: opts.userAgent,
-  })), {
+  const fetch = pMemoize(fromRegistry.bind(null, fetchFromRegistry, opts.retry ?? {}), {
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
-  const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
-  const getAuthHeaderValueByURI = mem(
-    (registry: string) => getCreds(registry).authHeaderValue
-  )
+  const getAuthHeaderValueByURI = (registry: string) => getCredentials(registry).authHeaderValue
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI,
     pickPackage: pickPackage.bind(null, {

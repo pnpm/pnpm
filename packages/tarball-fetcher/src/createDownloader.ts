@@ -6,13 +6,9 @@ import {
   FetchResult,
   FilesIndex,
 } from '@pnpm/fetcher-base'
+import { FetchFromRegistry } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
-import createFetcher from 'fetch-from-npm-registry'
 import { IncomingMessage } from 'http'
-import fs = require('mz/fs')
-import path = require('path')
-import pathTemp = require('path-temp')
-import rimraf = require('rimraf')
 import ssri = require('ssri')
 import urlLib = require('url')
 import { BadTarballError } from './errorTypes'
@@ -76,17 +72,8 @@ export interface NpmRegistryClient {
 }
 
 export default (
+  fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
-    alwaysAuth: boolean,
-    registry: string,
-    // proxy
-    proxy?: string,
-    localAddress?: string,
-    // ssl
-    ca?: string,
-    cert?: string,
-    key?: string,
-    strictSSL?: boolean,
     // retry
     retry?: {
       retries?: number,
@@ -95,26 +82,8 @@ export default (
       maxTimeout?: number,
       randomize?: boolean,
     },
-    userAgent?: string,
   }
 ): DownloadFunction => {
-  const fetchFromNpmRegistry = createFetcher({
-    ca: gotOpts.ca,
-    cert: gotOpts.cert,
-    key: gotOpts.key,
-    localAddress: gotOpts.localAddress,
-    proxy: gotOpts.proxy,
-    strictSSL: gotOpts.strictSSL,
-    userAgent: gotOpts.userAgent,
-
-    // The fetch library can retry requests on bad HTTP responses.
-    // However, it is not enough to retry on bad HTTP responses only.
-    // Requests should also be retried when the tarball's integrity check fails.
-    // Hence, we tell fetch to not retry,
-    // and we perform the retries from this function instead.
-    retry: { retries: 0 },
-  })
-
   const retryOpts = {
     factor: 10,
     maxTimeout: 6e4, // 1 minute
@@ -172,8 +141,14 @@ export default (
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       try {
-        const res = await fetchFromNpmRegistry(url, {
+        const res = await fetchFromRegistry(url, {
           authHeaderValue: shouldAuth ? opts.auth?.authHeaderValue : undefined,
+          // The fetch library can retry requests on bad HTTP responses.
+          // However, it is not enough to retry on bad HTTP responses only.
+          // Requests should also be retried when the tarball's integrity check fails.
+          // Hence, we tell fetch to not retry,
+          // and we perform the retries from this function instead.
+          retry: { retries: 0 },
         })
 
         if (res.status !== 200) {

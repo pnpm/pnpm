@@ -55,11 +55,9 @@
     "ssri": "6.0.1"
   },
   "devDependencies": {
-    "@pnpm/local-resolver": "workspace:*",
+    "@pnpm/client": "workspace:*",
     "@pnpm/logger": "3.2.2",
-    "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-requester": "link:",
-    "@pnpm/tarball-fetcher": "workspace:*",
     "@types/mz": "^2.7.1",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",

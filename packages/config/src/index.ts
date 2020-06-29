@@ -334,5 +334,8 @@ export default async (
         break
     }
   }
+  if (pnpmConfig.httpsProxy) {
+    pnpmConfig.proxy = pnpmConfig.httpsProxy
+  }
   return { config: pnpmConfig, warnings }
 }

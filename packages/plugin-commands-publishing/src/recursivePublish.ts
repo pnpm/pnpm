@@ -1,4 +1,5 @@
 import { Config } from '@pnpm/config'
+import { createFetchFromRegistry } from '@pnpm/fetch'
 import createResolver from '@pnpm/npm-resolver'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { ResolveFunction } from '@pnpm/resolver-base'
@@ -6,7 +7,9 @@ import runNpm from '@pnpm/run-npm'
 import sortPackages from '@pnpm/sort-packages'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
+import getCredentialsByURI = require('credentials-by-uri')
 import LRU = require('lru-cache')
+import mem = require('mem')
 import pFilter = require('p-filter')
 import { handler as publish } from './publish'
 
@@ -26,7 +29,6 @@ Partial<Pick<Config,
   | 'fetchRetryFactor'
   | 'fetchRetryMaxtimeout'
   | 'fetchRetryMintimeout'
-  | 'httpsProxy'
   | 'key'
   | 'localAddress'
   | 'lockfileDir'
@@ -50,8 +52,9 @@ export default async function (
 ) {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const storeDir = await storePath(opts.workspaceDir, opts.storeDir)
-  const resolve = createResolver(Object.assign(opts, {
-    fullMetadata: false,
+  const fetch = createFetchFromRegistry(opts)
+  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.rawConfig, registry))
+  const resolve = createResolver(fetch, getCredentials, Object.assign(opts, {
     metaCache: new LRU({
       max: 10000,
       maxAge: 120 * 1000, // 2 minutes

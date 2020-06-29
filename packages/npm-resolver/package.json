@@ -35,14 +35,12 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:1.2.0",
+    "@pnpm/fetching-types": "workspace:^0.0.0",
     "@pnpm/resolve-workspace-range": "workspace:1.0.1",
     "@pnpm/resolver-base": "workspace:7.0.3",
     "@pnpm/types": "workspace:6.2.0",
-    "credentials-by-uri": "2.0.0",
     "encode-registry": "2.0.2",
-    "fetch-from-npm-registry": "workspace:4.1.2",
     "load-json-file": "6.2.0",
-    "mem": "^6.1.0",
     "mz": "^2.7.0",
     "normalize-path": "3.0.0",
     "p-limit": "^3.0.1",
@@ -55,6 +53,7 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
+    "@pnpm/fetch": "workspace:^2.0.2",
     "@pnpm/logger": "3.2.2",
     "@pnpm/npm-resolver": "link:",
     "@types/mz": "^2.7.1",

@@ -1,5 +1,6 @@
 ///<reference path="../../../typings/index.d.ts"/>
-import createResolveFromNpm from '@pnpm/npm-resolver'
+import { createFetchFromRegistry } from '@pnpm/fetch'
+import _createResolveFromNpm from '@pnpm/npm-resolver'
 import loadJsonFile = require('load-json-file')
 import nock = require('nock')
 import path = require('path')
@@ -17,6 +18,10 @@ const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', '
 const registry = 'https://registry.npmjs.org/'
 
 const delay = (time) => new Promise((resolve) => setTimeout(() => resolve(), time))
+
+const fetch = createFetchFromRegistry({})
+const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
+const createResolveFromNpm = _createResolveFromNpm.bind(null, fetch, getCredentials)
 
 async function retryLoadJsonFile<T> (filePath: string) {
   let retry = 0

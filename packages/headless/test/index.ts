@@ -18,7 +18,6 @@ import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')

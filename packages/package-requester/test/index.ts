@@ -1,12 +1,9 @@
 ///<reference path="../../../typings/index.d.ts" />
 import { getFilePathInCafs } from '@pnpm/cafs'
-import localResolver from '@pnpm/local-resolver'
+import createClient from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
-import createResolver from '@pnpm/npm-resolver'
 import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import { ResolveFunction } from '@pnpm/resolver-base'
-import createFetcher from '@pnpm/tarball-fetcher'
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import fs = require('mz/fs')
@@ -23,24 +20,18 @@ const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
 const ncp = promisify(ncpCB as any) // tslint:disable-line:no-any
 
-const rawConfig = { registry }
+const authConfig = { registry }
 
-const resolve = createResolver({
+const { resolve, fetchers } = createClient({
+  authConfig,
   metaCache: new Map(),
-  rawConfig,
   storeDir: '.store',
-}) as ResolveFunction
-const fetch = createFetcher({
-  alwaysAuth: false,
-  rawConfig,
-  registry: 'https://registry.npmjs.org/',
-  strictSsl: false,
 })
 
 test('request package', async t => {
   const storeDir = tempy.directory()
   t.comment(storeDir)
-  const requestPackage = createPackageRequester(resolve, fetch, {
+  const requestPackage = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -82,7 +73,7 @@ test('request package', async t => {
 })
 
 test('request package but skip fetching', async t => {
-  const requestPackage = createPackageRequester(resolve, fetch, {
+  const requestPackage = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: '.store',
     verifyStoreIntegrity: true,
@@ -120,7 +111,7 @@ test('request package but skip fetching', async t => {
 })
 
 test('request package but skip fetching, when resolution is already available', async t => {
-  const requestPackage = createPackageRequester(resolve, fetch, {
+  const requestPackage = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: '.store',
     verifyStoreIntegrity: true,
@@ -192,7 +183,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   }
 
   {
-    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+    const requestPackage = createPackageRequester(resolve, fetchers, {
       storeDir,
       verifyStoreIntegrity: true,
     })
@@ -219,7 +210,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   await delay(50)
 
   {
-    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+    const requestPackage = createPackageRequester(resolve, fetchers, {
       storeDir,
       verifyStoreIntegrity: true,
     })
@@ -240,7 +231,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   }
 
   {
-    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+    const requestPackage = createPackageRequester(resolve, fetchers, {
       storeDir,
       verifyStoreIntegrity: true,
     })
@@ -283,7 +274,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   }
 
   {
-    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+    const requestPackage = createPackageRequester(resolve, fetchers, {
       storeDir,
       verifyStoreIntegrity: true,
     })
@@ -304,7 +295,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   await delay(50)
 
   {
-    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+    const requestPackage = createPackageRequester(resolve, fetchers, {
       storeDir,
       verifyStoreIntegrity: true,
     })
@@ -322,7 +313,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   }
 
   {
-    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+    const requestPackage = createPackageRequester(resolve, fetchers, {
       storeDir,
       verifyStoreIntegrity: true,
     })
@@ -342,7 +333,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
 })
 
 test('fetchPackageToStore()', async (t) => {
-  const packageRequester = createPackageRequester(resolve, fetch, {
+  const packageRequester = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: tempy.directory(),
     verifyStoreIntegrity: true,
@@ -401,7 +392,7 @@ test('fetchPackageToStore()', async (t) => {
 test('fetchPackageToStore() concurrency check', async (t) => {
   const storeDir = tempy.directory()
   const cafsDir = path.join(storeDir, 'files')
-  const packageRequester = createPackageRequester(resolve, fetch, {
+  const packageRequester = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -480,15 +471,14 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
     .get('/is-positive/-/is-positive-1.0.0.tgz')
     .replyWithFile(200, IS_POSTIVE_TARBALL)
 
-  const noRetryFetch = createFetcher({
-    alwaysAuth: false,
-    fetchRetries: 0,
-    rawConfig,
-    registry: 'https://registry.npmjs.org/',
-    strictSsl: false,
+  const noRetry = createClient({
+    authConfig,
+    metaCache: new Map(),
+    retry: { retries: 0 },
+    storeDir: '.pnpm',
   })
 
-  const packageRequester = createPackageRequester(resolve, noRetryFetch, {
+  const packageRequester = createPackageRequester(noRetry.resolve, noRetry.fetchers, {
     networkConcurrency: 1,
     storeDir: tempy.directory(),
     verifyStoreIntegrity: true,
@@ -539,7 +529,7 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
 // This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
 test('always return a package manifest in the response', async t => {
   nock.cleanAll()
-  const requestPackage = createPackageRequester(resolve, fetch, {
+  const requestPackage = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: tempy.directory(),
     verifyStoreIntegrity: true,
@@ -597,7 +587,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
     .get('/is-positive/-/is-positive-1.0.0.tgz')
     .replyWithFile(200, IS_POSTIVE_TARBALL)
 
-  const packageRequester = createPackageRequester(resolve, fetch, {
+  const packageRequester = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: tempy.directory(),
     verifyStoreIntegrity: true,
@@ -644,7 +634,7 @@ test('refetch package to store if it has been modified', async (t) => {
 
   let indexJsFile!: string
   {
-    const packageRequester = createPackageRequester(resolve, fetch, {
+    const packageRequester = createPackageRequester(resolve, fetchers, {
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -669,7 +659,7 @@ test('refetch package to store if it has been modified', async (t) => {
   streamParser.on('data', reporter)
 
   {
-    const packageRequester = createPackageRequester(resolve, fetch, {
+    const packageRequester = createPackageRequester(resolve, fetchers, {
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,

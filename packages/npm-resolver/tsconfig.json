@@ -14,6 +14,9 @@
       "path": "../error"
     },
     {
+      "path": "../fetching-types"
+    },
+    {
       "path": "../resolve-workspace-range"
     },
     {
@@ -23,7 +26,7 @@
       "path": "../types"
     },
     {
-      "path": "../fetch-from-npm-registry"
+      "path": "../fetch"
     }
   ]
 }

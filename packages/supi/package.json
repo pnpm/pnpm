@@ -72,8 +72,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/default-fetcher": "workspace:*",
-    "@pnpm/default-resolver": "workspace:*",
+    "@pnpm/client": "workspace:^0.0.0",
     "@pnpm/logger": "3.2.2",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:0.0.7",

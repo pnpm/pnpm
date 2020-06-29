@@ -8,12 +8,5 @@
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../fetch"
-    },
-    {
-      "path": "../npm-registry-agent"
-    }
-  ]
+  "references": []
 }

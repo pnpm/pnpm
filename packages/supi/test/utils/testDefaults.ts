@@ -1,5 +1,4 @@
-import createFetcher from '@pnpm/default-fetcher'
-import createResolver from '@pnpm/default-resolver'
+import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreController } from '@pnpm/store-controller-types'
@@ -11,10 +10,10 @@ import { InstallOptions } from 'supi'
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 const retryOpts = {
-  fetchRetries: 4,
-  fetchRetryFactor: 10,
-  fetchRetryMaxtimeout: 60_000,
-  fetchRetryMintimeout: 10_000,
+  retries: 4,
+  retryFactor: 10,
+  retryMaxtimeout: 60_000,
+  retryMintimeout: 10_000,
 }
 
 export default async function testDefaults<T> (
@@ -37,24 +36,18 @@ export default async function testDefaults<T> (
 > {
   let storeDir = opts && opts.storeDir || path.resolve('.store')
   storeDir = await storePath(opts && opts.prefix || process.cwd(), storeDir)
-  const rawConfig = { registry }
+  const authConfig = { registry }
+  const { resolve, fetchers } = createClient({
+    authConfig,
+    metaCache: new Map(),
+    retry: retryOpts,
+    storeDir,
+    ...resolveOpts,
+    ...fetchOpts,
+  })
   const storeController = await createStore(
-    createResolver({
-      fullMetadata: false,
-      metaCache: new Map(),
-      rawConfig,
-      storeDir,
-      strictSsl: true,
-      ...retryOpts,
-      ...resolveOpts,
-    }),
-    createFetcher({
-      alwaysAuth: true,
-      rawConfig,
-      registry,
-      ...retryOpts,
-      ...fetchOpts,
-    }),
+    resolve,
+    fetchers,
     {
       ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
       storeDir,

@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { FetchFromRegistry } from 'fetch-from-npm-registry'
+import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import url = require('url')
 import { PackageMeta } from './pickPackage'
 
@@ -38,12 +38,13 @@ class RegistryResponseError extends PnpmError {
 
 export default async function fromRegistry (
   fetch: FetchFromRegistry,
+  retry: RetryTimeoutOptions,
   pkgName: string,
   registry: string,
   authHeaderValue?: string
 ) {
   const uri = toUri(pkgName, registry)
-  const response = await fetch(uri, { authHeaderValue }) as RegistryResponse
+  const response = await fetch(uri, { authHeaderValue, retry }) as RegistryResponse
   if (response.status > 400) {
     throw new RegistryResponseError({
       package: pkgName,

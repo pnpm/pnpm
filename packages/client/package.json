@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/default-fetcher",
-  "version": "6.0.9",
-  "description": "pnpm's default package fetcher",
+  "name": "@pnpm/client",
+  "version": "0.0.0",
+  "description": "Creates the package resolve and fetch functions",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -13,12 +13,12 @@
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/default-fetcher/coverage ts-node packages/default-fetcher/test --type-check",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/client/coverage ts-node packages/client/test --type-check",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/default-fetcher",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/client",
   "keywords": [
     "pnpm",
     "resolver",
@@ -29,14 +29,19 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/default-fetcher#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/client#readme",
   "dependencies": {
+    "@pnpm/default-resolver": "workspace:^9.0.3",
+    "@pnpm/fetch": "workspace:^2.0.2",
+    "@pnpm/fetching-types": "workspace:^0.0.0",
     "@pnpm/git-fetcher": "workspace:3.0.4",
     "@pnpm/resolver-base": "workspace:7.0.3",
-    "@pnpm/tarball-fetcher": "workspace:7.1.4"
+    "@pnpm/tarball-fetcher": "workspace:7.1.4",
+    "credentials-by-uri": "^2.0.0",
+    "mem": "^6.1.0"
   },
   "devDependencies": {
-    "@pnpm/default-fetcher": "link:",
+    "@pnpm/client": "link:",
     "@pnpm/logger": "3.2.2"
   },
   "funding": "https://opencollective.com/pnpm"
