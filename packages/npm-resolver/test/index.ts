@@ -1,6 +1,6 @@
 ///<reference path="../../../typings/index.d.ts"/>
+import { createFetchFromRegistry } from '@pnpm/fetch'
 import createResolveFromNpm from '@pnpm/npm-resolver'
-import fetchFromNpmRegistry from 'fetch-from-npm-registry'
 import loadJsonFile = require('load-json-file')
 import nock = require('nock')
 import path = require('path')
@@ -19,7 +19,7 @@ const registry = 'https://registry.npmjs.org/'
 
 const delay = (time) => new Promise((resolve) => setTimeout(() => resolve(), time))
 
-const fetch = fetchFromNpmRegistry({})
+const fetch = createFetchFromRegistry({})
 
 async function retryLoadJsonFile<T> (filePath: string) {
   let retry = 0

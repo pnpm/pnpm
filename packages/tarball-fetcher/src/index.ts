@@ -1,4 +1,5 @@
 import PnpmError from '@pnpm/error'
+import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetch'
 import {
   Cafs,
   DeferredManifestPromise,
@@ -7,7 +8,6 @@ import {
   FetchResult,
 } from '@pnpm/fetcher-base'
 import getCredentialsByURI = require('credentials-by-uri')
-import { FetchFromRegistry, RetryTimeoutOptions } from 'fetch-from-npm-registry'
 import mem = require('mem')
 import fs = require('mz/fs')
 import path = require('path')

@@ -1,6 +1,6 @@
-import fetch, { isRedirect, Response, RetryTimeoutOptions } from '@pnpm/fetch'
 import npmRegistryAgent from '@pnpm/npm-registry-agent'
 import { URL } from 'url'
+import fetch, { isRedirect, Response, RetryTimeoutOptions } from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -15,8 +15,6 @@ export type FetchFromRegistry = (
     retry?: RetryTimeoutOptions,
   }
 ) => Promise<Response>
-
-export { RetryTimeoutOptions }
 
 export default function (
   defaultOpts: {

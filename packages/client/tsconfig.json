@@ -13,6 +13,9 @@
       "path": "../default-resolver"
     },
     {
+      "path": "../fetch"
+    },
+    {
       "path": "../git-fetcher"
     },
     {
@@ -20,9 +23,6 @@
     },
     {
       "path": "../tarball-fetcher"
-    },
-    {
-      "path": "../fetch-from-npm-registry"
     }
   ]
 }

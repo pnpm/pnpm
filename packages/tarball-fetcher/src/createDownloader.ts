@@ -1,5 +1,6 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
+import { FetchFromRegistry } from '@pnpm/fetch'
 import {
   Cafs,
   DeferredManifestPromise,
@@ -7,7 +8,6 @@ import {
   FilesIndex,
 } from '@pnpm/fetcher-base'
 import * as retry from '@zkochan/retry'
-import { FetchFromRegistry } from 'fetch-from-npm-registry'
 import { IncomingMessage } from 'http'
 import fs = require('mz/fs')
 import path = require('path')

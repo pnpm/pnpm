@@ -19,6 +19,9 @@
       "path": "../error"
     },
     {
+      "path": "../fetch"
+    },
+    {
       "path": "../lifecycle"
     },
     {
@@ -41,9 +44,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../fetch-from-npm-registry"
     },
     {
       "path": "../filter-workspace-packages"

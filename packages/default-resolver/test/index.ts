@@ -1,10 +1,10 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import createResolver from '@pnpm/default-resolver'
-import fetchFromNpmRegistry from 'fetch-from-npm-registry'
+import { createFetchFromRegistry } from '@pnpm/fetch'
 import test = require('tape')
 
 test('createResolver()', t => {
-  const resolve = createResolver(fetchFromNpmRegistry({}), {
+  const resolve = createResolver(createFetchFromRegistry({}), {
     metaCache: new Map(),
     rawConfig: {
       registry: 'https://registry.npmjs.org/',

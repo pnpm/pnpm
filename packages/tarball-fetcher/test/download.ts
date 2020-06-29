@@ -1,8 +1,8 @@
 ///<reference path="../../../typings/index.d.ts" />
 import createCafs from '@pnpm/cafs'
+import { createFetchFromRegistry } from '@pnpm/fetch'
 import createFetcher from '@pnpm/tarball-fetcher'
 import cpFile = require('cp-file')
-import createFetchFromNpmRegistry from 'fetch-from-npm-registry'
 import fs = require('mz/fs')
 import nock = require('nock')
 import path = require('path')
@@ -18,7 +18,7 @@ const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const registry = 'http://example.com/'
-const fetchFromRegistry = createFetchFromNpmRegistry({})
+const fetchFromRegistry = createFetchFromRegistry({})
 const fetch = createFetcher(fetchFromRegistry, {
   rawConfig: {
     registry,

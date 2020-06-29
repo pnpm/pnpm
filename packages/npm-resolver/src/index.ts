@@ -1,4 +1,5 @@
 import PnpmError from '@pnpm/error'
+import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetch'
 import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
 import {
   PreferredVersions,
@@ -8,7 +9,6 @@ import {
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
-import { FetchFromRegistry, RetryTimeoutOptions } from 'fetch-from-npm-registry'
 import mem = require('mem')
 import normalize = require('normalize-path')
 import pMemoize = require('p-memoize')

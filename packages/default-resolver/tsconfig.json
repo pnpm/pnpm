@@ -13,6 +13,9 @@
       "path": "../error"
     },
     {
+      "path": "../fetch"
+    },
+    {
       "path": "../git-resolver"
     },
     {
@@ -26,9 +29,6 @@
     },
     {
       "path": "../tarball-resolver"
-    },
-    {
-      "path": "../fetch-from-npm-registry"
     }
   ]
 }

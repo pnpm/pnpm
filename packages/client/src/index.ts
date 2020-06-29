@@ -1,7 +1,11 @@
 import createResolve, { ResolverFactoryOptions } from '@pnpm/default-resolver'
+import {
+  createFetchFromRegistry,
+  FetchFromRegistry,
+  RetryTimeoutOptions,
+} from '@pnpm/fetch'
 import fetchFromGit from '@pnpm/git-fetcher'
 import createTarballFetcher from '@pnpm/tarball-fetcher'
-import createFetchFromRegistry, { FetchFromRegistry, RetryTimeoutOptions } from 'fetch-from-npm-registry'
 
 export default function (opts: {
   alwaysAuth?: boolean,

@@ -16,10 +16,10 @@
       "path": "../error"
     },
     {
-      "path": "../fetcher-base"
+      "path": "../fetch"
     },
     {
-      "path": "../fetch-from-npm-registry"
+      "path": "../fetcher-base"
     },
     {
       "path": "../cafs"

@@ -1,4 +1,5 @@
 import PnpmError from '@pnpm/error'
+import { FetchFromRegistry } from '@pnpm/fetch'
 import createResolveFromGit from '@pnpm/git-resolver'
 import resolveFromLocal from '@pnpm/local-resolver'
 import createResolveFromNpm, {
@@ -9,7 +10,6 @@ import createResolveFromNpm, {
 } from '@pnpm/npm-resolver'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import resolveFromTarball from '@pnpm/tarball-resolver'
-import { FetchFromRegistry } from 'fetch-from-npm-registry'
 
 export {
   PackageMeta,

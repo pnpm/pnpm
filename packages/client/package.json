@@ -32,10 +32,10 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/client#readme",
   "dependencies": {
     "@pnpm/default-resolver": "workspace:^9.0.3",
+    "@pnpm/fetch": "workspace:^2.0.2",
     "@pnpm/git-fetcher": "workspace:3.0.4",
     "@pnpm/resolver-base": "workspace:7.0.3",
-    "@pnpm/tarball-fetcher": "workspace:7.1.4",
-    "fetch-from-npm-registry": "workspace:^4.1.2"
+    "@pnpm/tarball-fetcher": "workspace:7.1.4"
   },
   "devDependencies": {
     "@pnpm/client": "link:",
