@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "devDependencies": {
-    "@commitlint/cli": "8.3.5",
-    "@commitlint/config-conventional": "8.3.4",
-    "@commitlint/prompt-cli": "8.3.5",
+    "@commitlint/cli": "^9.0.1",
+    "@commitlint/config-conventional": "^9.0.1",
+    "@commitlint/prompt-cli": "^9.0.1",
     "husky": "^4.2.5"
   },
   "husky": {
