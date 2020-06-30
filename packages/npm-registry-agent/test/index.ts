@@ -1,7 +1,6 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import proxiquire = require('proxyquire')
 import test = require('tape')
-import getProcessEnv from '../lib/getProcessEnv'
 
 const MockHttp = mockHttpAgent('http')
 MockHttp['HttpsAgent'] = mockHttpAgent('https')
@@ -15,19 +14,6 @@ function mockHttpAgent (type: string) {
     return Object.assign({}, opts, { __type: type })
   }
 }
-
-test('extracts process env variables', t => {
-  process.env = { TEST_ENV: 'test', ANOTHER_ENV: 'no' }
-
-  t.deepEqual(getProcessEnv('test_ENV'), 'test', 'extracts single env')
-
-  t.deepEqual(
-    getProcessEnv(['not_existing_env', 'test_ENV', 'another_env']),
-    'test',
-    'extracts env from array of env names'
-  )
-  t.end()
-})
 
 const OPTS = {
   agent: null,
@@ -66,7 +52,7 @@ test('all expected options passed down to HttpsAgent', t => {
 
 test('all expected options passed down to proxy agent', t => {
   const opts = Object.assign({
-    proxy: 'https://user:pass@my.proxy:1234/foo',
+    httpsProxy: 'https://user:pass@my.proxy:1234/foo',
   }, OPTS)
   t.deepEqual(agent('https://foo.com/bar', opts), {
     __type: 'https-proxy',

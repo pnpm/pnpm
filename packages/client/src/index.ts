@@ -7,12 +7,14 @@ import getCredentialsByURI = require('credentials-by-uri')
 import mem = require('mem')
 
 export default function (opts: {
+  authConfig: Record<string, string>,
   ca?: string,
   cert?: string,
   key?: string,
   localAddress?: string,
-  proxy?: string,
-  authConfig: Record<string, string>,
+  noProxy?: string | boolean,
+  httpProxy?: string,
+  httpsProxy?: string,
   retry?: RetryTimeoutOptions,
   strictSSL?: boolean,
   userAgent?: string,

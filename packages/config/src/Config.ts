@@ -64,8 +64,10 @@ export interface Config {
   recursive?: boolean,
 
   // proxy
-  proxy?: string,
+  httpProxy?: string,
+  httpsProxy?: string,
   localAddress?: string,
+  noProxy?: string | boolean,
 
   // ssl
   cert?: string,
@@ -116,7 +118,7 @@ export interface Config {
 export interface ConfigWithDeprecatedSettings extends Config {
   frozenShrinkwrap?: boolean,
   globalPrefix?: string,
-  httpsProxy?: string,
+  proxy?: string,
   lockfileDirectory?: string,
   preferFrozenShrinkwrap?: boolean,
   sharedWorkspaceShrinkwrap?: boolean,

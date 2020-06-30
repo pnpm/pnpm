@@ -334,8 +334,20 @@ export default async (
         break
     }
   }
-  if (pnpmConfig.httpsProxy) {
-    pnpmConfig.proxy = pnpmConfig.httpsProxy
+  if (!pnpmConfig.httpsProxy) {
+    pnpmConfig.httpsProxy = pnpmConfig.proxy ?? getProcessEnv('https_proxy')
+  }
+  if (!pnpmConfig.httpProxy) {
+    pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
+  }
+  if (!pnpmConfig.noProxy) {
+    pnpmConfig.noProxy = getProcessEnv('no_proxy')
   }
   return { config: pnpmConfig, warnings }
+}
+
+function getProcessEnv (env: string) {
+  return process.env[env] ||
+    process.env[env.toUpperCase()] ||
+    process.env[env.toLowerCase()]
 }

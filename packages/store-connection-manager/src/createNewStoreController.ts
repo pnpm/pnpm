@@ -19,13 +19,15 @@ type CreateResolverOptions = Pick<Config,
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
     | 'ca'
     | 'cert'
+    | 'httpProxy'
+    | 'httpsProxy'
     | 'key'
     | 'localAddress'
     | 'networkConcurrency'
+    | 'noProxy'
     | 'offline'
     | 'packageImportMethod'
     | 'preferOffline'
-    | 'proxy'
     | 'registry'
     | 'strictSsl'
     | 'userAgent'
@@ -42,15 +44,17 @@ export default async (
     ca: opts.ca,
     cert: opts.cert,
     fullMetadata: false,
+    httpProxy: opts.httpProxy,
+    httpsProxy: opts.httpsProxy,
     key: opts.key,
     localAddress: opts.localAddress,
     metaCache: new LRU({
       max: 10000,
       maxAge: 120 * 1000, // 2 minutes
     }) as any, // tslint:disable-line:no-any
+    noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,
-    proxy: opts.proxy,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

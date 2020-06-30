@@ -4,7 +4,6 @@ import HttpsProxyAgent = require('https-proxy-agent')
 import LRU = require('lru-cache')
 import SocksProxyAgent = require('socks-proxy-agent')
 import { URL } from 'url'
-import getProcessEnv from './getProcessEnv'
 
 const HttpsAgent = HttpAgent.HttpsAgent
 
@@ -20,8 +19,9 @@ export default function getAgent (
     key?: string,
     maxSockets?: number,
     timeout?: number,
-    proxy: string,
-    noProxy: boolean,
+    httpProxy?: string,
+    httpsProxy?: string,
+    noProxy?: boolean | string,
   }
 ) {
   const parsedUri = new URL(uri)
@@ -76,11 +76,10 @@ export default function getAgent (
   return agent
 }
 
-function checkNoProxy (uri: string, opts: { noProxy?: boolean }) {
+function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }) {
   const host = new URL(uri).hostname!.split('.').filter(x => x).reverse()
-  let noproxy = (opts.noProxy || getProcessEnv('no_proxy'))
-  if (typeof noproxy === 'string') {
-    const noproxyArr = noproxy.split(/\s*,\s*/g)
+  if (typeof opts.noProxy === 'string') {
+    const noproxyArr = opts.noProxy.split(/\s*,\s*/g)
     return noproxyArr.some(no => {
       const noParts = no.split('.').filter(x => x).reverse()
       if (!noParts.length) { return false }
@@ -92,23 +91,31 @@ function checkNoProxy (uri: string, opts: { noProxy?: boolean }) {
       return true
     })
   }
-  return noproxy
+  return opts.noProxy
 }
 
 function getProxyUri (
   uri: string,
   opts: {
-    proxy?: string,
-    noProxy?: boolean,
+    httpProxy?: string,
+    httpsProxy?: string,
+    noProxy?: boolean | string,
   }
 ) {
   const { protocol } = new URL(uri)
 
-  let proxy = opts.proxy || (
-    protocol === 'https:' && getProcessEnv('https_proxy')
-  ) || (
-      protocol === 'http:' && getProcessEnv(['https_proxy', 'http_proxy', 'proxy'])
-    )
+  let proxy: string | void = undefined
+  switch (protocol) {
+    case 'http:': {
+      proxy = opts.httpProxy
+      break
+    }
+    case 'https:': {
+      proxy = opts.httpsProxy
+      break
+    }
+  }
+
   if (!proxy) { return null }
 
   if (!proxy.startsWith('http')) {
