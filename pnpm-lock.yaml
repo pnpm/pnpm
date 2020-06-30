@@ -52,7 +52,7 @@ importers:
       '@pnpm/audit': 'link:'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
-      nock: 13.0.0
+      nock: 12.0.3
     specifiers:
       '@pnpm/audit': 'link:'
       '@pnpm/constants': 'workspace:^4.0.0'
@@ -63,7 +63,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.15'
       '@pnpm/lockfile-walker': 'workspace:3.0.3'
       '@pnpm/types': 'workspace:6.2.0'
-      nock: ^13.0.0
+      nock: 12.0.3
   packages/build-modules:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -397,7 +397,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@types/node-fetch': 2.5.7
       cpy-cli: 3.1.1
-      nock: 13.0.0
+      nock: 12.0.3
     specifiers:
       '@pnpm/core-loggers': 'workspace:^4.1.2'
       '@pnpm/fetch': 'link:'
@@ -407,7 +407,7 @@ importers:
       '@types/node-fetch': ^2.5.7
       '@zkochan/retry': ^0.2.0
       cpy-cli: ^3.1.1
-      nock: ^13.0.0
+      nock: 12.0.3
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
   packages/fetcher-base:
@@ -1128,7 +1128,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/semver': 7.2.0
       '@types/ssri': 6.0.3
-      nock: 13.0.0
+      nock: 12.0.3
       path-exists: 4.0.0
       tempy: 0.5.0
     specifiers:
@@ -1147,7 +1147,7 @@ importers:
       encode-registry: 2.0.2
       load-json-file: 6.2.0
       mz: ^2.7.0
-      nock: ^13.0.0
+      nock: 12.0.3
       normalize-path: 3.0.0
       p-limit: ^3.0.1
       p-memoize: 4.0.0
@@ -1281,7 +1281,7 @@ importers:
       '@types/ssri': 6.0.3
       delay: 4.3.0
       ncp: 2.0.0
-      nock: 13.0.0
+      nock: 12.0.3
       normalize-path: 3.0.0
       sinon: 9.0.2
       tempy: 0.5.0
@@ -1307,7 +1307,7 @@ importers:
       load-json-file: 6.2.0
       mz: 2.7.0
       ncp: 2.0.0
-      nock: ^13.0.0
+      nock: 12.0.3
       normalize-path: 3.0.0
       p-defer: ^3.0.0
       p-limit: ^3.0.1
@@ -2652,7 +2652,7 @@ importers:
       is-ci: 2.0.0
       is-windows: 1.0.2
       ncp: 2.0.0
-      nock: 13.0.0
+      nock: 12.0.3
       npm-run-all: 4.1.5
       path-exists: 4.0.0
       path-name: 1.0.0
@@ -2735,7 +2735,7 @@ importers:
       load-json-file: 6.2.0
       mz: ^2.7.0
       ncp: 2.0.0
-      nock: ^13.0.0
+      nock: 12.0.3
       normalize-path: ^3.0.0
       npm-run-all: 4.1.5
       p-every: ^2.0.0
@@ -2794,7 +2794,7 @@ importers:
       '@types/rimraf': 3.0.0
       '@types/ssri': 6.0.3
       cp-file: 9.0.0
-      nock: 13.0.0
+      nock: 12.0.3
       tempy: 0.5.0
     specifiers:
       '@pnpm/cafs': 'workspace:1.0.5'
@@ -2814,7 +2814,7 @@ importers:
       cp-file: 9.0.0
       graceful-fs: ^4.2.4
       mz: ^2.7.0
-      nock: ^13.0.0
+      nock: 12.0.3
       ssri: 6.0.1
       tempy: 0.5.0
   packages/tarball-resolver:
@@ -8367,10 +8367,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DdOXEhPHxW34gJd9UEyI+0cal6w=
-  /lodash.set/4.3.2:
-    dev: true
-    resolution:
-      integrity: sha1-2HV7HagH3eJIFrDWqEvqGnYjCyM=
   /lodash.sortby/4.7.0:
     dev: true
     resolution:
@@ -9004,17 +9000,17 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-PC9UVvGgYMEvO27Kupun+rIMPU28PvJlHn3Xh+DQkbmvkQiVwtSTeRTVH1QU9PWLHERW/0ClHVVMo6oyUF60Sw==
-  /nock/13.0.0:
+  /nock/12.0.3:
     dependencies:
       debug: 4.1.1
       json-stringify-safe: 5.0.1
-      lodash.set: 4.3.2
+      lodash: 4.17.15
       propagate: 2.0.1
     dev: true
     engines:
       node: '>= 10.13'
     resolution:
-      integrity: sha512-FiW8t91Je5yG5MVT1r+go1Z9bX3rCYIEjenUYeZrEl2v8aTWdIX336itrmQaKUO8Ske5Z7RHR7OIzr/9p0Ujjg==
+      integrity: sha512-QNb/j8kbFnKCiyqi9C5DD0jH/FubFGj5rt9NQFONXwQm3IPB0CULECg/eS3AU1KgZb/6SwUa4/DTRKhVxkGABw==
   /node-fetch-unix/2.3.0:
     dev: false
     engines:

@@ -108,6 +108,10 @@
     {
       "packageNames": ["tape"],
       "allowedVersions": "^4.13.3"
+    },
+    {
+      "packageNames": ["nock"],
+      "allowedVersions": "12.0.3"
     }
   ],
   "pinVersions": false,
