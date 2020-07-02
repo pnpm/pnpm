@@ -1,6 +1,6 @@
 ---
 "@pnpm/config": minor
-"@pnpm/plugin-commands-installation": patch
+"@pnpm/plugin-commands-installation": major
 ---
 
 A new setting is returned by `@pnpm/config`: `npmGlobalBinDir`.
