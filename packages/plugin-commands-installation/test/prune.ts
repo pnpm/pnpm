@@ -37,6 +37,7 @@ test('prune removes external link that is not in package.json', async function (
   await link.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
+    npmGlobalBinDir: process.cwd(),
     storeDir,
   }, ['./local'])
 

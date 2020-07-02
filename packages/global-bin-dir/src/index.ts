@@ -3,17 +3,23 @@ import { sync as canWriteToDir } from 'can-write-to-dir'
 import path = require('path')
 import PATH = require('path-name')
 
-export default function () {
+export default function (knownCandidates: string[] = []) {
   if (!process.env[PATH]) {
     throw new PnpmError('NO_PATH_ENV',
       `Couldn't find a global directory for executables because the "${PATH}" environment variable is not set.`)
   }
   const dirs = process.env[PATH]?.split(path.delimiter) ?? []
-  return pickBestGlobalBinDir(dirs)
+  const nodeBinDir = path.dirname(process.execPath)
+  return pickBestGlobalBinDir(dirs, [
+    ...knownCandidates,
+    nodeBinDir,
+  ])
 }
 
-function pickBestGlobalBinDir (dirs: string[]) {
-  const nodeBinDir = path.dirname(process.execPath)
+const areDirsEqual = (dir1: string, dir2: string) =>
+  path.relative(dir1, dir2) === ''
+
+function pickBestGlobalBinDir (dirs: string[], knownCandidates: string[]) {
   const noWriteAccessDirs = [] as string[]
   for (const dir of dirs) {
     const lowCaseDir = dir.toLowerCase()
@@ -22,7 +28,7 @@ function pickBestGlobalBinDir (dirs: string[]) {
       isUnderDir('nodejs', lowCaseDir) ||
       isUnderDir('npm', lowCaseDir) ||
       isUnderDir('pnpm', lowCaseDir) ||
-      path.relative(nodeBinDir, dir) === ''
+      knownCandidates.some((candidate) => areDirsEqual(candidate, dir))
     ) {
       if (canWriteToDirAndExists(dir)) return dir
       noWriteAccessDirs.push(dir)

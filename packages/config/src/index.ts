@@ -196,6 +196,9 @@ export default async (
         ? npmConfig.globalPrefix
         : findBestGlobalPrefixOnWindows(npmConfig.globalPrefix, process.env)
     )
+  pnpmConfig.npmGlobalBinDir = process.platform === 'win32'
+    ? npmGlobalPrefix
+    : path.resolve(npmGlobalPrefix, 'bin')
   pnpmConfig.globalDir = pnpmConfig.globalDir ? npmGlobalPrefix : path.join(npmGlobalPrefix, 'pnpm-global')
   pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
   pnpmConfig.useLockfile = (() => {
@@ -224,7 +227,7 @@ export default async (
         process.platform === 'win32'
           ? cliOptions.dir : path.resolve(cliOptions.dir, 'bin')
       )
-      : globalBinDir()
+      : globalBinDir([pnpmConfig.npmGlobalBinDir])
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
     pnpmConfig.saveProd = true
