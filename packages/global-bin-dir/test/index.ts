@@ -50,6 +50,12 @@ test('prefer a directory that has "nodejs", "npm", or "pnpm" in the path', (t) =
   t.end()
 })
 
+test('prefer directory that is passed in as a known suitable location', (t) => {
+  canWriteToDir = () => true
+  t.equal(globalBinDir([userGlobalBin]), userGlobalBin)
+  t.end()
+})
+
 test("ignore directories that don't exist", (t) => {
   canWriteToDir = (dir) => {
     if (dir === nodeGlobalBin) {

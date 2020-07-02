@@ -74,6 +74,7 @@ export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
     | 'cliOptions'
     | 'engineStrict'
+    | 'npmGlobalBinDir'
     | 'saveDev'
     | 'saveOptional'
     | 'saveProd'
@@ -107,7 +108,7 @@ export async function handler (
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
       // A temporary workaround. global bin/prefix are always defined when --global is set
-      globalBin: globalBinDir(),
+      globalBin: globalBinDir([linkOpts.npmGlobalBinDir]),
       globalDir: linkOpts.globalDir!,
       manifest: manifest || {},
     })

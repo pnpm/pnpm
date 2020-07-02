@@ -24,6 +24,7 @@ export interface Config {
   globalDir: string,
   dir: string,
   bin?: string,
+  npmGlobalBinDir: string,
   ignoreScripts?: boolean
   save?: boolean,
   saveProd?: boolean,
