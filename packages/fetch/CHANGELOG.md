@@ -1,5 +1,18 @@
 # @pnpm/fetch
 
+## 2.1.0
+
+### Minor Changes
+
+- 71aeb9a38: fetchFromRegistry() added.
+
+### Patch Changes
+
+- Updated dependencies [c3796a71d]
+- Updated dependencies [71aeb9a38]
+  - @pnpm/npm-registry-agent@3.0.0
+  - @pnpm/fetching-types@1.0.0
+
 ## 2.0.2
 
 ### Patch Changes

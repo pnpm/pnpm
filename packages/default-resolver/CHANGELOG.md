@@ -1,5 +1,19 @@
 # @pnpm/default-resolver
 
+## 10.0.0
+
+### Major Changes
+
+- 71aeb9a38: Breaking changes to the API. fetchFromRegistry and getCredentials are passed in through arguments.
+
+### Patch Changes
+
+- Updated dependencies [71aeb9a38]
+- Updated dependencies [71aeb9a38]
+  - @pnpm/fetching-types@1.0.0
+  - @pnpm/npm-resolver@9.0.0
+  - @pnpm/git-resolver@4.0.16
+
 ## 9.0.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-listing
 
+## 2.0.7
+
+### Patch Changes
+
+- Updated dependencies [71aeb9a38]
+- Updated dependencies [915828b46]
+  - @pnpm/config@11.0.0
+  - @pnpm/cli-utils@0.4.12
+
 ## 2.0.6
 
 ### Patch Changes

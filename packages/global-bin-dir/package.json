@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/global-bin-dir",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Finds a directory that is in PATH and we have permission to write to i",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

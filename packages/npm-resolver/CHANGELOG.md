@@ -1,5 +1,16 @@
 # @pnpm/npm-resolver
 
+## 9.0.0
+
+### Major Changes
+
+- 71aeb9a38: Breaking changes to the API. fetchFromRegistry and getCredentials are passed in through arguments.
+
+### Patch Changes
+
+- Updated dependencies [71aeb9a38]
+  - @pnpm/fetching-types@1.0.0
+
 ## 8.1.2
 
 ### Patch Changes

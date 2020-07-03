@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "10.0.1",
+  "version": "11.0.0",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/global-bin-dir": "workspace:^1.0.1",
+    "@pnpm/global-bin-dir": "workspace:^1.1.0",
     "@pnpm/types": "workspace:6.2.0",
     "@zkochan/npm-conf": "2.0.0",
     "camelcase": "6.0.0",

@@ -1,5 +1,24 @@
 # @pnpm/config
 
+## 11.0.0
+
+### Major Changes
+
+- 71aeb9a38: Remove proxy from the object returned by @pnpm/config. httpsProxy and httpProxy are returned instead.
+
+### Minor Changes
+
+- 915828b46: A new setting is returned by `@pnpm/config`: `npmGlobalBinDir`.
+  `npmGlobalBinDir` is the global executable directory used by npm.
+
+  This new config is used by `@pnpm/global-bin-dir` to find a suitable
+  directory for the binstubs installed by pnpm globally.
+
+### Patch Changes
+
+- Updated dependencies [915828b46]
+  - @pnpm/global-bin-dir@1.1.0
+
 ## 10.0.1
 
 ### Patch Changes

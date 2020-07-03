@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-installation
 
+## 3.0.0
+
+### Major Changes
+
+- 915828b46: A new setting is returned by `@pnpm/config`: `npmGlobalBinDir`.
+  `npmGlobalBinDir` is the global executable directory used by npm.
+
+  This new config is used by `@pnpm/global-bin-dir` to find a suitable
+  directory for the binstubs installed by pnpm globally.
+
+### Patch Changes
+
+- Updated dependencies [71aeb9a38]
+- Updated dependencies [915828b46]
+- Updated dependencies [915828b46]
+  - @pnpm/config@11.0.0
+  - @pnpm/global-bin-dir@1.1.0
+  - @pnpm/cli-utils@0.4.12
+  - @pnpm/plugin-commands-rebuild@2.0.17
+  - @pnpm/store-connection-manager@0.3.15
+  - @pnpm/outdated@7.1.3
+  - @pnpm/package-store@9.0.12
+  - supi@0.41.6
+  - @pnpm/find-workspace-packages@2.2.10
+  - @pnpm/filter-workspace-packages@2.1.5
+
 ## 2.1.6
 
 ### Patch Changes

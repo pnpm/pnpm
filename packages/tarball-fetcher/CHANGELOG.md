@@ -1,5 +1,16 @@
 # @pnpm/tarball-fetcher
 
+## 8.0.0
+
+### Major Changes
+
+- 71aeb9a38: Breaking changes to the API. fetchFromRegistry and getCredentials are passed in through arguments.
+
+### Patch Changes
+
+- Updated dependencies [71aeb9a38]
+  - @pnpm/fetching-types@1.0.0
+
 ## 7.1.4
 
 ### Patch Changes

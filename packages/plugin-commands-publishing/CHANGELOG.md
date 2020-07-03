@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.4
+
+### Patch Changes
+
+- Updated dependencies [71aeb9a38]
+- Updated dependencies [71aeb9a38]
+- Updated dependencies [71aeb9a38]
+- Updated dependencies [915828b46]
+  - @pnpm/config@11.0.0
+  - @pnpm/fetch@2.1.0
+  - @pnpm/npm-resolver@9.0.0
+  - @pnpm/cli-utils@0.4.12
+
 ## 2.1.3
 
 ### Patch Changes

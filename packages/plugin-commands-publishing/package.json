@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "description": "The pack and publish commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-publishing#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:2.1.4",
+    "@pnpm/filter-workspace-packages": "workspace:2.1.5",
     "@pnpm/plugin-commands-publishing": "link:",
     "@pnpm/prepare": "workspace:0.0.7",
     "@types/cross-spawn": "^6.0.2",
@@ -52,12 +52,12 @@
     "write-yaml-file": "^4.1.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.11",
-    "@pnpm/config": "workspace:10.0.1",
+    "@pnpm/cli-utils": "workspace:0.4.12",
+    "@pnpm/config": "workspace:11.0.0",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/fetch": "workspace:^2.0.2",
+    "@pnpm/fetch": "workspace:^2.1.0",
     "@pnpm/lifecycle": "workspace:9.1.3",
-    "@pnpm/npm-resolver": "workspace:8.1.2",
+    "@pnpm/npm-resolver": "workspace:9.0.0",
     "@pnpm/pick-registry-for-package": "workspace:1.0.3",
     "@pnpm/read-project-manifest": "workspace:1.0.9",
     "@pnpm/resolver-base": "workspace:7.0.3",

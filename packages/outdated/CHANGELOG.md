@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 7.1.3
+
+### Patch Changes
+
+- Updated dependencies [71aeb9a38]
+- Updated dependencies [71aeb9a38]
+  - @pnpm/fetch@2.1.0
+  - @pnpm/default-resolver@10.0.0
+
 ## 7.1.2
 
 ### Patch Changes
