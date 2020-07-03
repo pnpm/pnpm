@@ -1,5 +1,6 @@
 import PnpmError from '@pnpm/error'
 import { sync as canWriteToDir } from 'can-write-to-dir'
+import fs = require('fs')
 import path = require('path')
 import PATH = require('path-name')
 
@@ -28,7 +29,8 @@ function pickBestGlobalBinDir (dirs: string[], knownCandidates: string[]) {
       isUnderDir('nodejs', lowCaseDir) ||
       isUnderDir('npm', lowCaseDir) ||
       isUnderDir('pnpm', lowCaseDir) ||
-      knownCandidates.some((candidate) => areDirsEqual(candidate, dir))
+      knownCandidates.some((candidate) => areDirsEqual(candidate, dir)) ||
+      dirHasNodeRelatedCommand(dir)
     ) {
       if (canWriteToDirAndExists(dir)) return dir
       noWriteAccessDirs.push(dir)
@@ -43,6 +45,18 @@ function pickBestGlobalBinDir (dirs: string[], knownCandidates: string[]) {
     hint: `The found directories:
 ${noWriteAccessDirs.join('\n')}`,
   })
+}
+
+const NODE_RELATED_COMMANDS = new Set(['pnpm', 'npm', 'node'])
+
+function dirHasNodeRelatedCommand (dir: string) {
+  try {
+    const files = fs.readdirSync(dir)
+    return files.map((file) => file.toLowerCase())
+      .some((file) => NODE_RELATED_COMMANDS.has(file.split('.')[0]))
+  } catch (err) {
+    return false
+  }
 }
 
 function isUnderDir (dir: string, target: string) {

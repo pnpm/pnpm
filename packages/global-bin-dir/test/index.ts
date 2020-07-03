@@ -1,5 +1,6 @@
 import PnpmError from '@pnpm/error'
 import { sync as _canWriteToDir } from 'can-write-to-dir'
+import fs = require('fs')
 import isWindows = require('is-windows')
 import path = require('path')
 import proxiquire = require('proxyquire')
@@ -11,11 +12,15 @@ const makePath =
     : (...paths: string[]) => `/${path.join(...paths)}`
 
 let canWriteToDir!: typeof _canWriteToDir
+let readdirSync = (dir: string) => [] as string[]
 const FAKE_PATH = 'FAKE_PATH'
 
 const globalBinDir = proxiquire('../lib/index.js', {
   'can-write-to-dir': {
     sync: (dir: string) => canWriteToDir(dir),
+  },
+  'fs': {
+    readdirSync: (dir: string) => readdirSync(dir),
   },
   'path-name': FAKE_PATH,
 }).default
@@ -126,6 +131,40 @@ test('prefer a directory that has "Node" in the path', (t) => {
 
   canWriteToDir = () => true
   t.equal(globalBinDir(), capitalizedNodeGlobalBin)
+
+  process.env[FAKE_PATH] = pathEnv
+  t.end()
+})
+
+test('select a directory that has a node command in it', (t) => {
+  const dir1 = makePath('foo')
+  const dir2 = makePath('bar')
+  const pathEnv = process.env[FAKE_PATH]
+  process.env[FAKE_PATH] = [
+    dir1,
+    dir2,
+  ].join(path.delimiter)
+
+  canWriteToDir = () => true
+  readdirSync = (dir) => dir === dir2 ? ['node'] : []
+  t.equal(globalBinDir(), dir2)
+
+  process.env[FAKE_PATH] = pathEnv
+  t.end()
+})
+
+test('select a directory that has a node.bat command in it', (t) => {
+  const dir1 = makePath('foo')
+  const dir2 = makePath('bar')
+  const pathEnv = process.env[FAKE_PATH]
+  process.env[FAKE_PATH] = [
+    dir1,
+    dir2,
+  ].join(path.delimiter)
+
+  canWriteToDir = () => true
+  readdirSync = (dir) => dir === dir2 ? ['node.bat'] : []
+  t.equal(globalBinDir(), dir2)
 
   process.env[FAKE_PATH] = pathEnv
   t.end()
