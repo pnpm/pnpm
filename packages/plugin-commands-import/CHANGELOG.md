@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-import
 
+## 1.0.35
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.4.13
+- @pnpm/store-connection-manager@0.3.16
+
 ## 1.0.34
 
 ### Patch Changes

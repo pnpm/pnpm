@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [245221baa]
+  - @pnpm/global-bin-dir@1.1.1
+
 ## 11.0.0
 
 ### Major Changes

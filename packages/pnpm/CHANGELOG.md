@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.2.8
+
+### Patch Changes
+
+- Fixing some issues with finding the target directory for command files during global installation.
+
 ## 5.2.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-outdated",
-  "version": "2.0.9",
+  "version": "2.0.10",
   "description": "The outdated command of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-outdated#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:4.0.0",
-    "@pnpm/filter-workspace-packages": "workspace:2.1.5",
+    "@pnpm/filter-workspace-packages": "workspace:2.1.6",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-outdated": "link:",
     "@pnpm/prepare": "workspace:0.0.7",
@@ -48,11 +48,11 @@
     "strip-ansi": "6.0.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.12",
+    "@pnpm/cli-utils": "workspace:0.4.13",
     "@pnpm/colorize-semver-diff": "1.0.0",
     "@pnpm/command": "workspace:1.0.0",
     "@pnpm/common-cli-options-help": "workspace:0.1.6",
-    "@pnpm/config": "workspace:11.0.0",
+    "@pnpm/config": "workspace:11.0.1",
     "@pnpm/default-resolver": "workspace:10.0.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/lockfile-file": "workspace:3.0.11",

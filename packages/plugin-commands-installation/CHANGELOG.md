@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-installation
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [245221baa]
+  - @pnpm/global-bin-dir@1.1.1
+  - @pnpm/config@11.0.1
+  - @pnpm/cli-utils@0.4.13
+  - @pnpm/plugin-commands-rebuild@2.0.18
+  - @pnpm/store-connection-manager@0.3.16
+  - @pnpm/find-workspace-packages@2.2.11
+  - @pnpm/filter-workspace-packages@2.1.6
+
 ## 3.0.0
 
 ### Major Changes

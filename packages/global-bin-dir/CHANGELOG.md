@@ -1,5 +1,11 @@
 # @pnpm/global-bin-dir
 
+## 1.1.1
+
+### Patch Changes
+
+- 245221baa: When searching a suitable global executables directory, take any directory from the PATH that has a node, pnpm, or npm command in it.
+
 ## 1.1.0
 
 ### Minor Changes
