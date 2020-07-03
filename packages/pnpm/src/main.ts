@@ -87,7 +87,11 @@ export default async function run (inputArgv: string[]) {
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
     console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(err.message)}`)
-    console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+    if (err['hint']) {
+      console.log(err['hint'])
+    } else {
+      console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+    }
     process.exit(1)
     return
   }
