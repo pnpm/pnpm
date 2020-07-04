@@ -42,7 +42,7 @@ export default async function link (
   }
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
@@ -164,7 +164,7 @@ export default async function link (
 
   summaryLogger.debug({ prefix: opts.dir })
 
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 
@@ -208,7 +208,7 @@ export async function linkFromGlobal (
   maybeOpts: LinkOptions & {globalDir: string}
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
@@ -216,7 +216,7 @@ export async function linkFromGlobal (
   const linkFromPkgs = pkgNames.map((pkgName) => path.join(globalPkgPath, 'node_modules', pkgName))
   const newManifest = await link(linkFromPkgs, path.join(linkTo, 'node_modules'), opts)
 
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 
@@ -231,7 +231,7 @@ export async function linkToGlobal (
   }
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   maybeOpts.lockfileDir = maybeOpts.lockfileDir || maybeOpts.globalDir
@@ -243,7 +243,7 @@ export async function linkToGlobal (
     linkToBin: maybeOpts.globalBin,
   })
 
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 

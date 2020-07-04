@@ -112,7 +112,7 @@ export interface HeadlessOptions {
 
 export default async (opts: HeadlessOptions) => {
   const reporter = opts.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
 
@@ -358,7 +358,7 @@ export default async (opts: HeadlessOptions) => {
     )
   }
 
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 }

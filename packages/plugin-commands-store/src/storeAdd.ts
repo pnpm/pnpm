@@ -17,7 +17,7 @@ export default async function (
   }
 ) {
   const reporter = opts?.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
 
@@ -45,7 +45,7 @@ export default async function (
     }
   }))
 
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 
