@@ -123,7 +123,7 @@ export default async function run (inputArgv: string[]) {
     cmd,
     config,
   })
-  global['reporterInitialized'] = true
+  global['reporterInitialized'] = reporterType
 
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // tslint:disable-line:no-any
