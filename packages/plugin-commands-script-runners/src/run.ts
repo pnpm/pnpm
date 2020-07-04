@@ -99,7 +99,7 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'reporter'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -136,6 +136,7 @@ export async function handler (
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    silent: opts.reporter === 'silent',
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }

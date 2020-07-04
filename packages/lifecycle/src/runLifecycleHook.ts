@@ -12,6 +12,7 @@ export type RunLifecycleHookOptions = {
   pkgRoot: string,
   rawConfig: object,
   rootModulesDir: string,
+  silent?: boolean,
   stdio?: string,
   unsafePerm: boolean,
 }
@@ -44,26 +45,32 @@ export default async function runLifecycleHook (
       wd: opts.pkgRoot,
     })
   }
-  return lifecycle(m, stage, opts.pkgRoot, {
-    config: opts.rawConfig,
-    dir: opts.rootModulesDir,
-    extraBinPaths: opts.extraBinPaths || [],
-    extraEnv: { PNPM_SCRIPT_SRC_DIR: opts.pkgRoot },
-    log: {
-      clearProgress: noop,
-      info: noop,
-      level: opts.stdio === 'inherit' ? undefined : 'silent',
-      pause: noop,
-      resume: noop,
-      showProgress: noop,
-      silly: npmLog,
-      verbose: npmLog,
-      warn: noop,
-    },
-    runConcurrently: true,
-    stdio: opts.stdio || 'pipe',
-    unsafePerm: opts.unsafePerm,
-  })
+  const logLevel = opts.stdio !== 'inherit' || opts.silent ? 'silent' : undefined
+  try {
+    await lifecycle(m, stage, opts.pkgRoot, {
+      config: opts.rawConfig,
+      dir: opts.rootModulesDir,
+      extraBinPaths: opts.extraBinPaths || [],
+      extraEnv: { PNPM_SCRIPT_SRC_DIR: opts.pkgRoot },
+      log: {
+        clearProgress: noop,
+        info: noop,
+        level: logLevel,
+        pause: noop,
+        resume: noop,
+        showProgress: noop,
+        silly: npmLog,
+        verbose: npmLog,
+        warn: noop,
+      },
+      runConcurrently: true,
+      stdio: opts.stdio || 'pipe',
+      unsafePerm: opts.unsafePerm,
+    })
+  } catch (err) {
+    err['code'] = 'ERR_PNPM_LIFECYCLE'
+    throw err
+  }
 
   function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
     switch (stdtype) {
