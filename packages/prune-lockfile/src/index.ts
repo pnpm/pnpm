@@ -142,13 +142,11 @@ function copyPackageSnapshots (
     dev: true,
     nonOptional,
     notProdOnly,
-    walkOptionals: true,
   })
 
   copyDependencySubGraph(copiedPackages, opts.prodRelPaths, originalPackages, new Set(), opts.warn, {
     nonOptional,
     notProdOnly,
-    walkOptionals: true,
   })
 
   return copiedPackages
@@ -171,7 +169,6 @@ function copyDependencySubGraph (
     optional?: boolean,
     nonOptional: Set<string>,
     notProdOnly: Set<string>,
-    walkOptionals?: boolean,
   }
 ) {
   for (const depRalativePath of depRelativePaths) {
@@ -207,7 +204,6 @@ function copyDependencySubGraph (
       .map((pkgName: string) => refToRelative((depLockfile.dependencies && depLockfile.dependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]
     copyDependencySubGraph(copiedSnapshots, newDependencies, originalPackages, walked, warn, opts)
-    if (!opts.walkOptionals) continue
     const newOptionalDependencies = R.keys(depLockfile.optionalDependencies)
       .map((pkgName: string) => refToRelative((depLockfile.optionalDependencies && depLockfile.optionalDependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]

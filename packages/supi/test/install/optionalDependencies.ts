@@ -341,6 +341,22 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   }
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/2663
+test('optional subdependency of newly added optional dependency is skipped', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  const reporter = sinon.spy()
+
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-optional'], await testDefaults({ reporter, targetDependenciesField: 'optionalDependencies' }))
+
+  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  t.deepEqual(modulesInfo.skipped, ['/dep-of-optional-pkg/1.0.0', '/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
+
+  const lockfile = await project.readLockfile()
+
+  t.equal(Object.keys(lockfile.packages).length, 3)
+  t.ok(lockfile.packages['/not-compatible-with-any-os/1.0.0'])
+})
+
 test('only that package is skipped which is an optional dependency only and not installable', async (t) => {
   prepareEmpty(t)
   const reporter = sinon.spy()
