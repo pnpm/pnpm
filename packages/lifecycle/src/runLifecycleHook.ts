@@ -45,7 +45,8 @@ export default async function runLifecycleHook (
       wd: opts.pkgRoot,
     })
   }
-  const logLevel = opts.stdio !== 'inherit' || opts.silent ? 'silent' : undefined
+  const logLevel = (opts.stdio !== 'inherit' || opts.silent)
+    ? 'silent' : undefined
   await lifecycle(m, stage, opts.pkgRoot, {
     config: opts.rawConfig,
     dir: opts.rootModulesDir,
