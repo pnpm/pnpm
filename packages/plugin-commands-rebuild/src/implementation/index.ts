@@ -84,7 +84,7 @@ export async function rebuildPkgs (
   maybeOpts: RebuildOptions
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
@@ -129,7 +129,7 @@ export async function rebuild (
   maybeOpts: RebuildOptions
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)

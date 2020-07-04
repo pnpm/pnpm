@@ -130,7 +130,7 @@ export async function mutateModules (
   }
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
 
@@ -152,7 +152,7 @@ export async function mutateModules (
 
   const result = await _install()
 
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 

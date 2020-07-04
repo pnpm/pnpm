@@ -12,6 +12,7 @@ export type RunLifecycleHookOptions = {
   pkgRoot: string,
   rawConfig: object,
   rootModulesDir: string,
+  silent?: boolean,
   stdio?: string,
   unsafePerm: boolean,
 }
@@ -44,7 +45,9 @@ export default async function runLifecycleHook (
       wd: opts.pkgRoot,
     })
   }
-  return lifecycle(m, stage, opts.pkgRoot, {
+  const logLevel = (opts.stdio !== 'inherit' || opts.silent)
+    ? 'silent' : undefined
+  await lifecycle(m, stage, opts.pkgRoot, {
     config: opts.rawConfig,
     dir: opts.rootModulesDir,
     extraBinPaths: opts.extraBinPaths || [],
@@ -52,7 +55,7 @@ export default async function runLifecycleHook (
     log: {
       clearProgress: noop,
       info: noop,
-      level: opts.stdio === 'inherit' ? undefined : 'silent',
+      level: logLevel,
       pause: noop,
       resume: noop,
       showProgress: noop,

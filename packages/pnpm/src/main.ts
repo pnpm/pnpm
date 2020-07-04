@@ -123,8 +123,7 @@ export default async function run (inputArgv: string[]) {
     cmd,
     config,
   })
-  global['reporterInitialized'] = true
-  delete config.reporter // This is a silly workaround because supi expects a function as config.reporter
+  global['reporterInitialized'] = reporterType
 
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // tslint:disable-line:no-any

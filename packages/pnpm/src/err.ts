@@ -5,6 +5,9 @@ export default function err (error: Error) {
     console.log(error)
     process.exit(1)
   }
+  if (global['reporterInitialized'] === 'silent') {
+    process.exit(1)
+  }
 
   // bole passes only the name, message and stack of an error
   // that is why we pass error as a message as well, to pass

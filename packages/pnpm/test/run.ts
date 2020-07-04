@@ -75,3 +75,15 @@ test('install-test: install dependencies and runs tests', async (t: tape.Test) =
     'posttest',
   ])
 })
+
+test('silent run only prints the output of the child process', async (t: tape.Test) => {
+  prepare(t, {
+    scripts: {
+      hi: 'echo hi && exit 1',
+    },
+  })
+
+  const result = execPnpmSync(['run', '--silent', 'hi'])
+
+  t.ok(result.stdout.toString().trim() === 'hi')
+})
