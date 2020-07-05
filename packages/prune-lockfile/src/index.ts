@@ -18,9 +18,9 @@ export function pruneSharedLockfile (
   }
 ) {
   const copiedPackages = !lockfile.packages ? {} : copyPackageSnapshots(lockfile.packages, {
-    devRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.devDependencies || {}))),
-    optionalRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.optionalDependencies || {}))),
-    prodRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
+    devDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.devDependencies || {}))),
+    optionalDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.optionalDependencies || {}))),
+    prodDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
     warn: opts && opts.warn || ((msg: string) => undefined),
   })
 
@@ -111,42 +111,36 @@ export function pruneLockfile (
 function copyPackageSnapshots (
   originalPackages: PackageSnapshots,
   opts: {
-    devRelPaths: string[],
-    optionalRelPaths: string[],
-    prodRelPaths: string[],
+    devDepPaths: string[],
+    optionalDepPaths: string[],
+    prodDepPaths: string[],
     warn: (msg: string) => void,
   }
 ): PackageSnapshots {
   const copiedPackages: PackageSnapshots = {}
   const nonOptional = new Set<string>()
   const notProdOnly = new Set<string>()
+  const walked = new Set<string>()
 
-  copyDependencySubGraph(copiedPackages, opts.devRelPaths, originalPackages, new Set(), opts.warn, {
+  copyDependencySubGraph(copiedPackages, opts.devDepPaths, originalPackages, walked, opts.warn, {
     dev: true,
     nonOptional,
     notProdOnly,
+    optional: false,
   })
 
-  copyDependencySubGraph(copiedPackages, opts.prodRelPaths, originalPackages, new Set(), opts.warn, {
-    nonOptional,
-    notProdOnly,
-  })
-
-  copyDependencySubGraph(copiedPackages, opts.optionalRelPaths, originalPackages, new Set(), opts.warn, {
+  copyDependencySubGraph(copiedPackages, opts.optionalDepPaths, originalPackages, walked, opts.warn, {
+    dev: false,
     nonOptional,
     notProdOnly,
     optional: true,
   })
 
-  copyDependencySubGraph(copiedPackages, opts.devRelPaths, originalPackages, new Set(), opts.warn, {
-    dev: true,
+  copyDependencySubGraph(copiedPackages, opts.prodDepPaths, originalPackages, walked, opts.warn, {
+    dev: false,
     nonOptional,
     notProdOnly,
-  })
-
-  copyDependencySubGraph(copiedPackages, opts.prodRelPaths, originalPackages, new Set(), opts.warn, {
-    nonOptional,
-    notProdOnly,
+    optional: false,
   })
 
   return copiedPackages
@@ -160,53 +154,52 @@ function resolvedDepsToRelDepPaths (deps: ResolvedDependencies) {
 
 function copyDependencySubGraph (
   copiedSnapshots: PackageSnapshots,
-  depRelativePaths: string[],
+  depPaths: string[],
   originalPackages: PackageSnapshots,
   walked: Set<string>,
   warn: (msg: string) => void,
   opts: {
-    dev?: boolean,
-    optional?: boolean,
+    dev: boolean,
+    optional: boolean,
     nonOptional: Set<string>,
     notProdOnly: Set<string>,
   }
 ) {
-  for (const depRalativePath of depRelativePaths) {
-    if (walked.has(depRalativePath)) continue
-    walked.add(depRalativePath)
-    if (!originalPackages[depRalativePath]) {
+  for (const depPath of depPaths) {
+    const key = `${depPath}:${opts.optional}:${opts.dev}`
+    if (walked.has(key)) continue
+    walked.add(key)
+    if (!originalPackages[depPath]) {
       // local dependencies don't need to be resolved in pnpm-lock.yaml
       // except local tarball dependencies
-      if (depRalativePath.startsWith('link:') || depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
+      if (depPath.startsWith('link:') || depPath.startsWith('file:') && !depPath.endsWith('.tar.gz')) continue
 
-      // NOTE: Warnings should not be printed for the current lockfile (node_modules/.lockfile.yaml).
-      // The current lockfile does not contain the skipped packages, so it may have missing resolutions
-      warn(`Cannot find resolution of ${depRalativePath} in lockfile`)
+      warn(`Cannot find resolution of ${depPath} in lockfile`)
       continue
     }
-    const depLockfile = originalPackages[depRalativePath]
-    copiedSnapshots[depRalativePath] = depLockfile
-    if (opts.optional && !opts.nonOptional.has(depRalativePath)) {
+    const depLockfile = originalPackages[depPath]
+    copiedSnapshots[depPath] = depLockfile
+    if (opts.optional && !opts.nonOptional.has(depPath)) {
       depLockfile.optional = true
     } else {
-      opts.nonOptional.add(depRalativePath)
+      opts.nonOptional.add(depPath)
       delete depLockfile.optional
     }
     if (opts.dev) {
-      opts.notProdOnly.add(depRalativePath)
+      opts.notProdOnly.add(depPath)
       depLockfile.dev = true
     } else if (depLockfile.dev === true) { // keeping if dev is explicitly false
       delete depLockfile.dev
-    } else if (depLockfile.dev === undefined && !opts.notProdOnly.has(depRalativePath)) {
+    } else if (depLockfile.dev === undefined && !opts.notProdOnly.has(depPath)) {
       depLockfile.dev = false
     }
-    const newDependencies = R.keys(depLockfile.dependencies)
-      .map((pkgName: string) => refToRelative((depLockfile.dependencies && depLockfile.dependencies[pkgName]) as string, pkgName))
-      .filter((relPath) => relPath !== null) as string[]
+    const newDependencies = Object.entries(depLockfile.dependencies ?? {})
+      .map(([alias, ref]) => refToRelative(ref, alias))
+      .filter((depPath) => depPath !== null) as string[]
     copyDependencySubGraph(copiedSnapshots, newDependencies, originalPackages, walked, warn, opts)
-    const newOptionalDependencies = R.keys(depLockfile.optionalDependencies)
-      .map((pkgName: string) => refToRelative((depLockfile.optionalDependencies && depLockfile.optionalDependencies[pkgName]) as string, pkgName))
-      .filter((relPath) => relPath !== null) as string[]
+    const newOptionalDependencies = Object.entries(depLockfile.optionalDependencies ?? {})
+      .map(([alias, ref]) => refToRelative(ref, alias))
+      .filter((depPath) => depPath !== null) as string[]
     copyDependencySubGraph(copiedSnapshots, newOptionalDependencies, originalPackages, walked, warn, { ...opts, optional: true })
   }
 }

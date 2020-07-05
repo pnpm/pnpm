@@ -679,13 +679,13 @@ async function resolveDependency (
         pnpmVersion: ctx.pnpmVersion,
       })
     )
-  if (currentIsInstallable !== true || !parentIsInstallable) {
-    ctx.skipped.add(pkgResponse.body.id)
-  }
   const installable = parentIsInstallable && currentIsInstallable !== false
   const isNew = !ctx.resolvedPackagesByPackageId[pkgResponse.body.id]
 
   if (isNew) {
+    if (currentIsInstallable !== true || !parentIsInstallable) {
+      ctx.skipped.add(pkgResponse.body.id)
+    }
     progressLogger.debug({
       packageId: pkgResponse.body.id,
       requester: ctx.lockfileDir,
