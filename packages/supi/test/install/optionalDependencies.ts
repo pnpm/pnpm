@@ -358,7 +358,7 @@ test('optional subdependency of newly added optional dependency is skipped', asy
 })
 
 test('only that package is skipped which is an optional dependency only and not installable', async (t) => {
-  prepareEmpty(t)
+  const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
   const manifest = await addDependenciesToPackage({}, [
@@ -371,6 +371,9 @@ test('only that package is skipped which is an optional dependency only and not 
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     t.deepEqual(modulesInfo.skipped, ['/not-compatible-with-any-os-and-has-peer/1.0.0_peer-c@1.0.0'])
   }
+
+  const lockfile = await project.readLockfile()
+  t.equal(typeof lockfile.packages['/dep-of-optional-pkg/1.0.0'].optional, 'undefined')
 
   await rimraf('node_modules')
 
