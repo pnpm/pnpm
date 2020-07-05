@@ -1,5 +1,5 @@
 import parseCliArgsLib from '@pnpm/parse-cli-args'
-import pnpmCmds, {
+import {
   getCliOptionsTypes,
   getCommandFullName,
   GLOBAL_OPTIONS,
@@ -16,9 +16,9 @@ const RENAMED_OPTIONS = {
 
 export default function parseCliArgs (inputArgv: string[]) {
   return parseCliArgsLib({
+    fallbackCommand: 'run',
     getCommandLongName: getCommandFullName,
     getTypesByCommandName: getCliOptionsTypes,
-    knownCommands: new Set(Object.keys(pnpmCmds)),
     renamedOptions: RENAMED_OPTIONS,
     shorthandsByCommandName,
     universalOptionsTypes: GLOBAL_OPTIONS,

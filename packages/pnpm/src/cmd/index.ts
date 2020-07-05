@@ -145,7 +145,8 @@ export function getRCOptionsTypes (commandName: string | null) {
 }
 
 export function getCommandFullName (commandName: string) {
-  return aliasToFullName.get(commandName) || commandName
+  return aliasToFullName.get(commandName) ||
+    (handlerByCommandName[commandName] ? commandName : null)
 }
 
 export { shorthandsByCommandName }

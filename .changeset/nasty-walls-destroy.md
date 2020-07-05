@@ -1,7 +1,5 @@
 ---
-"@pnpm/parse-cli-args": major
+"@pnpm/parse-cli-args": minor
 ---
 
-New required option added: `knownCommands`.
-
-Any unknown command is assumed to be a script. So `pnpm foo` becomes `pnpm run foo`.
+New option added: `fallbackCommand`. If set, this command is added to the beginning of any unknown query.
