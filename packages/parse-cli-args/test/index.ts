@@ -6,6 +6,7 @@ import test = require('tape')
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
   getTypesByCommandName: (commandName: string) => ({}),
+  knownCommands: new Set(['update', 'add', 'install', 'outdated']),
   renamedOptions: { 'prefix': 'dir' },
   shorthandsByCommandName: {},
   universalOptionsTypes: {},
@@ -89,8 +90,8 @@ test('command is used recursively', async (t) => {
   const { cmd, options } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: {},
-  }, ['recursive', 'foo'])
-  t.equal(cmd, 'foo')
+  }, ['recursive', 'outdated'])
+  t.equal(cmd, 'outdated')
   t.equal(options.recursive, true)
   t.end()
 })
@@ -189,5 +190,16 @@ test('use command-specific shorthands', async (t) => {
     },
   }, ['install', '-D'])
   t.ok(options['dev'])
+  t.end()
+})
+
+test('any unknown command is treated as a script', async (t) => {
+  const { options, cmd, params } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { filter: [String, Array] },
+  }, ['foo', '--recursive'])
+  t.equal(cmd, 'run')
+  t.deepEqual(params, ['foo'])
+  t.ok(options['recursive'])
   t.end()
 })
