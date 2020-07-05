@@ -22,6 +22,7 @@ export default async function parseCliArgs (
   opts: {
     getCommandLongName: (commandName: string) => string | null,
     getTypesByCommandName: (commandName: string) => object,
+    knownCommands: Set<string>,
     renamedOptions?: Record<string, string>,
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>,
     universalOptionsTypes: Record<string, unknown>,
@@ -56,8 +57,13 @@ export default async function parseCliArgs (
   }
 
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
-  const commandName = getCommandName(noptExploratoryResults.argv.remain)
+  let commandName = getCommandName(noptExploratoryResults.argv.remain)
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
+  if (cmd && !opts.knownCommands.has(cmd)) {
+    cmd = 'run'
+    commandName = 'run'
+    inputArgv.unshift('run')
+  }
   const types = {
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(commandName),
