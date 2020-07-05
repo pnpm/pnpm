@@ -84,7 +84,7 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/core-loggers': 'workspace:4.1.2'
-      '@pnpm/lifecycle': 'workspace:9.1.3'
+      '@pnpm/lifecycle': 'workspace:9.2.0'
       '@pnpm/link-bins': 'workspace:5.3.7'
       '@pnpm/logger': 3.2.2
       '@pnpm/read-package-json': 'workspace:3.1.3'
@@ -684,7 +684,7 @@ importers:
       write-json-file: 4.3.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
-      '@pnpm/build-modules': 'workspace:5.0.6'
+      '@pnpm/build-modules': 'workspace:5.0.7'
       '@pnpm/client': 'workspace:^1.0.0'
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/core-loggers': 'workspace:4.1.2'
@@ -692,7 +692,7 @@ importers:
       '@pnpm/filter-lockfile': 'workspace:4.0.4'
       '@pnpm/headless': 'link:'
       '@pnpm/hoist': 'workspace:4.0.3'
-      '@pnpm/lifecycle': 'workspace:9.1.3'
+      '@pnpm/lifecycle': 'workspace:9.2.0'
       '@pnpm/link-bins': 'workspace:5.3.7'
       '@pnpm/lockfile-file': 'workspace:3.0.11'
       '@pnpm/lockfile-utils': 'workspace:2.0.15'
@@ -1497,7 +1497,7 @@ importers:
       load-json-file: 6.2.0
       ncp: 2.0.0
       render-help: 1.0.0
-      supi: 'workspace:0.41.6'
+      supi: 'workspace:0.41.7'
       tempy: 0.5.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1580,7 +1580,7 @@ importers:
       '@pnpm/package-store': 'workspace:9.0.12'
       '@pnpm/parse-wanted-dependency': 'workspace:1.0.0'
       '@pnpm/plugin-commands-installation': 'link:'
-      '@pnpm/plugin-commands-rebuild': 'workspace:2.0.18'
+      '@pnpm/plugin-commands-rebuild': 'workspace:2.0.19'
       '@pnpm/pnpmfile': 'workspace:0.1.13'
       '@pnpm/prepare': 'workspace:0.0.7'
       '@pnpm/resolver-base': 'workspace:7.0.3'
@@ -1613,7 +1613,7 @@ importers:
       read-yaml-file: 2.0.0
       render-help: ^1.0.0
       sinon: 9.0.2
-      supi: 'workspace:0.41.6'
+      supi: 'workspace:0.41.7'
       table: ^5.4.6
       tempy: ^0.5.0
       version-selector-type: ^3.0.0
@@ -1782,7 +1782,7 @@ importers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/fetch': 'workspace:^2.1.0'
       '@pnpm/filter-workspace-packages': 'workspace:2.1.6'
-      '@pnpm/lifecycle': 'workspace:9.1.3'
+      '@pnpm/lifecycle': 'workspace:9.2.0'
       '@pnpm/npm-resolver': 'workspace:9.0.0'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.3'
       '@pnpm/plugin-commands-publishing': 'link:'
@@ -1873,7 +1873,7 @@ importers:
       '@pnpm/filter-workspace-packages': 'workspace:2.1.6'
       '@pnpm/find-workspace-packages': 'workspace:2.2.11'
       '@pnpm/get-context': 'workspace:3.0.1'
-      '@pnpm/lifecycle': 'workspace:9.1.3'
+      '@pnpm/lifecycle': 'workspace:9.2.0'
       '@pnpm/link-bins': 'workspace:5.3.7'
       '@pnpm/lockfile-utils': 'workspace:2.0.15'
       '@pnpm/lockfile-walker': 'workspace:3.0.3'
@@ -1939,7 +1939,7 @@ importers:
       '@pnpm/config': 'workspace:11.0.1'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/filter-workspace-packages': 'workspace:2.1.6'
-      '@pnpm/lifecycle': 'workspace:9.1.3'
+      '@pnpm/lifecycle': 'workspace:9.2.0'
       '@pnpm/logger': ^3.2.2
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': 'workspace:0.0.7'
@@ -2193,13 +2193,13 @@ importers:
       '@pnpm/modules-yaml': 'workspace:*'
       '@pnpm/parse-cli-args': 'workspace:2.0.0'
       '@pnpm/plugin-commands-audit': 'workspace:1.0.17'
-      '@pnpm/plugin-commands-import': 'workspace:1.0.35'
-      '@pnpm/plugin-commands-installation': 'workspace:3.0.1'
+      '@pnpm/plugin-commands-import': 'workspace:1.0.36'
+      '@pnpm/plugin-commands-installation': 'workspace:3.0.2'
       '@pnpm/plugin-commands-listing': 'workspace:2.0.8'
       '@pnpm/plugin-commands-outdated': 'workspace:2.0.10'
-      '@pnpm/plugin-commands-publishing': 'workspace:2.1.5'
-      '@pnpm/plugin-commands-rebuild': 'workspace:2.0.18'
-      '@pnpm/plugin-commands-script-runners': 'workspace:1.2.7'
+      '@pnpm/plugin-commands-publishing': 'workspace:2.1.6'
+      '@pnpm/plugin-commands-rebuild': 'workspace:2.0.19'
+      '@pnpm/plugin-commands-script-runners': 'workspace:1.2.8'
       '@pnpm/plugin-commands-server': 'workspace:2.0.16'
       '@pnpm/plugin-commands-store': 'workspace:2.0.18'
       '@pnpm/prepare': 'workspace:*'
@@ -2667,16 +2667,16 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/assert-store': 'workspace:*'
-      '@pnpm/build-modules': 'workspace:5.0.6'
+      '@pnpm/build-modules': 'workspace:5.0.7'
       '@pnpm/client': 'workspace:^1.0.0'
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/core-loggers': 'workspace:4.1.2'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/filter-lockfile': 'workspace:4.0.4'
       '@pnpm/get-context': 'workspace:3.0.1'
-      '@pnpm/headless': 'workspace:14.0.6'
+      '@pnpm/headless': 'workspace:14.0.7'
       '@pnpm/hoist': 'workspace:4.0.3'
-      '@pnpm/lifecycle': 'workspace:9.1.3'
+      '@pnpm/lifecycle': 'workspace:9.2.0'
       '@pnpm/link-bins': 'workspace:5.3.7'
       '@pnpm/lockfile-file': 'workspace:3.0.11'
       '@pnpm/lockfile-utils': 'workspace:2.0.15'
@@ -2691,12 +2691,12 @@ importers:
       '@pnpm/parse-wanted-dependency': 'workspace:1.0.0'
       '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/prepare': 'workspace:0.0.7'
-      '@pnpm/prune-lockfile': 'workspace:2.0.11'
+      '@pnpm/prune-lockfile': 'workspace:2.0.12'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:3.1.3'
       '@pnpm/read-project-manifest': 'workspace:1.0.9'
       '@pnpm/remove-bins': 'workspace:1.0.1'
-      '@pnpm/resolve-dependencies': 'workspace:16.0.3'
+      '@pnpm/resolve-dependencies': 'workspace:16.0.4'
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
       '@pnpm/store-path': ^4.0.0

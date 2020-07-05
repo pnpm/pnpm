@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.2.9
+
+### Patch Changes
+
+- `run --silent <cmd>` should only print output of the command and nothing from pnpm (#2660).
+- installing a new optional dependency that has an option dependency should not fail (#2663).
+
 ## 5.2.8
 
 ### Patch Changes

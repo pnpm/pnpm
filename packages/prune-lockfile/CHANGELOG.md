@@ -1,5 +1,11 @@
 # @pnpm/prune-lockfile
 
+## 2.0.12
+
+### Patch Changes
+
+- 7f25dad04: Don't remove optional dependencies of optional dependencies.
+
 ## 2.0.11
 
 ### Patch Changes

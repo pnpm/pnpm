@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.6
+
+### Patch Changes
+
+- Updated dependencies [76aaead32]
+  - @pnpm/lifecycle@9.2.0
+
 ## 2.1.5
 
 ### Patch Changes

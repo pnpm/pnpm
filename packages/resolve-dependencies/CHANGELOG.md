@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 16.0.4
+
+### Patch Changes
+
+- 7f25dad04: Only add packages to the skipped set, when they are seen the first time.
+
 ## 16.0.3
 
 ### Patch Changes

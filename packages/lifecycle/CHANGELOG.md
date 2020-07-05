@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 9.2.0
+
+### Minor Changes
+
+- 76aaead32: Added an option for silent execution: opts.silent.
+
 ## 9.1.3
 
 ### Patch Changes

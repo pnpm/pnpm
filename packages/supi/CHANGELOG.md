@@ -1,5 +1,19 @@
 # supi
 
+## 0.41.7
+
+### Patch Changes
+
+- 1d8ec7208: Don't fail if opts.reporter is a string instead of a function.
+- Updated dependencies [7f25dad04]
+- Updated dependencies [76aaead32]
+- Updated dependencies [7f25dad04]
+  - @pnpm/resolve-dependencies@16.0.4
+  - @pnpm/lifecycle@9.2.0
+  - @pnpm/prune-lockfile@2.0.12
+  - @pnpm/build-modules@5.0.7
+  - @pnpm/headless@14.0.7
+
 ## 0.41.6
 
 ### Patch Changes

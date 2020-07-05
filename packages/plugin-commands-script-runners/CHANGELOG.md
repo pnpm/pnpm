@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1.2.8
+
+### Patch Changes
+
+- 76aaead32: `run --silent <cmd>` should only print output of the command and nothing from pnpm.
+- Updated dependencies [76aaead32]
+  - @pnpm/lifecycle@9.2.0
+
 ## 1.2.7
 
 ### Patch Changes

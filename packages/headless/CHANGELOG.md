@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 14.0.7
+
+### Patch Changes
+
+- Updated dependencies [76aaead32]
+  - @pnpm/lifecycle@9.2.0
+  - @pnpm/build-modules@5.0.7
+
 ## 14.0.6
 
 ### Patch Changes
