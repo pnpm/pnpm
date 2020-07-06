@@ -48,7 +48,7 @@ declare module 'better-path-resolve' {
   export = anything;
 }
 
-declare module 'diable' {
+declare module '@zkochan/diable' {
   const anything: any;
   export = anything;
 }

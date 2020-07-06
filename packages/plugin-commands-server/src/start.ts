@@ -8,7 +8,7 @@ import {
   serverConnectionInfoDir,
 } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
-import Diable = require('diable')
+import Diable = require('@zkochan/diable')
 import getPort = require('get-port')
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
