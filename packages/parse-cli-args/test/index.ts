@@ -6,7 +6,6 @@ import test = require('tape')
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
   getTypesByCommandName: (commandName: string) => ({}),
-  knownCommands: new Set(['update', 'add', 'install', 'outdated']),
   renamedOptions: { 'prefix': 'dir' },
   shorthandsByCommandName: {},
   universalOptionsTypes: {},
@@ -196,10 +195,24 @@ test('use command-specific shorthands', async (t) => {
 test('any unknown command is treated as a script', async (t) => {
   const { options, cmd, params } = await parseCliArgs({
     ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: () => null,
     universalOptionsTypes: { filter: [String, Array] },
   }, ['foo', '--recursive'])
   t.equal(cmd, 'run')
   t.deepEqual(params, ['foo'])
   t.ok(options['recursive'])
+  t.end()
+})
+
+test("don't use the fallback command if no command is present", async (t) => {
+  const { cmd, params } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: () => null,
+    universalOptionsTypes: { filter: [String, Array] },
+  }, [])
+  t.equal(cmd, null)
+  t.deepEqual(params, [])
   t.end()
 })
