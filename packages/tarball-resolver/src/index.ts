@@ -1,11 +1,5 @@
 import { ResolveResult } from '@pnpm/resolver-base'
 
-const GIT_HOSTERS = new Set([
-  'github.com',
-  'gitlab.com',
-  'bitbucket.org',
-])
-
 export default async function resolveTarball (
   wantedDependency: {pref: string}
 ): Promise<ResolveResult | null> {
@@ -13,10 +7,7 @@ export default async function resolveTarball (
     return null
   }
 
-  const parts = wantedDependency.pref.split('/')
-  if (parts.length === 5 && GIT_HOSTERS.has(parts[2])) {
-    return null
-  }
+  if (isRepository(wantedDependency.pref)) return null
 
   return {
     id: `@${wantedDependency.pref.replace(/^.*:\/\/(git@)?/, '')}`,
@@ -26,4 +17,18 @@ export default async function resolveTarball (
     },
     resolvedVia: 'url',
   }
+}
+
+const GIT_HOSTERS = new Set([
+  'github.com',
+  'gitlab.com',
+  'bitbucket.org',
+])
+
+function isRepository (pref: string) {
+  if (pref.endsWith('/')) {
+    pref = pref.substr(0, pref.length - 1)
+  }
+  const parts = pref.split('/')
+  return (parts.length === 5 && GIT_HOSTERS.has(parts[2]))
 }
