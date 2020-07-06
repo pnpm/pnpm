@@ -59,7 +59,7 @@ export default async function parseCliArgs (
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
-  if (!cmd && opts.fallbackCommand) {
+  if (commandName && !cmd && opts.fallbackCommand) {
     cmd = opts.fallbackCommand
     commandName = opts.fallbackCommand
     inputArgv.unshift(opts.fallbackCommand)

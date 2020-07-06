@@ -204,3 +204,15 @@ test('any unknown command is treated as a script', async (t) => {
   t.ok(options['recursive'])
   t.end()
 })
+
+test("don't use the fallback command if no command is present", async (t) => {
+  const { cmd, params } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: () => null,
+    universalOptionsTypes: { filter: [String, Array] },
+  }, [])
+  t.equal(cmd, null)
+  t.deepEqual(params, [])
+  t.end()
+})
