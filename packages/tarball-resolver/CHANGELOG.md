@@ -1,5 +1,11 @@
 # @pnpm/tarball-resolver
 
+## 4.0.3
+
+### Patch Changes
+
+- 83b146d63: Ignore URLs to repositories.
+
 ## 4.0.2
 
 ### Patch Changes

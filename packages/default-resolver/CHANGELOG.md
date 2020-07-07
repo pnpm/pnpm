@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [83b146d63]
+  - @pnpm/tarball-resolver@4.0.3
+
 ## 10.0.0
 
 ### Major Changes

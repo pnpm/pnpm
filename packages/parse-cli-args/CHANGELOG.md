@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 2.1.0
+
+### Minor Changes
+
+- 09b777f8d: New option added: `fallbackCommand`. If set, this command is added to the beginning of any unknown query.
+
 ## 2.0.0
 
 ### Major Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [d9310c034]
+  - @pnpm/store-connection-manager@0.3.17
+  - @pnpm/plugin-commands-rebuild@2.0.20
+  - @pnpm/outdated@7.1.4
+  - @pnpm/package-store@9.0.13
+  - supi@0.41.8
+
 ## 3.0.2
 
 ### Patch Changes

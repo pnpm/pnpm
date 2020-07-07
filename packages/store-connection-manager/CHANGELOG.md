@@ -1,5 +1,14 @@
 # @pnpm/store-connection-manager
 
+## 0.3.17
+
+### Patch Changes
+
+- d9310c034: Replace diable with a fork that has less dependencies.
+  - @pnpm/client@1.0.1
+  - @pnpm/package-store@9.0.13
+  - @pnpm/server@8.0.5
+
 ## 0.3.16
 
 ### Patch Changes

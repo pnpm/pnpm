@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "10.0.0",
+  "version": "10.0.1",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -37,7 +37,7 @@
     "@pnpm/local-resolver": "workspace:5.0.10",
     "@pnpm/npm-resolver": "workspace:9.0.0",
     "@pnpm/resolver-base": "workspace:7.0.3",
-    "@pnpm/tarball-resolver": "workspace:4.0.2"
+    "@pnpm/tarball-resolver": "workspace:4.0.3"
   },
   "devDependencies": {
     "@pnpm/default-resolver": "link:",

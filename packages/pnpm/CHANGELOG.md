@@ -1,5 +1,15 @@
 # pnpm
 
+## 5.3.0
+
+### Minor Changes
+
+- Any unknown command is assumed to be a script. So `pnpm foo` becomes `pnpm run foo`.
+
+### Patch Changes
+
+- Fix installation of packages via repository URL. E.g., `pnpm add https://github.com/foo/bar`.
+
 ## 5.2.9
 
 ### Patch Changes

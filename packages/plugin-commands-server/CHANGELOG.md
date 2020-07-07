@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-server
 
+## 2.0.17
+
+### Patch Changes
+
+- d9310c034: Replace diable with a fork that has less dependencies.
+- Updated dependencies [d9310c034]
+  - @pnpm/store-connection-manager@0.3.17
+  - @pnpm/server@8.0.5
+
 ## 2.0.16
 
 ### Patch Changes
