@@ -1965,7 +1965,7 @@ importers:
       '@pnpm/server': 'link:../server'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-path': 4.0.0
-      '@zkochan/diable': 1.0.1
+      '@zkochan/diable': 1.0.2
       delay: 4.3.0
       get-port: 5.1.1
       is-windows: 1.0.2
@@ -1997,7 +1997,7 @@ importers:
       '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.6
       '@types/signal-exit': ^3.0.0
-      '@zkochan/diable': ^1.0.1
+      '@zkochan/diable': ^1.0.2
       delay: ^4.3.0
       get-port: ^5.1.1
       is-windows: ^1.0.2
@@ -2535,7 +2535,7 @@ importers:
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:../server'
       '@pnpm/store-path': 4.0.0
-      '@zkochan/diable': 1.0.1
+      '@zkochan/diable': 1.0.2
       delay: 4.3.0
       dir-is-case-sensitive: 1.0.2
       lru-cache: 5.1.1
@@ -2557,7 +2557,7 @@ importers:
       '@pnpm/store-path': ^4.0.0
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.1
-      '@zkochan/diable': ^1.0.1
+      '@zkochan/diable': ^1.0.2
       delay: ^4.3.0
       dir-is-case-sensitive: ^1.0.2
       lru-cache: ^5.1.1
@@ -3867,12 +3867,12 @@ packages:
       node: '>=10.13'
     resolution:
       integrity: sha512-9hBJPDVzyfoKvwG1x5BpL4djQt7yCWpnpGgomtvZWaMcB6C5UWtfOZBf3f/oYXVhRK89mKgfbpiD/JhwnbSQ1Q==
-  /@zkochan/diable/1.0.1:
+  /@zkochan/diable/1.0.2:
     dependencies:
       spawno: 2.0.8
     dev: false
     resolution:
-      integrity: sha512-sVXurwLgT24+lESJBgpztJriwX8T7afLQJg/Ntya6l5Xh/veawvxRgy2MyjSDIeWEyXqPE6k1n0G2KUaY4ZHAw==
+      integrity: sha512-LvXkwkWyrsRulnXVfp0BfuEQqV6I2j0l3kQwvBHKFMI6Sg5j2GrUCLsEKqYB3jlxM+0ofScvlE4vB6knevdBmg==
   /@zkochan/istanbul-reports/3.0.2:
     dependencies:
       html-escaper: 2.0.2
