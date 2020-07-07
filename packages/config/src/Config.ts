@@ -111,6 +111,7 @@ export interface Config {
   npmPath?: string,
   gitChecks?: boolean,
   publishBranch?: string,
+  recursiveInstall?: boolean,
 
   registries: Registries,
   ignoreWorkspaceRootCheck: boolean,
