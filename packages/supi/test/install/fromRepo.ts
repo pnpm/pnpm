@@ -26,6 +26,16 @@ test('from a github repo', async (t: tape.Test) => {
   t.deepEqual(manifest.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
 })
 
+test('from a github repo through URL', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['https://github.com/kevva/is-negative'], await testDefaults())
+
+  await project.has('is-negative')
+
+  t.deepEqual(manifest.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
+})
+
 test('from a github repo with different name via named installation', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 

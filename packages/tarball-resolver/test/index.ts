@@ -46,3 +46,11 @@ test('tarballs from GitHub (is-negative)', async t => {
 
   t.end()
 })
+
+test('ignore direct URLs to repositories', async t => {
+  t.equal(await resolveFromTarball({ pref: 'https://github.com/foo/bar' }), null)
+  t.equal(await resolveFromTarball({ pref: 'https://github.com/foo/bar/' }), null)
+  t.equal(await resolveFromTarball({ pref: 'https://gitlab.com/foo/bar' }), null)
+  t.equal(await resolveFromTarball({ pref: 'https://bitbucket.org/foo/bar' }), null)
+  t.end()
+})
