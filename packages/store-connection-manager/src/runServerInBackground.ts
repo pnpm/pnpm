@@ -1,4 +1,4 @@
-import diable = require('diable')
+import diable = require('@zkochan/diable')
 
 const pnpm = require.main!.filename
 
