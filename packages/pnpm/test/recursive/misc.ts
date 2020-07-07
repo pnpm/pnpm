@@ -465,6 +465,6 @@ test('set recursive-install to false in .npmrc would disable recursive install i
   process.chdir('project-1')
   await execPnpm(['install'])
 
-  t.ok(projects['project-1'].requireModule('is-positive'))
-  t.notOk(projects['project-2'].requireModule('is-negative'))
+  t.ok(projects['project-1'].has('is-positive'))
+  t.ok(projects['project-2'].hasNot('is-negative'))
 })
