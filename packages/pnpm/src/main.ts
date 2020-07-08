@@ -140,6 +140,7 @@ export default async function run (inputArgv: string[]) {
     config.recursiveInstall
   ) {
     cliOptions['recursive'] = true
+    config.recursive = true
   }
 
   if (cliOptions['recursive']) {
