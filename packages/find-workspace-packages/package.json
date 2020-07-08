@@ -13,7 +13,8 @@
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run compile",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/find-workspace-packages/coverage ts-node packages/find-workspace-packages/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },

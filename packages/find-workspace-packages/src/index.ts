@@ -47,14 +47,14 @@ async function requirePackagesManifest (dir: string): Promise<{packages?: string
 }
 
 export function arrayOfWorkspacePackagesToMap (
-  pkgs: Project[]
+  pkgs: Array<Pick<Project, 'manifest'>>
 ) {
   return pkgs.reduce((acc, pkg) => {
-    if (!pkg.manifest.name || !pkg.manifest.version) return acc
+    if (!pkg.manifest.name) return acc
     if (!acc[pkg.manifest.name]) {
       acc[pkg.manifest.name] = {}
     }
-    acc[pkg.manifest.name][pkg.manifest.version] = pkg
+    acc[pkg.manifest.name][pkg.manifest.version ?? '0.0.0'] = pkg
     return acc
   }, {})
 }
