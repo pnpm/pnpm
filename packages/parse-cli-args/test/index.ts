@@ -43,29 +43,6 @@ test('a command is recursive if --recursive option is used', async (t) => {
   t.end()
 })
 
-test('the install command is recursive when executed in a subdir of a workspace', async (t) => {
-  const { options, cmd, workspaceDir } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { dir: String },
-  }, ['--dir', __dirname, 'install'])
-  t.equal(cmd, 'install')
-  t.ok(options['recursive'])
-  t.equal(workspaceDir, path.join(__dirname, '../../..'))
-  t.end()
-})
-
-test('the install command is recursive when executed in the root of a workspace', async (t) => {
-  const expectedWorkspaceDir = path.join(__dirname, '../../..')
-  const { options, cmd, workspaceDir } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { dir: String },
-  }, ['--dir', expectedWorkspaceDir, 'install'])
-  t.equal(cmd, 'install')
-  t.ok(options['recursive'])
-  t.equal(workspaceDir, expectedWorkspaceDir)
-  t.end()
-})
-
 test('recursive is returned as the command name if no subcommand passed', async (t) => {
   const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,

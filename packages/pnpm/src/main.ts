@@ -134,6 +134,15 @@ export default async function run (inputArgv: string[]) {
     }
   }
 
+  if (
+    cmd === 'install' &&
+    typeof workspaceDir === 'string' &&
+    config.recursiveInstall
+  ) {
+    cliOptions['recursive'] = true
+    config.recursive = true
+  }
+
   if (cliOptions['recursive']) {
     const wsDir = workspaceDir ?? process.cwd()
     const allProjects = await findWorkspacePackages(wsDir, {

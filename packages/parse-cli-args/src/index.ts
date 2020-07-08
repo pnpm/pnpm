@@ -118,14 +118,6 @@ export default async function parseCliArgs (
     ? undefined
     : await findWorkspaceDir(dir)
 
-  if (
-    (cmd === 'add' || cmd === 'install') &&
-    typeof workspaceDir === 'string' &&
-    params.length === 0
-  ) {
-    options['recursive'] = true
-  }
-
   if (cmd === 'install' && params.length > 0) {
     cmd = 'add'
   }

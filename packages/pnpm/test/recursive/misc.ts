@@ -432,3 +432,39 @@ test('--workspace-packages', async (t: tape.Test) => {
   await projects['project-1'].has('is-positive')
   await projects['project-2'].hasNot('is-positive')
 })
+
+test('set recursive-install to false in .npmrc would disable recursive install in workspace', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      location: 'workspace/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'workspace/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.writeFile('.npmrc', 'recursive-install = false', 'utf8')
+
+  process.chdir('project-1')
+  await execPnpm(['install'])
+
+  t.ok(projects['project-1'].has('is-positive'))
+  t.ok(projects['project-2'].hasNot('is-negative'))
+})
