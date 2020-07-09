@@ -795,20 +795,21 @@ function getResolvedPackage (
 
 function peerDependenciesWithoutOwn (pkg: PackageManifest) {
   if (!pkg.peerDependencies && !pkg.peerDependenciesMeta) return pkg.peerDependencies
-  const ownDeps = new Set(
-    R.keys(pkg.dependencies).concat(R.keys(pkg.optionalDependencies))
-  )
+  const ownDeps = new Set([
+    ...Object.keys(pkg.dependencies ?? {}),
+    ...Object.keys(pkg.optionalDependencies ?? {}),
+  ])
   const result = {}
   if (pkg.peerDependencies) {
-    for (const peer of Object.keys(pkg.peerDependencies)) {
-      if (ownDeps.has(peer)) continue
-      result[peer] = pkg.peerDependencies[peer]
+    for (const [peerName, peerRange] of Object.entries(pkg.peerDependencies)) {
+      if (ownDeps.has(peerName)) continue
+      result[peerName] = peerRange
     }
   }
   if (pkg.peerDependenciesMeta) {
-    for (const peer of Object.keys(pkg.peerDependenciesMeta)) {
-      if (ownDeps.has(peer) || result[peer] || pkg.peerDependenciesMeta[peer].optional !== true) continue
-      result[peer] = '*'
+    for (const [peerName, peerMeta] of Object.entries(pkg.peerDependenciesMeta)) {
+      if (ownDeps.has(peerName) || result[peerName] || peerMeta.optional !== true) continue
+      result[peerName] = '*'
     }
   }
   if (R.isEmpty(result)) return undefined
