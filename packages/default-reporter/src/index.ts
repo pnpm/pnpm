@@ -84,6 +84,7 @@ export function toOutput$ (
   const summaryPushStream = new PushStream()
   const lifecyclePushStream = new PushStream()
   const statsPushStream = new PushStream()
+  const importingPushStream = new PushStream()
   const installCheckPushStream = new PushStream()
   const registryPushStream = new PushStream()
   const rootPushStream = new PushStream()
@@ -117,6 +118,9 @@ export function toOutput$ (
           break
         case 'pnpm:stats':
           statsPushStream.next(log)
+          break
+        case 'pnpm:importing':
+          importingPushStream.next(log)
           break
         case 'pnpm:install-check':
           installCheckPushStream.next(log)
@@ -158,6 +162,7 @@ export function toOutput$ (
     deprecation: most.from<logs.DeprecationLog>(deprecationPushStream.observable),
     fetchingProgress: most.from<logs.FetchingProgressLog>(fetchingProgressPushStream.observable),
     hook: most.from<logs.HookLog>(hookPushStream.observable),
+    importing: most.from<logs.ImportingLog>(importingPushStream.observable),
     installCheck: most.from<logs.InstallCheckLog>(installCheckPushStream.observable),
     lifecycle: most.from<logs.LifecycleLog>(lifecyclePushStream.observable),
     link: most.from<logs.LinkLog>(linkPushStream.observable),

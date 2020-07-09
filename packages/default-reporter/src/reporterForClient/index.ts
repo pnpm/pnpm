@@ -34,6 +34,7 @@ export default function (
     hook: most.Stream<logs.HookLog>,
     scope: most.Stream<logs.ScopeLog>,
     skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,
+    importing: most.Stream<logs.ImportingLog>,
   },
   opts: {
     appendOnly?: boolean,
