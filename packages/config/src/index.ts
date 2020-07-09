@@ -147,7 +147,7 @@ export default async (
     'link-workspace-packages': true,
     'package-lock': npmDefaults['package-lock'],
     'pending': false,
-    'public-hoist-pattern': ['@types/*'],
+    'public-hoist-pattern': ['@types/*', 'eslint-plugin-*'],
     'recursive-install': true,
     'registry': npmDefaults.registry,
     'save-peer': false,
