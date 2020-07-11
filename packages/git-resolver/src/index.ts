@@ -23,7 +23,7 @@ export default function (
       const hosted = parsedSpec.hosted
       // use resolved committish
       hosted.committish = commit
-      const tarball = hosted.tarball()
+      const tarball = hosted.tarball?.()
 
       if (tarball) {
         resolution = { tarball }

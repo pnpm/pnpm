@@ -366,3 +366,19 @@ test('resolveFromGit() private repo with commit hash', async (t) => {
   })
   t.end()
 })
+
+test('resolve a private repository using the HTTPS protocol and an auth token', async (t) => {
+  const resolveResult = await resolveFromGit({ pref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git' })
+  t.deepEqual(resolveResult, {
+    id: '0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar/1111111111111111111111111111111111111111',
+    normalizedPref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
+    resolution: {
+      commit: '1111111111111111111111111111111111111111',
+      repo: 'https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+  t.end()
+})
+
