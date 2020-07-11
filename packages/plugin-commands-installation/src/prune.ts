@@ -10,6 +10,8 @@ export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
   return R.pick([
+    'dev',
+    'optional',
     'production',
   ], allTypes)
 }
@@ -27,6 +29,10 @@ export function help () {
           {
             description: 'Remove the packages specified in \`devDependencies\`',
             name: '--prod',
+          },
+          {
+            description: 'Remove the packages specified in \`optionalDependencies\`',
+            name: '--no-optional',
           },
           ...UNIVERSAL_OPTIONS,
         ],
