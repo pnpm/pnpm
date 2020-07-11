@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/client",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Creates the package resolve and fetch functions",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,8 +31,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/client#readme",
   "dependencies": {
-    "@pnpm/default-resolver": "workspace:^10.0.1",
-    "@pnpm/fetch": "workspace:^2.1.0",
+    "@pnpm/default-resolver": "workspace:^10.0.2",
+    "@pnpm/fetch": "workspace:^2.1.1",
     "@pnpm/fetching-types": "workspace:^1.0.0",
     "@pnpm/git-fetcher": "workspace:3.0.4",
     "@pnpm/resolver-base": "workspace:7.0.3",

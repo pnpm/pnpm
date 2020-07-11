@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 7.1.5
+
+### Patch Changes
+
+- 7b98d16c8: Update lru-cache to v6
+  - @pnpm/default-resolver@10.0.2
+  - @pnpm/fetch@2.1.1
+
 ## 7.1.4
 
 ### Patch Changes

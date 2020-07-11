@@ -1,5 +1,41 @@
 # pnpm
 
+## 5.4.0
+
+### Minor Changes
+
+- Installation of private Git-hosted repositories via HTTPS using an auth token.
+
+  ```text
+  pnpm add git+https://{token}:x-oauth-basic@github.com/SOME_ORG/SOME_PRIVATE_REPO.git
+  ```
+
+- A new setting called `recursive-install` was added. When it is set to `false`, `pnpm install` will only install dependencies in current project, even when executed inside a monorepo.
+
+  If `recursive-install` is `false`, you should explicitly run `pnpm install -r` in order to install all dependencies in all workspace projects.
+
+- Projects that don't have a `"version"` field may be installed as dependencies of other projects in the workspace, using the `"workspace:0.0.0"` specifier.
+
+  So if there's `foo` in the repository that has no version field, `bar` may have it as a dependency:
+
+  ```json
+  "dependencies": {
+    "foo": "workspace:0.0.0"
+  }
+  ```
+
+- By default, all ESLint plugin are hoisted to the root of `node_modules`.
+
+  `eslint-plugin-*` added as one of the default patterns of `public-hoist-pattern`.
+
+- Improved error message on workspace range resolution error.
+
+  Now the path to the project is printed, where the error originated.
+
+### Patch Changes
+
+- `pnpm prune` should accept the `--no-optional` and `--no-dev` options.
+
 ## 5.3.0
 
 ### Minor Changes

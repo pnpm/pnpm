@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-outdated
 
+## 2.0.12
+
+### Patch Changes
+
+- 7b98d16c8: Update lru-cache to v6
+- Updated dependencies [65b4d07ca]
+- Updated dependencies [ab3b8f51d]
+- Updated dependencies [7b98d16c8]
+  - @pnpm/config@11.1.0
+  - @pnpm/outdated@7.1.5
+  - @pnpm/default-resolver@10.0.2
+  - @pnpm/cli-utils@0.4.14
+
 ## 2.0.11
 
 ### Patch Changes

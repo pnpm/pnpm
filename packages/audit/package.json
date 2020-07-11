@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/audit",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "Audit a lockfile",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/fetch": "workspace:2.1.0",
+    "@pnpm/fetch": "workspace:2.1.1",
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.15",
     "@pnpm/lockfile-walker": "workspace:3.0.3",

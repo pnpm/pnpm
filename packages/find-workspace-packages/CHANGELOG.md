@@ -1,5 +1,15 @@
 # @pnpm/find-workspace-packages
 
+## 2.3.0
+
+### Minor Changes
+
+- faae9a93c: A project with no version field is treated as if it had version 0.0.0.
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.4.14
+
 ## 2.2.11
 
 ### Patch Changes

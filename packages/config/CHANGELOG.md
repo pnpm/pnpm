@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 11.1.0
+
+### Minor Changes
+
+- 65b4d07ca: feat: add config to make install only install package dependencies in a workspace
+- ab3b8f51d: Hoist all ESLint plugins to the root of node_modules by default.
+
 ## 11.0.1
 
 ### Patch Changes

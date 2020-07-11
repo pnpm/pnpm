@@ -1,5 +1,11 @@
 # @pnpm/npm-registry-agent
 
+## 3.0.1
+
+### Patch Changes
+
+- 7b98d16c8: Update lru-cache to v6
+
 ## 3.0.0
 
 ### Major Changes

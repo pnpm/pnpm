@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 3.0.4
+
+### Patch Changes
+
+- 98e579270: `pnpm prune` should accept the `--[no-]optional`, `--[no-]dev` options.
+- Updated dependencies [faae9a93c]
+- Updated dependencies [65b4d07ca]
+- Updated dependencies [ab3b8f51d]
+- Updated dependencies [7b98d16c8]
+  - @pnpm/find-workspace-packages@2.3.0
+  - @pnpm/config@11.1.0
+  - @pnpm/outdated@7.1.5
+  - @pnpm/store-connection-manager@0.3.18
+  - @pnpm/filter-workspace-packages@2.1.7
+  - @pnpm/plugin-commands-rebuild@2.0.21
+  - @pnpm/cli-utils@0.4.14
+  - supi@0.41.9
+  - @pnpm/package-store@9.0.14
+
 ## 3.0.3
 
 ### Patch Changes

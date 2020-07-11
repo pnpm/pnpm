@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 3.0.0
+
+### Major Changes
+
+- 65b4d07ca: move recursive for workspace check to pnpm main
+
 ## 2.1.0
 
 ### Minor Changes

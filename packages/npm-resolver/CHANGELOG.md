@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 9.0.1
+
+### Patch Changes
+
+- 379cdcaf8: When resolution from workspace fails, print the path to the project that has the unsatisfied dependency.
+
 ## 9.0.0
 
 ### Major Changes

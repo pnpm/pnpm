@@ -1,5 +1,16 @@
 # @pnpm/git-resolver
 
+## 4.1.0
+
+### Minor Changes
+
+- 2ebcfc38a: Installation of private Git-hosted repositories via HTTPS, using an auth token.
+
+### Patch Changes
+
+- 7b98d16c8: Update lru-cache to v6
+  - @pnpm/fetch@2.1.1
+
 ## 4.0.16
 
 ### Patch Changes

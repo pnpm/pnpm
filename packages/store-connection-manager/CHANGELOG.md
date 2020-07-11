@@ -1,5 +1,17 @@
 # @pnpm/store-connection-manager
 
+## 0.3.18
+
+### Patch Changes
+
+- 7b98d16c8: Update lru-cache to v6
+- Updated dependencies [65b4d07ca]
+- Updated dependencies [ab3b8f51d]
+  - @pnpm/config@11.1.0
+  - @pnpm/client@1.0.2
+  - @pnpm/server@8.0.6
+  - @pnpm/package-store@9.0.14
+
 ## 0.3.17
 
 ### Patch Changes

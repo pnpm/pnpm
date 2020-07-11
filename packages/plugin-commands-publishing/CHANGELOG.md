@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.7
+
+### Patch Changes
+
+- 7b98d16c8: Update lru-cache to v6
+- Updated dependencies [379cdcaf8]
+- Updated dependencies [65b4d07ca]
+- Updated dependencies [ab3b8f51d]
+  - @pnpm/npm-resolver@9.0.1
+  - @pnpm/config@11.1.0
+  - @pnpm/cli-utils@0.4.14
+  - @pnpm/fetch@2.1.1
+
 ## 2.1.6
 
 ### Patch Changes
