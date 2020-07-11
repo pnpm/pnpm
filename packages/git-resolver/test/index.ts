@@ -1,9 +1,19 @@
 ///<reference path="../../../typings/index.d.ts"/>
-import createResolveFromGit from '@pnpm/git-resolver'
 import git = require('graceful-git')
 import isWindows = require('is-windows')
 import path = require('path')
+import proxyquire = require('proxyquire')
 import test = require('tape')
+
+let gracefulGit = git
+const gracefulGitMock = function () { return gracefulGit.call(this, ...Array.from(arguments)) }
+
+const createResolveFromGit = proxyquire('@pnpm/git-resolver', {
+  './parsePref': proxyquire('@pnpm/git-resolver/lib/parsePref', {
+    'graceful-git': gracefulGitMock,
+  }),
+  'graceful-git': gracefulGitMock,
+}).default
 
 const resolveFromGit = createResolveFromGit({})
 
@@ -368,12 +378,23 @@ test('resolveFromGit() private repo with commit hash', async (t) => {
 })
 
 test('resolve a private repository using the HTTPS protocol and an auth token', async (t) => {
+  gracefulGit = async (args: string[]) => {
+    if (!args.includes('https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git')) throw new Error('')
+    if (args.includes('--refs')) {
+      return {
+        stdout: `\
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
+`,
+      }
+    }
+    return { stdout: '0000000000000000000000000000000000000000\tHEAD' }
+  }
   const resolveResult = await resolveFromGit({ pref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git' })
   t.deepEqual(resolveResult, {
-    id: '0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar/1111111111111111111111111111111111111111',
+    id: '0000000000000000000000000000000000000000+x-oauth-basic@github.com/foo/bar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     normalizedPref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
     resolution: {
-      commit: '1111111111111111111111111111111111111111',
+      commit: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       repo: 'https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
       type: 'git',
     },
@@ -381,4 +402,3 @@ test('resolve a private repository using the HTTPS protocol and an auth token', 
   })
   t.end()
 })
-
