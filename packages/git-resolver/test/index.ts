@@ -1,9 +1,19 @@
 ///<reference path="../../../typings/index.d.ts"/>
-import createResolveFromGit from '@pnpm/git-resolver'
 import git = require('graceful-git')
 import isWindows = require('is-windows')
 import path = require('path')
+import proxyquire = require('proxyquire')
 import test = require('tape')
+
+let gracefulGit = git
+const gracefulGitMock = function () { return gracefulGit.call(this, ...Array.from(arguments)) }
+
+const createResolveFromGit = proxyquire('@pnpm/git-resolver', {
+  './parsePref': proxyquire('@pnpm/git-resolver/lib/parsePref', {
+    'graceful-git': gracefulGitMock,
+  }),
+  'graceful-git': gracefulGitMock,
+}).default
 
 const resolveFromGit = createResolveFromGit({})
 
@@ -360,6 +370,32 @@ test('resolveFromGit() private repo with commit hash', async (t) => {
     resolution: {
       commit: '2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
       repo: 'git+ssh://git@github.com/fake/private-repo.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+  t.end()
+})
+
+test('resolve a private repository using the HTTPS protocol and an auth token', async (t) => {
+  gracefulGit = async (args: string[]) => {
+    if (!args.includes('https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git')) throw new Error('')
+    if (args.includes('--refs')) {
+      return {
+        stdout: `\
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
+`,
+      }
+    }
+    return { stdout: '0000000000000000000000000000000000000000\tHEAD' }
+  }
+  const resolveResult = await resolveFromGit({ pref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git' })
+  t.deepEqual(resolveResult, {
+    id: '0000000000000000000000000000000000000000+x-oauth-basic@github.com/foo/bar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    normalizedPref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
+    resolution: {
+      commit: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      repo: 'https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
       type: 'git',
     },
     resolvedVia: 'git-repository',

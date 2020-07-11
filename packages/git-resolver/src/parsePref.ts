@@ -72,31 +72,39 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // tsli
   // try git/https url before fallback to ssh url
 
   const gitUrl = hosted.git({ noCommittish: true })
-  if (gitUrl) {
-    try {
-      await git(['ls-remote', '--exit-code', gitUrl, 'HEAD'], { retries: 0 })
-      fetchSpec = gitUrl
-    } catch (e) {
-      // ignore
-    }
+  if (gitUrl && await accessRepository(gitUrl)) {
+    fetchSpec = gitUrl
   }
 
   if (!fetchSpec) {
     const httpsUrl = hosted.https({ noGitPlus: true, noCommittish: true })
     if (httpsUrl) {
-      try {
-        // when git ls-remote private repo, it asks for login credentials.
-        // use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
-        // this is very similar to yarn's behaviour.
-        // npm instead tries git ls-remote directly which prompts user for login credentials.
-
-        // HTTP HEAD on https://domain/user/repo, strip out ".git"
-        const response = await fetch(httpsUrl.substr(0, httpsUrl.length - 4), { method: 'HEAD', follow: 0 })
-        if (response.ok) {
-          fetchSpec = httpsUrl
+      if (hosted.auth && await accessRepository(httpsUrl)) {
+        return {
+          fetchSpec: httpsUrl,
+          hosted: {
+            ...hosted,
+            _fill: hosted._fill,
+            tarball: undefined,
+          },
+          normalizedPref: `git+${httpsUrl}`,
+          ...setGitCommittish(hosted.committish),
         }
-      } catch (e) {
-        // ignore
+      } else {
+        try {
+          // when git ls-remote private repo, it asks for login credentials.
+          // use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
+          // this is very similar to yarn's behaviour.
+          // npm instead tries git ls-remote directly which prompts user for login credentials.
+
+          // HTTP HEAD on https://domain/user/repo, strip out ".git"
+          const response = await fetch(httpsUrl.substr(0, httpsUrl.length - 4), { method: 'HEAD', follow: 0 })
+          if (response.ok) {
+            fetchSpec = httpsUrl
+          }
+        } catch (e) {
+          // ignore
+        }
       }
     }
   }
@@ -115,6 +123,15 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // tsli
     },
     normalizedPref: hosted.shortcut(),
     ...setGitCommittish(hosted.committish),
+  }
+}
+
+async function accessRepository (repository: string) {
+  try {
+    await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
+    return true
+  } catch (err) {
+    return false
   }
 }
 
