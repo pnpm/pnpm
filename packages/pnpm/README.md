@@ -17,7 +17,7 @@ To quote the [Rush](https://rushjs.io/) team:
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
 [![Status](https://travis-ci.com/pnpm/pnpm.svg?branch=master)](https://travis-ci.com/pnpm/pnpm "See test builds")
 [![Coverage Status](https://coveralls.io/repos/github/pnpm/pnpm/badge.svg?branch=master)](https://coveralls.io/github/pnpm/pnpm?branch=master)
-[![Join the chat at https://gitter.im/pnpm/pnpm](https://badges.gitter.im/pnpm/pnpm.svg)](https://gitter.im/pnpm/pnpm?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://discord.gg/mThkzAT)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](#backers)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/pnpmjs)
