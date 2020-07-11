@@ -74,7 +74,7 @@ Benchmarks on an app with lots of dependencies:
 
 - [Frequently Asked Questions](https://pnpm.js.org/en/faq)
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
-- [Gitter chat](https://gitter.im/pnpm/pnpm)
+- [Chat](https://discord.gg/mThkzAT)
 - [Twitter](https://twitter.com/pnpmjs)
 - [Awesome list](https://github.com/pnpm/awesome-pnpm)
 
