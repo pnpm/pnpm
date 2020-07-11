@@ -49,7 +49,7 @@
     "@pnpm/types": "workspace:6.2.0",
     "credentials-by-uri": "^2.0.0",
     "dependency-path": "workspace:5.0.2",
-    "lru-cache": "^5.1.1",
+    "lru-cache": "^6.0.0",
     "mem": "^6.1.0",
     "ramda": "^0.27.0",
     "semver": "^7.3.2"

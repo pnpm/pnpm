@@ -28,7 +28,7 @@
     "agentkeepalive": "4.0.0",
     "http-proxy-agent": "4.0.1",
     "https-proxy-agent": "3.0.1",
-    "lru-cache": "5.1.1",
+    "lru-cache": "6.0.0",
     "socks-proxy-agent": "5.0.0"
   },
   "env": {
