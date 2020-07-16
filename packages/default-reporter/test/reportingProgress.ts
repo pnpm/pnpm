@@ -10,9 +10,9 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import fs = require('fs')
 import chalk = require('chalk')
 import delay from 'delay'
+import fs = require('fs')
 import most = require('most')
 import normalizeNewline = require('normalize-newline')
 import test = require('tape')
