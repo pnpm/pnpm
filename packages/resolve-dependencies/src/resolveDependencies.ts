@@ -119,6 +119,7 @@ export interface ChildrenByParentId {
 }
 
 export interface ResolutionContext {
+  alwaysTryWorkspacePackages?: boolean,
   defaultTag: string,
   dryRun: boolean,
   forceFullResolution: boolean,
@@ -201,9 +202,9 @@ export interface ResolvedPackage {
 
 export default async function resolveDependencies (
   ctx: ResolutionContext,
+  preferredVersions: PreferredVersions,
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: {
-    alwaysTryWorkspacePackages?: boolean,
     dependentId?: string,
     parentDependsOnPeers: boolean,
     parentNodeId: string,
@@ -215,7 +216,6 @@ export default async function resolveDependencies (
     // which were used by the previous version are passed
     // via this option
     preferredDependencies?: ResolvedDependencies,
-    preferredVersions: PreferredVersions,
     parentIsInstallable?: boolean,
     readPackageHook?: ReadPackageHook,
     workspacePackages?: WorkspacePackages,
@@ -230,13 +230,12 @@ export default async function resolveDependencies (
     resolvedDependencies: options.resolvedDependencies,
   })
   const resolveDepOpts = {
-    alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
     currentDepth: options.currentDepth,
     dependentId: options.dependentId,
     parentDependsOnPeer: options.parentDependsOnPeers,
     parentIsInstallable: options.parentIsInstallable,
     parentNodeId: options.parentNodeId,
-    preferredVersions: options.preferredVersions,
+    preferredVersions,
     readPackageHook: options.readPackageHook,
     workspacePackages: options.workspacePackages,
   }
@@ -280,13 +279,13 @@ export default async function resolveDependencies (
               ? options.workspacePackages : undefined
             const children = await resolveDependencies(
               ctx,
+              preferredVersions,
               getWantedDependencies(resolveDependencyResult.pkg, {
                 optionalDependencyNames,
                 resolvedDependencies,
                 useManifestInfoFromLockfile: resolveDependencyResult.useManifestInfoFromLockfile,
               }),
               {
-                alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
                 currentDepth: options.currentDepth + 1,
                 dependentId: resolveDependencyResult.pkgId,
                 parentDependsOnPeers: Boolean(
@@ -297,7 +296,6 @@ export default async function resolveDependencies (
                 preferredDependencies: resolveDependencyResult.updated
                   ? extendedWantedDep.infoFromLockfile?.resolvedDependencies
                   : undefined,
-                preferredVersions,
                 // If the package is not linked, we should also gather information about its dependencies.
                 // After linking the package we'll need to symlink its dependencies.
                 proceed: !resolveDependencyResult.depIsLinked,
@@ -329,9 +327,7 @@ export default async function resolveDependencies (
   )
   .filter(Boolean) as PkgAddress[]
 
-  const newPreferredVersions = {
-    ...options.preferredVersions,
-  }
+  const newPreferredVersions = { ...preferredVersions }
   for (const { pkgId } of pkgAddresses) {
     const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgId]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
@@ -491,7 +487,6 @@ function getInfoFromLockfile (
 }
 
 type ResolveDependencyOptions = {
-  alwaysTryWorkspacePackages?: boolean,
   pkgId?: string,
   dependentId?: string,
   depPath?: string,
@@ -536,7 +531,7 @@ async function resolveDependency (
   let pkgResponse!: PackageResponse
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
-      alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
+      alwaysTryWorkspacePackages: ctx.alwaysTryWorkspacePackages,
       currentPackageId: options.pkgId,
       currentResolution: options.currentResolution,
       defaultTag: ctx.defaultTag,

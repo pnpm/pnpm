@@ -71,6 +71,7 @@ export default async function (
 
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
+    alwaysTryWorkspacePackages: (opts.linkWorkspacePackagesDepth ?? -1) >= 0,
     childrenByParentId: {} as ChildrenByParentId,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
@@ -110,11 +111,9 @@ export default async function (
     // if the newly added dependency has peer dependencies.
     const proceed = importer.hasRemovedDependencies || importer.wantedDependencies.some((wantedDep) => wantedDep['isNew'])
     const resolveOpts = {
-      alwaysTryWorkspacePackages: (opts.linkWorkspacePackagesDepth ?? -1) >= 0,
       currentDepth: 0,
       parentDependsOnPeers: proceed,
       parentNodeId: `>${importer.id}>`,
-      preferredVersions: importer.preferredVersions || {},
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
@@ -126,6 +125,7 @@ export default async function (
     }
     directDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
+      importer.preferredVersions ?? {},
       importer.wantedDependencies,
       resolveOpts
     )
