@@ -1,6 +1,7 @@
 import { Config } from '@pnpm/config'
 import {
   fetchingProgressLogger,
+  importingLogger,
   progressLogger,
   stageLogger,
   statsLogger,
@@ -9,11 +10,13 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
+import fs = require('fs')
 import chalk = require('chalk')
 import delay from 'delay'
 import most = require('most')
 import normalizeNewline = require('normalize-newline')
 import test = require('tape')
+import tempy = require('tempy')
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const hlValue = chalk.cyanBright
@@ -38,6 +41,9 @@ test('prints progress beginning', t => {
     packageId: 'registry.npmjs.org/foo/1.0.0',
     requester: '/src/project',
     status: 'resolved',
+  })
+  importingLogger.debug({
+    method: 'hardlink',
   })
 
   t.plan(1)
@@ -68,6 +74,9 @@ test('prints progress beginning of node_modules from not cwd', t => {
     packageId: 'registry.npmjs.org/foo/1.0.0',
     requester: '/src/projects/foo',
     status: 'resolved',
+  })
+  importingLogger.debug({
+    method: 'hardlink',
   })
 
   t.plan(1)
@@ -102,6 +111,9 @@ test('prints progress beginning when appendOnly is true', t => {
     requester: '/src/project',
     status: 'resolved',
   })
+  importingLogger.debug({
+    method: 'hardlink',
+  })
 
   t.plan(1)
 
@@ -134,6 +146,9 @@ test('prints progress beginning during recursive install', t => {
     packageId: 'registry.npmjs.org/foo/1.0.0',
     requester: '/src/project',
     status: 'resolved',
+  })
+  importingLogger.debug({
+    method: 'hardlink',
   })
 
   t.plan(1)
@@ -178,6 +193,9 @@ test('prints progress on first download', async t => {
     requester: '/src/project',
     status: 'resolved',
   })
+  importingLogger.debug({
+    method: 'hardlink',
+  })
 
   await delay(10)
 
@@ -205,7 +223,7 @@ test('moves fixed line to the end', async t => {
     error: t.end,
     next: output => {
       t.equal(output, `${WARN} foo` + EOL +
-        `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, done`)
+        `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, done\nPackages were hard linked from the content-addressable store to the virtual store.\nContent-addressable store is at: ~/.pnpm-store/v3\nVirtual store is at: node_modules/.pnpm`)
     },
   })
 
@@ -219,6 +237,9 @@ test('moves fixed line to the end', async t => {
     packageId,
     requester: prefix,
     status: 'resolved',
+  })
+  importingLogger.debug({
+    method: 'hardlink',
   })
 
   await delay(10)
@@ -351,6 +372,9 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
     requester: '/src/project',
     status: 'resolved',
   })
+  importingLogger.debug({
+    method: 'hardlink',
+  })
 
   await delay(10)
 
@@ -415,5 +439,95 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
     downloaded: 1024 * 1024 * 10, // 10 MB
     packageId: pkgId1,
     status: 'in_progress',
+  })
+})
+
+test('print copy message when packages are copied', async t => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: '/src/project' } as Config,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.skip(1).take(1).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, done\nPackages were copied from the content-addressable store to the virtual store.\nContent-addressable store is at: ~/.pnpm-store/v3\nVirtual store is at: node_modules/.pnpm`)
+    },
+  })
+
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_started',
+  })
+  progressLogger.debug({
+    packageId: 'registry.npmjs.org/foo/1.0.0',
+    requester: '/src/project',
+    status: 'resolved',
+  })
+  importingLogger.debug({
+    method: 'copy',
+  })
+
+  await delay(10) // w/o delay warning goes below for some reason. Started to happen after switch to most
+
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_done',
+  })
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'importing_done',
+  })
+})
+
+test('install message only show up when where is no node_module', async t => {
+  const prefix = tempy.directory()
+  fs.mkdirSync(`${prefix}/node_modules`)
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.skip(1).take(1).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, done`)
+    },
+  })
+
+  stageLogger.debug({
+    prefix,
+    stage: 'resolution_started',
+  })
+  progressLogger.debug({
+    packageId: 'registry.npmjs.org/foo/1.0.0',
+    requester: prefix,
+    status: 'resolved',
+  })
+  importingLogger.debug({
+    method: 'hardlink',
+  })
+
+  await delay(10) // w/o delay warning goes below for some reason. Started to happen after switch to most
+
+  stageLogger.debug({
+    prefix,
+    stage: 'resolution_done',
+  })
+  stageLogger.debug({
+    prefix,
+    stage: 'importing_done',
   })
 })

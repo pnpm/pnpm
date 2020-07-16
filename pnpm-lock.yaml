@@ -279,6 +279,7 @@ importers:
       ghooks: 2.0.4
       load-json-file: 6.2.0
       normalize-newline: 3.0.0
+      tempy: 0.5.0
     specifiers:
       '@pnpm/config': 'workspace:11.0.1'
       '@pnpm/core-loggers': 'workspace:4.1.2'
@@ -308,6 +309,7 @@ importers:
       stacktracey: ^1.2.127
       string-length: ^4.0.1
       strip-ansi: ^6.0.0
+      tempy: ^0.5.0
   packages/default-resolver:
     dependencies:
       '@pnpm/error': 'link:../error'
