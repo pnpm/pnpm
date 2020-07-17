@@ -53,9 +53,9 @@ export default (
 function throttledProgressOutput (
   throttleProgress: number,
   importingDone$: most.Stream<boolean>,
-  importingMethod$: most.Stream<string>,
+  packageImportMethod$: most.Stream<string>,
   progress$: most.Stream<ProgressStats>,
-  showImportingMethod: boolean
+  showPackageImportMethod: boolean
 ) {
   // Reporting is done every `throttleProgress` milliseconds
   // and once all packages are fetched.
@@ -64,10 +64,10 @@ function throttledProgressOutput (
     importingDone$
   )
   return most.sample(
-    createStatusMessage.bind(null, showImportingMethod),
+    createStatusMessage.bind(null, showPackageImportMethod),
     sampler,
     progress$,
-    importingMethod$,
+    packageImportMethod$,
     importingDone$
   )
   // Avoid logs after all resolved packages were downloaded.
@@ -77,14 +77,14 @@ function throttledProgressOutput (
 
 function nonThrottledProgressOutput (
   importingDone$: most.Stream<boolean>,
-  importingMethod$: most.Stream<string>,
+  packageImportMethod$: most.Stream<string>,
   progress$: most.Stream<ProgressStats>,
-  showImportingMethod: boolean
+  showPackageImportMethod: boolean
 ) {
   return most.combine(
-    createStatusMessage.bind(null, showImportingMethod),
+    createStatusMessage.bind(null, showPackageImportMethod),
     progress$,
-    importingMethod$,
+    packageImportMethod$,
     importingDone$
   )
 }
