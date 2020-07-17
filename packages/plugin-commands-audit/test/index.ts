@@ -15,6 +15,7 @@ test('audit', async (t) => {
       default: 'https://registry.npmjs.org/',
     },
   })
+  console.log(stripAnsi(output))
   t.equal(
     stripAnsi(output),
     `┌─────────────────────┬───────────────────────────────────┐
@@ -121,9 +122,9 @@ test('audit', async (t) => {
 ├─────────────────────┼───────────────────────────────────┤
 │ Package             │ lodash                            │
 ├─────────────────────┼───────────────────────────────────┤
-│ Vulnerable versions │ <4.17.17                          │
+│ Vulnerable versions │ <4.17.19                          │
 ├─────────────────────┼───────────────────────────────────┤
-│ Patched versions    │ >=4.17.17                         │
+│ Patched versions    │ >=4.17.19                         │
 ├─────────────────────┼───────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/1523 │
 └─────────────────────┴───────────────────────────────────┘
