@@ -112,8 +112,11 @@ export default async function (
     const proceed = importer.hasRemovedDependencies || importer.wantedDependencies.some((wantedDep) => wantedDep['isNew'])
     const resolveOpts = {
       currentDepth: 0,
-      parentDependsOnPeers: proceed,
-      parentNodeId: `>${importer.id}>`,
+      parentPkg: {
+        installable: true,
+        nodeId: `>${importer.id}>`,
+        pkgId: importer.id,
+      },
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
