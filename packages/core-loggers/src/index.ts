@@ -9,6 +9,7 @@ import {
   LifecycleLog,
   LinkLog,
   PackageManifestLog,
+  PackageImportMethodLog,
   ProgressLog,
   RegistryLog,
   RequestRetryLog,
@@ -29,6 +30,7 @@ export type Log =
   | LifecycleLog
   | LinkLog
   | PackageManifestLog
+  | PackageImportMethodLog
   | ProgressLog
   | RegistryLog
   | RequestRetryLog

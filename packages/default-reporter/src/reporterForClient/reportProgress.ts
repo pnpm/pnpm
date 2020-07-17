@@ -1,4 +1,4 @@
-import { ImportingLog, ProgressLog, StageLog } from '@pnpm/core-loggers'
+import { PackageImportMethodLog, ProgressLog, StageLog } from '@pnpm/core-loggers'
 import PushStream from '@zkochan/zen-push'
 import fs = require('fs')
 import most = require('most')
@@ -14,7 +14,7 @@ type ProgressStats = {
 
 type ModulesInstallProgress = {
   importingDone$: most.Stream<boolean>,
-  importingMethod$: most.Stream<string>,
+  packageImportMethod$: most.Stream<string>,
   progress$: most.Stream<ProgressStats>,
   requirer: string,
 }
@@ -22,23 +22,24 @@ type ModulesInstallProgress = {
 export default (
   log$: {
     progress: most.Stream<ProgressLog>,
-    importing: most.Stream<ImportingLog>,
+    packageImportMethod: most.Stream<PackageImportMethodLog>,
     stage: most.Stream<StageLog>,
   },
   opts: {
     cwd: string,
     throttleProgress?: number,
+    modulesDir?: string,
   }
 ) => {
   const progressOutput = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
     ? throttledProgressOutput.bind(null, opts.throttleProgress)
     : nonThrottledProgressOutput
 
-  return getModulesInstallProgress$(log$.stage, log$.progress, log$.importing)
-    .map(({ importingDone$, progress$, importingMethod$, requirer }) => {
-      const nodeModulesPath = path.join(requirer, 'node_modules')
+  return getModulesInstallProgress$(log$.stage, log$.progress, log$.packageImportMethod)
+    .map(({ importingDone$, progress$, packageImportMethod$, requirer }) => {
+      const nodeModulesPath = path.join(opts.modulesDir ?? requirer, 'node_modules')
       const showImportingMethod = !fs.existsSync(nodeModulesPath)
-      const output$ = progressOutput(importingDone$, importingMethod$, progress$, showImportingMethod)
+      const output$ = progressOutput(importingDone$, packageImportMethod$, progress$, showImportingMethod)
       if (requirer === opts.cwd) {
         return output$
       }
@@ -91,11 +92,11 @@ function nonThrottledProgressOutput (
 function getModulesInstallProgress$ (
   stage$: most.Stream<StageLog>,
   progress$: most.Stream<ProgressLog>,
-  importing$: most.Stream<ImportingLog>
+  packageImportMethod$: most.Stream<PackageImportMethodLog>
 ): most.Stream<ModulesInstallProgress> {
   const modulesInstallProgressPushStream = new PushStream<ModulesInstallProgress>()
   const progessStatsPushStreamByRequirer = getProgessStatsPushStreamByRequirer(progress$)
-  const importingMethodPushStream = getImportingMethodPushStream(importing$)
+  const packageImportMethodPushStream = getPackageImportMethodPushStream(packageImportMethod$)
 
   const stagePushStreamByRequirer: {
     [requirer: string]: PushStream<StageLog>,
@@ -109,7 +110,7 @@ function getModulesInstallProgress$ (
         }
         modulesInstallProgressPushStream.next({
           importingDone$: stage$ToImportingDone$(most.from(stagePushStreamByRequirer[log.prefix].observable)),
-          importingMethod$: most.from(importingMethodPushStream.observable),
+          packageImportMethod$: most.from(packageImportMethodPushStream.observable),
           progress$: most.from(progessStatsPushStreamByRequirer[log.prefix].observable),
           requirer: log.prefix,
         })
@@ -119,7 +120,7 @@ function getModulesInstallProgress$ (
         if (log.stage === 'importing_done') {
           progessStatsPushStreamByRequirer[log.prefix].complete()
           stagePushStreamByRequirer[log.prefix].complete()
-          importingMethodPushStream.complete()
+          packageImportMethodPushStream.complete()
         }
       }, 0)
     })
@@ -171,19 +172,26 @@ function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog
   return progessStatsPushStreamByRequirer
 }
 
-function getImportingMethodPushStream (importing$: most.Stream<ImportingLog>) {
-  const importingStatsPushStream = new PushStream<string>()
+function getPackageImportMethodPushStream (packageImportMethod$: most.Stream<PackageImportMethodLog>) {
+  const packageImportMethodPushStream = new PushStream<string>()
 
-  let previousImportingMethod = 'hard linked'
-  importing$
-    .forEach((log: ImportingLog) => {
-      if (log.method === 'copy') {
-        previousImportingMethod = 'copied'
+  let packageImportMethod = 'hard linked'
+  packageImportMethod$
+    .forEach((log: PackageImportMethodLog) => {
+      switch (log.method) {
+        case 'copy':
+          packageImportMethod = 'copied'
+          break
+        case 'clone':
+          packageImportMethod = 'cloned'
+          break
+        default:
+          break
       }
-      importingStatsPushStream.next(previousImportingMethod)
+      packageImportMethodPushStream.next(packageImportMethod)
     })
 
-  return importingStatsPushStream
+  return packageImportMethodPushStream
 }
 
 function createStatusMessage (

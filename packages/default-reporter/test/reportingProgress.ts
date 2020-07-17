@@ -1,7 +1,7 @@
 import { Config } from '@pnpm/config'
 import {
   fetchingProgressLogger,
-  importingLogger,
+  packageImportMethodLogger,
   progressLogger,
   stageLogger,
   statsLogger,
@@ -42,7 +42,7 @@ test('prints progress beginning', t => {
     requester: '/src/project',
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'hardlink',
   })
 
@@ -75,7 +75,7 @@ test('prints progress beginning of node_modules from not cwd', t => {
     requester: '/src/projects/foo',
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'hardlink',
   })
 
@@ -111,7 +111,7 @@ test('prints progress beginning when appendOnly is true', t => {
     requester: '/src/project',
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'hardlink',
   })
 
@@ -147,7 +147,7 @@ test('prints progress beginning during recursive install', t => {
     requester: '/src/project',
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'hardlink',
   })
 
@@ -193,7 +193,7 @@ test('prints progress on first download', async t => {
     requester: '/src/project',
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'hardlink',
   })
 
@@ -238,7 +238,7 @@ test('moves fixed line to the end', async t => {
     requester: prefix,
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'hardlink',
   })
 
@@ -372,7 +372,7 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
     requester: '/src/project',
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'hardlink',
   })
 
@@ -470,7 +470,7 @@ test('print copy message when packages are copied', async t => {
     requester: '/src/project',
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'copy',
   })
 
@@ -516,7 +516,7 @@ test('install message only show up when where is no node_module', async t => {
     requester: prefix,
     status: 'resolved',
   })
-  importingLogger.debug({
+  packageImportMethodLogger.debug({
     method: 'hardlink',
   })
 

@@ -34,7 +34,7 @@ export default function (
     hook: most.Stream<logs.HookLog>,
     scope: most.Stream<logs.ScopeLog>,
     skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,
-    importing: most.Stream<logs.ImportingLog>,
+    packageImportMethod: most.Stream<logs.PackageImportMethodLog>,
   },
   opts: {
     appendOnly?: boolean,
@@ -53,6 +53,7 @@ export default function (
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = [
     reportProgress(log$, {
       cwd,
+      modulesDir: opts.pnpmConfig?.modulesDir,
       throttleProgress: opts.throttleProgress,
     }),
     reportLifecycleScripts(log$, {
