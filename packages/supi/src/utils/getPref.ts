@@ -35,12 +35,19 @@ export async function updateProjectManifest (
       })
     }
   }
-  return save(
+  const hookedManifest = await save(
     importer.rootDir,
     importer.manifest,
     specsToUpsert,
     { dryRun: true }
   )
+  const unhookedManifest = importer.unhookedManifest && await save(
+    importer.rootDir,
+    importer.unhookedManifest,
+    specsToUpsert,
+    { dryRun: true }
+  )
+  return [hookedManifest, unhookedManifest]
 }
 
 function resolvedDirectDepToSpecObject (

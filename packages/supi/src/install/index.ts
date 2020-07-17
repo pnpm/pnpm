@@ -529,6 +529,7 @@ export type ImporterToUpdate = {
   binsDir: string,
   id: string,
   manifest: ProjectManifest,
+  unhookedManifest?: ProjectManifest,
   modulesDir: string,
   rootDir: string,
   pruneDirectDependencies: boolean,
@@ -573,7 +574,8 @@ async function installInContext (
     projects
       .map(async (project) => {
         if (project.mutation !== 'uninstallSome') return
-        project.manifest = await removeDeps(project.manifest, project.dependencyNames, {
+        const field = project.unhookedManifest ? 'unhookedManifest' : 'manifest'
+        project[field] = await removeDeps(project[field] as ProjectManifest, project.dependencyNames, {
           prefix: project.rootDir,
           saveType: project.targetDependenciesField,
         })
@@ -639,12 +641,15 @@ async function installInContext (
   const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     let newPkg: ProjectManifest | undefined = project.manifest
+    let unhookedNewPkg: ProjectManifest | undefined = project.unhookedManifest
     if (project.updatePackageManifest) {
-      newPkg = await updateProjectManifest(projectsToResolve[index], {
+      const manifests = await updateProjectManifest(projectsToResolve[index], {
         directDependencies: resolvedImporter.directDependencies,
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
+      newPkg = manifests[0]
+      unhookedNewPkg = manifests[1]
     } else {
       packageManifestLogger.debug({
         prefix: project.rootDir,
@@ -680,7 +685,7 @@ async function installInContext (
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: newPkg || project.manifest,
+      manifest: unhookedNewPkg ?? project.unhookedManifest ?? project.manifest,
       modulesDir: project.modulesDir,
       pruneDirectDependencies: project.pruneDirectDependencies,
       removePackages: project.removePackages,
