@@ -15,7 +15,6 @@ test('audit', async (t) => {
       default: 'https://registry.npmjs.org/',
     },
   })
-  console.log(stripAnsi(output))
   t.equal(
     stripAnsi(output),
     `┌─────────────────────┬───────────────────────────────────┐

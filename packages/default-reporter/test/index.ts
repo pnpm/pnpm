@@ -20,6 +20,7 @@ import path = require('path')
 import R = require('ramda')
 import StackTracey = require('stacktracey')
 import test = require('tape')
+import './reportingContext'
 import './reportingErrors'
 import './reportingLifecycleScripts'
 import './reportingProgress'

@@ -8,9 +8,20 @@ export default (
   }
 ) => {
   return most.combine(
-      (context, packageImportMethod) => ({
-        msg: !context.currentLockfileExists ? `Packages were ${packageImportMethod.method} from the content-addressable store to the virtual store.\nContent-addressable store is at: ${context.storeDir}\nVirtual store is at: ${context.virtualStoreDir}` : '',
-      }),
+      (context, packageImportMethod) => {
+        let method = 'hard linked'
+        switch (packageImportMethod.method) {
+          case 'copy':
+            method = 'copied'
+            break
+          case 'clone':
+            method = 'cloned'
+            break
+          default:
+            break
+        }
+        return ({ msg: !context.currentLockfileExists ? `Packages were ${method} from the content-addressable store to the virtual store.\nContent-addressable store is at: ${context.storeDir}\nVirtual store is at: ${context.virtualStoreDir}` : '' })
+      },
       log$.context,
       log$.packageImportMethod
     )
