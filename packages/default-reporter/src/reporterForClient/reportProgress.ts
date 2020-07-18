@@ -1,8 +1,6 @@
 import { ProgressLog, StageLog } from '@pnpm/core-loggers'
 import PushStream from '@zkochan/zen-push'
-import fs = require('fs')
 import most = require('most')
-import path = require('path')
 import { hlValue } from './outputConstants'
 import { zoomOut } from './utils/zooming'
 
@@ -35,6 +33,7 @@ export default (
   return getModulesInstallProgress$(log$.stage, log$.progress)
     .map(({ importingDone$, progress$, requirer }) => {
       const output$ = progressOutput(importingDone$, progress$)
+
       if (requirer === opts.cwd) {
         return output$
       }
@@ -48,7 +47,7 @@ export default (
 function throttledProgressOutput (
   throttleProgress: number,
   importingDone$: most.Stream<boolean>,
-  progress$: most.Stream<ProgressStats>,
+  progress$: most.Stream<ProgressStats>
 ) {
   // Reporting is done every `throttleProgress` milliseconds
   // and once all packages are fetched.
@@ -69,7 +68,7 @@ function throttledProgressOutput (
 
 function nonThrottledProgressOutput (
   importingDone$: most.Stream<boolean>,
-  progress$: most.Stream<ProgressStats>,
+  progress$: most.Stream<ProgressStats>
 ) {
   return most.combine(
     createStatusMessage,
@@ -80,7 +79,7 @@ function nonThrottledProgressOutput (
 
 function getModulesInstallProgress$ (
   stage$: most.Stream<StageLog>,
-  progress$: most.Stream<ProgressLog>,
+  progress$: most.Stream<ProgressLog>
 ): most.Stream<ModulesInstallProgress> {
   const modulesInstallProgressPushStream = new PushStream<ModulesInstallProgress>()
   const progessStatsPushStreamByRequirer = getProgessStatsPushStreamByRequirer(progress$)
@@ -166,7 +165,7 @@ function createStatusMessage (
     return {
       done: true,
       fixed: false,
-      msg,
+      msg: `${msg}, done`,
     }
   }
   return {

@@ -8,11 +8,11 @@ export default (
   }
 ) => {
   return most.combine(
-      (context, packageImportMethod) => {
-        return ({msg:  `${context.storeDir}, ${context.virtualStoreDir}, ${context.currentLockfileExists}, ${packageImportMethod.method}`})
-      },
+      (context, packageImportMethod) => ({
+        msg: !context.currentLockfileExists ? `Packages were ${packageImportMethod.method} from the content-addressable store to the virtual store.\nContent-addressable store is at: ${context.storeDir}\nVirtual store is at: ${context.virtualStoreDir}` : '',
+      }),
       log$.context,
-      log$.packageImportMethod,
+      log$.packageImportMethod
     )
     .take(1)
     .map(most.of)

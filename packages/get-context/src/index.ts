@@ -162,9 +162,9 @@ export default async function getContext<T> (
     }),
   }
   contextLogger.debug({
-    virtualStoreDir,
-    storeDir: opts.storeDir,
     currentLockfileExists: ctx.existsCurrentLockfile,
+    storeDir: opts.storeDir,
+    virtualStoreDir,
   })
   return ctx
 }
