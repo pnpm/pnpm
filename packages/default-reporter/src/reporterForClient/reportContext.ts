@@ -9,7 +9,10 @@ export default (
 ) => {
   return most.combine(
       (context, packageImportMethod) => {
-        let method = 'hard linked'
+        if (context.currentLockfileExists) {
+          return most.never();
+        }
+        let method!: string
         switch (packageImportMethod.method) {
           case 'copy':
             method = 'copied'
@@ -17,14 +20,21 @@ export default (
           case 'clone':
             method = 'cloned'
             break
+          case 'hardlink':
+            method = 'hard linked'
+            break
           default:
+            method = packageImportMethod.method
             break
         }
-        return ({ msg: !context.currentLockfileExists ? `Packages were ${method} from the content-addressable store to the virtual store.\nContent-addressable store is at: ${context.storeDir}\nVirtual store is at: ${context.virtualStoreDir}` : '' })
+        return most.of({
+          msg: `\
+Packages are ${method} from the content-addressable store to the virtual store.
+Content-addressable store is at: ${context.storeDir}
+Virtual store is at: ${context.virtualStoreDir}`,
+        })
       },
-      log$.context,
-      log$.packageImportMethod
+      log$.context.take(1),
+      log$.packageImportMethod.take(1)
     )
-    .take(1)
-    .map(most.of)
 }

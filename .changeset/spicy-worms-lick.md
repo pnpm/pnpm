@@ -1,5 +1,6 @@
 ---
-"@pnpm/get-context": patch
+"@pnpm/core-loggers": minor
+"@pnpm/get-context": minor
 ---
 
-use contextLogger to log virtualStoreDir, storeDir and currentLockFileExist
+Use `contextLogger` to log `virtualStoreDir`, `storeDir`, and `currentLockfileExists`.

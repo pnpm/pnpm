@@ -28,7 +28,10 @@ test('print context and import method info', (t) => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Packages were hard linked from the content-addressable store to the virtual store.\nContent-addressable store is at: ~/.pnpm-store/v3\nVirtual store is at: node_modules/.pnpm`)
+      t.equal(output, `\
+Packages are hard linked from the content-addressable store to the virtual store.
+Content-addressable store is at: ~/.pnpm-store/v3
+Virtual store is at: node_modules/.pnpm`)
     },
   })
 })
