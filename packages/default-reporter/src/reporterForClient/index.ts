@@ -82,7 +82,7 @@ export default function (
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
-    reportContext(log$),
+    reportContext(log$, { cwd }),
   ]
 
   if (!opts.appendOnly) {

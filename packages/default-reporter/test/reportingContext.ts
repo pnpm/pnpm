@@ -30,8 +30,8 @@ test('print context and import method info', (t) => {
     next: output => {
       t.equal(output, `\
 Packages are hard linked from the content-addressable store to the virtual store.
-\tContent-addressable store is at:\t~/.pnpm-store/v3
-\tVirtual store is at:            \tnode_modules/.pnpm`)
+  Content-addressable store is at: ~/.pnpm-store/v3
+  Virtual store is at:             node_modules/.pnpm`)
     },
   })
 })

@@ -1,11 +1,13 @@
 import { ContextLog, PackageImportMethodLog } from '@pnpm/core-loggers'
 import most = require('most')
+import path = require('path')
 
 export default (
   log$: {
     context: most.Stream<ContextLog>,
     packageImportMethod: most.Stream<PackageImportMethodLog>,
-  }
+  },
+  opts: { cwd: string }
 ) => {
   return most.combine(
       (context, packageImportMethod) => {
@@ -30,8 +32,8 @@ export default (
         return most.of({
           msg: `\
 Packages are ${method} from the content-addressable store to the virtual store.
-\tContent-addressable store is at:\t${context.storeDir}
-\tVirtual store is at:            \t${context.virtualStoreDir}`,
+  Content-addressable store is at: ${context.storeDir}
+  Virtual store is at:             ${path.relative(opts.cwd, context.virtualStoreDir)}`,
         })
       },
       log$.context.take(1),
