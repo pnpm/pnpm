@@ -3,6 +3,7 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import {
   createStreamParser,
 } from '@pnpm/logger'
+import delay from 'delay'
 import test = require('tape')
 
 test('print context and import method info', (t) => {
@@ -34,4 +35,36 @@ Packages are hard linked from the content-addressable store to the virtual store
   Virtual store is at:             node_modules/.pnpm`)
     },
   })
+})
+
+test('do not print info if not fresh install', async (t) => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  contextLogger.debug({
+    currentLockfileExists: true,
+    storeDir: '~/.pnpm-store/v3',
+    virtualStoreDir: 'node_modules/.pnpm',
+  })
+  packageImportMethodLogger.debug({
+    method: 'hardlink',
+  })
+
+  t.plan(1)
+
+  const subscription = output$.subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: (msg) => {
+      t.notOk(msg)
+    },
+  })
+
+  await delay(10)
+  t.ok('output$ has no event')
+  subscription.unsubscribe()
 })
