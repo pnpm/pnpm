@@ -10,7 +10,7 @@ export default (
   return most.combine(
       (context, packageImportMethod) => {
         if (context.currentLockfileExists) {
-          return most.never();
+          return most.never()
         }
         let method!: string
         switch (packageImportMethod.method) {
