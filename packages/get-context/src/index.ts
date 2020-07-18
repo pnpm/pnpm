@@ -1,4 +1,4 @@
-import { packageManifestLogger } from '@pnpm/core-loggers'
+import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
@@ -161,7 +161,11 @@ export default async function getContext<T> (
       virtualStoreDir,
     }),
   }
-
+  contextLogger.debug({
+    virtualStoreDir,
+    storeDir: opts.storeDir,
+    currentLockfileExists: ctx.existsCurrentLockfile,
+  })
   return ctx
 }
 

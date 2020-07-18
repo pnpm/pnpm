@@ -1,4 +1,4 @@
-import { PackageImportMethodLog, ProgressLog, StageLog } from '@pnpm/core-loggers'
+import { ProgressLog, StageLog } from '@pnpm/core-loggers'
 import PushStream from '@zkochan/zen-push'
 import fs = require('fs')
 import most = require('most')
@@ -14,7 +14,6 @@ type ProgressStats = {
 
 type ModulesInstallProgress = {
   importingDone$: most.Stream<boolean>,
-  packageImportMethod$: most.Stream<string>,
   progress$: most.Stream<ProgressStats>,
   requirer: string,
 }
@@ -22,24 +21,20 @@ type ModulesInstallProgress = {
 export default (
   log$: {
     progress: most.Stream<ProgressLog>,
-    packageImportMethod: most.Stream<PackageImportMethodLog>,
     stage: most.Stream<StageLog>,
   },
   opts: {
     cwd: string,
     throttleProgress?: number,
-    modulesDir?: string,
   }
 ) => {
   const progressOutput = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
     ? throttledProgressOutput.bind(null, opts.throttleProgress)
     : nonThrottledProgressOutput
 
-  return getModulesInstallProgress$(log$.stage, log$.progress, log$.packageImportMethod)
-    .map(({ importingDone$, progress$, packageImportMethod$, requirer }) => {
-      const nodeModulesPath = path.join(opts.modulesDir ?? requirer, 'node_modules')
-      const showImportingMethod = !fs.existsSync(nodeModulesPath)
-      const output$ = progressOutput(importingDone$, packageImportMethod$, progress$, showImportingMethod)
+  return getModulesInstallProgress$(log$.stage, log$.progress)
+    .map(({ importingDone$, progress$, requirer }) => {
+      const output$ = progressOutput(importingDone$, progress$)
       if (requirer === opts.cwd) {
         return output$
       }
@@ -53,9 +48,7 @@ export default (
 function throttledProgressOutput (
   throttleProgress: number,
   importingDone$: most.Stream<boolean>,
-  packageImportMethod$: most.Stream<string>,
   progress$: most.Stream<ProgressStats>,
-  showPackageImportMethod: boolean
 ) {
   // Reporting is done every `throttleProgress` milliseconds
   // and once all packages are fetched.
@@ -64,10 +57,9 @@ function throttledProgressOutput (
     importingDone$
   )
   return most.sample(
-    createStatusMessage.bind(null, showPackageImportMethod),
+    createStatusMessage,
     sampler,
     progress$,
-    packageImportMethod$,
     importingDone$
   )
   // Avoid logs after all resolved packages were downloaded.
@@ -77,14 +69,11 @@ function throttledProgressOutput (
 
 function nonThrottledProgressOutput (
   importingDone$: most.Stream<boolean>,
-  packageImportMethod$: most.Stream<string>,
   progress$: most.Stream<ProgressStats>,
-  showPackageImportMethod: boolean
 ) {
   return most.combine(
-    createStatusMessage.bind(null, showPackageImportMethod),
+    createStatusMessage,
     progress$,
-    packageImportMethod$,
     importingDone$
   )
 }
@@ -92,11 +81,9 @@ function nonThrottledProgressOutput (
 function getModulesInstallProgress$ (
   stage$: most.Stream<StageLog>,
   progress$: most.Stream<ProgressLog>,
-  packageImportMethod$: most.Stream<PackageImportMethodLog>
 ): most.Stream<ModulesInstallProgress> {
   const modulesInstallProgressPushStream = new PushStream<ModulesInstallProgress>()
   const progessStatsPushStreamByRequirer = getProgessStatsPushStreamByRequirer(progress$)
-  const packageImportMethodPushStream = getPackageImportMethodPushStream(packageImportMethod$)
 
   const stagePushStreamByRequirer: {
     [requirer: string]: PushStream<StageLog>,
@@ -110,7 +97,6 @@ function getModulesInstallProgress$ (
         }
         modulesInstallProgressPushStream.next({
           importingDone$: stage$ToImportingDone$(most.from(stagePushStreamByRequirer[log.prefix].observable)),
-          packageImportMethod$: most.from(packageImportMethodPushStream.observable),
           progress$: most.from(progessStatsPushStreamByRequirer[log.prefix].observable),
           requirer: log.prefix,
         })
@@ -120,7 +106,6 @@ function getModulesInstallProgress$ (
         if (log.stage === 'importing_done') {
           progessStatsPushStreamByRequirer[log.prefix].complete()
           stagePushStreamByRequirer[log.prefix].complete()
-          packageImportMethodPushStream.complete()
         }
       }, 0)
     })
@@ -172,41 +157,16 @@ function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog
   return progessStatsPushStreamByRequirer
 }
 
-function getPackageImportMethodPushStream (packageImportMethod$: most.Stream<PackageImportMethodLog>) {
-  const packageImportMethodPushStream = new PushStream<string>()
-
-  let packageImportMethod = 'hard linked'
-  packageImportMethod$
-    .forEach((log: PackageImportMethodLog) => {
-      switch (log.method) {
-        case 'copy':
-          packageImportMethod = 'copied'
-          break
-        case 'clone':
-          packageImportMethod = 'cloned'
-          break
-        default:
-          break
-      }
-      packageImportMethodPushStream.next(packageImportMethod)
-    })
-
-  return packageImportMethodPushStream
-}
-
 function createStatusMessage (
-  showImportingMethod: boolean,
   progress: ProgressStats,
-  importingMethod: string,
   importingDone: boolean
 ) {
   const msg = `Resolving: total ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}`
   if (importingDone) {
-    const importingMsg = `Packages were ${importingMethod} from the content-addressable store to the virtual store.\nContent-addressable store is at: ~/.pnpm-store/v3\nVirtual store is at: node_modules/.pnpm`
     return {
       done: true,
       fixed: false,
-      msg: `${msg}, done${showImportingMethod ? '\n' + importingMsg : ''}`,
+      msg,
     }
   }
   return {

@@ -31,13 +31,16 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod || 'auto') {
     case 'clone':
+      packageImportMethodLogger.debug({ method: 'clone' })
       return clonePkg
     case 'hardlink':
+      packageImportMethodLogger.debug({ method: 'hardlink' })
       return hardlinkPkg
     case 'auto': {
       return createAutoImporter()
     }
     case 'copy':
+      packageImportMethodLogger.debug({ method: 'copy' })
       return copyPkg
     default:
       throw new Error(`Unknown package import method ${packageImportMethod}`)

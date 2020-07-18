@@ -1,6 +1,7 @@
 export * from './all'
 
 import {
+  ContextLog,
   DeprecationLog,
   FetchingProgressLog,
   HookLog,
@@ -22,6 +23,7 @@ import {
 } from './all'
 
 export type Log =
+  | ContextLog
   | DeprecationLog
   | FetchingProgressLog
   | HookLog
