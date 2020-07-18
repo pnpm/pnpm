@@ -77,6 +77,7 @@ export function toOutput$ (
   }
 ): most.Stream<string> {
   opts = opts || {}
+  const contextPushStream = new PushStream()
   const fetchingProgressPushStream = new PushStream()
   const progressPushStream = new PushStream()
   const stagePushStream = new PushStream()
@@ -84,6 +85,7 @@ export function toOutput$ (
   const summaryPushStream = new PushStream()
   const lifecyclePushStream = new PushStream()
   const statsPushStream = new PushStream()
+  const packageImportMethodPushStream = new PushStream()
   const installCheckPushStream = new PushStream()
   const registryPushStream = new PushStream()
   const rootPushStream = new PushStream()
@@ -97,6 +99,9 @@ export function toOutput$ (
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
+        case 'pnpm:context':
+          contextPushStream.next(log)
+          break
         case 'pnpm:fetching-progress':
           fetchingProgressPushStream.next(log)
           break
@@ -117,6 +122,9 @@ export function toOutput$ (
           break
         case 'pnpm:stats':
           statsPushStream.next(log)
+          break
+        case 'pnpm:package-import-method':
+          packageImportMethodPushStream.next(log)
           break
         case 'pnpm:install-check':
           installCheckPushStream.next(log)
@@ -155,6 +163,7 @@ export function toOutput$ (
     })
   }, 0)
   const log$ = {
+    context: most.from<logs.ContextLog>(contextPushStream.observable),
     deprecation: most.from<logs.DeprecationLog>(deprecationPushStream.observable),
     fetchingProgress: most.from<logs.FetchingProgressLog>(fetchingProgressPushStream.observable),
     hook: most.from<logs.HookLog>(hookPushStream.observable),
@@ -162,6 +171,7 @@ export function toOutput$ (
     lifecycle: most.from<logs.LifecycleLog>(lifecyclePushStream.observable),
     link: most.from<logs.LinkLog>(linkPushStream.observable),
     other: most.from<logs.Log>(otherPushStream.observable),
+    packageImportMethod: most.from<logs.PackageImportMethodLog>(packageImportMethodPushStream.observable),
     packageManifest: most.from<logs.PackageManifestLog>(packageManifestPushStream.observable),
     progress: most.from<logs.ProgressLog>(progressPushStream.observable),
     registry: most.from<logs.RegistryLog>(registryPushStream.observable),

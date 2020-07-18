@@ -3,6 +3,7 @@ import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import most = require('most')
 import reportBigTarballsProgress from './reportBigTarballsProgress'
+import reportContext from './reportContext'
 import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
 import reportInstallChecks from './reportInstallChecks'
@@ -17,6 +18,7 @@ import reportSummary from './reportSummary'
 
 export default function (
   log$: {
+    context: most.Stream<logs.ContextLog>,
     fetchingProgress: most.Stream<logs.FetchingProgressLog>,
     progress: most.Stream<logs.ProgressLog>,
     stage: most.Stream<logs.StageLog>,
@@ -34,6 +36,7 @@ export default function (
     hook: most.Stream<logs.HookLog>,
     scope: most.Stream<logs.ScopeLog>,
     skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,
+    packageImportMethod: most.Stream<logs.PackageImportMethodLog>,
   },
   opts: {
     appendOnly?: boolean,
@@ -79,6 +82,7 @@ export default function (
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
+    reportContext(log$, { cwd }),
   ]
 
   if (!opts.appendOnly) {

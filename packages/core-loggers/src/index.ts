@@ -1,6 +1,7 @@
 export * from './all'
 
 import {
+  ContextLog,
   DeprecationLog,
   FetchingProgressLog,
   HookLog,
@@ -8,6 +9,7 @@ import {
   InstallCheckLog,
   LifecycleLog,
   LinkLog,
+  PackageImportMethodLog,
   PackageManifestLog,
   ProgressLog,
   RegistryLog,
@@ -21,6 +23,7 @@ import {
 } from './all'
 
 export type Log =
+  | ContextLog
   | DeprecationLog
   | FetchingProgressLog
   | HookLog
@@ -29,6 +32,7 @@ export type Log =
   | LifecycleLog
   | LinkLog
   | PackageManifestLog
+  | PackageImportMethodLog
   | ProgressLog
   | RegistryLog
   | RequestRetryLog

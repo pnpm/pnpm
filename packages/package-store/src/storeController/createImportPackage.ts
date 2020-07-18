@@ -1,4 +1,4 @@
-import { importingLogger } from '@pnpm/core-loggers'
+import { importingLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import fs = require('mz/fs')
@@ -31,13 +31,16 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod || 'auto') {
     case 'clone':
+      packageImportMethodLogger.debug({ method: 'clone' })
       return clonePkg
     case 'hardlink':
+      packageImportMethodLogger.debug({ method: 'hardlink' })
       return hardlinkPkg
     case 'auto': {
       return createAutoImporter()
     }
     case 'copy':
+      packageImportMethodLogger.debug({ method: 'copy' })
       return copyPkg
     default:
       throw new Error(`Unknown package import method ${packageImportMethod}`)
@@ -59,6 +62,7 @@ function createAutoImporter () {
   ) {
     try {
       await clonePkg(to, opts)
+      packageImportMethodLogger.debug({ method: 'clone' })
       auto = clonePkg
       return
     } catch (err) {
@@ -66,12 +70,14 @@ function createAutoImporter () {
     }
     try {
       await hardlinkPkg(to, opts)
+      packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg
       return
     } catch (err) {
       if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
       globalWarn(err.message)
       globalInfo('Falling back to copying packages from store')
+      packageImportMethodLogger.debug({ method: 'copy' })
       auto = copyPkg
       await auto(to, opts)
     }
