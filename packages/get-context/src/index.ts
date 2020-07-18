@@ -432,6 +432,11 @@ export async function getContextForSingleImporter (
     initial: manifest,
     prefix: opts.dir,
   })
+  contextLogger.debug({
+    currentLockfileExists: ctx.existsCurrentLockfile,
+    storeDir: opts.storeDir,
+    virtualStoreDir,
+  })
 
   return ctx
 }

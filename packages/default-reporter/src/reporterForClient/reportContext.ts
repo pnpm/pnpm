@@ -30,8 +30,8 @@ export default (
         return most.of({
           msg: `\
 Packages are ${method} from the content-addressable store to the virtual store.
-Content-addressable store is at: ${context.storeDir}
-Virtual store is at: ${context.virtualStoreDir}`,
+\tContent-addressable store is at:\t${context.storeDir}
+\tVirtual store is at:            \t${context.virtualStoreDir}`,
         })
       },
       log$.context.take(1),
