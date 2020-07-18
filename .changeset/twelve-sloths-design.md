@@ -3,4 +3,4 @@
 "@pnpm/package-store": minor
 ---
 
-Add packageImportMethod logger
+Add package import method logger and context logger
