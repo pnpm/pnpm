@@ -42,6 +42,7 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   | 'bail'
+  | 'depth'
   | 'globalPnpmfile'
   | 'hoistPattern'
   | 'ignorePnpmfile'
@@ -178,7 +179,7 @@ export default async function recursive (
       let currentInput = [...params]
       if (updateMatch) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-        if (!currentInput.length) {
+        if (!currentInput.length && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
           installOpts.pruneLockfileImporters = false
           return
         }

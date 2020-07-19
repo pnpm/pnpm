@@ -243,6 +243,7 @@ export type InstallCommandOptions = Pick<Config,
   | 'bail'
   | 'bin'
   | 'cliOptions'
+  | 'depth'
   | 'dev'
   | 'engineStrict'
   | 'global'

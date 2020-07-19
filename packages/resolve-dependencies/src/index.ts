@@ -58,6 +58,7 @@ export default async function (
     nodeVersion: string,
     registries: Registries,
     pnpmVersion: string,
+    updateMatching?: (pkgName: string) => boolean,
     linkWorkspacePackagesDepth?: number,
     lockfileDir: string,
     storeController: StoreController,
@@ -91,6 +92,7 @@ export default async function (
     resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
+    updateMatching: opts.updateMatching,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
   }

@@ -597,10 +597,11 @@ async function installInContext (
     || !opts.currentLockfileIsUpToDate
     || opts.force
   const _toResolveImporter = toResolveImporter.bind(null, {
-    defaultUpdateDepth: opts.update ? opts.depth : -1,
+    defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,
     lockfileOnly: opts.lockfileOnly,
     preferredVersions,
     storeDir: ctx.storeDir,
+    updateAll: Boolean(opts.updateMatching),
     virtualStoreDir: ctx.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
@@ -627,6 +628,7 @@ async function installInContext (
       registries: opts.registries,
       storeController: opts.storeController,
       tag: opts.tag,
+      updateMatching: opts.updateMatching,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
@@ -839,6 +841,7 @@ async function toResolveImporter (
     lockfileOnly: boolean,
     preferredVersions?: PreferredVersions,
     storeDir: string,
+    updateAll: boolean,
     virtualStoreDir: string,
     workspacePackages: WorkspacePackages,
   },
@@ -870,7 +873,8 @@ async function toResolveImporter (
     // so their update depth should be at least 0
     const updateLocalTarballs = (dep: WantedDependency) => ({
       ...dep,
-      updateDepth: prefIsLocalTarball(dep.pref) ? 0 : -1,
+      updateDepth: opts.updateAll ?
+        opts.defaultUpdateDepth : (prefIsLocalTarball(dep.pref) ? 0 : -1),
     })
     wantedDependencies = [
       ...project.wantedDependencies.map(
