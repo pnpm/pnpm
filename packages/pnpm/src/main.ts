@@ -136,11 +136,14 @@ export default async function run (inputArgv: string[]) {
 
   if (
     cmd === 'install' &&
-    typeof workspaceDir === 'string' &&
-    config.recursiveInstall
+    typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
     config.recursive = true
+
+    if (!config.recursiveInstall && !config.filter) {
+      config.filter = ['{.}...']
+    }
   }
 
   if (cliOptions['recursive']) {
