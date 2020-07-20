@@ -469,7 +469,7 @@ test('set recursive-install to false in .npmrc would disable recursive install i
   t.ok(projects['project-2'].hasNot('is-negative'))
 })
 
-test.only('set recursive-install to false in .npmrc would disable recursive install in workspace', async (t: tape.Test) => {
+test('set recursive-install to false would install as --filter {.}...', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       location: 'workspace/project-1',
