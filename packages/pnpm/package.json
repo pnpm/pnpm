@@ -86,7 +86,7 @@
     "byline": "5.0.0",
     "cross-spawn": "^7.0.3",
     "deep-require-cwd": "1.0.0",
-    "delay": "4.3.0",
+    "delay": "^4.4.0",
     "dir-is-case-sensitive": "1.0.2",
     "execa": "^4.0.3",
     "exists-link": "2.0.0",

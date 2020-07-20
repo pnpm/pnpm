@@ -275,7 +275,7 @@ importers:
       '@types/pretty-time': 1.1.0
       '@types/ramda': 0.27.11
       '@types/semver': 7.3.1
-      delay: 4.3.0
+      delay: 4.4.0
       ghooks: 2.0.4
       load-json-file: 6.2.0
       normalize-newline: 3.0.0
@@ -293,7 +293,7 @@ importers:
       '@zkochan/zen-push': 1.0.0
       ansi-diff: ^1.1.1
       chalk: ^4.1.0
-      delay: 4.3.0
+      delay: ^4.4.0
       ghooks: 2.0.4
       load-json-file: 6.2.0
       most: ^1.8.1
@@ -1281,7 +1281,7 @@ importers:
       '@types/ramda': 0.27.11
       '@types/sinon': 9.0.4
       '@types/ssri': 6.0.3
-      delay: 4.3.0
+      delay: 4.4.0
       ncp: 2.0.0
       nock: 12.0.3
       normalize-path: 3.0.0
@@ -1305,7 +1305,7 @@ importers:
       '@types/ramda': ^0.27.11
       '@types/sinon': ^9.0.4
       '@types/ssri': ^6.0.3
-      delay: 4.3.0
+      delay: ^4.4.0
       load-json-file: 6.2.0
       mz: 2.7.0
       ncp: 2.0.0
@@ -2155,7 +2155,7 @@ importers:
       byline: 5.0.0
       cross-spawn: 7.0.3
       deep-require-cwd: 1.0.0
-      delay: 4.3.0
+      delay: 4.4.0
       dir-is-case-sensitive: 1.0.2
       execa: 4.0.3
       exists-link: 2.0.0
@@ -2233,7 +2233,7 @@ importers:
       chalk: ^4.1.0
       cross-spawn: ^7.0.3
       deep-require-cwd: 1.0.0
-      delay: 4.3.0
+      delay: ^4.4.0
       dir-is-case-sensitive: 1.0.2
       execa: ^4.0.3
       exists-link: 2.0.0
@@ -5758,14 +5758,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/4.3.0:
-    dev: true
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-Lwaf3zVFDMBop1yDuFZ19F9WyGcZcGacsbdlZtWjQmM50tOcMntm1njF/Nb/Vjij3KaSvCF+sEYGKrrjObu2NA==
   /delay/4.4.0:
-    dev: false
     engines:
       node: '>=6'
     resolution:
