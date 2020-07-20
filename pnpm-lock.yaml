@@ -116,7 +116,7 @@ importers:
       '@types/node': 13.13.14
       '@types/ssri': 6.0.3
       '@types/tar-stream': 2.1.0
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/fetcher-base': 'workspace:8.0.2'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
@@ -137,7 +137,7 @@ importers:
       ssri: 6.0.1
       strip-bom: ^4.0.0
       tar-stream: ^2.1.3
-      tempy: ^0.5.0
+      tempy: ^0.6.0
   packages/cli-meta:
     dependencies:
       load-json-file: 6.2.0
@@ -221,7 +221,7 @@ importers:
       '@types/ramda': 0.27.11
       '@types/which': 1.3.2
       mz: 2.7.0
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/config': 'link:'
       '@pnpm/constants': 'workspace:4.0.0'
@@ -236,7 +236,7 @@ importers:
       is-subdir: 1.1.1
       mz: 2.7.0
       ramda: 0.27.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
       which: 2.0.2
   packages/constants:
     specifiers: {}
@@ -441,7 +441,7 @@ importers:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 3.2.2
       '@types/ramda': 0.27.11
-      tempy: 0.5.0
+      tempy: 0.6.0
       write-yaml-file: 4.1.0
       yaml-tag: 1.1.0
     specifiers:
@@ -457,7 +457,7 @@ importers:
       '@types/ramda': ^0.27.11
       dependency-path: 'workspace:5.0.2'
       ramda: 0.27.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
       write-yaml-file: ^4.1.0
       yaml-tag: 1.1.0
   packages/filter-workspace-packages:
@@ -478,7 +478,7 @@ importers:
       '@types/touch': 3.1.1
       is-ci: 2.0.0
       is-windows: 1.0.2
-      tempy: 0.5.0
+      tempy: 0.6.0
       touch: 3.1.0
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
@@ -496,7 +496,7 @@ importers:
       is-windows: 1.0.2
       pkgs-graph: 'workspace:5.2.0'
       ramda: 0.27.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
       touch: 3.1.0
   packages/find-packages:
     dependencies:
@@ -576,7 +576,7 @@ importers:
       '@pnpm/fetcher-base': 'link:../fetcher-base'
       '@zkochan/rimraf': 1.0.0
       execa: 4.0.3
-      tempy: 0.5.0
+      tempy: 0.6.0
     devDependencies:
       '@pnpm/cafs': 'link:../cafs'
       '@pnpm/git-fetcher': 'link:'
@@ -590,7 +590,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       execa: ^4.0.3
       p-defer: ^3.0.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
   packages/git-resolver:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
@@ -682,7 +682,7 @@ importers:
       npm-run-all: 4.1.5
       sinon: 9.0.2
       tape-promise: 4.0.0
-      tempy: 0.5.0
+      tempy: 0.6.0
       write-json-file: 4.3.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
@@ -731,7 +731,7 @@ importers:
       realpath-missing: 1.0.0
       sinon: 9.0.2
       tape-promise: 4.0.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
       write-json-file: 4.3.0
   packages/hoist:
     dependencies:
@@ -817,7 +817,7 @@ importers:
       ncp: 2.0.0
       path-exists: 4.0.0
       sinon: 9.0.2
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/link-bins': 'link:'
@@ -844,7 +844,7 @@ importers:
       path-exists: ^4.0.0
       ramda: ^0.27.0
       sinon: 9.0.2
-      tempy: 0.5.0
+      tempy: ^0.6.0
   packages/list:
     dependencies:
       '@pnpm/matcher': 'link:../matcher'
@@ -930,7 +930,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.11
       '@types/write-file-atomic': 3.0.1
-      tempy: 0.5.0
+      tempy: 0.6.0
       write-yaml-file: 4.1.0
       yaml-tag: 1.1.0
     specifiers:
@@ -951,7 +951,7 @@ importers:
       normalize-path: ^3.0.0
       ramda: ^0.27.0
       read-yaml-file: ^2.0.0
-      tempy: ^0.5.0
+      tempy: ^0.6.0
       write-file-atomic: ^2.4.3
       write-yaml-file: ^4.1.0
       yaml-tag: ^1.1.0
@@ -969,7 +969,7 @@ importers:
       '@pnpm/lockfile-utils': 'link:'
       '@types/js-yaml': 3.12.5
       '@types/ramda': 0.27.11
-      tempy: 0.5.0
+      tempy: 0.6.0
       write-yaml-file: 4.1.0
       yaml-tag: 1.1.0
     specifiers:
@@ -982,7 +982,7 @@ importers:
       dependency-path: 'workspace:5.0.2'
       get-npm-tarball-url: 2.0.1
       ramda: 0.27.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
       write-yaml-file: ^4.1.0
       yaml-tag: 1.1.0
   packages/lockfile-walker:
@@ -994,7 +994,7 @@ importers:
     devDependencies:
       '@pnpm/lockfile-walker': 'link:'
       '@types/ramda': 0.27.11
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/lockfile-types': 'workspace:2.0.1'
       '@pnpm/lockfile-walker': 'link:'
@@ -1002,7 +1002,7 @@ importers:
       '@types/ramda': ^0.27.11
       dependency-path: 'workspace:5.0.2'
       ramda: 0.27.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
   packages/manifest-utils:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -1062,14 +1062,14 @@ importers:
     devDependencies:
       '@pnpm/modules-yaml': 'link:'
       '@types/is-windows': 1.0.0
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/modules-yaml': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/is-windows': ^1.0.0
       is-windows: 1.0.2
       read-yaml-file: 2.0.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
       write-yaml-file: ^4.1.0
   packages/normalize-registries:
     dependencies:
@@ -1132,7 +1132,7 @@ importers:
       '@types/ssri': 6.0.3
       nock: 12.0.3
       path-exists: 4.0.0
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/fetch': 'workspace:^2.1.1'
@@ -1159,7 +1159,7 @@ importers:
       rename-overwrite: ^3.0.0
       semver: ^7.3.2
       ssri: 6.0.1
-      tempy: 0.5.0
+      tempy: ^0.6.0
       version-selector-type: ^3.0.0
   packages/outdated:
     dependencies:
@@ -1286,7 +1286,7 @@ importers:
       nock: 12.0.3
       normalize-path: 3.0.0
       sinon: 9.0.2
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/cafs': 'workspace:1.0.5'
       '@pnpm/client': 'workspace:*'
@@ -1320,7 +1320,7 @@ importers:
       rename-overwrite: ^3.0.0
       sinon: 9.0.2
       ssri: 6.0.1
-      tempy: 0.5.0
+      tempy: ^0.6.0
   packages/package-store:
     dependencies:
       '@pnpm/cafs': 'link:../cafs'
@@ -1353,7 +1353,7 @@ importers:
       '@types/ssri': 6.0.3
       proxyquire: 2.1.3
       sinon: 9.0.2
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/cafs': 'workspace:1.0.5'
       '@pnpm/client': 'workspace:^1.0.2'
@@ -1383,7 +1383,7 @@ importers:
       rename-overwrite: ^3.0.0
       sinon: 9.0.2
       ssri: ^8.0.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
       write-json-file: 4.0.0
   packages/parse-cli-args:
     dependencies:
@@ -1484,7 +1484,7 @@ importers:
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/ncp': 2.0.4
       ncp: 2.0.0
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/assert-project': 'workspace:2.1.5'
       '@pnpm/cli-utils': 'workspace:0.4.14'
@@ -1500,7 +1500,7 @@ importers:
       ncp: 2.0.0
       render-help: 1.0.0
       supi: 'workspace:0.41.9'
-      tempy: 0.5.0
+      tempy: ^0.6.0
   packages/plugin-commands-installation:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1559,7 +1559,7 @@ importers:
       proxyquire: 2.1.3
       read-yaml-file: 2.0.0
       sinon: 9.0.2
-      tempy: 0.5.0
+      tempy: 0.6.0
       write-json-file: 4.2.1
       write-yaml-file: 4.1.0
     specifiers:
@@ -1617,7 +1617,7 @@ importers:
       sinon: 9.0.2
       supi: 'workspace:0.41.9'
       table: ^5.4.6
-      tempy: ^0.5.0
+      tempy: ^0.6.0
       version-selector-type: ^3.0.0
       write-json-file: 4.2.1
       write-yaml-file: ^4.1.0
@@ -1776,7 +1776,7 @@ importers:
       path-exists: 4.0.0
       proxyquire: 2.1.3
       sinon: 9.0.2
-      tempy: 0.5.0
+      tempy: 0.6.0
       write-yaml-file: 4.1.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.14'
@@ -1818,7 +1818,7 @@ importers:
       realpath-missing: ^1.0.0
       render-help: ^1.0.0
       sinon: 9.0.2
-      tempy: 0.5.0
+      tempy: ^0.6.0
       write-json-file: 4.2.1
       write-yaml-file: ^4.1.0
   packages/plugin-commands-rebuild:
@@ -2047,7 +2047,7 @@ importers:
       path-exists: 4.0.0
       sinon: 9.0.2
       ssri: 8.0.0
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/assert-store': 'workspace:1.0.6'
       '@pnpm/cafs': 'workspace:^1.0.5'
@@ -2084,7 +2084,7 @@ importers:
       render-help: 1.0.0
       sinon: 9.0.2
       ssri: ^8.0.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
   packages/pnpm:
     dependencies:
       '@pnpm/cli-meta': 'link:../cli-meta'
@@ -2345,7 +2345,7 @@ importers:
       '@types/is-windows': 1.0.0
       '@types/json5': 0.0.30
       '@types/parse-json': 4.0.0
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/read-project-manifest': 'link:'
@@ -2364,7 +2364,7 @@ importers:
       read-yaml-file: ^2.0.0
       sort-keys: ^4.0.0
       strip-bom: ^4.0.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
   packages/read-projects-context:
     dependencies:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
@@ -2496,7 +2496,7 @@ importers:
       load-json-file: 6.2.0
       mz: 2.7.0
       node-fetch: 2.6.0
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/client': 'workspace:^1.0.2'
       '@pnpm/fetch': 'workspace:2.1.1'
@@ -2516,7 +2516,7 @@ importers:
       node-fetch: 2.6.0
       p-limit: ^3.0.2
       promise-share: 1.0.0
-      tempy: 0.5.0
+      tempy: ^0.6.0
       uuid: ^3.4.0
   packages/sort-packages:
     dependencies:
@@ -2797,7 +2797,7 @@ importers:
       '@types/ssri': 6.0.3
       cp-file: 9.0.0
       nock: 12.0.3
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/cafs': 'workspace:1.0.5'
       '@pnpm/core-loggers': 'workspace:^4.1.2'
@@ -2818,7 +2818,7 @@ importers:
       mz: ^2.7.0
       nock: 12.0.3
       ssri: 6.0.1
-      tempy: 0.5.0
+      tempy: ^0.6.0
   packages/tarball-resolver:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -2837,11 +2837,11 @@ importers:
       write-yaml-file: 4.1.0
     devDependencies:
       '@pnpm/write-project-manifest': 'link:'
-      tempy: 0.5.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/types': 'workspace:^6.2.0'
       '@pnpm/write-project-manifest': 'link:'
-      tempy: 0.5.0
+      tempy: ^0.6.0
       write-json-file: 4.0.0
       write-json5-file: ^3.0.0
       write-yaml-file: ^4.1.0
@@ -2895,7 +2895,7 @@ importers:
     dependencies:
       '@pnpm/assert-project': 'link:../assert-project'
       '@pnpm/types': 'link:../../packages/types'
-      tempy: 0.5.0
+      tempy: 0.6.0
       write-json5-file: 3.0.0
       write-pkg: 4.0.0
       write-yaml-file: 4.1.0
@@ -2907,7 +2907,7 @@ importers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/types': 'workspace:*'
       '@types/node': ^12.12.50
-      tempy: 0.5.0
+      tempy: ^0.6.0
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
       write-json5-file: ^3.0.0
@@ -11412,10 +11412,21 @@ packages:
       temp-dir: 2.0.0
       type-fest: 0.12.0
       unique-string: 2.0.0
+    dev: true
     engines:
       node: '>=10'
     resolution:
       integrity: sha512-VEY96x7gbIRfsxqsafy2l5yVxxp3PhwAGoWMyC2D2Zt5DmEv+2tGiPOrquNRpf21hhGnKLVEsuqleqiZmKG/qw==
+  /tempy/0.6.0:
+    dependencies:
+      is-stream: 2.0.0
+      temp-dir: 2.0.0
+      type-fest: 0.16.0
+      unique-string: 2.0.0
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-G13vtMYPT/J8A4X2SjdtBTphZlrp1gKv6hZiOjw14RCWg6GbHuQBGtjlx75xLbYV/wEc0D7G5K4rxKP/cXk8Bw==
   /term-size/1.2.0:
     dependencies:
       execa: 0.7.0
@@ -11775,6 +11786,7 @@ packages:
     resolution:
       integrity: sha512-0fr/mIH1dlO+x7TlcMy+bIDqKPsw/70tVyeHW787goQjhmqaZe10uwLujubK9q9Lg6Fiho1KUKDYz0Z7k7g5/g==
   /type-fest/0.12.0:
+    dev: true
     engines:
       node: '>=10'
     resolution:
@@ -11785,6 +11797,11 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-34R7HTnG0XIJcBSn5XhDd7nNFPRcXYRZrBB2O2jdKqYODldSzBAqzsWoZYYvduky73toYS/ESqxPvkDf/F0XMg==
+  /type-fest/0.16.0:
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-eaBzG6MxNzEn9kiwvtre90cXaNLkmadMWa1zQMs3XORCXNbsH/OewwbxC5ia9dCxIxnTAsSxXJaa/p5y8DlvJg==
   /type-fest/0.4.1:
     engines:
       node: '>=6'

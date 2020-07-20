@@ -46,7 +46,7 @@
     "load-json-file": "6.2.0",
     "mz": "2.7.0",
     "node-fetch": "2.6.0",
-    "tempy": "0.5.0"
+    "tempy": "^0.6.0"
   },
   "dependencies": {
     "@pnpm/fetch": "workspace:2.1.1",
