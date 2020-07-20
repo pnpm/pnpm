@@ -1,5 +1,18 @@
 # @pnpm/package-store
 
+## 9.1.0
+
+### Minor Changes
+
+- 9a908bc07: Add packageImportMethod logger.
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+  - @pnpm/package-requester@12.0.7
+
 ## 9.0.14
 
 ### Patch Changes

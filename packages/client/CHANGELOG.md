@@ -1,5 +1,15 @@
 # @pnpm/client
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [e8a853b5b]
+  - @pnpm/git-fetcher@3.0.5
+  - @pnpm/fetch@2.1.2
+  - @pnpm/tarball-fetcher@8.0.1
+  - @pnpm/default-resolver@10.0.3
+
 ## 1.0.2
 
 ### Patch Changes

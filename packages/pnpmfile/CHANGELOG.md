@@ -1,5 +1,13 @@
 # @pnpm/pnpmfile
 
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+
 ## 0.1.13
 
 ### Patch Changes

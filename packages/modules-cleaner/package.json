@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "10.0.3",
+  "version": "10.0.4",
   "description": "Exports util functions to clean up node_modules",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
@@ -27,13 +27,13 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:4.1.2",
-    "@pnpm/filter-lockfile": "workspace:4.0.4",
+    "@pnpm/core-loggers": "workspace:4.2.0",
+    "@pnpm/filter-lockfile": "workspace:4.0.5",
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.15",
     "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/remove-bins": "workspace:1.0.1",
+    "@pnpm/remove-bins": "workspace:1.0.2",
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
     "@zkochan/rimraf": "1.0.0",

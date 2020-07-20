@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@3.0.9
+
 ## 4.0.3
 
 ### Patch Changes

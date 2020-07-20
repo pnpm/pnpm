@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 7.5.0
+
+### Minor Changes
+
+- 9a908bc07: Print info after install about hardlinked/copied packages in `node_modules/.pnpm`
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+
 ## 7.4.7
 
 ### Patch Changes

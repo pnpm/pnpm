@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.8
+
+### Patch Changes
+
+- @pnpm/fetch@2.1.2
+- @pnpm/lifecycle@9.2.1
+- @pnpm/npm-resolver@9.0.1
+- @pnpm/cli-utils@0.4.15
+
 ## 2.1.7
 
 ### Patch Changes

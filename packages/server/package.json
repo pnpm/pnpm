@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "8.0.6",
+  "version": "8.0.7",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:^1.0.2",
+    "@pnpm/client": "workspace:^1.0.3",
     "@pnpm/logger": "3.2.2",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/package-store": "workspace:*",
@@ -49,7 +49,7 @@
     "tempy": "^0.6.0"
   },
   "dependencies": {
-    "@pnpm/fetch": "workspace:2.1.1",
+    "@pnpm/fetch": "workspace:2.1.2",
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
     "p-limit": "^3.0.2",

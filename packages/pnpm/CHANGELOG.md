@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.4.1
+
+### Patch Changes
+
+- `pnpm install` should work as `pnpm install --filter {.}...`, when `recursive-install` is `false`.
+- On first install, print an info message about the package importing (hard linking, cloning, or copying) method
+  and the location of the virtual store and the content-addressable store.
+
 ## 5.4.0
 
 ### Minor Changes

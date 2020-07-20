@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 3.0.5
+
+### Patch Changes
+
+- e8a853b5b: Update tempy to v0.6.0.
+
 ## 3.0.4
 
 ### Patch Changes

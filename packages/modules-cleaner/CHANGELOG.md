@@ -1,5 +1,15 @@
 # @pnpm/modules-cleaner
 
+## 10.0.4
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+  - @pnpm/remove-bins@1.0.2
+  - @pnpm/filter-lockfile@4.0.5
+
 ## 10.0.3
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/get-context
 
+## 3.1.0
+
+### Minor Changes
+
+- 9a908bc07: Use `contextLogger` to log `virtualStoreDir`, `storeDir`, and `currentLockfileExists`.
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+
 ## 3.0.1
 
 ### Patch Changes

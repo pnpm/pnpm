@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 16.0.6
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+  - @pnpm/package-is-installable@4.0.12
+  - @pnpm/npm-resolver@9.0.1
+
 ## 16.0.5
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 12.0.7
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+
 ## 12.0.6
 
 ### Patch Changes

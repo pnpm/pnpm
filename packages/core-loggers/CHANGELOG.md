@@ -1,5 +1,12 @@
 # @pnpm/core-loggers
 
+## 4.2.0
+
+### Minor Changes
+
+- 9a908bc07: Use `contextLogger` to log `virtualStoreDir`, `storeDir`, and `currentLockfileExists`.
+- 9a908bc07: Add packageImportMethod logger.
+
 ## 4.1.2
 
 ### Patch Changes

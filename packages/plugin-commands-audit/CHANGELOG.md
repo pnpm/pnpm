@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-audit
 
+## 1.0.19
+
+### Patch Changes
+
+- @pnpm/audit@1.1.9
+- @pnpm/cli-utils@0.4.15
+
 ## 1.0.18
 
 ### Patch Changes

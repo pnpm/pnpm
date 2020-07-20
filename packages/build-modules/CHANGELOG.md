@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+  - @pnpm/lifecycle@9.2.1
+
 ## 5.0.7
 
 ### Patch Changes

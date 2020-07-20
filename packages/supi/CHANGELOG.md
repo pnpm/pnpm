@@ -1,5 +1,24 @@
 # supi
 
+## 0.41.10
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+  - @pnpm/get-context@3.1.0
+  - @pnpm/build-modules@5.0.8
+  - @pnpm/headless@14.0.10
+  - @pnpm/lifecycle@9.2.1
+  - @pnpm/modules-cleaner@10.0.4
+  - @pnpm/package-requester@12.0.7
+  - @pnpm/remove-bins@1.0.2
+  - @pnpm/resolve-dependencies@16.0.6
+  - @pnpm/symlink-dependency@3.0.9
+  - @pnpm/filter-lockfile@4.0.5
+  - @pnpm/hoist@4.0.4
+
 ## 0.41.9
 
 ### Patch Changes

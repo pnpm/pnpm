@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "12.0.6",
+  "version": "12.0.7",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:1.0.5",
-    "@pnpm/core-loggers": "workspace:4.1.2",
+    "@pnpm/core-loggers": "workspace:4.2.0",
     "@pnpm/fetcher-base": "workspace:8.0.2",
     "@pnpm/pkgid-to-filename": "3.0.0",
     "@pnpm/read-package-json": "workspace:3.1.3",
