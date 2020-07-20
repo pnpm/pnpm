@@ -31,7 +31,7 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.2",
     "@pnpm/pnpmfile": "link:",
-    "@types/ramda": "^0.27.6"
+    "@types/ramda": "^0.27.11"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.1.2",

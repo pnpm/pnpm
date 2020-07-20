@@ -5,9 +5,9 @@ importers:
       '@pnpm/registry-mock': 2.0.1
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
       '@types/tape': 4.13.0
-      c8: 7.2.0
+      c8: 7.2.1
       coveralls: 3.1.0
       cross-env: 7.0.2
       lcov-result-merger: 3.1.0
@@ -16,30 +16,30 @@ importers:
       publish-packed: 3.0.1
       rimraf: 3.0.2
       tape: 4.13.3
-      ts-node: 8.10.2_typescript@3.9.6
-      tslint: 6.1.2_typescript@3.9.6
-      typescript: 3.9.6
-      verdaccio: 4.7.2
+      ts-node: 8.10.2_typescript@3.9.7
+      tslint: 6.1.2_typescript@3.9.7
+      typescript: 3.9.7
+      verdaccio: 4.8.0
     specifiers:
-      '@changesets/cli': ^2.9.1
+      '@changesets/cli': ^2.9.2
       '@pnpm/registry-mock': ^2.0.1
       '@pnpm/tsconfig': 'workspace:*'
       '@pnpm/tslint-config': 'workspace:*'
       '@types/node': '*'
       '@types/tape': ^4.13.0
-      c8: ^7.2.0
+      c8: ^7.2.1
       coveralls: ^3.1.0
       cross-env: ^7.0.2
       lcov-result-merger: ^3.1.0
-      npm: ^6.14.5
+      npm: ^6.14.6
       npm-run-all: ^4.1.5
       publish-packed: ^3.0.1
       rimraf: ^3.0.2
       tape: ^4.13.3
       ts-node: ^8.10.2
       tslint: ^6.1.2
-      typescript: ^3.9.5
-      verdaccio: ^4.7.2
+      typescript: ^3.9.7
+      verdaccio: ^4.8.0
   packages/audit:
     dependencies:
       '@pnpm/error': 'link:../error'
@@ -79,7 +79,7 @@ importers:
     devDependencies:
       '@pnpm/build-modules': 'link:'
       '@pnpm/logger': 3.2.2
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
     specifiers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 'workspace:4.0.0'
@@ -90,7 +90,7 @@ importers:
       '@pnpm/read-package-json': 'workspace:3.1.3'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       graph-sequencer: 2.0.0
       ramda: 0.27.0
       run-groups: ^3.0.1
@@ -103,7 +103,7 @@ importers:
       decompress-maybe: 1.0.0
       get-stream: 5.1.0
       mz: 2.7.0
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       path-exists: 4.0.0
       path-temp: 2.0.0
       rename-overwrite: 3.0.0
@@ -113,7 +113,7 @@ importers:
     devDependencies:
       '@types/concat-stream': 1.6.0
       '@types/mz': 2.7.1
-      '@types/node': 13.13.13
+      '@types/node': 13.13.14
       '@types/ssri': 6.0.3
       '@types/tar-stream': 2.1.0
       tempy: 0.5.0
@@ -122,7 +122,7 @@ importers:
       '@pnpm/store-controller-types': 'workspace:8.0.2'
       '@types/concat-stream': ^1.6.0
       '@types/mz': ^2.7.1
-      '@types/node': ^13.13.12
+      '@types/node': ^13.13.14
       '@types/ssri': ^6.0.3
       '@types/tar-stream': ^2.1.0
       '@zkochan/rimraf': 1.0.0
@@ -130,13 +130,13 @@ importers:
       decompress-maybe: ^1.0.0
       get-stream: 5.1.0
       mz: 2.7.0
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       path-exists: 4.0.0
       path-temp: 2.0.0
       rename-overwrite: ^3.0.0
       ssri: 6.0.1
       strip-bom: ^4.0.0
-      tar-stream: ^2.1.2
+      tar-stream: ^2.1.3
       tempy: ^0.5.0
   packages/cli-meta:
     dependencies:
@@ -162,7 +162,7 @@ importers:
       '@pnpm/cli-utils': 'link:'
       '@pnpm/logger': 3.2.2
       '@pnpm/types': 'link:../types'
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
     specifiers:
       '@pnpm/cli-meta': 'workspace:1.0.0'
       '@pnpm/cli-utils': 'link:'
@@ -173,7 +173,7 @@ importers:
       '@pnpm/package-is-installable': 'workspace:4.0.11'
       '@pnpm/read-project-manifest': 'workspace:1.0.9'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       chalk: ^4.1.0
       load-json-file: ^6.2.0
   packages/client:
@@ -218,7 +218,7 @@ importers:
     devDependencies:
       '@pnpm/config': 'link:'
       '@types/mz': 2.7.1
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/which': 1.3.2
       mz: 2.7.0
       tempy: 0.5.0
@@ -229,7 +229,7 @@ importers:
       '@pnpm/global-bin-dir': 'workspace:^1.1.1'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': ^2.7.1
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/which': 1.3.2
       '@zkochan/npm-conf': 2.0.0
       camelcase: 6.0.0
@@ -273,7 +273,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@types/normalize-path': 3.0.0
       '@types/pretty-time': 1.1.0
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/semver': 7.3.1
       delay: 4.3.0
       ghooks: 2.0.4
@@ -288,8 +288,8 @@ importers:
       '@pnpm/types': 'workspace:6.2.0'
       '@types/normalize-path': ^3.0.0
       '@types/pretty-time': ^1.1.0
-      '@types/ramda': ^0.27.6
-      '@types/semver': ^7.2.0
+      '@types/ramda': ^0.27.11
+      '@types/semver': ^7.3.1
       '@zkochan/zen-push': 1.0.0
       ansi-diff: ^1.1.1
       chalk: ^4.1.0
@@ -378,7 +378,7 @@ importers:
       dependency-path: 'link:'
     specifiers:
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/semver': ^7.2.0
+      '@types/semver': ^7.3.1
       dependency-path: 'link:'
       encode-registry: 2.0.2
       semver: ^7.3.2
@@ -440,7 +440,7 @@ importers:
     devDependencies:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 3.2.2
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       tempy: 0.5.0
       write-yaml-file: 4.1.0
       yaml-tag: 1.1.0
@@ -454,7 +454,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@pnpm/package-is-installable': 'workspace:4.0.11'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       dependency-path: 'workspace:5.0.2'
       ramda: 0.27.0
       tempy: 0.5.0
@@ -474,7 +474,7 @@ importers:
       '@pnpm/filter-workspace-packages': 'link:'
       '@types/is-ci': 2.0.0
       '@types/is-windows': 1.0.0
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/touch': 3.1.1
       is-ci: 2.0.0
       is-windows: 1.0.2
@@ -487,9 +487,9 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.3'
       '@types/is-ci': ^2.0.0
       '@types/is-windows': ^1.0.0
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/touch': ^3.1.1
-      execa: ^4.0.2
+      execa: ^4.0.3
       find-up: 4.1.0
       is-ci: 2.0.0
       is-subdir: 1.1.1
@@ -552,7 +552,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@types/is-ci': 2.0.0
       '@types/mz': 2.7.1
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
     specifiers:
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/core-loggers': 'workspace:4.1.2'
@@ -565,7 +565,7 @@ importers:
       '@pnpm/types': 'workspace:6.2.0'
       '@types/is-ci': ^2.0.0
       '@types/mz': ^2.7.1
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@zkochan/rimraf': 1.0.0
       is-ci: 2.0.0
       mz: ^2.7.0
@@ -588,7 +588,7 @@ importers:
       '@pnpm/git-fetcher': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
       '@zkochan/rimraf': 1.0.0
-      execa: ^4.0.2
+      execa: ^4.0.3
       p-defer: ^3.0.0
       tempy: 0.5.0
   packages/git-resolver:
@@ -611,7 +611,7 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@types/hosted-git-info': 3.0.0
       '@types/is-windows': ^1.0.0
-      '@types/semver': ^7.2.0
+      '@types/semver': ^7.3.1
       graceful-git: 3.0.1
       hosted-git-info: ^3.0.5
       is-windows: 1.0.2
@@ -655,7 +655,7 @@ importers:
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       path-absolute: 1.0.1
       path-exists: 4.0.0
       ramda: 0.27.0
@@ -670,7 +670,7 @@ importers:
       '@pnpm/store-path': 4.0.0
       '@types/fs-extra': 9.0.1
       '@types/mz': 2.7.1
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/rimraf': 3.0.0
       '@types/sinon': 9.0.4
       '@types/tape-promise': 4.0.1
@@ -713,7 +713,7 @@ importers:
       '@pnpm/types': 'workspace:6.2.0'
       '@types/fs-extra': ^9.0.1
       '@types/mz': ^2.7.1
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/rimraf': ^3.0.0
       '@types/sinon': ^9.0.4
       '@types/tape-promise': ^4.0.1
@@ -724,7 +724,7 @@ importers:
       load-json-file: 6.2.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       path-absolute: 1.0.1
       path-exists: 4.0.0
       ramda: 0.27.0
@@ -748,7 +748,7 @@ importers:
       ramda: 0.27.0
     devDependencies:
       '@pnpm/logger': 3.2.2
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
     specifiers:
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/link-bins': 'workspace:5.3.7'
@@ -760,7 +760,7 @@ importers:
       '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/symlink-dependency': 'workspace:3.0.8'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       dependency-path: 'workspace:5.0.2'
       ramda: 0.27.0
   packages/lifecycle:
@@ -809,9 +809,9 @@ importers:
       '@types/is-windows': 1.0.0
       '@types/mz': 2.7.1
       '@types/ncp': 2.0.4
-      '@types/node': 12.12.48
+      '@types/node': 12.12.50
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/sinon': 9.0.4
       '@types/tape': 4.13.0
       ncp: 2.0.0
@@ -829,9 +829,9 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.4
-      '@types/node': ^12.12.47
+      '@types/node': ^12.12.50
       '@types/normalize-path': ^3.0.0
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/sinon': ^9.0.4
       '@types/tape': ^4.13.0
       '@zkochan/cmd-shim': ^5.0.0
@@ -856,14 +856,14 @@ importers:
       chalk: 4.1.0
       cli-columns: 3.1.2
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       ramda: 0.27.0
       semver: 7.3.2
     devDependencies:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 3.2.2
       '@types/archy': 0.0.31
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/semver': 7.3.1
     specifiers:
       '@pnpm/list': 'link:'
@@ -873,14 +873,14 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:1.0.9'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/archy': 0.0.31
-      '@types/ramda': ^0.27.6
-      '@types/semver': ^7.2.0
+      '@types/ramda': ^0.27.11
+      '@types/semver': ^7.3.1
       '@zkochan/npm-package-arg': 1.0.2
       archy: ^1.0.0
       chalk: ^4.1.0
       cli-columns: ^3.1.2
       dependencies-hierarchy: 'workspace:9.0.0'
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       ramda: ^0.27.0
       semver: ^7.3.2
   packages/local-resolver:
@@ -928,7 +928,7 @@ importers:
       '@types/js-yaml': 3.12.5
       '@types/mz': 2.7.1
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/write-file-atomic': 3.0.1
       tempy: 0.5.0
       write-yaml-file: 4.1.0
@@ -940,11 +940,11 @@ importers:
       '@pnpm/lockfile-types': 'workspace:2.0.1'
       '@pnpm/logger': ^3.2.2
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/js-yaml': ^3.12.4
+      '@types/js-yaml': ^3.12.5
       '@types/mz': ^2.7.1
       '@types/normalize-path': ^3.0.0
-      '@types/ramda': ^0.27.6
-      '@types/write-file-atomic': ^3.0.0
+      '@types/ramda': ^0.27.11
+      '@types/write-file-atomic': ^3.0.1
       '@zkochan/rimraf': ^1.0.0
       js-yaml: ^3.14.0
       mz: ^2.7.0
@@ -968,7 +968,7 @@ importers:
     devDependencies:
       '@pnpm/lockfile-utils': 'link:'
       '@types/js-yaml': 3.12.5
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       tempy: 0.5.0
       write-yaml-file: 4.1.0
       yaml-tag: 1.1.0
@@ -977,8 +977,8 @@ importers:
       '@pnpm/lockfile-utils': 'link:'
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/js-yaml': ^3.12.4
-      '@types/ramda': ^0.27.6
+      '@types/js-yaml': ^3.12.5
+      '@types/ramda': ^0.27.11
       dependency-path: 'workspace:5.0.2'
       get-npm-tarball-url: 2.0.1
       ramda: 0.27.0
@@ -993,13 +993,13 @@ importers:
       ramda: 0.27.0
     devDependencies:
       '@pnpm/lockfile-walker': 'link:'
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       tempy: 0.5.0
     specifiers:
       '@pnpm/lockfile-types': 'workspace:2.0.1'
       '@pnpm/lockfile-walker': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       dependency-path: 'workspace:5.0.2'
       ramda: 0.27.0
       tempy: 0.5.0
@@ -1036,7 +1036,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@pnpm/modules-cleaner': 'link:'
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.1.2'
       '@pnpm/filter-lockfile': 'workspace:4.0.4'
@@ -1049,7 +1049,7 @@ importers:
       '@pnpm/remove-bins': 'workspace:1.0.1'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'workspace:5.0.2'
       ramda: 0.27.0
@@ -1083,7 +1083,7 @@ importers:
       normalize-registry-url: 1.0.0
   packages/npm-registry-agent:
     dependencies:
-      agentkeepalive: 4.0.0
+      agentkeepalive: 4.1.3
       http-proxy-agent: 4.0.1
       https-proxy-agent: 3.0.1
       lru-cache: 6.0.0
@@ -1097,7 +1097,7 @@ importers:
       '@types/http-proxy-agent': ^2.0.2
       '@types/lru-cache': ^5.1.0
       '@types/proxyquire': ^1.3.28
-      agentkeepalive: ^4.0.0
+      agentkeepalive: ^4.1.3
       http-proxy-agent: ^4.0.1
       https-proxy-agent: ^3.0.1
       lru-cache: ^6.0.0
@@ -1114,7 +1114,7 @@ importers:
       load-json-file: 6.2.0
       mz: 2.7.0
       normalize-path: 3.0.0
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       p-memoize: 4.0.0
       parse-npm-tarball-url: 3.0.0
       path-temp: 2.0.0
@@ -1144,14 +1144,14 @@ importers:
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': ^2.7.1
       '@types/normalize-path': ^3.0.0
-      '@types/semver': ^7.2.0
+      '@types/semver': ^7.3.1
       '@types/ssri': ^6.0.3
       encode-registry: 2.0.2
       load-json-file: 6.2.0
       mz: ^2.7.0
       nock: 12.0.3
       normalize-path: 3.0.0
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       p-memoize: 4.0.0
       parse-npm-tarball-url: 3.0.0
       path-exists: 4.0.0
@@ -1185,7 +1185,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@pnpm/outdated': 'link:'
       '@types/lru-cache': 5.1.0
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/semver': 7.3.1
       npm-run-all: 4.1.5
     specifiers:
@@ -1204,8 +1204,8 @@ importers:
       '@pnpm/store-path': ^4.0.0
       '@pnpm/types': 'workspace:6.2.0'
       '@types/lru-cache': ^5.1.0
-      '@types/ramda': ^0.27.6
-      '@types/semver': ^7.2.0
+      '@types/ramda': ^0.27.11
+      '@types/semver': ^7.3.1
       credentials-by-uri: ^2.0.0
       dependency-path: 'workspace:5.0.2'
       lru-cache: ^6.0.0
@@ -1222,13 +1222,13 @@ importers:
     devDependencies:
       '@pnpm/package-bins': 'link:'
       '@types/graceful-fs': 4.1.3
-      '@types/node': 12.12.48
+      '@types/node': 12.12.50
       '@types/tape': 4.13.0
     specifiers:
       '@pnpm/package-bins': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/graceful-fs': ^4.1.3
-      '@types/node': ^12.12.47
+      '@types/node': ^12.12.50
       '@types/tape': ^4.13.0
       graceful-fs: ^4.2.4
       is-subdir: ^1.1.1
@@ -1249,7 +1249,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@pnpm/package-is-installable': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/semver': ^7.2.0
+      '@types/semver': ^7.3.1
       semver: ^7.3.2
   packages/package-requester:
     dependencies:
@@ -1264,8 +1264,8 @@ importers:
       load-json-file: 6.2.0
       mz: 2.7.0
       p-defer: 3.0.0
-      p-limit: 3.0.1
-      p-queue: 6.5.0
+      p-limit: 3.0.2
+      p-queue: 6.6.0
       path-temp: 2.0.0
       promise-share: 1.0.0
       ramda: 0.27.0
@@ -1278,7 +1278,7 @@ importers:
       '@types/mz': 2.7.1
       '@types/ncp': 2.0.4
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/sinon': 9.0.4
       '@types/ssri': 6.0.3
       delay: 4.3.0
@@ -1302,7 +1302,7 @@ importers:
       '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.4
       '@types/normalize-path': ^3.0.0
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/sinon': ^9.0.4
       '@types/ssri': ^6.0.3
       delay: 4.3.0
@@ -1312,8 +1312,8 @@ importers:
       nock: 12.0.3
       normalize-path: 3.0.0
       p-defer: ^3.0.0
-      p-limit: ^3.0.1
-      p-queue: ^6.4.0
+      p-limit: ^3.0.2
+      p-queue: ^6.6.0
       path-temp: ^2.0.0
       promise-share: 1.0.0
       ramda: 0.27.0
@@ -1335,7 +1335,7 @@ importers:
       make-empty-dir: 1.0.0
       mz: 2.7.0
       p-filter: 2.1.0
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       path-exists: 4.0.0
       path-temp: 2.0.0
       ramda: 0.27.0
@@ -1348,7 +1348,7 @@ importers:
       '@pnpm/package-store': 'link:'
       '@types/mz': 2.7.1
       '@types/proxyquire': 1.3.28
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/sinon': 9.0.4
       '@types/ssri': 6.0.3
       proxyquire: 2.1.3
@@ -1367,7 +1367,7 @@ importers:
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': ^2.7.1
       '@types/proxyquire': ^1.3.28
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/sinon': ^9.0.4
       '@types/ssri': ^6.0.3
       '@zkochan/rimraf': 1.0.0
@@ -1375,7 +1375,7 @@ importers:
       make-empty-dir: ^1.0.0
       mz: 2.7.0
       p-filter: 2.1.0
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       path-exists: 4.0.0
       path-temp: 2.0.0
       proxyquire: 2.1.3
@@ -1423,12 +1423,12 @@ importers:
       '@zkochan/npm-package-arg': 1.0.2
       ramda: 0.27.0
     devDependencies:
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
     specifiers:
       '@pnpm/resolve-workspace-range': 'workspace:1.0.1'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@zkochan/npm-package-arg': ^1.0.2
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
@@ -1448,7 +1448,7 @@ importers:
     devDependencies:
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': 'link:../types'
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/table': 5.0.0
       strip-ansi: 6.0.0
     specifiers:
@@ -1460,7 +1460,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.11'
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/table': ^5.0.0
       chalk: ^4.1.0
       ramda: ^0.27.0
@@ -1533,7 +1533,7 @@ importers:
       mem: 6.1.0
       mz: 2.7.0
       p-filter: 2.1.0
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       path-absolute: 1.0.1
       path-exists: 4.0.0
       ramda: 0.27.0
@@ -1552,7 +1552,7 @@ importers:
       '@types/is-ci': 2.0.0
       '@types/mz': 2.7.1
       '@types/proxyquire': 1.3.28
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/sinon': 9.0.4
       '@types/table': 5.0.0
       load-json-file: 6.2.0
@@ -1594,19 +1594,19 @@ importers:
       '@types/is-ci': ^2.0.0
       '@types/mz': ^2.7.1
       '@types/proxyquire': ^1.3.28
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/sinon': ^9.0.4
       '@types/table': ^5.0.0
       camelcase-keys: ^6.2.2
       chalk: ^4.1.0
-      enquirer: ^2.3.5
+      enquirer: ^2.3.6
       is-ci: ^2.0.0
       is-subdir: ^1.1.1
       load-json-file: 6.2.0
       mem: ^6.1.0
       mz: ^2.7.0
       p-filter: ^2.1.0
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       path-absolute: ^1.0.1
       path-exists: ^4.0.0
       proxyquire: 2.1.3
@@ -1639,7 +1639,7 @@ importers:
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/mz': 2.7.1
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       execa: 4.0.3
       mz: 2.7.0
       strip-ansi: 6.0.0
@@ -1658,8 +1658,8 @@ importers:
       '@pnpm/prepare': 'workspace:0.0.7'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': ^2.7.1
-      '@types/ramda': ^0.27.6
-      execa: ^4.0.2
+      '@types/ramda': ^0.27.11
+      execa: ^4.0.3
       mz: 2.7.0
       ramda: 0.27.0
       render-help: 1.0.0
@@ -1695,7 +1695,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.1
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/table': 5.0.0
       '@types/wrap-ansi': 3.0.0
       mz: 2.7.0
@@ -1722,7 +1722,7 @@ importers:
       '@pnpm/types': 'workspace:6.2.0'
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.1
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/table': ^5.0.0
       '@types/wrap-ansi': ^3.0.0
       chalk: ^4.1.0
@@ -1769,7 +1769,7 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.1
       '@types/proxyquire': 1.3.28
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/sinon': 9.0.4
       cross-spawn: 7.0.3
       execa: 4.0.3
@@ -1799,14 +1799,14 @@ importers:
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.1
       '@types/proxyquire': ^1.3.28
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/sinon': ^9.0.4
       '@zkochan/rimraf': 1.0.0
       cp-file: ^9.0.0
       credentials-by-uri: ^2.0.0
       cross-spawn: ^7.0.3
-      enquirer: ^2.3.5
-      execa: ^4.0.2
+      enquirer: ^2.3.6
+      execa: ^4.0.3
       fast-glob: ^3.2.4
       lru-cache: ^6.0.0
       mem: ^6.1.0
@@ -1847,7 +1847,7 @@ importers:
       graph-sequencer: 2.0.0
       load-json-file: 6.2.0
       mem: 6.1.0
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       ramda: 0.27.0
       read-ini-file: 3.0.0
       render-help: 1.0.0
@@ -1859,7 +1859,7 @@ importers:
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/semver': 7.3.1
       '@types/sinon': 9.0.4
       execa: 4.0.3
@@ -1890,17 +1890,17 @@ importers:
       '@pnpm/store-controller-types': 'workspace:8.0.2'
       '@pnpm/test-fixtures': 'workspace:*'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
-      '@types/semver': ^7.2.0
+      '@types/ramda': ^0.27.11
+      '@types/semver': ^7.3.1
       '@types/sinon': ^9.0.4
       '@zkochan/npm-package-arg': 1.0.2
       camelcase-keys: 6.2.2
       dependency-path: 'workspace:5.0.2'
-      execa: ^4.0.2
+      execa: ^4.0.3
       graph-sequencer: 2.0.0
       load-json-file: 6.2.0
       mem: ^6.1.0
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       path-exists: 4.0.0
       ramda: 0.27.0
       read-ini-file: 3.0.0
@@ -1919,7 +1919,7 @@ importers:
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/types': 'link:../types'
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       ramda: 0.27.0
       realpath-missing: 1.0.0
       render-help: 1.0.0
@@ -1929,7 +1929,7 @@ importers:
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/mz': 2.7.1
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@zkochan/rimraf': 1.0.0
       execa: 4.0.3
       mz: 2.7.0
@@ -1948,11 +1948,11 @@ importers:
       '@pnpm/sort-packages': 'workspace:1.0.13'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': ^2.7.1
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@zkochan/rimraf': 1.0.0
-      execa: ^4.0.2
+      execa: ^4.0.3
       mz: 2.7.0
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       ramda: 0.27.0
       realpath-missing: 1.0.0
       render-help: 1.0.0
@@ -1968,7 +1968,7 @@ importers:
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-path': 4.0.0
       '@zkochan/diable': 1.0.2
-      delay: 4.3.0
+      delay: 4.4.0
       get-port: 5.1.1
       is-windows: 1.0.2
       mz: 2.7.0
@@ -1982,7 +1982,7 @@ importers:
       '@pnpm/plugin-commands-server': 'link:'
       '@types/is-windows': 1.0.0
       '@types/mz': 2.7.1
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/signal-exit': 3.0.0
     specifiers:
       '@pnpm/cli-meta': 'workspace:1.0.0'
@@ -1997,10 +1997,10 @@ importers:
       '@pnpm/store-path': ^4.0.0
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.1
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/signal-exit': ^3.0.0
       '@zkochan/diable': ^1.0.2
-      delay: ^4.3.0
+      delay: ^4.4.0
       get-port: ^5.1.1
       is-windows: ^1.0.2
       mz: ^2.7.0
@@ -2038,7 +2038,7 @@ importers:
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/archy': 0.0.31
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/sinon': 9.0.4
       '@types/ssri': 6.0.3
       '@zkochan/rimraf': 1.0.0
@@ -2069,14 +2069,14 @@ importers:
       '@pnpm/store-path': ^4.0.0
       '@pnpm/types': 'workspace:6.2.0'
       '@types/archy': 0.0.31
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@types/sinon': ^9.0.4
       '@types/ssri': ^6.0.3
       '@zkochan/rimraf': 1.0.0
       archy: 1.0.0
       dependency-path: 'workspace:5.0.2'
       dint: ^5.0.0
-      execa: ^4.0.2
+      execa: ^4.0.3
       load-json-file: 6.2.0
       p-filter: 2.1.0
       path-exists: 4.0.0
@@ -2143,7 +2143,7 @@ importers:
       '@types/is-windows': 1.0.0
       '@types/mz': 2.7.1
       '@types/ncp': 2.0.4
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/semver': 7.3.1
       '@types/table': 5.0.0
       '@types/tape-promise': 4.0.1
@@ -2219,8 +2219,8 @@ importers:
       '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.4
       '@types/nopt': ^3.0.29
-      '@types/ramda': ^0.27.6
-      '@types/semver': ^7.2.0
+      '@types/ramda': ^0.27.11
+      '@types/semver': ^7.3.1
       '@types/table': ^5.0.0
       '@types/tape-promise': ^4.0.1
       '@types/update-notifier': ^4.1.0
@@ -2235,7 +2235,7 @@ importers:
       deep-require-cwd: 1.0.0
       delay: 4.3.0
       dir-is-case-sensitive: 1.0.2
-      execa: ^4.0.2
+      execa: ^4.0.3
       exists-link: 2.0.0
       graceful-fs: ^4.2.4
       is-ci: ^2.0.0
@@ -2276,14 +2276,14 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@pnpm/pnpmfile': 'link:'
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.1.2'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/logger': ^3.2.2
       '@pnpm/pnpmfile': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       chalk: ^4.1.0
       path-absolute: ^1.0.1
       ramda: ^0.27.0
@@ -2296,14 +2296,14 @@ importers:
       ramda: 0.27.0
     devDependencies:
       '@pnpm/prune-lockfile': 'link:'
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/lockfile-types': 'workspace:2.0.1'
       '@pnpm/prune-lockfile': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       dependency-path: 'workspace:5.0.2'
       ramda: 0.27.0
       yaml-tag: 1.1.0
@@ -2392,7 +2392,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@types/is-windows': 1.0.0
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.1.2'
       '@pnpm/logger': 3.2.2
@@ -2400,7 +2400,7 @@ importers:
       '@pnpm/read-package-json': 'workspace:3.1.3'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/is-windows': ^1.0.0
-      '@types/ramda': ^0.27.6
+      '@types/ramda': ^0.27.11
       '@zkochan/rimraf': 1.0.0
       is-windows: 1.0.2
   packages/resolve-dependencies:
@@ -2424,7 +2424,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@pnpm/resolve-dependencies': 'link:'
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/semver': 7.3.1
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.1.2'
@@ -2440,8 +2440,8 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
       '@pnpm/types': 'workspace:6.2.0'
-      '@types/ramda': ^0.27.6
-      '@types/semver': ^7.2.0
+      '@types/ramda': ^0.27.11
+      '@types/semver': ^7.3.1
       dependency-path: 'workspace:5.0.2'
       path-exists: 4.0.0
       ramda: 0.27.0
@@ -2455,7 +2455,7 @@ importers:
       '@types/semver': 7.3.1
     specifiers:
       '@pnpm/resolve-workspace-range': 'link:'
-      '@types/semver': ^7.2.0
+      '@types/semver': ^7.3.1
       semver: ^7.3.2
   packages/resolver-base:
     dependencies:
@@ -2479,7 +2479,7 @@ importers:
       '@pnpm/fetch': 'link:../fetch'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       promise-share: 1.0.0
       uuid: 3.4.0
     devDependencies:
@@ -2514,7 +2514,7 @@ importers:
       load-json-file: 6.2.0
       mz: 2.7.0
       node-fetch: 2.6.0
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       promise-share: 1.0.0
       tempy: 0.5.0
       uuid: ^3.4.0
@@ -2538,7 +2538,7 @@ importers:
       '@pnpm/server': 'link:../server'
       '@pnpm/store-path': 4.0.0
       '@zkochan/diable': 1.0.2
-      delay: 4.3.0
+      delay: 4.4.0
       dir-is-case-sensitive: 1.0.2
       lru-cache: 6.0.0
       mz: 2.7.0
@@ -2560,7 +2560,7 @@ importers:
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.1
       '@zkochan/diable': ^1.0.2
-      delay: ^4.3.0
+      delay: ^4.4.0
       dir-is-case-sensitive: ^1.0.2
       lru-cache: ^6.0.0
       mz: ^2.7.0
@@ -2618,7 +2618,7 @@ importers:
       normalize-path: 3.0.0
       p-every: 2.0.0
       p-filter: 2.1.0
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       path-absolute: 1.0.1
       ramda: 0.27.0
       run-groups: 3.0.1
@@ -2641,7 +2641,7 @@ importers:
       '@types/mz': 2.7.1
       '@types/ncp': 2.0.4
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.27.10
+      '@types/ramda': 0.27.11
       '@types/semver': 7.3.1
       '@types/sinon': 9.0.4
       '@types/tape-promise': 4.0.1
@@ -2712,8 +2712,8 @@ importers:
       '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.4
       '@types/normalize-path': ^3.0.0
-      '@types/ramda': ^0.27.6
-      '@types/semver': ^7.2.0
+      '@types/ramda': ^0.27.11
+      '@types/semver': ^7.3.1
       '@types/sinon': ^9.0.4
       '@types/tape-promise': ^4.0.1
       '@zkochan/npm-package-arg': 1.0.2
@@ -2724,7 +2724,7 @@ importers:
       dependency-path: 'workspace:5.0.2'
       dir-is-case-sensitive: 1.0.2
       encode-registry: ^2.0.2
-      execa: ^4.0.2
+      execa: ^4.0.3
       exists-link: 2.0.0
       get-npm-tarball-url: ^2.0.1
       graceful-fs: ^4.2.4
@@ -2742,7 +2742,7 @@ importers:
       npm-run-all: 4.1.5
       p-every: ^2.0.0
       p-filter: ^2.1.0
-      p-limit: ^3.0.1
+      p-limit: ^3.0.2
       path-absolute: ^1.0.1
       path-exists: 4.0.0
       path-name: 1.0.0
@@ -2863,7 +2863,7 @@ importers:
       '@pnpm/assert-project': 'link:'
       '@types/is-windows': 1.0.0
       '@types/isexe': 2.0.0
-      '@types/node': 12.12.48
+      '@types/node': 12.12.50
     specifiers:
       '@pnpm/assert-project': 'link:'
       '@pnpm/assert-store': 'workspace:1.0.6'
@@ -2874,7 +2874,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
       '@types/mz': ^2.7.1
-      '@types/node': ^12.12.47
+      '@types/node': ^12.12.50
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -2900,13 +2900,13 @@ importers:
       write-pkg: 4.0.0
       write-yaml-file: 4.1.0
     devDependencies:
-      '@types/node': 12.12.48
+      '@types/node': 12.12.50
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/types': 'workspace:*'
-      '@types/node': ^12.12.47
+      '@types/node': ^12.12.50
       tempy: 0.5.0
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
@@ -2923,14 +2923,14 @@ importers:
       ncp: 2.0.0
   tools:
     devDependencies:
-      '@commitlint/cli': 9.0.1
-      '@commitlint/config-conventional': 9.0.1
-      '@commitlint/prompt-cli': 9.0.1
+      '@commitlint/cli': 9.1.1
+      '@commitlint/config-conventional': 9.1.1
+      '@commitlint/prompt-cli': 9.1.1
       husky: 4.2.5
     specifiers:
-      '@commitlint/cli': ^9.0.1
-      '@commitlint/config-conventional': ^9.0.1
-      '@commitlint/prompt-cli': ^9.0.1
+      '@commitlint/cli': ^9.1.1
+      '@commitlint/config-conventional': ^9.1.1
+      '@commitlint/prompt-cli': ^9.1.1
       husky: ^4.2.5
   typings:
     specifiers: {}
@@ -2979,24 +2979,18 @@ packages:
       js-tokens: 4.0.0
     resolution:
       integrity: sha512-i6rgnR/YgPEQzZZnbTHHuZdlE8qyoBNalD6F+q4vAFlcMEcqmkoG+mPqJYJCo63qPf74+Y1UZsl3l6f7/RIkmA==
-  /@babel/runtime-corejs3/7.10.4:
-    dependencies:
-      core-js-pure: 3.6.5
-      regenerator-runtime: 0.13.5
-    resolution:
-      integrity: sha512-BFlgP2SoLO9HJX9WBwN67gHWMBhDX/eDz64Jajd6mR/UAUzqrNMm99d4qHnVaKscAElZoFiPv+JpR/Siud5lXw==
-  /@babel/runtime/7.10.4:
+  /@babel/runtime/7.10.5:
     dependencies:
       regenerator-runtime: 0.13.5
     resolution:
-      integrity: sha512-UpTN5yUJr9b4EX2CnGNWIvER7Ab83ibv0pcvvHc4UOdrBI5jb8bj+32cCwPX6xu0mt2daFNjYhoi+X7beH0RSw==
+      integrity: sha512-otddXKhdNn7d0ptoFRHtMLa8LqDxLYwTjB4nYgM1yy5N6gU/MUf8zqyyLltCH3yAVitBzmwK4us+DD0l/MauAg==
   /@bcoe/v8-coverage/0.2.3:
     dev: true
     resolution:
       integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==
   /@changesets/apply-release-plan/4.0.0:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@changesets/config': 1.3.0
       '@changesets/get-version-range-type': 0.3.2
       '@changesets/git': 1.0.5
@@ -3013,7 +3007,7 @@ packages:
       integrity: sha512-MrcUd8wIlQ4S/PznzqJVsmnEpUGfPEkCGF54iqt8G05GEqi/zuxpoTfebcScpj5zeiDyxFIcA9RbeZ3pvJJxoA==
   /@changesets/assemble-release-plan/3.0.0:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@changesets/errors': 0.1.4
       '@changesets/get-dependents-graph': 1.1.3
       '@changesets/types': 3.1.0
@@ -3024,7 +3018,7 @@ packages:
       integrity: sha512-TvcqUhNhKoqwE+L8dFtcwwAmos4+fqwmSkOWP3TSjw7K/inz2wjC46bA7IFtbx2hrwEq1iG0RCweQZTS2vrx1w==
   /@changesets/cli/2.9.2:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@changesets/apply-release-plan': 4.0.0
       '@changesets/assemble-release-plan': 3.0.0
       '@changesets/config': 1.3.0
@@ -3070,7 +3064,7 @@ packages:
       integrity: sha512-IeAHmN5kI7OywBUNJXsk/v4vcXDDscwgTe/K5D3FSng5QTvzbgiMAe5K1iwBxBvuT4u/33n89kxSJdg4TTTFfA==
   /@changesets/errors/0.1.4:
     dependencies:
-      extendable-error: 0.1.6
+      extendable-error: 0.1.7
     dev: true
     resolution:
       integrity: sha512-HAcqPF7snsUJ/QzkWoKfRfXushHTu+K5KZLJWPb34s4eCZShIf8BFO3fwq6KU8+G7L5KdtN2BzQAXOSXEyiY9Q==
@@ -3086,7 +3080,7 @@ packages:
       integrity: sha512-cTbySXwSv9yWp4Pp5R/b5Qv23wJgFaFCqUbsI3IJ2pyPl0vMaODAZS8NI1nNK2XSxGIg1tw+dWNSR4PlrKBSVQ==
   /@changesets/get-release-plan/2.0.0:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@changesets/assemble-release-plan': 3.0.0
       '@changesets/config': 1.3.0
       '@changesets/pre': 1.0.5
@@ -3102,7 +3096,7 @@ packages:
       integrity: sha512-SVqwYs5pULYjYT4op21F2pVbcrca4qA/bAA3FmFXKMN7Y+HcO8sbZUTx3TAy2VXulP2FACd1aC7f2nTuqSPbqg==
   /@changesets/git/1.0.5:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@changesets/errors': 0.1.4
       '@changesets/types': 3.1.0
       '@manypkg/get-packages': 1.1.0
@@ -3126,7 +3120,7 @@ packages:
       integrity: sha512-0XPd/es9CfogI7XIqDr7I2mWzm++xX2s9GZsij3GajPYd7ouEsgJyNatPooxNtqj6ZepkiD6uqlqbeBUyj/A0Q==
   /@changesets/pre/1.0.5:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@changesets/errors': 0.1.4
       '@changesets/types': 3.1.0
       '@manypkg/get-packages': 1.1.0
@@ -3136,7 +3130,7 @@ packages:
       integrity: sha512-p43aAQY3aijhDnBLCriPao5YArlRjD4mSHRJq9PsBhljVLWqQQXcn6seSd77d+bD1tATLhB8tQ2eYoxMtMydXQ==
   /@changesets/read/0.4.6:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@changesets/git': 1.0.5
       '@changesets/logger': 0.0.5
       '@changesets/parse': 0.3.6
@@ -3153,7 +3147,7 @@ packages:
       integrity: sha512-czOfaaxr5aGnNwVRgWr3n2CKoc3iRTfrHM4wUHQ+rBlLKKk9NzGwZ2EPsXkp4CUw4hWHGEOi8hdeIfDTWKrWgg==
   /@changesets/write/0.1.3:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@changesets/types': 3.1.0
       fs-extra: 7.0.1
       human-id: 1.0.2
@@ -3161,19 +3155,19 @@ packages:
     dev: true
     resolution:
       integrity: sha512-q79rbwlVmTNKP9O6XxcMDj81CEOn/kQHbTFdRleW0tFUv98S1EyEAE9vLPPzO6WnQipHnaozxB1zMhHy0aQn8Q==
-  /@commitlint/cli/9.0.1:
+  /@commitlint/cli/9.1.1:
     dependencies:
-      '@babel/runtime': 7.10.4
-      '@commitlint/format': 9.0.1
-      '@commitlint/lint': 9.0.1
-      '@commitlint/load': 9.0.1
-      '@commitlint/read': 9.0.1
-      chalk: 3.0.0
+      '@babel/runtime': 7.10.5
+      '@commitlint/format': 9.1.1
+      '@commitlint/lint': 9.1.1
+      '@commitlint/load': 9.1.1
+      '@commitlint/read': 9.1.1
+      chalk: 4.1.0
       core-js: 3.6.5
       get-stdin: 7.0.0
       lodash: 4.17.19
       meow: 5.0.0
-      regenerator-runtime: 0.13.3
+      regenerator-runtime: 0.13.5
       resolve-from: 5.0.0
       resolve-global: 1.0.0
     dev: true
@@ -3181,64 +3175,64 @@ packages:
       node: '>=8'
     hasBin: true
     resolution:
-      integrity: sha512-BVOc/BY0FMmKTTH5oUVE0ukhPWDFf364FiYKk3GlXLOGTZPTXQ/9ncB2eMOaCF0PdcEVY4VoMjyoRSgcVapCMg==
-  /@commitlint/config-conventional/9.0.1:
+      integrity: sha512-ye9vUZz8Niv77e5ecBWnA2PnuPF+vYy/3BfSZx8sEaNjozJWUolTk/fuqTsoij3bseZBVObd+cVqZgGk8lfEdw==
+  /@commitlint/config-conventional/9.1.1:
     dependencies:
-      conventional-changelog-conventionalcommits: 4.2.3
+      conventional-changelog-conventionalcommits: 4.3.0
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-5rGu8aT4nRhWKrd5SpXqKJKLM07wXi4X5KVD9EEAuucAh2iZgfJJK9HKZNKGEKLKBQSWlnXE6UvkeEjJgi6TPQ==
-  /@commitlint/ensure/9.0.1:
+      integrity: sha512-t/bvv8ofjj7V4W99eVDyuACaC7Ch4SYaukglBYt/K1Y9Ixg8mCBuFDMGRMhyZn4upUe1ls8l4SO3rjaVbYIjlg==
+  /@commitlint/ensure/9.1.1:
     dependencies:
-      '@commitlint/types': 9.0.1
+      '@commitlint/types': 9.1.1
       lodash: 4.17.19
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-z8SEkfbn0lMnAtt7Hp3A8hE3CRCDsg+Eu3Xj1UJakOyCPJgHE1/vEyM2DO2dxTXVKuttiHeLDnUSHCxklm78Ng==
-  /@commitlint/execute-rule/9.0.1:
+      integrity: sha512-dCvev16s7pTqM3Qka8WkWkjZ0lKu3cZ8q+EK34gXR90v7rkssVbPvbyttTfTWTvmQTqZY1zNkvMqbOc8V7pXwA==
+  /@commitlint/execute-rule/9.1.1:
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-fxnLadXs59qOBE9dInfQjQ4DmbGToQ0NjfqqmN6N8qS+KsCecO6N0mMUrC95et9xTeimFRr+0l9UMfmRVHNS/w==
-  /@commitlint/format/9.0.1:
+      integrity: sha512-kCncHMXfVDfmUx1NExl7T+s7udAWEOh039DFGR9R5MWoy+zm2cJsCdsbWFFuNbcPWCKor57ywdIUN2t048P6Yg==
+  /@commitlint/format/9.1.1:
     dependencies:
-      chalk: 3.0.0
+      chalk: 4.1.0
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-5oY7Jyve7Bfnx0CdbxFcpRKq92vUANFq3MVbz/ZTgvuYgUeMuYsSEwW6MJtOgOhHBQ2vZP/uPdxwmU+6pWZHcg==
-  /@commitlint/is-ignored/9.0.1:
+      integrity: sha512-CLVXltSA8U7Sr+8ad1hBCFFL5GSdVWZsFgttt1hNT6CiOtPHV9e3AeWK0TACFcXWIl+iFKdRNfNrYM77RBJN0A==
+  /@commitlint/is-ignored/9.1.1:
     dependencies:
-      '@commitlint/types': 9.0.1
-      semver: 7.1.3
+      '@commitlint/types': 9.1.1
+      semver: 7.3.2
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-doGBfQgbsi48Hc48runGdN0TQFvf5XZizck8cylQdGG/3w+YwX9WkplEor7cvz8pmmuD6PpfpdukHSKlR8KmHQ==
-  /@commitlint/lint/9.0.1:
+      integrity: sha512-A2ernvkAIfkGh53cNSuuMlTVZyJ58BYbkUw8h34pG0uS/GDteUyh7K3hgRqMmrwoL/DNBEp5earRM6nBYgLX1Q==
+  /@commitlint/lint/9.1.1:
     dependencies:
-      '@commitlint/is-ignored': 9.0.1
-      '@commitlint/parse': 9.0.1
-      '@commitlint/rules': 9.0.1
-      '@commitlint/types': 9.0.1
+      '@commitlint/is-ignored': 9.1.1
+      '@commitlint/parse': 9.1.1
+      '@commitlint/rules': 9.1.1
+      '@commitlint/types': 9.1.1
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-EAn4E6aGWZ96Dg9LN28kdELqkyFOAUGlXWmanMdWxGFGdOf24ZHzlVsbr/Yb1oSBUE2KVvAF5W2Mzn2+Ge5rOg==
-  /@commitlint/load/9.0.1:
+      integrity: sha512-2g2OL8J5dfzH3VY004i506DmRbCJR1W49JbYsTGuTAv1y9f0s8ocV2Wbfh7WJ8YZQabSHXTMZFQJjsvMQ+b0Hw==
+  /@commitlint/load/9.1.1:
     dependencies:
-      '@commitlint/execute-rule': 9.0.1
-      '@commitlint/resolve-extends': 9.0.1
-      '@commitlint/types': 9.0.1
-      chalk: 3.0.0
+      '@commitlint/execute-rule': 9.1.1
+      '@commitlint/resolve-extends': 9.1.1
+      '@commitlint/types': 9.1.1
+      chalk: 4.1.0
       cosmiconfig: 6.0.0
       lodash: 4.17.19
       resolve-from: 5.0.0
@@ -3246,14 +3240,14 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-6ix/pUjVAggmDLTcnpyk0bgY3H9UBBTsEeFvTkHV+WQ6LNIxsQk8SwEOEZzWHUqt0pxqMQeiUgYeSZsSw2+uiw==
-  /@commitlint/message/9.0.1:
+      integrity: sha512-RCIX44M8nq3bW98vuxA6C2rM0wAnZlneFls2OVi5l2BvD/rsQ2R9CZYwPt/MYU6RbwMmlGhkuHdScwK6pJeUqA==
+  /@commitlint/message/9.1.1:
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-9rKnOeBV5s5hnV895aE3aMgciC27kAjkV9BYVQOWRjZdXHFZxa+OZ94mkMp+Hcr61W++fox1JJpPiTuCTDX3TQ==
-  /@commitlint/parse/9.0.1:
+      integrity: sha512-52Li4BNSY55I0fAq1s8cnxIK9Jneozdh4oonLlDzqWvgFq8znsHb9LWmi46K0bsCQT3CRUnMU+GPnikghIMRKQ==
+  /@commitlint/parse/9.1.1:
     dependencies:
       conventional-changelog-angular: 5.0.10
       conventional-commits-parser: 3.1.0
@@ -3261,22 +3255,22 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-O39yMSMFdBtqwyM5Ld7RT6OGeI7jiXB9UUb09liIXIkltaZZo6CeoBD9hyfRWpaw81SiGL4OwHzp92mYVHLmow==
-  /@commitlint/prompt-cli/9.0.1:
+      integrity: sha512-WxvsEi7sMBh8vynamTiHvUOsPOUZ5308pi0gJ5q+DnLY+JPx0Bbxdho9pjyVc3S0bymPCbOrk2gTIbmaTokIRQ==
+  /@commitlint/prompt-cli/9.1.1:
     dependencies:
-      '@commitlint/prompt': 9.0.1
+      '@commitlint/prompt': 9.1.1
       execa: 3.4.0
     dev: true
     engines:
       node: '>=8'
     hasBin: true
     resolution:
-      integrity: sha512-Zzcp5E/hy0R1ho/JoJzssUd1gmD/ZVAgqmuuD9V3nAI5HCNM3AFvMkGNHhiH9HV3i1SBFWo5EwTj/QQt3qn0RA==
-  /@commitlint/prompt/9.0.1:
+      integrity: sha512-PRDOFOkUeUSq5J9ZlWIPIi0dTmG721UhazIz16g5ghpgK51UYrid00b/5OU78XPnoJK69q0H1yIAPAnF2x5f0A==
+  /@commitlint/prompt/9.1.1:
     dependencies:
-      '@babel/runtime': 7.10.4
-      '@commitlint/load': 9.0.1
-      chalk: 3.0.0
+      '@babel/runtime': 7.10.5
+      '@commitlint/load': 9.1.1
+      chalk: 4.1.0
       lodash: 4.17.19
       throat: 5.0.0
       vorpal: 1.12.0
@@ -3284,18 +3278,18 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-ZWkP/v/fCdxUe53rxt8PptX///x/s8XUG0zt/jXrfCs/5efqrzoJ1nIgtpFlAvZcJCxw9EmZXLsw4oFWRogEnQ==
-  /@commitlint/read/9.0.1:
+      integrity: sha512-NhEH9izuT92Bai/aSEH3YUrR3GOyrGFkqgUUFwJ4S4mCkLczrB5K+FwtXDDO8DKm+R+wWYFkhq4ZUFnIMidixw==
+  /@commitlint/read/9.1.1:
     dependencies:
-      '@commitlint/top-level': 9.0.1
+      '@commitlint/top-level': 9.1.1
       fs-extra: 8.1.0
       git-raw-commits: 2.0.7
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-EYbel85mAiHb56bS5jBJ71lEaGjTnkSJLxTV1u6dpxdSBkRdmAn2DSPd6KQSbwYGUlPCR+pAZeZItT1y0Xk3hg==
-  /@commitlint/resolve-extends/9.0.1:
+      integrity: sha512-cg75klW1WNBAJZABxacf2FhxAlP0di7xs/wuTqPNq0OTpblhY5s2BoS7eO0UlQi1K14Unx7b9+Sb7sjuE9Viyw==
+  /@commitlint/resolve-extends/9.1.1:
     dependencies:
       import-fresh: 3.2.1
       lodash: 4.17.19
@@ -3305,38 +3299,38 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-o6Lya2ILg1tEfWatS5x8w4ImvDzwb1whxsr2c/cxVCFqLF4hxHHHniZ0NJ+HFhYa1kBsYeKlD1qn9fHX5Y1+PQ==
-  /@commitlint/rules/9.0.1:
+      integrity: sha512-IxxNaSUT+dPhSCQPAMpQyHQlcSVikDxQWJFP6uwGJUU5rQff+0yQTuC3taWI2NWaATukjNWboAbH2vgBDnrDrg==
+  /@commitlint/rules/9.1.1:
     dependencies:
-      '@commitlint/ensure': 9.0.1
-      '@commitlint/message': 9.0.1
-      '@commitlint/to-lines': 9.0.1
-      '@commitlint/types': 9.0.1
+      '@commitlint/ensure': 9.1.1
+      '@commitlint/message': 9.1.1
+      '@commitlint/to-lines': 9.1.1
+      '@commitlint/types': 9.1.1
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-K9IiQzF/C2tP/0mQUPSkOtmAEUleRQhZK1NFLVbsd6r4uobaczjPSYvEH+cuSHlD9b3Ori7PRiTgVBAZTH5ORQ==
-  /@commitlint/to-lines/9.0.1:
+      integrity: sha512-QicTJ9v4g8WbJ71gu2ypvbdEP6Q+cJYlLPrb6ilNhtOMCyn6ndXSlCMpcQNw84d9ORyd28okzhDZZBSqX5hslg==
+  /@commitlint/to-lines/9.1.1:
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-FHiXPhFgGnvekF4rhyl1daHimEHkr81pxbHAmWG/0SOCehFr5THsWGoUYNNBMF7rdwUuVq4tXJpEOFiWBGKigg==
-  /@commitlint/top-level/9.0.1:
+      integrity: sha512-JFKfpehPL3Qrlo6DpIsuJvdtR1wSjdbXD3liphvFTAFWo64yYC/jmnTdy0UqWIhrV1jcxP1LzNejIuRt6hsCXQ==
+  /@commitlint/top-level/9.1.1:
     dependencies:
       find-up: 4.1.0
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-AjCah5y7wu9F/hOwMnqsujPRWlKerX79ZGf+UfBpOdAh+USdV7a/UfQaqjgCzkxy5GcNO9ER5A+2mWrUHxJ0hQ==
-  /@commitlint/types/9.0.1:
+      integrity: sha512-pIgAbGqHbOunTGiUzBPhIKfXrTWdCrVwsimECXy/If5XaZ3GHhxiiA7BxsWFlAN1UZ6PgVMPgymKU0kx2D5A/w==
+  /@commitlint/types/9.1.1:
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-wo2rHprtDzTHf4tiSxavktJ52ntiwmg7eHNGFLH38G1of8OfGVwOc1sVbpM4jN/HK/rCMhYOi6xzoPqsv0537A==
+      integrity: sha512-SXY8bCQ1qacJ8AUTUxjabY8G6OjSmMPLN9MBCzGaKOjpPNX6z8zbXTbk9oU3GHZLtcxweWLCi2n49IRS4iQlwg==
   /@istanbuljs/schema/0.1.2:
     dev: true
     engines:
@@ -3345,8 +3339,8 @@ packages:
       integrity: sha512-tsAQNx32a8CoFhjhijUIhI4kccIAgmGhy8LZMZgGfmXcpMbPRUqn5LWmgRttILi6yeGmBJd2xsPkFMs0PzgPCw==
   /@manypkg/find-root/1.1.0:
     dependencies:
-      '@babel/runtime': 7.10.4
-      '@types/node': 12.12.48
+      '@babel/runtime': 7.10.5
+      '@types/node': 12.12.50
       find-up: 4.1.0
       fs-extra: 8.1.0
     dev: true
@@ -3354,7 +3348,7 @@ packages:
       integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==
   /@manypkg/get-packages/1.1.0:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       '@manypkg/find-root': 1.1.0
       fs-extra: 8.1.0
       globby: 11.0.1
@@ -3451,7 +3445,7 @@ packages:
       read-yaml-file: 2.0.0
       rimraf: 3.0.2
       tempy: 0.5.0
-      verdaccio: 4.7.2
+      verdaccio: 4.8.0
       write-yaml-file: 4.1.0
     dev: true
     engines:
@@ -3495,28 +3489,28 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-9NET910DNaIPngYnLLPeg+Ogzqsi9uM4mSboU5y6p8S5DzMTVEsJZrawi+BoDNUVBa2DhJqQYUFvMDfgU062LQ==
-  /@sinonjs/commons/1.8.0:
+  /@sinonjs/commons/1.8.1:
     dependencies:
       type-detect: 4.0.8
     dev: true
     resolution:
-      integrity: sha512-wEj54PfsZ5jGSwMX68G8ZXFawcSglQSXqCftWX3ec8MDUzQdHgcKvw97awHbY0efQEL5iKUOAmmVtoYgmrSG4Q==
+      integrity: sha512-892K+kWUUi3cl+LlqEWIDrhvLgdL79tECi8JZUyq6IviKy/DNhuzCRlbHUjxK89f4ypPMMaFnFuR9Ie6DoIMsw==
   /@sinonjs/fake-timers/6.0.1:
     dependencies:
-      '@sinonjs/commons': 1.8.0
+      '@sinonjs/commons': 1.8.1
     dev: true
     resolution:
       integrity: sha512-MZPUxrmFubI36XS1DI3qmI0YdN1gks62JtFZvxR67ljjSNCeK6U08Zx4msEWOXuofgqUt6zPHSi1H9fbjR/NRA==
   /@sinonjs/formatio/5.0.1:
     dependencies:
-      '@sinonjs/commons': 1.8.0
+      '@sinonjs/commons': 1.8.1
       '@sinonjs/samsam': 5.0.3
     dev: true
     resolution:
       integrity: sha512-KaiQ5pBf1MpS09MuA0kp6KBQt2JUOQycqVG1NZXvzeaXe5LGFqAKueIS0bw4w0P9r7KuBSVdUk5QjXsUdu2CxQ==
   /@sinonjs/samsam/5.0.3:
     dependencies:
-      '@sinonjs/commons': 1.8.0
+      '@sinonjs/commons': 1.8.1
       lodash.get: 4.4.2
       type-detect: 4.0.8
     dev: true
@@ -3546,7 +3540,7 @@ packages:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
   /@types/byline/4.2.32:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-qtlm/J6XOO9p+Ep/ZB5+mCFEDhzWDDHWU4a1eReN7lkPZXW9rkloq2jcAhvKKmlO5tL2GSvKROb+PTsNVhBiyQ==
@@ -3559,7 +3553,7 @@ packages:
       integrity: sha512-rr+OQyAjxze7GgWrSaJwydHStIhHq2lvY3BOC2Mj7KnzI7XK0Uw1TOOdI9lDoajEbSWLiYgoo4f1R51erQfhPQ==
   /@types/concat-stream/1.6.0:
     dependencies:
-      '@types/node': 13.13.13
+      '@types/node': 13.13.14
     dev: true
     resolution:
       integrity: sha1-OU2+C7X+5Gs42JZzXoto7yOQ0A0=
@@ -3569,25 +3563,25 @@ packages:
       integrity: sha512-SvCBBPzOIe/3Tu7jTl2Q8NjITjLmq9m7obzjSyb8PXWWZ31xVK6w4T6v8fOx+lrgQnqk3Yxc00LDolFsSakKCA==
   /@types/cross-spawn/6.0.2:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-KuwNhp3eza+Rhu8IFI5HUXRP0LIhqH5cAjubUvGXXthh4YYBuP2ntwEX+Cz8GJoZUHlKo247wPWOfA9LYEq4cw==
   /@types/fs-extra/9.0.1:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-B42Sxuaz09MhC3DDeW5kubRcQ5by4iuVQ0cRRWM2lggLzAa/KVom0Aft/208NgMvNQQZ86s5rVcqDdn/SH0/mg==
   /@types/glob/7.1.3:
     dependencies:
       '@types/minimatch': 3.0.3
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     resolution:
       integrity: sha512-SEYeGAIQIQX8NN6LDKprLjbrd5dARM5EXsd8GI/A5l0apYI1fGMWgPHSe4ZKL4eozlAyI+doUE9XbYS4xCkQ1w==
   /@types/graceful-fs/4.1.3:
     dependencies:
-      '@types/node': 12.12.48
+      '@types/node': 12.12.50
     dev: true
     resolution:
       integrity: sha512-AiHRaEB50LQg0pZmm659vNBb9f4SJ0qrAnteuzhSeAUcJKxoYgEnprg/83kppCnc2zvtCKbdZry1a5pVY3lOTQ==
@@ -3597,7 +3591,7 @@ packages:
       integrity: sha512-dYLI2VgU1UTpdigoeLYc8vVpe7kpu3jysLCTUPB9NS1B+7+BdH6XefI4BhB33CNUaBewnxmjy9GPhF4NXOSNew==
   /@types/http-proxy-agent/2.0.2:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-2S6IuBRhqUnH1/AUx9k8KWtY3Esg4eqri946MnxTG5HwehF1S5mqLln8fcyMiuQkY72p2gH3W+rIPqp5li0LyQ==
@@ -3613,7 +3607,7 @@ packages:
       integrity: sha512-tJ1rq04tGKuIJoWIH0Gyuwv4RQ3+tIu7wQrC0MV47raQ44kIzXSSFKfrxFUOWVRvesoF7mrTqigXmqoZJsXwTg==
   /@types/isexe/2.0.0:
     dependencies:
-      '@types/node': 12.12.48
+      '@types/node': 12.12.50
     dev: true
     resolution:
       integrity: sha512-QuPJ6xd8TLfMy6l/pJ+oeRHYG8efIzR8WeyvFr/k4zbhcRqa+SQiVgUUb3D3PG3Si+XVuxn8RToCcfNCdFqr3g==
@@ -3642,32 +3636,32 @@ packages:
       integrity: sha1-aaI6OtKcrwCX8G7aWbNh7i8GOfY=
   /@types/mz/2.7.1:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     resolution:
       integrity: sha512-H86h7KmRDVs9UeSiQvtUeVhS+WYpJSYSsZrRvNYpGWGiytEqxwEtvgRnINESQtCgnojIH2wS2WgaMTJP0firBw==
   /@types/ncp/2.0.4:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-erpimpT1pH8QfeNg77ypnjwz6CGMqrnL4DewVbqFzD9FXzSULjmG3KzjZnLNe7bzTSZm2W9DpkHyqop1g1KmgQ==
   /@types/node-fetch/2.5.7:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
       form-data: 3.0.0
     resolution:
       integrity: sha512-o2WVNf5UhWRkxlf6eq+jMZDu7kjgpgJfl4xVNlvryc95O/6F2ld8ztKX+qu+Rjyet93WAWm5LjeX9H5FGkODvw==
-  /@types/node/12.12.48:
+  /@types/node/12.12.50:
     dev: true
     resolution:
-      integrity: sha512-m3Nmo/YaDUfYzdCQlxjF5pIy7TNyDTAJhIa//xtHcF0dlgYIBKULKnmloCPtByDxtZXrWV8Pge1AKT6/lRvVWg==
-  /@types/node/13.13.13:
+      integrity: sha512-5ImO01Fb8YsEOYpV+aeyGYztcYcjGsBvN4D7G5r1ef2cuQOpymjWNQi5V0rKHE6PC2ru3HkoUr/Br2/8GUA84w==
+  /@types/node/13.13.14:
     dev: true
     resolution:
-      integrity: sha512-UfvBE9oRCAJVzfR+3eWm/sdLFe/qroAPEXP3GPJ1SehQiEVgZT6NQZWYbPMiJ3UdcKM06v4j+S1lTcdWCmw+3g==
-  /@types/node/14.0.20:
+      integrity: sha512-Az3QsOt1U/K1pbCQ0TXGELTuTkPLOiFIQf3ILzbOyo0FqgV9SxRnxbxM5QlAveERZMHpZY+7u3Jz2tKyl+yg6g==
+  /@types/node/14.0.23:
     resolution:
-      integrity: sha512-MRn/NP3dee8yL5QhbSA6riuwkS+UOcsPUMOIOG3KMUQpuor/2TopdRBu8QaaB4fGU+gz/bzyDWt0FtUbeJ8H1A==
+      integrity: sha512-Z4U8yDAl5TFkmYsZdFPdjeMa57NOvnaf1tljHzhouaPEp7LCj2JKkejpI1ODviIAQuW4CcQmxkQ77rnLsOOoKw==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -3691,12 +3685,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
-  /@types/ramda/0.27.10:
+  /@types/ramda/0.27.11:
     dependencies:
-      ts-toolbelt: 6.10.16
+      ts-toolbelt: 6.13.15
     dev: true
     resolution:
-      integrity: sha512-7DWYf5F4XYoJIb0bsYv66iiUiHYWlfC/Y9Lx1Ha0bEEw4wi9Uv51d49mMv+T41nEbAKPNVt5XJudwFR1bMCXTw==
+      integrity: sha512-pojA0+wBhjMWfwZ1tAea/OdUqZxaRQOi/vHldthrOIEPdRQdJb/hvU4yM1uHKGTT89ZZpxe43KM1sq5YGxS5lw==
   /@types/retry/0.12.0:
     dev: true
     resolution:
@@ -3704,7 +3698,7 @@ packages:
   /@types/rimraf/3.0.0:
     dependencies:
       '@types/glob': 7.1.3
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-7WhJ0MdpFgYQPXlF4Dx+DhgvlPCfz/x5mHaeDQAKhcenvQP1KCpLQ18JklAqeGMYSAT2PxLpzd0g2/HE7fj7hQ==
@@ -3714,7 +3708,7 @@ packages:
       integrity: sha512-+beqKQOh9PYxuHvijhVl+tIHvT6tuwOrE9m14zd+MT2A38KoKZhh7pYJ0SNleLtwDsiIxHDsIk9bv01oOxvSvA==
   /@types/semver/7.3.1:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-ooD/FJ8EuwlDKOI6D9HWxgIgJjMg2cuziXm/42npDC8y4NjxplBUn9loewZiBNCt44450lHAU0OSb51/UqXeag==
@@ -3734,7 +3728,7 @@ packages:
       integrity: sha512-yYezQwGWty8ziyYLdZjwxyMb0CZR49h8JALHGrxjQHWlqGgc8kLdHEgWrgL0uZ29DMvEVBDnHU2Wg36zKSIUtA==
   /@types/ssri/6.0.3:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     resolution:
       integrity: sha512-mYh0G0jytNFBi/tT91pg7wKtcaoy5G07YBDkR4Sq9Z+2fX1ZJgRGNKDnaRWQQuNDo9r9wJ22J6oqnElZmV+qLQ==
   /@types/table/5.0.0:
@@ -3749,19 +3743,19 @@ packages:
       integrity: sha512-1yBeq9y0EmJ2RpxfXMPrFeD3yMetBapY9zArTexp/wCRdBToJac/y//rtcZZjmiArgodTqz0RrK0VxxySoKyVg==
   /@types/tape/4.13.0:
     dependencies:
-      '@types/node': 12.12.48
+      '@types/node': 12.12.50
     dev: true
     resolution:
       integrity: sha512-0V8cKowBdsiA9nbxAg7531sF2cdPZNiUogcfIUeUGm+bejUBE/bvibz3rH36iQP9bQjO/sOzFwU97/uC5mCyoA==
   /@types/tar-stream/2.1.0:
     dependencies:
-      '@types/node': 13.13.13
+      '@types/node': 13.13.14
     dev: true
     resolution:
       integrity: sha512-s1UQxQUVMHbSkCC0X4qdoiWgHF8DoyY1JjQouFsnk/8ysoTdBaiCHud/exoAZzKDbzAXVc+ah6sczxGVMAohFw==
   /@types/touch/3.1.1:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-6qjr7Erk0b9FkZSu17wUJaWhmzUgGfQuec7eIwl9cP7V/YO/k9IcMnHSwAjxAeadC5guq9rwHcoij7PT1RkO1w==
@@ -3789,7 +3783,7 @@ packages:
       integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==
   /@types/write-file-atomic/3.0.1:
     dependencies:
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
     dev: true
     resolution:
       integrity: sha512-o5Pl/qux8JEuFpof5fUg/Fl6R3N26ExJlsmWpB67ayrEJDMIxWdM9NDJacisXeNB7YW+vij8onctH8Pr1Zhi5g==
@@ -3797,66 +3791,59 @@ packages:
     dev: false
     resolution:
       integrity: sha512-te5lMAWii1uEJ4FwLjzdlbw3+n0FZNOvFXHxQDKeT0dilh7HOzdMzV2TrJVUzq8ep7J4Na8OUYPRLSQkJHAlrg==
-  /@verdaccio/commons-api/9.6.1:
+  /@verdaccio/commons-api/9.7.1:
     dependencies:
-      http-errors: 1.7.3
+      http-errors: 1.8.0
       http-status-codes: 1.4.0
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-wGwDOxWkWjOcxCpwUvAqY+v24I9BRTB5L8xcbE+drpF4gL5q/wN+yzBgxCtkBh/nchOALxRC93JrE3IgVTu3iA==
-  /@verdaccio/file-locking/9.7.0:
+      integrity: sha512-s2uD3s325C0UsQ9uQTmf15dXFsGVo23IM6pSUTukCRuurCok89e/k1Adz2CaoXpEu1qpxQ6Sv0dcNpGl7Q7hwQ==
+  /@verdaccio/file-locking/9.7.2:
     dependencies:
       lockfile: 1.0.4
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-ytMAZtne0o8gBEmkKLHScA3NvvN9o+IGEhXQsa2G6ZsLKPKheE6bS4V8mD9h+C/qL1gHkaNdhIR4hd0SmabIxQ==
-  /@verdaccio/local-storage/9.7.0:
+      integrity: sha512-y9yLk8+9wdQH1bDyeR7Cu80dKQMiiva9ddNbXllV6h0uxaqVOxDyyE0OWdyvUy0xdA4lUD/y0DxHOInDOhdKaw==
+  /@verdaccio/local-storage/9.7.1:
     dependencies:
-      '@verdaccio/commons-api': 9.6.1
-      '@verdaccio/file-locking': 9.7.0
-      '@verdaccio/streams': 9.7.0
+      '@verdaccio/commons-api': 9.7.1
+      '@verdaccio/file-locking': 9.7.2
+      '@verdaccio/streams': 9.7.1
       async: 3.2.0
       level: 5.0.1
-      lodash: 4.17.15
+      lodash: 4.17.19
       mkdirp: 0.5.5
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-3h8lCLIAjTWhEJm3o4258KP9XTxrlfNHMWGzHr3e/8HzSTB7pbEDvx+h9CXlj1ErHvb2fQb2k7mqnWYs4DHq/A==
-  /@verdaccio/readme/9.7.0:
+      integrity: sha512-m4fkEXUaWKo7NGK4W8sKao2a+V+Sv/96MGgW4p6B/Kog0NRxlHC8DfSciye5BXosgEyhfsZwITbDtf1+T4n0Lw==
+  /@verdaccio/readme/9.7.1:
     dependencies:
       dompurify: 2.0.8
       jsdom: 15.2.1
       marked: 0.7.0
     dev: true
     resolution:
-      integrity: sha512-Q7dSqfIUR9EhLQ9dyYQMxY7SydgDYnlwMR6IXVek87Z38yxDi6v4r/hN+OEtndUCfcsvt/smBcw1DraXO2t0cQ==
-  /@verdaccio/streams/9.6.1:
+      integrity: sha512-QzUfIv5q847sG6VFO+R+2acj62lFKauhCXcxujnbUZZ/F6DNLYT1argkTClsIEcwGUFbldX9IZdHmyfZSO9EhQ==
+  /@verdaccio/streams/9.7.1:
     dev: true
     engines:
       node: '>=8'
       npm: '>=5'
     resolution:
-      integrity: sha512-P4DFWvB9BNCDAh/sYPr59JW8N9uxAtlIx0Xa0vobxy+4cvvmP9lrMbeK4liH5yKJmwKmiEIZ6SxfTKR/MqbOpw==
-  /@verdaccio/streams/9.7.0:
-    dev: true
-    engines:
-      node: '>=8'
-      npm: '>=5'
-    resolution:
-      integrity: sha512-h0GvmR1sjaH/H1MOBWJkmNSCuTI7cKYoyvWlP6S1gMEgfTnpwza9sW0F6RYttfYYzaDqyk6niVL6kDre2zVGEw==
-  /@verdaccio/ui-theme/1.11.0:
+      integrity: sha512-zs0YNfK8isiJQrcM9EGjFNbgTQ+HU7oUzGYxXsx/MA9JGAkSIAoAmf6ndRrzeSLUVF9/MyTufP8BCH3Z9Vf1aQ==
+  /@verdaccio/ui-theme/1.12.1:
     dev: true
     engines:
       node: '>= 8'
       npm: '>=5'
     resolution:
-      integrity: sha512-ggXPyCueh8CtHFrpZsq7kP+pLxKPsiTuoCGmYNIquZ/p99A6eIAVLElqHFJfgGATsdVlFQKWG/AawCfxD5ymUw==
+      integrity: sha512-J9UEf6MkKugeq5sFhDfqPPGNy4dTSf3fVYK3Q2hGFQiKXvOw7hqovjz6PVOJRNMymBXb2fJuMPIXx1Br3kwD2Q==
   /@zkochan/cmd-shim/5.0.0:
     dependencies:
       is-windows: 1.0.2
@@ -3888,7 +3875,7 @@ packages:
       safe-buffer: 5.2.1
       which: 2.0.2
       y18n: 4.0.0
-      yargs: 15.4.0
+      yargs: 15.4.1
     dev: false
     engines:
       node: '>=8.15'
@@ -3933,7 +3920,7 @@ packages:
   /@zkochan/rimraf/1.0.0:
     dependencies:
       '@types/glob': 7.1.3
-      '@types/node': 14.0.20
+      '@types/node': 14.0.23
       rimraf: 3.0.2
     engines:
       node: '>=8.15'
@@ -4048,7 +4035,7 @@ packages:
       node: '>= 6.0.0'
     resolution:
       integrity: sha512-01q25QQDwLSsyfhrKbn8yuur+JNw0H+0Y4JiGIKd3z9aYk/w/2kxD/Upc+t2ZBBSUNff50VjPsSW2YxM8QYKVg==
-  /agentkeepalive/4.0.0:
+  /agentkeepalive/4.1.3:
     dependencies:
       debug: 4.1.1
       depd: 1.1.2
@@ -4057,7 +4044,7 @@ packages:
     engines:
       node: '>= 8.0.0'
     resolution:
-      integrity: sha512-McCjHBAI3FGTy9XOMDr/8qzXK4VBL3h+O/TqlBdsyiwX21SdPCQhPIX0Y1HS5ctO5m2maVQRJWEn0IrzKRB6oQ==
+      integrity: sha512-wn8fw19xKZwdGPO47jivonaHRTd+nGOMP1z11sgGeQzDy2xd5FG0R67dIMcKHDE2cJ5y+YXV30XVGUBPRSY7Hg==
   /aggregate-error/3.0.1:
     dependencies:
       clean-stack: 2.2.0
@@ -4808,7 +4795,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-y5T662HIaWRR2zZTThQi+U8K7og=
-  /bunyan/1.8.13:
+  /bunyan/1.8.14:
     dev: true
     engines:
       '0': node >=0.10.0
@@ -4819,7 +4806,7 @@ packages:
       mv: 2.1.1
       safe-json-stringify: 1.2.0
     resolution:
-      integrity: sha512-4zO4iMxZeCpf+95ERsr83nwQr11o1KY2FLhX4wZ6kPXieIVYL3k9eX+N6vbHhFEK5h5O/qCQpfXt7N9VBAIvCA==
+      integrity: sha512-LlahJUxXzZLuw/hetUQJmRgZ1LF6+cr5TPpRj6jf327AsiIq2jhYEH4oqUUkVKTor+9w2BT3oxVwhzE5lw9tcg==
   /byline/5.0.0:
     engines:
       node: '>=0.10.0'
@@ -4848,7 +4835,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-ya73AIprlDy+mcxhcSXrS9R4KWs=
-  /c8/7.2.0:
+  /c8/7.2.1:
     dependencies:
       '@bcoe/v8-coverage': 0.2.3
       '@istanbuljs/schema': 0.1.2
@@ -4861,14 +4848,14 @@ packages:
       rimraf: 3.0.2
       test-exclude: 6.0.0
       v8-to-istanbul: 4.1.4
-      yargs: 15.4.0
+      yargs: 15.4.1
       yargs-parser: 18.1.3
     dev: true
     engines:
       node: '>=10.12.0'
     hasBin: true
     resolution:
-      integrity: sha512-6ZnvGem2HkcOnfRflVojBHKqGj5JGxoSSYvk8U9qF87WYbq3vpdjAQPE+Gr0jxpTaAM/N3nxx30TIWB5u0PhWw==
+      integrity: sha512-HwMat7Hsz6u+Muuj9wZlz9lPxQA7BvBa2Xx+xMa52U7o6dDO1oG0QU4Q0pKQbRuR39PhIcs7eb6x4xSIAew3dw==
   /cache-base/1.0.1:
     dependencies:
       collection-visit: 1.0.0
@@ -5336,16 +5323,16 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-k7RPPRs0vp8+BtPsM9uDxRl6KcgqtCJmzRD1wRtgqmhQ96g8ifBGo9O/TZBG23jqlXS/rg8BKRDELxfnQQGiaA==
-  /conventional-changelog-conventionalcommits/4.2.3:
+  /conventional-changelog-conventionalcommits/4.3.0:
     dependencies:
       compare-func: 1.3.4
       lodash: 4.17.19
       q: 1.5.1
     dev: true
     engines:
-      node: '>=6.9.0'
+      node: '>=10'
     resolution:
-      integrity: sha512-atGa+R4vvEhb8N/8v3IoW59gCBJeeFiX6uIbPu876ENAmkMwsenyn0R21kdDHJFLQdy6zW4J6b4xN8KI3b9oww==
+      integrity: sha512-oYHydvZKU+bS8LnGqTMlNrrd7769EsuEHKy4fh1oMdvvDi7fem8U+nvfresJ1IDB8K00Mn4LpiA/lR+7Gs6rgg==
   /conventional-commits-parser/3.1.0:
     dependencies:
       JSONStream: 1.3.5
@@ -5392,10 +5379,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-Z29us8OZl8LuGsOpJP1hJHSPV40=
-  /core-js-pure/3.6.5:
-    requiresBuild: true
-    resolution:
-      integrity: sha512-lacdXOimsiD0QyNf9BC/mxivNJ/ybBGJXQFKzRekp1WTHoVUWsUHEn+2T8GJAzzIhyOuXA+gOxCVN3l+5PLPUA==
   /core-js/2.6.11:
     deprecated: 'core-js@<3 is no longer maintained and not recommended for usage due to the number of issues. Please, upgrade your dependencies to the actual version of core-js@3.'
     dev: true
@@ -5574,10 +5557,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-qNM9eqlxd53TWJeGtY1IQPj90b563Zx49eZs8e0uMyEvPgvNVmX1uZDtdzAcflB3PniuH9creAzcFOdyJ9YGvA==
-  /csv-parse/4.10.1:
+  /csv-parse/4.11.1:
     dev: true
     resolution:
-      integrity: sha512-gdDJVchi0oSLIcYXz1H/VSgLE6htHDqJyFsRU/vTkQgmVOZ3S0IR2LXnNbWUYG7VD76dYVwdfBLyx8AX9+An8A==
+      integrity: sha512-cH2BG5Gd0u4G8qVI/jGXJSP2+El7Vy91/ZD3ehKALAWids1aIKOPhZ1ZVJzUrs2zTn6aGumVPBlbHsI91kI83A==
   /csv-stringify/5.5.0:
     dev: true
     resolution:
@@ -5585,7 +5568,7 @@ packages:
   /csv/5.3.2:
     dependencies:
       csv-generate: 3.2.4
-      csv-parse: 4.10.1
+      csv-parse: 4.11.1
       csv-stringify: 5.5.0
       stream-transform: 2.0.2
     dev: true
@@ -5659,13 +5642,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-9lNNFRSCabIDUue+4m9QH5oZEpA=
-  /decamelize/3.2.0:
-    dependencies:
-      xregexp: 4.3.0
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-4TgkVUsmmu7oCSyGBm5FvfMoACuoh9EOidm7V5/J2X2djAwwt57qb3F2KMP2ITqODTCSwb+YRV+0Zqrv18k/hw==
   /decode-uri-component/0.2.0:
     dev: true
     engines:
@@ -5783,10 +5759,17 @@ packages:
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
   /delay/4.3.0:
+    dev: true
     engines:
       node: '>=6'
     resolution:
       integrity: sha512-Lwaf3zVFDMBop1yDuFZ19F9WyGcZcGacsbdlZtWjQmM50tOcMntm1njF/Nb/Vjij3KaSvCF+sEYGKrrjObu2NA==
+  /delay/4.4.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-txgOrJu3OdtOfTiEOT2e76dJVfG/1dz2NZ4F0Pyt4UGZJryssMRp5vdM5wQoLwSOBNdrJv3F9PAhp/heqd7vrA==
   /delayed-stream/1.0.0:
     engines:
       node: '>=0.4.0'
@@ -5822,7 +5805,7 @@ packages:
       integrity: sha512-oSyFlqaTHCItVRGK5RmrmjB+CmaMOW7IaNA/kdxqhoa6d17j/5ce9O9eWXmV/KEdRwqpQA+Vqe8a8Bsybu4YnA==
   /didyoumean2/4.1.0:
     dependencies:
-      '@babel/runtime': 7.10.4
+      '@babel/runtime': 7.10.5
       leven: 3.1.0
       lodash.deburr: 4.1.0
     dev: false
@@ -5841,7 +5824,7 @@ packages:
       graceful-fs: 4.2.4
       mz: 2.7.0
       p-every: 2.0.0
-      p-limit: 3.0.1
+      p-limit: 3.0.2
       ssri: 8.0.0
     dev: false
     engines:
@@ -6275,10 +6258,10 @@ packages:
   /extend/3.0.2:
     resolution:
       integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==
-  /extendable-error/0.1.6:
+  /extendable-error/0.1.7:
     dev: true
     resolution:
-      integrity: sha512-J4t/QOPpq9uS7NYpgBGoezXwm4l0ojnL6gt0kBdD9CHN4CmQ3zSs/GD2u0j4PpZvU/ALohs8dyhmxMPQjmTO3w==
+      integrity: sha512-UOiS2in6/Q0FK0R0q6UY9vYpQ21mr/Qn1KOnte7vsACuNJf514WvCCUHSRCPcgjPT2bAhNIJdlE6bVap1GKmeg==
   /extglob/2.0.4:
     dependencies:
       array-unique: 0.3.2
@@ -7060,18 +7043,6 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha512-uUQBt3H/cSIVfch6i1EuPNy/YsRSOUBXTVfZ+yR7Zjez3qjBz6i9+i4zjNaoqcoFVI4lQJ5plg63TvGfRSDCRg==
-  /http-errors/1.7.3:
-    dependencies:
-      depd: 1.1.2
-      inherits: 2.0.4
-      setprototypeof: 1.1.1
-      statuses: 1.5.0
-      toidentifier: 1.0.0
-    dev: true
-    engines:
-      node: '>= 0.6'
-    resolution:
-      integrity: sha512-ZTTX0MWrsQ2ZAhA1cejAwDLycFsd7I7nVtnkT3Ol0aqodaKW+0CTZDQ1uBv5whptCnc8e8HeRRJxRs0kmm/Qfw==
   /http-errors/1.8.0:
     dependencies:
       depd: 1.1.2
@@ -7691,14 +7662,6 @@ packages:
   /js-tokens/4.0.0:
     resolution:
       integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==
-  /js-yaml/3.13.1:
-    dependencies:
-      argparse: 1.0.10
-      esprima: 4.0.1
-    dev: true
-    hasBin: true
-    resolution:
-      integrity: sha512-YfbcO7jXDdyj0DGxYVSlSeQNHbD7XPWvrVWeVUujrQEoZzWJIRrCPoyk6kL6IAjAG2IolMK4T0hNUe0HOUs5Jw==
   /js-yaml/3.14.0:
     dependencies:
       argparse: 1.0.10
@@ -7902,12 +7865,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==
-  /kleur/4.0.1:
+  /kleur/4.0.2:
     dev: true
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-Qs6SqCLm63rd0kNVh+wO4XsWLU6kgfwwaPYsLiClWf0Tewkzsa6MvB21bespb8cz+ANS+2t3So1ge3gintzhlw==
+      integrity: sha512-FGCCxczbrZuF5CtMeO0xfnjhzkVZSXfcWK90IPLucDWZwskrpYN7pmRIgvd8muU0mrPrzy4A2RBGuwCjLHI+nw==
   /koalas/1.0.2:
     dev: true
     engines:
@@ -8231,10 +8194,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-W/Rejkm6QYnhfUgnid/RW9FAt7Y=
-  /lodash/4.17.15:
-    dev: true
-    resolution:
-      integrity: sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==
   /lodash/4.17.19:
     resolution:
       integrity: sha512-JNvd8XER9GQX0v2qJgsaN/mzFCNA5BRe/j8JN9d+tWyGLSodKQHKFicdwNYzWwI3wjRnaKPsGj1XkBjx/F96DQ==
@@ -8817,7 +8776,7 @@ packages:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
   /nise/4.0.4:
     dependencies:
-      '@sinonjs/commons': 1.8.0
+      '@sinonjs/commons': 1.8.1
       '@sinonjs/fake-timers': 6.0.1
       '@sinonjs/text-encoding': 0.7.1
       just-extend: 4.1.0
@@ -9405,14 +9364,14 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-//88mFWSJx8lxCzwdAABTJL2MyWB12+eIY7MDL2SqLmAkeKU9qxRvWuSyTjm3FUmpBEMuFfckAIqEaVGUDxb6w==
-  /p-limit/3.0.1:
+  /p-limit/3.0.2:
     dependencies:
       p-try: 2.2.0
     dev: false
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-mw/p92EyOzl2MhauKodw54Rx5ZK4624rNfgNaBguFZkHzyUG9WsDzFF5/yQVEJinbJDdP4jEfMN+uBquiGnaLg==
+      integrity: sha512-iwqZSOoWIW+Ew4kAGUlN16J4M7OB3ysMLSZtnhmqx7njIHFPlxWBX8xo3lVTyFVq6mI/lL9qt2IsN1sHwaxJkg==
   /p-locate/2.0.0:
     dependencies:
       p-limit: 1.3.0
@@ -9450,7 +9409,7 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-oMxCJKVS75Bf2RWtXJNQNaX2K1G0FYpllOh2iTsPXZqnf9dWMcis3BL+pRdLeQY8lIdwwL01k/UV5LBdcVhZzg==
-  /p-queue/6.5.0:
+  /p-queue/6.6.0:
     dependencies:
       eventemitter3: 4.0.4
       p-timeout: 3.2.0
@@ -9458,7 +9417,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-FLaTTD9Am6TeDfNuN0d+INeyVJoICoBS+OVP5K1S84v4w51LN3nRkCT+WC7xLBepV2s+N4LibM7Ys7xcSc0+1A==
+      integrity: sha512-zPHXPNy9jZsiym0PpJjvnHQysx1fSd/QdaNVwiDRLU2KFChD6h9CkCB6b8i3U8lBwJyA+mHgNZCzcy77glUssQ==
   /p-reflect/2.1.0:
     dev: false
     engines:
@@ -9504,7 +9463,7 @@ packages:
   /package-json/6.5.0:
     dependencies:
       got: 9.6.0
-      registry-auth-token: 4.1.1
+      registry-auth-token: 4.2.0
       registry-url: 5.1.0
       semver: 6.3.0
     dev: false
@@ -10287,10 +10246,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-MguG95oij0fC3QV3URf4V2SDYGJhJnJGqvIIgdECeODCT98wSWDAJ94SSuVpYQUoTcGUIL6L4yNB7j1DFFHSBg==
-  /regenerator-runtime/0.13.3:
-    dev: true
-    resolution:
-      integrity: sha512-naKIZz2GQ8JWh///G7L3X6LaQUAMp2lvb1rvwwsURe/VXwD6VMfr+/1NuNw3ag8v2kY1aQ/go5SNn79O9JU7yw==
   /regenerator-runtime/0.13.5:
     resolution:
       integrity: sha512-ZS5w8CpKFinUzOwW3c83oPeVXoNsrLsaCoLtJvAClH135j/R77RuymhiSErhm2lKcwSCIpmvIWSbDkIfAqKQlA==
@@ -10312,14 +10267,14 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha512-2+Q0C5g951OlYlJz6yu5/M33IcsESLlLfsyIaLJaG4FA2r4yP8MvVMJUUP/fVBkSpbbbZlS5gynbEWLipiiXiQ==
-  /registry-auth-token/4.1.1:
+  /registry-auth-token/4.2.0:
     dependencies:
       rc: 1.2.8
     dev: false
     engines:
       node: '>=6.0.0'
     resolution:
-      integrity: sha512-9bKS7nTl9+/A1s7tnPeGrUpRcVY+LUh7bfFgzpndALdPfXQBfQV77rQVtqgUV3ti4vc/Ik81Ex8UJDWDQ12zQA==
+      integrity: sha512-P+lWzPrsgfN+UEpDS3U8AQKg/UjZX6mQSJueZj3EK+vNESoqBSpBUD3gmu4sF9lOsjXWjF11dQKUqemf3veq1w==
   /registry-url/5.1.0:
     dependencies:
       rc: 1.2.8
@@ -10410,7 +10365,7 @@ packages:
       integrity: sha512-yPpxc4ZR2makceA9hy/jHNqc7QVkd4Je/N0WRHm6bs3PtivPuPynxE5ejU/mp5EhnCv8+uZL7vhz8rkluSlx+Q==
   /request-promise-core/1.1.3_request@2.88.0:
     dependencies:
-      lodash: 4.17.15
+      lodash: 4.17.19
       request: 2.88.0
     dev: true
     engines:
@@ -10666,7 +10621,7 @@ packages:
       integrity: sha1-yK1KXhEGYeQCp9IbUw4AnyX444k=
   /run-groups/3.0.1:
     dependencies:
-      p-limit: 3.0.1
+      p-limit: 3.0.2
     dev: false
     engines:
       node: '>=10'
@@ -10737,13 +10692,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==
-  /semver/7.1.3:
-    dev: true
-    engines:
-      node: '>=10'
-    hasBin: true
-    resolution:
-      integrity: sha512-ekM0zfiA9SCBlsKa2X1hxyxiI4L3B6EbVJkkdgQXnSEEaHlGdvyodMruTiulSRWMMB4NeIuYNMC9rTKTz97GxA==
   /semver/7.3.2:
     engines:
       node: '>=10'
@@ -10759,7 +10707,7 @@ packages:
       escape-html: 1.0.3
       etag: 1.8.1
       fresh: 0.5.2
-      http-errors: 1.7.3
+      http-errors: 1.7.2
       mime: 1.6.0
       ms: 2.1.1
       on-finished: 2.3.0
@@ -10872,7 +10820,7 @@ packages:
       integrity: sha512-VUJ49FC8U1OxwZLxIbTTrDvLnf/6TDgxZcK8wxR8zs13xpx7xbG60ndBlhNrFi2EMuFRoeDoJO7wthSLq42EjA==
   /sinon/9.0.2:
     dependencies:
-      '@sinonjs/commons': 1.8.0
+      '@sinonjs/commons': 1.8.1
       '@sinonjs/fake-timers': 6.0.1
       '@sinonjs/formatio': 5.0.1
       '@sinonjs/samsam': 5.0.3
@@ -10920,7 +10868,7 @@ packages:
       grapheme-splitter: 1.0.4
       strip-ansi: 6.0.0
       wcwidth: 1.0.1
-      yargs: 15.4.0
+      yargs: 15.4.1
     deprecated: Backported compatibility to node > 6
     dev: true
     hasBin: true
@@ -11699,13 +11647,13 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.10.2_typescript@3.9.6:
+  /ts-node/8.10.2_typescript@3.9.7:
     dependencies:
       arg: 4.1.3
       diff: 4.0.2
       make-error: 1.3.6
       source-map-support: 0.5.19
-      typescript: 3.9.6
+      typescript: 3.9.7
       yn: 3.1.1
     dev: true
     engines:
@@ -11715,10 +11663,10 @@ packages:
       typescript: '>=2.7'
     resolution:
       integrity: sha512-ISJJGgkIpDdBhWVu3jufsWpK3Rzo7bdiIXJjQc0ynKxVOVcg2oIrf2H2cejminGrptVc6q6/uynAHNCuWGbpVA==
-  /ts-toolbelt/6.10.16:
+  /ts-toolbelt/6.13.15:
     dev: true
     resolution:
-      integrity: sha512-MAad9fRk8oO0WqB927LLdEkZg+Oz0nAkuyS4zTsTk4L97AjHX7GdFGUk2ABkqgo9S3V/Wkn2pd2df2GcZoayvQ==
+      integrity: sha512-tVKhhF9X0nMXnpSkXbaOlE1XOzmo4S7mJkoOHVTocFhnBMIzjwU5PwLSusDH+o3KlJbTRJkQ37iu92kX9vjDwA==
   /tslib/1.13.0:
     dev: true
     resolution:
@@ -11741,7 +11689,7 @@ packages:
       typescript: ^2.2.0 || ^3.0.0
     resolution:
       integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==
-  /tslint/6.1.2_typescript@3.9.6:
+  /tslint/6.1.2_typescript@3.9.7:
     dependencies:
       '@babel/code-frame': 7.10.4
       builtin-modules: 1.1.1
@@ -11755,8 +11703,8 @@ packages:
       resolve: 1.17.0
       semver: 5.7.1
       tslib: 1.13.0
-      tsutils: 2.29.0_typescript@3.9.6
-      typescript: 3.9.6
+      tsutils: 2.29.0_typescript@3.9.7
+      typescript: 3.9.7
     deprecated: 'TSLint has been deprecated in favor of ESLint. Please see https://github.com/palantir/tslint/issues/4534 for more information.'
     dev: true
     engines:
@@ -11772,10 +11720,10 @@ packages:
       node: '>=0.6.x'
     resolution:
       integrity: sha512-LxhtAkPDTkVCMQjt2h6eBVY28KCjikZqZfMcC15YBeNjkgUpdCfBu5HoiOTDu86v6smE8yOjyEktJ8hlbANHQA==
-  /tsutils/2.29.0_typescript@3.9.6:
+  /tsutils/2.29.0_typescript@3.9.7:
     dependencies:
       tslib: 1.13.0
-      typescript: 3.9.6
+      typescript: 3.9.7
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev || >= 3.1.0-dev'
@@ -11797,7 +11745,7 @@ packages:
       smartwrap: 1.2.5
       strip-ansi: 6.0.0
       wcwidth: 1.0.1
-      yargs: 15.4.0
+      yargs: 15.4.1
     dev: true
     engines:
       node: '>=8.16.0'
@@ -11869,13 +11817,13 @@ packages:
   /typedarray/0.0.6:
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/3.9.6:
+  /typescript/3.9.7:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-Pspx3oKAPJtjNwE92YS05HQoY7z2SFyOpHo9MqJor3BXAGNaPUs83CuVp9VISFkSjyRfiTpmKuAYGJB7S7hOxw==
+      integrity: sha512-BLbiRkiBzAwsjut4x/dsibSTB6yWpwT5qWmC2OfuCg3GgVQCSgMs4vEctYPhsaGtd0AeuuHMkjZ2h2WG8MSzRw==
   /uglify-js/3.10.0:
     dev: true
     engines:
@@ -12058,7 +12006,7 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha1-IpnwLG3tMNSllhsLn3RSShj2NPw=
-  /verdaccio-audit/9.6.1:
+  /verdaccio-audit/9.7.1:
     dependencies:
       express: 4.17.1
       request: 2.88.0
@@ -12066,30 +12014,30 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-dyYeGhg+HfLFgTMJEV7usJ46xQix9SU566XIi278IlYFmBkFe6SsmiZUHKaL3pbq8K9ESQYNCyYkZW29QMpcIg==
-  /verdaccio-htpasswd/9.6.1:
+      integrity: sha512-yGvhxOeQjh+DfQwIZpR7j5nmtDQ+O9vp2u5MrpKztd38F7ohI+PZjtLPWd3b71qoZwMXkzTNfB9zHqP2C8fr4A==
+  /verdaccio-htpasswd/9.7.1:
     dependencies:
-      '@verdaccio/file-locking': 9.7.0
+      '@verdaccio/file-locking': 9.7.2
       apache-md5: 1.1.2
       bcryptjs: 2.4.3
-      http-errors: 1.7.3
+      http-errors: 1.8.0
       unix-crypt-td-js: 1.1.4
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-UVUm3lt0JNJk02rKd2VBqpfVDwDlRfGyTQLwBuZfdnD/qmGrTzqKcnXAsG6zwlPo64Js5ZTvGi1/QeAgG4GjxA==
-  /verdaccio/4.7.2:
+      integrity: sha512-LeyGRfN01HgOY4srkftOwpVAfOEfPvWo5UJ8L1qAmqr3pY07ZNFnDRDl1H4PTZ9LTi+mUdo9ppIPfHssrr8r9g==
+  /verdaccio/4.8.0:
     dependencies:
-      '@verdaccio/commons-api': 9.6.1
-      '@verdaccio/local-storage': 9.7.0
-      '@verdaccio/readme': 9.7.0
-      '@verdaccio/streams': 9.6.1
-      '@verdaccio/ui-theme': 1.11.0
+      '@verdaccio/commons-api': 9.7.1
+      '@verdaccio/local-storage': 9.7.1
+      '@verdaccio/readme': 9.7.1
+      '@verdaccio/streams': 9.7.1
+      '@verdaccio/ui-theme': 1.12.1
       JSONStream: 1.3.5
       async: 3.2.0
       body-parser: 1.19.0
-      bunyan: 1.8.13
+      bunyan: 1.8.14
       commander: 3.0.2
       compression: 1.7.4
       cookies: 0.8.0
@@ -12099,10 +12047,10 @@ packages:
       express: 4.17.1
       handlebars: 4.7.6
       http-errors: 1.8.0
-      js-yaml: 3.13.1
+      js-yaml: 3.14.0
       jsonwebtoken: 8.5.1
-      kleur: 4.0.1
-      lodash: 4.17.15
+      kleur: 4.0.2
+      lodash: 4.17.19
       lunr-mutable-indexes: 2.3.2
       marked: 0.8.2
       mime: 2.4.6
@@ -12112,15 +12060,15 @@ packages:
       pkginfo: 0.4.1
       request: 2.87.0
       semver: 6.3.0
-      verdaccio-audit: 9.6.1
-      verdaccio-htpasswd: 9.6.1
+      verdaccio-audit: 9.7.1
+      verdaccio-htpasswd: 9.7.1
     dev: true
     engines:
       node: '>=8'
       npm: '>=5'
     hasBin: true
     resolution:
-      integrity: sha512-qaxYkUTbtJMmBlK+UCRxeFKOunlt43CTfMddSph87qjWi7xJqeAosN5hC58j9YFKkUjbH5VfWiT/AkheDAvApg==
+      integrity: sha512-Hxhhkd5hm3UpyeP1IibK+cnWLUmDdJGgtWhxOh1jjTt7sz4WqmCE7P6c0Hgb1H8sT7rGYdV1S54wjQGZlJtFxw==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
@@ -12487,11 +12435,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==
-  /xregexp/4.3.0:
-    dependencies:
-      '@babel/runtime-corejs3': 7.10.4
-    resolution:
-      integrity: sha512-7jXDIFXh5yJ/orPn4SXjuVrWWoi4Cr8jfV1eHv9CixKSbU+jY4mxfrBwAuDvupPNKpMUY+FeIqsVw/JLT9+B8g==
   /xtend/4.0.2:
     engines:
       node: '>=0.4'
@@ -12533,10 +12476,10 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-o50j0JeToy/4K6OZcaQmW6lyXXKhq7csREXcDwk2omFPJEwUNOVtJKvmDr9EI1fAJZUyZcRF7kxGBWmRXudrCQ==
-  /yargs/15.4.0:
+  /yargs/15.4.1:
     dependencies:
       cliui: 6.0.0
-      decamelize: 3.2.0
+      decamelize: 1.2.0
       find-up: 4.1.0
       get-caller-file: 2.0.5
       require-directory: 2.1.1
@@ -12549,7 +12492,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-D3fRFnZwLWp8jVAAhPZBsmeIHY8tTsb8ItV9KaAaopmC6wde2u6Yw29JBIZHXw14kgkRnYmDgmQU4FVMDlIsWw==
+      integrity: sha512-aePbxDmcYW++PaqBsJ+HYUFwCdv4LVvdnhBy78E57PIor8/OVvhMrADFFEDh8DHDFRv/O9i3lPhsENjO7QX0+A==
   /yn/3.1.1:
     dev: true
     engines:

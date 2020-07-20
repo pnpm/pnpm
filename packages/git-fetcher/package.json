@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:8.0.2",
     "@zkochan/rimraf": "1.0.0",
-    "execa": "^4.0.2",
+    "execa": "^4.0.3",
     "tempy": "0.5.0"
   },
   "devDependencies": {

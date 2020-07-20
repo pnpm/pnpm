@@ -43,7 +43,7 @@
     "@pnpm/server": "workspace:8.0.6",
     "@pnpm/store-path": "^4.0.0",
     "@zkochan/diable": "^1.0.2",
-    "delay": "^4.3.0",
+    "delay": "^4.4.0",
     "dir-is-case-sensitive": "^1.0.2",
     "lru-cache": "^6.0.0",
     "mz": "^2.7.0"

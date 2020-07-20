@@ -39,7 +39,7 @@
   "devDependencies": {
     "@pnpm/package-bins": "link:",
     "@types/graceful-fs": "^4.1.3",
-    "@types/node": "^12.12.47",
+    "@types/node": "^12.12.50",
     "@types/tape": "^4.13.0"
   },
   "funding": "https://opencollective.com/pnpm"

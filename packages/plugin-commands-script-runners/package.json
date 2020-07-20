@@ -38,9 +38,9 @@
     "@pnpm/plugin-commands-script-runners": "link:",
     "@pnpm/prepare": "workspace:0.0.7",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.6",
+    "@types/ramda": "^0.27.11",
     "@zkochan/rimraf": "1.0.0",
-    "execa": "^4.0.2",
+    "execa": "^4.0.3",
     "mz": "2.7.0",
     "write-yaml-file": "^4.1.0"
   },
@@ -53,7 +53,7 @@
     "@pnpm/lifecycle": "workspace:9.2.0",
     "@pnpm/sort-packages": "workspace:1.0.13",
     "@pnpm/types": "workspace:6.2.0",
-    "p-limit": "^3.0.1",
+    "p-limit": "^3.0.2",
     "ramda": "0.27.0",
     "realpath-missing": "1.0.0",
     "render-help": "1.0.0"

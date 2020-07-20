@@ -13,12 +13,14 @@
   "private": true,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "files": ["lib/"],
+  "files": [
+    "lib/"
+  ],
   "devDependencies": {
     "@pnpm/assert-project": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/isexe": "2.0.0",
-    "@types/node": "^12.12.47"
+    "@types/node": "^12.12.50"
   },
   "directories": {
     "test": "test"
