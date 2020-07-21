@@ -3,4 +3,4 @@
 "supi": patch
 ---
 
-fix readPackage hook modify manifest unexpectedly
+Changes that are made by the `readPackage` hook are not saved to the `package.json` files of projects.
