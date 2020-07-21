@@ -34,3 +34,5 @@ privatePackages/store
 
 ## Verdaccio storage
 storage
+
+yarn.lock

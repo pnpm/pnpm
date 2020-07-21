@@ -25,15 +25,15 @@
     "coveralls": "^3.1.0",
     "cross-env": "^7.0.2",
     "lcov-result-merger": "^3.1.0",
-    "npm": "^6.14.6",
     "npm-run-all": "^4.1.5",
-    "publish-packed": "^3.0.1",
+    "publish-packed": "^3.0.2",
     "rimraf": "^3.0.2",
     "tape": "^4.13.3",
     "ts-node": "^8.10.2",
     "tslint": "^6.1.2",
     "typescript": "^3.9.7",
-    "verdaccio": "^4.8.0"
+    "verdaccio": "^4.8.0",
+    "yarn": "^1.22.4"
   },
   "engines": {
     "pnpm": ">=5 || ^0.0.0-x"
