@@ -36,6 +36,7 @@ export function rcOptionsTypes () {
     'public-hoist-pattern',
     'registry',
     'reporter',
+    'save-workspace-protocol',
     'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',

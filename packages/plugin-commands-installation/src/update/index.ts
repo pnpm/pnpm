@@ -43,6 +43,7 @@ export function rcOptionsTypes () {
     'reporter',
     'save',
     'save-exact',
+    'save-workspace-protocol',
     'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',
