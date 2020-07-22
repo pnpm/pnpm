@@ -35,7 +35,7 @@ export interface PnpmContext<T> {
   projects: Array<{
     modulesDir: string,
     id: string,
-  } & T & Required<ProjectOptions>>,
+  } & HookOptions & T & Required<ProjectOptions>>,
   rootModulesDir: string,
   hoistPattern: string[] | undefined,
   hoistedModulesDir: string,
@@ -55,8 +55,12 @@ export interface ProjectOptions {
   rootDir: string,
 }
 
+interface HookOptions {
+  originalManifest?: ProjectManifest,
+}
+
 export default async function getContext<T> (
-  projects: (ProjectOptions & T)[],
+  projects: (ProjectOptions & HookOptions & T)[],
   opts: {
     force: boolean,
     forceNewModules?: boolean,
@@ -119,10 +123,10 @@ export default async function getContext<T> (
     })
   })
   if (opts.hooks?.readPackage) {
-    projects = projects.map((project) => ({
-      ...project,
-      manifest: opts.hooks!.readPackage!(project.manifest),
-    }))
+    for (const project of importersContext.projects) {
+      project.originalManifest = project.manifest
+      project.manifest = opts.hooks!.readPackage!(R.clone(project.manifest))
+    }
   }
 
   const extraBinPaths = [

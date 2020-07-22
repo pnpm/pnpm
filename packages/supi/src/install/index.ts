@@ -529,6 +529,7 @@ export type ImporterToUpdate = {
   binsDir: string,
   id: string,
   manifest: ProjectManifest,
+  originalManifest?: ProjectManifest,
   modulesDir: string,
   rootDir: string,
   pruneDirectDependencies: boolean,
@@ -573,7 +574,8 @@ async function installInContext (
     projects
       .map(async (project) => {
         if (project.mutation !== 'uninstallSome') return
-        project.manifest = await removeDeps(project.manifest, project.dependencyNames, {
+        const field = project.originalManifest ? 'originalManifest' : 'manifest'
+        project[field] = await removeDeps(project[field] as ProjectManifest, project.dependencyNames, {
           prefix: project.rootDir,
           saveType: project.targetDependenciesField,
         })
@@ -638,13 +640,16 @@ async function installInContext (
 
   const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
-    let newPkg: ProjectManifest | undefined = project.manifest
+    let updatedManifest: ProjectManifest | undefined = project.manifest
+    let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
     if (project.updatePackageManifest) {
-      newPkg = await updateProjectManifest(projectsToResolve[index], {
+      const manifests = await updateProjectManifest(projectsToResolve[index], {
         directDependencies: resolvedImporter.directDependencies,
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
+      updatedManifest = manifests[0]
+      updatedOriginalManifest = manifests[1]
     } else {
       packageManifestLogger.debug({
         prefix: project.rootDir,
@@ -652,10 +657,10 @@ async function installInContext (
       })
     }
 
-    if (newPkg) {
+    if (updatedManifest) {
       const projectSnapshot = ctx.wantedLockfile.importers[project.id]
       ctx.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
-        newPkg,
+        updatedManifest,
         projectSnapshot,
         resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
@@ -680,7 +685,7 @@ async function installInContext (
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: newPkg || project.manifest,
+      manifest: updatedOriginalManifest ?? project.originalManifest ?? project.manifest,
       modulesDir: project.modulesDir,
       pruneDirectDependencies: project.pruneDirectDependencies,
       removePackages: project.removePackages,
