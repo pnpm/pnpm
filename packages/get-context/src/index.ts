@@ -35,7 +35,7 @@ export interface PnpmContext<T> {
   projects: Array<{
     modulesDir: string,
     id: string,
-  } & HookedOptions & T & Required<ProjectOptions>>,
+  } & HookOptions & T & Required<ProjectOptions>>,
   rootModulesDir: string,
   hoistPattern: string[] | undefined,
   hoistedModulesDir: string,
@@ -55,12 +55,12 @@ export interface ProjectOptions {
   rootDir: string,
 }
 
-interface HookedOptions {
-  unhookedManifest?: ProjectManifest,
+interface HookOptions {
+  originalManifest?: ProjectManifest,
 }
 
 export default async function getContext<T> (
-  projects: (ProjectOptions & HookedOptions & T)[],
+  projects: (ProjectOptions & HookOptions & T)[],
   opts: {
     force: boolean,
     forceNewModules?: boolean,
@@ -124,8 +124,8 @@ export default async function getContext<T> (
   })
   if (opts.hooks?.readPackage) {
     for (const project of importersContext.projects) {
-      project.unhookedManifest = project.manifest
-      project.manifest = opts.hooks!.readPackage!(JSON.parse(JSON.stringify(project.manifest)))
+      project.originalManifest = project.manifest
+      project.manifest = opts.hooks!.readPackage!(R.clone(project.manifest))
     }
   }
 

@@ -529,7 +529,7 @@ export type ImporterToUpdate = {
   binsDir: string,
   id: string,
   manifest: ProjectManifest,
-  unhookedManifest?: ProjectManifest,
+  originalManifest?: ProjectManifest,
   modulesDir: string,
   rootDir: string,
   pruneDirectDependencies: boolean,
@@ -574,7 +574,7 @@ async function installInContext (
     projects
       .map(async (project) => {
         if (project.mutation !== 'uninstallSome') return
-        const field = project.unhookedManifest ? 'unhookedManifest' : 'manifest'
+        const field = project.originalManifest ? 'originalManifest' : 'manifest'
         project[field] = await removeDeps(project[field] as ProjectManifest, project.dependencyNames, {
           prefix: project.rootDir,
           saveType: project.targetDependenciesField,
@@ -640,16 +640,16 @@ async function installInContext (
 
   const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
-    let newPkg: ProjectManifest | undefined = project.manifest
-    let unhookedNewPkg: ProjectManifest | undefined = project.unhookedManifest
+    let updatedManifest: ProjectManifest | undefined = project.manifest
+    let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
     if (project.updatePackageManifest) {
       const manifests = await updateProjectManifest(projectsToResolve[index], {
         directDependencies: resolvedImporter.directDependencies,
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
-      newPkg = manifests[0]
-      unhookedNewPkg = manifests[1]
+      updatedManifest = manifests[0]
+      updatedOriginalManifest = manifests[1]
     } else {
       packageManifestLogger.debug({
         prefix: project.rootDir,
@@ -657,10 +657,10 @@ async function installInContext (
       })
     }
 
-    if (newPkg) {
+    if (updatedManifest) {
       const projectSnapshot = ctx.wantedLockfile.importers[project.id]
       ctx.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
-        newPkg,
+        updatedManifest,
         projectSnapshot,
         resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
@@ -685,7 +685,7 @@ async function installInContext (
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: unhookedNewPkg ?? project.unhookedManifest ?? project.manifest,
+      manifest: updatedOriginalManifest ?? project.originalManifest ?? project.manifest,
       modulesDir: project.modulesDir,
       pruneDirectDependencies: project.pruneDirectDependencies,
       removePackages: project.removePackages,

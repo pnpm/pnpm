@@ -2,4 +2,4 @@
 "@pnpm/get-context": minor
 ---
 
-Add `unhookedManifest` that stores the unmodified.
+Add `originalManifest` that stores the unmodified.

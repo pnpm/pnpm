@@ -41,13 +41,13 @@ export async function updateProjectManifest (
     specsToUpsert,
     { dryRun: true }
   )
-  const unhookedManifest = importer.unhookedManifest && await save(
+  const originalManifest = importer.originalManifest && await save(
     importer.rootDir,
-    importer.unhookedManifest,
+    importer.originalManifest,
     specsToUpsert,
     { dryRun: true }
   )
-  return [hookedManifest, unhookedManifest]
+  return [hookedManifest, originalManifest]
 }
 
 function resolvedDirectDepToSpecObject (
