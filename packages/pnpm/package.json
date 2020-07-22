@@ -54,6 +54,7 @@
     "ramda": "^0.27.0",
     "render-help": "^1.0.0",
     "split-cmd": "^1.0.1",
+    "strip-ansi": "^6.0.0",
     "update-notifier": "^4.1.0",
     "which": "^2.0.2"
   },
