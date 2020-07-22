@@ -36,6 +36,7 @@ export function cliOptionsTypes () {
       'only',
       'optional',
       'production',
+      'registry',
     ], allTypes),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
   }
