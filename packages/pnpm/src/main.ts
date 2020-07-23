@@ -97,11 +97,10 @@ export default async function run (inputArgv: string[]) {
     return
   }
 
-  let write!: (text: string) => void
+  let write: (text: string) => void = process.stdout.write.bind(process.stdout)
   // chalk reads the FORCE_COLOR env variable
   if (config.color === 'always') {
     process.env['FORCE_COLOR'] = '1'
-    write = process.stdout.write
   } else if (config.color === 'never') {
     process.env['FORCE_COLOR'] = '0'
 
