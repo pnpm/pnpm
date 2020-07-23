@@ -130,7 +130,7 @@ function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
   if (node.isSkipped) {
     txt += ' skipped'
   }
-  return node.searched ? chalk.bold.inverse(txt) : txt
+  return node.searched ? chalk.bold(txt) : txt
 }
 
 function getPkgColor (node: PackageNode) {
