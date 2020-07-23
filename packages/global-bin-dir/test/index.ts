@@ -100,6 +100,12 @@ test('when the process has no write access to any of the suitable directories, t
   t.end()
 })
 
+test('when the process has no write access to any of the suitable directories, but opts.shouldAllowWrite is false, return the first match', (t) => {
+  canWriteToDir = (dir) => dir === otherDir
+  t.equal(globalBinDir([], { shouldAllowWrite: false }), nodeGlobalBin)
+  t.end()
+})
+
 test('throw an exception if non of the directories in the PATH are suitable', (t) => {
   const pathEnv = process.env[FAKE_PATH]
   process.env[FAKE_PATH] = [otherDir].join(path.delimiter)
