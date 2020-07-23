@@ -25,6 +25,7 @@ import logger from '@pnpm/logger'
 import isCI = require('is-ci')
 import path = require('path')
 import R = require('ramda')
+import stripAnsi = require('strip-ansi')
 import which = require('which')
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { getRCOptionsTypes } from './cmd'
@@ -96,11 +97,19 @@ export default async function run (inputArgv: string[]) {
     return
   }
 
+  let write: (text: string) => void = process.stdout.write.bind(process.stdout)
   // chalk reads the FORCE_COLOR env variable
   if (config.color === 'always') {
     process.env['FORCE_COLOR'] = '1'
   } else if (config.color === 'never') {
     process.env['FORCE_COLOR'] = '0'
+
+    // In some cases, it is already late to set the FORCE_COLOR env variable.
+    // Some text might be already generated.
+    //
+    // A better solution might be to dynamically load all the code after the settings are read
+    // and the env variable set.
+    write = (text) => process.stdout.write(stripAnsi(text))
   }
 
   const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
@@ -213,14 +222,14 @@ export default async function run (inputArgv: string[]) {
           result
             .then((output) => {
               if (typeof output === 'string') {
-                process.stdout.write(output)
+                write(output)
               }
               resolve()
             })
             .catch(reject)
         } else {
           if (typeof result === 'string') {
-            process.stdout.write(result)
+            write(result)
           }
           resolve()
         }

@@ -2124,6 +2124,7 @@ importers:
       ramda: 0.27.0
       render-help: 1.0.0
       split-cmd: 1.0.1
+      strip-ansi: 6.0.0
       update-notifier: 4.1.0
       which: 2.0.2
     devDependencies:
@@ -2257,6 +2258,7 @@ importers:
       render-help: ^1.0.0
       semver: ^7.3.2
       split-cmd: ^1.0.1
+      strip-ansi: ^6.0.0
       symlink-dir: ^4.1.0
       tape-promise: 4.0.0
       tree-kill: 1.2.2
