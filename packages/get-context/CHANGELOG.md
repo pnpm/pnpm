@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 3.2.0
+
+### Minor Changes
+
+- a01626668: Add `originalManifest` that stores the unmodified.
+
 ## 3.1.0
 
 ### Minor Changes

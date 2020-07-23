@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-audit
 
+## 1.0.20
+
+### Patch Changes
+
+- 4e5e22aab: Allow to set a custom registry through the `--registry` option, when running `pnpm audit` (#2689).
+
 ## 1.0.19
 
 ### Patch Changes

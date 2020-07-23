@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.41.10",
+  "version": "0.41.11",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -21,7 +21,7 @@
     "@pnpm/core-loggers": "workspace:4.2.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/filter-lockfile": "workspace:4.0.5",
-    "@pnpm/get-context": "workspace:3.1.0",
+    "@pnpm/get-context": "workspace:3.2.0",
     "@pnpm/headless": "workspace:14.0.10",
     "@pnpm/hoist": "workspace:4.0.4",
     "@pnpm/lifecycle": "workspace:9.2.1",

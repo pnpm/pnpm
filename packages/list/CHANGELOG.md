@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 5.0.1
+
+### Patch Changes
+
+- 78c2741b6: Don't use inverse as it doesn't look good in all consoles.
+
 ## 5.0.0
 
 ### Major Changes

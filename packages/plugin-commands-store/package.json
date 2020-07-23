@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "2.0.21",
+  "version": "2.0.22",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -55,7 +55,7 @@
     "@pnpm/cli-utils": "workspace:0.4.15",
     "@pnpm/config": "workspace:11.1.0",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/get-context": "workspace:3.1.0",
+    "@pnpm/get-context": "workspace:3.2.0",
     "@pnpm/lockfile-utils": "workspace:2.0.15",
     "@pnpm/normalize-registries": "workspace:1.0.3",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",

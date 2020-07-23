@@ -1,5 +1,13 @@
 # supi
 
+## 0.41.11
+
+### Patch Changes
+
+- a01626668: Changes that are made by the `readPackage` hook are not saved to the `package.json` files of projects.
+- Updated dependencies [a01626668]
+  - @pnpm/get-context@3.2.0
+
 ## 0.41.10
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-listing",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "description": "The list and why commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -50,7 +50,7 @@
     "@pnpm/common-cli-options-help": "workspace:0.1.6",
     "@pnpm/config": "workspace:11.1.0",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/list": "workspace:5.0.0",
+    "@pnpm/list": "workspace:5.0.1",
     "@pnpm/types": "workspace:6.2.0",
     "ramda": "0.27.0",
     "render-help": "1.0.0"

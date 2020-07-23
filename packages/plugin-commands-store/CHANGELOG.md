@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.22
+
+### Patch Changes
+
+- Updated dependencies [a01626668]
+  - @pnpm/get-context@3.2.0
+
 ## 2.0.21
 
 ### Patch Changes

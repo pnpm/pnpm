@@ -1,5 +1,15 @@
 # pnpm
 
+## 5.4.3
+
+### Patch Changes
+
+- Should not print colored output when `color` is set to `never`. This was an issue in commands that don't use `@pnpm/default-reporter`. Commands like `pnpm list`, `pnpm outdated`.
+- Changes that are made by the `readPackage` hook are not saved to the `package.json` files of projects.
+- Allow the `--registry` option with the `pnpm audit` command.
+- Allow the `--save-workspace-protocol` option.
+- Don't use inversed colors to highlight search results in `pnpm list`, `pnpm why`.
+
 ## 5.4.2
 
 ### Patch Changes

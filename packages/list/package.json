@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

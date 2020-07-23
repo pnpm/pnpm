@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-installation
 
+## 3.0.6
+
+### Patch Changes
+
+- 7e47ebfb7: Allow to use `--save-workspace-protocol` with the install/update commands.
+- Updated dependencies [a01626668]
+  - supi@0.41.11
+  - @pnpm/plugin-commands-rebuild@2.0.23
+
 ## 3.0.5
 
 ### Patch Changes
