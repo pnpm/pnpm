@@ -180,3 +180,43 @@ test('update only the packages that were requested to be updated when hoisting i
   const lockfile = await project.readLockfile()
   t.deepEqual(Object.keys(lockfile.packages), ['/bar/100.0.0', '/foo/100.1.0'])
 })
+
+test('update only the specified package', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await Promise.all([
+    addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
+    addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
+    addDistTag('bar', '100.0.0', 'latest'),
+    addDistTag('foo', '100.0.0', 'latest'),
+    addDistTag('foobarqar', '1.0.0', 'latest'),
+    addDistTag('peer-c', '1.0.0', 'latest'),
+  ])
+
+  const manifest = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
+
+  await Promise.all([
+    addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
+    addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('foo', '100.1.0', 'latest'),
+    addDistTag('foobarqar', '1.0.1', 'latest'),
+  ])
+
+  await install(manifest, await testDefaults({
+    depth: Infinity,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === 'foo',
+  }))
+
+  const lockfile = await project.readLockfile()
+
+  t.ok(lockfile.packages)
+  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
+  t.ok(lockfile.packages['/foobarqar/1.0.0'])
+  t.deepEqual(lockfile.packages['/foobarqar/1.0.0'].dependencies, {
+    bar: '100.0.0',
+    foo: '100.1.0',
+    'is-positive': '3.1.0',
+  })
+})

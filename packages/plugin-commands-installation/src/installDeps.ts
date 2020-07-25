@@ -31,6 +31,7 @@ export type InstallDepsOptions = Pick<Config,
   | 'bail'
   | 'bin'
   | 'cliOptions'
+  | 'depth'
   | 'dev'
   | 'engineStrict'
   | 'global'

@@ -235,7 +235,7 @@ async function update (
     allowNew: false,
     includeDirect,
     update: true,
-    updateMatching: dependencies.length && opts.depth && opts.depth > 0
+    updateMatching: dependencies.every(dep => !dep.substr(1).includes('@')) && opts.depth && opts.depth > 0 && !opts.latest
       ? matcher(dependencies) : undefined,
     updatePackageManifest: opts.save !== false,
   }, dependencies)
