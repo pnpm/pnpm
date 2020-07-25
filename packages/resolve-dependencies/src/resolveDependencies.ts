@@ -241,7 +241,8 @@ export default async function resolveDependencies (
         .map(async (extendedWantedDep) => {
           const updateDepth = typeof extendedWantedDep.wantedDependency.updateDepth === 'number'
             ? extendedWantedDep.wantedDependency.updateDepth : options.updateDepth
-          const update = options.currentDepth <= updateDepth && (
+          const updateShouldContinue = options.currentDepth <= updateDepth
+          const update = updateShouldContinue && (
             !ctx.updateMatching ||
             !extendedWantedDep.infoFromLockfile?.dependencyLockfile ||
             ctx.updateMatching(extendedWantedDep.infoFromLockfile.dependencyLockfile.name ?? extendedWantedDep.wantedDependency.alias)
@@ -249,7 +250,7 @@ export default async function resolveDependencies (
           const resolveDependencyOpts: ResolveDependencyOptions = {
             ...resolveDepOpts,
             currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
-            proceed: extendedWantedDep.proceed || update || !!ctx.updateMatching,
+            proceed: extendedWantedDep.proceed || updateShouldContinue,
             update,
             updateDepth,
           }
