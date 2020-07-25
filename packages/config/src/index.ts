@@ -91,6 +91,7 @@ export type CliOptions = Record<string, unknown> & { dir?: string }
 
 export default async (
   opts: {
+    globalDirShouldAllowWrite?: boolean,
     cliOptions: CliOptions,
     packageManager: {
       name: string,
@@ -229,7 +230,7 @@ export default async (
         process.platform === 'win32'
           ? cliOptions.dir : path.resolve(cliOptions.dir, 'bin')
       )
-      : globalBinDir([pnpmConfig.npmGlobalBinDir])
+      : globalBinDir([pnpmConfig.npmGlobalBinDir], { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
     pnpmConfig.saveProd = true

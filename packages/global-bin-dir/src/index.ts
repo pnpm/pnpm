@@ -4,7 +4,10 @@ import fs = require('fs')
 import path = require('path')
 import PATH = require('path-name')
 
-export default function (knownCandidates: string[] = []) {
+export default function (
+  knownCandidates: string[] = [],
+  { shouldAllowWrite = true }: { shouldAllowWrite?: boolean } = {}
+) {
   if (!process.env[PATH]) {
     throw new PnpmError('NO_PATH_ENV',
       `Couldn't find a global directory for executables because the "${PATH}" environment variable is not set.`)
@@ -14,13 +17,17 @@ export default function (knownCandidates: string[] = []) {
   return pickBestGlobalBinDir(dirs, [
     ...knownCandidates,
     nodeBinDir,
-  ])
+  ], shouldAllowWrite)
 }
 
 const areDirsEqual = (dir1: string, dir2: string) =>
   path.relative(dir1, dir2) === ''
 
-function pickBestGlobalBinDir (dirs: string[], knownCandidates: string[]) {
+function pickBestGlobalBinDir (
+  dirs: string[],
+  knownCandidates: string[],
+  shouldAllowWrite: boolean
+) {
   const noWriteAccessDirs = [] as string[]
   for (const dir of dirs) {
     const lowCaseDir = dir.toLowerCase()
@@ -41,10 +48,13 @@ function pickBestGlobalBinDir (dirs: string[], knownCandidates: string[]) {
       hint: `There should be a node, nodejs, npm, or pnpm directory in the "${PATH}" environment variable`,
     })
   }
-  throw new PnpmError('GLOBAL_BIN_DIR_PERMISSION', 'No write access to the found global executable directories', {
-    hint: `The found directories:
-${noWriteAccessDirs.join('\n')}`,
-  })
+  if (shouldAllowWrite) {
+    throw new PnpmError('GLOBAL_BIN_DIR_PERMISSION', 'No write access to the found global executable directories', {
+      hint: `The found directories:
+  ${noWriteAccessDirs.join('\n')}`,
+    })
+  }
+  return noWriteAccessDirs[0]
 }
 
 const NODE_RELATED_COMMANDS = new Set(['pnpm', 'npm', 'node'])

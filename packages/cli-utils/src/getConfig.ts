@@ -5,12 +5,14 @@ export default async function (
   cliOptions: CliOptions,
   opts: {
     excludeReporter: boolean,
+    globalDirShouldAllowWrite?: boolean,
     rcOptionsTypes: Record<string, unknown>,
     workspaceDir: string | undefined,
   }
 ) {
   const { config, warnings } = await getConfig({
     cliOptions,
+    globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
     packageManager,
     rcOptionsTypes: opts.rcOptionsTypes,
     workspaceDir: opts.workspaceDir,
