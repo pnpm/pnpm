@@ -1,5 +1,11 @@
 # @pnpm/global-bin-dir
 
+## 1.2.0
+
+### Minor Changes
+
+- ad69677a7: Add a new optional argument. When the argument is `false`, a global bin directory is returned even if the process has no write access to it.
+
 ## 1.1.1
 
 ### Patch Changes

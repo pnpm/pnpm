@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.4.4
+
+### Patch Changes
+
+- `pnpm root -g` should not fail if pnpm has no write access to the global bin directory (#2700).
+- Suggest to use pnpm to update pnpm.
+
 ## 5.4.3
 
 ### Patch Changes

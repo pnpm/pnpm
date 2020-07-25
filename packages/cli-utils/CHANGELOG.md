@@ -1,5 +1,13 @@
 # @pnpm/cli-utils
 
+## 0.4.16
+
+### Patch Changes
+
+- ad69677a7: A new option added that allows to resolve the global bin directory from directories to which there is no write access.
+- Updated dependencies [ad69677a7]
+  - @pnpm/config@11.2.0
+
 ## 0.4.15
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 11.2.0
+
+### Minor Changes
+
+- ad69677a7: A new option added that allows to resolve the global bin directory from directories to which there is no write access.
+
+### Patch Changes
+
+- Updated dependencies [ad69677a7]
+  - @pnpm/global-bin-dir@1.2.0
+
 ## 11.1.0
 
 ### Minor Changes
