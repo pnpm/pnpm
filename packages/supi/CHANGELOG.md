@@ -1,5 +1,13 @@
 # supi
 
+## 0.41.12
+
+### Patch Changes
+
+- 8c1cf25b7: New option added: updateMatching. updateMatching is a function that accepts a package name. It returns `true` if the specified package should be updated.
+- Updated dependencies [8c1cf25b7]
+  - @pnpm/resolve-dependencies@16.1.0
+
 ## 0.41.11
 
 ### Patch Changes

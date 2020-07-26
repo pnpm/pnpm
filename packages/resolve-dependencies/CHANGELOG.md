@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 16.1.0
+
+### Minor Changes
+
+- 8c1cf25b7: New option added: updateMatching. updateMatching is a function that accepts a package name. It returns `true` if the specified package should be updated.
+
 ## 16.0.6
 
 ### Patch Changes

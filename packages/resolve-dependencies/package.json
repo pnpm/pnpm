@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "16.0.6",
+  "version": "16.1.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",

@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.10
+
+### Patch Changes
+
+- d44ff97f8: `pnpm publish -r --dry-run` should not publish anything to the registry.
+
 ## 2.1.9
 
 ### Patch Changes

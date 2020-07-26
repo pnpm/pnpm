@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.4.5
+
+### Patch Changes
+
+- `pnpm update dep --depth Infinity` should only update `dep`.
+- `pnpm publish -r --dry-run` should not publish anything to the registry.
+
 ## 5.4.4
 
 ### Patch Changes

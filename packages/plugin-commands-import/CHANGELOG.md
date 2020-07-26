@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-import
 
+## 1.0.42
+
+### Patch Changes
+
+- Updated dependencies [8c1cf25b7]
+  - supi@0.41.12
+
 ## 1.0.41
 
 ### Patch Changes

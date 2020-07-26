@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 3.1.0
+
+### Minor Changes
+
+- 8c1cf25b7: Allow to update specific packages up until a specified depth. For instance, `pnpm update @types/* --depth Infinity`.
+
+### Patch Changes
+
+- Updated dependencies [8c1cf25b7]
+  - supi@0.41.12
+
 ## 3.0.7
 
 ### Patch Changes
