@@ -24,6 +24,7 @@ Partial<Pick<Config,
   | 'tag'
   | 'ca'
   | 'cert'
+  | 'dryRun'
   | 'extraBinPaths'
   | 'fetchRetries'
   | 'fetchRetryFactor'
@@ -73,7 +74,13 @@ export default async function (
     }, pkg.manifest.name, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
-  const access = opts.cliOptions['access'] ? ['--access', opts.cliOptions['access']] : []
+  const appendedArgs = []
+  if (opts.cliOptions['access']) {
+    appendedArgs.push(`--access=${opts.cliOptions['access']}`)
+  }
+  if (opts.dryRun) {
+    appendedArgs.push('--dry-run')
+  }
   const chunks = sortPackages(opts.selectedProjectsGraph)
   for (const chunk of chunks) {
     for (const pkgDir of chunk) {
@@ -89,7 +96,7 @@ export default async function (
             'pnpm-temp',
             '--registry',
             pickRegistryForPackage(opts.registries, pkg.manifest.name!),
-            ...access,
+            ...appendedArgs,
           ],
         },
         gitChecks: false,

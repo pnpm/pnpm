@@ -2,6 +2,7 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import crossSpawn = require('cross-spawn')
 import execa = require('execa')
 import fs = require('mz/fs')
 import test = require('tape')
@@ -65,6 +66,24 @@ test('recursive publish', async (t) => {
   ])
 
   await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+
+  t.comment('packages not published, when dryRun is true')
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    dryRun: true,
+    recursive: true,
+  }, [])
+
+  {
+    const { status } = crossSpawn.sync('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+    t.deepEqual(status, 1)
+  }
+  {
+    const { status } = crossSpawn.sync('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+    t.deepEqual(status, 1)
+  }
 
   await publish.handler({
     ...DEFAULT_OPTS,
