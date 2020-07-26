@@ -29,6 +29,7 @@ export interface StrictInstallOptions {
   reporter: ReporterFunction,
   force: boolean,
   update: boolean,
+  updateMatching?: (pkgName: string) => boolean,
   updatePackageManifest: boolean,
   depth: number,
   lockfileDir: string,

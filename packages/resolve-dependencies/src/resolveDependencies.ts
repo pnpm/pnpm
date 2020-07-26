@@ -144,6 +144,7 @@ export interface ResolutionContext {
   pnpmVersion: string,
   registries: Registries,
   virtualStoreDir: string,
+  updateMatching?: (pkgName: string) => boolean,
 }
 
 export type PkgAddress = {
@@ -240,11 +241,17 @@ export default async function resolveDependencies (
         .map(async (extendedWantedDep) => {
           const updateDepth = typeof extendedWantedDep.wantedDependency.updateDepth === 'number'
             ? extendedWantedDep.wantedDependency.updateDepth : options.updateDepth
+          const updateShouldContinue = options.currentDepth <= updateDepth
+          const update = updateShouldContinue && (
+            !ctx.updateMatching ||
+            !extendedWantedDep.infoFromLockfile?.dependencyLockfile ||
+            ctx.updateMatching(extendedWantedDep.infoFromLockfile.dependencyLockfile.name ?? extendedWantedDep.wantedDependency.alias)
+          )
           const resolveDependencyOpts: ResolveDependencyOptions = {
             ...resolveDepOpts,
             currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
-            proceed: extendedWantedDep.proceed,
-            update: options.currentDepth <= updateDepth,
+            proceed: extendedWantedDep.proceed || updateShouldContinue,
+            update,
             updateDepth,
           }
           const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
@@ -430,13 +437,13 @@ function getInfoFromLockfile (
   lockfile: Lockfile,
   registries: Registries,
   reference: string | undefined,
-  pkgName: string | undefined
+  alias: string | undefined
 ) {
-  if (!reference || !pkgName) {
+  if (!reference || !alias) {
     return null
   }
 
-  const depPath = dp.refToRelative(reference, pkgName)
+  const depPath = dp.refToRelative(reference, alias)
 
   if (!depPath) {
     return null
@@ -602,6 +609,10 @@ async function resolveDependency (
   let useManifestInfoFromLockfile = false
   let prepare!: boolean
   let hasBin!: boolean
+  pkg = ctx.readPackageHook
+    ? ctx.readPackageHook(pkgResponse.body.manifest || await pkgResponse.bundledManifest!())
+    : pkgResponse.body.manifest || await pkgResponse.bundledManifest!()
+
   if (
     !options.update && currentPkg.dependencyLockfile && currentPkg.depPath &&
     !pkgResponse.body.updated &&
@@ -613,16 +624,13 @@ async function resolveDependency (
     useManifestInfoFromLockfile = true
     prepare = currentPkg.dependencyLockfile.prepare === true
     hasBin = currentPkg.dependencyLockfile.hasBin === true
-    pkg = Object.assign(
-      nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile),
-      currentPkg.dependencyLockfile
-    )
+    pkg = {
+      ...nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile),
+      ...currentPkg.dependencyLockfile,
+      ...pkg,
+    }
   } else {
     // tslint:disable:no-string-literal
-    pkg = ctx.readPackageHook
-      ? ctx.readPackageHook(pkgResponse.body.manifest || await pkgResponse.bundledManifest!())
-      : pkgResponse.body.manifest || await pkgResponse.bundledManifest!()
-
     prepare = Boolean(
       pkgResponse.body.resolvedVia === 'git-repository' &&
       typeof pkg.scripts?.prepare === 'string'

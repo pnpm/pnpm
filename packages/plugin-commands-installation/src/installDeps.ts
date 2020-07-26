@@ -31,6 +31,7 @@ export type InstallDepsOptions = Pick<Config,
   | 'bail'
   | 'bin'
   | 'cliOptions'
+  | 'depth'
   | 'dev'
   | 'engineStrict'
   | 'global'
@@ -71,6 +72,7 @@ export type InstallDepsOptions = Pick<Config,
   includeDirect?: IncludedDependencies,
   latest?: boolean,
   update?: boolean,
+  updateMatching?: (pkgName: string) => boolean,
   updatePackageManifest?: boolean,
   useBetaCli?: boolean,
   recursive?: boolean,

@@ -6,6 +6,7 @@ import {
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import matcher from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import chalk = require('chalk')
 import { prompt } from 'enquirer'
@@ -234,6 +235,8 @@ async function update (
     allowNew: false,
     includeDirect,
     update: true,
+    updateMatching: dependencies.every(dep => !dep.substring(1).includes('@')) && opts.depth && opts.depth > 0 && !opts.latest
+      ? matcher(dependencies) : undefined,
     updatePackageManifest: opts.save !== false,
   }, dependencies)
 }
