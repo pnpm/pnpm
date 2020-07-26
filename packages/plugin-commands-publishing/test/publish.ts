@@ -455,7 +455,7 @@ test('publish: runs all the lifecycle scripts', async (t) => {
     },
   })
 
-  crossSpawn.sync('pnpm', ['install', '--ignore-scripts', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync('pnpm', ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -497,7 +497,7 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
     },
   })
 
-  crossSpawn.sync('pnpm', ['install', '--ignore-scripts', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync('pnpm', ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   await publish.handler({
     ...DEFAULT_OPTS,
