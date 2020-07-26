@@ -80,7 +80,7 @@ export default async function run (inputArgv: string[]) {
   try {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
-    const globalDirShouldAllowWrite = cmd === 'root'
+    const globalDirShouldAllowWrite = cmd !== 'root'
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
