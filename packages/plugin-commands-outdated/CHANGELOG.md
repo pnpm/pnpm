@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.0
+
+### Major Changes
+
+- a64b7250c: Return `Promise&lt;{ output: string, exitCode: number }>` instead of `Promise&lt;string>`.
+
+  `exitCode` is `1` when there are any outdated packages in the dependencies.
+
 ## 2.0.14
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.4.7
+
+### Patch Changes
+
+* `pnpm outdated` should exit with exit code 1, when there are outdated dependencies.
+* `pnpm audit` should exit with exit code 1, when vulnerabilities are found.
+* `pnpm install --prod --frozen-lockfile` should not fail if there are dev dependencies used as peer dependencies of prod dependencies (#2711).
+
 ## 5.4.6
 
 ### Patch Changes

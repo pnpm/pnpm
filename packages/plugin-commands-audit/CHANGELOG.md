@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.0
+
+### Major Changes
+
+- a64b7250c: Return `Promise&lt;{ output: string, exitCode: number }>` instead of `Promise&lt;string>`.
+
+  `exitCode` is `1` when there are any packages with vulnerabilities in the dependencies.
+
 ## 1.0.21
 
 ### Patch Changes

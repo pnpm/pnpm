@@ -1,5 +1,11 @@
 # @pnpm/prune-lockfile
 
+## 2.0.13
+
+### Patch Changes
+
+- 873f08b04: Dev dependencies are not marked as prod dependencies if they are used as peer dependencies of prod dependencies.
+
 ## 2.0.12
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 14.0.11
+
+### Patch Changes
+
+- 873f08b04: Don't fail on missing peer dependencies.
+
 ## 14.0.10
 
 ### Patch Changes

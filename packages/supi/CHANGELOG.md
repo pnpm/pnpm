@@ -1,5 +1,14 @@
 # supi
 
+## 0.41.13
+
+### Patch Changes
+
+- Updated dependencies [873f08b04]
+- Updated dependencies [873f08b04]
+  - @pnpm/prune-lockfile@2.0.13
+  - @pnpm/headless@14.0.11
+
 ## 0.41.12
 
 ### Patch Changes
