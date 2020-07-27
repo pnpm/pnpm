@@ -173,12 +173,12 @@ export async function handler (
   ]
   const [ outdatedPackages ] = (await outdatedDepsOfProjects(packages, params, { ...opts, include }))
 
-  if (!outdatedPackages.length) return ''
+  if (!outdatedPackages.length) return { output: '', exitCode: 0 }
 
   if (opts.table !== false) {
-    return renderOutdatedTable(outdatedPackages, opts)
+    return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
   } else {
-    return renderOutdatedList(outdatedPackages, opts)
+    return { output: renderOutdatedList(outdatedPackages, opts), exitCode: 1 }
   }
 }
 

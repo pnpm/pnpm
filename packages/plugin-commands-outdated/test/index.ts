@@ -42,12 +42,13 @@ test('pnpm outdated: show details', async (t) => {
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
-  const output = await outdated.handler({
+  const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
     long: true,
   })
 
+  t.equal(exitCode, 1)
   t.equal(stripAnsi(output), `\
 ┌───────────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
 │ Package           │ Current │ Latest     │ Details                                     │
@@ -73,12 +74,13 @@ test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
       production: false,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output), `\
 ┌───────────────────┬─────────┬────────┐
 │ Package           │ Current │ Latest │
@@ -89,12 +91,13 @@ test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...OUTDATED_OPTIONS,
       dev: false,
       dir: process.cwd(),
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output), `\
 ┌─────────────┬─────────┬────────────┐
 │ Package     │ Current │ Latest     │
@@ -117,12 +120,13 @@ test('pnpm outdated: no table', async (t) => {
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
       table: false,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output), `deprecated
 1.0.0 => Deprecated
 
@@ -135,13 +139,14 @@ is-positive (dev)
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
       long: true,
       table: false,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output), `deprecated
 1.0.0 => Deprecated
 This package is deprecated. Lorem ipsum
@@ -168,11 +173,12 @@ test('pnpm outdated: only current lockfile is available', async (t) => {
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
-  const output = await outdated.handler({
+  const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
   })
 
+  t.equal(exitCode, 1)
   t.equal(stripAnsi(output), `\
 ┌───────────────────┬─────────┬────────────┐
 │ Package           │ Current │ Latest     │
@@ -193,11 +199,12 @@ test('pnpm outdated: only wanted lockfile is available', async (t) => {
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
-  const output = await outdated.handler({
+  const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
   })
 
+  t.equal(exitCode, 1)
   t.equal(stripAnsi(output), `\
 ┌───────────────────┬────────────────────────┬────────────┐
 │ Package           │ Current                │ Latest     │
@@ -215,24 +222,26 @@ test('pnpm outdated: only wanted lockfile is available', async (t) => {
 test('pnpm outdated does not print anything when all is good', async (t) => {
   process.chdir(hasNotOutdatedDepsFixture)
 
-  const output = await outdated.handler({
+  const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
   })
 
   t.equal(output, '')
+  t.equal(exitCode, 0)
   t.end()
 })
 
 test('pnpm outdated with external lockfile', async (t) => {
   process.chdir(hasOutdatedDepsFixtureAndExternalLockfile)
 
-  const output = await outdated.handler({
+  const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
     lockfileDir: path.resolve('..'),
   })
 
+  t.equal(exitCode, 1)
   t.equal(stripAnsi(output), `\
 ┌─────────────┬──────────────────────┬────────┐
 │ Package     │ Current              │ Latest │
@@ -250,7 +259,7 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
 
   let err!: PnpmError
   try {
-    const output = await outdated.handler({
+    await outdated.handler({
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
     })
@@ -264,22 +273,24 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
 test(`pnpm outdated should return empty when there is no lockfile and no dependencies`, async (t) => {
   prepare(t)
 
-  const output = await outdated.handler({
+  const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
   })
 
   t.equal(output, '')
+  t.equal(exitCode, 0)
   t.end()
 })
 
 test('pnpm outdated: print only compatible versions', async (t) => {
-  const output = await outdated.handler({
+  const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     compatible: true,
     dir: hasMajorOutdatedDepsFixture,
   })
 
+  t.equal(exitCode, 1)
   t.equal(stripAnsi(output), `\
 ┌─────────────┬─────────┬────────┐
 │ Package     │ Current │ Latest │

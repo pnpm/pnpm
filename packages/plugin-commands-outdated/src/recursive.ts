@@ -62,12 +62,12 @@ export default async (
     })
   }
 
-  if (R.isEmpty(outdatedMap)) return ''
+  if (R.isEmpty(outdatedMap)) return { output: '', exitCode: 0 }
 
   if (opts.table !== false) {
-    return renderOutdatedTable(outdatedMap, opts)
+    return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
   }
-  return renderOutdatedList(outdatedMap, opts)
+  return { output: renderOutdatedList(outdatedMap, opts), exitCode: 1 }
 }
 
 function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
