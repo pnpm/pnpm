@@ -4,7 +4,7 @@ import stripAnsi = require('strip-ansi')
 import test = require('tape')
 
 test('audit', async (t) => {
-  const output = await audit.handler({
+  const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
       dependencies: true,
@@ -15,6 +15,7 @@ test('audit', async (t) => {
       default: 'https://registry.npmjs.org/',
     },
   })
+  t.equal(exitCode, 1)
   t.equal(
     stripAnsi(output),
     `┌─────────────────────┬───────────────────────────────────┐
@@ -133,7 +134,7 @@ Severity: 6 low | 3 moderate | 2 high`)
 })
 
 test('audit --dev', async (t) => {
-  const output = await audit.handler({
+  const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
       dependencies: false,
@@ -145,6 +146,7 @@ test('audit --dev', async (t) => {
     },
   })
 
+  t.equal(exitCode, 1)
   t.equal(
     stripAnsi(output),
     `┌─────────────────────┬──────────────────────────────────┐
@@ -164,7 +166,7 @@ Severity: 1 moderate`)
 })
 
 test('audit --audit-level', async (t) => {
-  const output = await audit.handler({
+  const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
@@ -240,7 +242,7 @@ Severity: 6 low | 3 moderate | 2 high`)
 })
 
 test('audit: no vulnerabilities', async (t) => {
-  const output = await audit.handler({
+  const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
     include: {
       dependencies: true,
@@ -253,11 +255,12 @@ test('audit: no vulnerabilities', async (t) => {
   })
 
   t.equal(stripAnsi(output), 'No known vulnerabilities found')
+  t.equal(exitCode, 0)
   t.end()
 })
 
 test('audit --json', async (t) => {
-  const output = await audit.handler({
+  const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
       dependencies: true,
@@ -272,5 +275,6 @@ test('audit --json', async (t) => {
 
   const json = JSON.parse(output)
   t.ok(json.metadata)
+  t.equal(exitCode, 1)
   t.end()
 })
