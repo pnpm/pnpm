@@ -2,6 +2,7 @@ import prepare from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
 import fs = require('mz/fs')
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -11,6 +12,8 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
+const fixtures = path.join(__dirname, '../../../fixtures')
+const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
 
 test('some commands pass through to npm', t => {
   const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
@@ -129,6 +132,16 @@ test('pnpx works', t => {
 
   t.equal(result.status, 0)
   t.ok(result.stdout.toString().includes('Hello world!'))
+
+  t.end()
+})
+
+test('exit code from plugin is used to end the process', t => {
+  process.chdir(hasOutdatedDepsFixture)
+  const result = execPnpmSync(['outdated'])
+
+  t.equal(result.status, 1)
+  t.ok(result.stdout.toString().includes('is-positive'))
 
   t.end()
 })

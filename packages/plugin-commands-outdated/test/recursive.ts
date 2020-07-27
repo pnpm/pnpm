@@ -49,7 +49,7 @@ test('pnpm recursive outdated', async (t) => {
   })
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -57,6 +57,7 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 ┌───────────────────┬─────────┬────────┬──────────────────────┐
 │ Package           │ Current │ Latest │ Dependents           │
@@ -73,7 +74,7 @@ test('pnpm recursive outdated', async (t) => {
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -82,6 +83,7 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 ┌───────────────────┬─────────┬────────┬────────────┐
 │ Package           │ Current │ Latest │ Dependents │
@@ -92,7 +94,7 @@ test('pnpm recursive outdated', async (t) => {
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -101,6 +103,7 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 ┌───────────────────┬─────────┬────────┬──────────────────────┬─────────────────────────────────────────────┐
 │ Package           │ Current │ Latest │ Dependents           │ Details                                     │
@@ -117,7 +120,7 @@ test('pnpm recursive outdated', async (t) => {
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -126,6 +129,7 @@ test('pnpm recursive outdated', async (t) => {
       table: false,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 is-negative
 1.0.0 => 2.1.0
@@ -146,7 +150,7 @@ Dependent: project-2
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -156,6 +160,7 @@ Dependent: project-2
       table: false,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 is-negative
 1.0.0 => 2.1.0
@@ -180,7 +185,7 @@ https://github.com/kevva/is-positive#readme
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -188,6 +193,7 @@ https://github.com/kevva/is-positive#readme
       selectedProjectsGraph,
     }, ['is-positive'])
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 ┌─────────────┬─────────┬────────┬──────────────────────┐
 │ Package     │ Current │ Latest │ Dependents           │
@@ -243,7 +249,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   })
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -251,6 +257,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 ┌───────────────────┬─────────┬────────┬──────────────────────┐
 │ Package           │ Current │ Latest │ Dependents           │
@@ -265,7 +272,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -274,6 +281,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     })
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 ┌───────────────────┬─────────┬────────┬────────────┐
 │ Package           │ Current │ Latest │ Dependents │
@@ -284,7 +292,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   }
 
   {
-    const output = await outdated.handler({
+    const { output, exitCode } = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -292,6 +300,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     }, ['is-positive'])
 
+    t.equal(exitCode, 1)
     t.equal(stripAnsi(output as unknown as string), `\
 ┌─────────────┬─────────┬────────┬──────────────────────┐
 │ Package     │ Current │ Latest │ Dependents           │

@@ -194,8 +194,8 @@ export default async function run (inputArgv: string[]) {
   }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
-  await new Promise((resolve, reject) => {
-    setTimeout(() => {
+  const [output, exitCode] = await new Promise((resolve, reject) => {
+    setTimeout(async () => {
       if (config.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',
@@ -216,33 +216,36 @@ export default async function run (inputArgv: string[]) {
       })
 
       try {
-        const result = pnpmCmds[cmd || 'help'](
+        let result = pnpmCmds[cmd || 'help'](
           // TypeScript doesn't currently infer that the type of config
           // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
           config as Omit<typeof config, 'reporter'>,
           cliParams
         )
         if (result instanceof Promise) {
-          result
-            .then((output) => {
-              if (typeof output === 'string') {
-                write(output)
-              }
-              resolve()
-            })
-            .catch(reject)
-        } else {
-          if (typeof result === 'string') {
-            write(result)
-          }
-          resolve()
+          result = await result
         }
+        if (!result) {
+          resolve([null, 0])
+          return
+        }
+        if (typeof result === 'string') {
+          resolve([result, 0])
+          return
+        }
+        resolve([result['output'], result['exitCode']])
       } catch (err) {
         reject(err)
       }
     }, 0)
   })
+  if (output) {
+    write(output)
+  }
   if (!cmd) {
     process.exit(1)
+  }
+  if (exitCode) {
+    process.exit(exitCode)
   }
 }

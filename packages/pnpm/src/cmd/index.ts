@@ -39,10 +39,12 @@ export const GLOBAL_OPTIONS = R.pick([
   'workspace-packages',
 ], allTypes)
 
+export type CommandResponse = string | { output: string, exitCode: number } | void
+
 export type Command = (
   opts: PnpmOptions,
   params: string[]
-) => string | void | Promise<string | void>
+) => CommandResponse | Promise<CommandResponse>
 
 const commands: Array<{
   cliOptionsTypes: () => Object,

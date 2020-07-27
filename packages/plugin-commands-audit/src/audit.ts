@@ -110,8 +110,14 @@ export async function handler (
       retries: opts.fetchRetries,
     },
   })
+  const vulnerabilities = auditReport.metadata.vulnerabilities
+  const totalVulnerabilityCount = Object.values(vulnerabilities).reduce((sum, vulnerabilitiesCount) => sum + vulnerabilitiesCount, 0)
+  const exitCode = totalVulnerabilityCount > 0 ? 1 : 0
   if (opts.json) {
-    return JSON.stringify(auditReport, null, 2)
+    return {
+      exitCode,
+      output: JSON.stringify(auditReport, null, 2),
+    }
   }
 
   let output = ''
@@ -128,11 +134,13 @@ export async function handler (
       ['More info', advisory.url],
     ], TABLE_OPTIONS)
   }
-  return `${output}${reportSummary(auditReport.metadata.vulnerabilities)}`
+  return {
+    exitCode,
+    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount)}`,
+  }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts) {
-  const totalVulnerabilityCount = Object.values(vulnerabilities).reduce((sum, vulnerabilitiesCount) => sum + vulnerabilitiesCount, 0)
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number) {
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
