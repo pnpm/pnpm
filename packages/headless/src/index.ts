@@ -563,7 +563,8 @@ async function lockfileToDepGraph (
         ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
       }
 
-      graph[dir].children = await getChildrenPaths(ctx, allDeps)
+      const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
+      graph[dir].children = await getChildrenPaths(ctx, allDeps, peerDeps)
     }
     for (const importerId of opts.importerIds) {
       const projectSnapshot = lockfile.importers[importerId]
@@ -572,7 +573,7 @@ async function lockfileToDepGraph (
         ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
         ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
       }
-      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps)
+      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps, null)
     }
   }
   return { graph, directDependenciesByImporterId }
@@ -591,7 +592,8 @@ async function getChildrenPaths (
     sideEffectsCacheRead: boolean,
     storeController: StoreController,
   },
-  allDeps: {[alias: string]: string}
+  allDeps: {[alias: string]: string},
+  peerDeps: Set<string> | null
 ) {
   const children: {[alias: string]: string} = {}
   for (const alias of Object.keys(allDeps)) {
@@ -609,7 +611,7 @@ async function getChildrenPaths (
       children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
-    } else if (!ctx.skipped.has(childRelDepPath)) {
+    } else if (!ctx.skipped.has(childRelDepPath) && (!peerDeps || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }
   }

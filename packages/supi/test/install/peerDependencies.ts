@@ -883,3 +883,46 @@ test('local tarball dependency with peer dependency', async (t: tape.Test) => {
 
   t.deepEqual(await fs.readdir('node_modules/.pnpm/local'), localPkgDirs)
 })
+
+test('peer dependency that is resolved by a dev dependency', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  const manifest = {
+    dependencies: {
+      '@typegoose/typegoose': '7.3.0',
+    },
+    devDependencies: {
+      '@types/mongoose': '5.7.32',
+    },
+  }
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ fastUnpack: false, lockfileOnly: true }))
+
+  const lockfile = await project.readLockfile()
+  t.ok(lockfile.packages['/@types/mongoose/5.7.32'].dev)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({
+    frozenLockfile: true,
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: false,
+    },
+  }))
+
+  await project.has('@typegoose/typegoose')
+  await project.hasNot('@types/mongoose')
+})

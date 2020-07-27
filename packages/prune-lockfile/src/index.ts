@@ -192,7 +192,7 @@ function copyDependencySubGraph (
     } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
       depLockfile.dev = false
     }
-    const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
+    const newDependencies = resolvedDepsToDepPaths(R.omit(Object.keys(depLockfile.peerDependencies ?? {}) ?? [], depLockfile.dependencies ?? {}))
     copyDependencySubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
     copyDependencySubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })
