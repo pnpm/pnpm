@@ -112,10 +112,9 @@ export async function handler (
   })
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const totalVulnerabilityCount = Object.values(vulnerabilities).reduce((sum, vulnerabilitiesCount) => sum + vulnerabilitiesCount, 0)
-  const exitCode = totalVulnerabilityCount > 0 ? 1 : 0
   if (opts.json) {
     return {
-      exitCode,
+      exitCode: totalVulnerabilityCount > 0 ? 1 : 0,
       output: JSON.stringify(auditReport, null, 2),
     }
   }
@@ -135,7 +134,7 @@ export async function handler (
     ], TABLE_OPTIONS)
   }
   return {
-    exitCode,
+    exitCode: output ? 1 : 0,
     output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount)}`,
   }
 }

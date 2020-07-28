@@ -278,3 +278,25 @@ test('audit --json', async (t) => {
   t.equal(exitCode, 1)
   t.end()
 })
+
+test('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async (t) => {
+  const { output, exitCode } = await audit.handler({
+    auditLevel: 'high',
+    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    include: {
+      dependencies: false,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  })
+
+  t.equal(exitCode, 0)
+  t.equal(
+    stripAnsi(output),
+    `1 vulnerabilities found
+Severity: 1 moderate`)
+  t.end()
+})
