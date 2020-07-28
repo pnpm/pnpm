@@ -276,9 +276,19 @@ async function purgeModulesDirsOfImporter (
     prefix: importer.rootDir,
   })
   try {
-    await rimraf(importer.modulesDir)
+    // We don't remove the actual modules directory, just the contents of it.
+    // 1. we will need the directory anyway.
+    // 2. in some setups, pnpm won't even have permission to remove the modules directory.
+    await removeContentsOfDir(importer.modulesDir)
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
+  }
+}
+
+async function removeContentsOfDir (dir: string) {
+  const items = await fs.readdir(dir)
+  for (const item of items) {
+    await rimraf(path.join(dir, item))
   }
 }
 
