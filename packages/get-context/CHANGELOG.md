@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 3.2.1
+
+### Patch Changes
+
+- 25b425ca2: When purging an incompatible modules directory, don't remove the actual directory, just the contents of it.
+
 ## 3.2.0
 
 ### Minor Changes

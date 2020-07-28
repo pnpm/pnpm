@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.1
+
+### Patch Changes
+
+- 8bb015059: `pnpm audit --audit-level high` should not error if the found vulnerabilities are low and/or moderate.
+
 ## 2.0.0
 
 ### Major Changes

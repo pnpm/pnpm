@@ -1,12 +1,19 @@
 # pnpm
 
+## 5.4.8
+
+### Patch Changes
+
+- `pnpm audit --audit-level high` should not error if the found vulnerabilities are low and/or moderate (#2721).
+- When purging an incompatible modules directory, don't remove the actual directory, just the contents of it (#2720).
+
 ## 5.4.7
 
 ### Patch Changes
 
-* `pnpm outdated` should exit with exit code 1, when there are outdated dependencies.
-* `pnpm audit` should exit with exit code 1, when vulnerabilities are found.
-* `pnpm install --prod --frozen-lockfile` should not fail if there are dev dependencies used as peer dependencies of prod dependencies (#2711).
+- `pnpm outdated` should exit with exit code 1, when there are outdated dependencies.
+- `pnpm audit` should exit with exit code 1, when vulnerabilities are found.
+- `pnpm install --prod --frozen-lockfile` should not fail if there are dev dependencies used as peer dependencies of prod dependencies (#2711).
 
 ## 5.4.6
 
