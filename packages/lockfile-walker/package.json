@@ -38,7 +38,7 @@
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/types": "workspace:6.2.0",
     "dependency-path": "workspace:5.0.2",
-    "ramda": "0.27.0"
+    "ramda": "^0.27.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

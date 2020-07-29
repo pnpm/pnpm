@@ -34,7 +34,7 @@
     "@pnpm/types": "workspace:6.2.0",
     "@types/ramda": "^0.27.11",
     "@types/table": "^5.0.0",
-    "strip-ansi": "6.0.0"
+    "strip-ansi": "^6.0.0"
   },
   "dependencies": {
     "@pnpm/audit": "workspace:1.1.9",

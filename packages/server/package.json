@@ -34,17 +34,17 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:^1.0.3",
-    "@pnpm/logger": "3.2.2",
+    "@pnpm/logger": "^3.2.2",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "link:",
     "@types/mz": "^2.7.1",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "^8.0.0",
-    "@zkochan/rimraf": "1.0.0",
+    "@zkochan/rimraf": "^1.0.0",
     "is-port-reachable": "3.0.0",
-    "load-json-file": "6.2.0",
-    "mz": "2.7.0",
+    "load-json-file": "^6.2.0",
+    "mz": "^2.7.0",
     "node-fetch": "2.6.0",
     "tempy": "^0.6.0"
   },
@@ -53,7 +53,7 @@
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
     "p-limit": "^3.0.2",
-    "promise-share": "1.0.0",
+    "promise-share": "^1.0.0",
     "uuid": "^3.4.0"
   },
   "funding": "https://opencollective.com/pnpm"

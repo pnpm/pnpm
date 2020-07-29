@@ -6,10 +6,10 @@
     "@pnpm/find-workspace-packages": "workspace:2.3.2",
     "@pnpm/lockfile-file": "workspace:3.0.11",
     "@pnpm/types": "workspace:6.2.0",
-    "is-subdir": "1.1.1",
-    "load-json-file": "6.2.0",
+    "is-subdir": "^1.1.1",
+    "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",
-    "path-exists": "4.0.0",
-    "write-json-file": "4.3.0"
+    "path-exists": "^4.0.0",
+    "write-json-file": "4.0.0"
   }
 }

@@ -10,12 +10,8 @@ import {
   ImportPackageFunction,
   StoreController,
 } from '@pnpm/store-controller-types'
-import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
-import pFilter = require('p-filter')
 import path = require('path')
-import exists = require('path-exists')
-import R = require('ramda')
 import writeJsonFile = require('write-json-file')
 import createImportPackage from './createImportPackage'
 import prune from './prune'

@@ -36,12 +36,12 @@
     "@pnpm/remove-bins": "workspace:1.0.2",
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
-    "@zkochan/rimraf": "1.0.0",
+    "@zkochan/rimraf": "^1.0.0",
     "dependency-path": "workspace:5.0.2",
-    "ramda": "0.27.0"
+    "ramda": "^0.27.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "3.2.2",
+    "@pnpm/logger": "^3.2.2",
     "@pnpm/modules-cleaner": "link:",
     "@types/ramda": "^0.27.11"
   },

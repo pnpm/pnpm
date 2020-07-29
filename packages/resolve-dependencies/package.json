@@ -39,13 +39,13 @@
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
     "dependency-path": "workspace:5.0.2",
-    "path-exists": "4.0.0",
-    "ramda": "0.27.0",
+    "path-exists": "^4.0.0",
+    "ramda": "^0.27.0",
     "replace-string": "^3.1.0",
     "semver": "^7.3.2"
   },
   "devDependencies": {
-    "@pnpm/logger": "3.2.2",
+    "@pnpm/logger": "^3.2.2",
     "@pnpm/resolve-dependencies": "link:",
     "@types/ramda": "^0.27.11",
     "@types/semver": "^7.3.1"

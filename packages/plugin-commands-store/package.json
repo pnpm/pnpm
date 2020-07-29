@@ -35,19 +35,19 @@
   "devDependencies": {
     "@pnpm/assert-store": "workspace:1.0.6",
     "@pnpm/lockfile-file": "workspace:3.0.11",
-    "@pnpm/logger": "3.2.2",
+    "@pnpm/logger": "^3.2.2",
     "@pnpm/plugin-commands-store": "link:",
     "@pnpm/prepare": "workspace:0.0.7",
     "@types/archy": "0.0.31",
     "@types/ramda": "^0.27.11",
     "@types/sinon": "^9.0.4",
     "@types/ssri": "^6.0.3",
-    "@zkochan/rimraf": "1.0.0",
+    "@zkochan/rimraf": "^1.0.0",
     "execa": "^4.0.3",
-    "load-json-file": "6.2.0",
-    "path-exists": "4.0.0",
+    "load-json-file": "^6.2.0",
+    "path-exists": "^4.0.0",
     "sinon": "9.0.2",
-    "ssri": "^8.0.0",
+    "ssri": "6.0.1",
     "tempy": "^0.6.0"
   },
   "dependencies": {
@@ -65,12 +65,12 @@
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/store-path": "^4.0.0",
     "@pnpm/types": "workspace:6.2.0",
-    "archy": "1.0.0",
+    "archy": "^1.0.0",
     "dependency-path": "workspace:5.0.2",
     "dint": "^5.0.0",
-    "p-filter": "2.1.0",
-    "ramda": "0.27.0",
-    "render-help": "1.0.0"
+    "p-filter": "^2.1.0",
+    "ramda": "^0.27.0",
+    "render-help": "^1.0.0"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"

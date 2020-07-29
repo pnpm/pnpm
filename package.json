@@ -19,7 +19,7 @@
     "@pnpm/registry-mock": "^2.0.1",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/tslint-config": "workspace:*",
-    "@types/node": "*",
+    "@types/node": "^12.12.50",
     "@types/tape": "^4.13.0",
     "c8": "^7.2.1",
     "coveralls": "^3.1.0",

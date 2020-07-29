@@ -20,7 +20,9 @@
   "private": true,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "files": ["lib/"],
+  "files": [
+    "lib/"
+  ],
   "directories": {
     "test": "test"
   },
@@ -40,7 +42,7 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:^1.0.5",
-    "path-exists": "4.0.0"
+    "path-exists": "^4.0.0"
   },
   "devDependencies": {
     "@pnpm/assert-store": "link:"

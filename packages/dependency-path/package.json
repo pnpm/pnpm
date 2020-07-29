@@ -32,7 +32,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependency-path#readme",
   "dependencies": {
     "@pnpm/types": "workspace:6.2.0",
-    "encode-registry": "2.0.2",
+    "encode-registry": "^2.0.2",
     "semver": "^7.3.2"
   },
   "devDependencies": {

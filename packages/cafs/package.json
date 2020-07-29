@@ -16,14 +16,14 @@
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:8.0.2",
     "@pnpm/store-controller-types": "workspace:8.0.2",
-    "@zkochan/rimraf": "1.0.0",
+    "@zkochan/rimraf": "^1.0.0",
     "concat-stream": "^2.0.0",
     "decompress-maybe": "^1.0.0",
-    "get-stream": "5.1.0",
-    "mz": "2.7.0",
+    "get-stream": "^5.1.0",
+    "mz": "^2.7.0",
     "p-limit": "^3.0.2",
-    "path-exists": "4.0.0",
-    "path-temp": "2.0.0",
+    "path-exists": "^4.0.0",
+    "path-temp": "^2.0.0",
     "rename-overwrite": "^3.0.0",
     "ssri": "6.0.1",
     "strip-bom": "^4.0.0",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@types/concat-stream": "^1.6.0",
     "@types/mz": "^2.7.1",
-    "@types/node": "^13.13.14",
+    "@types/node": "^12.12.50",
     "@types/ssri": "^6.0.3",
     "@types/tar-stream": "^2.1.0",
     "tempy": "^0.6.0"

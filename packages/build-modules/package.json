@@ -38,12 +38,12 @@
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
     "graph-sequencer": "2.0.0",
-    "ramda": "0.27.0",
+    "ramda": "^0.27.0",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
     "@pnpm/build-modules": "link:",
-    "@pnpm/logger": "3.2.2",
+    "@pnpm/logger": "^3.2.2",
     "@types/ramda": "^0.27.11"
   },
   "funding": "https://opencollective.com/pnpm"

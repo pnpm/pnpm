@@ -31,10 +31,10 @@
     "@pnpm/modules-yaml": "workspace:8.0.1",
     "@pnpm/normalize-registries": "workspace:1.0.3",
     "@pnpm/types": "workspace:6.2.0",
-    "realpath-missing": "1.0.0"
+    "realpath-missing": "^1.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "3.2.2"
+    "@pnpm/logger": "^3.2.2"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -16,7 +16,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "3.2.2",
+    "@pnpm/logger": "^3.2.2",
     "@types/ramda": "^0.27.11"
   },
   "directories": {
@@ -45,11 +45,11 @@
     "@pnpm/lockfile-utils": "workspace:2.0.15",
     "@pnpm/lockfile-walker": "workspace:3.0.3",
     "@pnpm/matcher": "workspace:^1.0.3",
-    "@pnpm/pkgid-to-filename": "3.0.0",
+    "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/symlink-dependency": "workspace:3.0.9",
     "@pnpm/types": "workspace:6.2.0",
     "dependency-path": "workspace:5.0.2",
-    "ramda": "0.27.0"
+    "ramda": "^0.27.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }
