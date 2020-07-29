@@ -574,11 +574,11 @@ async function installInContext (
     projects
       .map(async (project) => {
         if (project.mutation !== 'uninstallSome') return
-        const field = project.originalManifest ? 'originalManifest' : 'manifest'
-        project[field] = await removeDeps(project[field] as ProjectManifest, project.dependencyNames, {
-          prefix: project.rootDir,
-          saveType: project.targetDependenciesField,
-        })
+        const _removeDeps = (manifest: ProjectManifest) => removeDeps(manifest, project.dependencyNames, { prefix: project.rootDir, saveType: project.targetDependenciesField })
+        project.manifest = await _removeDeps(project.manifest)
+        if (project.originalManifest) {
+          project.originalManifest = await _removeDeps(project.originalManifest)
+        }
       })
   )
 
