@@ -236,6 +236,7 @@ async function makePublishManifest (dir: string, originalManifest: ProjectManife
     dependencies: await makePublishDependencies(dir, originalManifest.dependencies),
     devDependencies: await makePublishDependencies(dir, originalManifest.devDependencies),
     optionalDependencies: await makePublishDependencies(dir, originalManifest.optionalDependencies),
+    peerDependencies: await makePublishDependencies(dir, originalManifest.peerDependencies),
   }
 
   const { publishConfig } = originalManifest
