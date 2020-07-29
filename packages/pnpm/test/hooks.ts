@@ -14,8 +14,10 @@ test('readPackage hook in single project doesn\'t modify manifest', async (t) =>
   const pnpmfile = `
       module.exports = { hooks: { readPackage } }
       function readPackage (pkg) {
-      pkg.dependencies = pkg.dependencies || {}
-      pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+        if (pkg.name === 'project') {
+          pkg.dependencies = pkg.dependencies || {}
+          pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+        }
       return pkg
       }
   `
@@ -36,9 +38,10 @@ test('readPackage hook in single project doesn\'t modify manifest', async (t) =>
   await execPnpm(['remove', 'is-positive'])
   pkg = await loadJsonFile(path.resolve('package.json'))
   t.notOk(pkg.dependencies, 'remove & readPackage hook work')
+  await project.hasNot('is-positive')
 })
 
-test.skip('readPackage hook in monorepo doesn\'t modify manifest', async (t) => {
+test('readPackage hook in monorepo doesn\'t modify manifest', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-a',
@@ -53,8 +56,10 @@ test.skip('readPackage hook in monorepo doesn\'t modify manifest', async (t) => 
   const pnpmfile = `
       module.exports = { hooks: { readPackage } }
       function readPackage (pkg) {
-        pkg.dependencies = pkg.dependencies || {}
-        pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+        if (pkg.name === 'project-a') {
+          pkg.dependencies = pkg.dependencies || {}
+          pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+        }
         return pkg
       }
     `
