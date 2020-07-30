@@ -17,7 +17,9 @@ export default (
   }
   if (!pkgSnapshot.resolution['tarball']) {
     const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    const registry = name[0] === '@' && registries[name.split('/')[0]] || registries.default
+    const registry = pkgSnapshot.resolution['registry']
+      || (name[0] === '@' && registries[name.split('/')[0]])
+      || registries.default
     return {
       ...pkgSnapshot.resolution,
       registry,
@@ -28,7 +30,9 @@ export default (
     return pkgSnapshot.resolution as Resolution
   }
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  const registry = name[0] === '@' && registries[name.split('/')[0]] || registries.default
+  const registry = pkgSnapshot.resolution['registry']
+    || (name[0] === '@' && registries[name.split('/')[0]])
+    || registries.default
   return {
     ...pkgSnapshot.resolution,
     registry,

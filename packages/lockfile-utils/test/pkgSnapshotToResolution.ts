@@ -23,5 +23,17 @@ test('pkgSnapshotToResolution()', (t) => {
     tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
   })
 
+  t.deepEqual(pkgSnapshotToResolution('/foo/1.0.0', {
+    resolution: {
+      integrity: 'AAAA',
+      registry: 'https://npm.pkg.github.com/',
+      tarball: 'https://npm.pkg.github.com/download/@foo/bar/1.0.0/aaa',
+    },
+  }, { default: 'https://registry.npmjs.org/' }), {
+    integrity: 'AAAA',
+    registry: 'https://npm.pkg.github.com/',
+    tarball: 'https://npm.pkg.github.com/download/@foo/bar/1.0.0/aaa',
+  })
+
   t.end()
 })
