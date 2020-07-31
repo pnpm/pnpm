@@ -12,27 +12,23 @@ export default (
   registries: Registries
 ): Resolution => {
   // tslint:disable:no-string-literal
-  if (pkgSnapshot.resolution['type']) {
-    return pkgSnapshot.resolution as Resolution
-  }
-  if (!pkgSnapshot.resolution['tarball']) {
-    const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    const registry = name[0] === '@' && registries[name.split('/')[0]] || registries.default
-    return {
-      ...pkgSnapshot.resolution,
-      registry,
-      tarball: getTarball(registry),
-    } as Resolution
-  }
-  if (pkgSnapshot.resolution['tarball'].startsWith('file:')) {
+  if (pkgSnapshot.resolution['type'] || pkgSnapshot.resolution['tarball']?.startsWith('file:')) {
     return pkgSnapshot.resolution as Resolution
   }
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  const registry = name[0] === '@' && registries[name.split('/')[0]] || registries.default
+  const registry = pkgSnapshot.resolution['registry']
+    || (name[0] === '@' && registries[name.split('/')[0]])
+    || registries.default
+  let tarball!: string
+  if (!pkgSnapshot.resolution['tarball']) {
+    tarball = getTarball(registry)
+  } else {
+    tarball = url.resolve(registry, pkgSnapshot.resolution['tarball'])
+  }
   return {
     ...pkgSnapshot.resolution,
     registry,
-    tarball: url.resolve(registry, pkgSnapshot.resolution['tarball']),
+    tarball,
   } as Resolution
 
   function getTarball (registry: string) {
