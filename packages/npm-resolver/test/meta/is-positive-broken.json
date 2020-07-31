@@ -1,0 +1,27 @@
+{
+  "versions": {
+      "3.1.0": {
+          "name": "bad-name",
+          "version": "3.1.0",
+          "devDependencies": {
+              "ava": "*",
+              "xo": "*"
+          },
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "integrity": "sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==",
+              "shasum": "857db584a1ba5d1cb2980527fc3b6c435d37b0fd",
+              "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz"
+          },
+          "engines": {
+              "node": ">=0.10.0"
+          }
+      }
+  },
+  "name": "is-positive",
+  "dist-tags": {
+      "latest": "3.1.0"
+  },
+  "modified": "2017-08-17T19:26:00.508Z"
+}

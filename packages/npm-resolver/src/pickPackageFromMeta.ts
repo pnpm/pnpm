@@ -20,7 +20,16 @@ export default function (
       version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
       break
   }
-  return meta.versions[version]
+  const manifest = meta.versions[version]
+  if (manifest && meta['name']) {
+    // Packages that are published to the GitHub registry are always published with a scope.
+    // However, the name in the package.json for some reason may omit the scope.
+    // So the package published to the GitHub registry will be published under @foo/bar
+    // but the name in package.json will be just bar.
+    // In order to avoid issues, we consider that the real name of the package is the one with the scope.
+    manifest.name = meta['name']
+  }
+  return manifest
 }
 
 function pickVersionByVersionRange (

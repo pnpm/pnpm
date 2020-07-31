@@ -12,6 +12,7 @@ import tempy = require('tempy')
 const isPositiveMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive.json'))
 const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
 const isPositiveMetaFull = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-full.json'))
+const isPositiveBrokenMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-broken.json'))
 const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
 // tslint:enable:no-any
 
@@ -1552,4 +1553,40 @@ test('throws error when package name has "/" but not starts with @scope', async 
     t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_NAME')
     t.end()
   }
+})
+
+test('resolveFromNpm() should always return the name of the package that is specified in the root of the meta', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveBrokenMeta)
+
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    rawConfig: { registry },
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '3.1.0' }, {
+    registry,
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'npm-registry')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
+  t.equal(resolveResult!.latest!.split('.').length, 3)
+  t.deepEqual(resolveResult!.resolution, {
+    integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
+    registry,
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+  })
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '3.1.0')
+
+  // The resolve function does not wait for the package meta cache file to be saved
+  // so we must delay for a bit in order to read it
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
+  t.ok(meta.name)
+  t.ok(meta.versions)
+  t.ok(meta['dist-tags'])
+  t.end()
 })
