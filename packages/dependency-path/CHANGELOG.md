@@ -1,5 +1,11 @@
 # dependency-path
 
+## 5.0.3
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+
 ## 5.0.2
 
 ### Patch Changes

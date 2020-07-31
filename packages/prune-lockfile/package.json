@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prune-lockfile",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "description": "Prune a pnpm-lock.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/types": "workspace:6.2.0",
-    "dependency-path": "workspace:5.0.2",
+    "dependency-path": "workspace:5.0.3",
     "ramda": "^0.27.0"
   },
   "funding": "https://opencollective.com/pnpm"

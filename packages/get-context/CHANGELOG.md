@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 3.2.2
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - @pnpm/modules-yaml@8.0.2
+  - @pnpm/read-projects-context@4.0.2
+
 ## 3.2.1
 
 ### Patch Changes

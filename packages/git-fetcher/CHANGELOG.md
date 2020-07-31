@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 3.0.6
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+
 ## 3.0.5
 
 ### Patch Changes

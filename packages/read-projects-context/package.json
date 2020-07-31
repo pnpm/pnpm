@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:3.0.11",
-    "@pnpm/modules-yaml": "workspace:8.0.1",
+    "@pnpm/modules-yaml": "workspace:8.0.2",
     "@pnpm/normalize-registries": "workspace:1.0.3",
     "@pnpm/types": "workspace:6.2.0",
     "realpath-missing": "^1.0.0"

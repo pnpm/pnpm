@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-listing
 
+## 2.0.13
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - @pnpm/config@11.2.1
+  - @pnpm/list@5.0.2
+  - @pnpm/cli-utils@0.4.17
+
 ## 2.0.12
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/lockfile-walker
 
+## 3.0.4
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - dependency-path@5.0.3
+
 ## 3.0.3
 
 ### Patch Changes

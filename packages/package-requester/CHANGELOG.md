@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 12.0.8
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - @pnpm/cafs@1.0.6
+
 ## 12.0.7
 
 ### Patch Changes

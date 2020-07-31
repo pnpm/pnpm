@@ -1,5 +1,18 @@
 # @pnpm/modules-cleaner
 
+## 10.0.5
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [1140ef721]
+- Updated dependencies [a2ef8084f]
+  - @pnpm/lockfile-utils@2.0.16
+  - dependency-path@5.0.3
+  - @pnpm/filter-lockfile@4.0.6
+  - @pnpm/read-modules-dir@2.0.2
+  - @pnpm/remove-bins@1.0.3
+
 ## 10.0.4
 
 ### Patch Changes

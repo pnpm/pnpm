@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/run-npm",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Runs the npm CLI",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

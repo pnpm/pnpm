@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.11
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- 2a41ce95c: peerDependencies workspace substitution
+- Updated dependencies [622c0b6f9]
+- Updated dependencies [a2ef8084f]
+  - @pnpm/npm-resolver@9.0.2
+  - @pnpm/config@11.2.1
+  - @pnpm/lifecycle@9.2.2
+  - @pnpm/run-npm@2.0.3
+  - @pnpm/cli-utils@0.4.17
+
 ## 2.1.10
 
 ### Patch Changes

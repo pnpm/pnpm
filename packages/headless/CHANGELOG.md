@@ -1,5 +1,23 @@
 # @pnpm/headless
 
+## 14.0.12
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [1140ef721]
+- Updated dependencies [a2ef8084f]
+  - @pnpm/lockfile-utils@2.0.16
+  - @pnpm/build-modules@5.0.9
+  - dependency-path@5.0.3
+  - @pnpm/filter-lockfile@4.0.6
+  - @pnpm/hoist@4.0.5
+  - @pnpm/lifecycle@9.2.2
+  - @pnpm/modules-cleaner@10.0.5
+  - @pnpm/modules-yaml@8.0.2
+  - @pnpm/package-requester@12.0.8
+  - @pnpm/link-bins@5.3.8
+
 ## 14.0.11
 
 ### Patch Changes

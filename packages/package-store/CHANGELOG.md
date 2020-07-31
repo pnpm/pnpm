@@ -1,5 +1,14 @@
 # @pnpm/package-store
 
+## 9.1.1
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - @pnpm/cafs@1.0.6
+  - @pnpm/package-requester@12.0.8
+
 ## 9.1.0
 
 ### Minor Changes

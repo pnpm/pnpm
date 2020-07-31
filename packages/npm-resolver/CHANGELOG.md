@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 9.0.2
+
+### Patch Changes
+
+- 622c0b6f9: Always use the package name that is given at the root of the metadata object. Override any names that are specified in the version manifests. This fixes an issue with GitHub registry.
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+
 ## 9.0.1
 
 ### Patch Changes

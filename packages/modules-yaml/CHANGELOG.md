@@ -1,5 +1,11 @@
 # @pnpm/modules-yaml
 
+## 8.0.2
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+
 ## 8.0.1
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-import
 
+## 1.0.45
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [103ad7487]
+- Updated dependencies [a2ef8084f]
+  - supi@0.41.15
+  - @pnpm/cli-utils@0.4.17
+  - @pnpm/store-connection-manager@0.3.21
+
 ## 1.0.44
 
 ### Patch Changes

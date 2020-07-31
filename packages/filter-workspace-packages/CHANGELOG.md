@@ -1,5 +1,13 @@
 # @pnpm/filter-workspace-packages
 
+## 2.1.10
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - @pnpm/find-workspace-packages@2.3.3
+
 ## 2.1.9
 
 ### Patch Changes

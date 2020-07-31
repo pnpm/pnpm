@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-modules-dir",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Finds all direct packages in node_modules",
   "main": "lib/index.js",

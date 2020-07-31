@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1.2.12
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - @pnpm/config@11.2.1
+  - @pnpm/lifecycle@9.2.2
+  - @pnpm/cli-utils@0.4.17
+
 ## 1.2.11
 
 ### Patch Changes

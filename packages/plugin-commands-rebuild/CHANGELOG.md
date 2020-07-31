@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.0.26
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [1140ef721]
+- Updated dependencies [a2ef8084f]
+  - @pnpm/lockfile-utils@2.0.16
+  - @pnpm/config@11.2.1
+  - dependency-path@5.0.3
+  - @pnpm/find-workspace-packages@2.3.3
+  - @pnpm/get-context@3.2.2
+  - @pnpm/lifecycle@9.2.2
+  - @pnpm/lockfile-walker@3.0.4
+  - @pnpm/modules-yaml@8.0.2
+  - @pnpm/cli-utils@0.4.17
+  - @pnpm/store-connection-manager@0.3.21
+  - @pnpm/link-bins@5.3.8
+
 ## 2.0.25
 
 ### Patch Changes

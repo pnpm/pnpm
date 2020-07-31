@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 9.2.2
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+
 ## 9.2.1
 
 ### Patch Changes

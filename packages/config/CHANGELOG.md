@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.2.1
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+
 ## 11.2.0
 
 ### Minor Changes

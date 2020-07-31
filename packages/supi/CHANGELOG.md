@@ -1,5 +1,31 @@
 # supi
 
+## 0.41.15
+
+### Patch Changes
+
+- 103ad7487: fix lockfile not updated when remove dependency in project with readPackage hook
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [1140ef721]
+- Updated dependencies [a2ef8084f]
+  - @pnpm/lockfile-utils@2.0.16
+  - @pnpm/build-modules@5.0.9
+  - dependency-path@5.0.3
+  - @pnpm/filter-lockfile@4.0.6
+  - @pnpm/get-context@3.2.2
+  - @pnpm/headless@14.0.12
+  - @pnpm/hoist@4.0.5
+  - @pnpm/lifecycle@9.2.2
+  - @pnpm/lockfile-walker@3.0.4
+  - @pnpm/modules-cleaner@10.0.5
+  - @pnpm/modules-yaml@8.0.2
+  - @pnpm/package-requester@12.0.8
+  - @pnpm/prune-lockfile@2.0.14
+  - @pnpm/read-modules-dir@2.0.2
+  - @pnpm/remove-bins@1.0.3
+  - @pnpm/resolve-dependencies@16.1.1
+  - @pnpm/link-bins@5.3.8
+
 ## 0.41.14
 
 ### Patch Changes

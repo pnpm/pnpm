@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [a2ef8084f]
+  - @pnpm/config@11.2.1
+  - @pnpm/modules-yaml@8.0.2
+  - @pnpm/default-resolver@10.0.4
+  - @pnpm/outdated@7.1.7
+  - @pnpm/cli-utils@0.4.17
+
 ## 3.0.0
 
 ### Major Changes

@@ -1,5 +1,15 @@
 # pnpm
 
+## 5.4.9
+
+### Patch Changes
+
+- Get the right package name of a package resolved from GitHub registry (#2734).
+- Registry set in lockfile resolution should not be ignored (#2733).
+- Workspace range prefix should be removed from `peerDependencies` before publish (#2467).
+- Use the same versions of dependencies across the pnpm monorepo.
+- Fix lockfile not updated when remove dependency in project with readPackage hook (#2726).
+
 ## 5.4.8
 
 ### Patch Changes

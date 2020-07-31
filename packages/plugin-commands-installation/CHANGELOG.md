@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 3.1.3
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [103ad7487]
+- Updated dependencies [a2ef8084f]
+  - supi@0.41.15
+  - @pnpm/config@11.2.1
+  - @pnpm/filter-workspace-packages@2.1.10
+  - @pnpm/find-workspace-packages@2.3.3
+  - @pnpm/package-store@9.1.1
+  - @pnpm/plugin-commands-rebuild@2.0.26
+  - @pnpm/outdated@7.1.7
+  - @pnpm/cli-utils@0.4.17
+  - @pnpm/store-connection-manager@0.3.21
+
 ## 3.1.2
 
 ### Patch Changes

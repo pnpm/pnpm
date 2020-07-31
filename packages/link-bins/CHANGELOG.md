@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 5.3.8
+
+### Patch Changes
+
+- Updated dependencies [a2ef8084f]
+  - @pnpm/read-modules-dir@2.0.2
+
 ## 5.3.7
 
 ### Patch Changes

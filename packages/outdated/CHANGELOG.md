@@ -1,5 +1,16 @@
 # @pnpm/outdated
 
+## 7.1.7
+
+### Patch Changes
+
+- Updated dependencies [1140ef721]
+- Updated dependencies [a2ef8084f]
+  - @pnpm/lockfile-utils@2.0.16
+  - dependency-path@5.0.3
+  - @pnpm/modules-yaml@8.0.2
+  - @pnpm/default-resolver@10.0.4
+
 ## 7.1.6
 
 ### Patch Changes

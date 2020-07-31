@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 5.0.9
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - @pnpm/lifecycle@9.2.2
+  - @pnpm/link-bins@5.3.8
+
 ## 5.0.8
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/find-workspace-packages
 
+## 2.3.3
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+  - @pnpm/cli-utils@0.4.17
+
 ## 2.3.2
 
 ### Patch Changes

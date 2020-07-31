@@ -1,5 +1,14 @@
 # @pnpm/lockfile-utils
 
+## 2.0.16
+
+### Patch Changes
+
+- 1140ef721: When getting resolution from package snapshot, always prefer the registry that is present in the package snapshot.
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - dependency-path@5.0.3
+
 ## 2.0.15
 
 ### Patch Changes

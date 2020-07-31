@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 5.0.2
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - dependencies-hierarchy@9.0.1
+
 ## 5.0.1
 
 ### Patch Changes
