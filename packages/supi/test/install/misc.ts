@@ -1154,7 +1154,7 @@ test('ignore files in node_modules', async (t: tape.Test) => {
   const reporter = sinon.spy()
 
   await fs.mkdir('node_modules')
-  await fs.writeFile('node_modules/foo', '', 'utf8')
+  await fs.writeFile('node_modules/foo', 'x', 'utf8')
 
   await addDependenciesToPackage(
     {
@@ -1168,4 +1168,5 @@ test('ignore files in node_modules', async (t: tape.Test) => {
   const m = project.requireModule('lodash')
   t.ok(typeof m === 'function', '_ is available')
   t.ok(typeof m.clone === 'function', '_.clone is available')
+  t.equal(await fs.readFile('node_modules/foo', 'utf8'), 'x')
 })
