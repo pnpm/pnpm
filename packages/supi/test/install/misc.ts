@@ -1148,3 +1148,25 @@ test('installing a package that has a manifest with byte order mark (BOM)', asyn
 
   await project.has('paralleljs')
 })
+
+test('ignore files in node_modules', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  const reporter = sinon.spy()
+
+  await fs.mkdir('node_modules')
+  await fs.writeFile('node_modules/foo', 'x', 'utf8')
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['lodash@4.0.0'],
+    await testDefaults({ fastUnpack: false, reporter })
+  )
+
+  const m = project.requireModule('lodash')
+  t.ok(typeof m === 'function', '_ is available')
+  t.ok(typeof m.clone === 'function', '_.clone is available')
+  t.equal(await fs.readFile('node_modules/foo', 'utf8'), 'x')
+})
