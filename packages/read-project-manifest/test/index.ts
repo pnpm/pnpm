@@ -164,3 +164,31 @@ test('fail on invalid YAML', async (t) => {
 
   t.end()
 })
+
+test('preserve trailing new line at the end of package.json', async (t) => {
+  process.chdir(tempy.directory())
+
+  await writeFile('package.json', '{}', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
+
+  const rawManifest = await readFile('package.json', 'utf8')
+  t.equal(rawManifest, '{"dependencies":{"bar":"1.0.0"}}')
+  t.end()
+})
+
+test('preserve trailing new line at the end of package.json5', async (t) => {
+  process.chdir(tempy.directory())
+
+  await writeFile('package.json5', '{}', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
+
+  const rawManifest = await readFile('package.json5', 'utf8')
+  t.equal(rawManifest, "{dependencies:{bar:'1.0.0'}}")
+  t.end()
+})

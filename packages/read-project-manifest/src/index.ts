@@ -49,12 +49,11 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   try {
     const manifestPath = path.join(projectDir, 'package.json')
     const { data, text } = await readJsonFile(manifestPath)
-    const { indent } = detectIndent(text)
     return {
       fileName: 'package.json',
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        indent,
+        ...detectFileFormatting(text),
         initialManifest: data,
         manifestPath,
       }),
@@ -65,12 +64,11 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   try {
     const manifestPath = path.join(projectDir, 'package.json5')
     const { data, text } = await readJson5File(manifestPath)
-    const { indent } = detectIndent(text)
     return {
       fileName: 'package.json5',
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        indent,
+        ...detectFileFormatting(text),
         initialManifest: data,
         manifestPath,
       }),
@@ -111,16 +109,22 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   }
 }
 
+function detectFileFormatting (text: string) {
+  return {
+    indent: detectIndent(text).indent,
+    insertFinalNewline: text.endsWith('\n'),
+  }
+}
+
 export async function readExactProjectManifest (manifestPath: string) {
   const base = path.basename(manifestPath).toLowerCase()
   switch (base) {
     case 'package.json': {
       const { data, text } = await readJsonFile(manifestPath)
-      const { indent } = detectIndent(text)
       return {
         manifest: data,
         writeProjectManifest: createManifestWriter({
-          indent,
+          ...detectFileFormatting(text),
           initialManifest: data,
           manifestPath,
         }),
@@ -128,11 +132,10 @@ export async function readExactProjectManifest (manifestPath: string) {
     }
     case 'package.json5': {
       const { data, text } = await readJson5File(manifestPath)
-      const { indent } = detectIndent(text)
       return {
         manifest: data,
         writeProjectManifest: createManifestWriter({
-          indent,
+          ...detectFileFormatting(text),
           initialManifest: data,
           manifestPath,
         }),
@@ -164,6 +167,7 @@ function createManifestWriter (
   opts: {
     initialManifest: ProjectManifest,
     indent?: string | number | undefined,
+    insertFinalNewline?: boolean,
     manifestPath: string,
   }
 ): (WriteProjectManifest) {
@@ -171,7 +175,10 @@ function createManifestWriter (
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
     updatedManifest = normalize(updatedManifest)
     if (force === true || !equal(initialManifest, updatedManifest)) {
-      return writeProjectManifest(opts.manifestPath, updatedManifest, { indent: opts.indent })
+      return writeProjectManifest(opts.manifestPath, updatedManifest, {
+        indent: opts.indent,
+        insertFinalNewline: opts.insertFinalNewline,
+      })
     }
   }
 }
