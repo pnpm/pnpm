@@ -1,5 +1,11 @@
 # @pnpm/write-project-manifest
 
+## 1.1.0
+
+### Minor Changes
+
+- 3bd3253e3: New option added: insertFinalNewline. By default, a new line is added to the end of the file. When `options.insertFinalNewline` is false, no trailing new line is added.
+
 ## 1.0.5
 
 ### Patch Changes

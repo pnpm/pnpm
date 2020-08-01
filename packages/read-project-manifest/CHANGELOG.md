@@ -1,5 +1,13 @@
 # @pnpm/read-project-manifest
 
+## 1.0.10
+
+### Patch Changes
+
+- 3bd3253e3: Trailing new lines are preserved, when updating the read manifests.
+- Updated dependencies [3bd3253e3]
+  - @pnpm/write-project-manifest@1.1.0
+
 ## 1.0.9
 
 ### Patch Changes

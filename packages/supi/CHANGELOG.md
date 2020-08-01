@@ -1,5 +1,21 @@
 # supi
 
+## 0.41.16
+
+### Patch Changes
+
+- 0a8ff3ad3: Don't fail when installing a dependency with a trailing @.
+- Updated dependencies [3bd3253e3]
+- Updated dependencies [24af41f20]
+  - @pnpm/read-project-manifest@1.0.10
+  - @pnpm/read-modules-dir@2.0.3
+  - @pnpm/headless@14.0.13
+  - @pnpm/link-bins@5.3.9
+  - @pnpm/modules-cleaner@10.0.6
+  - @pnpm/build-modules@5.0.10
+  - @pnpm/hoist@4.0.6
+  - @pnpm/package-requester@12.0.8
+
 ## 0.41.15
 
 ### Patch Changes

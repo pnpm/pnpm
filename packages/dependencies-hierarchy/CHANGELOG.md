@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [24af41f20]
+  - @pnpm/read-modules-dir@2.0.3
+
 ## 9.0.1
 
 ### Patch Changes

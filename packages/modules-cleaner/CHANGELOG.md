@@ -1,5 +1,12 @@
 # @pnpm/modules-cleaner
 
+## 10.0.6
+
+### Patch Changes
+
+- Updated dependencies [24af41f20]
+  - @pnpm/read-modules-dir@2.0.3
+
 ## 10.0.5
 
 ### Patch Changes

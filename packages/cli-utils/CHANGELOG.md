@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 0.4.18
+
+### Patch Changes
+
+- Updated dependencies [3bd3253e3]
+  - @pnpm/read-project-manifest@1.0.10
+
 ## 0.4.17
 
 ### Patch Changes

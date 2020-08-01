@@ -1,5 +1,12 @@
 # @pnpm/local-resolver
 
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [3bd3253e3]
+  - @pnpm/read-project-manifest@1.0.10
+
 ## 5.0.10
 
 ### Patch Changes

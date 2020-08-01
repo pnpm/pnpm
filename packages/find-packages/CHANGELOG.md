@@ -1,5 +1,12 @@
 # find-packages
 
+## 7.0.13
+
+### Patch Changes
+
+- Updated dependencies [3bd3253e3]
+  - @pnpm/read-project-manifest@1.0.10
+
 ## 7.0.12
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.4.10
+
+### Patch Changes
+
+- Don't add a trailing new line to `package.json` if no trailing new line was present in it (#2716).
+- Installing a new dependency with a trailing `@` (#2737).
+- Ignore files in the modules directory (#2730).
+
 ## 5.4.9
 
 ### Patch Changes
