@@ -129,9 +129,12 @@ function getPrefPreferSpecifiedSpec (
  ) {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
-    const selector = versionSelectorType(opts.specRaw.substr(`${opts.alias}@${prefix}`.length))
-    if (selector && (selector.type === 'version' || selector.type === 'range')) {
-      return opts.specRaw.substr(opts.alias.length + 1)
+    const range = opts.specRaw.substr(`${opts.alias}@${prefix}`.length)
+    if (range) {
+      const selector = versionSelectorType(range)
+      if (selector && (selector.type === 'version' || selector.type === 'range')) {
+        return opts.specRaw.substr(opts.alias.length + 1)
+      }
     }
   }
   return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`

@@ -188,6 +188,22 @@ test('modules without version spec, with custom tag config', async (t) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
+test('modules without version spec but with a trailing @', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep@'], await testDefaults())
+
+  await project.has('dep-of-pkg-with-1-dep')
+})
+
+test('aliased modules without version spec but with a trailing @', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['foo@npm:dep-of-pkg-with-1-dep@'], await testDefaults())
+
+  await project.has('foo')
+})
+
 test('installing a package by specifying a specific dist-tag', async (t) => {
   const project = prepareEmpty(t)
 
