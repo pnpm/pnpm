@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 5.3.10
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1.0.11
+
 ## 5.3.9
 
 ### Patch Changes

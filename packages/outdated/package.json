@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "7.1.8",
+  "version": "7.1.9",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:4.0.0",
-    "@pnpm/default-resolver": "workspace:10.0.5",
+    "@pnpm/default-resolver": "workspace:10.0.6",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/fetch": "workspace:^2.1.2",
     "@pnpm/lockfile-file": "workspace:3.0.11",

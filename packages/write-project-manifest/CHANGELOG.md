@@ -1,5 +1,11 @@
 # @pnpm/write-project-manifest
 
+## 1.1.1
+
+### Patch Changes
+
+- 2de5e1bec: writeFileAtomic is promisified before usage.
+
 ## 1.1.0
 
 ### Minor Changes

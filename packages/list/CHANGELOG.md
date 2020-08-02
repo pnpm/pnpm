@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1.0.11
+
 ## 5.0.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 5.0.12
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1.0.11
+
 ## 5.0.11
 
 ### Patch Changes

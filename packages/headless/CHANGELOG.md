@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 14.0.14
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1.0.11
+- @pnpm/link-bins@5.3.10
+- @pnpm/build-modules@5.0.11
+- @pnpm/hoist@4.0.7
+- @pnpm/package-requester@12.0.8
+
 ## 14.0.13
 
 ### Patch Changes

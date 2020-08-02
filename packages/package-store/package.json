@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "9.1.2",
+  "version": "9.1.3",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -36,7 +36,7 @@
     "write-json-file": "4.0.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:^1.0.5",
+    "@pnpm/client": "workspace:^1.0.6",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/package-store": "link:",
     "@types/mz": "^2.7.1",

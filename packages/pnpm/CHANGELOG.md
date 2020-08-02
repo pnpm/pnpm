@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.4.11
+
+### Patch Changes
+
+- Fixing regression of v5.4.10: a warning during `package.json` save.
+
 ## 5.4.10
 
 ### Patch Changes
