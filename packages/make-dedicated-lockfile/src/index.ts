@@ -17,16 +17,27 @@ export default async function (lockfileDir: string, projectDir: string) {
   if (!lockfile) {
     throw new Error('no lockfile found')
   }
-  lockfile.importers = {
-    '.': lockfile.importers[getLockfileImporterId(lockfileDir, projectDir)],
+  const oldImporters = lockfile.importers
+  lockfile.importers = {}
+  const baseImporterId = getLockfileImporterId(lockfileDir, projectDir)
+  for (const importerId of Object.keys(oldImporters)) {
+    if (importerId.startsWith(`${baseImporterId}/`)) {
+      lockfile.importers[importerId.substr(baseImporterId.length + 1)] = oldImporters[importerId]
+      continue
+    }
+    if (importerId === baseImporterId) {
+      lockfile.importers['.'] = oldImporters[importerId]
+    }
   }
   const dedicatedLockfile = pruneSharedLockfile(lockfile)
 
-  for (const depField of DEPENDENCIES_FIELDS) {
-    if (!dedicatedLockfile.importers['.'][depField]) continue
-    for (const depName of Object.keys(dedicatedLockfile.importers['.'][depField]!)) {
-      if (dedicatedLockfile.importers['.'][depField]![depName].startsWith('link:')) {
-        delete dedicatedLockfile.importers['.'][depField]![depName]
+  for (const importerId of Object.keys(dedicatedLockfile.importers)) {
+    for (const depField of DEPENDENCIES_FIELDS) {
+      if (!dedicatedLockfile.importers[importerId][depField]) continue
+      for (const depName of Object.keys(dedicatedLockfile.importers[importerId][depField]!)) {
+        if (dedicatedLockfile.importers[importerId][depField]![depName].startsWith('link:')) {
+          delete dedicatedLockfile.importers[importerId][depField]![depName]
+        }
       }
     }
   }
