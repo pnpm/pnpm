@@ -40,10 +40,12 @@
     "@pnpm/read-project-manifest": "workspace:^1.0.11",
     "@pnpm/types": "workspace:^6.2.0",
     "mz": "^2.7.0",
+    "ramda": "^0.27.1",
     "rename-overwrite": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@types/mz": "^2.7.1"
+    "@types/mz": "^2.7.1",
+    "@types/ramda": "^0.27.14"
   }
 }

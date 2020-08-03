@@ -1030,9 +1030,11 @@ importers:
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/types': 'link:../types'
       mz: 2.7.0
+      ramda: 0.27.1
       rename-overwrite: 3.0.0
     devDependencies:
       '@types/mz': 2.7.1
+      '@types/ramda': 0.27.14
     specifiers:
       '@pnpm/error': 'workspace:^1.2.0'
       '@pnpm/exec': ^1.1.5
@@ -1043,7 +1045,9 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:^1.0.11'
       '@pnpm/types': 'workspace:^6.2.0'
       '@types/mz': ^2.7.1
+      '@types/ramda': ^0.27.14
       mz: ^2.7.0
+      ramda: ^0.27.1
       rename-overwrite: ^3.0.0
   packages/manifest-utils:
     dependencies:
