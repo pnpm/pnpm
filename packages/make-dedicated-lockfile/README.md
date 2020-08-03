@@ -10,6 +10,15 @@
 <pnpm|npm|yarn> add @pnpm/make-dedicated-lockfile
 ```
 
+## Usage
+
+Open the directory of the workspace project that you want to create a dedicated lockfile for.
+
+Run `make-dedicated-lockfile` in the terminal.
+
+A new lockfile will be generated, using dependencies from the shared workspace lockfile but
+only those that are related to the project in the current working directory or subdirectories.
+
 ## License
 
 MIT © [Zoltan Kochan](https://www.kochan.io/)

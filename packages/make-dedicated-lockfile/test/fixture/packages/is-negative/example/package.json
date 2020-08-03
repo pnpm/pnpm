@@ -1,0 +1,7 @@
+{
+  "name": "example",
+  "version": "2.0.0",
+  "dependencies": {
+    "lodash": "1.0.0"
+  }
+}

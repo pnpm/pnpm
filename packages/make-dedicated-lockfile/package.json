@@ -15,7 +15,8 @@
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run compile",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/make-dedicated-lockfile/coverage ts-node packages/make-dedicated-lockfile/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
@@ -46,6 +47,9 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.14"
+    "@types/ncp": "^2.0.4",
+    "@types/ramda": "^0.27.14",
+    "ncp": "^2.0.0",
+    "tempy": "^0.6.0"
   }
 }

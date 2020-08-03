@@ -1034,7 +1034,10 @@ importers:
       rename-overwrite: 3.0.0
     devDependencies:
       '@types/mz': 2.7.1
+      '@types/ncp': 2.0.4
       '@types/ramda': 0.27.14
+      ncp: 2.0.0
+      tempy: 0.6.0
     specifiers:
       '@pnpm/error': 'workspace:^1.2.0'
       '@pnpm/exec': ^1.1.5
@@ -1045,10 +1048,13 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:^1.0.11'
       '@pnpm/types': 'workspace:^6.2.0'
       '@types/mz': ^2.7.1
+      '@types/ncp': ^2.0.4
       '@types/ramda': ^0.27.14
       mz: ^2.7.0
+      ncp: ^2.0.0
       ramda: ^0.27.1
       rename-overwrite: ^3.0.0
+      tempy: ^0.6.0
   packages/manifest-utils:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -3720,7 +3726,7 @@ packages:
       integrity: sha512-H86h7KmRDVs9UeSiQvtUeVhS+WYpJSYSsZrRvNYpGWGiytEqxwEtvgRnINESQtCgnojIH2wS2WgaMTJP0firBw==
   /@types/ncp/2.0.4:
     dependencies:
-      '@types/node': 14.0.23
+      '@types/node': 14.0.27
     dev: true
     resolution:
       integrity: sha512-erpimpT1pH8QfeNg77ypnjwz6CGMqrnL4DewVbqFzD9FXzSULjmG3KzjZnLNe7bzTSZm2W9DpkHyqop1g1KmgQ==
