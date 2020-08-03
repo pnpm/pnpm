@@ -388,6 +388,7 @@ importers:
     dependencies:
       '@pnpm/error': 'link:../error'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
+      '@pnpm/types': 'link:../types'
       ramda: 0.27.1
     devDependencies:
       '@pnpm/exportable-manifest': 'link:'
@@ -396,6 +397,7 @@ importers:
       '@pnpm/error': 'workspace:^1.2.0'
       '@pnpm/exportable-manifest': 'link:'
       '@pnpm/read-project-manifest': 'workspace:^1.0.11'
+      '@pnpm/types': 'workspace:^6.2.0'
       '@types/ramda': ^0.27.14
       ramda: ^0.27.1
   packages/fetch:
