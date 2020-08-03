@@ -10,10 +10,22 @@
   ],
   "references": [
     {
+      "path": "../error"
+    },
+    {
+      "path": "../exportable-manifest"
+    },
+    {
+      "path": "../find-workspace-dir"
+    },
+    {
       "path": "../lockfile-file"
     },
     {
       "path": "../prune-lockfile"
+    },
+    {
+      "path": "../read-project-manifest"
     },
     {
       "path": "../types"

@@ -10,6 +10,7 @@ import readProjectManifest from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import fs = require('mz/fs')
 import path = require('path')
+import renameOverwrite = require('rename-overwrite')
 
 export default async function (lockfileDir: string, projectDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
@@ -32,8 +33,14 @@ export default async function (lockfileDir: string, projectDir: string) {
 
   await writeWantedLockfile(projectDir, dedicatedLockfile)
   const modulesDir = path.join(projectDir, 'node_modules')
-  const tempModulesDir = path.join(projectDir, 'tmp_node_modules')
-  await fs.rename(modulesDir, tempModulesDir)
+  const tempModulesDir = path.join(projectDir, 'test/.tmp_node_modules')
+  let modulesRenamed = false
+  try {
+    await renameOverwrite(modulesDir, tempModulesDir)
+    modulesRenamed = true
+  } catch (err) {
+    if (err['code'] !== 'ENOENT') throw err
+  }
 
   const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
   const publishManifest = await exportableManifest(projectDir, manifest)
@@ -52,7 +59,9 @@ export default async function (lockfileDir: string, projectDir: string) {
   } catch (err) {
     throw err
   } finally {
-    await fs.rename(tempModulesDir, modulesDir)
+    if (modulesRenamed) {
+      await renameOverwrite(tempModulesDir, modulesDir)
+    }
     await writeProjectManifest(manifest)
   }
 }

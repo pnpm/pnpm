@@ -24,10 +24,12 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
 export default async function makePublishManifest (dir: string, originalManifest: ProjectManifest) {
   const publishManifest = {
     ...originalManifest,
-    dependencies: await makePublishDependencies(dir, originalManifest.dependencies),
-    devDependencies: await makePublishDependencies(dir, originalManifest.devDependencies),
-    optionalDependencies: await makePublishDependencies(dir, originalManifest.optionalDependencies),
-    peerDependencies: await makePublishDependencies(dir, originalManifest.peerDependencies),
+  }
+  for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+    const deps = await makePublishDependencies(dir, originalManifest[depsField])
+    if (deps) {
+      publishManifest[depsField] = deps
+    }
   }
 
   const { publishConfig } = originalManifest

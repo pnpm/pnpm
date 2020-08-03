@@ -19,6 +19,9 @@
       "path": "../error"
     },
     {
+      "path": "../exportable-manifest"
+    },
+    {
       "path": "../fetch"
     },
     {
@@ -29,9 +32,6 @@
     },
     {
       "path": "../pick-registry-for-package"
-    },
-    {
-      "path": "../read-project-manifest"
     },
     {
       "path": "../resolver-base"

@@ -1028,6 +1028,7 @@ importers:
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/types': 'link:../types'
       mz: 2.7.0
+      rename-overwrite: 3.0.0
     devDependencies:
       '@types/mz': 2.7.1
     specifiers:
@@ -1041,6 +1042,7 @@ importers:
       '@pnpm/types': 'workspace:^6.2.0'
       '@types/mz': ^2.7.1
       mz: ^2.7.0
+      rename-overwrite: ^3.0.0
   packages/manifest-utils:
     dependencies:
       '@pnpm/types': 'link:../types'

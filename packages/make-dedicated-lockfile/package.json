@@ -7,7 +7,8 @@
   "bin": "./lib/bin.js",
   "files": [
     "lib",
-    "!*.map"
+    "!*.map",
+    "bin"
   ],
   "engines": {
     "node": ">=10.13"
@@ -38,7 +39,8 @@
     "@pnpm/prune-lockfile": "workspace:^2.0.14",
     "@pnpm/read-project-manifest": "workspace:^1.0.11",
     "@pnpm/types": "workspace:^6.2.0",
-    "mz": "^2.7.0"
+    "mz": "^2.7.0",
+    "rename-overwrite": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

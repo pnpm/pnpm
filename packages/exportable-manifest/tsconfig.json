@@ -10,7 +10,10 @@
   ],
   "references": [
     {
-      "path": "../types"
+      "path": "../error"
+    },
+    {
+      "path": "../read-project-manifest"
     }
   ]
 }
