@@ -1,0 +1,55 @@
+{
+  "name": "@pnpm/make-dedicated-lockfile",
+  "version": "0.0.0",
+  "description": "Creates a dedicated lockfile for a subset of workspace projects",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "bin": "./lib/bin.js",
+  "files": [
+    "lib",
+    "!*.map",
+    "bin"
+  ],
+  "engines": {
+    "node": ">=10.13"
+  },
+  "scripts": {
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/make-dedicated-lockfile/coverage ts-node packages/make-dedicated-lockfile/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/make-dedicated-lockfile",
+  "keywords": [
+    "pnpm",
+    "make-dedicated-lockfile"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/make-dedicated-lockfile#readme",
+  "dependencies": {
+    "@pnpm/error": "workspace:^1.2.0",
+    "@pnpm/exec": "^1.1.5",
+    "@pnpm/exportable-manifest": "workspace:^0.0.0",
+    "@pnpm/find-workspace-dir": "workspace:^1.0.0",
+    "@pnpm/lockfile-file": "workspace:^3.0.11",
+    "@pnpm/prune-lockfile": "workspace:^2.0.14",
+    "@pnpm/read-project-manifest": "workspace:^1.0.11",
+    "@pnpm/types": "workspace:^6.2.0",
+    "mz": "^2.7.0",
+    "ramda": "^0.27.1",
+    "rename-overwrite": "^3.0.0"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@types/mz": "^2.7.1",
+    "@types/ncp": "^2.0.4",
+    "@types/ramda": "^0.27.14",
+    "ncp": "^2.0.0",
+    "tempy": "^0.6.0"
+  }
+}
