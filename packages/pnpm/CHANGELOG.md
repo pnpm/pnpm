@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.4.12
+
+### Patch Changes
+
+- Fixing regression of v5.4.5: the `pnpm update` command should update the direct dependencies of the project.
+
 ## 5.4.11
 
 ### Patch Changes

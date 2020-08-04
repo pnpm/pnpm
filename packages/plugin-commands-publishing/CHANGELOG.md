@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.14
+
+### Patch Changes
+
+- Updated dependencies [edf1f412e]
+  - @pnpm/exportable-manifest@1.0.0
+
 ## 2.1.13
 
 ### Patch Changes
