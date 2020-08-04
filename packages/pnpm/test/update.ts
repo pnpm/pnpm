@@ -50,12 +50,16 @@ test('update --no-save', async function (t: tape.Test) {
 })
 
 test('update', async function (t: tape.Test) {
-  await addDistTag('foo', '100.1.0', 'latest')
+  await addDistTag('foo', '100.0.0', 'latest')
   const project = prepare(t, {
     dependencies: {
       foo: '^100.0.0',
     },
   })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await addDistTag('foo', '100.1.0', 'latest')
 
   await execPnpm(['update'])
 
