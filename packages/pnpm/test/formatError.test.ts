@@ -12,10 +12,7 @@ test('formatUnknownOptionsError()', async (t) => {
   t.equal(
     formatUnknownOptionsError(new Map([['foo', ['foa', 'fob']]])),
     `${ERROR} ${chalk.red("Unknown option: 'foo'")}
-Did you mean 'foa', or 'fob'?
-
-To use an unknown option, prefix it with "config.".
-For instance, --config.foo=bar`
+Did you mean 'foa', or 'fob'? Use "--config.unknown=value" to force an unknown option.`
   )
   t.equal(
     formatUnknownOptionsError(new Map([['foo', []], ['bar', []]])),
