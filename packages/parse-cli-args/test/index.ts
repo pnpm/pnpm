@@ -113,6 +113,27 @@ test('detect unknown options', async (t) => {
   t.end()
 })
 
+test('allow any option that starts with "config."', async (t) => {
+  const { options, unknownOptions } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return {
+          bar: Boolean,
+          recursive: Boolean,
+          registry: String,
+        }
+      }
+      return {}
+    },
+    universalOptionsTypes: { filter: [String, Array] },
+  }, ['install', '--config.save-dev', '--registry=https://example.com', '--config.qar', '--filter=packages'])
+  t.deepEqual(Array.from(unknownOptions.entries()), [])
+  t.equal(options.qar, true)
+  t.equal(options['save-dev'], true)
+  t.end()
+})
+
 test('do not incorrectly change "install" command to "add"', async (t) => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,

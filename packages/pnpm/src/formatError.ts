@@ -12,5 +12,8 @@ export function formatUnknownOptionsError (unknownOptions: Map<string, string[]>
   if (!didYouMeanOptions?.length) {
     return output
   }
-  return `${output}\nDid you mean '${didYouMeanOptions.join("', or '")}'?`
+  return `${output}
+Did you mean '${didYouMeanOptions.join("', or '")}'?
+
+Note: to force an unknown option, prefix it with "config.". For instance, --config.foo=bar`
 }

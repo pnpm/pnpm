@@ -126,11 +126,21 @@ export default async function parseCliArgs (
   }
 
   const knownOptions = new Set(Object.keys(types))
-  const unknownOptions = getUnknownOptions(Object.keys(options), knownOptions)
+  const optionNamesToValidate = []
+  const normalizedOptions = {}
+  for (const [optionName, optionValue] of Object.entries(options)) {
+    if (optionName.startsWith('config.')) {
+      normalizedOptions[optionName.substring(7)] = optionValue
+      continue
+    }
+    normalizedOptions[optionName] = optionValue
+    optionNamesToValidate.push(optionName)
+  }
+  const unknownOptions = getUnknownOptions(optionNamesToValidate, knownOptions)
   return {
     argv,
     cmd,
-    options,
+    options: normalizedOptions,
     params,
     unknownOptions,
     workspaceDir,
