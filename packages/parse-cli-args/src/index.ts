@@ -126,15 +126,30 @@ export default async function parseCliArgs (
   }
 
   const knownOptions = new Set(Object.keys(types))
-  const unknownOptions = getUnknownOptions(Object.keys(options), knownOptions)
   return {
     argv,
     cmd,
-    options,
     params,
-    unknownOptions,
     workspaceDir,
+    ...normalizeOptions(options, knownOptions),
   }
+}
+
+const CUSTOM_OPTION_PREFIX = 'config.'
+
+function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>) {
+  const standardOptionNames = []
+  const normalizedOptions = {}
+  for (const [optionName, optionValue] of Object.entries(options)) {
+    if (optionName.startsWith(CUSTOM_OPTION_PREFIX)) {
+      normalizedOptions[optionName.substring(CUSTOM_OPTION_PREFIX.length)] = optionValue
+      continue
+    }
+    normalizedOptions[optionName] = optionValue
+    standardOptionNames.push(optionName)
+  }
+  const unknownOptions = getUnknownOptions(standardOptionNames, knownOptions)
+  return { options: normalizedOptions, unknownOptions }
 }
 
 function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
