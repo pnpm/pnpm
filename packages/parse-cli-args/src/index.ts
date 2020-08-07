@@ -2,7 +2,6 @@ import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 import nopt = require('nopt')
 
-const CUSTOM_OPTION_PREFIX = 'config.'
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
 export interface ParsedCliArgs {
@@ -127,17 +126,8 @@ export default async function parseCliArgs (
   }
 
   const knownOptions = new Set(Object.keys(types))
-  const optionNamesToValidate = []
-  const normalizedOptions = {}
-  for (const [optionName, optionValue] of Object.entries(options)) {
-    if (optionName.startsWith(CUSTOM_OPTION_PREFIX)) {
-      normalizedOptions[optionName.substring(CUSTOM_OPTION_PREFIX.length)] = optionValue
-      continue
-    }
-    normalizedOptions[optionName] = optionValue
-    optionNamesToValidate.push(optionName)
-  }
-  const unknownOptions = getUnknownOptions(optionNamesToValidate, knownOptions)
+  const { normalizedOptions, standardOptionNames } = normalizeOptions(options)
+  const unknownOptions = getUnknownOptions(standardOptionNames, knownOptions)
   return {
     argv,
     cmd,
@@ -146,6 +136,22 @@ export default async function parseCliArgs (
     unknownOptions,
     workspaceDir,
   }
+}
+
+const CUSTOM_OPTION_PREFIX = 'config.'
+
+function normalizeOptions (options: Record<string, unknown>) {
+  const standardOptionNames = []
+  const normalizedOptions = {}
+  for (const [optionName, optionValue] of Object.entries(options)) {
+    if (optionName.startsWith(CUSTOM_OPTION_PREFIX)) {
+      normalizedOptions[optionName.substring(CUSTOM_OPTION_PREFIX.length)] = optionValue
+      continue
+    }
+    normalizedOptions[optionName] = optionValue
+    standardOptionNames.push(optionName)
+  }
+  return { normalizedOptions, standardOptionNames }
 }
 
 function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
