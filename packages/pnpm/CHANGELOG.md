@@ -1,10 +1,16 @@
 # pnpm
 
+## 5.0.0-1
+
+### Bug Fixes
+
+- Don't leave empty temp directories in home directory (#2749).
+
 ## 5.0.0-0
 
-### Patch Changes
+### Features
 
-- Allow unknown options that are prefixed with `config.`.
+- Allow unknown options that are prefixed with `config.`
 
   `pnpm install --foo` would fail with an unknown option error.
 
