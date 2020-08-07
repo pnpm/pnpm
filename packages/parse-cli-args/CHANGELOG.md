@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 3.1.0
+
+### Minor Changes
+
+- be0a3db9b: Allow unknown options that are prefixed with "config."
+
 ## 3.0.1
 
 ### Patch Changes

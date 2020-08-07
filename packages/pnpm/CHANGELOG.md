@@ -1,5 +1,15 @@
 # pnpm
 
+## 5.0.0-0
+
+### Patch Changes
+
+- Allow unknown options that are prefixed with `config.`.
+
+  `pnpm install --foo` would fail with an unknown option error.
+
+  `pnpm install --config.foo` will work fine, setting the `npm_config_foo` environment variable for child lifecycle events.
+
 ## 5.4.12
 
 ### Patch Changes
