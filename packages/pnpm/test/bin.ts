@@ -1,4 +1,5 @@
 import { tempDir } from '@pnpm/prepare'
+import fs = require('mz/fs')
 import path = require('path')
 import PATH = require('path-name')
 import tape = require('tape')
@@ -9,6 +10,7 @@ const test = promisifyTape(tape)
 
 test('pnpm bin', async (t: tape.Test) => {
   tempDir(t)
+  await fs.mkdir('node_modules')
 
   const result = execPnpmSync(['bin'])
 
