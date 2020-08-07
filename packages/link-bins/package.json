@@ -45,16 +45,16 @@
     "mz": "^2.7.0",
     "normalize-path": "^3.0.0",
     "p-settle": "^4.1.1",
-    "ramda": "^0.27.0"
+    "ramda": "^0.27.1"
   },
   "devDependencies": {
     "@pnpm/link-bins": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.1",
     "@types/ncp": "^2.0.4",
-    "@types/node": "^12.12.50",
+    "@types/node": "^12.12.54",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.11",
+    "@types/ramda": "^0.27.14",
     "@types/sinon": "^9.0.4",
     "@types/tape": "^4.13.0",
     "ncp": "^2.0.0",

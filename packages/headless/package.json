@@ -22,10 +22,10 @@
     "@pnpm/logger": "^3.2.2",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/store-path": "^4.0.0",
+    "@pnpm/store-path": "^4.0.2",
     "@types/fs-extra": "^9.0.1",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.11",
+    "@types/ramda": "^0.27.14",
     "@types/rimraf": "^3.0.0",
     "@types/sinon": "^9.0.4",
     "@types/tape-promise": "^4.0.1",
@@ -94,7 +94,7 @@
     "p-limit": "^3.0.2",
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
-    "ramda": "^0.27.0",
+    "ramda": "^0.27.1",
     "realpath-missing": "^1.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

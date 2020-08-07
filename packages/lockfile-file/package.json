@@ -39,7 +39,7 @@
     "@types/js-yaml": "^3.12.5",
     "@types/mz": "^2.7.1",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.11",
+    "@types/ramda": "^0.27.14",
     "@types/write-file-atomic": "^3.0.1",
     "tempy": "^0.6.0",
     "write-yaml-file": "^4.1.0",
@@ -54,7 +54,7 @@
     "js-yaml": "^3.14.0",
     "mz": "^2.7.0",
     "normalize-path": "^3.0.0",
-    "ramda": "^0.27.0",
+    "ramda": "^0.27.1",
     "read-yaml-file": "^2.0.0",
     "write-file-atomic": "^2.4.3"
   },

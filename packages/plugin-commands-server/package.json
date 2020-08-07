@@ -33,7 +33,7 @@
     "@pnpm/plugin-commands-server": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.11",
+    "@types/ramda": "^0.27.14",
     "@types/signal-exit": "^3.0.0"
   },
   "dependencies": {
@@ -44,14 +44,14 @@
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/server": "workspace:8.0.7",
     "@pnpm/store-connection-manager": "workspace:0.3.23",
-    "@pnpm/store-path": "^4.0.0",
+    "@pnpm/store-path": "^4.0.2",
     "@zkochan/diable": "^1.0.2",
     "delay": "^4.4.0",
     "get-port": "^5.1.1",
     "is-windows": "^1.0.2",
     "mz": "^2.7.0",
     "process-exists": "^4.0.0",
-    "ramda": "^0.27.0",
+    "ramda": "^0.27.1",
     "render-help": "^1.0.0",
     "signal-exit": "^3.0.3",
     "tree-kill": "^1.2.2"

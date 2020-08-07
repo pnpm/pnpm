@@ -33,7 +33,7 @@
   "devDependencies": {
     "@pnpm/lockfile-utils": "link:",
     "@types/js-yaml": "^3.12.5",
-    "@types/ramda": "^0.27.11",
+    "@types/ramda": "^0.27.14",
     "tempy": "^0.6.0",
     "write-yaml-file": "^4.1.0",
     "yaml-tag": "1.1.0"
@@ -44,7 +44,7 @@
     "@pnpm/types": "workspace:6.2.0",
     "dependency-path": "workspace:5.0.3",
     "get-npm-tarball-url": "^2.0.1",
-    "ramda": "^0.27.0"
+    "ramda": "^0.27.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

@@ -50,7 +50,7 @@
     "p-queue": "^6.6.0",
     "path-temp": "^2.0.0",
     "promise-share": "^1.0.0",
-    "ramda": "^0.27.0",
+    "ramda": "^0.27.1",
     "rename-overwrite": "^3.0.0",
     "ssri": "6.0.1"
   },
@@ -61,7 +61,7 @@
     "@types/mz": "^2.7.1",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.11",
+    "@types/ramda": "^0.27.14",
     "@types/sinon": "^9.0.4",
     "@types/ssri": "^6.0.3",
     "delay": "^4.4.0",
