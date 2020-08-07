@@ -2,6 +2,7 @@ import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 import nopt = require('nopt')
 
+const CUSTOM_OPTION_PREFIX = 'config.'
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
 export interface ParsedCliArgs {
@@ -129,8 +130,8 @@ export default async function parseCliArgs (
   const optionNamesToValidate = []
   const normalizedOptions = {}
   for (const [optionName, optionValue] of Object.entries(options)) {
-    if (optionName.startsWith('config.')) {
-      normalizedOptions[optionName.substring(7)] = optionValue
+    if (optionName.startsWith(CUSTOM_OPTION_PREFIX)) {
+      normalizedOptions[optionName.substring(CUSTOM_OPTION_PREFIX.length)] = optionValue
       continue
     }
     normalizedOptions[optionName] = optionValue
