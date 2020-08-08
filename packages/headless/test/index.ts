@@ -13,6 +13,7 @@ import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { copyFixture } from '@pnpm/test-fixtures'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
@@ -591,6 +592,36 @@ test('installing with publicHoistPattern=*', async (t) => {
   const modules = await project.readModulesManifest()
 
   t.deepEqual(modules!.hoistedDependencies['/balanced-match/1.0.0'], { 'balanced-match': 'public' }, 'hoisted field populated in .modules.yaml')
+
+  t.end()
+})
+
+test('installing with publicHoistPattern=* in a project with external lockfile', async (t) => {
+  const lockfileDir = tempy.directory()
+  await copyFixture('pkg-with-external-lockfile', lockfileDir)
+  const prefix = path.join(lockfileDir, 'pkg')
+
+  let { projects } = await readprojectsContext(
+    [
+      {
+        rootDir: prefix,
+      },
+    ],
+    { lockfileDir }
+  )
+
+  projects = await Promise.all(
+    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
+  )
+
+  await headless(await testDefaults({
+    lockfileDir,
+    projects,
+    publicHoistPattern: '*',
+  }))
+
+  const project = assertProject(t, lockfileDir)
+  t.ok(project.requireModule('accepts'), 'subdep hoisted')
 
   t.end()
 })

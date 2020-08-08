@@ -684,6 +684,7 @@ importers:
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-projects-context': 'link:../read-projects-context'
       '@pnpm/store-path': 4.0.2
+      '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/fs-extra': 9.0.1
       '@types/mz': 2.7.1
       '@types/ramda': 0.27.14
@@ -726,6 +727,7 @@ importers:
       '@pnpm/store-controller-types': 'workspace:8.0.2'
       '@pnpm/store-path': ^4.0.2
       '@pnpm/symlink-dependency': 'workspace:3.0.9'
+      '@pnpm/test-fixtures': 'workspace:^0.0.0'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/fs-extra': ^9.0.1
       '@types/mz': ^2.7.1
