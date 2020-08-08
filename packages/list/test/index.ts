@@ -26,7 +26,7 @@ const fixture = path.join(fixtures, 'fixture')
 const fixtureWithNoPkgNameAndNoVersion = path.join(fixtures, 'fixture-with-no-pkg-name-and-no-version')
 const fixtureWithNoPkgVersion = path.join(fixtures, 'fixture-with-no-pkg-version')
 const fixtureWithExternalLockfile = path.join(fixtures, 'fixture-with-external-shrinkwrap', 'pkg')
-const monorepoWith2Pkgs = path.join(fixtures, 'monorepo-with-2-pkgs')
+const workspaceWith2Pkgs = path.join(fixtures, 'workspace-with-2-pkgs')
 const emptyFixture = path.join(fixtures, 'empty')
 const fixtureWithAliasedDep = path.join(fixtures, 'with-aliased-dep')
 
@@ -45,18 +45,18 @@ is-positive ${VERSION_CLR('1.0.0')}`)
 
 test('print legend only once', async (t) => {
   t.equal(await list([
-    path.join(monorepoWith2Pkgs, 'packages/bar'),
-    path.join(monorepoWith2Pkgs, 'packages/foo'),
+    path.join(workspaceWith2Pkgs, 'packages/bar'),
+    path.join(workspaceWith2Pkgs, 'packages/foo'),
   ], {
-    lockfileDir: monorepoWith2Pkgs,
+    lockfileDir: workspaceWith2Pkgs,
   }), `${LEGEND}
 
-bar@0.0.0 ${path.join(monorepoWith2Pkgs, 'packages/bar')}
+bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}
 
-foo@0.0.0 ${path.join(monorepoWith2Pkgs, 'packages/foo')}
+foo@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/foo')}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}`)
