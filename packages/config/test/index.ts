@@ -564,3 +564,18 @@ test('all CLI options are added to the config', async (t) => {
   t.equal(config['fooBar'], 'qar')
   t.end()
 })
+
+test('local prefix search stops on pnpm-workspace.yaml', async (t) => {
+  const workspaceDir = path.join(__dirname, 'has-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.equal(config.dir, workspaceDir)
+  t.end()
+})
