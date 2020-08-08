@@ -26,6 +26,7 @@ const fixture = path.join(fixtures, 'fixture')
 const fixtureWithNoPkgNameAndNoVersion = path.join(fixtures, 'fixture-with-no-pkg-name-and-no-version')
 const fixtureWithNoPkgVersion = path.join(fixtures, 'fixture-with-no-pkg-version')
 const fixtureWithExternalLockfile = path.join(fixtures, 'fixture-with-external-shrinkwrap', 'pkg')
+const workspaceWith2Pkgs = path.join(fixtures, 'workspace-with-2-pkgs')
 const emptyFixture = path.join(fixtures, 'empty')
 const fixtureWithAliasedDep = path.join(fixtures, 'with-aliased-dep')
 
@@ -35,6 +36,27 @@ test('list all deps of a package that has an external lockfile', async (t) => {
   }), `${LEGEND}
 
 pkg@1.0.0 ${fixtureWithExternalLockfile}
+
+${DEPENDENCIES}
+is-positive ${VERSION_CLR('1.0.0')}`)
+
+  t.end()
+})
+
+test('print legend only once', async (t) => {
+  t.equal(await list([
+    path.join(workspaceWith2Pkgs, 'packages/bar'),
+    path.join(workspaceWith2Pkgs, 'packages/foo'),
+  ], {
+    lockfileDir: workspaceWith2Pkgs,
+  }), `${LEGEND}
+
+bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}
+
+${DEPENDENCIES}
+is-positive ${VERSION_CLR('1.0.0')}
+
+foo@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/foo')}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}`)

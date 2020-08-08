@@ -26,7 +26,12 @@ export default async function (
     search: boolean,
   }
 ) {
-  return (await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))).filter(Boolean).join('\n\n')
+  const output = (
+    await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))
+  )
+    .filter(Boolean)
+    .join('\n\n')
+  return `${(opts.depth > -1 && output ? LEGEND : '')}${output}`
 }
 
 async function renderTreeForPackage (
@@ -55,7 +60,7 @@ async function renderTreeForPackage (
     label += ' '
   }
   label += pkg.path
-  let output = (opts.depth > -1 ? LEGEND : '') + label + '\n'
+  let output = `${label}\n`
   const useColumns = opts.depth === 0 && opts.long === false && !opts.search
   for (let dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
     if (pkg[dependenciesField]?.length) {
