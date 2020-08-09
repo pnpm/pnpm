@@ -194,7 +194,6 @@ export default async function linkPackages (
       force: opts.force,
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
-      registries: opts.registries,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       skipped: opts.skipped,
       storeController: opts.storeController,
@@ -366,7 +365,6 @@ async function linkNewPackages (
     dryRun: boolean,
     force: boolean,
     optional: boolean,
-    registries: Registries,
     lockfileDir: string,
     sideEffectsCacheRead: boolean,
     skipped: Set<string>,
@@ -385,7 +383,7 @@ async function linkNewPackages (
         .filter((depPath) => depGraph[depPath])
     )
   } else {
-    newDepPathsSet = await selectNewFromWantedDeps(wantedRelDepPaths, currentLockfile, depGraph, opts)
+    newDepPathsSet = await selectNewFromWantedDeps(wantedRelDepPaths, currentLockfile, depGraph)
   }
 
   statsLogger.debug({
@@ -440,19 +438,20 @@ async function linkNewPackages (
 async function selectNewFromWantedDeps (
   wantedRelDepPaths: string[],
   currentLockfile: Lockfile,
-  depGraph: DependenciesGraph,
-  opts: {
-    registries: Registries,
-  }
+  depGraph: DependenciesGraph
 ) {
   const newDeps = new Set<string>()
-  const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
+  const prevDeps = currentLockfile.packages ?? {}
   await Promise.all(
     wantedRelDepPaths.map(
       async (depPath: string) => {
         const depNode = depGraph[depPath]
         if (!depNode) return
-        if (prevRelDepPaths.has(depPath)) {
+        const prevDep = prevDeps[depPath]
+        if (
+          prevDep &&
+          depNode.resolution['integrity'] === prevDep.resolution['integrity']
+        ) {
           if (await fs.exists(depNode.dir)) {
             return
           }
