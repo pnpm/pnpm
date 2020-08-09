@@ -178,6 +178,9 @@ test('update tarball local package when its integrity changes', async (t) => {
 
   const lockfile2 = await project.readLockfile()
   t.equal(lockfile2.packages['file:../tar.tgz'].dependencies!['is-positive'], '2.0.0', 'the local tarball dep has been updated')
+
+  const manifestOfTarballDep = await import(path.resolve('node_modules/tar-pkg-with-dep/package.json'))
+  t.equal(manifestOfTarballDep.dependencies['is-positive'], '^2.0.0', 'the tarball dependency content was reunpacked')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1878
