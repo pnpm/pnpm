@@ -1,5 +1,13 @@
 # supi
 
+## 0.41.18
+
+### Patch Changes
+
+- 9b90591e4: The contents of a modified local tarball dependency should be reunpacked on install.
+- Updated dependencies [400f41976]
+  - @pnpm/headless@14.0.15
+
 ## 0.41.17
 
 ### Patch Changes

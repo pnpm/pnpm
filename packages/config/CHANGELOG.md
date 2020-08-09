@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.2.2
+
+### Patch Changes
+
+- 3f6d35997: Don't read the `.npmrc` files that are outside of the current workspace.
+
 ## 11.2.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 14.0.15
+
+### Patch Changes
+
+- 400f41976: Hoisting should work in a workspace that has no root package.
+
 ## 14.0.14
 
 ### Patch Changes

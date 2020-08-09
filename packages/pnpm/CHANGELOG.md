@@ -1,20 +1,22 @@
 # pnpm
 
-## 5.0.0-1
+## 5.5.0
 
-### Bug Fixes
-
-- Don't leave empty temp directories in home directory (#2749).
-
-## 5.0.0-0
-
-### Features
+### Minor Changes
 
 - Allow unknown options that are prefixed with `config.`
 
   `pnpm install --foo` would fail with an unknown option error.
 
   `pnpm install --config.foo` will work fine, setting the `npm_config_foo` environment variable for child lifecycle events.
+
+### Patch Changes
+
+- Don't leave empty temp directories in home directory (#2749).
+- Reunpack the contents of a modified tarball dependency (#2747).
+- `pnpm list -r` should print the legend only once.
+- Don't read the `.npmrc` file that is outside the workspace.
+- Hoisting should work in a workspace that has no root project.
 
 ## 5.4.12
 

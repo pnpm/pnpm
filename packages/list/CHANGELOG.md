@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 5.0.5
+
+### Patch Changes
+
+- aa21a2df3: Print the legend only once.
+
 ## 5.0.4
 
 ### Patch Changes
