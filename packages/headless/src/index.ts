@@ -240,9 +240,8 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  const rootImporterWithFlatModules = (opts.hoistPattern || opts.publicHoistPattern) && opts.projects.find(({ id }) => id === '.')
   let newHoistedDependencies!: HoistedDependencies
-  if (rootImporterWithFlatModules) {
+  if (opts.hoistPattern || opts.publicHoistPattern) {
     newHoistedDependencies = await hoist({
       lockfile: filteredLockfile,
       lockfileDir,
