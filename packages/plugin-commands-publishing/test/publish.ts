@@ -16,6 +16,7 @@ const CREDENTIALS = [
   `--//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}`,
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ]
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('publish: package with package.json', async (t) => {
   prepare(t, {
@@ -113,7 +114,7 @@ test('pack packages with workspace LICENSE if no own LICENSE is present', async 
 
   process.chdir('../target')
 
-  crossSpawn.sync('pnpm', ['add', '../project-1/project-1-1.0.0.tgz', '../project-2/project-2-1.0.0.tgz'])
+  crossSpawn.sync(pnpmBin, ['add', '../project-1/project-1-1.0.0.tgz', '../project-2/project-2-1.0.0.tgz'])
 
   t.equal(await fs.readFile('node_modules/project-1/LICENSE', 'utf8'), 'workspace license')
   t.equal(await fs.readFile('node_modules/project-2/LICENSE', 'utf8'), 'project-2 license')
@@ -163,7 +164,7 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
 
   process.chdir('../target')
 
-  crossSpawn.sync('pnpm', ['add', 'project-100', 'project-200', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync(pnpmBin, ['add', 'project-100', 'project-200', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   t.equal(await fs.readFile('node_modules/project-100/LICENSE', 'utf8'), 'workspace license')
   t.equal(await fs.readFile('node_modules/project-200/LICENSE', 'utf8'), 'project-200 license')
@@ -241,7 +242,7 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
   })
 
   process.chdir('../test-publish-config-installation')
-  crossSpawn.sync('pnpm', ['add', 'test-publish-config', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync(pnpmBin, ['add', 'test-publish-config', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const publishedManifest = await import(path.resolve('node_modules/test-publish-config/package.json'))
   t.deepEqual(publishedManifest, {
@@ -408,7 +409,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
 
   process.chdir('..')
 
-  crossSpawn.sync('pnpm', ['multi', 'install', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync(pnpmBin, ['multi', 'install', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   process.chdir('workspace-protocol-package')
   await publish.handler({
@@ -419,7 +420,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
 
   process.chdir('../target')
 
-  crossSpawn.sync('pnpm', ['add', '--store-dir=../store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync(pnpmBin, ['add', '--store-dir=../store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const publishedManifest = await import(path.resolve('node_modules/workspace-protocol-package/package.json'))
   t.deepEqual(publishedManifest.dependencies, {
@@ -461,7 +462,7 @@ test('publish: runs all the lifecycle scripts', async (t) => {
     },
   })
 
-  crossSpawn.sync('pnpm', ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync(pnpmBin, ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -503,7 +504,7 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
     },
   })
 
-  crossSpawn.sync('pnpm', ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync(pnpmBin, ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   await publish.handler({
     ...DEFAULT_OPTS,
