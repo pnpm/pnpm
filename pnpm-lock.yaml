@@ -210,7 +210,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/global-bin-dir': 'link:../global-bin-dir'
       '@pnpm/types': 'link:../types'
-      '@zkochan/npm-conf': 2.0.1
+      '@zkochan/npm-conf': 2.0.2
       camelcase: 6.0.0
       is-subdir: 1.1.1
       ramda: 0.27.1
@@ -231,7 +231,7 @@ importers:
       '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.14
       '@types/which': ^1.3.2
-      '@zkochan/npm-conf': 2.0.1
+      '@zkochan/npm-conf': 2.0.2
       camelcase: ^6.0.0
       is-subdir: ^1.1.1
       mz: ^2.7.0
@@ -3970,14 +3970,14 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-pkwTuA8Cd301zhg0Gz35nJ2sxKhGr5lFKFI6UT9ISEedGSYzxATsFlCF41+i/0kZcnZTG1nNlR5XknkZBGryuw==
-  /@zkochan/npm-conf/2.0.1:
+  /@zkochan/npm-conf/2.0.2:
     dependencies:
       config-chain: 1.1.12
     dev: false
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-XbeSEsvGcvtgsPt3WxC88vFFqLpAOz610LRf+ztvuXaeUn/IHE3Wkzji0jQJahDl1+bBIeOoQJdHL0QjHIMjjw==
+      integrity: sha512-nF6cxXu/3x0gbIGZdiajpL6diySPoU5T5Mh0TXSjHp2shZoqtZgRj3zdIc/pkd6kKAWaktFvOFFo5kTqwne/tg==
   /@zkochan/npm-lifecycle/4.0.0:
     dependencies:
       byline: 5.0.0

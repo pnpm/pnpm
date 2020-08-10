@@ -35,7 +35,7 @@
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/global-bin-dir": "workspace:^1.2.0",
     "@pnpm/types": "workspace:6.2.0",
-    "@zkochan/npm-conf": "2.0.1",
+    "@zkochan/npm-conf": "2.0.2",
     "camelcase": "^6.0.0",
     "is-subdir": "^1.1.1",
     "ramda": "^0.27.1",
