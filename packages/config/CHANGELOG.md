@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.2.3
+
+### Patch Changes
+
+- 13c18e397: Stop searching for local prefix, when directory has a `package.json5` or `package.yaml`.
+
 ## 11.2.2
 
 ### Patch Changes

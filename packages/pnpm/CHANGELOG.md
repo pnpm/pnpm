@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.5.1
+
+### Patch Changes
+
+- Stop looking for project root not only when `package.json` or `node_modules` is found
+  but also on `package.json5` and `package.yaml`.
+
 ## 5.5.0
 
 ### Minor Changes
