@@ -82,6 +82,7 @@ export default async function (
     appendedArgs.push('--dry-run')
   }
   const chunks = sortPackages(opts.selectedProjectsGraph)
+  const tag = opts.tag ?? 'latest'
   for (const chunk of chunks) {
     for (const pkgDir of chunk) {
       if (!publishedPkgDirs.has(pkgDir)) continue
@@ -93,7 +94,7 @@ export default async function (
             'publish',
             pkg.dir,
             '--tag',
-            'pnpm-temp',
+            tag,
             '--registry',
             pickRegistryForPackage(opts.registries, pkg.manifest.name!),
             ...appendedArgs,
@@ -103,17 +104,6 @@ export default async function (
         recursive: false,
       }, [pkg.dir])
     }
-  }
-  const tag = opts.tag || 'latest'
-  for (const pkg of pkgsToPublish) {
-    runNpm(opts.npmPath, [
-      'dist-tag',
-      'add',
-      `${pkg.manifest.name}@${pkg.manifest.version}`,
-      tag,
-      '--registry',
-      pickRegistryForPackage(opts.registries, pkg.manifest.name!),
-    ])
   }
 }
 
