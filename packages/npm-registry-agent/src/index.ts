@@ -9,21 +9,20 @@ const HttpsAgent = HttpAgent.HttpsAgent
 
 const AGENT_CACHE = new LRU({ max: 50 })
 
-export default function getAgent (
-  uri: string,
-  opts: {
-    localAddress?: string,
-    strictSSL?: boolean,
-    ca?: string,
-    cert?: string,
-    key?: string,
-    maxSockets?: number,
-    timeout?: number,
-    httpProxy?: string,
-    httpsProxy?: string,
-    noProxy?: boolean | string,
-  }
-) {
+export type AgentOptions = {
+  ca?: string,
+  cert?: string,
+  httpProxy?: string,
+  httpsProxy?: string,
+  key?: string,
+  localAddress?: string,
+  maxSockets?: number,
+  noProxy?: boolean | string,
+  strictSSL?: boolean,
+  timeout?: number,
+}
+
+export default function getAgent (uri: string, opts: AgentOptions) {
   const parsedUri = new URL(uri)
   const isHttps = parsedUri.protocol === 'https:'
   const pxuri = getProxyUri(uri, opts)

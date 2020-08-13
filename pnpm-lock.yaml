@@ -1,7 +1,7 @@
 importers:
   .:
     devDependencies:
-      '@changesets/cli': 2.9.2
+      '@changesets/cli': 2.10.0
       '@pnpm/registry-mock': 2.0.1
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
@@ -21,7 +21,7 @@ importers:
       verdaccio: 4.8.1
       yarn: 1.22.4
     specifiers:
-      '@changesets/cli': ^2.9.2
+      '@changesets/cli': ^2.10.0
       '@pnpm/registry-mock': ^2.0.1
       '@pnpm/tsconfig': 'workspace:*'
       '@pnpm/tslint-config': 'workspace:*'
@@ -3045,7 +3045,7 @@ packages:
       integrity: sha512-i6rgnR/YgPEQzZZnbTHHuZdlE8qyoBNalD6F+q4vAFlcMEcqmkoG+mPqJYJCo63qPf74+Y1UZsl3l6f7/RIkmA==
   /@babel/runtime/7.11.2:
     dependencies:
-      regenerator-runtime: 0.13.5
+      regenerator-runtime: 0.13.7
     resolution:
       integrity: sha512-TeWkU52so0mPtDcaCTxNBI/IHiz0pZgr8VEFqXFtZWpYD08ZB6FaSwVAS8MKRQAP3bYKiVjwysOJgMFY28o6Tw==
   /@bcoe/v8-coverage/0.2.3:
@@ -3057,9 +3057,9 @@ packages:
       '@babel/runtime': 7.11.2
       '@changesets/config': 1.3.0
       '@changesets/get-version-range-type': 0.3.2
-      '@changesets/git': 1.0.5
-      '@changesets/types': 3.1.0
-      '@manypkg/get-packages': 1.1.0
+      '@changesets/git': 1.0.6
+      '@changesets/types': 3.1.1
+      '@manypkg/get-packages': 1.1.1
       fs-extra: 7.0.1
       lodash.startcase: 4.4.0
       outdent: 0.5.0
@@ -3074,13 +3074,13 @@ packages:
       '@babel/runtime': 7.11.2
       '@changesets/errors': 0.1.4
       '@changesets/get-dependents-graph': 1.1.3
-      '@changesets/types': 3.1.0
-      '@manypkg/get-packages': 1.1.0
+      '@changesets/types': 3.1.1
+      '@manypkg/get-packages': 1.1.1
       semver: 5.7.1
     dev: true
     resolution:
       integrity: sha512-TvcqUhNhKoqwE+L8dFtcwwAmos4+fqwmSkOWP3TSjw7K/inz2wjC46bA7IFtbx2hrwEq1iG0RCweQZTS2vrx1w==
-  /@changesets/cli/2.9.2:
+  /@changesets/cli/2.10.0:
     dependencies:
       '@babel/runtime': 7.11.2
       '@changesets/apply-release-plan': 4.0.0
@@ -3089,17 +3089,18 @@ packages:
       '@changesets/errors': 0.1.4
       '@changesets/get-dependents-graph': 1.1.3
       '@changesets/get-release-plan': 2.0.0
-      '@changesets/git': 1.0.5
+      '@changesets/git': 1.0.6
       '@changesets/logger': 0.0.5
       '@changesets/pre': 1.0.5
       '@changesets/read': 0.4.6
-      '@changesets/types': 3.1.0
+      '@changesets/types': 3.1.1
       '@changesets/write': 0.1.3
-      '@manypkg/get-packages': 1.1.0
+      '@manypkg/get-packages': 1.1.1
       '@types/semver': 6.2.1
       boxen: 1.3.0
       chalk: 2.4.2
       enquirer: 2.3.6
+      external-editor: 3.1.0
       fs-extra: 7.0.1
       human-id: 1.0.2
       is-ci: 2.0.0
@@ -3114,14 +3115,14 @@ packages:
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-1L9391G4YlofC1UbfwmBrsefwC03mJHK5Cn8oSozhQJMbRlCJLBJiOn5PHFruVMFcvACGER3R+2Yv62pGKneDw==
+      integrity: sha512-HVgfZrFlUbk34y+uYhgYnQsFRqjDDSxdhhZDQYtdMPprhXOmrCAih8frjSJl73sjU4s2TAlXb+d3/ZgTFeki9w==
   /@changesets/config/1.3.0:
     dependencies:
       '@changesets/errors': 0.1.4
       '@changesets/get-dependents-graph': 1.1.3
       '@changesets/logger': 0.0.5
-      '@changesets/types': 3.1.0
-      '@manypkg/get-packages': 1.1.0
+      '@changesets/types': 3.1.1
+      '@manypkg/get-packages': 1.1.1
       fs-extra: 7.0.1
     dev: true
     resolution:
@@ -3134,8 +3135,8 @@ packages:
       integrity: sha512-HAcqPF7snsUJ/QzkWoKfRfXushHTu+K5KZLJWPb34s4eCZShIf8BFO3fwq6KU8+G7L5KdtN2BzQAXOSXEyiY9Q==
   /@changesets/get-dependents-graph/1.1.3:
     dependencies:
-      '@changesets/types': 3.1.0
-      '@manypkg/get-packages': 1.1.0
+      '@changesets/types': 3.1.1
+      '@manypkg/get-packages': 1.1.1
       chalk: 2.4.2
       fs-extra: 7.0.1
       semver: 5.7.1
@@ -3149,8 +3150,8 @@ packages:
       '@changesets/config': 1.3.0
       '@changesets/pre': 1.0.5
       '@changesets/read': 0.4.6
-      '@changesets/types': 3.1.0
-      '@manypkg/get-packages': 1.1.0
+      '@changesets/types': 3.1.1
+      '@manypkg/get-packages': 1.1.1
     dev: true
     resolution:
       integrity: sha512-MHbgXMhkfWhXH1zUefrdtQ8IR+H46lAcKthKjptV28k0qGEcDk7KriYLukJ6BNkWiZkkZ/aycaivbNDclF9zaw==
@@ -3158,17 +3159,17 @@ packages:
     dev: true
     resolution:
       integrity: sha512-SVqwYs5pULYjYT4op21F2pVbcrca4qA/bAA3FmFXKMN7Y+HcO8sbZUTx3TAy2VXulP2FACd1aC7f2nTuqSPbqg==
-  /@changesets/git/1.0.5:
+  /@changesets/git/1.0.6:
     dependencies:
       '@babel/runtime': 7.11.2
       '@changesets/errors': 0.1.4
-      '@changesets/types': 3.1.0
-      '@manypkg/get-packages': 1.1.0
+      '@changesets/types': 3.1.1
+      '@manypkg/get-packages': 1.1.1
       is-subdir: 1.1.1
       spawndamnit: 2.0.0
     dev: true
     resolution:
-      integrity: sha512-MgacjTRCrfFCffvoipqbtHSENydaO+HDR6z+gDQ49Gl2kHIat0iIazL1TBfEuW8H4eGCay+Naz/x6412ucUOTw==
+      integrity: sha512-e0M06XuME3W5lGhz+CO0vLc60u+hLk/pYjOx/6GXEWuQrwtGgeycFIfRgRt8qTs664o1oKtVHBbd7ItpoWgFfA==
   /@changesets/logger/0.0.5:
     dependencies:
       chalk: 2.4.2
@@ -3177,7 +3178,7 @@ packages:
       integrity: sha512-gJyZHomu8nASHpaANzc6bkQMO9gU/ib20lqew1rVx753FOxffnCrJlGIeQVxNWCqM+o6OOleCo/ivL8UAO5iFw==
   /@changesets/parse/0.3.6:
     dependencies:
-      '@changesets/types': 3.1.0
+      '@changesets/types': 3.1.1
       js-yaml: 3.14.0
     dev: true
     resolution:
@@ -3186,8 +3187,8 @@ packages:
     dependencies:
       '@babel/runtime': 7.11.2
       '@changesets/errors': 0.1.4
-      '@changesets/types': 3.1.0
-      '@manypkg/get-packages': 1.1.0
+      '@changesets/types': 3.1.1
+      '@manypkg/get-packages': 1.1.1
       fs-extra: 7.0.1
     dev: true
     resolution:
@@ -3195,24 +3196,24 @@ packages:
   /@changesets/read/0.4.6:
     dependencies:
       '@babel/runtime': 7.11.2
-      '@changesets/git': 1.0.5
+      '@changesets/git': 1.0.6
       '@changesets/logger': 0.0.5
       '@changesets/parse': 0.3.6
-      '@changesets/types': 3.1.0
+      '@changesets/types': 3.1.1
       chalk: 2.4.2
       fs-extra: 7.0.1
       p-filter: 2.1.0
     dev: true
     resolution:
       integrity: sha512-rOd8dsF/Lgyy2SYlDalb3Ts/meDI2AcKPXYhSXIW3k6+ZLlj6Pt+nmgV5Ut8euyH7loibklNTDemfvMffF4xig==
-  /@changesets/types/3.1.0:
+  /@changesets/types/3.1.1:
     dev: true
     resolution:
-      integrity: sha512-czOfaaxr5aGnNwVRgWr3n2CKoc3iRTfrHM4wUHQ+rBlLKKk9NzGwZ2EPsXkp4CUw4hWHGEOi8hdeIfDTWKrWgg==
+      integrity: sha512-XWGEGWXhM92zvBWiQt2sOwhjTt8eCQbrsRbqkv4WYwW3Zsl4qPpvhHsNt845S42dJXrxgjWvId+jxFQocCayNQ==
   /@changesets/write/0.1.3:
     dependencies:
       '@babel/runtime': 7.11.2
-      '@changesets/types': 3.1.0
+      '@changesets/types': 3.1.1
       fs-extra: 7.0.1
       human-id: 1.0.2
       prettier: 1.19.1
@@ -3410,7 +3411,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==
-  /@manypkg/get-packages/1.1.0:
+  /@manypkg/get-packages/1.1.1:
     dependencies:
       '@babel/runtime': 7.11.2
       '@manypkg/find-root': 1.1.0
@@ -3419,7 +3420,7 @@ packages:
       read-yaml-file: 1.1.0
     dev: true
     resolution:
-      integrity: sha512-s1Bceeu/zy769nFJRa0F6WzHKf0J21vrRN1jrTeZJ+q3LDxspV3JbQkgCLgYVlWD0d81cXK1gCwR1+oJhBejHQ==
+      integrity: sha512-J6VClfQSVgR6958eIDTGjfdCrELy1eT+SHeoSMomnvRQVktZMnEA5edIr5ovRFNw5y+Bk/jyoevPzGYod96mhw==
   /@most/multicast/1.3.0_most@1.8.1:
     dependencies:
       '@most/prelude': 1.7.3
@@ -4686,9 +4687,9 @@ packages:
   /aws-sign2/0.7.0:
     resolution:
       integrity: sha1-tG6JCTSpWR8tL2+G1+ap8bP+dqg=
-  /aws4/1.10.0:
+  /aws4/1.10.1:
     resolution:
-      integrity: sha512-3YDiu347mtVtjpyV3u5kVqQLP242c06zwDOgpeRnybmXlYYsLbtTrUBUm8i8srONt+FWobl5aibnU1030PeeuA==
+      integrity: sha512-zg7Hz2k5lI8kb7U32998pRRFin7zJlkfezGJjUc2heaD4Pw2wObakCDVzkKztTm/Ln7eiVvYsjqak0Ed4LkMDA==
   /babel-polyfill/6.26.0:
     dependencies:
       babel-runtime: 6.26.0
@@ -5088,6 +5089,10 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-kWWXztvZ5SBQV+eRgKFeh8q5sLuZY2+8WUIzlxWVTg+oGwY14qylx1KbKzHd8P6ZYkAg0xyIDU9JMHhyJMZ1jw==
+  /chardet/0.7.0:
+    dev: true
+    resolution:
+      integrity: sha512-mT8iDcrh03qDGRRmoA2hmBJnxpllMR+0/0qlzjqZES6NdiWDcZkCNAk4rPFZ9Q85r27unkiNNg8ZOiwZXBHwcA==
   /choices-separator/2.0.0:
     dependencies:
       ansi-dim: 0.1.1
@@ -6232,12 +6237,12 @@ packages:
   /execa/4.0.3:
     dependencies:
       cross-spawn: 7.0.3
-      get-stream: 5.1.0
+      get-stream: 5.2.0
       human-signals: 1.1.1
       is-stream: 2.0.0
       merge-stream: 2.0.0
       npm-run-path: 4.0.1
-      onetime: 5.1.1
+      onetime: 5.1.2
       signal-exit: 3.0.3
       strip-final-newline: 2.0.0
     engines:
@@ -6331,6 +6336,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-UOiS2in6/Q0FK0R0q6UY9vYpQ21mr/Qn1KOnte7vsACuNJf514WvCCUHSRCPcgjPT2bAhNIJdlE6bVap1GKmeg==
+  /external-editor/3.1.0:
+    dependencies:
+      chardet: 0.7.0
+      iconv-lite: 0.4.24
+      tmp: 0.0.33
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-hMQ4CX1p1izmuLYyZqLMO/qGNw10wSv9QDCPfzXfyFrOaCSSoRfqE1Kf1s5an66J5JZC62NewG+mK49jOCtQew==
   /extglob/2.0.4:
     dependencies:
       array-unique: 0.3.2
@@ -6744,6 +6759,13 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-EXr1FOzrzTfGeL0gQdeFEvOMm2mzMOglyiOXSTpPC+iAjAKftbr3jpCMWynogwYnM+eSj9sHGc6wjIcDvYiygw==
+  /get-stream/5.2.0:
+    dependencies:
+      pump: 3.0.0
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA==
   /get-value/2.0.6:
     dev: true
     engines:
@@ -9125,10 +9147,18 @@ packages:
   /onetime/5.1.1:
     dependencies:
       mimic-fn: 2.1.0
+    dev: true
     engines:
       node: '>=6'
     resolution:
       integrity: sha512-ZpZpjcJeugQfWsfyQlshVoowIIQ1qBGSVll4rfDq6JJVO//fesjoX808hXWfBjY+ROZgpKDI5TRSRBSoJiZ8eg==
+  /onetime/5.1.2:
+    dependencies:
+      mimic-fn: 2.1.0
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==
   /opencollective-postinstall/2.0.3:
     dev: true
     hasBin: true
@@ -9170,7 +9200,6 @@ packages:
     resolution:
       integrity: sha1-/7xJiDNuDoM94MFox+8VISGqf7M=
   /os-tmpdir/1.0.2:
-    dev: false
     engines:
       node: '>=0.10.0'
     resolution:
@@ -10156,8 +10185,12 @@ packages:
     resolution:
       integrity: sha512-MguG95oij0fC3QV3URf4V2SDYGJhJnJGqvIIgdECeODCT98wSWDAJ94SSuVpYQUoTcGUIL6L4yNB7j1DFFHSBg==
   /regenerator-runtime/0.13.5:
+    dev: true
     resolution:
       integrity: sha512-ZS5w8CpKFinUzOwW3c83oPeVXoNsrLsaCoLtJvAClH135j/R77RuymhiSErhm2lKcwSCIpmvIWSbDkIfAqKQlA==
+  /regenerator-runtime/0.13.7:
+    resolution:
+      integrity: sha512-a54FxoJDIr27pgf7IgeQGxmqUNYrcV338lf/6gH456HZ/PhX+5BcwHXG9ajESmwe6WRO0tAzRUrRmNONWgkrew==
   /regex-not/1.0.2:
     dependencies:
       extend-shallow: 3.0.2
@@ -10291,7 +10324,7 @@ packages:
   /request/2.88.0:
     dependencies:
       aws-sign2: 0.7.0
-      aws4: 1.10.0
+      aws4: 1.10.1
       caseless: 0.12.0
       combined-stream: 1.0.8
       extend: 3.0.2
@@ -10319,7 +10352,7 @@ packages:
   /request/2.88.2:
     dependencies:
       aws-sign2: 0.7.0
-      aws4: 1.10.0
+      aws4: 1.10.1
       caseless: 0.12.0
       combined-stream: 1.0.8
       extend: 3.0.2
@@ -11383,6 +11416,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-dkpaEa9QVhkhsTPztE5hhofg9cM=
+  /tmp/0.0.33:
+    dependencies:
+      os-tmpdir: 1.0.2
+    dev: true
+    engines:
+      node: '>=0.6.0'
+    resolution:
+      integrity: sha512-jRCJlojKnZ3addtTOjdIqoRuPEKBvNXcGYqzO6zWZX8KfKEpnGY5jfggJQ3EjKuu8D4bJRr0y+cYJFmYbImXGw==
   /to-absolute-glob/2.0.2:
     dependencies:
       is-absolute: 1.0.0

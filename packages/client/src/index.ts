@@ -1,5 +1,5 @@
 import createResolve, { ResolverFactoryOptions } from '@pnpm/default-resolver'
-import { createFetchFromRegistry } from '@pnpm/fetch'
+import { AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import fetchFromGit from '@pnpm/git-fetcher'
 import createTarballFetcher from '@pnpm/tarball-fetcher'
@@ -8,17 +8,9 @@ import mem = require('mem')
 
 export default function (opts: {
   authConfig: Record<string, string>,
-  ca?: string,
-  cert?: string,
-  key?: string,
-  localAddress?: string,
-  noProxy?: string | boolean,
-  httpProxy?: string,
-  httpsProxy?: string,
   retry?: RetryTimeoutOptions,
-  strictSSL?: boolean,
   userAgent?: string,
-} & ResolverFactoryOptions) {
+} & ResolverFactoryOptions & AgentOptions) {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry))
   return {

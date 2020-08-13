@@ -1,5 +1,5 @@
 import { FetchFromRegistry } from '@pnpm/fetching-types'
-import npmRegistryAgent from '@pnpm/npm-registry-agent'
+import npmRegistryAgent, { AgentOptions } from '@pnpm/npm-registry-agent'
 import { URL } from 'url'
 import fetch, { isRedirect, Response } from './fetch'
 
@@ -9,19 +9,13 @@ const CORGI_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json;
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
 
+export { AgentOptions }
+
 export default function (
   defaultOpts: {
     fullMetadata?: boolean,
-    // proxy
-    proxy?: string,
-    localAddress?: string,
-    // ssl
-    ca?: string,
-    cert?: string,
-    key?: string,
-    strictSSL?: boolean,
     userAgent?: string,
-  }
+  } & AgentOptions
 ): FetchFromRegistry {
   return async (url, opts): Promise<Response> => {
     const headers = {
