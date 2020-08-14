@@ -482,7 +482,7 @@ importers:
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/matcher': 'link:../matcher'
       execa: 4.0.3
-      find-up: 4.1.0
+      find-up: 5.0.0
       is-subdir: 1.1.1
       pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.27.1
@@ -506,7 +506,7 @@ importers:
       '@types/ramda': ^0.27.14
       '@types/touch': ^3.1.1
       execa: ^4.0.3
-      find-up: ^4.1.0
+      find-up: ^5.0.0
       is-ci: ^2.0.0
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
@@ -530,9 +530,9 @@ importers:
       p-filter: ^2.1.0
   packages/find-workspace-dir:
     dependencies:
-      find-up: 4.1.0
+      find-up: 5.0.0
     specifiers:
-      find-up: ^4.1.0
+      find-up: ^5.0.0
   packages/find-workspace-packages:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -6491,6 +6491,15 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw==
+  /find-up/5.0.0:
+    dependencies:
+      locate-path: 6.0.0
+      path-exists: 4.0.0
+    dev: false
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-78/PXT1wlLLDgTzDs7sjq9hzz0vXD+zn+7wypEe4fXQxCmdmqfGsEPQxmiCSQI3ajFV91bVSsvNtrJRiW6nGng==
   /find-versions/3.2.0:
     dependencies:
       semver-regex: 2.0.0
@@ -8171,6 +8180,14 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g==
+  /locate-path/6.0.0:
+    dependencies:
+      p-locate: 5.0.0
+    dev: false
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==
   /lockfile/1.0.4:
     dependencies:
       signal-exit: 3.0.3
@@ -9326,6 +9343,14 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-R79ZZ/0wAxKGu3oYMlz8jy/kbhsNrS7SKZ7PxEHBgJ5+F2mtFW2fK2cOtBh1cHYkQsbzFV7I+EoRKe6Yt0oK7A==
+  /p-locate/5.0.0:
+    dependencies:
+      p-limit: 3.0.2
+    dev: false
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==
   /p-map/2.1.0:
     engines:
       node: '>=6'

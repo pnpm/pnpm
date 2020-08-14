@@ -33,7 +33,7 @@
     "@pnpm/find-workspace-packages": "workspace:2.3.7",
     "@pnpm/matcher": "workspace:1.0.3",
     "execa": "^4.0.3",
-    "find-up": "^4.1.0",
+    "find-up": "^5.0.0",
     "is-subdir": "^1.1.1",
     "pkgs-graph": "workspace:5.2.0",
     "ramda": "^0.27.1"
