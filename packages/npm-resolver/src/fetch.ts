@@ -24,12 +24,15 @@ class RegistryResponseError extends FetchError {
     response: FetchErrorResponse,
     pkgName: string
   ) {
-    let info = `Failed to fetch metadata for ${pkgName}.`
-    const matched = pkgName.match(semvarRegex)
-    if (matched) {
-      info += ` Did you mean ${matched[1]}?`
+    let hint: string | undefined
+    if (response.status === 404) {
+      hint = `${pkgName} is not in the npm registry.`
+      const matched = pkgName.match(semvarRegex)
+      if (matched) {
+        hint += ` Did you mean ${matched[1]}?`
+      }
     }
-    super(request, response, info)
+    super(request, response, hint)
     this.pkgName = pkgName
   }
 }

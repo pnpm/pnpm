@@ -731,8 +731,8 @@ test('error is thrown when package is not found in the registry', async t => {
     await resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, `GET https://registry.npmjs.org/foo Not Found (404).
-Failed to fetch metadata for ${notExistingPackage}.`)
+    t.equal(err.message, `GET https://registry.npmjs.org/foo: Not Found - 404`)
+    t.equal(err['hint'], `${notExistingPackage} is not in the npm registry.`)
     t.equal(err['pkgName'], notExistingPackage)
     t.equal(err['code'], 'ERR_PNPM_FETCH_404')
     t.equal(err['request']['url'], `${registry}${notExistingPackage}`)
@@ -756,8 +756,8 @@ test('extra info is shown if package has valid semver appended', async t => {
     await resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, `GET https://registry.npmjs.org/foo1.0.0 Not Found (404).
-Failed to fetch metadata for ${notExistingPackage}. Did you mean foo?`)
+    t.equal(err.message, `GET https://registry.npmjs.org/foo1.0.0: Not Found - 404`)
+    t.equal(err['hint'], `${notExistingPackage} is not in the npm registry. Did you mean foo?`)
     t.equal(err['pkgName'], notExistingPackage)
     t.equal(err['code'], 'ERR_PNPM_FETCH_404')
     t.equal(err['request']['url'], `${registry}${notExistingPackage}`)
@@ -800,9 +800,8 @@ test('error is thrown when package needs authorization', async t => {
     await resolveFromNpm({ alias: 'needs-auth', pref: '*' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, `GET https://registry.npmjs.org/needs-auth Forbidden (403).
-Failed to fetch metadata for needs-auth.
-No authorization header was set for the request.`)
+    t.equal(err.message, `GET https://registry.npmjs.org/needs-auth: Forbidden - 403`)
+    t.equal(err['hint'], `No authorization header was set for the request.`)
     t.equal(err['pkgName'], 'needs-auth')
     t.equal(err['code'], 'ERR_PNPM_FETCH_403')
     t.equal(err['request']['url'], `${registry}needs-auth`)

@@ -2,7 +2,7 @@ export default class PnpmError extends Error {
   public readonly code: string
   public readonly hint?: string
   public pkgsStack?: Array<{ id: string, name: string, version: string }>
-  constructor (code: string, message: string, opts?: { hint: string }) {
+  constructor (code: string, message: string, opts?: { hint?: string }) {
     super(message)
     this.code = `ERR_PNPM_${code}`
     this.hint = opts?.hint
@@ -20,23 +20,20 @@ export class FetchError extends PnpmError {
   constructor (
     request: FetchErrorRequest,
     response: FetchErrorResponse,
-    details?: string
+    hint?: string
   ) {
-    let message = `GET ${request.url} ${response.statusText} (${response.status}).`
-    if (details) {
-      message += `\n${details}`
-    }
+    let message = `GET ${request.url}: ${response.statusText} - ${response.status}`
     const authHeaderValue = request.authHeaderValue
       ? hideAuthInformation(request.authHeaderValue) : undefined
     if (response.status === 401 || response.status === 403) {
-      message += `\n`
+      hint = hint ? `${hint}\n\n` : ''
       if (authHeaderValue) {
-        message += `An authorization header was used: ${authHeaderValue}`
+        hint += `An authorization header was used: ${authHeaderValue}`
       } else {
-        message += `No authorization header was set for the request.`
+        hint += `No authorization header was set for the request.`
       }
     }
-    super(`FETCH_${response.status}`, message)
+    super(`FETCH_${response.status}`, message, { hint })
     this.request = request
     this.response = response
   }

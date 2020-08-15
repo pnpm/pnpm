@@ -45,7 +45,7 @@ export default function reportError (logObj: Log, config?: Config) {
         return reportEngineError(err, logObj['message'])
       case 'ERR_PNPM_FETCH_401':
       case 'ERR_PNPM_FETCH_403':
-        return reportAuthError(err, config)
+        return reportAuthError(err, logObj['message'], config)
       default:
         // Errors with unknown error codes are printed with stack trace
         if (!err.code?.startsWith?.('ERR_PNPM_')) {
@@ -289,6 +289,7 @@ To fix this issue, install the required Node version.`
 
 function reportAuthError (
   err: Error,
+  msg: { hint?: string },
   config?: Config
 ) {
   const foundSettings = [] as string[]
@@ -307,7 +308,7 @@ function reportAuthError (
       foundSettings.push(`${key}=${hideSecureInfo(key, value)}`)
     }
   }
-  return `${formatErrorSummary(err.message)}
+  return `${formatErrorSummary(err.message)}${msg.hint ? `${EOL}${msg.hint}` : ''}
 
 These authorization settings were found:
 ${foundSettings.join('\n')}`

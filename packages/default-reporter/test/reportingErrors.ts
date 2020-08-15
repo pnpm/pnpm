@@ -458,7 +458,7 @@ test('prints authorization error', t => {
     streamParser: createStreamParser(),
   })
 
-  const err = new PnpmError('FETCH_401', 'some error')
+  const err = new PnpmError('FETCH_401', 'some error', { hint: 'some hint' })
   logger.error(err, err)
 
   t.plan(1)
@@ -468,6 +468,7 @@ test('prints authorization error', t => {
     error: t.end,
     next: output => {
       t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+some hint
 
 These authorization settings were found:
 //foo.bar:_auth=9876[hidden]
