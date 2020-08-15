@@ -1,5 +1,5 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import PnpmError, { FetchError } from '@pnpm/error'
 import {
   Cafs,
   DeferredManifestPromise,
@@ -12,19 +12,6 @@ import { IncomingMessage } from 'http'
 import ssri = require('ssri')
 import urlLib = require('url')
 import { BadTarballError } from './errorTypes'
-
-class TarballFetchError extends PnpmError {
-  public readonly httpStatusCode: number
-  public readonly uri: string
-  public readonly response: unknown & { status: number, statusText: string }
-
-  constructor (uri: string, response: { status: number, statusText: string }) {
-    super('TARBALL_FETCH', `${response.status} ${response.statusText}: ${uri}`)
-    this.httpStatusCode = response.status
-    this.uri = uri
-    this.response = response
-  }
-}
 
 class TarballIntegrityError extends PnpmError {
   public readonly found: string
@@ -119,7 +106,7 @@ export default (
         try {
           resolve(await fetch(attempt))
         } catch (error) {
-          if (error.httpStatusCode === 403) {
+          if (error.response?.status === 401 || error.response?.status === 403) {
             reject(error)
           }
           const timeout = op.retry(error)
@@ -141,8 +128,9 @@ export default (
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       try {
+        const authHeaderValue = shouldAuth ? opts.auth?.authHeaderValue : undefined
         const res = await fetchFromRegistry(url, {
-          authHeaderValue: shouldAuth ? opts.auth?.authHeaderValue : undefined,
+          authHeaderValue,
           // The fetch library can retry requests on bad HTTP responses.
           // However, it is not enough to retry on bad HTTP responses only.
           // Requests should also be retried when the tarball's integrity check fails.
@@ -152,7 +140,7 @@ export default (
         })
 
         if (res.status !== 200) {
-          throw new TarballFetchError(url, res)
+          throw new FetchError({ url, authHeaderValue }, res)
         }
 
         const contentLength = res.headers.has('content-length') && res.headers.get('content-length')

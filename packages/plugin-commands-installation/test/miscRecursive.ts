@@ -313,7 +313,7 @@ test('recursive installation fails when installation in one of the packages fail
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_REGISTRY_META_RESPONSE_404')
+  t.equal(err.code, 'ERR_PNPM_FETCH_404')
   t.end()
 })
 
