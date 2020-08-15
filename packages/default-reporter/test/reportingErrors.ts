@@ -440,7 +440,7 @@ some hint`)
   })
 })
 
-test('prints authorization error', t => {
+test('prints authorization error with auth settings', t => {
   const rawConfig = {
     '//foo.bar:_auth': '9876543219',
     '//foo.bar:_authToken': '9876543219',
@@ -481,6 +481,31 @@ _authToken=0123[hidden]
 _password=[hidden]
 always-auth=false
 username=nagy.gabor`)
+    },
+  })
+})
+
+test('prints authorization error without auth settings, where there are none', t => {
+  const output$ = toOutput$({
+    context: { argv: ['install'], config: { rawConfig: {} } as any }, // tslint:disable-line
+    streamParser: createStreamParser(),
+  })
+
+  const err = new PnpmError('FETCH_401', 'some error', { hint: 'some hint' })
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+some hint
+
+No authorization settings were found in the configs.
+Try to log in to the registry by running "pnpm login"
+or add the auth tokens manually to the ~/.npmrc file.`)
     },
   })
 })

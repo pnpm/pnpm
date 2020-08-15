@@ -308,10 +308,18 @@ function reportAuthError (
       foundSettings.push(`${key}=${hideSecureInfo(key, value)}`)
     }
   }
-  return `${formatErrorSummary(err.message)}${msg.hint ? `${EOL}${msg.hint}` : ''}
+  let output = `${formatErrorSummary(err.message)}${msg.hint ? `${EOL}${msg.hint}` : ''}
 
-These authorization settings were found:
+`
+  if (foundSettings.length === 0) {
+    output += `No authorization settings were found in the configs.
+Try to log in to the registry by running "pnpm login"
+or add the auth tokens manually to the ~/.npmrc file.`
+  } else {
+    output += `These authorization settings were found:
 ${foundSettings.join('\n')}`
+  }
+  return output
 }
 
 function hideSecureInfo (key: string, value: string) {
