@@ -31,7 +31,6 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.2",
     "@pnpm/store-connection-manager": "link:",
-    "@types/lru-cache": "^5.1.0",
     "@types/mz": "^2.7.1"
   },
   "dependencies": {
@@ -45,7 +44,6 @@
     "@zkochan/diable": "^1.0.2",
     "delay": "^4.4.0",
     "dir-is-case-sensitive": "^1.0.2",
-    "lru-cache": "^6.0.0",
     "mz": "^2.7.0"
   },
   "peerDependencies": {

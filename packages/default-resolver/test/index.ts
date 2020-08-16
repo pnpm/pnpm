@@ -6,7 +6,6 @@ import test = require('tape')
 test('createResolver()', t => {
   const getCredentials = () => ({ authHeaderValue: '', alwaysAuth: false })
   const resolve = createResolver(createFetchFromRegistry({}), getCredentials, {
-    metaCache: new Map(),
     storeDir: '.store',
   })
   t.equal(typeof resolve, 'function')

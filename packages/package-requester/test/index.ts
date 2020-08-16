@@ -24,7 +24,6 @@ const authConfig = { registry }
 
 const { resolve, fetchers } = createClient({
   authConfig,
-  metaCache: new Map(),
   storeDir: '.store',
 })
 
@@ -473,7 +472,6 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
 
   const noRetry = createClient({
     authConfig,
-    metaCache: new Map(),
     retry: { retries: 0 },
     storeDir: '.pnpm',
   })

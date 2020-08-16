@@ -2,7 +2,6 @@
 const createResolveFromNpm = require('@pnpm/npm-resolver').default
 
 const resolveFromNpm = createResolveFromNpm({
-  metaCache: new Map(),
   storeDir: '.store',
   offline: false,
   rawConfig: {

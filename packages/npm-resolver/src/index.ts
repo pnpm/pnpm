@@ -12,6 +12,7 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
+import LRU = require('lru-cache')
 import normalize = require('normalize-path')
 import pMemoize = require('p-memoize')
 import path = require('path')
@@ -50,7 +51,6 @@ const META_DIR = 'metadata'
 const FULL_META_DIR = 'metadata-full'
 
 export interface ResolverFactoryOptions {
-  metaCache: PackageMetaCache,
   storeDir: string,
   fullMetadata?: boolean,
   offline?: boolean,
@@ -63,9 +63,6 @@ export default function createResolver (
   getCredentials: GetCredentials,
   opts: ResolverFactoryOptions
 ) {
-  if (typeof opts.metaCache !== 'object') { // tslint:disable-line
-    throw new TypeError('`opts.metaCache` is required and needs to be an object')
-  }
   if (typeof opts.storeDir !== 'string') { // tslint:disable-line
     throw new TypeError('`opts.storeDir` is required and needs to be a string')
   }
@@ -74,11 +71,15 @@ export default function createResolver (
     maxAge: 1000 * 20, // 20 seconds
   })
   const getAuthHeaderValueByURI = (registry: string) => getCredentials(registry).authHeaderValue
+  const metaCache = new LRU({
+    max: 10000,
+    maxAge: 120 * 1000, // 2 minutes
+  }) as any // tslint:disable-line:no-any
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI,
     pickPackage: pickPackage.bind(null, {
       fetch,
-      metaCache: opts.metaCache,
+      metaCache,
       metaDir: opts.fullMetadata ? FULL_META_DIR : META_DIR,
       offline: opts.offline,
       preferOffline: opts.preferOffline,

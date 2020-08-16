@@ -15,7 +15,6 @@ async function main() {
   const resolve = createResolver({
     rawConfig,
     store,
-    metaCache: new Map(),
   })
   const fetchers = createFetcher({
     alwaysAuth: true,

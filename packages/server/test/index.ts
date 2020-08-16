@@ -21,7 +21,6 @@ async function createStoreController (storeDir?: string) {
   const authConfig = { registry }
   const { resolve, fetchers } = createClient({
     authConfig,
-    metaCache: new Map(),
     storeDir,
   })
   return createStore(resolve, fetchers, {

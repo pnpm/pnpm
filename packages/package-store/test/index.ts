@@ -12,7 +12,6 @@ test('store.importPackage()', async (t) => {
   const authConfig = { registry }
   const { resolve, fetchers } = createClient({
     authConfig,
-    metaCache: new Map(),
     storeDir,
   })
   const storeController = await createStore(resolve, fetchers, {
@@ -45,7 +44,6 @@ test('store.importPackage() by copying', async (t) => {
   const authConfig = { registry }
   const { resolve, fetchers } = createClient({
     authConfig,
-    metaCache: new Map(),
     storeDir,
   })
   const storeController = await createStore(resolve, fetchers, {

@@ -1,7 +1,6 @@
 import createClient from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import createStore from '@pnpm/package-store'
-import LRU = require('lru-cache')
 import fs = require('mz/fs')
 import path = require('path')
 
@@ -48,10 +47,6 @@ export default async (
     httpsProxy: opts.httpsProxy,
     key: opts.key,
     localAddress: opts.localAddress,
-    metaCache: new LRU({
-      max: 10000,
-      maxAge: 120 * 1000, // 2 minutes
-    }) as any, // tslint:disable-line:no-any
     noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,

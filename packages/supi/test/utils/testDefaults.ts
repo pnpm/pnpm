@@ -39,7 +39,6 @@ export default async function testDefaults<T> (
   const authConfig = { registry }
   const { resolve, fetchers } = createClient({
     authConfig,
-    metaCache: new Map(),
     retry: retryOpts,
     storeDir,
     ...resolveOpts,
