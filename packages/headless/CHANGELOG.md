@@ -1,5 +1,20 @@
 # @pnpm/headless
 
+## 14.0.16
+
+### Patch Changes
+
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/package-requester@12.0.9
+  - @pnpm/filter-lockfile@4.0.7
+  - @pnpm/link-bins@5.3.11
+  - @pnpm/lockfile-file@3.0.12
+  - @pnpm/read-project-manifest@1.0.12
+  - @pnpm/modules-cleaner@10.0.7
+  - @pnpm/build-modules@5.0.12
+  - @pnpm/hoist@4.0.8
+
 ## 14.0.15
 
 ### Patch Changes

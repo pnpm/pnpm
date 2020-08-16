@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 7.1.10
+
+### Patch Changes
+
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/default-resolver@10.0.7
+  - @pnpm/lockfile-file@3.0.12
+  - @pnpm/fetch@2.1.3
+
 ## 7.1.9
 
 ### Patch Changes

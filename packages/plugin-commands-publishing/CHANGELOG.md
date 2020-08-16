@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.1.17
+
+### Patch Changes
+
+- 69a675f41: `pnpm publish -r` should not publish packages with `pnpm-temp` distribution tag.
+- Updated dependencies [6d480dd7a]
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/npm-resolver@9.1.0
+  - @pnpm/cli-utils@0.4.22
+  - @pnpm/config@11.2.4
+  - @pnpm/exportable-manifest@1.0.1
+  - @pnpm/fetch@2.1.3
+
 ## 2.1.16
 
 ### Patch Changes

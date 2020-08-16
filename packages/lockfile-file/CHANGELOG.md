@@ -1,5 +1,12 @@
 # @pnpm/lockfile-file
 
+## 3.0.12
+
+### Patch Changes
+
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+
 ## 3.0.11
 
 ### Patch Changes

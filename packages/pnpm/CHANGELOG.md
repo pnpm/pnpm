@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.5.2
+
+### Patch Changes
+
+* `pnpm publish -r` does not publish packages with the temporary `pnpm-temp` distribution tag (#2686).
+* Print the authorization settings (with hidden private info), when an authorization error happens during fetch (#2774).
+
 ## 5.5.1
 
 ### Patch Changes

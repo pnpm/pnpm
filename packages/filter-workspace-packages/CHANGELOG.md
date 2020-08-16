@@ -1,5 +1,14 @@
 # @pnpm/filter-workspace-packages
 
+## 2.1.15
+
+### Patch Changes
+
+- 999f81305: find-up updated to v5.
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/find-workspace-packages@2.3.8
+
 ## 2.1.14
 
 ### Patch Changes

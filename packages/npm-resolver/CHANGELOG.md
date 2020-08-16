@@ -1,5 +1,16 @@
 # @pnpm/npm-resolver
 
+## 9.1.0
+
+### Minor Changes
+
+- 6d480dd7a: Report whether/what authorization header was used to make the request, when the request fails with an authorization issue.
+
+### Patch Changes
+
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+
 ## 9.0.2
 
 ### Patch Changes

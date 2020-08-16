@@ -1,5 +1,11 @@
 # @pnpm/npm-registry-agent
 
+## 3.1.0
+
+### Minor Changes
+
+- 46128b5b0: Export AgentOptions type.
+
 ## 3.0.1
 
 ### Patch Changes

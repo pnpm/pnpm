@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 1.0.7
+
+### Patch Changes
+
+- 1525fff4c: Update get-stream to v6.
+
 ## 1.0.6
 
 ### Patch Changes

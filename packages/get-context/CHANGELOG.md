@@ -1,5 +1,15 @@
 # @pnpm/get-context
 
+## 3.2.3
+
+### Patch Changes
+
+- 51086e6e4: Fix text in registries mismatch error message.
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/lockfile-file@3.0.12
+  - @pnpm/read-projects-context@4.0.3
+
 ## 3.2.2
 
 ### Patch Changes

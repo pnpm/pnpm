@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 16.1.2
+
+### Patch Changes
+
+- Updated dependencies [6d480dd7a]
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/npm-resolver@9.1.0
+  - @pnpm/package-is-installable@4.0.13
+
 ## 16.1.1
 
 ### Patch Changes

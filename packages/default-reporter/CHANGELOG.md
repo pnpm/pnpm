@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 7.6.0
+
+### Minor Changes
+
+- 6d480dd7a: Print the authorization settings (with hidden private info), when an authorization error happens during fetch.
+
+### Patch Changes
+
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/config@11.2.4
+
 ## 7.5.4
 
 ### Patch Changes

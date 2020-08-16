@@ -1,5 +1,13 @@
 # @pnpm/audit
 
+## 1.1.11
+
+### Patch Changes
+
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/fetch@2.1.3
+
 ## 1.1.10
 
 ### Patch Changes
