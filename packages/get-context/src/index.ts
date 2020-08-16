@@ -254,7 +254,7 @@ async function validateModules (
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
       return { purged: true }
     }
-    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate recreate the modules directory using the new settings, run "pnpm install".`)
+    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate the modules directory using the new settings, run "pnpm install".`)
   }
   if (purged && !rootProject) {
     await purgeModulesDirsOfImporter({
