@@ -326,10 +326,10 @@ test('throw error when accessing private package w/o authorization', async t => 
 
   t.ok(err)
   err = err || new Error()
-  t.equal(err.message, '403 Forbidden: http://example.com/foo.tgz')
-  t.equal(err['code'], 'ERR_PNPM_TARBALL_FETCH')
-  t.equal(err['httpStatusCode'], 403)
-  t.equal(err['uri'], 'http://example.com/foo.tgz')
+  t.equal(err.message, `GET http://example.com/foo.tgz: Forbidden - 403`)
+  t.equal(err['hint'], 'No authorization header was set for the request.')
+  t.equal(err['code'], 'ERR_PNPM_FETCH_403')
+  t.equal(err['request']['url'], 'http://example.com/foo.tgz')
 
   t.ok(scope.isDone())
   t.end()

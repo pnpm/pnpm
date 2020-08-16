@@ -41,6 +41,7 @@ export default function (
   opts: {
     appendOnly?: boolean,
     cmd: string,
+    config?: Config,
     isRecursive: boolean,
     logLevel?: LogLevel,
     pnpmConfig?: Config,
@@ -66,6 +67,7 @@ export default function (
     reportMisc(
       log$,
       {
+        config: opts.config,
         cwd,
         logLevel: opts.logLevel,
         zoomOutCurrent: opts.isRecursive,

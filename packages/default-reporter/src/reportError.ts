@@ -1,3 +1,4 @@
+import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import chalk = require('chalk')
@@ -14,7 +15,7 @@ StackTracey.maxColumnWidths = {
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
-export default function reportError (logObj: Log) {
+export default function reportError (logObj: Log, config?: Config) {
   if (logObj['err']) {
     const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
@@ -42,6 +43,9 @@ export default function reportError (logObj: Log) {
         return reportLifecycleError(logObj['message'])
       case 'ERR_PNPM_UNSUPPORTED_ENGINE':
         return reportEngineError(err, logObj['message'])
+      case 'ERR_PNPM_FETCH_401':
+      case 'ERR_PNPM_FETCH_403':
+        return reportAuthError(err, logObj['message'], config)
       default:
         // Errors with unknown error codes are printed with stack trace
         if (!err.code?.startsWith?.('ERR_PNPM_')) {
@@ -281,4 +285,45 @@ This is happening because the package's manifest has an engines.node field speci
 To fix this issue, install the required Node version.`
   }
   return output || formatErrorSummary(err.message)
+}
+
+function reportAuthError (
+  err: Error,
+  msg: { hint?: string },
+  config?: Config
+) {
+  const foundSettings = [] as string[]
+  for (const [key, value] of Object.entries(config?.rawConfig ?? {})) {
+    if (key.startsWith('@')) {
+      foundSettings.push(`${key}=${value}`)
+      continue
+    }
+    if (
+      key.endsWith('_auth') ||
+      key.endsWith('_authToken') ||
+      key.endsWith('username') ||
+      key.endsWith('_password') ||
+      key.endsWith('always-auth')
+    ) {
+      foundSettings.push(`${key}=${hideSecureInfo(key, value)}`)
+    }
+  }
+  let output = `${formatErrorSummary(err.message)}${msg.hint ? `${EOL}${msg.hint}` : ''}
+
+`
+  if (foundSettings.length === 0) {
+    output += `No authorization settings were found in the configs.
+Try to log in to the registry by running "pnpm login"
+or add the auth tokens manually to the ~/.npmrc file.`
+  } else {
+    output += `These authorization settings were found:
+${foundSettings.join('\n')}`
+  }
+  return output
+}
+
+function hideSecureInfo (key: string, value: string) {
+  if (key.endsWith('_password')) return '[hidden]'
+  if (key.endsWith('_auth') || key.endsWith('_authToken')) return `${value.substring(0, 4)}[hidden]`
+  return value
 }

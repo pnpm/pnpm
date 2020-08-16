@@ -1,10 +1,12 @@
+import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
 import chalk = require('chalk')
 import most = require('most')
 import reportError from './reportError'
 
 export default function (
-  log$: most.Stream<Log>
+  log$: most.Stream<Log>,
+  config?: Config
 ) {
   log$.subscribe({
     complete: () => undefined,
@@ -19,7 +21,7 @@ export default function (
           console.log(formatWarn(log['message']))
           return
         case 'error':
-          console.log(reportError(log))
+          console.log(reportError(log, config))
           return
         case 'debug':
           return

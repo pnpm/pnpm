@@ -140,11 +140,11 @@ test('server errors should arrive to the client', async t => {
     )
   } catch (e) {
     caught = true
-    t.equal(e.message, '404 Not Found: not-an-existing-package (via https://registry.npmjs.org/not-an-existing-package)', 'error message delivered correctly')
-    t.equal(e.code, 'ERR_PNPM_REGISTRY_META_RESPONSE_404', 'error code delivered correctly')
-    t.ok(e.uri, 'error uri field delivered')
+    t.equal(e.message, 'GET https://registry.npmjs.org/not-an-existing-package: Not Found - 404', 'error message delivered correctly')
+    t.equal(e.hint, 'not-an-existing-package is not in the npm registry.')
+    t.equal(e.code, 'ERR_PNPM_FETCH_404', 'error code delivered correctly')
     t.ok(e.response, 'error response field delivered')
-    t.ok(e.package, 'error package field delivered')
+    t.ok(e.pkgName, 'error package field delivered')
   }
   t.ok(caught, 'exception raised correctly')
 

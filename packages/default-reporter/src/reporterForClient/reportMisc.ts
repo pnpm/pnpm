@@ -1,3 +1,4 @@
+import { Config } from '@pnpm/config'
 import { LinkLog, Log, RegistryLog } from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import most = require('most')
@@ -23,6 +24,7 @@ export default (
   opts: {
     cwd: string,
     logLevel?: LogLevel,
+    config?: Config,
     zoomOutCurrent: boolean,
   }
 ) => {
@@ -36,9 +38,9 @@ export default (
           return autozoom(opts.cwd, obj.prefix, formatWarn(obj.message), opts)
         case 'error':
           if (obj['message']?.['prefix'] && obj['message']['prefix'] !== opts.cwd) {
-            return `${obj['message']['prefix']}:` + os.EOL + reportError(obj)
+            return `${obj['message']['prefix']}:` + os.EOL + reportError(obj, opts.config)
           }
-          return reportError(obj)
+          return reportError(obj, opts.config)
         default:
           return obj['message']
       }

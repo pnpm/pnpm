@@ -27,7 +27,7 @@ export default function (
 ) {
   if (opts.context.argv[0] === 'server') {
     const log$ = most.fromEvent<logs.Log>('data', opts.streamParser)
-    reporterForServer(log$)
+    reporterForServer(log$, opts.context.config)
     return
   }
   const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
@@ -188,6 +188,7 @@ export function toOutput$ (
     {
       appendOnly: opts.reportingOptions?.appendOnly,
       cmd: opts.context.argv[0],
+      config: opts.context.config,
       isRecursive: opts.context.config?.['recursive'] === true,
       logLevel: opts.reportingOptions?.logLevel,
       pnpmConfig: opts.context.config,
