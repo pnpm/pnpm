@@ -10,16 +10,13 @@
   ],
   "references": [
     {
+      "path": "../client"
+    },
+    {
       "path": "../constants"
     },
     {
-      "path": "../default-resolver"
-    },
-    {
       "path": "../error"
-    },
-    {
-      "path": "../fetch"
     },
     {
       "path": "../lockfile-file"

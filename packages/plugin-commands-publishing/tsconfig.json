@@ -13,6 +13,9 @@
       "path": "../cli-utils"
     },
     {
+      "path": "../client"
+    },
+    {
       "path": "../config"
     },
     {
@@ -22,13 +25,7 @@
       "path": "../exportable-manifest"
     },
     {
-      "path": "../fetch"
-    },
-    {
       "path": "../lifecycle"
-    },
-    {
-      "path": "../npm-resolver"
     },
     {
       "path": "../pick-registry-for-package"

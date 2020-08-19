@@ -1223,10 +1223,9 @@ importers:
       version-selector-type: ^3.0.0
   packages/outdated:
     dependencies:
+      '@pnpm/client': 'link:../client'
       '@pnpm/constants': 'link:../constants'
-      '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/error': 'link:../error'
-      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/manifest-utils': 'link:../manifest-utils'
@@ -1235,9 +1234,7 @@ importers:
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/store-path': 4.0.2
       '@pnpm/types': 'link:../types'
-      credentials-by-uri: 2.0.0
       dependency-path: 'link:../dependency-path'
-      mem: 6.1.0
       ramda: 0.27.1
       semver: 7.3.2
     devDependencies:
@@ -1247,10 +1244,9 @@ importers:
       '@types/semver': 7.3.1
       npm-run-all: 4.1.5
     specifiers:
+      '@pnpm/client': 'workspace:^1.0.7'
       '@pnpm/constants': 'workspace:4.0.0'
-      '@pnpm/default-resolver': 'workspace:10.0.7'
       '@pnpm/error': 'workspace:1.3.0'
-      '@pnpm/fetch': 'workspace:^2.1.3'
       '@pnpm/lockfile-file': 'workspace:3.0.12'
       '@pnpm/lockfile-utils': 'workspace:2.0.16'
       '@pnpm/logger': ^3.2.2
@@ -1263,9 +1259,7 @@ importers:
       '@pnpm/types': 'workspace:6.2.0'
       '@types/ramda': ^0.27.14
       '@types/semver': ^7.3.1
-      credentials-by-uri: ^2.0.0
       dependency-path: 'workspace:5.0.3'
-      mem: ^6.1.0
       npm-run-all: ^4.1.5
       ramda: ^0.27.1
       semver: ^7.3.2
@@ -1790,12 +1784,11 @@ importers:
   packages/plugin-commands-publishing:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/client': 'link:../client'
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
       '@pnpm/exportable-manifest': 'link:../exportable-manifest'
-      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/run-npm': 'link:../run-npm'
@@ -1804,10 +1797,8 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       cp-file: 9.0.0
-      credentials-by-uri: 2.0.0
       enquirer: 2.3.6
       fast-glob: 3.2.4
-      mem: 6.1.0
       mz: 2.7.0
       p-filter: 2.1.0
       ramda: 0.27.1
@@ -1832,13 +1823,12 @@ importers:
       write-yaml-file: 4.1.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.22'
+      '@pnpm/client': 'workspace:^1.0.7'
       '@pnpm/config': 'workspace:11.2.4'
       '@pnpm/error': 'workspace:1.3.0'
       '@pnpm/exportable-manifest': 'workspace:^1.0.1'
-      '@pnpm/fetch': 'workspace:^2.1.3'
       '@pnpm/filter-workspace-packages': 'workspace:2.1.15'
       '@pnpm/lifecycle': 'workspace:9.2.2'
-      '@pnpm/npm-resolver': 'workspace:9.1.0'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.3'
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.9'
@@ -1854,12 +1844,10 @@ importers:
       '@types/sinon': ^9.0.4
       '@zkochan/rimraf': ^1.0.0
       cp-file: ^9.0.0
-      credentials-by-uri: ^2.0.0
       cross-spawn: ^7.0.3
       enquirer: ^2.3.6
       execa: ^4.0.3
       fast-glob: ^3.2.4
-      mem: ^6.1.0
       mz: ^2.7.0
       p-filter: ^2.1.0
       path-exists: ^4.0.0

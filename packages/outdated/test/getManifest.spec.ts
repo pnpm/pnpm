@@ -1,4 +1,4 @@
-import { ResolveFunction } from '@pnpm/default-resolver'
+import { ResolveFunction } from '@pnpm/client'
 import test = require('tape')
 import { getManifest } from '../lib/createManifestGetter'
 

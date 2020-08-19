@@ -1,9 +1,10 @@
-import createResolver, { ResolveFunction, ResolverFactoryOptions } from '@pnpm/default-resolver'
-import { createFetchFromRegistry } from '@pnpm/fetch'
+import {
+  ClientOptions,
+  createResolver,
+  ResolveFunction,
+} from '@pnpm/client'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { DependencyManifest, Registries } from '@pnpm/types'
-import getCredentialsByURI = require('credentials-by-uri')
-import mem = require('mem')
 
 type GetManifestOpts = {
   dir: string,
@@ -12,14 +13,14 @@ type GetManifestOpts = {
   registries: Registries,
 }
 
-export type ManifestGetterOptions = ResolverFactoryOptions & GetManifestOpts
+export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
+  & GetManifestOpts
+  & { rawConfig: Record<string, string> }
 
 export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
-  const fetch = createFetchFromRegistry(opts)
-  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.rawConfig, registry))
-  const resolve = createResolver(fetch, getCredentials, opts)
+  const resolve = createResolver({ ...opts, authConfig: opts.rawConfig })
   return getManifest.bind(null, resolve, opts)
 }
 
