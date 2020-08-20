@@ -199,7 +199,10 @@ async function validateModules (
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
-  if (opts.forcePublicHoistPattern && !R.equals(modules.publicHoistPattern, opts.publicHoistPattern)) {
+  if (
+    opts.forcePublicHoistPattern &&
+    !R.equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
+  ) {
     if (opts.forceNewModules && rootProject) {
       await purgeModulesDirsOfImporter(rootProject)
       return { purged: true }

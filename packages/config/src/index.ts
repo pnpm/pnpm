@@ -326,6 +326,18 @@ export default async (
     case true:
       pnpmConfig.publicHoistPattern = ['*']
       break
+    default:
+      if (
+        !pnpmConfig.publicHoistPattern ||
+        (
+          Array.isArray(pnpmConfig.publicHoistPattern) &&
+          pnpmConfig.publicHoistPattern.length === 1 &&
+          pnpmConfig.publicHoistPattern[0] === ''
+        )
+      ) {
+        delete pnpmConfig.publicHoistPattern
+      }
+      break
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
