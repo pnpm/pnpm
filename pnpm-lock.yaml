@@ -1437,7 +1437,7 @@ importers:
     dependencies:
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       didyoumean2: 4.1.0
-      nopt: 4.0.3
+      nopt: 5.0.0
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
@@ -1446,7 +1446,7 @@ importers:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': ^3.0.29
       didyoumean2: ^4.1.0
-      nopt: ^4.0.3
+      nopt: ^5.0.0
   packages/parse-wanted-dependency:
     dependencies:
       validate-npm-package-name: 3.0.0
@@ -2156,7 +2156,7 @@ importers:
       graceful-fs: 4.2.4
       is-ci: 2.0.0
       loud-rejection: 2.2.0
-      nopt: 4.0.3
+      nopt: 5.0.0
       path-name: 1.0.0
       pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.27.1
@@ -2283,7 +2283,7 @@ importers:
       loud-rejection: ^2.2.0
       mz: ^2.7.0
       ncp: ^2.0.0
-      nopt: ^4.0.3
+      nopt: ^5.0.0
       normalize-newline: 3.0.0
       npm-run-all: ^4.1.5
       p-any: 3.0.0
@@ -8933,6 +8933,15 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-CvaGwVMztSMJLOeXPrez7fyfObdZqNUK1cPAEzLHrTybIua9pMdmmPR5YwtfNftIOMv3DPUhFaxsZMNTQO20Kg==
+  /nopt/5.0.0:
+    dependencies:
+      abbrev: 1.1.1
+    dev: false
+    engines:
+      node: '>=6'
+    hasBin: true
+    resolution:
+      integrity: sha512-Tbj67rffqceeLpcRXrT7vKAN8CwfPeIBgM7E6iBkmKLV7bEMwpGgYLGv0jACUsECaa/vuxP0IjEont6umdMgtQ==
   /normalize-newline/3.0.0:
     dev: true
     engines:

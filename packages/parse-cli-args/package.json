@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/find-workspace-dir": "workspace:1.0.1",
     "didyoumean2": "^4.1.0",
-    "nopt": "^4.0.3"
+    "nopt": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }
