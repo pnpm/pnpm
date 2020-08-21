@@ -48,7 +48,7 @@
     "graceful-fs": "^4.2.4",
     "is-ci": "^2.0.0",
     "loud-rejection": "^2.2.0",
-    "nopt": "^4.0.3",
+    "nopt": "^5.0.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "workspace:5.2.0",
     "ramda": "^0.27.1",
