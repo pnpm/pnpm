@@ -1,3 +1,4 @@
+import { PackageFilesIndex } from '@pnpm/cafs'
 import { globalInfo } from '@pnpm/logger'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
@@ -38,7 +39,7 @@ export default async function prune (storeDir: string) {
 
   let pkgCounter = 0
   for (const pkgIndexFilePath of pkgIndexFiles) {
-    const { files: pkgFilesIndex } = await loadJsonFile<{ files: object }>(pkgIndexFilePath)
+    const { files: pkgFilesIndex } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     if (removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++
