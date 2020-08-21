@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-package-json#readme",
   "dependencies": {
     "@pnpm/types": "workspace:^6.2.0",
-    "read-package-json": "2.1.1"
+    "read-package-json": "^2.1.2"
   },
   "devDependencies": {
     "@pnpm/read-package-json": "link:"

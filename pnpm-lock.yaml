@@ -2358,13 +2358,13 @@ importers:
   packages/read-package-json:
     dependencies:
       '@pnpm/types': 'link:../types'
-      read-package-json: 2.1.1
+      read-package-json: 2.1.2
     devDependencies:
       '@pnpm/read-package-json': 'link:'
     specifiers:
       '@pnpm/read-package-json': 'link:'
       '@pnpm/types': 'workspace:^6.2.0'
-      read-package-json: 2.1.1
+      read-package-json: ^2.1.2
   packages/read-project-manifest:
     dependencies:
       '@pnpm/error': 'link:../error'
@@ -7797,6 +7797,10 @@ packages:
   /json-parse-better-errors/1.0.2:
     resolution:
       integrity: sha512-mrqyZKfX5EhL7hvqcV6WG1yYjnjeuYDzDhhcAAUrq8Po85NBQBJP+ZDUT75qZQ98IkUoBqdkExkukOU7Ts2wrw==
+  /json-parse-even-better-errors/2.3.0:
+    dev: false
+    resolution:
+      integrity: sha512-o3aP+RsWDJZayj1SbHNQAI8x0v3T3SKiGoZlNYfbUP1S3omJQ6i9CnqADqkSPaOAxwua4/1YWx5CM7oiChJt2Q==
   /json-schema-traverse/0.4.1:
     resolution:
       integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==
@@ -10015,17 +10019,15 @@ packages:
       node: '>=10.13'
     resolution:
       integrity: sha512-mTryUyCyKKf+gU3qtxLPtCLYVhggOY9gmb5H3xa3HaLZYNxdPEBuRD0AIhgnz10IkMr8NNQLVGXOuvbneOMyFQ==
-  /read-package-json/2.1.1:
+  /read-package-json/2.1.2:
     dependencies:
       glob: 7.1.6
-      json-parse-better-errors: 1.0.2
+      json-parse-even-better-errors: 2.3.0
       normalize-package-data: 2.5.0
       npm-normalize-package-bin: 1.0.1
     dev: false
-    optionalDependencies:
-      graceful-fs: 4.2.4
     resolution:
-      integrity: sha512-dAiqGtVc/q5doFz6096CcnXhpYk0ZN8dEKVkGLU0CsASt8SrgF6SF7OTKAYubfvFhWaqofl+Y8HK19GR8jwW+A==
+      integrity: sha512-D1KmuLQr6ZSJS0tW8hf3WGpRlwszJOXZ3E8Yd/DNRaM5d+1wVRZdHlpGBLAuovjr28LbWvjpWkBHMxpRGGjzNA==
   /read-pkg-up/1.0.1:
     dependencies:
       find-up: 1.1.2
