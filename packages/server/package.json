@@ -40,7 +40,7 @@
     "@pnpm/server": "link:",
     "@types/mz": "^2.7.1",
     "@types/node-fetch": "^2.5.7",
-    "@types/uuid": "^8.0.1",
+    "@types/uuid": "^8.3.0",
     "@zkochan/rimraf": "^1.0.0",
     "is-port-reachable": "3.0.0",
     "load-json-file": "^6.2.0",

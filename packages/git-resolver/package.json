@@ -42,7 +42,7 @@
     "@pnpm/git-resolver": "link:",
     "@types/hosted-git-info": "3.0.0",
     "@types/is-windows": "^1.0.0",
-    "@types/semver": "^7.3.1",
+    "@types/semver": "^7.3.3",
     "is-windows": "^1.0.2",
     "proxyquire": "^2.1.3"
   },

@@ -28,7 +28,7 @@
     "@types/mz": "^2.7.1",
     "@types/ramda": "^0.27.14",
     "@types/rimraf": "^3.0.0",
-    "@types/sinon": "^9.0.4",
+    "@types/sinon": "^9.0.5",
     "@types/tape-promise": "^4.0.1",
     "@zkochan/rimraf": "^1.0.0",
     "is-windows": "^1.0.2",

@@ -55,7 +55,7 @@
     "render-help": "^1.0.0",
     "split-cmd": "^1.0.1",
     "strip-ansi": "^6.0.0",
-    "update-notifier": "^4.1.0",
+    "update-notifier": "^4.1.1",
     "which": "^2.0.2"
   },
   "devDependencies": {
@@ -76,10 +76,10 @@
     "@types/mz": "^2.7.1",
     "@types/ncp": "^2.0.4",
     "@types/ramda": "^0.27.14",
-    "@types/semver": "^7.3.1",
+    "@types/semver": "^7.3.3",
     "@types/table": "^5.0.0",
     "@types/tape-promise": "^4.0.1",
-    "@types/update-notifier": "^4.1.0",
+    "@types/update-notifier": "^4.1.1",
     "@types/which": "^1.3.2",
     "@zkochan/retry": "^0.2.0",
     "@zkochan/rimraf": "^1.0.0",
