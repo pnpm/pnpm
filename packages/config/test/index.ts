@@ -422,6 +422,36 @@ test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
   }
 })
 
+test('normalizing the value of public-hoist-pattern', async (t) => {
+  {
+    const { config } = await getConfig({
+      cliOptions: {
+        'public-hoist-pattern': '',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    t.equal(config.publicHoistPattern, undefined)
+  }
+  {
+    const { config } = await getConfig({
+      cliOptions: {
+        'public-hoist-pattern': [''],
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    t.equal(config.publicHoistPattern, undefined)
+  }
+  t.end()
+})
+
 test('rawLocalConfig in a workspace', async (t) => {
   const tmp = tempy.directory()
   t.comment(`temp dir created: ${tmp}`)
