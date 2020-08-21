@@ -41,9 +41,8 @@ function getOptionType (
   shorthands: Record<string, string | string[]>,
   option: string
 ) {
-  const allBools = R.fromPairs(Object.entries(optionTypes).map(([optionName]) => [optionName, Boolean]))
-  const result = nopt(allBools, shorthands, [option], 0)
-  delete result.argv
+  const allBools = R.fromPairs(Object.keys(optionTypes).map((optionName) => [optionName, Boolean]))
+  const result = R.omit(['argv'], nopt(allBools, shorthands, [option], 0))
   return optionTypes[Object.entries(result)[0]?.[0]]
 }
 

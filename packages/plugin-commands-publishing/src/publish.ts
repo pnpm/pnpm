@@ -101,7 +101,7 @@ export async function handler (
         message: `You are not on ${branch} branch, do you want to continue?`,
         name: 'confirm',
         type: 'confirm',
-      } as any)// tslint:disable-line:no-any
+      } as any) as any // tslint:disable-line:no-any
 
       if (!confirm) {
         throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branch}'.`)
