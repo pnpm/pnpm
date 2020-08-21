@@ -24,7 +24,7 @@ export function pruneSharedLockfile (
     warn: opts && opts.warn || ((msg: string) => undefined),
   })
 
-  const prunnedLockfile = {
+  const prunnedLockfile: Lockfile = {
     ...lockfile,
     packages: copiedPackages,
   }

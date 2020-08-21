@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import yaml = require('js-yaml')
@@ -65,9 +65,11 @@ function isEmptyLockfile (lockfile: Lockfile) {
   return R.values(lockfile.importers).every((importer) => R.isEmpty(importer.specifiers || {}) && R.isEmpty(importer.dependencies || {}))
 }
 
+type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
+
 function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   if (forceSharedFormat === false && R.equals(R.keys(lockfile.importers), ['.'])) {
-    const lockfileToSave = {
+    const lockfileToSave: LockfileFile = {
       ...lockfile,
       ...lockfile.importers['.'],
     }
@@ -77,7 +79,7 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
         delete lockfileToSave[depType]
       }
     }
-    if (R.isEmpty(lockfileToSave.packages)) {
+    if (R.isEmpty(lockfileToSave.packages) || !lockfileToSave.packages) {
       delete lockfileToSave.packages
     }
     return lockfileToSave
@@ -98,7 +100,7 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
         return acc
       }, {}),
     }
-    if (R.isEmpty(lockfileToSave.packages)) {
+    if (R.isEmpty(lockfileToSave.packages) || !lockfileToSave.packages) {
       delete lockfileToSave.packages
     }
     return lockfileToSave

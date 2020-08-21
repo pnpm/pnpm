@@ -1,4 +1,4 @@
-import { getFilePathInCafs } from '@pnpm/cafs'
+import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
@@ -47,7 +47,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
     const pkgIndexFilePath = integrity
       ? getFilePathInCafs(cafsDir, integrity, 'index')
       : path.join(storeDir, pkgPath, 'integrity.json')
-    const { files } = await loadJsonFile(pkgIndexFilePath)
+    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return (await dint.check(path.join(virtualStoreDir, pkgIdToFilename(depPath, opts.dir), 'node_modules', name), files)) === false
   })
 
