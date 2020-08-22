@@ -1,5 +1,16 @@
 # @pnpm/default-resolver
 
+## 11.0.0
+
+### Major Changes
+
+- a1cdae3dc: Does not accept a `metaCache` option anymore. Caching happens internally, using `lru-cache`.
+
+### Patch Changes
+
+- Updated dependencies [a1cdae3dc]
+  - @pnpm/npm-resolver@10.0.0
+
 ## 10.0.7
 
 ### Patch Changes

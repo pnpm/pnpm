@@ -1,5 +1,13 @@
 # @pnpm/config
 
+## 11.2.5
+
+### Patch Changes
+
+- 972864e0d: When public-hoist-pattern is set to an empty string or a list with a single empty string, then it is considered to be undefined.
+- Updated dependencies [4d4d22b63]
+  - @pnpm/global-bin-dir@1.2.2
+
 ## 11.2.4
 
 ### Patch Changes

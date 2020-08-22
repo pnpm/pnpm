@@ -1,5 +1,14 @@
 # dependencies-hierarchy
 
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [9f5803187]
+- Updated dependencies [9550b0505]
+  - @pnpm/read-package-json@3.1.4
+  - @pnpm/lockfile-file@3.0.13
+
 ## 9.0.3
 
 ### Patch Changes

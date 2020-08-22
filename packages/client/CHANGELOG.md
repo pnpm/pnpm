@@ -1,5 +1,20 @@
 # @pnpm/client
 
+## 2.0.0
+
+### Major Changes
+
+- a1cdae3dc: Does not accept a `metaCache` option anymore. Caching happens internally, using `lru-cache`.
+
+### Minor Changes
+
+- 855f8b00a: A new function created for just creating a resolver: `createResolver(opts: ClientOptions)`.
+
+### Patch Changes
+
+- Updated dependencies [a1cdae3dc]
+  - @pnpm/default-resolver@11.0.0
+
 ## 1.0.7
 
 ### Patch Changes

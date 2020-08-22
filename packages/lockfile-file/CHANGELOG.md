@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 3.0.13
+
+### Patch Changes
+
+- 9550b0505: Remove the `packages` field before saving, if it equals `undefined`.
+
 ## 3.0.12
 
 ### Patch Changes

@@ -1,10 +1,10 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "private": true,
   "dependencies": {
-    "@pnpm/find-workspace-packages": "workspace:2.3.8",
-    "@pnpm/lockfile-file": "workspace:3.0.12",
+    "@pnpm/find-workspace-packages": "workspace:2.3.9",
+    "@pnpm/lockfile-file": "workspace:3.0.13",
     "@pnpm/types": "workspace:6.2.0",
     "is-subdir": "^1.1.1",
     "load-json-file": "^6.2.0",

@@ -1,5 +1,11 @@
 # @pnpm/global-bin-dir
 
+## 1.2.2
+
+### Patch Changes
+
+- 4d4d22b63: A directory is considered a valid global executable directory for pnpm, if it contains a node, or npm, or pnpm executable, not directory.
+
 ## 1.2.1
 
 ### Patch Changes

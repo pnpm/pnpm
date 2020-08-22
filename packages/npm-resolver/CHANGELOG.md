@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 10.0.0
+
+### Major Changes
+
+- a1cdae3dc: Does not accept a `metaCache` option anymore. Caching happens internally, using `lru-cache`.
+
 ## 9.1.0
 
 ### Minor Changes

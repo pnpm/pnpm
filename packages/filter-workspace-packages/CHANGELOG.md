@@ -1,5 +1,11 @@
 # @pnpm/filter-workspace-packages
 
+## 2.1.16
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@2.3.9
+
 ## 2.1.15
 
 ### Patch Changes

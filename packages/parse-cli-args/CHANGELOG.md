@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 3.1.2
+
+### Patch Changes
+
+- 9f5803187: Update nopt to v5.
+
 ## 3.1.1
 
 ### Patch Changes

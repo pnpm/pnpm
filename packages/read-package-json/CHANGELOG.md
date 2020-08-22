@@ -1,5 +1,11 @@
 # @pnpm/read-package-json
 
+## 3.1.4
+
+### Patch Changes
+
+- 9f5803187: Update read-package-json to v2.1.2.
+
 ## 3.1.3
 
 ### Patch Changes

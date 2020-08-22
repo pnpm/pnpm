@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 3.2.4
+
+### Patch Changes
+
+- 972864e0d: publicHoistPattern=undefined should be considered to be the same as publicHoistPattern='' (empty string).
+- Updated dependencies [9550b0505]
+  - @pnpm/lockfile-file@3.0.13
+  - @pnpm/read-projects-context@4.0.4
+
 ## 3.2.3
 
 ### Patch Changes
