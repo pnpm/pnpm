@@ -15,7 +15,7 @@ importers:
       publish-packed: 3.0.2
       rimraf: 3.0.2
       tape: 4.13.3
-      ts-node: 8.10.2_typescript@4.0.2
+      ts-node: 9.0.0_typescript@4.0.2
       tslint: 6.1.3_typescript@4.0.2
       typescript: 4.0.2
       verdaccio: 4.8.1
@@ -35,7 +35,7 @@ importers:
       publish-packed: ^3.0.2
       rimraf: ^3.0.2
       tape: ^4.13.3
-      ts-node: ^8.10.2
+      ts-node: ^9.0.0
       tslint: ^6.1.3
       typescript: ^4.0.2
       verdaccio: ^4.8.1
@@ -11562,7 +11562,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.10.2_typescript@4.0.2:
+  /ts-node/9.0.0_typescript@4.0.2:
     dependencies:
       arg: 4.1.3
       diff: 4.0.2
@@ -11572,12 +11572,12 @@ packages:
       yn: 3.1.1
     dev: true
     engines:
-      node: '>=6.0.0'
+      node: '>=10.0.0'
     hasBin: true
     peerDependencies:
       typescript: '>=2.7'
     resolution:
-      integrity: sha512-ISJJGgkIpDdBhWVu3jufsWpK3Rzo7bdiIXJjQc0ynKxVOVcg2oIrf2H2cejminGrptVc6q6/uynAHNCuWGbpVA==
+      integrity: sha512-/TqB4SnererCDR/vb4S/QvSZvzQMJN8daAslg7MeaiHvD8rDZsSfXmNeNumyZZzMned72Xoq/isQljYSt8Ynfg==
   /ts-toolbelt/6.15.5:
     dev: true
     resolution:
