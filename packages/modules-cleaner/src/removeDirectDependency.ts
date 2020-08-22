@@ -21,7 +21,7 @@ export default async function removeDirectDependency (
   const dependencyDir = path.join(opts.modulesDir, dependency.name)
   const results = await Promise.all([
     removeBinsOfDependency(dependencyDir, opts),
-    !opts.dryRun && removeBin(dependencyDir) as any, // tslint:disable-line:no-any
+    !opts.dryRun && removeBin(dependencyDir) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
   ])
 
   const uninstalledPkg = results[0]

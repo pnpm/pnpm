@@ -28,7 +28,7 @@ test('readPackage hook run fails when returned dependencies is not an object ', 
     pnpmfile.hooks.readPackage({})
     t.fail('readPackage hook run should fail')
   } catch (err) {
-    t.equal(err.message, `readPackage hook returned package manifest object\'s property \'dependencies\' must be an object. Hook imported via ${pnpmfilePath}`)
+    t.equal(err.message, `readPackage hook returned package manifest object's property 'dependencies' must be an object. Hook imported via ${pnpmfilePath}`)
     t.equal(err.code, 'ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT')
     t.end()
   }

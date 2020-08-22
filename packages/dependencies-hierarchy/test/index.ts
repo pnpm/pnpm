@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import dh, { PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
@@ -310,7 +310,7 @@ test('circular dependency', async t => {
 
   t.deepEqual(tree, {
     [circularFixture]: {
-      dependencies: require('./circularTree.json')
+      dependencies: require('./circularTree.json') // eslint-disable-line
         .dependencies
         .map((dep: PackageNode) => resolvePaths(modulesDir, dep)),
       devDependencies: [],

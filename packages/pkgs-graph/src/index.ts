@@ -1,9 +1,9 @@
 import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
-import npa = require('@zkochan/npm-package-arg')
 import path = require('path')
+import npa = require('@zkochan/npm-package-arg')
 import R = require('ramda')
 
-export type Manifest = {
+export interface Manifest {
   name?: string,
   version?: string,
   dependencies?: {
@@ -17,22 +17,22 @@ export type Manifest = {
   },
 }
 
-export type Package = {
+export interface Package {
   manifest: Manifest,
   dir: string,
 }
 
-export type PackageNode<T> = {
+export interface PackageNode<T> {
   package: Package & T,
   dependencies: string[],
 }
 
 export default function<T> (pkgs: Array<Package & T>, opts?: {
-  linkWorkspacePackages?: boolean
+  linkWorkspacePackages?: boolean,
 }): {
-  graph: {[id: string]: PackageNode<T>},
-  unmatched: Array<{pkgName: string, range: string}>,
-} {
+    graph: {[id: string]: PackageNode<T>},
+    unmatched: Array<{pkgName: string, range: string}>,
+  } {
   const pkgMap = createPkgMap(pkgs)
   const unmatched: Array<{pkgName: string, range: string}> = []
   const graph = Object.keys(pkgMap)
@@ -71,7 +71,7 @@ export default function<T> (pkgs: Array<Package & T>, opts?: {
           if (!matchedPkg) {
             return ''
           }
-          return matchedPkg!.dir
+          return matchedPkg.dir
         }
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
@@ -107,7 +107,7 @@ function createPkgMap (pkgs: Package[]): {
   [pkgId: string]: Package,
 } {
   const pkgMap = {}
-  for (let pkg of pkgs) {
+  for (const pkg of pkgs) {
     pkgMap[pkg.dir] = pkg
   }
   return pkgMap

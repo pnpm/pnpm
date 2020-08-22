@@ -1,4 +1,4 @@
-///<reference path="../../../typings/local.d.ts"/>
+/// <reference path="../../../typings/local.d.ts"/>
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   pruneLockfile,
@@ -565,10 +565,10 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
     importers: {
       '.': {
         dependencies: {
-          'a': '1.0.0',
+          a: '1.0.0',
         },
         specifiers: {
-          'a': '^1.0.0',
+          a: '^1.0.0',
         },
       },
     },
@@ -591,10 +591,10 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
     importers: {
       '.': {
         dependencies: {
-          'a': '1.0.0',
+          a: '1.0.0',
         },
         specifiers: {
-          'a': '^1.0.0',
+          a: '^1.0.0',
         },
       },
     },
@@ -846,10 +846,10 @@ test('remove dependencies that are not in the package', t => {
           'is-negative': '1.0.0',
         },
         optionalDependencies: {
-          'fsevents': '1.0.0',
+          fsevents: '1.0.0',
         },
         specifiers: {
-          'fsevents': '^1.0.0',
+          fsevents: '^1.0.0',
           'is-negative': '^1.0.0',
           'is-positive': '^1.0.0',
         },

@@ -3,10 +3,10 @@ import { install, update } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
-import loadJsonFile = require('load-json-file')
-import path = require('path')
-import test = require('tape')
 import { DEFAULT_OPTS } from '../utils'
+import path = require('path')
+import loadJsonFile = require('load-json-file')
+import test = require('tape')
 
 test('update with "*" pattern', async (t) => {
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
@@ -43,7 +43,7 @@ test('update with "*" pattern', async (t) => {
 })
 
 test('update: fail when both "latest" and "workspace" are true', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',

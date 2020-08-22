@@ -1,9 +1,9 @@
 import { DeferredManifestPromise, FilesIndex } from '@pnpm/fetcher-base'
+import { parseJsonBuffer } from './parseJson'
+import path = require('path')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
-import path = require('path')
 import ssri = require('ssri')
-import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
 
@@ -47,13 +47,13 @@ async function _retrieveFileIntegrities (
           if (deferredManifest && rootDir === currDir && file === 'package.json') {
             const buffer = await fs.readFile(fullPath)
             parseJsonBuffer(buffer, deferredManifest)
-            return cafs.addBuffer(buffer, stat.mode)
+            return await cafs.addBuffer(buffer, stat.mode)
           }
           if (stat.size < MAX_BULK_SIZE) {
             const buffer = await fs.readFile(fullPath)
-            return cafs.addBuffer(buffer, stat.mode)
+            return await cafs.addBuffer(buffer, stat.mode)
           }
-          return cafs.addStream(fs.createReadStream(fullPath), stat.mode)
+          return await cafs.addStream(fs.createReadStream(fullPath), stat.mode)
         })
         index[relativePath] = {
           generatingIntegrity,

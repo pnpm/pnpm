@@ -1,5 +1,5 @@
-import test = require('tape')
 import complete from '../src/cmd/complete'
+import test = require('tape')
 
 test('complete an option value', async (t) => {
   const completions = await complete(
@@ -99,7 +99,9 @@ test('if command completion fails, return empty array', async (t) => {
       {
         cliOptionsTypesByCommandName: {},
         completionByCommandName: {
-          run: async () => { throw new Error('error') },
+          run: async () => {
+            throw new Error('error')
+          },
         },
         initialCompletion: () => [],
         shorthandsByCommandName: {},

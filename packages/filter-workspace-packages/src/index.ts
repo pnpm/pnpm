@@ -1,10 +1,10 @@
-import findWorkspacePackages, { Project } from '@pnpm/find-workspace-packages'
+import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
-import isSubdir = require('is-subdir')
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
-import R = require('ramda')
 import getChangedPkgs from './getChangedPackages'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
+import isSubdir = require('is-subdir')
+import R = require('ramda')
 
 export { parsePackageSelector, PackageSelector }
 
@@ -44,11 +44,11 @@ export async function filterPackages<T> (
     workspaceDir: string,
   }
 ): Promise<{
-  selectedProjectsGraph: PackageGraph<T>,
-  unmatchedFilters: string[],
-}> {
-  const packageSelectors = filter.
-    map((f) => parsePackageSelector(f, opts.prefix))
+    selectedProjectsGraph: PackageGraph<T>,
+    unmatchedFilters: string[],
+  }> {
+  const packageSelectors = filter
+    .map((f) => parsePackageSelector(f, opts.prefix))
 
   return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)
 }
@@ -61,12 +61,12 @@ export async function filterPkgsBySelectorObjects<T> (
     workspaceDir: string,
   }
 ): Promise<{
-  selectedProjectsGraph: PackageGraph<T>,
-  unmatchedFilters: string[],
-}> {
+    selectedProjectsGraph: PackageGraph<T>,
+    unmatchedFilters: string[],
+  }> {
   const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
-  if (packageSelectors && packageSelectors.length) {
-    return filterGraph(graph, packageSelectors, {
+  if (packageSelectors?.length) {
+    return await filterGraph(graph, packageSelectors, {
       workspaceDir: opts.workspaceDir,
     })
   } else {
@@ -81,9 +81,9 @@ export default async function filterGraph<T> (
     workspaceDir: string,
   }
 ): Promise<{
-  selectedProjectsGraph: PackageGraph<T>,
-  unmatchedFilters: string[],
-}> {
+    selectedProjectsGraph: PackageGraph<T>,
+    unmatchedFilters: string[],
+  }> {
   const cherryPickedPackages = [] as string[]
   const walkedDependencies = new Set<string>()
   const walkedDependents = new Set<string>()

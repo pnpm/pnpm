@@ -1,8 +1,8 @@
+import { promisify } from 'util'
 import { ProjectManifest } from '@pnpm/types'
+import path = require('path')
 import JSON5 = require('json5')
 import fs = require('mz/fs')
-import path = require('path')
-import { promisify } from 'util'
 import writeFileAtomicCB = require('write-file-atomic')
 import writeYamlFile = require('write-yaml-file')
 
@@ -23,7 +23,7 @@ export default async function writeProjectManifest (
 ): Promise<void> {
   const fileType = filePath.substr(filePath.lastIndexOf('.') + 1).toLowerCase()
   if (fileType === 'yaml') {
-    return writeYamlFile(filePath, manifest, YAML_FORMAT)
+    return await writeYamlFile(filePath, manifest, YAML_FORMAT)
   }
 
   await fs.mkdir(path.dirname(filePath), { recursive: true })
@@ -32,5 +32,5 @@ export default async function writeProjectManifest (
   const json = (fileType === 'json5' ? JSON5 : JSON)
     .stringify(manifest, null, opts?.indent ?? '\t')
 
-  return writeFileAtomic(filePath, `${json}${trailingNewline}`)
+  return await writeFileAtomic(filePath, `${json}${trailingNewline}`)
 }

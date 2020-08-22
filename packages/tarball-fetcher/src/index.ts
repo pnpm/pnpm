@@ -11,10 +11,10 @@ import {
   GetCredentials,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import fs = require('mz/fs')
-import path = require('path')
-import ssri = require('ssri')
 import createDownloader, { DownloadFunction } from './createDownloader'
+import path = require('path')
+import fs = require('mz/fs')
+import ssri = require('ssri')
 
 export default function (
   fetchFromRegistry: FetchFromRegistry,
@@ -96,7 +96,7 @@ async function fetchFromLocalTarball (
     const [fetchResult] = (
       await Promise.all([
         cafs.addFilesFromTarball(tarballStream, opts.manifest),
-        opts.integrity && (ssri.checkStream(tarballStream, opts.integrity) as any), // tslint:disable-line
+        opts.integrity && (ssri.checkStream(tarballStream, opts.integrity) as any), // eslint-disable-line
       ])
     )
     return { filesIndex: fetchResult }

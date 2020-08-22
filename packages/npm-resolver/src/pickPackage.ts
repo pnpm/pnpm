@@ -2,29 +2,29 @@ import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { VersionSelectors } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
+import { RegistryPackageSpec } from './parsePref'
+import pickPackageFromMeta from './pickPackageFromMeta'
+import toRaw from './toRaw'
+import path = require('path')
 import getRegistryName = require('encode-registry')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
-import path = require('path')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
-import { RegistryPackageSpec } from './parsePref'
-import pickPackageFromMeta from './pickPackageFromMeta'
-import toRaw from './toRaw'
 
 export interface PackageMeta {
   'dist-tag': { [name: string]: string },
   versions: {
     [name: string]: PackageInRegistry,
-  }
+  },
   cachedAt?: number,
 }
 
 export interface PackageMetaCache {
-  get (key: string): PackageMeta | undefined
-  set (key: string, meta: PackageMeta): void
-  has (key: string): boolean
+  get: (key: string) => PackageMeta | undefined,
+  set: (key: string, meta: PackageMeta) => void,
+  has: (key: string) => boolean,
 }
 
 export type PackageInRegistry = PackageManifest & {
@@ -43,7 +43,7 @@ const metafileOperationLimits = {} as {
   [pkgMirror: string]: pLimit.Limit,
 }
 
-export type PickPackageOptions = {
+export interface PickPackageOptions {
   authHeaderValue?: string,
   preferredVersionSelectors: VersionSelectors | undefined,
   registry: string,
@@ -120,7 +120,7 @@ export default async (
     // only save meta to cache, when it is fresh
     ctx.metaCache.set(spec.name, meta)
     if (!opts.dryRun) {
-      // tslint:disable-next-line:no-floating-promises
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
       limit(async () => {
         try {
           await saveMeta(pkgMirror, meta)

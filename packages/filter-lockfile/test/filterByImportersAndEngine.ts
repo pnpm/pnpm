@@ -53,8 +53,8 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         '/optional-dep/1.0.0': {
           dependencies: {
-            'bar': '1.0.0',
-            'foo': '1.0.0',
+            bar: '1.0.0',
+            foo: '1.0.0',
           },
           engines: {
             node: '1000',
@@ -67,7 +67,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         '/prod-dep/1.0.0': {
           dependencies: {
-            'bar': '1.0.0',
+            bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
           },
           optionalDependencies: {
@@ -146,8 +146,8 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
       },
       '/optional-dep/1.0.0': {
         dependencies: {
-          'bar': '1.0.0',
-          'foo': '1.0.0',
+          bar: '1.0.0',
+          foo: '1.0.0',
         },
         engines: {
           node: '1000',
@@ -160,7 +160,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
       },
       '/prod-dep/1.0.0': {
         dependencies: {
-          'bar': '1.0.0',
+          bar: '1.0.0',
           'prod-dep-dep': '1.0.0',
         },
         optionalDependencies: {

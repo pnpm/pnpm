@@ -1,6 +1,6 @@
 import allProjectsAreUpToDate from 'supi/lib/install/allProjectsAreUpToDate'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

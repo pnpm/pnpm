@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import createResolver from '@pnpm/default-resolver'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import test = require('tape')

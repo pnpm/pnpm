@@ -32,7 +32,7 @@ export default function checkPlatform (
   return null
 }
 
-export type Platform = {
+export interface Platform {
   cpu: string | string[],
   os: string | string[],
 }

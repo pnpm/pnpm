@@ -4,7 +4,8 @@ import loadJsonFile = require('load-json-file')
 export default <T>(filePath: string): Promise<T> => {
   const operation = retry.operation({})
 
-  return new Promise((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     operation.attempt(async (currentAttempt) => {
       try {
         resolve(await loadJsonFile<T>(filePath))

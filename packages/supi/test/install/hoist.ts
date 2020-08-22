@@ -1,18 +1,18 @@
 import assertProject from '@pnpm/assert-project'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
-import fs = require('fs')
-import path = require('path')
-import resolveLinkTarget = require('resolve-link-target')
 import {
   addDependenciesToPackage,
   install,
   MutatedProject,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { addDistTag, testDefaults } from '../utils'
+import fs = require('fs')
+import rimraf = require('@zkochan/rimraf')
+import path = require('path')
+import resolveLinkTarget = require('resolve-link-target')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -131,7 +131,7 @@ test('should rehoist when uninstalling a package', async (t: tape.Test) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedDependencies[`/debug/2.6.9`], { debug: 'private' }, 'new hoisted debug added to .modules.yaml')
+  t.deepEqual(modules!.hoistedDependencies['/debug/2.6.9'], { debug: 'private' }, 'new hoisted debug added to .modules.yaml')
 })
 
 test('should rehoist after running a general install', async (t) => {
@@ -185,7 +185,7 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
     }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err['code'], 'ERR_PNPM_HOIST_PATTERN_DIFF') // tslint:disable-line:no-string-literal
+    t.equal(err['code'], 'ERR_PNPM_HOIST_PATTERN_DIFF') // eslint-disable-line @typescript-eslint/dot-notation
   }
 })
 
@@ -202,7 +202,7 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
     })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err['code'], 'ERR_PNPM_HOIST_PATTERN_DIFF') // tslint:disable-line:no-string-literal
+    t.equal(err['code'], 'ERR_PNPM_HOIST_PATTERN_DIFF') // eslint-disable-line @typescript-eslint/dot-notation
   }
 
   // Instatll doesn't fail if the value of hoistPattern isn't forced
@@ -226,7 +226,7 @@ test('hoist by alias', async (t: tape.Test) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedDependencies, { [`/dep-of-pkg-with-1-dep/100.1.0`]: { dep: 'private' } }, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.hoistedDependencies, { '/dep-of-pkg-with-1-dep/100.1.0': { dep: 'private' } }, '.modules.yaml updated correctly')
 })
 
 test('should remove aliased hoisted dependencies', async (t) => {
@@ -294,7 +294,7 @@ test('should rehoist after pruning', async (t) => {
   // and that ms is still there, and that is-positive is not installed
   await install({
     dependencies: {
-      'express': '4.16.0',
+      express: '4.16.0',
       'is-positive': '1.0.0',
     },
   }, await testDefaults({ fastUnpack: false, hoistPattern: '*', pruneStore: true }))
@@ -339,7 +339,7 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
     name: 'package',
 
     dependencies: {
-      'foobar': '100.0.0',
+      foobar: '100.0.0',
     },
   }
   const projects = preparePackages(t, [
@@ -415,10 +415,10 @@ test('hoist when updating in one of the workspace projects', async (t) => {
     name: 'package',
 
     dependencies: {
-      'foo': '100.0.0',
+      foo: '100.0.0',
     },
   }
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       location: '.',
       package: workspaceRootManifest,
@@ -449,8 +449,8 @@ test('hoist when updating in one of the workspace projects', async (t) => {
   {
     const modulesManifest = await rootModules.readModulesManifest()
     t.deepEqual(modulesManifest?.hoistedDependencies, {
-      [`/dep-of-pkg-with-1-dep/100.0.0`]: { 'dep-of-pkg-with-1-dep': 'private' },
-      [`/foo/100.0.0`]: { 'foo': 'private' },
+      '/dep-of-pkg-with-1-dep/100.0.0': { 'dep-of-pkg-with-1-dep': 'private' },
+      '/foo/100.0.0': { foo: 'private' },
     })
   }
 
@@ -477,7 +477,7 @@ test('hoist when updating in one of the workspace projects', async (t) => {
   {
     const modulesManifest = await rootModules.readModulesManifest()
     t.deepEqual(modulesManifest?.hoistedDependencies, {
-      [`/dep-of-pkg-with-1-dep/100.0.0`]: { 'dep-of-pkg-with-1-dep': 'private' },
+      '/dep-of-pkg-with-1-dep/100.0.0': { 'dep-of-pkg-with-1-dep': 'private' },
     })
   }
 })

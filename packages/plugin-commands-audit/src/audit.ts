@@ -5,26 +5,26 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies, Registries } from '@pnpm/types'
+import { table } from 'table'
 import chalk = require('chalk')
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { table } from 'table'
 
-// tslint:disable
+// eslint-disable
 const AUDIT_LEVEL_NUMBER = {
-  'low': 0,
-  'moderate': 1,
-  'high': 2,
-  'critical': 3,
+  low: 0,
+  moderate: 1,
+  high: 2,
+  critical: 3,
 }
 
 const AUDIT_COLOR = {
-  'low': chalk.bold,
-  'moderate': chalk.bold.yellow,
-  'high': chalk.bold.red,
-  'critical': chalk.bold.red,
+  low: chalk.bold,
+  moderate: chalk.bold.yellow,
+  high: chalk.bold.red,
+  critical: chalk.bold.red,
 }
-// tslint:enable
+// eslint-enable
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -43,8 +43,8 @@ export function cliOptionsTypes () {
 }
 
 export const shorthands = {
-  'D': '--dev',
-  'P': '--production',
+  D: '--dev',
+  P: '--production',
 }
 
 export const commandNames = ['audit']
@@ -76,7 +76,7 @@ export function help () {
             shortAlias: '-P',
           },
           {
-            description: `Don't audit "optionalDependencies"`,
+            description: 'Don\'t audit "optionalDependencies"',
             name: '--no-optional',
           },
         ],
@@ -90,7 +90,7 @@ export function help () {
 export async function handler (
   opts: Pick<UniversalOptions, 'dir'> & {
     auditLevel?: 'low' | 'moderate' | 'high' | 'critical',
-    include: IncludedDependencies
+    include: IncludedDependencies,
     json?: boolean,
     lockfileDir?: string,
     registries: Registries,
@@ -111,7 +111,8 @@ export async function handler (
     },
   })
   const vulnerabilities = auditReport.metadata.vulnerabilities
-  const totalVulnerabilityCount = Object.values(vulnerabilities).reduce((sum, vulnerabilitiesCount) => sum + vulnerabilitiesCount, 0)
+  const totalVulnerabilityCount = Object.values(vulnerabilities)
+    .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   if (opts.json) {
     return {
       exitCode: totalVulnerabilityCount > 0 ? 1 : 0,

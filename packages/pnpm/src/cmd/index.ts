@@ -17,7 +17,6 @@ import {
 } from '@pnpm/plugin-commands-script-runners'
 import { server } from '@pnpm/plugin-commands-server'
 import { store } from '@pnpm/plugin-commands-store'
-import R = require('ramda')
 import { PnpmOptions } from '../types'
 import * as bin from './bin'
 import createCompletion from './completion'
@@ -25,6 +24,7 @@ import createHelp from './help'
 import * as installTest from './installTest'
 import * as recursive from './recursive'
 import * as root from './root'
+import R = require('ramda')
 
 export const GLOBAL_OPTIONS = R.pick([
   'color',
@@ -39,7 +39,7 @@ export const GLOBAL_OPTIONS = R.pick([
   'workspace-packages',
 ], allTypes)
 
-export type CommandResponse = string | { output: string, exitCode: number } | void
+export type CommandResponse = string | { output: string, exitCode: number } | undefined
 
 export type Command = (
   opts: PnpmOptions,
@@ -103,7 +103,7 @@ for (let i = 0; i < commands.length; i++) {
     shorthands,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
-    throw new Error('The command at index ' + i + " doesn't have command names")
+    throw new Error(`The command at index ${i} doesn't have command names`)
   }
   for (const commandName of commandNames) {
     handlerByCommandName[commandName] = handler as Command

@@ -3,7 +3,7 @@ import baseLogger, {
   Logger,
 } from '@pnpm/logger'
 
-export const deprecationLogger = baseLogger('deprecation') as Logger<DeprecationMessage> // tslint:disable-line
+export const deprecationLogger = baseLogger('deprecation') as Logger<DeprecationMessage> // eslint-disable-line
 
 export interface DeprecationMessage {
   pkgName: string,

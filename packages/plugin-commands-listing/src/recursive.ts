@@ -16,7 +16,7 @@ export default async (
 ) => {
   const depth = opts.depth ?? 0
   if (opts.lockfileDir) {
-    return render(pkgs.map((pkg) => pkg.dir), params, {
+    return await render(pkgs.map((pkg) => pkg.dir), params, {
       ...opts,
       alwaysPrintRootPackage: depth === -1,
       lockfileDir: opts.lockfileDir,
@@ -34,7 +34,7 @@ export default async (
       outputs.push(output)
     } catch (err) {
       logger.info(err)
-      err['prefix'] = dir // tslint:disable-line:no-string-literal
+      err['prefix'] = dir // eslint-disable-line @typescript-eslint/dot-notation
       throw err
     }
   }

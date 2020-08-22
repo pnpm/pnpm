@@ -3,13 +3,13 @@ import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 
-export type LockedDependency = {
+export interface LockedDependency {
   depPath: string,
   pkgSnapshot: PackageSnapshot,
   next: () => LockfileWalkerStep,
 }
 
-export type LockfileWalkerStep = {
+export interface LockfileWalkerStep {
   dependencies: LockedDependency[],
   links: string[],
   missing: string[],
@@ -32,8 +32,8 @@ export function lockfileWalkerGroupImporterSteps (
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
       ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
-    .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
-    .filter((nodeId) => nodeId !== null) as string[]
+      .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
+      .filter((nodeId) => nodeId !== null) as string[]
     return {
       importerId,
       step: step({
@@ -64,12 +64,12 @@ export default function lockfileWalker (
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
       ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
-    .forEach(([ pkgName, reference ]) => {
-      const depPath = dp.refToRelative(reference, pkgName)
-      if (depPath === null) return
-      entryNodes.push(depPath as string)
-      directDeps.push({ alias: pkgName, depPath })
-    })
+      .forEach(([pkgName, reference]) => {
+        const depPath = dp.refToRelative(reference, pkgName)
+        if (depPath === null) return
+        entryNodes.push(depPath)
+        directDeps.push({ alias: pkgName, depPath })
+      })
   })
   return {
     directDeps,
@@ -94,7 +94,7 @@ function step (
     links: [],
     missing: [],
   }
-  for (let depPath of nextDepPaths) {
+  for (const depPath of nextDepPaths) {
     if (ctx.walked.has(depPath)) continue
     ctx.walked.add(depPath)
     const pkgSnapshot = ctx.lockfile.packages?.[depPath]
@@ -120,6 +120,6 @@ function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageS
     ...nextPkg.dependencies,
     ...(opts.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),
   })
-  .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
-  .filter((nodeId) => nodeId !== null) as string[]
+    .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
+    .filter((nodeId) => nodeId !== null) as string[]
 }

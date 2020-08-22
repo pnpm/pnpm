@@ -24,7 +24,7 @@ test('readWantedLockfile()', async t => {
   }
 
   try {
-    const lockfile = await readWantedLockfile(path.join('fixtures', '3'), {
+    await readWantedLockfile(path.join('fixtures', '3'), {
       ignoreIncompatible: false,
       wantedVersion: 3,
     })

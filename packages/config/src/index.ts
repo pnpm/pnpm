@@ -1,12 +1,7 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import globalBinDir from '@pnpm/global-bin-dir'
-import loadNpmConf = require('@zkochan/npm-conf')
-import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase from 'camelcase'
-import path = require('path')
-import R = require('ramda')
-import whichcb = require('which')
 import {
   Config,
   ConfigWithDeprecatedSettings,
@@ -14,6 +9,11 @@ import {
 } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
+import path = require('path')
+import loadNpmConf = require('@zkochan/npm-conf')
+import npmTypes = require('@zkochan/npm-conf/lib/types')
+import R = require('ramda')
+import whichcb = require('which')
 
 export { Config, UniversalOptions }
 
@@ -26,43 +26,43 @@ function which (cmd: string) {
 }
 
 export const types = Object.assign({
-  'bail': Boolean,
+  bail: Boolean,
   'child-concurrency': Number,
-  'color': ['always', 'auto', 'never'],
-  'dev': [null, true],
-  'dir': String,
+  color: ['always', 'auto', 'never'],
+  dev: [null, true],
+  dir: String,
   'fetching-concurrency': Number,
-  'filter': [String, Array],
+  filter: [String, Array],
   'frozen-lockfile': Boolean,
   'frozen-shrinkwrap': Boolean,
   'git-checks': Boolean,
   'global-dir': String,
   'global-path': String,
   'global-pnpmfile': String,
-  'hoist': Boolean,
+  hoist: Boolean,
   'hoist-pattern': Array,
   'ignore-pnpmfile': Boolean,
   'ignore-workspace-root-check': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
-  'lockfile': Boolean,
+  lockfile: Boolean,
   'lockfile-dir': String,
   'lockfile-directory': String, // TODO: deprecate
   'lockfile-only': Boolean,
-  'loglevel': ['silent', 'error', 'warn', 'info', 'debug'],
+  loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
   'modules-dir': String,
   'network-concurrency': Number,
   'npm-path': String,
-  'offline': Boolean,
+  offline: Boolean,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
-  'pnpmfile': String,
+  pnpmfile: String,
   'prefer-frozen-lockfile': Boolean,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
-  'production': [null, true],
+  production: [null, true],
   'public-hoist-pattern': Array,
   'publish-branch': String,
   'recursive-install': Boolean,
-  'reporter': String,
+  reporter: String,
   'save-peer': Boolean,
   'save-workspace-protocol': Boolean,
   'shamefully-flatten': Boolean,
@@ -73,10 +73,10 @@ export const types = Object.assign({
   'shrinkwrap-only': Boolean,
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
-  'sort': Boolean,
-  'store': String, // TODO: deprecate
+  sort: Boolean,
+  store: String, // TODO: deprecate
   'store-dir': String,
-  'stream': Boolean,
+  stream: Boolean,
   'strict-peer-dependencies': Boolean,
   'use-beta-cli': Boolean,
   'use-running-store-server': Boolean,
@@ -128,39 +128,39 @@ export default async (
     if (node.toUpperCase() !== process.execPath.toUpperCase()) {
       process.execPath = node
     }
-  } catch (err) {} // tslint:disable-line:no-empty
+  } catch (err) {} // eslint-disable-line:no-empty
 
   if (cliOptions.dir) {
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const npmConfig = loadNpmConf(cliOptions, rcOptionsTypes, {
-    'bail': true,
-    'color': 'auto',
+    bail: true,
+    color: 'auto',
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
     'fetch-retry-mintimeout': 10000,
-    'globalconfig': npmDefaults.globalconfig,
-    'hoist': true,
+    globalconfig: npmDefaults.globalconfig,
+    hoist: true,
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,
     'package-lock': npmDefaults['package-lock'],
-    'pending': false,
+    pending: false,
     'public-hoist-pattern': ['@types/*', 'eslint-plugin-*'],
     'recursive-install': true,
-    'registry': npmDefaults.registry,
+    registry: npmDefaults.registry,
     'save-peer': false,
     'save-workspace-protocol': true,
     'shared-workspace-lockfile': true,
     'shared-workspace-shrinkwrap': true,
-    'shrinkwrap': npmDefaults.shrinkwrap,
-    'sort': true,
+    shrinkwrap: npmDefaults.shrinkwrap,
+    sort: true,
     'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
-    'userconfig': npmDefaults.userconfig,
+    userconfig: npmDefaults.userconfig,
     'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': 4,
     'workspace-prefix': opts.workspaceDir,
@@ -170,16 +170,16 @@ export default async (
   process.execPath = originalExecPath
 
   const pnpmConfig: ConfigWithDeprecatedSettings = R.fromPairs([
-    ...Object.keys(rcOptionsTypes).map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // tslint:disable-line
+    ...Object.keys(rcOptionsTypes).map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings
-  const cwd = (cliOptions['dir'] && path.resolve(cliOptions['dir'])) ?? npmConfig.localPrefix // tslint:disable-line
+  const cwd = (cliOptions['dir'] && path.resolve(cliOptions['dir'])) ?? npmConfig.localPrefix // eslint-disable-line
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
     cliOptions,
-  ] as any) // tslint:disable-line:no-any
+  ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
@@ -188,7 +188,7 @@ export default async (
     ...[...npmConfig.list].reverse(),
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
-  ] as any) // tslint:disable-line:no-any
+  ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   pnpmConfig.registries = {
     default: normalizeRegistry(pnpmConfig.rawConfig.registry),
     ...getScopeRegistries(pnpmConfig.rawConfig),
@@ -320,36 +320,36 @@ export default async (
     delete pnpmConfig.hoistPattern
   }
   switch (pnpmConfig.shamefullyHoist) {
-    case false:
-      delete pnpmConfig.publicHoistPattern
-      break
-    case true:
-      pnpmConfig.publicHoistPattern = ['*']
-      break
-    default:
-      if (
-        !pnpmConfig.publicHoistPattern ||
+  case false:
+    delete pnpmConfig.publicHoistPattern
+    break
+  case true:
+    pnpmConfig.publicHoistPattern = ['*']
+    break
+  default:
+    if (
+      !pnpmConfig.publicHoistPattern ||
         (
           Array.isArray(pnpmConfig.publicHoistPattern) &&
           pnpmConfig.publicHoistPattern.length === 1 &&
           pnpmConfig.publicHoistPattern[0] === ''
         )
-      ) {
-        delete pnpmConfig.publicHoistPattern
-      }
-      break
+    ) {
+      delete pnpmConfig.publicHoistPattern
+    }
+    break
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
-      case true:
-        pnpmConfig.color = 'always'
-        break
-      case false:
-        pnpmConfig.color = 'never'
-        break
-      default:
-        pnpmConfig.color = 'auto'
-        break
+    case true:
+      pnpmConfig.color = 'always'
+      break
+    case false:
+      pnpmConfig.color = 'never'
+      break
+    default:
+      pnpmConfig.color = 'auto'
+      break
     }
   }
   if (!pnpmConfig.httpsProxy) {

@@ -1,14 +1,14 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
-import isWindows = require('is-windows')
-import path = require('path')
-import exists = require('path-exists')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   execPnpm,
 } from '../utils'
+import path = require('path')
+import isWindows = require('is-windows')
+import exists = require('path-exists')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -27,10 +27,10 @@ test('global installation', async (t: tape.Test) => {
 
   const globalPrefix = path.join(global, `pnpm-global/${LAYOUT_VERSION}`)
 
-  const isPositive = require(path.join(globalPrefix, 'node_modules', 'is-positive'))
+  const isPositive = await import(path.join(globalPrefix, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 
-  const isNegative = require(path.join(globalPrefix, 'node_modules', 'is-negative'))
+  const isNegative = await import(path.join(globalPrefix, 'node_modules', 'is-negative'))
   t.ok(typeof isNegative === 'function', 'isNegative() is available')
 })
 
@@ -39,7 +39,7 @@ test('global installation to custom directory with --global-dir', async (t: tape
 
   await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'])
 
-  const isPositive = require(path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`))
+  const isPositive = await import(path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 })
 
@@ -60,6 +60,7 @@ test('always install latest when doing global installation without spec', async 
 
   process.chdir(globalPrefix)
 
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   t.equal(require(path.resolve('node_modules', 'peer-c', 'package.json')).version, '2.0.0')
 })
 

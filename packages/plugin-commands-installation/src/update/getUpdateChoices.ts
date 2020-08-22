@@ -1,8 +1,8 @@
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import R = require('ramda')
 import { getBorderCharacters, table } from 'table'
+import R = require('ramda')
 
 export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
   const allOutdatedPkgs = mergeOutdatedPkgs(outdatedPkgsOfProjects)
@@ -21,7 +21,7 @@ export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
 
   const choices = []
   let i = 0
-  for (let { pkgName, rows } of rowsGroupedByPkgs) {
+  for (const { pkgName, rows } of rowsGroupedByPkgs) {
     choices.push({
       message: renderedTable
         .slice(i, i + rows.length)
@@ -61,17 +61,17 @@ function outdatedPkgsRows (outdatedPkgs: OutdatedPackage[]) {
       const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
       const nextVersion = sdiff.change === null
         ? outdatedPkg.latestManifest!.version
-        : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
+        : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
       let label = outdatedPkg.packageName
       switch (outdatedPkg.belongsTo) {
-        case 'devDependencies': {
-          label += ' (dev)'
-          break
-        }
-        case 'optionalDependencies': {
-          label += ' (optional)'
-          break
-        }
+      case 'devDependencies': {
+        label += ' (dev)'
+        break
+      }
+      case 'optionalDependencies': {
+        label += ' (optional)'
+        break
+      }
       }
       return [label, outdatedPkg.current, '❯', nextVersion]
     })

@@ -1,8 +1,8 @@
 import { types as allTypes, UniversalOptions } from '@pnpm/config'
 import runNpm from '@pnpm/run-npm'
+import { fakeRegularManifest } from './publish'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { fakeRegularManifest } from './publish'
 
 export function rcOptionsTypes () {
   return {

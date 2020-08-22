@@ -1,10 +1,10 @@
 import { tempDir } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import path = require('path')
-import PATH = require('path-name')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpmSync } from './utils'
+import path = require('path')
+import fs = require('mz/fs')
+import PATH = require('path-name')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

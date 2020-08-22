@@ -1,6 +1,6 @@
+import { URL } from 'url'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import npmRegistryAgent, { AgentOptions } from '@pnpm/npm-registry-agent'
-import { URL } from 'url'
 import fetch, { isRedirect, Response } from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
@@ -35,12 +35,12 @@ export default function (
         ...defaultOpts,
         ...opts,
         strictSSL: defaultOpts.strictSSL ?? true,
-      } as any) // tslint:disable-line
+      } as any) // eslint-disable-line
       headers['connection'] = agent ? 'keep-alive' : 'close'
 
       // We should pass a URL object to node-fetch till this is not resolved:
       // https://github.com/bitinn/node-fetch/issues/245
-      let response = await fetch(urlObject, {
+      const response = await fetch(urlObject, {
         agent,
         // if verifying integrity, node-fetch must not decompress
         compress: false,
@@ -73,7 +73,7 @@ function getHeaders (
     accept: opts.fullMetadata === true ? JSON_DOC : CORGI_DOC,
   }
   if (opts.auth) {
-    headers['authorization'] = opts.auth // tslint:disable-line
+    headers['authorization'] = opts.auth // eslint-disable-line
   }
   if (opts.userAgent) {
     headers['user-agent'] = opts.userAgent

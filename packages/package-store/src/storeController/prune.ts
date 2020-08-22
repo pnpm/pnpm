@@ -1,9 +1,9 @@
 import { PackageFilesIndex } from '@pnpm/cafs'
 import { globalInfo } from '@pnpm/logger'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
-import path = require('path')
 import ssri = require('ssri')
 
 const BIG_ONE = BigInt(1) as unknown

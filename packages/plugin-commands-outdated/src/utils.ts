@@ -20,10 +20,10 @@ export function sortBySemverChange (outdated1: OutdatedWithVersionDiff, outdated
 
 function pkgPriority (pkg: OutdatedWithVersionDiff) {
   switch (pkg.change) {
-    case null: return 0
-    case 'fix': return 1
-    case 'feature': return 2
-    case 'breaking': return 3
-    default: return 4
+  case null: return 0
+  case 'fix': return 1
+  case 'feature': return 2
+  case 'breaking': return 3
+  default: return 4
   }
 }

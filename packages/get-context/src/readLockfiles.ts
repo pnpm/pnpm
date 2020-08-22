@@ -34,21 +34,22 @@ export default async function (
     virtualStoreDir: string,
   }
 ): Promise<{
-  currentLockfile: Lockfile,
-  currentLockfileIsUpToDate: boolean,
-  existsCurrentLockfile: boolean,
-  existsWantedLockfile: boolean,
-  wantedLockfile: Lockfile,
-}> {
+    currentLockfile: Lockfile,
+    currentLockfileIsUpToDate: boolean,
+    existsCurrentLockfile: boolean,
+    existsWantedLockfile: boolean,
+    wantedLockfile: Lockfile,
+  }> {
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
     ignoreIncompatible: opts.force || isCI,
     wantedVersion: LOCKFILE_VERSION,
   }
+  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   const files = await Promise.all<Lockfile | null | void>([
-    opts.useLockfile && readWantedLockfile(opts.lockfileDir, lockfileOpts)
-      || await existsWantedLockfile(opts.lockfileDir) &&
+    opts.useLockfile && readWantedLockfile(opts.lockfileDir, lockfileOpts) ||
+      await existsWantedLockfile(opts.lockfileDir) &&
         logger.warn({
           message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
           prefix: opts.lockfileDir,

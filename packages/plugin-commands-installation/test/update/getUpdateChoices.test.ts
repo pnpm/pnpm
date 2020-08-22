@@ -1,6 +1,6 @@
+import getUpdateChoices from '../../lib/update/getUpdateChoices'
 import chalk = require('chalk')
 import test = require('tape')
-import getUpdateChoices from '../../lib/update/getUpdateChoices'
 
 test('getUpdateChoices()', (t) => {
   t.deepEqual(

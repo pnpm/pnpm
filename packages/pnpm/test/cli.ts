@@ -1,15 +1,15 @@
 import prepare from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
-import execa = require('execa')
-import fs = require('mz/fs')
-import path = require('path')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   execPnpm,
   execPnpmSync,
   execPnpxSync,
 } from './utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import execa = require('execa')
+import fs = require('mz/fs')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 const fixtures = path.join(__dirname, '../../../fixtures')
@@ -38,7 +38,7 @@ test('installs in the folder where the package.json file is', async function (t)
 })
 
 test('pnpm import does not move modules created by npm', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
   await execa('npm', ['install', 'is-positive@1.0.0', '--save'])
   await execa('npm', ['shrinkwrap'])
@@ -62,7 +62,7 @@ test('pass through to npm CLI for commands that are not supported by npm', t => 
 })
 
 test('pass through to npm with all the args', async t => {
-  const project = prepare(t)
+  prepare(t)
   await rimraf('package.json')
 
   const result = execPnpmSync(['init', '-y'])
@@ -71,7 +71,7 @@ test('pass through to npm with all the args', async t => {
 })
 
 test('pnpm fails when an unsupported command is used', async (t) => {
-  const project = prepare(t)
+  prepare(t)
 
   const { status, stdout } = execPnpmSync(['unsupported-command'])
 
@@ -80,7 +80,7 @@ test('pnpm fails when an unsupported command is used', async (t) => {
 })
 
 test('pnpm fails when no command is specified', async (t) => {
-  const project = prepare(t)
+  prepare(t)
 
   const { status, stdout } = execPnpmSync([])
 
@@ -89,7 +89,7 @@ test('pnpm fails when no command is specified', async (t) => {
 })
 
 test('command fails when an unsupported flag is used', async (t) => {
-  const project = prepare(t)
+  prepare(t)
 
   const { status, stderr } = execPnpmSync(['update', '--save-dev'])
 
@@ -98,7 +98,7 @@ test('command fails when an unsupported flag is used', async (t) => {
 })
 
 test('command does not fail when a deprecated option is used', async (t) => {
-  const project = prepare(t)
+  prepare(t)
 
   const { status, stdout } = execPnpmSync(['install', '--no-lock'])
 
@@ -107,7 +107,7 @@ test('command does not fail when a deprecated option is used', async (t) => {
 })
 
 test('command does not fail when deprecated options are used', async (t) => {
-  const project = prepare(t)
+  prepare(t)
 
   const { status, stdout } = execPnpmSync(['install', '--no-lock', '--independent-leaves'])
 

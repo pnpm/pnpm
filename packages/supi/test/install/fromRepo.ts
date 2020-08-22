@@ -1,18 +1,17 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import isCI = require('is-ci')
-import path = require('path')
-import exists = require('path-exists')
-import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import isCI = require('is-ci')
+import exists = require('path-exists')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -129,7 +128,7 @@ test('a subdependency is from a github repo with different name', async (t: tape
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/hi')
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/szia')
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/has-say-hi-peer@1.0.0_say-hi@1.0.0/node_modules/has-say-hi-peer`)),
+  t.ok(await exists(path.resolve('node_modules/.pnpm/has-say-hi-peer@1.0.0_say-hi@1.0.0/node_modules/has-say-hi-peer')),
     'aliased name used to resolve a peer dependency')
 })
 
@@ -145,7 +144,7 @@ test('from a git repo', async (t: tape.Test) => {
 })
 
 // This test is unstable due to dependency on third party registry
-// tslint:disable-next-line:no-string-literal
+// eslint-disable-next-line @typescript-eslint/dot-notation
 test.skip('from a non-github git repo', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 

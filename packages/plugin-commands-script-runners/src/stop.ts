@@ -1,13 +1,13 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
-import R = require('ramda')
-import renderHelp = require('render-help')
 import {
   handler as run,
   IF_PRESENT_OPTION,
   IF_PRESENT_OPTION_HELP,
   RunOpts,
 } from './run'
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return {
@@ -25,7 +25,7 @@ export const commandNames = ['stop']
 
 export function help () {
   return renderHelp({
-    description: `Runs a package's "stop" script, if one was provided.`,
+    description: 'Runs a package\'s "stop" script, if one was provided.',
     descriptionLists: [
       {
         title: 'Options',
@@ -44,5 +44,5 @@ export async function handler (
   opts: RunOpts,
   params: string[]
 ) {
-  return run(opts, ['stop', ...params])
+  return await run(opts, ['stop', ...params])
 }

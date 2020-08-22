@@ -1,9 +1,9 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
+import promisifyTape from 'tape-promise'
+import { execPnpm } from '../utils'
 import fs = require('mz/fs')
 import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
-import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
 
@@ -56,7 +56,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
       version: '1.0.0',
 
       dependencies: {
-        'foobar': '100.0.0',
+        foobar: '100.0.0',
       },
     },
   ])
@@ -66,8 +66,8 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
 
   await execPnpm(['recursive', 'install'])
 
-  await projects['root'].has('dep-of-pkg-with-1-dep')
-  await projects['root'].has('foo')
-  await projects['project'].hasNot('foo')
-  await projects['project'].has('foobar')
+  await projects.root.has('dep-of-pkg-with-1-dep')
+  await projects.root.has('foo')
+  await projects.project.hasNot('foo')
+  await projects.project.has('foobar')
 })

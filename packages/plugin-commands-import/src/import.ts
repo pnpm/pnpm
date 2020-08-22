@@ -6,11 +6,11 @@ import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
+import { install, InstallOptions } from 'supi'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
-import path = require('path')
 import renderHelp = require('render-help')
-import { install, InstallOptions } from 'supi'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -53,12 +53,12 @@ async function readNpmLockfile (dir: string) {
   try {
     return await loadJsonFile<LockedPackage>(path.join(dir, 'package-lock.json'))
   } catch (err) {
-    if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
+    if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
   }
   try {
     return await loadJsonFile<LockedPackage>(path.join(dir, 'npm-shrinkwrap.json'))
   } catch (err) {
-    if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
+    if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
   }
   throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
 }

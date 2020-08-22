@@ -1,5 +1,5 @@
-import findUp = require('find-up')
 import path = require('path')
+import findUp = require('find-up')
 
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 

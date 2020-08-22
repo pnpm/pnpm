@@ -5,11 +5,11 @@ import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import { ProjectManifest } from '@pnpm/types'
+import runRecursive, { RecursiveRunOpts } from './runRecursive'
 import path = require('path')
 import R = require('ramda')
 import realpathMissing = require('realpath-missing')
 import renderHelp = require('render-help')
-import runRecursive, { RecursiveRunOpts } from './runRecursive'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
@@ -21,15 +21,15 @@ export const IF_PRESENT_OPTION_HELP = {
 }
 
 export const PARALLEL_OPTION_HELP = {
-  description: `Completely disregard concurrency and topological sorting, \
+  description: 'Completely disregard concurrency and topological sorting, \
 running a given script immediately in all matching packages \
 with prefixed streaming output. This is the preferred flag \
-for long-running processes such as watch run over many packages.`,
+for long-running processes such as watch run over many packages.',
   name: '--parallel',
 }
 
 export const shorthands = {
-  'parallel': [
+  parallel: [
     '--workspace-concurrency=Infinity',
     '--no-sort',
     '--stream',
@@ -78,9 +78,9 @@ export function help () {
 
         list: [
           {
-            description: `Run the defined package script in every package found in subdirectories \
+            description: 'Run the defined package script in every package found in subdirectories \
 or every workspace package, when executed inside a workspace. \
-For options that may be used with \`-r\`, see "pnpm help recursive"`,
+For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -197,7 +197,7 @@ function printProjectCommands (manifest: ProjectManifest) {
   }
 
   if (lifecycleScripts.length === 0 && otherScripts.length === 0) {
-    return `There are no scripts specified.`
+    return 'There are no scripts specified.'
   }
 
   let output = ''

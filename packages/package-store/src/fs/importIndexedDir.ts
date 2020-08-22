@@ -1,8 +1,8 @@
 import pnpmLogger, { globalWarn } from '@pnpm/logger'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import makeEmptyDir = require('make-empty-dir')
 import fs = require('mz/fs')
-import path = require('path')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 
@@ -20,7 +20,9 @@ export default async function importIndexedDir (
     await tryImportIndexedDir(importFile, stage, filenames)
     await renameOverwrite(stage, newDir)
   } catch (err) {
-    try { await rimraf(stage) } catch (err) {} // tslint:disable-line:no-empty
+    try {
+      await rimraf(stage)
+    } catch (err) {} // eslint-disable-line:no-empty
     if (err['code'] !== 'EEXIST') throw err
 
     const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)

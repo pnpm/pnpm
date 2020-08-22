@@ -1,7 +1,7 @@
 import { RequestRetryLog } from '@pnpm/core-loggers'
+import formatWarn from './utils/formatWarn'
 import most = require('most')
 import prettyMilliseconds = require('pretty-ms')
-import formatWarn from './utils/formatWarn'
 
 export default (
   requestRetry$: most.Stream<RequestRetryLog>

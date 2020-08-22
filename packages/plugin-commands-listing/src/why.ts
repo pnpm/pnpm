@@ -2,9 +2,9 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+import { handler as list, ListCommandOptions } from './list'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { handler as list, ListCommandOptions } from './list'
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -37,9 +37,9 @@ For example: pnpm why babel-* eslint-*`,
 
         list: [
           {
-            description: `Perform command on every package in subdirectories \
+            description: 'Perform command on every package in subdirectories \
 or on every workspace package, when executed inside a workspace. \
-For options that may be used with \`-r\`, see "pnpm help recursive"`,
+For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -61,11 +61,11 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
             shortAlias: '-g',
           },
           {
-            description: 'Display only the dependency graph for packages in \`dependencies\` and \`optionalDependencies\`',
+            description: 'Display only the dependency graph for packages in `dependencies` and `optionalDependencies`',
             name: '--prod',
           },
           {
-            description: 'Display only the dependency graph for packages in \`devDependencies\`',
+            description: 'Display only the dependency graph for packages in `devDependencies`',
             name: '--dev',
           },
           {

@@ -1,5 +1,3 @@
-export * from './all'
-
 import {
   ContextLog,
   DeprecationLog,
@@ -21,6 +19,8 @@ import {
   StatsLog,
   SummaryLog,
 } from './all'
+
+export * from './all'
 
 export type Log =
   | ContextLog

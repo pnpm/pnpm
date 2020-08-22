@@ -10,11 +10,11 @@ import {
   ImportPackageFunction,
   StoreController,
 } from '@pnpm/store-controller-types'
-import loadJsonFile = require('load-json-file')
-import path = require('path')
-import writeJsonFile = require('write-json-file')
 import createImportPackage from './createImportPackage'
 import prune from './prune'
+import path = require('path')
+import loadJsonFile = require('load-json-file')
+import writeJsonFile = require('write-json-file')
 
 export default async function (
   resolve: ResolveFunction,
@@ -57,7 +57,7 @@ export default async function (
   }
 
   return {
-    close: async () => {}, // tslint:disable-line:no-empty
+    close: async () => {}, // eslint-disable-line:no-empty
     fetchPackage: packageRequester.fetchPackageToStore,
     importPackage,
     prune: prune.bind(null, storeDir),

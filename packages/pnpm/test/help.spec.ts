@@ -1,5 +1,5 @@
-import test = require('tape')
 import createHelp from '../src/cmd/help'
+import test = require('tape')
 
 test('print an error when help not found', (t) => {
   t.equal(

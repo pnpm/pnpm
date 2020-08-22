@@ -2,15 +2,15 @@ import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { exec } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
+import { DEFAULT_OPTS, REGISTRY } from './utils'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
 import fs = require('mz/fs')
-import path = require('path')
 import test = require('tape')
-import { DEFAULT_OPTS, REGISTRY } from './utils'
 
 test('pnpm recursive exec', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -19,7 +19,7 @@ test('pnpm recursive exec', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-1')" | json-append ../output1.json && node -e "process.stdout.write('project-1')" | json-append ../output2.json`,
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
       },
     },
     {
@@ -31,9 +31,9 @@ test('pnpm recursive exec', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
-        postbuild: `node -e "process.stdout.write('project-2-postbuild')" | json-append ../output1.json`,
-        prebuild: `node -e "process.stdout.write('project-2-prebuild')" | json-append ../output1.json`,
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output1.json',
+        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output1.json',
       },
     },
     {
@@ -45,7 +45,7 @@ test('pnpm recursive exec', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
       },
     },
   ])
@@ -75,26 +75,26 @@ test('pnpm recursive exec', async (t) => {
 })
 
 test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'foo',
       version: '1.0.0',
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await exec.handler({
     ...DEFAULT_OPTS,
     recursive: true,
     selectedProjectsGraph,
-  }, ['node', '-e', `require('fs').writeFileSync('pkgname', process.env.PNPM_PACKAGE_NAME, 'utf8')`])
+  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkgname\', process.env.PNPM_PACKAGE_NAME, \'utf8\')'])
 
   t.equal(await fs.readFile('foo/pkgname', 'utf8'), 'foo', '$PNPM_PACKAGE_NAME is correct')
   t.end()
 })
 
 test('testing the bail config with "pnpm recursive exec"', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -103,7 +103,7 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
       },
     },
     {
@@ -115,7 +115,7 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `exit 1 && node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+        build: 'exit 1 && node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
       },
     },
     {
@@ -127,7 +127,7 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
       },
     },
   ])
@@ -181,7 +181,7 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
 })
 
 test('pnpm recursive exec --no-sort', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'a-dependent',
       version: '1.0.0',
@@ -191,7 +191,7 @@ test('pnpm recursive exec --no-sort', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('a-dependent')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'a-dependent\')" | json-append ../output.json',
       },
     },
     {
@@ -202,7 +202,7 @@ test('pnpm recursive exec --no-sort', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('b-dependency')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'b-dependency\')" | json-append ../output.json',
       },
     },
   ])

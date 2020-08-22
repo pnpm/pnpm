@@ -1,13 +1,13 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
-import R = require('ramda')
-import renderHelp = require('render-help')
 import {
   handler as run,
   IF_PRESENT_OPTION,
   IF_PRESENT_OPTION_HELP,
   RunOpts,
 } from './run'
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return {
@@ -25,9 +25,9 @@ export const commandNames = ['start']
 
 export function help () {
   return renderHelp({
-    description: `\
-Runs an arbitrary command specified in the package's "start" property of its "scripts" object. \
-If no "start" property is specified on the "scripts" object, it will run node server.js.`,
+    description: '\
+Runs an arbitrary command specified in the package\'s "start" property of its "scripts" object. \
+If no "start" property is specified on the "scripts" object, it will run node server.js.',
     descriptionLists: [
       {
         title: 'Options',
@@ -46,5 +46,5 @@ export async function handler (
   opts: RunOpts,
   params: string[]
 ) {
-  return run(opts, ['start', ...params])
+  return await run(opts, ['start', ...params])
 }

@@ -1,8 +1,8 @@
 import { getFilePathInCafs } from '@pnpm/cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { Test } from 'tape'
 import path = require('path')
 import exists = require('path-exists')
-import { Test } from 'tape'
 
 export default (
   t: Test,

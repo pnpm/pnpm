@@ -18,8 +18,8 @@ import readModulesDir from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
-import normalizePath = require('normalize-path')
 import path = require('path')
+import normalizePath = require('normalize-path')
 import realpathMissing = require('realpath-missing')
 import resolveLinkTarget = require('resolve-link-target')
 
@@ -41,7 +41,7 @@ export interface PackageNode {
   version: string,
 }
 
-export type DependenciesHierarchy = {
+export interface DependenciesHierarchy {
   dependencies?: PackageNode[],
   devDependencies?: PackageNode[],
   optionalDependencies?: PackageNode[],
@@ -64,15 +64,15 @@ export default async function dependenciesHierarchy (
   const modulesDir = await realpathMissing(path.join(maybeOpts.lockfileDir, 'node_modules'))
   const modules = await readModulesYaml(modulesDir)
   const registries = normalizeRegistries({
-    ...maybeOpts && maybeOpts.registries,
-    ...modules && modules.registries,
+    ...maybeOpts?.registries,
+    ...modules?.registries,
   })
   const currentLockfile = modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false }) || null
 
   const result = {} as { [projectDir: string]: DependenciesHierarchy }
 
   if (!currentLockfile) {
-    for (let projectPath of projectPaths) {
+    for (const projectPath of projectPaths) {
       result[projectPath] = {}
     }
     return result
@@ -88,7 +88,7 @@ export default async function dependenciesHierarchy (
     lockfileDir: maybeOpts.lockfileDir,
     registries,
     search: maybeOpts.search,
-    skipped: new Set(modules && modules.skipped || []),
+    skipped: new Set(modules?.skipped || []),
   }
   ; (
     await Promise.all(projectPaths.map(async (projectPath) => {
@@ -154,7 +154,7 @@ async function dependenciesHierarchyForPackage (
         wantedPackages: wantedLockfile.packages || {},
       })
       let newEntry: PackageNode | null = null
-      const matchedSearched = opts.search && opts.search(packageInfo)
+      const matchedSearched = opts.search?.(packageInfo)
       if (packageAbsolutePath === null) {
         if (opts.search && !matchedSearched) return
         newEntry = packageInfo
@@ -191,7 +191,7 @@ async function dependenciesHierarchyForPackage (
       } catch (err) {
         // if error happened. The package is not a link
         const pkg = await safeReadPackageFromDir(pkgPath)
-        version = pkg && pkg.version || 'undefined'
+        version = pkg?.version || 'undefined'
       }
       const pkg = {
         alias: unsavedDep,
@@ -202,7 +202,7 @@ async function dependenciesHierarchyForPackage (
         path: pkgPath,
         version,
       }
-      const matchedSearched = opts.search && opts.search(pkg)
+      const matchedSearched = opts.search?.(pkg)
       if (opts.search && !matchedSearched) return
       const newEntry: PackageNode = pkg
       if (matchedSearched) {
@@ -224,7 +224,7 @@ function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
   }
 }
 
-type GetTreeOpts = {
+interface GetTreeOpts {
   currentDepth: number,
   maxDepth: number,
   lockfileDir: string,
@@ -237,7 +237,7 @@ type GetTreeOpts = {
   wantedPackages: PackageSnapshots,
 }
 
-type DependencyInfo = { circular?: true, dependencies: PackageNode[] }
+interface DependencyInfo { circular?: true, dependencies: PackageNode[] }
 
 function getTree (
   opts: GetTreeOpts,
@@ -287,7 +287,7 @@ function getTreeHelper (
       wantedPackages: opts.wantedPackages,
     })
     let circular: boolean
-    const matchedSearched = opts.search && opts.search(packageInfo)
+    const matchedSearched = opts.search?.(packageInfo)
     let newEntry: PackageNode | null = null
     if (packageAbsolutePath === null) {
       circular = false
@@ -354,9 +354,9 @@ function getPkgInfo (
 ) {
   let name!: string
   let version!: string
-  let resolved: string | undefined = undefined
-  let dev: boolean | undefined = undefined
-  let optional: true | undefined = undefined
+  let resolved: string | undefined
+  let dev: boolean | undefined
+  let optional: true | undefined
   let isSkipped: boolean = false
   let isMissing: boolean = false
   const depPath = refToRelative(opts.ref, opts.alias)
@@ -391,7 +391,7 @@ function getPkgInfo (
   const packageInfo = {
     alias: opts.alias,
     isMissing,
-    isPeer: Boolean(opts.peers && opts.peers.has(opts.alias)),
+    isPeer: Boolean(opts.peers?.has(opts.alias)),
     isSkipped,
     name,
     path: depPath ? path.join(opts.modulesDir, '.pnpm', pkgIdToFilename(depPath, opts.lockfileDir)) : path.join(opts.modulesDir, '..', opts.ref.substr(5)),

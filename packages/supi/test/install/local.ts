@@ -1,20 +1,21 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { copyFixture, pathToLocalPkg } from '@pnpm/test-fixtures'
-import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
-import normalizePath = require('normalize-path')
-import path = require('path')
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
 } from 'supi'
-import symlinkDir = require('symlink-dir')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import fs = require('mz/fs')
+import normalizePath = require('normalize-path')
+import symlinkDir = require('symlink-dir')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -148,7 +149,7 @@ test('tarball local package from project directory', async (t: tape.Test) => {
 
   t.equal(m(), 'tar-pkg', 'tarPkg() is available')
 
-  const pkgSpec = `file:tar-pkg-1.0.0.tgz`
+  const pkgSpec = 'file:tar-pkg-1.0.0.tgz'
   t.deepEqual(manifest.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.readLockfile()
@@ -210,7 +211,7 @@ test('do not update deps when installing in a project that has local tarball dep
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1882
-test(`frozen-lockfile: installation fails if the integrity of a tarball dependency changed`, async (t) => {
+test('frozen-lockfile: installation fails if the integrity of a tarball dependency changed', async (t) => {
   prepareEmpty(t)
 
   await copyFixture('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
@@ -220,7 +221,7 @@ test(`frozen-lockfile: installation fails if the integrity of a tarball dependen
 
   await copyFixture('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
 
-  let err!: Error
+  let err!: PnpmError
   try {
     await install(manifest, await testDefaults({ frozenLockfile: true }))
   } catch (_err) {
@@ -228,5 +229,5 @@ test(`frozen-lockfile: installation fails if the integrity of a tarball dependen
   }
 
   t.ok(err)
-  t.equal(err['code'], 'EINTEGRITY')
+  t.equal(err.code, 'EINTEGRITY')
 })

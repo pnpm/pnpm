@@ -1,10 +1,10 @@
 import { FetchingProgressLog } from '@pnpm/core-loggers'
-import most = require('most')
-import prettyBytes = require('pretty-bytes')
 import {
   hlPkgId,
   hlValue,
 } from './outputConstants'
+import most = require('most')
+import prettyBytes = require('pretty-bytes')
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 

@@ -1,24 +1,24 @@
 import { importingLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
+import importIndexedDir from '../fs/importIndexedDir'
+import path = require('path')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
-import path = require('path')
 import exists = require('path-exists')
-import importIndexedDir from '../fs/importIndexedDir'
 
 const limitLinking = pLimit(16)
 
 export default (
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
 ): (
-  to: string,
-  opts: {
-    filesMap: Record<string, string>,
-    fromStore: boolean,
-    force: boolean
-  }
-) => ReturnType<(to: string, opts: { filesResponse: PackageFilesResponse, force: boolean }) => Promise<void>> => {
+    to: string,
+    opts: {
+      filesMap: Record<string, string>,
+      fromStore: boolean,
+      force: boolean,
+    }
+  ) => ReturnType<(to: string, opts: { filesResponse: PackageFilesResponse, force: boolean }) => Promise<void>> => {
   const importPackage = createImportPackage(packageImportMethod)
   return (to, opts) => limitLinking(() => importPackage(to, opts))
 }
@@ -30,20 +30,20 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod || 'auto') {
-    case 'clone':
-      packageImportMethodLogger.debug({ method: 'clone' })
-      return clonePkg
-    case 'hardlink':
-      packageImportMethodLogger.debug({ method: 'hardlink' })
-      return hardlinkPkg
-    case 'auto': {
-      return createAutoImporter()
-    }
-    case 'copy':
-      packageImportMethodLogger.debug({ method: 'copy' })
-      return copyPkg
-    default:
-      throw new Error(`Unknown package import method ${packageImportMethod}`)
+  case 'clone':
+    packageImportMethodLogger.debug({ method: 'clone' })
+    return clonePkg
+  case 'hardlink':
+    packageImportMethodLogger.debug({ method: 'hardlink' })
+    return hardlinkPkg
+  case 'auto': {
+    return createAutoImporter()
+  }
+  case 'copy':
+    packageImportMethodLogger.debug({ method: 'copy' })
+    return copyPkg
+  default:
+    throw new Error(`Unknown package import method ${packageImportMethod}`)
   }
 }
 

@@ -17,8 +17,8 @@ export type SkippedOptionalDependencyMessage = {
     version: string,
   },
   reason: 'unsupported_engine'
-    | 'unsupported_platform'
-    | 'build_failure',
+  | 'unsupported_platform'
+  | 'build_failure',
 } | {
   package: {
     name: string | undefined,

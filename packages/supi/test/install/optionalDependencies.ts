@@ -2,22 +2,21 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf = require('@zkochan/rimraf')
-import deepRequireCwd = require('deep-require-cwd')
-import path = require('path')
-import exists = require('path-exists')
-import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
-import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
   MutatedProject,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import deepRequireCwd = require('deep-require-cwd')
+import exists = require('path-exists')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -76,7 +75,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   await project.hasNot('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
-  t.notOk(await exists(path.resolve(`node_modules/.pnpm/dep-of-optional-pkg@1.0.0`)), "isn't linked into node_modules")
+  t.notOk(await exists(path.resolve('node_modules/.pnpm/dep-of-optional-pkg@1.0.0')), "isn't linked into node_modules")
 
   const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/not-compatible-with-any-os/1.0.0'], 'lockfile contains optional dependency')
@@ -133,7 +132,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   {
     const modules = await project.readModulesManifest()
-    t.deepEqual(modules && modules.skipped, ['/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
+    t.deepEqual(modules?.skipped, ['/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
   }
 })
 
@@ -210,7 +209,7 @@ test('don\'t skip optional dependency that does not support the current OS when 
 
 // Covers https://github.com/pnpm/pnpm/issues/2636
 test('optional subdependency is not removed from current lockfile when new dependency added', async (t: tape.Test) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       location: 'project-1',
       package: { name: 'project-1' },
@@ -282,8 +281,8 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
     t.deepEqual(modulesInfo.skipped, ['/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
   }
 
-  t.ok(await exists(`node_modules/.pnpm/pkg-with-optional@1.0.0`), 'regular dependency linked')
-  t.notOk(await exists(`node_modules/.pnpm/not-compatible-with-any-os@1.0.0`), 'optional dependency not linked')
+  t.ok(await exists('node_modules/.pnpm/pkg-with-optional@1.0.0'), 'regular dependency linked')
+  t.notOk(await exists('node_modules/.pnpm/not-compatible-with-any-os@1.0.0'), 'optional dependency not linked')
 
   const logMatcher = sinon.match({
     package: {
@@ -333,7 +332,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
     await testDefaults({ force: true, frozenLockfile: true })
   )
 
-  t.ok(await exists(`node_modules/.pnpm/not-compatible-with-any-os@1.0.0`), 'optional dependency linked after forced headless install')
+  t.ok(await exists('node_modules/.pnpm/not-compatible-with-any-os@1.0.0'), 'optional dependency linked after forced headless install')
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
@@ -346,7 +345,7 @@ test('optional subdependency of newly added optional dependency is skipped', asy
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-optional'], await testDefaults({ reporter, targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToPackage({}, ['pkg-with-optional'], await testDefaults({ reporter, targetDependenciesField: 'optionalDependencies' }))
 
   const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   t.deepEqual(modulesInfo.skipped, ['/dep-of-optional-pkg/1.0.0', '/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
@@ -457,8 +456,8 @@ test('only skip optional dependencies', async (t: tape.Test) => {
 
   const preferVersion = (selector: string) => ({ [selector]: 'version' as const })
   const preferredVersions = {
-    'duplexify': preferVersion('3.6.0'),
-    'got': preferVersion('3.3.1'),
+    duplexify: preferVersion('3.6.0'),
+    got: preferVersion('3.3.1'),
     'stream-shift': preferVersion('1.0.0'),
   }
   await install({
@@ -470,10 +469,10 @@ test('only skip optional dependencies', async (t: tape.Test) => {
     },
   }, await testDefaults({ fastUnpack: false, preferredVersions }))
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/duplexify@3.6.0`)), 'duplexify is linked into node_modules')
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/stream-shift@1.0.0`)), 'stream-shift is linked into node_modules')
+  t.ok(await exists(path.resolve('node_modules/.pnpm/duplexify@3.6.0')), 'duplexify is linked into node_modules')
+  t.ok(await exists(path.resolve('node_modules/.pnpm/stream-shift@1.0.0')), 'stream-shift is linked into node_modules')
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/got@3.3.1/node_modules/duplexify`)), 'duplexify is linked into node_modules of got')
+  t.ok(await exists(path.resolve('node_modules/.pnpm/got@3.3.1/node_modules/duplexify')), 'duplexify is linked into node_modules of got')
 })
 
 test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace projects', async (t: tape.Test) => {

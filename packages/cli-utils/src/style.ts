@@ -24,6 +24,6 @@ export const TABLE_OPTIONS = {
   columns: {},
 }
 
-for (let [key, value] of Object.entries(TABLE_OPTIONS.border)) {
+for (const [key, value] of Object.entries(TABLE_OPTIONS.border)) {
   TABLE_OPTIONS.border[key] = chalk.grey(value)
 }

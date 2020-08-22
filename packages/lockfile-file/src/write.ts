@@ -1,13 +1,13 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import logger from './logger'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import yaml = require('js-yaml')
 import fs = require('mz/fs')
-import path = require('path')
 import R = require('ramda')
 import writeFileAtomicCB = require('write-file-atomic')
-import logger from './logger'
 
 function writeFileAtomic (filename: string, data: string) {
   return new Promise((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => err ? reject(err) : resolve()))
@@ -38,7 +38,7 @@ export async function writeCurrentLockfile (
   }
 ) {
   await fs.mkdir(virtualStoreDir, { recursive: true })
-  return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
+  return await writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
 }
 
 function writeLockfile (
@@ -107,7 +107,7 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   }
 }
 
-export default function writeLockfiles (
+export default async function writeLockfiles (
   opts: {
     forceSharedFormat?: boolean,
     wantedLockfile: Lockfile,
@@ -121,7 +121,7 @@ export default function writeLockfiles (
 
   // empty lockfile is not saved
   if (isEmptyLockfile(opts.wantedLockfile)) {
-    return Promise.all([
+    return await Promise.all([
       rimraf(wantedLockfilePath),
       rimraf(currentLockfilePath),
     ])
@@ -134,7 +134,7 @@ export default function writeLockfiles (
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
   if (opts.wantedLockfile === opts.currentLockfile) {
-    return Promise.all([
+    return await Promise.all([
       writeFileAtomic(wantedLockfilePath, yamlDoc),
       (async () => {
         await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
@@ -150,7 +150,7 @@ export default function writeLockfiles (
 
   const currentYamlDoc = yaml.safeDump(normalizeLockfile(opts.currentLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
 
-  return Promise.all([
+  return await Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),
     (async () => {
       await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })

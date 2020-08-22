@@ -37,7 +37,7 @@ export default async function complete (
         .map(({ manifest }) => ({ name: manifest.name }))
     } else if (input.lastOption) {
       const optionCompletions = getOptionCompletions(
-        optionTypes as any, // tslint:disable-line
+        optionTypes as any, // eslint-disable-line
         {
           ...universalShorthands,
           ...(input.cmd && ctx.shorthandsByCommandName[input.cmd] || {}),
@@ -73,6 +73,6 @@ export default async function complete (
   }
   return [
     ...completions,
-    ...optionTypesToCompletions(optionTypes as any), // tslint:disable-line
+    ...optionTypesToCompletions(optionTypes as any), // eslint-disable-line
   ]
 }

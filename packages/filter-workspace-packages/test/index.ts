@@ -1,15 +1,15 @@
+import { promisify } from 'util'
 import PnpmError from '@pnpm/error'
 import filterWorkspacePackages, { PackageGraph } from '@pnpm/filter-workspace-packages'
-import execa = require('execa')
+import './parsePackageSelector'
 import fs = require('fs')
+import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
 import touchCB = require('touch')
-import { promisify } from 'util'
-import './parsePackageSelector'
 
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)

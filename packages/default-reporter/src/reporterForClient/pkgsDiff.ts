@@ -48,50 +48,50 @@ export default function (
     log$.root.filter((log) => log.prefix === opts.prefix),
     deprecationSet$
   )
-  .scan((pkgsDiff, args) => {
-    const rootLog = args[0]
-    const deprecationSet = args[1] as Set<string>
-    if (rootLog['added']) {
-      pkgsDiff[rootLog['added'].dependencyType || 'nodeModulesOnly'][`+${rootLog['added'].name}`] = {
-        added: true,
-        deprecated: deprecationSet.has(rootLog['added'].id),
-        from: rootLog['added'].linkedFrom,
-        latest: rootLog['added'].latest,
-        name: rootLog['added'].name,
-        realName: rootLog['added'].realName,
-        version: rootLog['added'].version,
+    .scan((pkgsDiff, args) => {
+      const rootLog = args[0]
+      const deprecationSet = args[1] as Set<string>
+      if (rootLog['added']) {
+        pkgsDiff[rootLog['added'].dependencyType || 'nodeModulesOnly'][`+${rootLog['added'].name}`] = {
+          added: true,
+          deprecated: deprecationSet.has(rootLog['added'].id),
+          from: rootLog['added'].linkedFrom,
+          latest: rootLog['added'].latest,
+          name: rootLog['added'].name,
+          realName: rootLog['added'].realName,
+          version: rootLog['added'].version,
+        }
+        return pkgsDiff
+      }
+      if (rootLog['removed']) {
+        pkgsDiff[rootLog['removed'].dependencyType || 'nodeModulesOnly'][`-${rootLog['removed'].name}`] = {
+          added: false,
+          name: rootLog['removed'].name,
+          version: rootLog['removed'].version,
+        }
+        return pkgsDiff
       }
       return pkgsDiff
-    }
-    if (rootLog['removed']) {
-      pkgsDiff[rootLog['removed'].dependencyType || 'nodeModulesOnly'][`-${rootLog['removed'].name}`] = {
-        added: false,
-        name: rootLog['removed'].name,
-        version: rootLog['removed'].version,
-      }
-      return pkgsDiff
-    }
-    return pkgsDiff
-  }, {
-    dev: {},
-    nodeModulesOnly: {},
-    optional: {},
-    peer: {},
-    prod: {},
-  } as {
-    dev: Map<PackageDiff>,
-    nodeModulesOnly: Map<PackageDiff>,
-    optional: Map<PackageDiff>,
-    prod: Map<PackageDiff>,
-  })
+    }, {
+      dev: {},
+      nodeModulesOnly: {},
+      optional: {},
+      peer: {},
+      prod: {},
+    } as {
+      dev: Map<PackageDiff>,
+      nodeModulesOnly: Map<PackageDiff>,
+      optional: Map<PackageDiff>,
+      prod: Map<PackageDiff>,
+    })
 
   const packageManifest$ = most.fromPromise(
     most.merge(
       log$.packageManifest.filter((log) => log.prefix === opts.prefix),
       log$.summary.filter((log) => log.prefix === opts.prefix).constant({})
     )
-    .take(2)
-    .reduce(R.merge, {} as any) // tslint:disable-line:no-any
+      .take(2)
+      .reduce(R.merge, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   )
 
   return most.combine(

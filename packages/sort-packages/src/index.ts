@@ -58,7 +58,7 @@ export default function sortPackages (pkgGraph: ProjectsGraph): string[][] {
         But we really want 'a' to be executed first.
         */
         setOfKeys.has(d))]
-    ) as Array<[string, string[]]>
+    )
   )
   const graphSequencerResult = graphSequencer({
     graph,

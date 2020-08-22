@@ -3,22 +3,22 @@ import { Resolution } from '@pnpm/resolver-base'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import url = require('url')
 import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
+import url = require('url')
 
 export default (
   depPath: string,
   pkgSnapshot: PackageSnapshot,
   registries: Registries
 ): Resolution => {
-  // tslint:disable:no-string-literal
+  /* eslint-disable @typescript-eslint/dot-notation */
   if (pkgSnapshot.resolution['type'] || pkgSnapshot.resolution['tarball']?.startsWith('file:')) {
     return pkgSnapshot.resolution as Resolution
   }
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  const registry = pkgSnapshot.resolution['registry']
-    || (name[0] === '@' && registries[name.split('/')[0]])
-    || registries.default
+  const registry = pkgSnapshot.resolution['registry'] ||
+    (name[0] === '@' && registries[name.split('/')[0]]) ||
+    registries.default
   let tarball!: string
   if (!pkgSnapshot.resolution['tarball']) {
     tarball = getTarball(registry)
@@ -38,5 +38,5 @@ export default (
     }
     return getNpmTarballUrl(name, version, { registry })
   }
-  // tslint:enable:no-string-literal
+  /* eslint-enable @typescript-eslint/dot-notation */
 }

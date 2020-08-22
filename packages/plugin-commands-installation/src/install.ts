@@ -3,10 +3,10 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import installDeps from './installDeps'
 import isCI = require('is-ci')
 import R = require('ramda')
 import renderHelp = require('render-help')
-import installDeps from './installDeps'
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -63,8 +63,8 @@ export const cliOptionsTypes = () => ({
 })
 
 export const shorthands = {
-  'D': '--dev',
-  'P': '--production',
+  D: '--dev',
+  P: '--production',
 }
 
 export const commandNames = ['install', 'i']
@@ -72,16 +72,16 @@ export const commandNames = ['install', 'i']
 export function help () {
   return renderHelp({
     aliases: ['i'],
-    description: `Installs all dependencies of the project in the current working directory. \
-When executed inside a workspace, installs all dependencies of all projects.`,
+    description: 'Installs all dependencies of the project in the current working directory. \
+When executed inside a workspace, installs all dependencies of all projects.',
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: `Run installation recursively in every package found in subdirectories. \
-For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            description: 'Run installation recursively in every package found in subdirectories. \
+For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -90,12 +90,12 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
           OPTIONS.preferOffline,
           OPTIONS.globalDir,
           {
-            description: "Packages in \`devDependencies\` won't be installed",
+            description: "Packages in `devDependencies` won't be installed",
             name: '--prod',
             shortAlias: '-P',
           },
           {
-            description: 'Only \`devDependencies\` are installed regardless of the \`NODE_ENV\`',
+            description: 'Only `devDependencies` are installed regardless of the `NODE_ENV`',
             name: '--dev',
             shortAlias: '-D',
           },
@@ -136,13 +136,13 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--shamefully-hoist',
           },
           {
-            description: `Hoist all dependencies matching the pattern to \`node_modules/.pnpm/node_modules\`. \
+            description: 'Hoist all dependencies matching the pattern to `node_modules/.pnpm/node_modules`. \
 The default pattern is * and matches everything. Hoisted packages can be required \
-by any dependencies, so it is an emulation of a flat node_modules`,
+by any dependencies, so it is an emulation of a flat node_modules',
             name: '--hoist-pattern <pattern>',
           },
           {
-            description: `Hoist all dependencies matching the pattern to the root of the modules directory`,
+            description: 'Hoist all dependencies matching the pattern to the root of the modules directory',
             name: '--public-hoist-pattern <pattern>',
           },
           OPTIONS.storeDir,
@@ -168,7 +168,7 @@ by any dependencies, so it is an emulation of a flat node_modules`,
             name: '--strict-peer-dependencies',
           },
           {
-            description: 'Starts a store server in the background. The store server will keep running after installation is done. To stop the store server, run \`pnpm server stop\`',
+            description: 'Starts a store server in the background. The store server will keep running after installation is done. To stop the store server, run `pnpm server stop`',
             name: '--use-store-server',
           },
           {
@@ -239,42 +239,42 @@ by any dependencies, so it is an emulation of a flat node_modules`,
 }
 
 export type InstallCommandOptions = Pick<Config,
-  | 'allProjects'
-  | 'bail'
-  | 'bin'
-  | 'cliOptions'
-  | 'depth'
-  | 'dev'
-  | 'engineStrict'
-  | 'global'
-  | 'globalPnpmfile'
-  | 'ignorePnpmfile'
-  | 'ignoreScripts'
-  | 'linkWorkspacePackages'
-  | 'rawLocalConfig'
-  | 'lockfileDir'
-  | 'lockfileOnly'
-  | 'pnpmfile'
-  | 'production'
-  | 'rawLocalConfig'
-  | 'registries'
-  | 'save'
-  | 'saveDev'
-  | 'saveExact'
-  | 'saveOptional'
-  | 'savePeer'
-  | 'savePrefix'
-  | 'saveProd'
-  | 'saveWorkspaceProtocol'
-  | 'selectedProjectsGraph'
-  | 'sideEffectsCache'
-  | 'sideEffectsCacheReadonly'
-  | 'sort'
-  | 'sharedWorkspaceLockfile'
-  | 'tag'
-  | 'optional'
-  | 'workspaceConcurrency'
-  | 'workspaceDir'
+| 'allProjects'
+| 'bail'
+| 'bin'
+| 'cliOptions'
+| 'depth'
+| 'dev'
+| 'engineStrict'
+| 'global'
+| 'globalPnpmfile'
+| 'ignorePnpmfile'
+| 'ignoreScripts'
+| 'linkWorkspacePackages'
+| 'rawLocalConfig'
+| 'lockfileDir'
+| 'lockfileOnly'
+| 'pnpmfile'
+| 'production'
+| 'rawLocalConfig'
+| 'registries'
+| 'save'
+| 'saveDev'
+| 'saveExact'
+| 'saveOptional'
+| 'savePeer'
+| 'savePrefix'
+| 'saveProd'
+| 'saveWorkspaceProtocol'
+| 'selectedProjectsGraph'
+| 'sideEffectsCache'
+| 'sideEffectsCacheReadonly'
+| 'sort'
+| 'sharedWorkspaceLockfile'
+| 'tag'
+| 'optional'
+| 'workspaceConcurrency'
+| 'workspaceDir'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[],

@@ -1,14 +1,14 @@
 import { StatsLog } from '@pnpm/core-loggers'
-import chalk = require('chalk')
-import most = require('most')
-import R = require('ramda')
-import stringLength = require('string-length')
 import { EOL } from '../constants'
 import {
   ADDED_CHAR,
   REMOVED_CHAR,
 } from './outputConstants'
 import { zoomOut } from './utils/zooming'
+import chalk = require('chalk')
+import most = require('most')
+import R = require('ramda')
+import stringLength = require('string-length')
 
 export default (
   log$: {
@@ -65,24 +65,24 @@ function statsForCurrentPackage (
         return acc
       }, {})
   )
-  .map((stats) => {
-    if (!stats['removed'] && !stats['added']) {
-      if (opts.cmd === 'link') {
-        return most.never()
+    .map((stats) => {
+      if (!stats['removed'] && !stats['added']) {
+        if (opts.cmd === 'link') {
+          return most.never()
+        }
+        return most.of({ msg: 'Already up-to-date' })
       }
-      return most.of({ msg: 'Already up-to-date' })
-    }
 
-    let msg = 'Packages:'
-    if (stats['added']) {
-      msg += ' ' + chalk.green(`+${stats['added']}`)
-    }
-    if (stats['removed']) {
-      msg += ' ' + chalk.red(`-${stats['removed']}`)
-    }
-    msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
-    return most.of({ msg })
-  })
+      let msg = 'Packages:'
+      if (stats['added']) {
+        msg += ' ' + chalk.green(`+${stats['added']}`)
+      }
+      if (stats['removed']) {
+        msg += ' ' + chalk.red(`-${stats['removed']}`)
+      }
+      msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
+      return most.of({ msg })
+    })
 }
 
 function statsForNotCurrentPackage (
@@ -96,26 +96,26 @@ function statsForNotCurrentPackage (
   const cookedStats$ = (
     opts.cmd !== 'remove'
       ? stats$
-          .loop((stats, log) => {
-            // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
-            //  1. during linking
-            //  2. during installing
-            // Hence, the stats are added before reported
-            if (!stats[log.prefix]) {
-              stats[log.prefix] = log
-              return { seed: stats, value: null }
-            } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
-              stats[log.prefix].added += log['added']
-              return { seed: stats, value: null }
-            } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
-              stats[log.prefix].removed += log['removed']
-              return { seed: stats, value: null }
-            } else {
-              const value = { ...stats[log.prefix], ...log }
-              delete stats[log.prefix]
-              return { seed: stats, value }
-            }
-          }, {})
+        .loop((stats, log) => {
+          // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
+          //  1. during linking
+          //  2. during installing
+          // Hence, the stats are added before reported
+          if (!stats[log.prefix]) {
+            stats[log.prefix] = log
+            return { seed: stats, value: null }
+          } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
+            stats[log.prefix].added += log['added'] // eslint-disable-line
+            return { seed: stats, value: null }
+          } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
+            stats[log.prefix].removed += log['removed'] // eslint-disable-line
+            return { seed: stats, value: null }
+          } else {
+            const value = { ...stats[log.prefix], ...log }
+            delete stats[log.prefix]
+            return { seed: stats, value }
+          }
+        }, {})
       : stats$
   )
   return cookedStats$

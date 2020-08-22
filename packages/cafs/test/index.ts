@@ -1,8 +1,8 @@
+import createCafs from '../src'
 import fs = require('fs')
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
-import createCafs from '../src'
 
 test('unpack', async (t) => {
   const dest = tempy.directory()

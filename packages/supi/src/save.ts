@@ -5,7 +5,7 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 
-export type PackageSpecObject = {
+export interface PackageSpecObject {
   alias: string,
   peer?: boolean,
   pref?: string,
@@ -15,14 +15,14 @@ export type PackageSpecObject = {
 export default async function save (
   prefix: string,
   packageManifest: ProjectManifest,
-  packageSpecs: Array<PackageSpecObject>,
+  packageSpecs: PackageSpecObject[],
   opts?: {
     dryRun?: boolean,
   }
 ): Promise<ProjectManifest> {
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {
-      const spec = packageSpec.pref || findSpec(packageSpec.alias, packageManifest as ProjectManifest)
+      const spec = packageSpec.pref || findSpec(packageSpec.alias, packageManifest)
       if (spec) {
         packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] || {}
         packageManifest[packageSpec.saveType]![packageSpec.alias] = spec
@@ -37,7 +37,7 @@ export default async function save (
         }
       }
     } else if (packageSpec.pref) {
-      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest as ProjectManifest) || 'dependencies'
+      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) || 'dependencies'
       packageManifest[usedDepType] = packageManifest[usedDepType] || {}
       packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
     }
@@ -47,7 +47,7 @@ export default async function save (
     prefix,
     updated: packageManifest,
   })
-  return packageManifest as ProjectManifest
+  return packageManifest
 }
 
 function findSpec (alias: string, manifest: ProjectManifest): string | undefined {

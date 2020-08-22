@@ -12,7 +12,7 @@
     "node": ">=10.13"
   },
   "scripts": {
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/tarball-resolver/coverage ts-node packages/tarball-resolver/test --type-check",
     "test": "pnpm run compile && pnpm run _test",

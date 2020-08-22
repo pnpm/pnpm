@@ -1,9 +1,9 @@
+import { Duplex, PassThrough } from 'stream'
 import { DeferredManifestPromise, FilesIndex } from '@pnpm/fetcher-base'
+import { parseJsonStream } from './parseJson'
 import decompress = require('decompress-maybe')
 import ssri = require('ssri')
-import { Duplex, PassThrough } from 'stream'
 import tar = require('tar-stream')
-import { parseJsonStream } from './parseJson'
 
 export default async function (
   addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<ssri.Integrity>,
@@ -11,7 +11,7 @@ export default async function (
   stream: NodeJS.ReadableStream,
   manifest?: DeferredManifestPromise
 ): Promise<FilesIndex> {
-  const ignore = _ignore ? _ignore : () => false
+  const ignore = _ignore || (() => false)
   const extract = tar.extract()
   const filesIndex = {}
   await new Promise((resolve, reject) => {

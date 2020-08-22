@@ -1,6 +1,6 @@
 import PnpmError from '@pnpm/error'
 import { ResolvedDirectDependency } from '@pnpm/resolve-dependencies'
-import versionSelectorType = require('version-selector-type')
+import versionSelectorType from 'version-selector-type'
 import { ImporterToUpdate } from '../install'
 import { PinnedVersion } from '../install/getWantedDependencies'
 import save, { PackageSpecObject } from '../save'
@@ -90,7 +90,10 @@ function resolvedDirectDepToSpecObject (
     }
     if (
       resolution.type === 'directory' &&
-      (opts.saveWorkspaceProtocol || opts.preserveWorkspaceProtocol !== false && specRaw.includes('@workspace:')) &&
+      (
+        opts.saveWorkspaceProtocol ||
+        (opts.preserveWorkspaceProtocol && specRaw.includes('@workspace:'))
+      ) &&
       !pref.startsWith('workspace:')
     ) {
       pref = `workspace:${pref}`
@@ -121,12 +124,12 @@ export default function getPref (
 function getPrefPreferSpecifiedSpec (
   opts: {
     alias: string,
-    name: string
+    name: string,
     version: string,
     specRaw: string,
     pinnedVersion?: PinnedVersion,
   }
- ) {
+) {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
     const range = opts.specRaw.substr(`${opts.alias}@${prefix}`.length)
@@ -143,7 +146,7 @@ function getPrefPreferSpecifiedSpec (
 function getPrefPreferSpecifiedExoticSpec (
   opts: {
     alias: string,
-    name: string
+    name: string,
     version: string,
     specRaw: string,
     pinnedVersion: PinnedVersion,
@@ -161,16 +164,16 @@ function getPrefPreferSpecifiedExoticSpec (
 }
 
 function createVersionSpec (version: string, pinnedVersion?: PinnedVersion) {
-  switch (pinnedVersion || 'major') {
-    case 'none':
-      return '*'
-    case 'major':
-      return `^${version}`
-    case 'minor':
-      return `~${version}`
-    case 'patch':
-      return `${version}`
-    default:
-      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion}'`)
+  switch (pinnedVersion ?? 'major') {
+  case 'none':
+    return '*'
+  case 'major':
+    return `^${version}`
+  case 'minor':
+    return `~${version}`
+  case 'patch':
+    return `${version}`
+  default:
+    throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
   }
 }

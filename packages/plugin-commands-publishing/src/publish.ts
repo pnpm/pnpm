@@ -5,18 +5,18 @@ import exportableManifest from '@pnpm/exportable-manifest'
 import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import runNpm from '@pnpm/run-npm'
 import { ProjectManifest } from '@pnpm/types'
+import { prompt } from 'enquirer'
+import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
+import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
-import { prompt } from 'enquirer'
 import fg = require('fast-glob')
 import fs = require('mz/fs')
-import path = require('path')
 import R = require('ramda')
 import realpathMissing = require('realpath-missing')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
-import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
-import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -36,8 +36,8 @@ export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
     'dry-run': Boolean,
-    'json': Boolean,
-    'recursive': Boolean,
+    json: Boolean,
+    recursive: Boolean,
   }
 }
 
@@ -101,7 +101,7 @@ export async function handler (
         message: `You are not on ${branch} branch, do you want to continue?`,
         name: 'confirm',
         type: 'confirm',
-      } as any) as any // tslint:disable-line:no-any
+      } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
       if (!confirm) {
         throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branch}'.`)
@@ -117,7 +117,7 @@ export async function handler (
   if (opts.recursive && opts.selectedProjectsGraph) {
     await recursivePublish({
       ...opts,
-      selectedProjectsGraph: opts.selectedProjectsGraph!,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
       workspaceDir: opts.workspaceDir ?? process.cwd(),
     })
     return

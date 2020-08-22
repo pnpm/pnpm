@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import readPackageJson, { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import path = require('path')
 import test = require('tape')

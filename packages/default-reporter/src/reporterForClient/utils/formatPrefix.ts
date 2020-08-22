@@ -1,6 +1,6 @@
-import normalize = require('normalize-path')
-import path = require('path')
 import { PREFIX_MAX_LENGTH } from '../outputConstants'
+import path = require('path')
+import normalize = require('normalize-path')
 
 export default function formatPrefix (cwd: string, prefix: string) {
   prefix = formatPrefixNoTrim(cwd, prefix)

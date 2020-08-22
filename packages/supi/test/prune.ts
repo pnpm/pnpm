@@ -1,17 +1,17 @@
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
-import path = require('path')
-import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
   link,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
+import path = require('path')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

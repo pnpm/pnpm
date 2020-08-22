@@ -4,7 +4,7 @@ import baseLogger, {
 
 export const scopeLogger = baseLogger<ScopeMessage>('scope')
 
-export type ScopeMessage = {
+export interface ScopeMessage {
   selected: number,
   total?: number,
   workspacePrefix?: string,

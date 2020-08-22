@@ -1,7 +1,7 @@
 import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { Registries } from '@pnpm/types'
-import path = require('path')
 import { ReporterFunction } from '../types'
+import path = require('path')
 
 export interface StrictStoreStatusOptions {
   lockfileDir: string,
@@ -21,7 +21,7 @@ export interface StrictStoreStatusOptions {
 }
 
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
-  Pick<StrictStoreStatusOptions, 'storeDir'>
+Pick<StrictStoreStatusOptions, 'storeDir'>
 
 const defaults = async (opts: StoreStatusOptions) => {
   const dir = opts.dir || process.cwd()

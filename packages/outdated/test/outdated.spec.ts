@@ -354,10 +354,10 @@ test('outdated() aliased dependency', async (t) => {
       importers: {
         '.': {
           dependencies: {
-            'positive': '/is-positive/1.0.0',
+            positive: '/is-positive/1.0.0',
           },
           specifiers: {
-            'positive': 'npm:is-positive@^1.0.0',
+            positive: 'npm:is-positive@^1.0.0',
           },
         },
       },
@@ -377,7 +377,7 @@ test('outdated() aliased dependency', async (t) => {
       version: '1.0.0',
 
       dependencies: {
-        'positive': 'npm:is-positive@^3.1.0',
+        positive: 'npm:is-positive@^3.1.0',
       },
     },
     prefix: 'project',
@@ -385,10 +385,10 @@ test('outdated() aliased dependency', async (t) => {
       importers: {
         '.': {
           dependencies: {
-            'positive': '/is-positive/3.1.0',
+            positive: '/is-positive/3.1.0',
           },
           specifiers: {
-            'positive': 'npm:is-positive@^3.1.0',
+            positive: 'npm:is-positive@^3.1.0',
           },
         },
       },
@@ -423,14 +423,14 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     importers: {
       '.': {
         dependencies: {
-          'foo': '1.0.0',
-          'foo2': '2.0.0-0',
-          'foo3': '2.0.0',
+          foo: '1.0.0',
+          foo2: '2.0.0-0',
+          foo3: '2.0.0',
         },
         specifiers: {
-          'foo': '^1.0.0',
-          'foo2': '2.0.0-0',
-          'foo3': '2.0.0',
+          foo: '^1.0.0',
+          foo2: '2.0.0-0',
+          foo3: '2.0.0',
         },
       },
     },
@@ -460,21 +460,21 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     currentLockfile: lockfile,
     getLatestManifest: async (packageName) => {
       switch (packageName) {
-        case 'foo':
-          return {
-            name: 'foo',
-            version: '0.1.0',
-          }
-        case 'foo2':
-          return {
-            name: 'foo2',
-            version: '1.0.0',
-          }
-        case 'foo3':
-          return {
-            name: 'foo3',
-            version: '2.0.0',
-          }
+      case 'foo':
+        return {
+          name: 'foo',
+          version: '0.1.0',
+        }
+      case 'foo2':
+        return {
+          name: 'foo2',
+          version: '1.0.0',
+        }
+      case 'foo3':
+        return {
+          name: 'foo3',
+          version: '2.0.0',
+        }
       }
       return null
     },
@@ -484,9 +484,9 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
       version: '1.0.0',
 
       dependencies: {
-        'foo': '^1.0.0',
-        'foo2': '2.0.0-0',
-        'foo3': '2.0.0',
+        foo: '^1.0.0',
+        foo2: '2.0.0-0',
+        foo3: '2.0.0',
       },
     },
     prefix: 'project',

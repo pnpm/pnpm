@@ -1,14 +1,14 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
+import { promisify } from 'util'
 import assertProject from '@pnpm/assert-project'
 import PnpmError from '@pnpm/error'
 import { importCommand } from '@pnpm/plugin-commands-import'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import ncpCB = require('ncp')
 import path = require('path')
+import ncpCB = require('ncp')
 import test = require('tape')
 import tempy = require('tempy')
-import { promisify } from 'util'
 
 const ncp = promisify(ncpCB)
 
@@ -32,7 +32,7 @@ const DEFAULT_OPTS = {
   networkConcurrency: 16,
   offline: false,
   proxy: undefined,
-  rawConfig: { registry:  REGISTRY },
+  rawConfig: { registry: REGISTRY },
   registries: { default: REGISTRY },
   registry: REGISTRY,
   storeDir: tempy.directory(),

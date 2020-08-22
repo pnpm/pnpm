@@ -12,13 +12,13 @@ import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependenciesField } from '@pnpm/types'
-import R = require('ramda')
-import renderHelp = require('render-help')
 import {
   mutateModules,
 } from 'supi'
 import getSaveType from './getSaveType'
 import recursive from './recursive'
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -75,16 +75,16 @@ export const cliOptionsTypes = () => ({
 export function help () {
   return renderHelp({
     aliases: ['rm', 'uninstall', 'un'],
-    description: `Removes packages from \`node_modules\` and from the project's \`package.json\`.`,
+    description: 'Removes packages from `node_modules` and from the project\'s `package.json`.',
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: `Remove from every package found in subdirectories \
+            description: 'Remove from every package found in subdirectories \
 or from every workspace package, when executed inside a workspace. \
-For options that may be used with \`-r\`, see "pnpm help recursive"`,
+For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -124,22 +124,22 @@ export const completion: CompletionFunc = (cliOpts, params) => {
 
 export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
-    | 'allProjects'
-    | 'bail'
-    | 'bin'
-    | 'engineStrict'
-    | 'globalPnpmfile'
-    | 'ignorePnpmfile'
-    | 'lockfileDir'
-    | 'linkWorkspacePackages'
-    | 'pnpmfile'
-    | 'rawLocalConfig'
-    | 'registries'
-    | 'saveDev'
-    | 'saveOptional'
-    | 'saveProd'
-    | 'selectedProjectsGraph'
-    | 'workspaceDir'
+  | 'allProjects'
+  | 'bail'
+  | 'bin'
+  | 'engineStrict'
+  | 'globalPnpmfile'
+  | 'ignorePnpmfile'
+  | 'lockfileDir'
+  | 'linkWorkspacePackages'
+  | 'pnpmfile'
+  | 'rawLocalConfig'
+  | 'registries'
+  | 'saveDev'
+  | 'saveOptional'
+  | 'saveProd'
+  | 'selectedProjectsGraph'
+  | 'workspaceDir'
   > & {
     recursive?: boolean,
   },
@@ -147,7 +147,7 @@ export async function handler (
 ) {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
-    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'remove')
+    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir }, 'remove')
     return
   }
   const store = await createOrConnectStoreController(opts)
@@ -168,8 +168,8 @@ export async function handler (
   } = await readProjectManifest(opts.dir, opts)
   const availableDependencies = Object.keys(
     targetDependenciesField === undefined
-    ? getAllDependenciesFromManifest(currentManifest)
-    : currentManifest[targetDependenciesField] ?? {}
+      ? getAllDependenciesFromManifest(currentManifest)
+      : currentManifest[targetDependenciesField] ?? {}
   )
   const nonMatchedDependencies = R.without(availableDependencies, params)
   if (nonMatchedDependencies.length !== 0) {

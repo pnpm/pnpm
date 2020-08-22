@@ -53,7 +53,7 @@ async function makePublishDependencies (dir: string, dependencies: Dependencies 
           depName,
           await makePublishDependency(depName, depSpec, dir),
         ])
-    ) as any, // tslint:disable-line
+    ) as any, // eslint-disable-line
   )
   return publishDependencies
 }
@@ -68,7 +68,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
         `Cannot resolve workspace protocol of dependency "${depName}" ` +
-          `because this dependency is not installed. Try running "pnpm install".`
+          'because this dependency is not installed. Try running "pnpm install".'
       )
     }
     return manifest.version

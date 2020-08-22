@@ -1,8 +1,7 @@
 import PnpmError from '@pnpm/error'
 import { sync as _canWriteToDir } from 'can-write-to-dir'
-import fs = require('fs')
-import isWindows = require('is-windows')
 import path = require('path')
+import isWindows = require('is-windows')
 import proxiquire = require('proxyquire')
 import test = require('tape')
 
@@ -27,7 +26,7 @@ const globalBinDir = proxiquire('../lib/index.js', {
   'can-write-to-dir': {
     sync: (dir: string) => canWriteToDir(dir),
   },
-  'fs': {
+  fs: {
     readdirSync: (dir: string) => readdirSync(dir),
   },
   'path-name': FAKE_PATH,

@@ -1,9 +1,9 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { Modules } from '@pnpm/modules-yaml'
-import path = require('path')
 import ModulesBreakingChangeError from './ModulesBreakingChangeError'
 import UnexpectedStoreError from './UnexpectedStoreError'
 import UnexpectedVirtualStoreDir from './UnexpectedVirtualStoreDirError'
+import path = require('path')
 
 export default function checkCompatibility (
   modules: Modules,

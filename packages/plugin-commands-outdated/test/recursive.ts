@@ -2,9 +2,9 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { preparePackages } from '@pnpm/prepare'
+import { DEFAULT_OPTS } from './utils'
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
-import { DEFAULT_OPTS } from './utils'
 
 test('pnpm recursive outdated', async (t) => {
   preparePackages(t, [

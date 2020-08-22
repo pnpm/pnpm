@@ -2,13 +2,13 @@ import PnpmError from '@pnpm/error'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { DEFAULT_OPTS } from './utils'
 import crossSpawn = require('cross-spawn')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS } from './utils'
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -184,8 +184,8 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
       bin: './bin.js',
       main: './index.js',
       module: './index.mjs',
-      types: `./types.d.ts`,
-      typings: `./typings.d.ts`,
+      types: './types.d.ts',
+      typings: './typings.d.ts',
 
       publishConfig: {
         bin: './published-bin.js',
@@ -195,8 +195,8 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
         exports: './published-exports.js',
         main: './published.js',
         module: './published.mjs',
-        types: `./published-types.d.ts`,
-        typings: `./published-typings.d.ts`,
+        types: './published-types.d.ts',
+        typings: './published-typings.d.ts',
         'umd:main': './published-umd.js',
         unpkg: './published-unpkg.js',
       },
@@ -208,7 +208,7 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
   ])
 
   process.chdir('test-publish-config')
-  await fs.writeFile('published-bin.js', `#!/usr/bin/env node`, 'utf8')
+  await fs.writeFile('published-bin.js', '#!/usr/bin/env node', 'utf8')
   await publish.handler({
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
@@ -223,8 +223,8 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
     bin: './bin.js',
     main: './index.js',
     module: './index.mjs',
-    types: `./types.d.ts`,
-    typings: `./typings.d.ts`,
+    types: './types.d.ts',
+    typings: './typings.d.ts',
 
     publishConfig: {
       bin: './published-bin.js',
@@ -234,8 +234,8 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
       exports: './published-exports.js',
       main: './published.js',
       module: './published.mjs',
-      types: `./published-types.d.ts`,
-      typings: `./published-typings.d.ts`,
+      types: './published-types.d.ts',
+      typings: './published-typings.d.ts',
       'umd:main': './published-umd.js',
       unpkg: './published-unpkg.js',
     },
@@ -297,19 +297,19 @@ test.skip('publish package that calls executable from the workspace .bin folder 
       version: '1.0.0',
 
       scripts: {
-        prepublish: `node -e "process.stdout.write('prepublish')" | json-append ./output.json`,
+        prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append ./output.json',
 
-        prepare: `node -e "process.stdout.write('prepare')" | json-append ./output.json`,
+        prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append ./output.json',
 
-        prepublishOnly: `node -e "process.stdout.write('prepublishOnly')" | json-append ./output.json`,
+        prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append ./output.json',
 
-        prepack: `node -e "process.stdout.write('prepack')" | json-append ./output.json`,
+        prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append ./output.json',
 
-        postpack: `node -e "process.stdout.write('postpack')" | json-append ./output.json`,
+        postpack: 'node -e "process.stdout.write(\'postpack\')" | json-append ./output.json',
 
-        publish: `node -e "process.stdout.write('publish')" | json-append ./output.json`,
+        publish: 'node -e "process.stdout.write(\'publish\')" | json-append ./output.json',
 
-        postpublish: `node -e "process.stdout.write('postpublish')" | json-append ./output.json`,
+        postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append ./output.json',
       },
     },
   ])
@@ -451,14 +451,14 @@ test('publish: runs all the lifecycle scripts', async (t) => {
     },
 
     scripts: {
-      // tslint:disable:object-literal-sort-keys
-      prepublish: `node -e "process.stdout.write('prepublish')" | json-append output.json`,
-      prepare: `node -e "process.stdout.write('prepare')" | json-append output.json`,
-      prepublishOnly: `node -e "process.stdout.write('prepublishOnly')" | json-append output.json`,
-      prepack: `node -e "process.stdout.write('prepack')" | json-append output.json`,
-      publish: `node -e "process.stdout.write('publish')" | json-append output.json`,
-      postpublish: `node -e "process.stdout.write('postpublish')" | json-append output.json`,
-      // tslint:enable:object-literal-sort-keys
+      // eslint-disable:object-literal-sort-keys
+      prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append output.json',
+      prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
+      prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append output.json',
+      prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append output.json',
+      publish: 'node -e "process.stdout.write(\'publish\')" | json-append output.json',
+      postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append output.json',
+      // eslint-enable:object-literal-sort-keys
     },
   })
 
@@ -493,14 +493,14 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
     },
 
     scripts: {
-      // tslint:disable:object-literal-sort-keys
-      prepublish: `node -e "process.stdout.write('prepublish')" | json-append output.json`,
-      prepare: `node -e "process.stdout.write('prepare')" | json-append output.json`,
-      prepublishOnly: `node -e "process.stdout.write('prepublishOnly')" | json-append output.json`,
-      prepack: `node -e "process.stdout.write('prepack')" | json-append output.json`,
-      publish: `node -e "process.stdout.write('publish')" | json-append output.json`,
-      postpublish: `node -e "process.stdout.write('postpublish')" | json-append output.json`,
-      // tslint:enable:object-literal-sort-keys
+      // eslint-disable:object-literal-sort-keys
+      prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append output.json',
+      prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
+      prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append output.json',
+      prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append output.json',
+      publish: 'node -e "process.stdout.write(\'publish\')" | json-append output.json',
+      postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append output.json',
+      // eslint-enable:object-literal-sort-keys
     },
   })
 

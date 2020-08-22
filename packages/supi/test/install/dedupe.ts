@@ -1,9 +1,9 @@
 import { prepareEmpty } from '@pnpm/prepare'
-import pnpmRegistryMock = require('@pnpm/registry-mock')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import pnpmRegistryMock = require('@pnpm/registry-mock')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 const addDistTag = pnpmRegistryMock.addDistTag
@@ -56,7 +56,7 @@ test('prefer version ranges specified for top dependencies, even if they are ali
   await install(
     {
       dependencies: {
-        'foo': 'npm:dep-of-pkg-with-1-dep@100.0.0',
+        foo: 'npm:dep-of-pkg-with-1-dep@100.0.0',
         'pkg-with-1-dep': '*',
       },
     },

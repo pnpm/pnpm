@@ -31,7 +31,7 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
         }
       }
       return acc
-    }, {} as PreferredVersions)
+    }, {})
 }
 
 export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots): PreferredVersions {

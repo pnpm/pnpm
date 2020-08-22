@@ -1,16 +1,16 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
   execPnpm,
   execPnpmSync,
 } from '../utils'
+import path = require('path')
+import fs = require('mz/fs')
+import tape = require('tape')
+import writeYamlFile = require('write-yaml-file')
 
 const test = promisifyTape(tape)
 
@@ -40,7 +40,7 @@ test('readPackage hook', async (t: tape.Test) => {
 })
 
 test('readPackage hook makes installation fail if it does not return the modified package manifests', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -185,14 +185,14 @@ test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test)
   process.chdir('..')
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  // tslint:disable: no-unnecessary-type-assertion
+  /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
   t.deepEqual(lockfile.packages!['/is-positive/1.0.0'].dependencies, {
     'dep-of-pkg-with-1-dep': '100.1.0',
   }, 'dep-of-pkg-with-1-dep is dependency of is-positive')
   t.deepEqual(lockfile.packages!['/is-negative/1.0.0'].dependencies, {
     'dep-of-pkg-with-1-dep': '100.1.0',
   }, 'dep-of-pkg-with-1-dep is dependency of is-negative')
-  // tslint:enable: no-unnecessary-type-assertion
+  /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
 test('readPackage hook during update', async (t: tape.Test) => {
@@ -225,7 +225,7 @@ test('readPackage hook during update', async (t: tape.Test) => {
 })
 
 test('prints meaningful error when there is syntax error in pnpmfile.js', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
   await fs.writeFile('pnpmfile.js', '/boom', 'utf8')
 
@@ -236,7 +236,7 @@ test('prints meaningful error when there is syntax error in pnpmfile.js', async 
 })
 
 test('fails when pnpmfile.js requires a non-existend module', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
   await fs.writeFile('pnpmfile.js', 'module.exports = require("./this-does-node-exist")', 'utf8')
 
@@ -401,7 +401,7 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
 })
 
 test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -431,7 +431,7 @@ test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
 })
 
 test('readPackage hook normalizes the package manifest', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -491,7 +491,7 @@ test('readPackage hook is used during removal inside a workspace', async (t: tap
       version: '1.0.0',
 
       dependencies: {
-        'abc': '1.0.0',
+        abc: '1.0.0',
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
         'peer-a': '1.0.0',

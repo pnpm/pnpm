@@ -1,14 +1,13 @@
-
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import { LockfileBreakingChangeError } from './errors'
 import logger from './logger'
+import path = require('path')
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,
@@ -18,7 +17,7 @@ export async function readCurrentLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
-  return _read(lockfilePath, virtualStoreDir, opts)
+  return await _read(lockfilePath, virtualStoreDir, opts)
 }
 
 export async function readWantedLockfile (
@@ -29,7 +28,7 @@ export async function readWantedLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  return _read(lockfilePath, pkgPath, opts)
+  return await _read(lockfilePath, pkgPath, opts)
 }
 
 async function _read (
@@ -49,7 +48,7 @@ async function _read (
     }
     return null
   }
-  // tslint:disable:no-string-literal
+  /* eslint-disable @typescript-eslint/dot-notation */
   if (typeof lockfile?.['specifiers'] !== 'undefined') {
     lockfile.importers = {
       '.': {
@@ -65,7 +64,7 @@ async function _read (
     }
   }
   if (lockfile) {
-    // tslint:enable:no-string-literal
+    /* eslint-enable @typescript-eslint/dot-notation */
     if (typeof opts.wantedVersion !== 'number' || Math.floor(lockfile.lockfileVersion) === Math.floor(opts.wantedVersion)) {
       if (typeof opts.wantedVersion === 'number' && lockfile.lockfileVersion > opts.wantedVersion) {
         logger.warn({

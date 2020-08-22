@@ -1,6 +1,6 @@
 import validateNpmPackageName = require('validate-npm-package-name')
 
-type ParsedWantedDependency = {
+interface ParsedWantedDependency {
   alias: string,
   pref: string,
 }

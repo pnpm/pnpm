@@ -6,7 +6,7 @@ import {
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { DependencyManifest, Registries } from '@pnpm/types'
 
-type GetManifestOpts = {
+interface GetManifestOpts {
   dir: string,
   lockfileDir: string,
   rawConfig: object,
@@ -14,8 +14,8 @@ type GetManifestOpts = {
 }
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
-  & GetManifestOpts
-  & { rawConfig: Record<string, string> }
+& GetManifestOpts
+& { rawConfig: Record<string, string> }
 
 export function createManifestGetter (
   opts: ManifestGetterOptions

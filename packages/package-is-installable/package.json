@@ -23,7 +23,7 @@
     "start": "pnpm run tsc -- --watch",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-is-installable/coverage ts-node packages/package-is-installable/test --type-check",
     "test": "pnpm run compile && pnpm run _test",
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },

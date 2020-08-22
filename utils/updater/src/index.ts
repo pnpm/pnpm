@@ -1,6 +1,7 @@
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
+import fs = require('fs')
 import isSubdir = require('is-subdir')
 import loadJsonFile = require('load-json-file')
 import normalizePath = require('normalize-path')
@@ -10,6 +11,7 @@ import writeJsonFile = require('write-json-file')
 
 const repoRoot = path.join(__dirname, '../../..')
 
+// eslint-disable-next-line @typescript-eslint/no-floating-promises
 ; (async () => {
   const pkgs = await findWorkspacePackages(repoRoot, { engineStrict: false })
   const pkgsDir = path.join(repoRoot, 'packages')
@@ -42,6 +44,14 @@ const repoRoot = path.join(__dirname, '../../..')
       },
       references,
     }, { indent: 2 })
+    await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
+      extends: './tsconfig.json',
+      include: [
+        'src/**/*.ts',
+        'test/**/*.ts',
+        '../../typings/**/*.d.ts',
+      ],
+    }, { indent: 2 })
   }
 })()
 
@@ -51,48 +61,49 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
   const relative = normalizePath(path.relative(repoRoot, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
-    case '@pnpm/lockfile-types':
-      scripts = {}
-      break
-    case '@pnpm/headless':
-    case '@pnpm/outdated':
-    case '@pnpm/plugin-commands-import':
-    case '@pnpm/plugin-commands-installation':
-    case '@pnpm/plugin-commands-listing':
-    case '@pnpm/plugin-commands-outdated':
-    case '@pnpm/plugin-commands-publishing':
-    case '@pnpm/plugin-commands-rebuild':
-    case '@pnpm/plugin-commands-script-runners':
-    case '@pnpm/plugin-commands-store':
-    case 'pnpm':
-    case 'supi':
-      // supi tests currently works only with port 4873 due to the usage of
-      // the next package: pkg-with-tarball-dep-from-registry
-      const port = manifest.name === 'supi' ? 4873 : ++registryMockPort
+  case '@pnpm/lockfile-types':
+    scripts = {}
+    break
+  case '@pnpm/headless':
+  case '@pnpm/outdated':
+  case '@pnpm/plugin-commands-import':
+  case '@pnpm/plugin-commands-installation':
+  case '@pnpm/plugin-commands-listing':
+  case '@pnpm/plugin-commands-outdated':
+  case '@pnpm/plugin-commands-publishing':
+  case '@pnpm/plugin-commands-rebuild':
+  case '@pnpm/plugin-commands-script-runners':
+  case '@pnpm/plugin-commands-store':
+  case 'pnpm':
+  case 'supi': {
+    // supi tests currently works only with port 4873 due to the usage of
+    // the next package: pkg-with-tarball-dep-from-registry
+    const port = manifest.name === 'supi' ? 4873 : ++registryMockPort
+    scripts = {
+      ...manifest.scripts,
+      'registry-mock': 'registry-mock',
+      'test:tap': `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
+
+      'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:tap',
+    }
+    scripts.test = 'pnpm run compile && pnpm run _test'
+    scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
+    break
+  }
+  default:
+    if (await exists(path.join(dir, 'test'))) {
       scripts = {
         ...manifest.scripts,
-        'registry-mock': 'registry-mock',
-        'test:tap': `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
-
-        'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:tap',
+        _test: `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
+        test: 'pnpm run compile && pnpm run _test',
       }
-      scripts.test = 'pnpm run compile && pnpm run _test'
-      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
-      break
-    default:
-      if (await exists(path.join(dir, 'test'))) {
-        scripts = {
-          ...manifest.scripts,
-          _test: `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
-          test: 'pnpm run compile && pnpm run _test',
-        }
-      } else {
-        scripts = {
-          ...manifest.scripts,
-          test: 'pnpm run compile',
-        }
+    } else {
+      scripts = {
+        ...manifest.scripts,
+        test: 'pnpm run compile',
       }
-      break
+    }
+    break
   }
   scripts.compile = 'rimraf lib tsconfig.tsbuildinfo && tsc --build'
   delete scripts.tsc
@@ -108,6 +119,13 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
     scripts.prepublishOnly = 'pnpm run compile'
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
     repository = `https://github.com/pnpm/pnpm/blob/master/${relative}`
+  }
+  if (scripts.lint) {
+    if (fs.existsSync(path.join(dir, 'test'))) {
+      scripts.lint = 'eslint -c ../../eslint.json src/**/*.ts test/**/*.ts'
+    } else {
+      scripts.lint = 'eslint -c ../../eslint.json src/**/*.ts'
+    }
   }
   const files = ['lib', '!*.map'] // the order is important
   if (manifest.bin) {

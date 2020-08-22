@@ -1,11 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import path = require('path')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -18,7 +17,7 @@ test('production install (with --production flag)', async (t: tape.Test) => {
     },
     devDependencies: {
       '@zkochan/foo': '1.0.0',
-      'once': '^1.4.0', // once is also a transitive dependency of rimraf
+      once: '^1.4.0', // once is also a transitive dependency of rimraf
     },
   }, await testDefaults({
     include: {
@@ -38,7 +37,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
   const manifest = await install({
     dependencies: {
       'is-positive': '1.0.0',
-      'once': '^1.4.0',
+      once: '^1.4.0',
     },
     devDependencies: {
       inflight: '1.0.6',
@@ -83,7 +82,7 @@ test('fail if installing different types of dependencies in a project that uses 
   const manifest = await install({
     dependencies: {
       'is-positive': '1.0.0',
-      'once': '^1.4.0',
+      once: '^1.4.0',
     },
     devDependencies: {
       inflight: '1.0.6',

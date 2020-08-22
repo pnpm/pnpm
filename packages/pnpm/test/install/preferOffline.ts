@@ -1,12 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   execPnpm,
 } from '../utils'
+import rimraf = require('@zkochan/rimraf')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

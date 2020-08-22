@@ -85,9 +85,7 @@ export default async function outdated (
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
           }
 
-          const currentRef = currentLockfile.importers[importerId] &&
-            currentLockfile.importers[importerId][depType] &&
-            currentLockfile.importers[importerId][depType]![alias]
+          const currentRef = currentLockfile.importers[importerId]?.[depType]?.[alias]
           const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
           const current = currentRelative && dp.parse(currentRelative).version || currentRef
           const wanted = dp.parse(relativeDepPath).version || ref
@@ -95,7 +93,7 @@ export default async function outdated (
 
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
-          if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // tslint:disable-line:no-string-literal
+          if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // eslint-disable-line @typescript-eslint/dot-notation
             if (current !== wanted) {
               outdated.push({
                 alias,
@@ -147,9 +145,9 @@ export default async function outdated (
 }
 
 function packageHasNoDeps (manifest: ProjectManifest) {
-  return (!manifest.dependencies || isEmpty(manifest.dependencies))
-    && (!manifest.devDependencies || isEmpty(manifest.devDependencies))
-    && (!manifest.optionalDependencies || isEmpty(manifest.optionalDependencies))
+  return (!manifest.dependencies || isEmpty(manifest.dependencies)) &&
+    (!manifest.devDependencies || isEmpty(manifest.devDependencies)) &&
+    (!manifest.optionalDependencies || isEmpty(manifest.optionalDependencies))
 }
 
 function isEmpty (obj: object) {

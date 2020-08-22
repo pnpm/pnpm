@@ -4,7 +4,7 @@ import proxyquire = require('proxyquire')
 import sinon = require('sinon')
 import test = require('tape')
 
-const fsMock = {} as any // tslint:disable-line
+const fsMock = {} as any // eslint-disable-line
 const makeDirMock = sinon.spy()
 const createImportPackage = proxyquire('@pnpm/package-store/lib/storeController/createImportPackage', {
   '../fs/importIndexedDir': proxyquire('@pnpm/package-store/lib/fs/importIndexedDir', {
@@ -36,7 +36,9 @@ test('packageImportMethod=auto: clone files by default', async (t) => {
 
 test('packageImportMethod=auto: link files if cloning fails', async (t) => {
   const importPackage = createImportPackage('auto')
-  fsMock.copyFile = () => { throw new Error('This file system does not support cloning') }
+  fsMock.copyFile = () => {
+    throw new Error('This file system does not support cloning')
+  }
   fsMock.link = sinon.spy()
   fsMock.rename = sinon.spy()
   await importPackage('project/package', {

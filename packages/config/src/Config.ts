@@ -13,19 +13,19 @@ export interface Config {
   allowNew: boolean,
   bail: boolean,
   color: 'always' | 'auto' | 'never',
-  cliOptions: Record<string, any>, // tslint:disable-line
+  cliOptions: Record<string, any>, // eslint-disable-line
   useBetaCli: boolean,
   extraBinPaths: string[],
   filter: string[],
-  rawLocalConfig: Record<string, any>, // tslint:disable-line
-  rawConfig: Record<string, any>, // tslint:disable-line
+  rawLocalConfig: Record<string, any>, // eslint-disable-line
+  rawConfig: Record<string, any>, // eslint-disable-line
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
   globalDir: string,
   dir: string,
   bin?: string,
   npmGlobalBinDir: string,
-  ignoreScripts?: boolean
+  ignoreScripts?: boolean,
   save?: boolean,
   saveProd?: boolean,
   saveDev?: boolean,

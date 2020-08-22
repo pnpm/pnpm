@@ -1,15 +1,15 @@
+import { URL } from 'url'
 import HttpAgent = require('agentkeepalive')
 import createHttpProxyAgent = require('http-proxy-agent')
 import HttpsProxyAgent = require('https-proxy-agent')
 import LRU = require('lru-cache')
 import SocksProxyAgent = require('socks-proxy-agent')
-import { URL } from 'url'
 
 const HttpsAgent = HttpAgent.HttpsAgent
 
 const AGENT_CACHE = new LRU({ max: 50 })
 
-export type AgentOptions = {
+export interface AgentOptions {
   ca?: string,
   cert?: string,
   httpProxy?: string,
@@ -65,23 +65,25 @@ export default function getAgent (uri: string, opts: AgentOptions) {
       maxSockets: opts.maxSockets || 15,
       rejectUnauthorized: opts.strictSSL,
       timeout: agentTimeout,
-    } as any) // tslint:disable-line:no-any
+    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     : new HttpAgent({
       localAddress: opts.localAddress,
       maxSockets: opts.maxSockets || 15,
       timeout: agentTimeout,
-    } as any) // tslint:disable-line:no-any
+    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   AGENT_CACHE.set(key, agent)
   return agent
 }
 
 function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }) {
-  const host = new URL(uri).hostname!.split('.').filter(x => x).reverse()
+  const host = new URL(uri).hostname.split('.').filter(x => x).reverse()
   if (typeof opts.noProxy === 'string') {
     const noproxyArr = opts.noProxy.split(/\s*,\s*/g)
     return noproxyArr.some(no => {
       const noParts = no.split('.').filter(x => x).reverse()
-      if (!noParts.length) { return false }
+      if (!noParts.length) {
+        return false
+      }
       for (let i = 0; i < noParts.length; i++) {
         if (host[i] !== noParts[i]) {
           return false
@@ -103,19 +105,21 @@ function getProxyUri (
 ) {
   const { protocol } = new URL(uri)
 
-  let proxy: string | void = undefined
+  let proxy: string | undefined
   switch (protocol) {
-    case 'http:': {
-      proxy = opts.httpProxy
-      break
-    }
-    case 'https:': {
-      proxy = opts.httpsProxy
-      break
-    }
+  case 'http:': {
+    proxy = opts.httpProxy
+    break
+  }
+  case 'https:': {
+    proxy = opts.httpsProxy
+    break
+  }
   }
 
-  if (!proxy) { return null }
+  if (!proxy) {
+    return null
+  }
 
   if (!proxy.startsWith('http')) {
     proxy = protocol + '//' + proxy
@@ -139,7 +143,7 @@ function getProxy (
   },
   isHttps: boolean
 ) {
-  let popts = {
+  const popts = {
     auth: (proxyUrl.username ? (proxyUrl.password ? `${proxyUrl.username}:${proxyUrl.password}` : proxyUrl.username) : undefined),
     ca: opts.ca,
     cert: opts.cert,
@@ -161,7 +165,7 @@ function getProxy (
       return new HttpsProxyAgent(popts)
     }
   }
-  if (proxyUrl.protocol && proxyUrl.protocol.startsWith('socks')) {
+  if (proxyUrl.protocol?.startsWith('socks')) {
     return new SocksProxyAgent(popts)
   }
 }

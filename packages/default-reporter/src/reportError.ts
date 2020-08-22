@@ -1,10 +1,10 @@
 import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
+import { EOL } from './constants'
 import chalk = require('chalk')
 import R = require('ramda')
 import StackTracey = require('stacktracey')
-import { EOL } from './constants'
 
 StackTracey.maxColumnWidths = {
   callee: 25,
@@ -19,56 +19,57 @@ export default function reportError (logObj: Log, config?: Config) {
   if (logObj['err']) {
     const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
-      case 'ERR_PNPM_UNEXPECTED_STORE':
-        return reportUnexpectedStore(err, logObj['message'])
-      case 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE':
-        return reportUnexpectedVirtualStoreDir(err, logObj['message'])
-      case 'ERR_PNPM_STORE_BREAKING_CHANGE':
-        return reportStoreBreakingChange(logObj['message'])
-      case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
-        return reportModulesBreakingChange(logObj['message'])
-      case 'ERR_PNPM_MODIFIED_DEPENDENCY':
-        return reportModifiedDependency(logObj['message'])
-      case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
-        return reportLockfileBreakingChange(err, logObj['message'])
-      case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
-        return formatErrorSummary(err.message)
-      case 'ERR_PNPM_NO_MATCHING_VERSION':
-        return formatNoMatchingVersion(err, logObj['message'])
-      case 'ERR_PNPM_RECURSIVE_FAIL':
-        return formatRecursiveCommandSummary(logObj['message'])
-      case 'ERR_PNPM_BAD_TARBALL_SIZE':
-        return reportBadTarballSize(err, logObj['message'])
-      case 'ELIFECYCLE':
-        return reportLifecycleError(logObj['message'])
-      case 'ERR_PNPM_UNSUPPORTED_ENGINE':
-        return reportEngineError(err, logObj['message'])
-      case 'ERR_PNPM_FETCH_401':
-      case 'ERR_PNPM_FETCH_403':
-        return reportAuthError(err, logObj['message'], config)
-      default:
-        // Errors with unknown error codes are printed with stack trace
-        if (!err.code?.startsWith?.('ERR_PNPM_')) {
-          return formatGenericError(err.message ?? logObj['message'], err.stack)
-        }
-        let errorOutput = formatErrorSummary(err.message)
-        if (!logObj['message']) return errorOutput
-        if (logObj['message']['pkgsStack']?.length) {
-          errorOutput += `${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
-        }
-        if (logObj['message']['hint']) {
-          errorOutput += `${EOL}${logObj['message']['hint']}`
-        }
-        return errorOutput
+    case 'ERR_PNPM_UNEXPECTED_STORE':
+      return reportUnexpectedStore(err, logObj['message'])
+    case 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE':
+      return reportUnexpectedVirtualStoreDir(err, logObj['message'])
+    case 'ERR_PNPM_STORE_BREAKING_CHANGE':
+      return reportStoreBreakingChange(logObj['message'])
+    case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
+      return reportModulesBreakingChange(logObj['message'])
+    case 'ERR_PNPM_MODIFIED_DEPENDENCY':
+      return reportModifiedDependency(logObj['message'])
+    case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
+      return reportLockfileBreakingChange(err, logObj['message'])
+    case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
+      return formatErrorSummary(err.message)
+    case 'ERR_PNPM_NO_MATCHING_VERSION':
+      return formatNoMatchingVersion(err, logObj['message'])
+    case 'ERR_PNPM_RECURSIVE_FAIL':
+      return formatRecursiveCommandSummary(logObj['message'])
+    case 'ERR_PNPM_BAD_TARBALL_SIZE':
+      return reportBadTarballSize(err, logObj['message'])
+    case 'ELIFECYCLE':
+      return reportLifecycleError(logObj['message'])
+    case 'ERR_PNPM_UNSUPPORTED_ENGINE':
+      return reportEngineError(err, logObj['message'])
+    case 'ERR_PNPM_FETCH_401':
+    case 'ERR_PNPM_FETCH_403':
+      return reportAuthError(err, logObj['message'], config)
+    default: {
+      // Errors with unknown error codes are printed with stack trace
+      if (!err.code?.startsWith?.('ERR_PNPM_')) {
+        return formatGenericError(err.message ?? logObj['message'], err.stack)
+      }
+      let errorOutput = formatErrorSummary(err.message)
+      if (!logObj['message']) return errorOutput
+      if (logObj['message']['pkgsStack']?.length) {
+        errorOutput += `${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
+      }
+      if (logObj['message']['hint']) {
+        errorOutput += `${EOL}${logObj['message']['hint']}`
+      }
+      return errorOutput
+    }
     }
   }
   return formatErrorSummary(logObj['message'])
 }
 
 function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: string }>) {
-  return 'This error happened while installing the dependencies of ' +
-    `${pkgsStack[0].name}@${pkgsStack[0].version}` +
-    pkgsStack.slice(1).map(({ name, version }) => `${EOL} at ${name}@${version}`)
+  return `This error happened while installing the dependencies of \
+${pkgsStack[0].name}@${pkgsStack[0].version}\
+${pkgsStack.slice(1).map(({ name, version }) => `${EOL} at ${name}@${version}`)}`
 }
 
 function formatNoMatchingVersion (err: Error, msg: object) {
@@ -119,13 +120,13 @@ You may change the virtual store location by changing the value of the virtual-s
 
 function reportStoreBreakingChange (msg: object) {
   let output = `\
-${formatErrorSummary(`The store used for the current node_modules is incomatible with the current version of pnpm`)}
+${formatErrorSummary('The store used for the current node_modules is incomatible with the current version of pnpm')}
 Store path: ${colorPath(msg['storePath'])}
 
 Run "pnpm install" to recreate node_modules.`
 
   if (msg['additionalInformation']) {
-    output += EOL + EOL + msg['additionalInformation']
+    output = `${output}${EOL}${EOL}${msg['additionalInformation']}`
   }
 
   output += formatRelatedSources(msg)
@@ -134,13 +135,13 @@ Run "pnpm install" to recreate node_modules.`
 
 function reportModulesBreakingChange (msg: object) {
   let output = `\
-${formatErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)}
+${formatErrorSummary('The current version of pnpm is not compatible with the available node_modules structure')}
 node_modules path: ${colorPath(msg['modulesPath'])}
 
 Run ${highlight('pnpm install')} to recreate node_modules.`
 
   if (msg['additionalInformation']) {
-    output += EOL + EOL + msg['additionalInformation']
+    output = `${output}${EOL}${EOL}${msg['additionalInformation']}`
   }
 
   output += formatRelatedSources(msg)

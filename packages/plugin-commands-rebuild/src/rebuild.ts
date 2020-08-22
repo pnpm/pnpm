@@ -6,13 +6,13 @@ import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import R = require('ramda')
-import renderHelp = require('render-help')
 import {
   rebuild,
   rebuildPkgs,
 } from './implementation'
 import recursive from './recursive'
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return {
@@ -44,9 +44,9 @@ export function help () {
 
         list: [
           {
-            description: `Rebuild every package found in subdirectories \
+            description: 'Rebuild every package found in subdirectories \
 or every workspace package, when executed inside a workspace. \
-For options that may be used with \`-r\`, see "pnpm help recursive"`,
+For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -66,26 +66,26 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
 
 export async function handler (
   opts: Pick<Config,
-    | 'allProjects'
-    | 'dir'
-    | 'engineStrict'
-    | 'rawLocalConfig'
-    | 'registries'
-    | 'selectedProjectsGraph'
-    | 'sideEffectsCache'
-    | 'sideEffectsCacheReadonly'
-    | 'workspaceDir'
+  | 'allProjects'
+  | 'dir'
+  | 'engineStrict'
+  | 'rawLocalConfig'
+  | 'registries'
+  | 'selectedProjectsGraph'
+  | 'sideEffectsCache'
+  | 'sideEffectsCacheReadonly'
+  | 'workspaceDir'
   > &
-    CreateStoreControllerOptions &
-    {
-      recursive?: boolean,
-      reporter?: (logObj: LogBase) => void,
-      pending: boolean,
-    },
+  CreateStoreControllerOptions &
+  {
+    recursive?: boolean,
+    reporter?: (logObj: LogBase) => void,
+    pending: boolean,
+  },
   params: string[]
 ) {
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
-    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! })
+    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir })
     return
   }
   const store = await createOrConnectStoreController(opts)

@@ -1,4 +1,6 @@
 import { linkLogger } from '@pnpm/core-loggers'
+
+import symlinkDirectRootDependency from './symlinkDirectRootDependency'
 import path = require('path')
 import symlinkDir = require('symlink-dir')
 
@@ -11,7 +13,5 @@ export default function symlinkDependency (
   linkLogger.debug({ target: dependencyRealLocation, link })
   return symlinkDir(dependencyRealLocation, link)
 }
-
-import symlinkDirectRootDependency from './symlinkDirectRootDependency'
 
 export { symlinkDirectRootDependency }

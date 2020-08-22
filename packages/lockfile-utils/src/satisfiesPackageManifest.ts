@@ -17,22 +17,22 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) =>
 
     let pkgDepNames!: string[]
     switch (depField) {
-      case 'optionalDependencies':
-        pkgDepNames = Object.keys(pkgDeps)
-        break
-      case 'devDependencies':
-        pkgDepNames = Object.keys(pkgDeps)
-          .filter((depName) =>
-            (!pkg.optionalDependencies || !pkg.optionalDependencies[depName]) &&
+    case 'optionalDependencies':
+      pkgDepNames = Object.keys(pkgDeps)
+      break
+    case 'devDependencies':
+      pkgDepNames = Object.keys(pkgDeps)
+        .filter((depName) =>
+          (!pkg.optionalDependencies || !pkg.optionalDependencies[depName]) &&
             (!pkg.dependencies || !pkg.dependencies[depName])
-          )
-        break
-      case 'dependencies':
-        pkgDepNames = Object.keys(pkgDeps)
-          .filter((depName) => !pkg.optionalDependencies || !pkg.optionalDependencies[depName])
-        break
-      default:
-        throw new Error(`Unknown dependency type "${depField}"`)
+        )
+      break
+    case 'dependencies':
+      pkgDepNames = Object.keys(pkgDeps)
+        .filter((depName) => !pkg.optionalDependencies || !pkg.optionalDependencies[depName])
+      break
+    default:
+      throw new Error(`Unknown dependency type "${depField}"`)
     }
     if (pkgDepNames.length !== Object.keys(importerDeps).length &&
       pkgDepNames.length !== countOfNonLinkedDeps(importerDeps)) {

@@ -1,8 +1,8 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { PackageNode } from 'dependencies-hierarchy'
-import R = require('ramda')
 import getPkgInfo from './getPkgInfo'
 import { PackageDependencyHierarchy } from './types'
+import R = require('ramda')
 
 const sortPackages = R.sortBy(R.path(['pkg', 'alias']) as (pkg: object) => R.Ord)
 

@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
 import assertProject from '@pnpm/assert-project'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -14,6 +14,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
+import testDefaults from './utils/testDefaults'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
@@ -23,7 +24,6 @@ import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')
 import writeJsonFile = require('write-json-file')
-import testDefaults from './utils/testDefaults'
 
 const fixtures = path.join(__dirname, 'fixtures')
 
@@ -42,7 +42,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
-  await project.has(`.pnpm/colors@1.2.0`)
+  await project.has('.pnpm/colors@1.2.0')
 
   await project.isExecutable('.bin/rimraf')
 
@@ -258,7 +258,7 @@ test('run pre/postinstall scripts', async (t) => {
   const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 
-  t.deepEqual(require(outputJsonPath), ['install', 'postinstall'])
+  t.deepEqual(require(outputJsonPath), ['install', 'postinstall']) // eslint-disable-line
 
   await rimraf(outputJsonPath)
   await rimraf(path.join(prefix, 'node_modules'))
@@ -492,7 +492,7 @@ test('installing with hoistPattern=*', async (t) => {
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
-  await project.has(`.pnpm/colors@1.2.0`)
+  await project.has('.pnpm/colors@1.2.0')
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.pnpm/node_modules/.bin/hello-world-js-bin')
@@ -551,7 +551,7 @@ test('installing with publicHoistPattern=*', async (t) => {
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
-  await project.has(`.pnpm/colors@1.2.0`)
+  await project.has('.pnpm/colors@1.2.0')
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.bin/hello-world-js-bin')

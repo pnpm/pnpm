@@ -1,4 +1,4 @@
-export const REGISTRY = `https://registry.npmjs.org/`
+export const REGISTRY = 'https://registry.npmjs.org/'
 
 export const DEFAULT_OPTS = {
   alwaysAuth: false,
@@ -30,7 +30,7 @@ export const DEFAULT_OPTS = {
   pending: false,
   pnpmfile: './pnpmfile.js',
   proxy: undefined,
-  rawConfig: { registry:  REGISTRY },
+  rawConfig: { registry: REGISTRY },
   rawLocalConfig: {},
   registries: { default: REGISTRY },
   registry: REGISTRY,

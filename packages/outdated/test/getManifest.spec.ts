@@ -1,6 +1,6 @@
 import { ResolveFunction } from '@pnpm/client'
-import test = require('tape')
 import { getManifest } from '../lib/createManifestGetter'
+import test = require('tape')
 
 test('getManifest()', async (t) => {
   t.plan(4)
@@ -11,7 +11,7 @@ test('getManifest()', async (t) => {
     rawConfig: {},
     registries: {
       '@scope': 'https://pnpm.js.org/',
-      'default': 'https://registry.npmjs.org/',
+      default: 'https://registry.npmjs.org/',
     },
   }
   {

@@ -27,5 +27,5 @@ export default async function audit (
   if (res.status !== 200) {
     throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
   }
-  return res.json() as Promise<AuditReport>
+  return await (res.json() as Promise<AuditReport>)
 }

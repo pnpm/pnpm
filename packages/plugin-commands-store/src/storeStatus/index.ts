@@ -4,13 +4,13 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import * as dp from 'dependency-path'
-import dint = require('dint')
-import loadJsonFile = require('load-json-file')
-import pFilter = require('p-filter')
-import path = require('path')
 import extendOptions, {
   StoreStatusOptions,
 } from './extendStoreStatusOptions'
+import path = require('path')
+import dint = require('dint')
+import loadJsonFile = require('load-json-file')
+import pFilter = require('p-filter')
 
 export default async function (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts?.reporter

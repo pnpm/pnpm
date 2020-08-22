@@ -1,21 +1,20 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { LifecycleLog } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf = require('@zkochan/rimraf')
-import loadJsonFile = require('load-json-file')
-import path = require('path')
-import exists = require('path-exists')
-import PATH = require('path-name')
-import sinon = require('sinon')
+import * as path from 'path'
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
+import { prepareEmpty } from '@pnpm/prepare'
+import { LifecycleLog } from '@pnpm/core-loggers'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import rimraf = require('@zkochan/rimraf')
+import loadJsonFile = require('load-json-file')
+import exists = require('path-exists')
+import PATH = require('path-name')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -81,9 +80,9 @@ test('run install scripts in the current project', async (t: tape.Test) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({
     scripts: {
-      install: `node -e "process.stdout.write('install')" | json-append output.json`,
-      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
-      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
+      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
     },
   }, ['json-append@1.1.1'], await testDefaults({ fastUnpack: false }))
   await install(manifest, await testDefaults({ fastUnpack: false }))
@@ -98,9 +97,9 @@ test('run install scripts in the current project when its name is different than
   const manifest = await addDependenciesToPackage({
     name: 'different-name',
     scripts: {
-      install: `node -e "process.stdout.write('install')" | json-append output.json`,
-      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
-      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
+      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
     },
   }, ['json-append@1.1.1'], await testDefaults({ fastUnpack: false }))
   await install(manifest, await testDefaults({ fastUnpack: false }))
@@ -116,9 +115,9 @@ test('do not run install scripts if unsafePerm is false', async (t: tape.Test) =
   const manifest = await addDependenciesToPackage({
     name: 'different-name',
     scripts: {
-      install: `node -e "process.stdout.write('install')" | json-append output.json`,
-      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
-      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
+      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
     },
   }, ['json-append@1.1.1'], opts)
   await install(manifest, opts)
@@ -145,12 +144,12 @@ test('installation fails if lifecycle script fails', async (t: tape.Test) => {
 
 // TODO: unskip
 // For some reason this fails on CI environments
-// tslint:disable-next-line:no-string-literal
+// eslint-disable-next-line @typescript-eslint/dot-notation
 test.skip('creates env for scripts', async (t: tape.Test) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({
     scripts: {
-      install: `node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json`,
+      install: 'node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json',
     },
   }, ['json-append@1.1.1'], await testDefaults())
   await install(manifest, await testDefaults())
@@ -262,7 +261,7 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 
   await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false }))
 
-  t.ok(+project.requireModule(`.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule('.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
 test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
@@ -307,7 +306,7 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
 })
 
 test('hoisting does not fail on commands that will be created by lifecycle scripts on a later stage', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+  prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
@@ -417,7 +416,7 @@ test('scripts have access to unlisted bins when hoisting is used', async (t: tap
 
   await addDependenciesToPackage(
     {},
-    [ 'pkg-that-calls-unlisted-dep-in-hooks' ],
+    ['pkg-that-calls-unlisted-dep-in-hooks'],
     await testDefaults({ fastUnpack: false, hoistPattern: '*' })
   )
 

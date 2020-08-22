@@ -1,4 +1,4 @@
-export type AuditVulnerabilityCounts = {
+export interface AuditVulnerabilityCounts {
   info: number,
   low: number,
   moderate: number,
@@ -6,7 +6,7 @@ export type AuditVulnerabilityCounts = {
   critical: number,
 }
 
-export type AuditResolution = {
+export interface AuditResolution {
   id: number,
   path: string,
   dev: boolean,
@@ -14,19 +14,19 @@ export type AuditResolution = {
   bundled: boolean,
 }
 
-export type AuditAction = {
+export interface AuditAction {
   action: string,
   module: string,
   target: string,
   isMajor: boolean,
-  resolves: Array<AuditResolution>,
+  resolves: AuditResolution[],
 }
 
-export type AuditAdvisory = {
+export interface AuditAdvisory {
   findings: [
     {
       version: string,
-      paths: Array<string>,
+      paths: string[],
       dev: boolean,
       optional: boolean,
       bundled: boolean,
@@ -44,7 +44,7 @@ export type AuditAdvisory = {
     name: string,
   },
   module_name: string,
-  cves: Array<string>,
+  cves: string[],
   vulnerable_versions: string,
   patched_versions: string,
   overview: string,
@@ -61,7 +61,7 @@ export type AuditAdvisory = {
   url: string,
 }
 
-export type AuditMetadata = {
+export interface AuditMetadata {
   vulnerabilities: AuditVulnerabilityCounts,
   dependencies: number,
   devDependencies: number,
@@ -69,14 +69,14 @@ export type AuditMetadata = {
   totalDependencies: number,
 }
 
-export type AuditReport = {
-  actions: Array<AuditAction>,
+export interface AuditReport {
+  actions: AuditAction[],
   advisories: {[id: string]: AuditAdvisory},
-  muted: Array<Object>,
+  muted: Object[],
   metadata: AuditMetadata,
 }
 
-export type AuditActionRecommendation = {
+export interface AuditActionRecommendation {
   cmd: string,
   isBreaking: boolean,
   action: AuditAction,

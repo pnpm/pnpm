@@ -1,7 +1,7 @@
 import { preparePackages } from '@pnpm/prepare'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

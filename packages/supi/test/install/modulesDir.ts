@@ -1,14 +1,14 @@
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
-import path = require('path')
 import {
   install,
   MutatedProject,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

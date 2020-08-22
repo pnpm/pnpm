@@ -9,9 +9,9 @@ export default class PnpmError extends Error {
   }
 }
 
-export type FetchErrorResponse = { status: number, statusText: string }
+export interface FetchErrorResponse { status: number, statusText: string }
 
-export type FetchErrorRequest = { url: string, authHeaderValue?: string }
+export interface FetchErrorRequest { url: string, authHeaderValue?: string }
 
 export class FetchError extends PnpmError {
   public readonly response: FetchErrorResponse
@@ -22,7 +22,7 @@ export class FetchError extends PnpmError {
     response: FetchErrorResponse,
     hint?: string
   ) {
-    let message = `GET ${request.url}: ${response.statusText} - ${response.status}`
+    const message = `GET ${request.url}: ${response.statusText} - ${response.status}`
     const authHeaderValue = request.authHeaderValue
       ? hideAuthInformation(request.authHeaderValue) : undefined
     if (response.status === 401 || response.status === 403) {
@@ -30,7 +30,7 @@ export class FetchError extends PnpmError {
       if (authHeaderValue) {
         hint += `An authorization header was used: ${authHeaderValue}`
       } else {
-        hint += `No authorization header was set for the request.`
+        hint += 'No authorization header was set for the request.'
       }
     }
     super(`FETCH_${response.status}`, message, { hint })

@@ -1,7 +1,7 @@
 import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
-import path = require('path')
 import tempy = require('tempy')
 
 export default () => {

@@ -3,8 +3,8 @@ import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import { DependenciesField } from '@pnpm/types'
-import fs = require('mz/fs')
 import path = require('path')
+import fs = require('mz/fs')
 import symlinkDir = require('symlink-dir')
 
 const DEP_TYPE_BY_DEPS_FIELD_NAME = {

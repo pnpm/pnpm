@@ -44,11 +44,11 @@ export interface WorkspacePackages {
   },
 }
 
-export type VersionSelectors = {
+export interface VersionSelectors {
   [selector: string]: 'version' | 'range' | 'tag',
 }
 
-export type PreferredVersions = {
+export interface PreferredVersions {
   [packageName: string]: VersionSelectors,
 }
 

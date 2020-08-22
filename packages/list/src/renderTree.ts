@@ -1,12 +1,12 @@
+import { PackageNode } from 'dependencies-hierarchy'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import getPkgInfo from './getPkgInfo'
+import { PackageDependencyHierarchy } from './types'
+import path = require('path')
 import archy = require('archy')
 import chalk = require('chalk')
 import cliColumns = require('cli-columns')
-import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
-import path = require('path')
 import R = require('ramda')
-import getPkgInfo from './getPkgInfo'
-import { PackageDependencyHierarchy } from './types'
 
 const sortPackages = R.sortBy(R.path(['name']) as (pkg: object) => R.Ord)
 
@@ -18,7 +18,7 @@ const NOT_SAVED_DEP_CLR = chalk.red
 const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP_CLR('optional only')}, ${DEV_DEP_ONLY_CLR('dev only')}\n\n`
 
 export default async function (
-  packages: Array<PackageDependencyHierarchy>,
+  packages: PackageDependencyHierarchy[],
   opts: {
     alwaysPrintRootPackage: boolean,
     depth: number,
@@ -62,7 +62,7 @@ async function renderTreeForPackage (
   label += pkg.path
   let output = `${label}\n`
   const useColumns = opts.depth === 0 && opts.long === false && !opts.search
-  for (let dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
+  for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
     if (pkg[dependenciesField]?.length) {
       const depsLabel = chalk.cyanBright(
         dependenciesField !== 'unsavedDependencies'
@@ -98,7 +98,7 @@ export async function toArchyTree (
     modules: string,
   }
 ): Promise<archy.Data[]> {
-  return Promise.all(
+  return await Promise.all(
     sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(getPkgColor, node.dependencies || [], opts)
       if (opts.long) {
@@ -127,7 +127,7 @@ export async function toArchyTree (
 }
 
 function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
-  let color = getPkgColor(node)
+  const color = getPkgColor(node)
   let txt = `${color(node.name)} ${chalk.gray(node.version)}`
   if (node.isPeer) {
     txt += ' peer'

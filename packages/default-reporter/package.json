@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "pretty-test": "ts-node test | tap-diff",
     "just-test-preview": "ts-node test --type-check",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/default-reporter/coverage ts-node packages/default-reporter/test --type-check",

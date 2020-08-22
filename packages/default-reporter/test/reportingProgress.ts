@@ -9,8 +9,8 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import chalk = require('chalk')
 import delay from 'delay'
+import chalk = require('chalk')
 import most = require('most')
 import normalizeNewline = require('normalize-newline')
 import test = require('tape')
@@ -259,7 +259,7 @@ test('prints "Already up-to-date"', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Already up-to-date`)
+      t.equal(output, 'Already up-to-date')
     },
   })
 })
@@ -267,6 +267,7 @@ test('prints "Already up-to-date"', t => {
 test('prints progress of big files download', async t => {
   t.plan(6)
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   let output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -276,7 +277,7 @@ test('prints progress of big files download', async t => {
     streamParser: createStreamParser(),
   })
     .map(normalizeNewline) as most.Stream<string>
-  const stream$: most.Stream<string>[] = []
+  const stream$: Array<most.Stream<string>> = []
 
   const pkgId1 = 'registry.npmjs.org/foo/1.0.0'
   const pkgId2 = 'registry.npmjs.org/bar/2.0.0'

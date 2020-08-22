@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/read-package-json/coverage ts-node packages/read-package-json/test --type-check",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",

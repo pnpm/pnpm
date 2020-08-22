@@ -1,6 +1,6 @@
 import childProcess = require('child_process')
-import spawn = require('cross-spawn')
 import path = require('path')
+import spawn = require('cross-spawn')
 import PATH = require('path-name')
 
 export default function runNpm (npmPath: string | undefined, args: string[]) {

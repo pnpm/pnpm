@@ -1,6 +1,6 @@
 import { PackageNode } from 'dependencies-hierarchy'
-import R = require('ramda')
 import { PackageDependencyHierarchy } from './types'
+import R = require('ramda')
 
 const sortPackages = R.sortBy(R.prop('name'))
 

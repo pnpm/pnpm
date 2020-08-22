@@ -14,7 +14,7 @@ import {
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import R = require('ramda')
+import * as R from 'ramda'
 import { depPathToRef } from './lockfile'
 import { DependenciesGraph } from './resolvePeers'
 
@@ -24,9 +24,9 @@ export default function (
   prefix: string,
   registries: Registries
 ): {
-  newLockfile: Lockfile,
-  pendingRequiresBuilds: string[],
-} {
+    newLockfile: Lockfile,
+    pendingRequiresBuilds: string[],
+  } {
   lockfile.packages = lockfile.packages || {}
   const pendingRequiresBuilds = [] as string[]
   for (const depPath of Object.keys(depGraph)) {
@@ -99,7 +99,7 @@ function toLockfileDependency (
   const result = {
     resolution: lockfileResolution,
   }
-  // tslint:disable:no-string-literal
+  /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(opts.depPath)) {
     result['name'] = depNode.name
 
@@ -180,7 +180,7 @@ function toLockfileDependency (
     pendingRequiresBuilds.push(opts.depPath)
   }
   depNode.requiresBuild = result['requiresBuild']
-  // tslint:enable:no-string-literal
+  /* eslint-enable @typescript-eslint/dot-notation */
   return result
 }
 
@@ -226,7 +226,7 @@ function toLockfileResolution (
   resolution: Resolution,
   registry: string
 ): LockfileResolution {
-  // tslint:disable:no-string-literal
+  /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
@@ -247,7 +247,7 @@ function toLockfileResolution (
     ...base,
     integrity: resolution['integrity'],
   }
-  // tslint:enable:no-string-literal
+  /* eslint-enable @typescript-eslint/dot-notation */
 }
 
 function removeProtocol (url: string) {

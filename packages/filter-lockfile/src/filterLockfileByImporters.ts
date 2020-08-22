@@ -6,7 +6,6 @@ import {
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import pnpmLogger from '@pnpm/logger'
 import { DependenciesField } from '@pnpm/types'
-import R = require('ramda')
 import filterImporter from './filterImporter'
 import LockfileMissingDependencyError from './LockfileMissingDependencyError'
 

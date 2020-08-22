@@ -3,13 +3,13 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
+import { DEFAULT_OPTS } from './utils'
+import path = require('path')
+import fs = require('mz/fs')
 import test = require('tape')
 import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS } from './utils'
 
 test('recursive add/remove', async (t) => {
   const projects = preparePackages(t, [
@@ -137,7 +137,7 @@ test('recursive add/remove in workspace with many lockfiles', async (t) => {
 
       dependencies: {
         'is-positive': '1.0.0',
-        'noop': '^0.2.2',
+        noop: '^0.2.2',
       },
     })
   }
@@ -148,7 +148,7 @@ test('recursive add/remove in workspace with many lockfiles', async (t) => {
       version: '1.0.0',
 
       dependencies: {
-        'noop': '^0.2.2',
+        noop: '^0.2.2',
       },
     })
   }
@@ -258,7 +258,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
         version: '1.0.0',
 
         dependencies: {
-          'debug': '*',
+          debug: '*',
         },
       },
     },
@@ -282,7 +282,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
 })
 
 test('recursive installation fails when installation in one of the packages fails', async t => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -411,9 +411,9 @@ test('recursive --filter ignore excluded packages', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  projects['project-1'].hasNot('is-positive')
-  projects['project-2'].hasNot('is-negative')
-  projects['project-3'].hasNot('minimatch')
+  await projects['project-1'].hasNot('is-positive')
+  await projects['project-2'].hasNot('is-negative')
+  await projects['project-3'].hasNot('minimatch')
   t.end()
 })
 
@@ -457,9 +457,9 @@ test('recursive filter multiple times', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  projects['project-1'].has('is-positive')
-  projects['project-2'].has('is-negative')
-  projects['project-3'].hasNot('minimatch')
+  await projects['project-1'].has('is-positive')
+  await projects['project-2'].has('is-negative')
+  await projects['project-3'].hasNot('minimatch')
   t.end()
 })
 
@@ -534,7 +534,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   {
     const pkg = await import(path.resolve('project-1/package.json'))
-    t.deepEqual(pkg && pkg.dependencies, { 'project-2': 'workspace:2.0.0' })
+    t.deepEqual(pkg?.dependencies, { 'project-2': 'workspace:2.0.0' })
   }
   {
     const pkg = await import(path.resolve('project-2/package.json'))
@@ -547,7 +547,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 })
 
 test('recursive install on workspace with custom lockfile-dir', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',

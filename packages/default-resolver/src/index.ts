@@ -26,11 +26,11 @@ export default function createResolver (
   const resolveFromNpm = createResolveFromNpm(fetchFromRegistry, getCredentials, pnpmOpts)
   const resolveFromGit = createResolveFromGit(pnpmOpts)
   return async (wantedDependency, opts) => {
-    const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions)
-      || wantedDependency.pref && (
-        await resolveFromTarball(wantedDependency as {pref: string})
-        || await resolveFromGit(wantedDependency as {pref: string})
-        || await resolveFromLocal(wantedDependency as {pref: string}, opts)
+    const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ||
+      wantedDependency.pref && (
+        await resolveFromTarball(wantedDependency as {pref: string}) ||
+        await resolveFromGit(wantedDependency as {pref: string}) ||
+        await resolveFromLocal(wantedDependency as {pref: string}, opts)
       )
     if (!resolution) {
       throw new PnpmError(

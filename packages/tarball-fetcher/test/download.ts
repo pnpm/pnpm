@@ -1,11 +1,11 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
 import createCafs from '@pnpm/cafs'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import createFetcher from '@pnpm/tarball-fetcher'
+import path = require('path')
 import cpFile = require('cp-file')
 import fs = require('mz/fs')
 import nock = require('nock')
-import path = require('path')
 import ssri = require('ssri')
 import test = require('tape')
 import tempy = require('tempy')
@@ -66,7 +66,7 @@ test('fail when tarball size does not match content-length', async t => {
 })
 
 test('retry when tarball size does not match content-length', async t => {
-  const scope = nock(registry)
+  nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
       'Content-Length': (1024 * 1024).toString(),
@@ -169,7 +169,7 @@ test('fail when integrity check of local file fails', async (t) => {
   )
   const resolution = {
     integrity: tarballIntegrity,
-    tarball: `file:tar.tgz`,
+    tarball: 'file:tar.tgz',
   }
 
   let err: Error | null = null
@@ -182,11 +182,11 @@ test('fail when integrity check of local file fails', async (t) => {
   }
 
   t.ok(err, 'error thrown')
-  t.equal(err && err.message, 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY= integrity checksum failed when using sha1: ' +
+  t.equal(err.message, 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY= integrity checksum failed when using sha1: ' +
     'wanted sha1-HssnaJydJVE+rbyZFKc/VAi+enY= but got sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=. (1194 bytes)')
-  t.equal(err && err['code'], 'EINTEGRITY')
-  t.equal(err && err['resource'], path.resolve('tar.tgz'))
-  t.equal(err && err['attempts'], 1)
+  t.equal(err['code'], 'EINTEGRITY')
+  t.equal(err['resource'], path.resolve('tar.tgz'))
+  t.equal(err['attempts'], 1)
 
   t.end()
 })
@@ -202,7 +202,7 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
   )
   const resolution = {
     integrity: await getFileIntegrity(localTarballLocation),
-    tarball: `file:tar.tgz`,
+    tarball: 'file:tar.tgz',
   }
 
   const { filesIndex } = await fetch.tarball(cafs, resolution, {
@@ -326,7 +326,7 @@ test('throw error when accessing private package w/o authorization', async t => 
 
   t.ok(err)
   err = err || new Error()
-  t.equal(err.message, `GET http://example.com/foo.tgz: Forbidden - 403`)
+  t.equal(err.message, 'GET http://example.com/foo.tgz: Forbidden - 403')
   t.equal(err['hint'], 'No authorization header was set for the request.')
   t.equal(err['code'], 'ERR_PNPM_FETCH_403')
   t.equal(err['request']['url'], 'http://example.com/foo.tgz')
@@ -340,14 +340,14 @@ test('accessing private packages', async t => {
     registry,
     {
       reqheaders: {
-        'authorization': 'Bearer ofjergrg349gj3f2',
+        authorization: 'Bearer ofjergrg349gj3f2',
       },
     }
   )
-  .get('/foo.tgz')
-  .replyWithFile(200, tarballPath, {
-    'Content-Length': tarballSize.toString(),
-  })
+    .get('/foo.tgz')
+    .replyWithFile(200, tarballPath, {
+      'Content-Length': tarballSize.toString(),
+    })
 
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)

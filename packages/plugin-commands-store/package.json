@@ -12,7 +12,7 @@
     "node": ">=10.13"
   },
   "scripts": {
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/plugin-commands-store/coverage ts-node packages/plugin-commands-store/test --type-check",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",

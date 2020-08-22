@@ -5,7 +5,6 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import R = require('ramda')
 import { WantedDependency } from './getNonDevWantedDependencies'
 import {
   createNodeId,
@@ -20,11 +19,12 @@ import resolveDependencies, {
   ResolvedPackage,
   ResolvedPackagesByPackageId,
 } from './resolveDependencies'
+import R = require('ramda')
 
 export * from './nodeIdUtils'
 export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 
-export type ResolvedDirectDependency = {
+export interface ResolvedDirectDependency {
   alias: string,
   optional: boolean,
   dev: boolean,

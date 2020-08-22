@@ -1,7 +1,7 @@
 import { VersionSelectors } from '@pnpm/resolver-base'
-import semver = require('semver')
 import { RegistryPackageSpec } from './parsePref'
 import { PackageInRegistry, PackageMeta } from './pickPackage'
+import semver = require('semver')
 
 export default function (
   spec: RegistryPackageSpec,
@@ -10,15 +10,15 @@ export default function (
 ): PackageInRegistry {
   let version!: string
   switch (spec.type) {
-    case 'version':
-      version = spec.fetchSpec
-      break
-    case 'tag':
-      version = meta['dist-tags'][spec.fetchSpec]
-      break
-    case 'range':
-      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
-      break
+  case 'version':
+    version = spec.fetchSpec
+    break
+  case 'tag':
+    version = meta['dist-tags'][spec.fetchSpec]
+    break
+  case 'range':
+    version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
+    break
   }
   const manifest = meta.versions[version]
   if (manifest && meta['name']) {
@@ -46,28 +46,28 @@ function pickVersionByVersionRange (
     for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
       if (preferredSelector === versionRange) continue
       switch (preferredSelectorType) {
-        case 'tag': {
-          preferredVersions.push(meta['dist-tags'][preferredSelector])
-          break
-        }
-        case 'range': {
-          // This might be slow if there are many versions
-          // and the package is an indirect dependency many times in the project.
-          // If it will create noticable slowdown, then might be a good idea to add some caching
-          versions = Object.keys(meta.versions)
-          for (const version of versions) {
-            if (semver.satisfies(version, preferredSelector, true)) {
-              preferredVersions.push(version)
-            }
+      case 'tag': {
+        preferredVersions.push(meta['dist-tags'][preferredSelector])
+        break
+      }
+      case 'range': {
+        // This might be slow if there are many versions
+        // and the package is an indirect dependency many times in the project.
+        // If it will create noticable slowdown, then might be a good idea to add some caching
+        versions = Object.keys(meta.versions)
+        for (const version of versions) {
+          if (semver.satisfies(version, preferredSelector, true)) {
+            preferredVersions.push(version)
           }
-          break
         }
-        case 'version': {
-          if (meta.versions[preferredSelector]) {
-            preferredVersions.push(preferredSelector)
-          }
-          break
+        break
+      }
+      case 'version': {
+        if (meta.versions[preferredSelector]) {
+          preferredVersions.push(preferredSelector)
         }
+        break
+      }
       }
     }
 

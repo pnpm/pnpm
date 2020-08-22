@@ -5,7 +5,6 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readProjectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import storePath from '@pnpm/store-path'
-import path = require('path')
 import tempy = require('tempy')
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -18,10 +17,10 @@ const retryOpts = {
 }
 
 export default async function testDefaults (
-  opts?: any, // tslint:disable-line
-  resolveOpts?: any, // tslint:disable-line
-  fetchOpts?: any, // tslint:disable-line
-  storeOpts?: any, // tslint:disable-line
+  opts?: any, // eslint-disable-line
+  resolveOpts?: any, // eslint-disable-line
+  fetchOpts?: any, // eslint-disable-line
+  storeOpts?: any, // eslint-disable-line
 ): Promise<HeadlessOptions> {
   let storeDir = opts?.storeDir ?? tempy.directory()
   const lockfileDir = opts?.lockfileDir ?? process.cwd()

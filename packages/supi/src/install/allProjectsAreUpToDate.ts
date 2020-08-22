@@ -31,15 +31,16 @@ export default async function allProjectsAreUpToDate (
     manifestsByDir,
     workspacePackages: opts.workspacePackages,
   })
-  return pEvery(projects, async (project) => {
+  return await pEvery(projects, async (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
-    return importer && !hasLocalTarballDepsInRoot(importer) &&
+    return await (importer && !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(project.manifest, project.id) &&
       _linkedPackagesAreUpToDate({
         dir: project.rootDir,
         manifest: project.manifest,
         snapshot: importer,
       })
+    )
   })
 }
 
@@ -120,9 +121,9 @@ function getVersionRange (spec: string) {
 }
 
 function hasLocalTarballDepsInRoot (importer: ProjectSnapshot) {
-  return R.any(refIsLocalTarball, Object.values(importer.dependencies ?? {}))
-    || R.any(refIsLocalTarball, Object.values(importer.devDependencies ?? {}))
-    || R.any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
+  return R.any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
+    R.any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
+    R.any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
 }
 
 function refIsLocalTarball (ref: string) {

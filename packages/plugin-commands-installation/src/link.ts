@@ -12,11 +12,6 @@ import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find
 import globalBinDir from '@pnpm/global-bin-dir'
 import { StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import pLimit = require('p-limit')
-import path = require('path')
-import pathAbsolute = require('path-absolute')
-import R = require('ramda')
-import renderHelp = require('render-help')
 import {
   install,
   InstallOptions,
@@ -26,6 +21,11 @@ import {
 } from 'supi'
 import getSaveType from './getSaveType'
 import * as installCommand from './install'
+import path = require('path')
+import pLimit = require('p-limit')
+import pathAbsolute = require('path-absolute')
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 const installLimit = pLimit(4)
 
@@ -72,13 +72,13 @@ export function help () {
 
 export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
-    | 'cliOptions'
-    | 'engineStrict'
-    | 'npmGlobalBinDir'
-    | 'saveDev'
-    | 'saveOptional'
-    | 'saveProd'
-    | 'workspaceDir'
+  | 'cliOptions'
+  | 'engineStrict'
+  | 'npmGlobalBinDir'
+  | 'saveDev'
+  | 'saveOptional'
+  | 'saveProd'
+  | 'workspaceDir'
   > & Partial<Pick<Config, 'globalDir' | 'linkWorkspacePackages'>>,
   params: string[]
 ) {
@@ -143,7 +143,7 @@ export async function handler (
     pkgPaths.map((dir) => installLimit(async () => {
       const s = await createOrConnectStoreControllerCached(storeControllerCache, opts)
       const config = await getConfig(
-        { ...opts.cliOptions, 'dir': dir },
+        { ...opts.cliOptions, dir: dir },
         {
           excludeReporter: true,
           rcOptionsTypes: installCommand.rcOptionsTypes(),

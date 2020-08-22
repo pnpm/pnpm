@@ -1,11 +1,11 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
+import promisifyTape from 'tape-promise'
+import { execPnpm } from './utils'
+import path = require('path')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
-import path = require('path')
 import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
-import { execPnpm } from './utils'
 
 const test = promisifyTape(tape)
 
@@ -25,15 +25,15 @@ test('readPackage hook in single project doesn\'t modify manifest', async (t) =>
   let pkg
   await execPnpm(['add', 'is-positive@1.0.0'])
   pkg = await loadJsonFile(path.resolve('package.json'))
-  t.deepEqual(pkg && pkg.dependencies, { 'is-positive': '1.0.0' }, 'add dependency & readPackage hook work')
+  t.deepEqual(pkg?.dependencies, { 'is-positive': '1.0.0' }, 'add dependency & readPackage hook work')
 
   await execPnpm(['update', 'is-positive@2.0.0'])
   pkg = await loadJsonFile(path.resolve('package.json'))
-  t.deepEqual(pkg && pkg.dependencies, { 'is-positive': '2.0.0' }, 'update dependency & readPackage hook work')
+  t.deepEqual(pkg?.dependencies, { 'is-positive': '2.0.0' }, 'update dependency & readPackage hook work')
 
   await execPnpm(['install'])
   pkg = await loadJsonFile(path.resolve('package.json'))
-  t.deepEqual(pkg && pkg.dependencies, { 'is-positive': '2.0.0' }, 'install & readPackage hook work')
+  t.deepEqual(pkg?.dependencies, { 'is-positive': '2.0.0' }, 'install & readPackage hook work')
 
   await execPnpm(['remove', 'is-positive'])
   pkg = await loadJsonFile(path.resolve('package.json'))
@@ -42,7 +42,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async (t) =>
 })
 
 test('readPackage hook in monorepo doesn\'t modify manifest', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-a',
       version: '1.0.0',
@@ -69,15 +69,15 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async (t) => {
   let pkg
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])
   pkg = await loadJsonFile(path.resolve('project-a/package.json'))
-  t.deepEqual(pkg && pkg.dependencies, { 'is-positive': '1.0.0' }, 'add dependency & readPackage hook work')
+  t.deepEqual(pkg?.dependencies, { 'is-positive': '1.0.0' }, 'add dependency & readPackage hook work')
 
   await execPnpm(['update', 'is-positive@2.0.0', '--filter', 'project-a'])
   pkg = await loadJsonFile(path.resolve('project-a/package.json'))
-  t.deepEqual(pkg && pkg.dependencies, { 'is-positive': '2.0.0' }, 'update dependency & readPackage hook work')
+  t.deepEqual(pkg?.dependencies, { 'is-positive': '2.0.0' }, 'update dependency & readPackage hook work')
 
   await execPnpm(['install', '--filter', 'project-a'])
   pkg = await loadJsonFile(path.resolve('project-a/package.json'))
-  t.deepEqual(pkg && pkg.dependencies, { 'is-positive': '2.0.0' }, 'install & readPackage hook work')
+  t.deepEqual(pkg?.dependencies, { 'is-positive': '2.0.0' }, 'install & readPackage hook work')
 
   await execPnpm(['remove', 'is-positive', '--filter', 'project-a'])
   pkg = await loadJsonFile(path.resolve('project-a/package.json'))

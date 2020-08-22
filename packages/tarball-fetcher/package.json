@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/tarball-fetcher/coverage ts-node packages/tarball-fetcher/test --type-check",
     "test": "pnpm run compile && pnpm run _test",

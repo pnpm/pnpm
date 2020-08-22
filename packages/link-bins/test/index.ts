@@ -1,17 +1,17 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
+import { promisify } from 'util'
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
+import path = require('path')
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import ncpcb = require('ncp')
 import normalizePath = require('normalize-path')
-import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')
-import { promisify } from 'util'
 
 const ncp = promisify(ncpcb)
 

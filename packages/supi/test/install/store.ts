@@ -1,11 +1,11 @@
 import { prepareEmpty } from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
-import path = require('path')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeJsonFile = require('write-json-file')
 import { testDefaults } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import tape = require('tape')
+import writeJsonFile = require('write-json-file')
 
 const test = promisifyTape(tape)
 

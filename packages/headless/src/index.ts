@@ -51,10 +51,10 @@ import {
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
+import path = require('path')
 import dp = require('dependency-path')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
-import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import realpathMissing = require('realpath-missing')
@@ -398,7 +398,7 @@ async function linkRootPackages (
     ...projectSnapshot.dependencies,
     ...projectSnapshot.optionalDependencies,
   }
-  return Promise.all(
+  return await Promise.all(
     Object.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
@@ -474,7 +474,7 @@ async function lockfileToDepGraph (
 ) {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
-  let directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
+  const directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
   if (lockfile.packages) {
     const pkgSnapshotByLocation = {}
     await Promise.all(
@@ -512,7 +512,7 @@ async function lockfileToDepGraph (
           resolution,
         })
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        fetchResponse.files() // tslint:disable-line
+        fetchResponse.files() // eslint-disable-line
           .then(({ fromStore }) => {
             progressLogger.debug({
               packageId,
@@ -636,7 +636,7 @@ export interface DependenciesGraphNode {
 }
 
 export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode
+  [depPath: string]: DependenciesGraphNode,
 }
 
 const limitLinking = pLimit(16)
@@ -649,7 +649,7 @@ async function linkAllPkgs (
     targetEngine?: string,
   }
 ) {
-  return Promise.all(
+  return await Promise.all(
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
@@ -670,7 +670,7 @@ async function linkAllBins (
     warn: (message: string) => void,
   }
 ) {
-  return Promise.all(
+  return await Promise.all(
     R.values(depGraph)
       .map((depNode) => limitLinking(async () => {
         const childrenToLink = opts.optional
@@ -686,7 +686,7 @@ async function linkAllBins (
         const binPath = path.join(depNode.dir, 'node_modules/.bin')
         const pkgSnapshots = R.props<string, DependenciesGraphNode>(R.values(childrenToLink), depGraph)
 
-        if (pkgSnapshots.includes(undefined as any)) { // tslint:disable-line
+        if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
           await linkBins(depNode.modules, binPath, { warn: opts.warn })
         } else {
           const pkgs = await Promise.all(
@@ -717,7 +717,7 @@ async function linkAllModules (
     lockfileDir: string,
   }
 ) {
-  return Promise.all(
+  return await Promise.all(
     depNodes
       .map(async (depNode) => {
         const childrenToLink = opts.optional

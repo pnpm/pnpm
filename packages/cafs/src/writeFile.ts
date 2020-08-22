@@ -1,5 +1,5 @@
-import fs = require('mz/fs')
 import path = require('path')
+import fs = require('mz/fs')
 
 const dirs = new Set()
 
