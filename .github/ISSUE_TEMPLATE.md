@@ -2,9 +2,7 @@
 **Please only file bugs/feature requests for pnpm here.**
 
 If you have a question that is not answered in the FAQ section of the README
-then it is best to post your question on StackOverflow under the pnpm tag:
-https://stackoverflow.com/questions/tagged/pnpm
-or ask it in our Discord chatroom:
+then it is best to ask it in our Discord chatroom:
 https://discord.gg/mThkzAT
 
 If your issue is a bug, please follow the format below:
