@@ -68,7 +68,7 @@
     "ncp": "^2.0.0",
     "nock": "12.0.3",
     "normalize-path": "^3.0.0",
-    "sinon": "9.0.2",
+    "sinon": "^9.0.3",
     "tempy": "^0.6.0"
   },
   "funding": "https://opencollective.com/pnpm"
