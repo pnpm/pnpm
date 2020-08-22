@@ -12,8 +12,16 @@ const makePath =
     : (...paths: string[]) => `/${path.join(...paths)}`
 
 let canWriteToDir!: typeof _canWriteToDir
-let readdirSync = (dir: string) => [] as string[]
+let readdirSync = (dir: string) => [] as Array<{ name: string, isFile: () => boolean }>
 const FAKE_PATH = 'FAKE_PATH'
+
+function makeFileEntry (name: string) {
+  return { name, isFile: () => true }
+}
+
+function makeDirEntry (name: string) {
+  return { name, isFile: () => false }
+}
 
 const globalBinDir = proxiquire('../lib/index.js', {
   'can-write-to-dir': {
@@ -152,8 +160,26 @@ test('select a directory that has a node command in it', (t) => {
   ].join(path.delimiter)
 
   canWriteToDir = () => true
-  readdirSync = (dir) => dir === dir2 ? ['node'] : []
+  readdirSync = (dir) => dir === dir2 ? [makeFileEntry('node')] : []
   t.equal(globalBinDir(), dir2)
+
+  process.env[FAKE_PATH] = pathEnv
+  t.end()
+})
+
+test('do not select a directory that has a node directory in it', (t) => {
+  const dir1 = makePath('foo')
+  const dir2 = makePath('bar')
+  const pathEnv = process.env[FAKE_PATH]
+  process.env[FAKE_PATH] = [
+    dir1,
+    dir2,
+  ].join(path.delimiter)
+
+  canWriteToDir = () => true
+  readdirSync = (dir) => dir === dir2 ? [makeDirEntry('node')] : []
+
+  t.throws(() => globalBinDir(), /Couldn't find a suitable/)
 
   process.env[FAKE_PATH] = pathEnv
   t.end()
@@ -169,7 +195,7 @@ test('select a directory that has a node.bat command in it', (t) => {
   ].join(path.delimiter)
 
   canWriteToDir = () => true
-  readdirSync = (dir) => dir === dir2 ? ['node.bat'] : []
+  readdirSync = (dir) => dir === dir2 ? [makeFileEntry('node.bat')] : []
   t.equal(globalBinDir(), dir2)
 
   process.env[FAKE_PATH] = pathEnv
