@@ -1,7 +1,7 @@
 <!--
 **Please only file bugs/feature requests for pnpm here.**
 
-If you have a question that is not answered in the FAQ section of the README
+If you have a question that is not answered in our FAQ: https://pnpm.js.org/en/faq
 then it is best to ask it in our Discord chatroom:
 https://discord.gg/mThkzAT
 
