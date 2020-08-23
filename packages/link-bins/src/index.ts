@@ -141,7 +141,7 @@ async function getPackageBins (
     throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${target} must have a name to get bin linked.`)
   }
 
-  return await getPackageBinsFromManifest(manifest, target)
+  return getPackageBinsFromManifest(manifest, target)
 }
 
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string) {
@@ -160,7 +160,7 @@ async function linkBin (cmd: Command, binsDir: string) {
     await fs.chmod(cmd.path, 0o755)
   }
   const nodePath = await getBinNodePaths(cmd.path)
-  return await cmdShim(cmd.path, externalBinPath, {
+  return cmdShim(cmd.path, externalBinPath, {
     createPwshFile: POWER_SHELL_IS_SUPPORTED,
     nodePath,
   })

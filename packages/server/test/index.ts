@@ -13,7 +13,7 @@ import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
 
-async function createStoreController (storeDir?: string) {
+function createStoreController (storeDir?: string) {
   if (!storeDir) {
     storeDir = tempy.directory()
   }
@@ -22,7 +22,7 @@ async function createStoreController (storeDir?: string) {
     authConfig,
     storeDir,
   })
-  return await createStore(resolve, fetchers, {
+  return createStore(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,

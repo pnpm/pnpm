@@ -53,7 +53,7 @@ export default async function fromRegistry (
     }
     throw new RegistryResponseError(request, response, pkgName)
   }
-  return await response.json()
+  return response.json()
 }
 
 function toUri (pkgName: string, registry: string) {

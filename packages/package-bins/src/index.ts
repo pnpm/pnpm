@@ -20,7 +20,7 @@ export default async function binify (manifest: DependencyManifest, pkgPath: str
   if (manifest.directories?.bin) {
     const binDir = path.join(pkgPath, manifest.directories.bin)
     const files = await findFiles(binDir)
-    return await pFilter(
+    return pFilter(
       files.map((file) => ({
         name: file,
         path: path.join(binDir, file),

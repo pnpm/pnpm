@@ -73,7 +73,7 @@ export async function createOrConnectStoreController (
       dir: storeDir,
     }
   }
-  return await createNewStoreController(Object.assign(opts, {
+  return createNewStoreController(Object.assign(opts, {
     storeDir,
   }))
 }

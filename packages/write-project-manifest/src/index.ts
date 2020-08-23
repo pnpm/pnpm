@@ -23,7 +23,7 @@ export default async function writeProjectManifest (
 ): Promise<void> {
   const fileType = filePath.substr(filePath.lastIndexOf('.') + 1).toLowerCase()
   if (fileType === 'yaml') {
-    return await writeYamlFile(filePath, manifest, YAML_FORMAT)
+    return writeYamlFile(filePath, manifest, YAML_FORMAT)
   }
 
   await fs.mkdir(path.dirname(filePath), { recursive: true })
@@ -32,5 +32,5 @@ export default async function writeProjectManifest (
   const json = (fileType === 'json5' ? JSON5 : JSON)
     .stringify(manifest, null, opts?.indent ?? '\t')
 
-  return await writeFileAtomic(filePath, `${json}${trailingNewline}`)
+  return writeFileAtomic(filePath, `${json}${trailingNewline}`)
 }

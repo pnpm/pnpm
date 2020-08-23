@@ -47,13 +47,13 @@ async function _retrieveFileIntegrities (
           if (deferredManifest && rootDir === currDir && file === 'package.json') {
             const buffer = await fs.readFile(fullPath)
             parseJsonBuffer(buffer, deferredManifest)
-            return await cafs.addBuffer(buffer, stat.mode)
+            return cafs.addBuffer(buffer, stat.mode)
           }
           if (stat.size < MAX_BULK_SIZE) {
             const buffer = await fs.readFile(fullPath)
-            return await cafs.addBuffer(buffer, stat.mode)
+            return cafs.addBuffer(buffer, stat.mode)
           }
-          return await cafs.addStream(fs.createReadStream(fullPath), stat.mode)
+          return cafs.addStream(fs.createReadStream(fullPath), stat.mode)
         })
         index[relativePath] = {
           generatingIntegrity,

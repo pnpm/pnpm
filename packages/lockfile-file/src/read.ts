@@ -9,7 +9,7 @@ import { LockfileBreakingChangeError } from './errors'
 import logger from './logger'
 import path = require('path')
 
-export async function readCurrentLockfile (
+export function readCurrentLockfile (
   virtualStoreDir: string,
   opts: {
     wantedVersion?: number,
@@ -17,10 +17,10 @@ export async function readCurrentLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
-  return await _read(lockfilePath, virtualStoreDir, opts)
+  return _read(lockfilePath, virtualStoreDir, opts)
 }
 
-export async function readWantedLockfile (
+export function readWantedLockfile (
   pkgPath: string,
   opts: {
     wantedVersion?: number,
@@ -28,7 +28,7 @@ export async function readWantedLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  return await _read(lockfilePath, pkgPath, opts)
+  return _read(lockfilePath, pkgPath, opts)
 }
 
 async function _read (

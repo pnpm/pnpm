@@ -114,7 +114,7 @@ async function getServerOptions (
 ): Promise<{hostname?: string, port?: number, path?: string}> {
   switch (opts.protocol) {
   case 'tcp':
-    return await getTcpOptions()
+    return getTcpOptions()
   case 'ipc':
     if (isWindows()) {
       throw new Error('IPC protocol is not supported on Windows currently')
@@ -122,7 +122,7 @@ async function getServerOptions (
     return getIpcOptions()
   case 'auto':
     if (isWindows()) {
-      return await getTcpOptions()
+      return getTcpOptions()
     }
     return getIpcOptions()
   default:

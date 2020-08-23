@@ -52,7 +52,7 @@ export default async (
     }
 
     return chunk.map((depPath: string) =>
-      async () => await buildDependency(depPath, depGraph, buildDepOpts)
+      () => buildDependency(depPath, depGraph, buildDepOpts)
     )
   })
   await runGroups(opts.childConcurrency || 4, groups)

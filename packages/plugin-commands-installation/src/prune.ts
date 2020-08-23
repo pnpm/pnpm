@@ -47,7 +47,7 @@ export async function handler (
   opts: Pick<Config, 'dev' | 'engineStrict' | 'optional' | 'production'> & CreateStoreControllerOptions
 ) {
   const store = await createOrConnectStoreController(opts)
-  return await mutateModules([
+  return mutateModules([
     {
       buildIndex: 0,
       manifest: await readProjectManifestOnly(process.cwd(), opts),

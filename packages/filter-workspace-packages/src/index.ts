@@ -53,7 +53,7 @@ export async function filterPackages<T> (
   return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)
 }
 
-export async function filterPkgsBySelectorObjects<T> (
+export function filterPkgsBySelectorObjects<T> (
   pkgs: Array<Package & T>,
   packageSelectors: PackageSelector[],
   opts: {
@@ -66,11 +66,11 @@ export async function filterPkgsBySelectorObjects<T> (
   }> {
   const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
   if (packageSelectors?.length) {
-    return await filterGraph(graph, packageSelectors, {
+    return filterGraph(graph, packageSelectors, {
       workspaceDir: opts.workspaceDir,
     })
   } else {
-    return { selectedProjectsGraph: graph, unmatchedFilters: [] }
+    return Promise.resolve({ selectedProjectsGraph: graph, unmatchedFilters: [] })
   }
 }
 

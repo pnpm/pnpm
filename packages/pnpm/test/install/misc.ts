@@ -180,7 +180,7 @@ test('lockfile compatibility', async (t: tape.Test) => {
 
   await execPnpm(['install', 'rimraf@2.5.1'])
 
-  return await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
 
     proc.on('error', reject)

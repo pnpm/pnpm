@@ -30,14 +30,14 @@ export default function (
     resolve({
       close: async () => { },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
-      importPackage: async (to: string, opts: {
+      importPackage: (to: string, opts: {
         filesResponse: PackageFilesResponse,
         force: boolean,
       }) => {
-        return await (limitedFetch(`${remotePrefix}/importPackage`, {
+        return limitedFetch(`${remotePrefix}/importPackage`, {
           opts,
           to,
-        }) as Promise<{ isBuilt: boolean }>)
+        }) as Promise<{ isBuilt: boolean }>
       },
       prune: async () => {
         await limitedFetch(`${remotePrefix}/prune`, {})

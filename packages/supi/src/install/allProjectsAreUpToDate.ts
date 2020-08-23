@@ -16,7 +16,7 @@ import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
 
-export default async function allProjectsAreUpToDate (
+export default function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
     linkWorkspacePackages: boolean,
@@ -31,16 +31,15 @@ export default async function allProjectsAreUpToDate (
     manifestsByDir,
     workspacePackages: opts.workspacePackages,
   })
-  return await pEvery(projects, async (project) => {
+  return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
-    return await (importer && !hasLocalTarballDepsInRoot(importer) &&
+    return importer && !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(project.manifest, project.id) &&
       _linkedPackagesAreUpToDate({
         dir: project.rootDir,
         manifest: project.manifest,
         snapshot: importer,
       })
-    )
   })
 }
 

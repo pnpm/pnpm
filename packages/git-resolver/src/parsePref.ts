@@ -32,7 +32,7 @@ const gitProtocols = new Set([
 export default async function parsePref (pref: string): Promise<HostedPackageSpec | null> {
   const hosted = HostedGit.fromUrl(pref)
   if (hosted) {
-    return await fromHostedGit(hosted)
+    return fromHostedGit(hosted)
   }
   const colonsPos = pref.indexOf(':')
   if (colonsPos === -1) return null

@@ -40,9 +40,9 @@ export default async function outdatedDepsOfProjects (
     lockfileDir,
     storeDir,
   })
-  return Promise.all(pkgs.map(async ({ dir, manifest }) => {
+  return Promise.all(pkgs.map(({ dir, manifest }) => {
     const match = args.length && matcher(args) || undefined
-    return await outdated({
+    return outdated({
       compatible: opts.compatible,
       currentLockfile,
       getLatestManifest,

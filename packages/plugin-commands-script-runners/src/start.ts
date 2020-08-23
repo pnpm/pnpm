@@ -42,9 +42,9 @@ If no "start" property is specified on the "scripts" object, it will run node se
   })
 }
 
-export async function handler (
+export function handler (
   opts: RunOpts,
   params: string[]
 ) {
-  return await run(opts, ['start', ...params])
+  return run(opts, ['start', ...params])
 }

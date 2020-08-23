@@ -401,7 +401,7 @@ export async function getContextForSingleImporter (
       publicHoistPattern: opts.publicHoistPattern,
     })
     if (purged) {
-      return await getContextForSingleImporter(manifest, opts, true)
+      return getContextForSingleImporter(manifest, opts, true)
     }
   }
 

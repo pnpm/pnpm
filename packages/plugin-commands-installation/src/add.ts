@@ -149,7 +149,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
-export async function handler (
+export function handler (
   opts: InstallCommandOptions & {
     allowNew?: boolean,
     ignoreWorkspaceRootCheck?: boolean,
@@ -182,7 +182,7 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  return await installDeps({
+  return installDeps({
     ...opts,
     include,
     includeDirect: include,

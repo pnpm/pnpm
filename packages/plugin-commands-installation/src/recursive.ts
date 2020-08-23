@@ -377,8 +377,8 @@ export default async function recursive (
   return true
 }
 
-async function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-  return await mutateModules(
+function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return mutateModules(
     [
       {
         manifest,
@@ -390,8 +390,8 @@ async function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable
   )
 }
 
-async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-  return await mutateModules(
+function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return mutateModules(
     [
       {
         dependencyNames,

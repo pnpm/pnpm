@@ -90,7 +90,7 @@ async function renderTreeForPackage (
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string
 
-export async function toArchyTree (
+export function toArchyTree (
   getPkgColor: GetPkgColor,
   entryNodes: PackageNode[],
   opts: {
@@ -98,7 +98,7 @@ export async function toArchyTree (
     modules: string,
   }
 ): Promise<archy.Data[]> {
-  return await Promise.all(
+  return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(getPkgColor, node.dependencies || [], opts)
       if (opts.long) {

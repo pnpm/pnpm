@@ -146,7 +146,7 @@ export function handler (
   })
 }
 
-export async function render (
+export function render (
   prefixes: string[],
   params: string[],
   opts: {
@@ -169,6 +169,6 @@ export async function render (
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
   return params.length
-    ? await listForPackages(params, prefixes, listOpts)
-    : await list(prefixes, listOpts)
+    ? listForPackages(params, prefixes, listOpts)
+    : list(prefixes, listOpts)
 }

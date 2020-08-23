@@ -5,10 +5,10 @@ import ncpCB = require('ncp')
 
 const ncp = promisify(ncpCB)
 
-export async function copyFixture (fixtureName: string, dest: string) {
+export function copyFixture (fixtureName: string, dest: string) {
   const fixturePath = pathToLocalPkg(fixtureName)
   if (!fixturePath) throw new Error(`${fixtureName} not found`)
-  return await ncp(fixturePath, dest)
+  return ncp(fixturePath, dest)
 }
 
 export function pathToLocalPkg (pkgName: string) {

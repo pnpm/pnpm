@@ -150,14 +150,14 @@ export type UpdateCommandOptions = InstallCommandOptions & {
   latest?: boolean,
 }
 
-export async function handler (
+export function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ) {
   if (opts.interactive) {
-    return await interactiveUpdate(params, opts)
+    return interactiveUpdate(params, opts)
   }
-  return await update(params, opts)
+  return update(params, opts)
 }
 
 async function interactiveUpdate (
@@ -225,7 +225,7 @@ async function interactiveUpdate (
   return update(updateDependencies, opts)
 }
 
-async function update (
+function update (
   dependencies: string[],
   opts: UpdateCommandOptions
 ) {
@@ -234,7 +234,7 @@ async function update (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  return await installDeps({
+  return installDeps({
     ...opts,
     allowNew: false,
     includeDirect,

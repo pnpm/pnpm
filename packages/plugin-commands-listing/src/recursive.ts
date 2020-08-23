@@ -16,7 +16,7 @@ export default async (
 ) => {
   const depth = opts.depth ?? 0
   if (opts.lockfileDir) {
-    return await render(pkgs.map((pkg) => pkg.dir), params, {
+    return render(pkgs.map((pkg) => pkg.dir), params, {
       ...opts,
       alwaysPrintRootPackage: depth === -1,
       lockfileDir: opts.lockfileDir,

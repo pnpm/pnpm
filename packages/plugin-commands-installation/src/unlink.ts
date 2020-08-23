@@ -69,7 +69,7 @@ export async function handler (
   })
 
   if (!params || !params.length) {
-    return await mutateModules([
+    return mutateModules([
       {
         dependencyNames: params,
         manifest: await readProjectManifestOnly(opts.dir, opts),
@@ -78,7 +78,7 @@ export async function handler (
       },
     ], unlinkOpts)
   }
-  return await mutateModules([
+  return mutateModules([
     {
       manifest: await readProjectManifestOnly(opts.dir, opts),
       mutation: 'unlink',

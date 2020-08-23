@@ -20,6 +20,8 @@
     "@typescript-eslint/naming-convention": "error",
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-explicit-any": "error",
+    "no-return-await": "error",
+    "@typescript-eslint/return-await": "off",
     "@typescript-eslint/no-require-imports": "off",
     "@typescript-eslint/no-unused-expressions": "error",
     "@typescript-eslint/no-use-before-define": "error",

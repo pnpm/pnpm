@@ -38,7 +38,7 @@ export async function writeCurrentLockfile (
   }
 ) {
   await fs.mkdir(virtualStoreDir, { recursive: true })
-  return await writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
+  return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
 }
 
 function writeLockfile (
@@ -107,7 +107,7 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   }
 }
 
-export default async function writeLockfiles (
+export default function writeLockfiles (
   opts: {
     forceSharedFormat?: boolean,
     wantedLockfile: Lockfile,
@@ -121,7 +121,7 @@ export default async function writeLockfiles (
 
   // empty lockfile is not saved
   if (isEmptyLockfile(opts.wantedLockfile)) {
-    return await Promise.all([
+    return Promise.all([
       rimraf(wantedLockfilePath),
       rimraf(currentLockfilePath),
     ])
@@ -134,7 +134,7 @@ export default async function writeLockfiles (
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
   if (opts.wantedLockfile === opts.currentLockfile) {
-    return await Promise.all([
+    return Promise.all([
       writeFileAtomic(wantedLockfilePath, yamlDoc),
       (async () => {
         await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
@@ -150,7 +150,7 @@ export default async function writeLockfiles (
 
   const currentYamlDoc = yaml.safeDump(normalizeLockfile(opts.currentLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
 
-  return await Promise.all([
+  return Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),
     (async () => {
       await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })

@@ -44,7 +44,7 @@ async function addStreamToCafs (
   mode: number
 ): Promise<ssri.Integrity> {
   const buffer = await getStream.buffer(fileStream)
-  return await addBufferToCafs(writeBufferToCafs, buffer, mode)
+  return addBufferToCafs(writeBufferToCafs, buffer, mode)
 }
 
 type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined) => Promise<void>

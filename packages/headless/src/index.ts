@@ -376,7 +376,7 @@ function linkBinsOfImporter (
   })
 }
 
-async function linkRootPackages (
+function linkRootPackages (
   lockfile: Lockfile,
   opts: {
     registries: Registries,
@@ -398,7 +398,7 @@ async function linkRootPackages (
     ...projectSnapshot.dependencies,
     ...projectSnapshot.optionalDependencies,
   }
-  return await Promise.all(
+  return Promise.all(
     Object.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
@@ -641,7 +641,7 @@ export interface DependenciesGraph {
 
 const limitLinking = pLimit(16)
 
-async function linkAllPkgs (
+function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
@@ -649,7 +649,7 @@ async function linkAllPkgs (
     targetEngine?: string,
   }
 ) {
-  return await Promise.all(
+  return Promise.all(
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
@@ -663,14 +663,14 @@ async function linkAllPkgs (
   )
 }
 
-async function linkAllBins (
+function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
     warn: (message: string) => void,
   }
 ) {
-  return await Promise.all(
+  return Promise.all(
     R.values(depGraph)
       .map((depNode) => limitLinking(async () => {
         const childrenToLink = opts.optional
@@ -710,14 +710,14 @@ async function linkAllBins (
   )
 }
 
-async function linkAllModules (
+function linkAllModules (
   depNodes: DependenciesGraphNode[],
   opts: {
     optional: boolean,
     lockfileDir: string,
   }
 ) {
-  return await Promise.all(
+  return Promise.all(
     depNodes
       .map(async (depNode) => {
         const childrenToLink = opts.optional

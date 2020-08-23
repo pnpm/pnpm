@@ -40,9 +40,9 @@ export function help () {
   })
 }
 
-export async function handler (
+export function handler (
   opts: RunOpts,
   params: string[]
 ) {
-  return await run(opts, ['stop', ...params])
+  return run(opts, ['stop', ...params])
 }

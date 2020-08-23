@@ -903,7 +903,7 @@ function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ProjectToLink) {
   return linkBins(modulesDir, binsDir, { allowExoticManifests: true, warn })
 }
 
-async function linkAllBins (
+function linkAllBins (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
@@ -911,8 +911,8 @@ async function linkAllBins (
     warn: (message: string) => void,
   }
 ) {
-  return await Promise.all(
-    depNodes.map(depNode => limitLinking(async () => await linkBinsOfDependencies(depNode, depGraph, opts)))
+  return Promise.all(
+    depNodes.map(depNode => limitLinking(() => linkBinsOfDependencies(depNode, depGraph, opts)))
   )
 }
 

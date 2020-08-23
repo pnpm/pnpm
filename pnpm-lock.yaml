@@ -12,6 +12,7 @@ importers:
       coveralls: 3.1.0
       cross-env: 7.0.2
       eslint: 7.7.0
+      eslint-plugin-import: 2.22.0_eslint@7.7.0
       lcov-result-merger: 3.1.0
       npm-run-all: 4.1.5
       publish-packed: 3.0.2
@@ -33,6 +34,7 @@ importers:
       coveralls: ^3.1.0
       cross-env: ^7.0.2
       eslint: ^7.7.0
+      eslint-plugin-import: ^2.22.0
       lcov-result-merger: ^3.1.0
       npm-run-all: ^4.1.5
       publish-packed: ^3.0.2
@@ -3709,7 +3711,6 @@ packages:
     resolution:
       integrity: sha512-7+2BITlgjgDhH0vvwZU/HZJVyk+2XUlvxXe8dFMedNX/aMkaOq++rMAFXc0tM7ij15QaWlbdQASBR9dihi+bDQ==
   /@types/json5/0.0.29:
-    dev: false
     resolution:
       integrity: sha1-7ihweulOEdK4J7y+UnC86n8+ce4=
   /@types/json5/0.0.30:
@@ -4744,7 +4745,6 @@ packages:
       define-properties: 1.1.3
       es-abstract: 1.17.6
       is-string: 1.0.5
-    dev: false
     engines:
       node: '>= 0.4'
     resolution:
@@ -4779,7 +4779,6 @@ packages:
     dependencies:
       define-properties: 1.1.3
       es-abstract: 1.17.6
-    dev: false
     engines:
       node: '>= 0.4'
     resolution:
@@ -5538,7 +5537,6 @@ packages:
     resolution:
       integrity: sha1-PXz0Rk22RG6mRL9LOVB/mFEAjo4=
   /contains-path/0.1.0:
-    dev: false
     engines:
       node: '>=0.10.0'
     resolution:
@@ -6102,7 +6100,6 @@ packages:
     dependencies:
       esutils: 2.0.3
       isarray: 1.0.0
-    dev: false
     engines:
       node: '>=0.10.0'
     resolution:
@@ -6379,14 +6376,12 @@ packages:
     dependencies:
       debug: 2.6.9
       resolve: 1.17.0
-    dev: false
     resolution:
       integrity: sha512-ogtf+5AB/O+nM6DIeBUNr2fuT7ot9Qg/1harBfBtaP13ekEWFQEEMP94BCB7zaNW3gyY+8SHYF00rnqYwXKWOA==
   /eslint-module-utils/2.6.0:
     dependencies:
       debug: 2.6.9
       pkg-dir: 2.0.0
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -6418,6 +6413,29 @@ packages:
       resolve: 1.17.0
       tsconfig-paths: 3.9.0
     dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      eslint: ^2 || ^3 || ^4 || ^5 || ^6 || ^7.2.0
+    resolution:
+      integrity: sha512-66Fpf1Ln6aIS5Gr/55ts19eUuoDhAbZgnr6UxK5hbDx6l/QgQgx61AePq+BV4PP2uXQFClgMVzep5zZ94qqsxg==
+  /eslint-plugin-import/2.22.0_eslint@7.7.0:
+    dependencies:
+      array-includes: 3.1.1
+      array.prototype.flat: 1.2.3
+      contains-path: 0.1.0
+      debug: 2.6.9
+      doctrine: 1.5.0
+      eslint: 7.7.0
+      eslint-import-resolver-node: 0.3.4
+      eslint-module-utils: 2.6.0
+      has: 1.0.3
+      minimatch: 3.0.4
+      object.values: 1.1.1
+      read-pkg-up: 2.0.0
+      resolve: 1.17.0
+      tsconfig-paths: 3.9.0
+    dev: true
     engines:
       node: '>=4'
     peerDependencies:
@@ -8056,7 +8074,6 @@ packages:
     resolution:
       integrity: sha512-XCoy+WlUr7d1+Z8GgSuXmpuUFC9fOhRXglJMx+dwLKTkL44Cjd4W1Z5P+BQZpr+cR93aGP4S/s7Ftw6Nd/kiEw==
   /is-string/1.0.5:
-    dev: false
     engines:
       node: '>= 0.4'
     resolution:
@@ -8241,7 +8258,6 @@ packages:
   /json5/1.0.1:
     dependencies:
       minimist: 1.2.5
-    dev: false
     hasBin: true
     resolution:
       integrity: sha512-aKS4WQjPenRxiQsC93MNfjx+nbF4PAdYzmd/1JIj8HYzqfbu86beTuNgXDzPknWk0n0uARlyewZo4s++ES36Ow==
@@ -8568,7 +8584,6 @@ packages:
       parse-json: 2.2.0
       pify: 2.3.0
       strip-bom: 3.0.0
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -9587,7 +9602,6 @@ packages:
       es-abstract: 1.17.6
       function-bind: 1.1.1
       has: 1.0.3
-    dev: false
     engines:
       node: '>= 0.4'
     resolution:
@@ -10045,7 +10059,6 @@ packages:
   /path-type/2.0.0:
     dependencies:
       pify: 2.3.0
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -10125,7 +10138,6 @@ packages:
   /pkg-dir/2.0.0:
     dependencies:
       find-up: 2.1.0
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -10531,7 +10543,6 @@ packages:
     dependencies:
       find-up: 2.1.0
       read-pkg: 2.0.0
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -10570,7 +10581,6 @@ packages:
       load-json-file: 2.0.0
       normalize-package-data: 2.5.0
       path-type: 2.0.0
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -12133,7 +12143,6 @@ packages:
       json5: 1.0.1
       minimist: 1.2.5
       strip-bom: 3.0.0
-    dev: false
     resolution:
       integrity: sha512-dRcuzokWhajtZWkQsDVKbWyY+jgcLC5sqJhg2PSgf4ZkH2aHPvaOY8YWGhmjb68b5qqTfasSsDO9k7RUiEmZAw==
   /tslib/1.13.0:

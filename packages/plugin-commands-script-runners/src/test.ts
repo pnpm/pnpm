@@ -52,9 +52,9 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
-export async function handler (
+export function handler (
   opts: RunOpts,
   params: string[] = []
 ) {
-  return await run(opts, ['test', ...params])
+  return run(opts, ['test', ...params])
 }

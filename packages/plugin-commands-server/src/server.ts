@@ -96,7 +96,7 @@ Other commands will delegate any store-related tasks to this service',
   })
 }
 
-export async function handler (
+export function handler (
   opts: CreateStoreControllerOptions & {
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,
@@ -106,15 +106,16 @@ export async function handler (
 ) {
   switch (params[0]) {
   case 'start':
-    return await start(opts)
+    return start(opts)
   case 'status':
-    return await status(opts)
+    return status(opts)
   case 'stop':
-    return await stop(opts)
+    return stop(opts)
   default:
     help()
     if (params[0]) {
       throw new PnpmError('INVALID_SERVER_COMMAND', `"server ${params[0]}" is not a pnpm command. See "pnpm help server".`)
     }
+    return undefined
   }
 }

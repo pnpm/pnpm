@@ -39,7 +39,7 @@ export default async function findPkgs (root: string, opts?: Options): Promise<P
     )
   }
 
-  return await pFilter(
+  return pFilter(
     // `Array.from()` doesn't create an intermediate instance,
     // unlike `array.map()`
     Array.from(

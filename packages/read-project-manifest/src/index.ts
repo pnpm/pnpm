@@ -172,14 +172,15 @@ function createManifestWriter (
   }
 ): (WriteProjectManifest) {
   const initialManifest = normalize(JSON.parse(JSON.stringify(opts.initialManifest)))
-  return async (updatedManifest: ProjectManifest, force?: boolean) => {
+  return (updatedManifest: ProjectManifest, force?: boolean) => {
     updatedManifest = normalize(updatedManifest)
     if (force === true || !equal(initialManifest, updatedManifest)) {
-      return await writeProjectManifest(opts.manifestPath, updatedManifest, {
+      return writeProjectManifest(opts.manifestPath, updatedManifest, {
         indent: opts.indent,
         insertFinalNewline: opts.insertFinalNewline,
       })
     }
+    return Promise.resolve(undefined)
   }
 }
 

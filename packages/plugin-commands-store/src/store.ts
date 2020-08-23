@@ -71,18 +71,18 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
   let store
   switch (params[0]) {
   case 'status':
-    return await statusCmd(opts)
+    return statusCmd(opts)
   case 'prune': {
     store = await createOrConnectStoreController(opts)
     const storePruneOptions = Object.assign(opts, {
       storeController: store.ctrl,
       storeDir: store.dir,
     })
-    return await storePrune(storePruneOptions)
+    return storePrune(storePruneOptions)
   }
   case 'add':
     store = await createOrConnectStoreController(opts)
-    return await storeAdd(params.slice(1), {
+    return storeAdd(params.slice(1), {
       prefix: opts.dir,
       registries: opts.registries,
       reporter: opts.reporter,

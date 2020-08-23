@@ -54,7 +54,7 @@ export async function forPackages (
   )
 
   const print = getPrinter(opts.reportAs)
-  return await print(pkgs, {
+  return print(pkgs, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth,
     long: opts.long,
@@ -103,7 +103,7 @@ export default async function (
   )
 
   const print = getPrinter(opts.reportAs)
-  return await print(pkgs, {
+  return print(pkgs, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth,
     long: opts.long,

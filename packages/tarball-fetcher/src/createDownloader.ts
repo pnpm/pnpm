@@ -78,7 +78,7 @@ export default (
     ...gotOpts.retry,
   }
 
-  return async function download (url: string, opts: {
+  return function download (url: string, opts: {
     auth?: {
       authHeaderValue: string | undefined,
       alwaysAuth: boolean | undefined,
@@ -100,7 +100,7 @@ export default (
 
     const op = retry.operation(retryOpts)
 
-    return await new Promise<FetchResult>((resolve, reject) => {
+    return new Promise<FetchResult>((resolve, reject) => {
       op.attempt(async (attempt) => {
         try {
           resolve(await fetch(attempt))

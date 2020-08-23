@@ -95,28 +95,28 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
     },
     async resolve (pkgName: string, version?: string, relativePath?: string) {
       const store = await getStoreInstance()
-      return await store.resolve(pkgName, version, relativePath)
+      return store.resolve(pkgName, version, relativePath)
     },
     async getPkgIndexFilePath (pkgName: string, version?: string): Promise<string> {
       const store = await getStoreInstance()
-      return await store.getPkgIndexFilePath(pkgName, version)
+      return store.getPkgIndexFilePath(pkgName, version)
     },
     async cafsHas (pkgName: string, version?: string) {
       const store = await getStoreInstance()
-      return await store.cafsHas(pkgName, version)
+      return store.cafsHas(pkgName, version)
     },
     async cafsHasNot (pkgName: string, version?: string) {
       const store = await getStoreInstance()
-      return await store.cafsHasNot(pkgName, version)
+      return store.cafsHasNot(pkgName, version)
     },
     async storeHas (pkgName: string, version?: string) {
       const store = await getStoreInstance()
-      return await store.resolve(pkgName, version)
+      return store.resolve(pkgName, version)
     },
     async storeHasNot (pkgName: string, version?: string) {
       try {
         const store = await getStoreInstance()
-        return await store.storeHasNot(pkgName, version)
+        return store.storeHasNot(pkgName, version)
       } catch (err) {
         if (err.message.startsWith('Cannot find module store')) {
           t.pass(`${pkgName}@${version} is not in store (store does not even exist)`)
@@ -145,8 +145,8 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
         throw err
       }
     },
-    async writePackageJson (pkgJson: object) {
-      await writePkg(projectPath, pkgJson as any) // eslint-disable-line
+    writePackageJson (pkgJson: object) {
+      return writePkg(projectPath, pkgJson as any) // eslint-disable-line
     },
   }
 }

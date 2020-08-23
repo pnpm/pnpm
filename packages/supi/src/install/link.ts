@@ -467,7 +467,7 @@ async function selectNewFromWantedDeps (
 
 const limitLinking = pLimit(16)
 
-async function linkAllPkgs (
+function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
@@ -475,7 +475,7 @@ async function linkAllPkgs (
     targetEngine?: string,
   }
 ) {
-  return await Promise.all(
+  return Promise.all(
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
@@ -489,7 +489,7 @@ async function linkAllPkgs (
   )
 }
 
-async function linkAllModules (
+function linkAllModules (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
@@ -497,7 +497,7 @@ async function linkAllModules (
     optional: boolean,
   }
 ) {
-  return await Promise.all(
+  return Promise.all(
     depNodes
       .map(async ({ children, optionalDependencies, name, modules }) => {
         const childrenToLink = opts.optional
