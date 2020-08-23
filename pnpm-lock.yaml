@@ -13,6 +13,7 @@ importers:
       cross-env: 7.0.2
       eslint: 7.7.0
       eslint-plugin-import: 2.22.0_eslint@7.7.0
+      eslint-plugin-node: 11.1.0_eslint@7.7.0
       lcov-result-merger: 3.1.0
       npm-run-all: 4.1.5
       publish-packed: 3.0.2
@@ -35,6 +36,7 @@ importers:
       cross-env: ^7.0.2
       eslint: ^7.7.0
       eslint-plugin-import: ^2.22.0
+      eslint-plugin-node: ^11.1.0
       lcov-result-merger: ^3.1.0
       npm-run-all: ^4.1.5
       publish-packed: ^3.0.2
@@ -6397,6 +6399,18 @@ packages:
       eslint: '>=4.19.1'
     resolution:
       integrity: sha512-GUmAsJaN4Fc7Gbtl8uOBlayo2DqhwWvEzykMHSCZHU3XdJ+NSzzZcVhXh3VxX5icqQ+oQdIEawXX8xkR3mIFmQ==
+  /eslint-plugin-es/3.0.1_eslint@7.7.0:
+    dependencies:
+      eslint: 7.7.0
+      eslint-utils: 2.1.0
+      regexpp: 3.1.0
+    dev: true
+    engines:
+      node: '>=8.10.0'
+    peerDependencies:
+      eslint: '>=4.19.1'
+    resolution:
+      integrity: sha512-GUmAsJaN4Fc7Gbtl8uOBlayo2DqhwWvEzykMHSCZHU3XdJ+NSzzZcVhXh3VxX5icqQ+oQdIEawXX8xkR3mIFmQ==
   /eslint-plugin-import/2.22.0:
     dependencies:
       array-includes: 3.1.1
@@ -6451,6 +6465,22 @@ packages:
       resolve: 1.17.0
       semver: 6.3.0
     dev: false
+    engines:
+      node: '>=8.10.0'
+    peerDependencies:
+      eslint: '>=5.16.0'
+    resolution:
+      integrity: sha512-oUwtPJ1W0SKD0Tr+wqu92c5xuCeQqB3hSCHasn/ZgjFdA9iDGNkNf2Zi9ztY7X+hNuMib23LNGRm6+uN+KLE3g==
+  /eslint-plugin-node/11.1.0_eslint@7.7.0:
+    dependencies:
+      eslint: 7.7.0
+      eslint-plugin-es: 3.0.1_eslint@7.7.0
+      eslint-utils: 2.1.0
+      ignore: 5.1.8
+      minimatch: 3.0.4
+      resolve: 1.17.0
+      semver: 6.3.0
+    dev: true
     engines:
       node: '>=8.10.0'
     peerDependencies:
