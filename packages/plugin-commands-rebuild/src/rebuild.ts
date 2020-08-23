@@ -90,7 +90,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
-    sideEffectsCacheRead: opts.sideEffectsCache || opts.sideEffectsCacheReadonly,
+    sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,
     storeDir: store.dir,

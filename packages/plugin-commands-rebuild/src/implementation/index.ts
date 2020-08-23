@@ -228,7 +228,7 @@ async function _rebuild (
 ) {
   const pkgsThatWereRebuilt = new Set()
   const graph = new Map()
-  const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages || {}
+  const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
 
   const nodesToBuildAndTransitive = new Set<string>()
   getSubgraphToBuild(
@@ -286,7 +286,7 @@ async function _rebuild (
           skippedOptionalDependencyLogger.debug({
             details: err.toString(),
             package: {
-              id: pkgSnapshot.id || depPath,
+              id: pkgSnapshot.id ?? depPath,
               name: pkgInfo.name,
               version: pkgInfo.version,
             },

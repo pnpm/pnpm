@@ -27,6 +27,7 @@ export default function getAgent (uri: string, opts: AgentOptions) {
   const isHttps = parsedUri.protocol === 'https:'
   const pxuri = getProxyUri(uri, opts)
 
+  /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
   const key = [
     `https:${isHttps}`,
     pxuri
@@ -38,6 +39,7 @@ export default function getAgent (uri: string, opts: AgentOptions) {
     `cert:${(isHttps && opts.cert) || '>no-cert<'}`,
     `key:${(isHttps && opts.key) || '>no-key<'}`,
   ].join(':')
+  /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
 
   if (AGENT_CACHE.peek(key)) {
     return AGENT_CACHE.get(key)
@@ -62,13 +64,13 @@ export default function getAgent (uri: string, opts: AgentOptions) {
       cert: opts.cert,
       key: opts.key,
       localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets || 15,
+      maxSockets: opts.maxSockets ?? 15,
       rejectUnauthorized: opts.strictSSL,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     : new HttpAgent({
       localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets || 15,
+      maxSockets: opts.maxSockets ?? 15,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   AGENT_CACHE.set(key, agent)
@@ -150,7 +152,7 @@ function getProxy (
     host: proxyUrl.hostname,
     key: opts.key,
     localAddress: opts.localAddress,
-    maxSockets: opts.maxSockets || 15,
+    maxSockets: opts.maxSockets ?? 15,
     path: proxyUrl.pathname,
     port: proxyUrl.port,
     protocol: proxyUrl.protocol,

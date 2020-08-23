@@ -100,7 +100,7 @@ export function toArchyTree (
 ): Promise<archy.Data[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
-      const nodes = await toArchyTree(getPkgColor, node.dependencies || [], opts)
+      const nodes = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
       if (opts.long) {
         const pkg = await getPkgInfo(node)
         const labelLines = [

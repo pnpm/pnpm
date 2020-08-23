@@ -79,7 +79,7 @@ export default async (
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   let metaCachedInStore: PackageMeta | null | undefined
-  if (ctx.offline || ctx.preferOffline) {
+  if (ctx.offline === true || ctx.preferOffline) {
     metaCachedInStore = await limit(() => loadMeta(pkgMirror))
 
     if (ctx.offline) {
@@ -103,7 +103,7 @@ export default async (
   }
 
   if (spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore || await limit(() => loadMeta(pkgMirror))
+    metaCachedInStore = metaCachedInStore ?? await limit(() => loadMeta(pkgMirror))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
     if (metaCachedInStore?.versions?.[spec.fetchSpec]) {

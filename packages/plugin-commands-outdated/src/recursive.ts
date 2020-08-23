@@ -142,7 +142,7 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 
 function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
   return dependentPkgs
-    .map(({ manifest, location }) => manifest.name || location)
+    .map(({ manifest, location }) => manifest.name ?? location)
     .sort()
     .join(', ')
 }

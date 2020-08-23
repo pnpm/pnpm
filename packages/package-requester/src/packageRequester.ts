@@ -80,7 +80,7 @@ export default function (
   } {
   opts = opts || {}
 
-  const networkConcurrency = opts.networkConcurrency || 16
+  const networkConcurrency = opts.networkConcurrency ?? 16
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
@@ -138,7 +138,7 @@ async function resolveAndFetch (
   // When we don't fetch, the only way to get the package's manifest is via resolving it.
   //
   // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch || pkgId?.startsWith('file:')) {
+  if (!skipResolution || options.skipFetch === true || pkgId?.startsWith('file:')) {
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
@@ -537,7 +537,7 @@ async function fetcher (
   resolution: Resolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
-  const fetch = fetcherByHostingType[resolution.type || 'tarball']
+  const fetch = fetcherByHostingType[resolution.type ?? 'tarball']
   if (!fetch) {
     throw new Error(`Fetching for dependency type "${resolution.type}" is not supported`)
   }

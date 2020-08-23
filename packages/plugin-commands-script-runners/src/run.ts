@@ -188,7 +188,7 @@ function printProjectCommands (manifest: ProjectManifest) {
   const lifecycleScripts = [] as string[][]
   const otherScripts = [] as string[][]
 
-  for (const [scriptName, script] of R.toPairs(manifest.scripts || {})) {
+  for (const [scriptName, script] of R.toPairs(manifest.scripts ?? {})) {
     if (ALL_LIFECYCLE_SCRIPTS.has(scriptName)) {
       lifecycleScripts.push([scriptName, script])
     } else {

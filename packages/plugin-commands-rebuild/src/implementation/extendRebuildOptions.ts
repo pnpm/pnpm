@@ -37,10 +37,10 @@ export type RebuildOptions = Partial<StrictRebuildOptions> &
 Pick<StrictRebuildOptions, 'storeDir' | 'storeController'>
 
 const defaults = async (opts: RebuildOptions) => {
-  const packageManager = opts.packageManager ||
+  const packageManager = opts.packageManager ??
     await loadJsonFile<{name: string, version: string}>(path.join(__dirname, '../../package.json'))!
-  const dir = opts.dir || process.cwd()
-  const lockfileDir = opts.lockfileDir || dir
+  const dir = opts.dir ?? process.cwd()
+  const lockfileDir = opts.lockfileDir ?? dir
   return {
     childConcurrency: 5,
     development: true,

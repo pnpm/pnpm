@@ -22,9 +22,9 @@ export default async function save (
 ): Promise<ProjectManifest> {
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {
-      const spec = packageSpec.pref || findSpec(packageSpec.alias, packageManifest)
+      const spec = packageSpec.pref ?? findSpec(packageSpec.alias, packageManifest)
       if (spec) {
-        packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] || {}
+        packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] ?? {}
         packageManifest[packageSpec.saveType]![packageSpec.alias] = spec
         DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
           if (packageManifest[deptype]) {
@@ -32,13 +32,13 @@ export default async function save (
           }
         })
         if (packageSpec.peer === true) {
-          packageManifest.peerDependencies = packageManifest.peerDependencies || {}
+          packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
           packageManifest.peerDependencies[packageSpec.alias] = spec
         }
       }
     } else if (packageSpec.pref) {
-      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) || 'dependencies'
-      packageManifest[usedDepType] = packageManifest[usedDepType] || {}
+      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
+      packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
       packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
     }
   })

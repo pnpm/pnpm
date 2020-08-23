@@ -27,7 +27,7 @@ export default function (
     newLockfile: Lockfile,
     pendingRequiresBuilds: string[],
   } {
-  lockfile.packages = lockfile.packages || {}
+  lockfile.packages = lockfile.packages ?? {}
   const pendingRequiresBuilds = [] as string[]
   for (const depPath of Object.keys(depGraph)) {
     const depNode = depGraph[depPath]
@@ -153,8 +153,8 @@ function toLockfileDependency (
   if (pkg.os) {
     result['os'] = pkg.os
   }
-  if (pkg.bundledDependencies || pkg.bundleDependencies) {
-    result['bundledDependencies'] = pkg.bundledDependencies || pkg.bundleDependencies
+  if (pkg.bundledDependencies != null || pkg.bundleDependencies != null) {
+    result['bundledDependencies'] = pkg.bundledDependencies ?? pkg.bundleDependencies
   }
   if (pkg.deprecated) {
     result['deprecated'] = pkg.deprecated

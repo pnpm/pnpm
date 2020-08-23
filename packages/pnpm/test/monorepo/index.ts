@@ -982,7 +982,7 @@ test('shared-workspace-lockfile: removing a package recursively', async (t: tape
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  t.deepEqual(Object.keys(lockfile.packages || {}), ['/is-negative/1.0.0'], `is-positive removed from ${WANTED_LOCKFILE}`)
+  t.deepEqual(Object.keys(lockfile.packages ?? {}), ['/is-negative/1.0.0'], `is-positive removed from ${WANTED_LOCKFILE}`)
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1506

@@ -139,7 +139,7 @@ when running add/update with the --workspace option')
     // so ignoring scripts for now
     ignoreScripts: !!workspacePackages || opts.ignoreScripts,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
-    sideEffectsCacheRead: opts.sideEffectsCache || opts.sideEffectsCacheReadonly,
+    sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -151,7 +151,7 @@ when running add/update with the --workspace option')
       typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined',
   }
   if (!opts.ignorePnpmfile) {
-    installOpts['hooks'] = requireHooks(opts.lockfileDir || dir, opts)
+    installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)
   }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)

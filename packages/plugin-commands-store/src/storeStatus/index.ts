@@ -30,7 +30,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
   })
   if (!wantedLockfile) return []
 
-  const pkgs = Object.keys(wantedLockfile.packages || {})
+  const pkgs = Object.keys(wantedLockfile.packages ?? {})
     .filter((depPath) => !skipped.has(depPath))
     .map((depPath) => {
       const pkg = wantedLockfile.packages![depPath]

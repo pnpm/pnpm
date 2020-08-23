@@ -67,7 +67,7 @@ export default async function testDefaults (
       projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
     ),
     rawConfig: {},
-    registries: registries || {
+    registries: registries ?? {
       default: registry,
     },
     sideEffectsCache: true,

@@ -11,7 +11,7 @@ export default async function (
   stream: NodeJS.ReadableStream,
   manifest?: DeferredManifestPromise
 ): Promise<FilesIndex> {
-  const ignore = _ignore || (() => false)
+  const ignore = _ignore ?? (() => false)
   const extract = tar.extract()
   const filesIndex = {}
   await new Promise((resolve, reject) => {

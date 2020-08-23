@@ -110,7 +110,7 @@ export async function handler (
       // A temporary workaround. global bin/prefix are always defined when --global is set
       globalBin: globalBinDir([linkOpts.npmGlobalBinDir]),
       globalDir: linkOpts.globalDir!,
-      manifest: manifest || {},
+      manifest: manifest ?? {},
     })
     await writeProjectManifest(newManifest)
     return

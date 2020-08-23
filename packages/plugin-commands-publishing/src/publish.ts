@@ -142,7 +142,7 @@ export async function handler (
     {
       dir,
       engineStrict: opts.engineStrict,
-      workspaceDir: opts.workspaceDir || dir,
+      workspaceDir: opts.workspaceDir ?? dir,
     },
     async (publishManifest) => {
       // Unfortunately, we cannot support postpack at the moment

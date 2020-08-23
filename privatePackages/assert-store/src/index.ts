@@ -9,7 +9,7 @@ export default (
   storePath: string | Promise<string>,
   encodedRegistryName?: string
 ) => {
-  const ern = encodedRegistryName || `localhost+${REGISTRY_MOCK_PORT}`
+  const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const store = {
     async getPkgIndexFilePath (pkgName: string, version?: string): Promise<string> {
       const cafsDir = path.join(await storePath, 'files')

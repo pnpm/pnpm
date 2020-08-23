@@ -154,11 +154,11 @@ export default async function linkPackages (
     currentLockfile: opts.currentLockfile,
     dryRun: opts.dryRun,
     hoistedDependencies: opts.hoistedDependencies,
-    hoistedModulesDir: opts.hoistPattern && opts.hoistedModulesDir || undefined,
+    hoistedModulesDir: (opts.hoistPattern && opts.hoistedModulesDir) ?? undefined,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     pruneStore: opts.pruneStore,
-    publicHoistedModulesDir: opts.publicHoistPattern && opts.rootModulesDir || undefined,
+    publicHoistedModulesDir: (opts.publicHoistPattern && opts.rootModulesDir) ?? undefined,
     registries: opts.registries,
     skipped: opts.skipped,
     storeController: opts.storeController,
@@ -225,8 +225,8 @@ export default async function linkPackages (
             (await symlinkDependency(depGraphNode.dir, modulesDir, rootAlias)).reused
           ) return
 
-          const isDev = manifest.devDependencies?.[depGraphNode.name]
-          const isOptional = manifest.optionalDependencies?.[depGraphNode.name]
+          const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
+          const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
           rootLogger.debug({
             added: {
               dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
@@ -256,7 +256,11 @@ export default async function linkPackages (
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
     const pkgJson = await depNode.fetchingBundledManifest()
     depNode.requiresBuild = Boolean(
-      pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
+      pkgJson.scripts != null && (
+        Boolean(pkgJson.scripts.preinstall) ||
+        Boolean(pkgJson.scripts.install) ||
+        Boolean(pkgJson.scripts.postinstall)
+      ) ||
       filesResponse.filesIndex['binding.gyp'] ||
         Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
     )
@@ -274,7 +278,7 @@ export default async function linkPackages (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
   ) {
-    const packages = opts.currentLockfile.packages || {}
+    const packages = opts.currentLockfile.packages ?? {}
     if (newWantedLockfile.packages) {
       for (const depPath in newWantedLockfile.packages) { // eslint-disable-line:forin
         if (depGraph[depPath]) {
@@ -310,7 +314,7 @@ export default async function linkPackages (
   }
 
   let newHoistedDependencies!: HoistedDependencies
-  if ((opts.hoistPattern || opts.publicHoistPattern) && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
+  if ((opts.hoistPattern != null || opts.publicHoistPattern != null) && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
     newHoistedDependencies = await hoist({
       lockfile: currentLockfile,
       lockfileDir: opts.lockfileDir,

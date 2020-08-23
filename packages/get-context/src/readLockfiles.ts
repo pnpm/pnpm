@@ -47,18 +47,18 @@ export default async function (
     wantedVersion: LOCKFILE_VERSION,
   }
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
-  const files = await Promise.all<Lockfile | null | void>([
-    opts.useLockfile && readWantedLockfile(opts.lockfileDir, lockfileOpts) ||
-      await existsWantedLockfile(opts.lockfileDir) &&
+  const files = await Promise.all<Lockfile | null | undefined>([
+    (opts.useLockfile === true && readWantedLockfile(opts.lockfileDir, lockfileOpts)) ||
+      (await existsWantedLockfile(opts.lockfileDir) &&
         logger.warn({
           message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
           prefix: opts.lockfileDir,
-        }),
+        })) || undefined,
     readCurrentLockfile(opts.virtualStoreDir, lockfileOpts),
   ])
   const sopts = { lockfileVersion: LOCKFILE_VERSION }
   const importerIds = opts.projects.map((importer) => importer.id)
-  const currentLockfile = files[1] || createLockfileObject(importerIds, sopts)
+  const currentLockfile = files[1] ?? createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {
     if (!currentLockfile.importers[importerId]) {
       currentLockfile.importers[importerId] = {
@@ -66,8 +66,8 @@ export default async function (
       }
     }
   }
-  const wantedLockfile = files[0] ||
-    currentLockfile && R.clone(currentLockfile) ||
+  const wantedLockfile = files[0] ??
+    (currentLockfile && R.clone(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {
     if (!wantedLockfile.importers[importerId]) {

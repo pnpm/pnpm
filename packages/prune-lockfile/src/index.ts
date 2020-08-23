@@ -21,7 +21,7 @@ export function pruneSharedLockfile (
     devDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {}))),
     optionalDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
     prodDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
-    warn: opts?.warn || ((msg: string) => undefined),
+    warn: opts?.warn ?? ((msg: string) => undefined),
   })
 
   const prunnedLockfile: Lockfile = {

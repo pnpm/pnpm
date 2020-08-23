@@ -41,7 +41,7 @@ export async function toJsonResult (
   const dependencies = {}
   await Promise.all(
     sortPackages(entryNodes).map(async (node) => {
-      const subDependencies = await toJsonResult(node.dependencies || [], opts)
+      const subDependencies = await toJsonResult(node.dependencies ?? [], opts)
       const dep = opts.long
         ? await getPkgInfo(node)
         : {

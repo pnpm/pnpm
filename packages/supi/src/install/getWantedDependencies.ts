@@ -31,8 +31,8 @@ export default function getWantedDependencies (
       optionalDependencies: true,
     })
   return getWantedDependenciesFromGivenSet(depsToInstall, {
-    devDependencies: pkg.devDependencies || {},
-    optionalDependencies: pkg.optionalDependencies || {},
+    devDependencies: pkg.devDependencies ?? {},
+    optionalDependencies: pkg.optionalDependencies ?? {},
     updatePref: opts?.updateWorkspaceDependencies === true
       ? updateWorkspacePref
       : (pref) => pref,

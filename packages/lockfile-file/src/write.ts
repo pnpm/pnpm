@@ -62,7 +62,7 @@ function writeLockfile (
 }
 
 function isEmptyLockfile (lockfile: Lockfile) {
-  return R.values(lockfile.importers).every((importer) => R.isEmpty(importer.specifiers || {}) && R.isEmpty(importer.dependencies || {}))
+  return R.values(lockfile.importers).every((importer) => R.isEmpty(importer.specifiers ?? {}) && R.isEmpty(importer.dependencies ?? {}))
 }
 
 type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
@@ -92,7 +92,7 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
           specifiers: importer.specifiers,
         }
         for (const depType of DEPENDENCIES_FIELDS) {
-          if (!R.isEmpty(importer[depType] || {})) {
+          if (!R.isEmpty(importer[depType] ?? {})) {
             normalizedImporter[depType] = importer[depType]
           }
         }

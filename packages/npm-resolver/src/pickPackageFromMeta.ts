@@ -40,7 +40,7 @@ function pickVersionByVersionRange (
   let versions: string[] | undefined
   const latest = meta['dist-tags'].latest
 
-  const preferredVerSelsArr = Object.entries(preferredVerSels || {})
+  const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
   if (preferredVerSelsArr.length) {
     const preferredVersions: string[] = []
     for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
@@ -85,7 +85,7 @@ function pickVersionByVersionRange (
   if (versionRange === '*' || semver.satisfies(latest, versionRange, true)) {
     return latest
   }
-  versions = versions || Object.keys(meta.versions)
+  versions = versions ?? Object.keys(meta.versions)
 
   const maxVersion = semver.maxSatisfying(versions, versionRange, true)
 

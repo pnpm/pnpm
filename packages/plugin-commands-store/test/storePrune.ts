@@ -111,7 +111,7 @@ test('keep dependencies used by others', async (t) => {
   const lockfile = await project.readLockfile() as Lockfile
   t.notOk(R.isEmpty(lockfile.packages))
 
-  R.toPairs(lockfile.packages || {}).forEach(([depPath, dep]) => t.ok(dep.dev, `${depPath} is dev`))
+  Object.entries(lockfile.packages ?? {}).forEach(([depPath, dep]) => t.ok(dep.dev, `${depPath} is dev`))
 
   await store.handler({
     dir: process.cwd(),

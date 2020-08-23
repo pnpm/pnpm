@@ -58,7 +58,7 @@ export default async function (
     if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private) return false
     return !(await isAlreadyPublished({
       dir: pkg.dir,
-      lockfileDir: opts.lockfileDir || pkg.dir,
+      lockfileDir: opts.lockfileDir ?? pkg.dir,
       registries: opts.registries,
       resolve,
     }, pkg.manifest.name, pkg.manifest.version))

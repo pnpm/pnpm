@@ -251,7 +251,7 @@ async function testParallelServerStart (
     completedPromise = completedPromise.then(() => item.running.promise)
   }
 
-  const timeoutMillis = options.timeoutMillis || 10000
+  const timeoutMillis = options.timeoutMillis ?? 10000
   let timeoutPromise: { clear: Function } | null = delay(timeoutMillis)
   await pAny([
     (async () => {

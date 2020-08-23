@@ -73,13 +73,13 @@ export function checkPackage (
   }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
   return checkPlatform(pkgId, {
-    cpu: manifest.cpu || ['any'],
-    os: manifest.os || ['any'],
-  }) || (
+    cpu: manifest.cpu ?? ['any'],
+    os: manifest.os ?? ['any'],
+  }) ?? (
     manifest.engines &&
     checkEngine(pkgId, manifest.engines, {
-      node: options.nodeVersion || process.version,
+      node: options.nodeVersion ?? process.version,
       pnpm: options.pnpmVersion,
     })
-  ) || null
+  ) ?? null
 }

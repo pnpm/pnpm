@@ -40,7 +40,7 @@ export default async function complete (
         optionTypes as any, // eslint-disable-line
         {
           ...universalShorthands,
-          ...(input.cmd && ctx.shorthandsByCommandName[input.cmd] || {}),
+          ...(input.cmd ? ctx.shorthandsByCommandName[input.cmd] : {}),
         },
         input.lastOption
       )

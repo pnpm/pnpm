@@ -110,7 +110,7 @@ async function resolveNpm (
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
-  const defaultTag = opts.defaultTag || 'latest'
+  const defaultTag = opts.defaultTag ?? 'latest'
   const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
     defaultTag,
     projectDir: opts.projectDir,

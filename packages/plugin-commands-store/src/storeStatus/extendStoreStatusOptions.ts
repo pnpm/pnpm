@@ -24,8 +24,8 @@ export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
 Pick<StrictStoreStatusOptions, 'storeDir'>
 
 const defaults = async (opts: StoreStatusOptions) => {
-  const dir = opts.dir || process.cwd()
-  const lockfileDir = opts.lockfileDir || dir
+  const dir = opts.dir ?? process.cwd()
+  const lockfileDir = opts.lockfileDir ?? dir
   return {
     binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,

@@ -28,10 +28,10 @@ function renderParseableForPackage (
   const pkgs = sortPackages(
     flatten(
       [
-        ...(pkg.optionalDependencies || []),
-        ...(pkg.dependencies || []),
-        ...(pkg.devDependencies || []),
-        ...(pkg.unsavedDependencies || []),
+        ...(pkg.optionalDependencies ?? []),
+        ...(pkg.dependencies ?? []),
+        ...(pkg.devDependencies ?? []),
+        ...(pkg.unsavedDependencies ?? []),
       ]
     )
   )

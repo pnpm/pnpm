@@ -75,12 +75,12 @@ export default async function link (
       pref: getPref(manifest.name, manifest.name, manifest.version, {
         pinnedVersion: opts.pinnedVersion,
       }),
-      saveType: (opts.targetDependenciesField || ctx.manifest && guessDependencyType(manifest.name, ctx.manifest)) as DependenciesField,
+      saveType: (opts.targetDependenciesField ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
     })
 
     const packagePath = normalize(path.relative(opts.dir, linkFromPath))
     const addLinkOpts = {
-      linkedPkgName: linkFromAlias || manifest.name,
+      linkedPkgName: linkFromAlias ?? manifest.name,
       manifest: ctx.manifest,
       packagePath,
     }
@@ -88,7 +88,7 @@ export default async function link (
     addLinkToLockfile(ctx.wantedLockfile.importers[importerId], addLinkOpts)
 
     linkedPkgs.push({
-      alias: linkFromAlias || manifest.name,
+      alias: linkFromAlias ?? manifest.name,
       manifest,
       path: linkFromPath,
     })
@@ -111,10 +111,10 @@ export default async function link (
     {
       currentLockfile,
       hoistedDependencies: ctx.hoistedDependencies,
-      hoistedModulesDir: opts.hoistPattern && ctx.hoistedModulesDir || undefined,
+      hoistedModulesDir: (opts.hoistPattern && ctx.hoistedModulesDir) ?? undefined,
       include: ctx.include,
       lockfileDir: opts.lockfileDir,
-      publicHoistedModulesDir: opts.publicHoistPattern && ctx.rootModulesDir || undefined,
+      publicHoistedModulesDir: (opts.publicHoistPattern && ctx.rootModulesDir) ?? undefined,
       registries: ctx.registries,
       skipped: ctx.skipped,
       storeController: opts.storeController,
@@ -135,7 +135,7 @@ export default async function link (
     })
   }
 
-  const linkToBin = maybeOpts?.linkToBin || path.join(destModules, '.bin')
+  const linkToBin = maybeOpts?.linkToBin ?? path.join(destModules, '.bin')
   await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin, {
     warn: (message: string) => logger.warn({ message, prefix: opts.dir }),
   })
@@ -184,7 +184,7 @@ function addLinkToLockfile (
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!addedTo && opts.manifest?.[depType]?.[opts.linkedPkgName]) {
       addedTo = depType
-      projectSnapshot[depType] = projectSnapshot[depType] || {}
+      projectSnapshot[depType] = projectSnapshot[depType] ?? {}
       projectSnapshot[depType]![opts.linkedPkgName] = id
     } else if (projectSnapshot[depType]) {
       delete projectSnapshot[depType]![opts.linkedPkgName]
@@ -234,7 +234,7 @@ export async function linkToGlobal (
   if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  maybeOpts.lockfileDir = maybeOpts.lockfileDir || maybeOpts.globalDir
+  maybeOpts.lockfileDir = maybeOpts.lockfileDir ?? maybeOpts.globalDir
   const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalDir)
   const newManifest = await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {

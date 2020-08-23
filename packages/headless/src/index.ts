@@ -117,7 +117,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const lockfileDir = opts.lockfileDir
-  const wantedLockfile = opts.wantedLockfile || await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
+  const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
 
   if (!wantedLockfile) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
@@ -126,7 +126,7 @@ export default async (opts: HeadlessOptions) => {
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
-  const currentLockfile = opts.currentLockfile || await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
   const publicHoistedModulesDir = rootModulesDir
 
@@ -141,7 +141,7 @@ export default async (opts: HeadlessOptions) => {
   const scriptsOpts = {
     optional: false,
     rawConfig: opts.rawConfig,
-    stdio: opts.ownLifecycleHooksStdio || 'inherit',
+    stdio: opts.ownLifecycleHooksStdio ?? 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
 
@@ -149,7 +149,7 @@ export default async (opts: HeadlessOptions) => {
     await runLifecycleHooksConcurrently(
       ['preinstall'],
       opts.projects,
-      opts.childConcurrency || 5,
+      opts.childConcurrency ?? 5,
       scriptsOpts
     )
   }
@@ -162,11 +162,11 @@ export default async (opts: HeadlessOptions) => {
         currentLockfile,
         dryRun: false,
         hoistedDependencies: opts.hoistedDependencies,
-        hoistedModulesDir: opts.hoistPattern && hoistedModulesDir || undefined,
+        hoistedModulesDir: (opts.hoistPattern && hoistedModulesDir) ?? undefined,
         include: opts.include,
         lockfileDir,
         pruneStore: opts.pruneStore,
-        publicHoistedModulesDir: opts.publicHoistPattern && publicHoistedModulesDir || undefined,
+        publicHoistedModulesDir: (opts.publicHoistPattern && publicHoistedModulesDir) ?? undefined,
         registries: opts.registries,
         skipped,
         storeController: opts.storeController,
@@ -241,7 +241,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   let newHoistedDependencies!: HoistedDependencies
-  if (opts.hoistPattern || opts.publicHoistPattern) {
+  if (opts.hoistPattern != null || opts.publicHoistPattern != null) {
     newHoistedDependencies = await hoist({
       lockfile: filteredLockfile,
       lockfileDir,
@@ -277,9 +277,9 @@ export default async (opts: HeadlessOptions) => {
   if (opts.ignoreScripts) {
     for (const { id, manifest } of opts.projects) {
       if (opts.ignoreScripts && manifest?.scripts &&
-        (manifest.scripts.preinstall || manifest.scripts.prepublish ||
-          manifest.scripts.install ||
-          manifest.scripts.postinstall ||
+        (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
+          manifest.scripts.install ??
+          manifest.scripts.postinstall ??
           manifest.scripts.prepare)
       ) {
         opts.pendingBuilds.push(id)
@@ -302,7 +302,7 @@ export default async (opts: HeadlessOptions) => {
           directNodes.add(loc)
         })
     }
-    const extraBinPaths = [...opts.extraBinPaths || []]
+    const extraBinPaths = [...opts.extraBinPaths ?? []]
     if (opts.hoistPattern) {
       extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
     }
@@ -352,7 +352,7 @@ export default async (opts: HeadlessOptions) => {
     await runLifecycleHooksConcurrently(
       ['install', 'postinstall', 'prepublish', 'prepare'],
       opts.projects,
-      opts.childConcurrency || 5,
+      opts.childConcurrency ?? 5,
       scriptsOpts
     )
   }
@@ -402,8 +402,8 @@ function linkRootPackages (
     Object.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
-          const isDev = projectSnapshot.devDependencies?.[alias]
-          const isOptional = projectSnapshot.optionalDependencies?.[alias]
+          const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
+          const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
           const packageDir = path.join(opts.projectDir, allDeps[alias].substr(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
@@ -430,14 +430,14 @@ function linkRootPackages (
         if ((await symlinkDependency(dir, opts.importerModulesDir, alias)).reused) {
           return
         }
-        const isDev = projectSnapshot.devDependencies?.[alias]
-        const isOptional = projectSnapshot.optionalDependencies?.[alias]
+        const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
+        const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
 
         const depPath = dp.refToRelative(allDeps[alias], alias)
         if (depPath === null) return
         const pkgSnapshot = lockfile.packages?.[depPath]
         if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
-        const pkgId = pkgSnapshot.id || dp.refToAbsolute(allDeps[alias], alias, opts.registries) || undefined
+        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(allDeps[alias], alias, opts.registries) ?? undefined
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         rootLogger.debug({
           added: {

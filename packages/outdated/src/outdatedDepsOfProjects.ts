@@ -33,7 +33,7 @@ export default async function outdatedDepsOfProjects (
   const modules = await readModulesManifest(path.join(lockfileDir, 'node_modules'))
   const virtualStoreDir = modules?.virtualStoreDir ?? path.join(lockfileDir, 'node_modules/.pnpm')
   const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-  const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) || currentLockfile
+  const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const getLatestManifest = createManifestGetter({
     ...opts,

@@ -93,7 +93,7 @@ export default (
     // If a tarball is hosted on a different place than the manifest, only send
     // credentials on `alwaysAuth`
     const shouldAuth = opts.auth && (
-      opts.auth.alwaysAuth ||
+      opts.auth.alwaysAuth === true ||
       !opts.registry ||
       urlLib.parse(url).host === urlLib.parse(opts.registry).host
     )
@@ -163,7 +163,7 @@ export default (
 
           try {
             const [integrityCheckResult, filesIndex] = await Promise.all([
-              opts.integrity && safeCheckStream(res.body, opts.integrity, url) || true,
+              opts.integrity ? safeCheckStream(res.body, opts.integrity, url) : true,
               opts.cafs.addFilesFromTarball(res.body, opts.manifest),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])

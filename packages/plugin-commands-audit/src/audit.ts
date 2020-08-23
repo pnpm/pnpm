@@ -96,7 +96,7 @@ export async function handler (
     registries: Registries,
   } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor'>
 ) {
-  const lockfile = await readWantedLockfile(opts.lockfileDir || opts.dir, { ignoreIncompatible: true })
+  const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
   if (!lockfile) {
     throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
   }
@@ -121,7 +121,7 @@ export async function handler (
   }
 
   let output = ''
-  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel || 'low']
+  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
   const advisories = Object.values(auditReport.advisories)
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
     .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])

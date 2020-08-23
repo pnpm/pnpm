@@ -18,7 +18,7 @@ export function packageIsInstallable (
   const err = checkPackage(pkgPath, pkg, { pnpmVersion })
   if (err === null) return
   if (
-    (err instanceof UnsupportedEngineError && err.wanted.pnpm) ||
+    (err instanceof UnsupportedEngineError && err.wanted.pnpm) ??
     opts.engineStrict
   ) throw err
   logger.warn({

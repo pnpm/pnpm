@@ -40,7 +40,7 @@ export async function handler (
   await fakeRegularManifest({
     dir: opts.dir,
     engineStrict: opts.engineStrict,
-    workspaceDir: opts.workspaceDir || opts.dir,
+    workspaceDir: opts.workspaceDir ?? opts.dir,
   }, async () => {
     const { status } = await runNpm(opts.npmPath, ['pack', ...opts.argv.original.slice(1)])
     _status = status!

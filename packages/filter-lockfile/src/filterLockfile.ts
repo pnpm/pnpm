@@ -10,7 +10,7 @@ export default function filterLockfile (
     skipped: Set<string>,
   }
 ): Lockfile {
-  let pairs = R.toPairs(lockfile.packages || {})
+  let pairs = Object.entries(lockfile.packages ?? {})
     .filter(([depPath, pkg]) => !opts.skipped.has(depPath))
   if (!opts.include.dependencies) {
     pairs = pairs.filter(([depPath, pkg]) => pkg.dev !== false || pkg.optional)

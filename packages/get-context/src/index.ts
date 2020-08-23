@@ -141,7 +141,7 @@ export default async function getContext<T> (
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
-    include: opts.include || importersContext.include,
+    include: opts.include ?? importersContext.include,
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
@@ -201,6 +201,7 @@ async function validateModules (
   const rootProject = projects.find(({ id }) => id === '.')
   if (
     opts.forcePublicHoistPattern &&
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     !R.equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
   ) {
     if (opts.forceNewModules && rootProject) {
@@ -216,7 +217,8 @@ async function validateModules (
   let purged = false
   if (opts.forceHoistPattern && rootProject) {
     try {
-      if (!R.equals(opts.currentHoistPattern, (opts.hoistPattern || undefined))) {
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+      if (!R.equals(opts.currentHoistPattern, opts.hoistPattern || undefined)) {
         throw new PnpmError(
           'HOIST_PATTERN_DIFF',
           'This modules directory was created using a different hoist-pattern value.' +
@@ -419,7 +421,7 @@ export async function getContextForSingleImporter (
     hoistedModulesDir,
     hoistPattern: currentHoistPattern ?? opts.hoistPattern,
     importerId,
-    include: opts.include || include,
+    include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
     manifest: opts.hooks?.readPackage?.(manifest) ?? manifest,
     modulesDir,

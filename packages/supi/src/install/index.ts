@@ -112,7 +112,7 @@ export async function install (
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        rootDir: opts.dir || process.cwd(),
+        rootDir: opts.dir ?? process.cwd(),
       },
     ],
     opts
@@ -480,9 +480,9 @@ async function partitionLinkedPackages (
 // By removing these resolutions we ensure that they are resolved again using the new specs.
 function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDeps: WantedDependency[]) {
   if (!importer.specifiers) return
-  importer.dependencies = importer.dependencies || {}
-  importer.devDependencies = importer.devDependencies || {}
-  importer.optionalDependencies = importer.optionalDependencies || {}
+  importer.dependencies = importer.dependencies ?? {}
+  importer.devDependencies = importer.devDependencies ?? {}
+  importer.optionalDependencies = importer.optionalDependencies ?? {}
   for (const { alias, pref } of wantedDeps) {
     if (alias && importer.specifiers[alias] !== pref) {
       if (!importer.dependencies[alias]?.startsWith('link:')) {
@@ -513,13 +513,13 @@ export async function addDependenciesToPackage (
         mutation: 'installSome',
         peer: opts.peer,
         pinnedVersion: opts.pinnedVersion,
-        rootDir: opts.dir || process.cwd(),
+        rootDir: opts.dir ?? process.cwd(),
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
     {
       ...opts,
-      lockfileDir: opts.lockfileDir || opts.dir,
+      lockfileDir: opts.lockfileDir ?? opts.dir,
     })
   return projects[0].manifest
 }
@@ -587,10 +587,11 @@ async function installInContext (
   })
 
   const preferredVersions = opts.preferredVersions ?? (
-    !opts.update &&
-    ctx.wantedLockfile.packages &&
-    !R.isEmpty(ctx.wantedLockfile.packages) &&
-    getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages) || undefined
+    (
+      !opts.update &&
+      ctx.wantedLockfile.packages &&
+      !R.isEmpty(ctx.wantedLockfile.packages)
+    ) ? getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages) : undefined
   )
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
@@ -981,7 +982,7 @@ function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: Proje
   // Aligning the dependency types in pnpm-lock.yaml
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!projectSnapshot[depType]) continue
-    for (const alias of Object.keys(projectSnapshot[depType] || {})) {
+    for (const alias of Object.keys(projectSnapshot[depType] ?? {})) {
       if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
       projectSnapshot[depTypesOfAliases[alias]][alias] = projectSnapshot[depType]![alias]
       delete projectSnapshot[depType]![alias]
@@ -993,7 +994,7 @@ function getAliasToDependencyTypeMap (manifest: ProjectManifest) {
   const depTypesOfAliases = {}
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!manifest[depType]) continue
-    for (const alias of Object.keys(manifest[depType] || {})) {
+    for (const alias of Object.keys(manifest[depType] ?? {})) {
       if (!depTypesOfAliases[alias]) {
         depTypesOfAliases[alias] = depType
       }

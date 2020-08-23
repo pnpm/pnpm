@@ -8,5 +8,5 @@ export default (
   registries: Registries
 ) => {
   if (pkgSnapshot.id) return pkgSnapshot.id
-  return dp.tryGetPackageId(registries, depPath) || depPath
+  return dp.tryGetPackageId(registries, depPath) ?? depPath
 }

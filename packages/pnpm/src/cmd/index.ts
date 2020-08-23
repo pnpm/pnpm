@@ -143,11 +143,12 @@ export function getCliOptionsTypes (commandName: string) {
 }
 
 export function getRCOptionsTypes (commandName: string | null) {
-  return (commandName && rcOptionsTypesByCommandName[commandName]?.()) || {}
+  if (!commandName) return {}
+  return rcOptionsTypesByCommandName[commandName]?.() ?? {}
 }
 
 export function getCommandFullName (commandName: string) {
-  return aliasToFullName.get(commandName) ||
+  return aliasToFullName.get(commandName) ??
     (handlerByCommandName[commandName] ? commandName : null)
 }
 

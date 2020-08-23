@@ -476,7 +476,7 @@ function getInfoFromLockfile (
   } else {
     return {
       depPath,
-      pkgId: dp.tryGetPackageId(registries, depPath) || depPath, // Does it make sense to set pkgId when we're not sure?
+      pkgId: dp.tryGetPackageId(registries, depPath) ?? depPath, // Does it make sense to set pkgId when we're not sure?
     }
   }
 }
@@ -581,7 +581,7 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest || await pkgResponse.bundledManifest!() // eslint-disable-line @typescript-eslint/dot-notation
+    const manifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!() // eslint-disable-line @typescript-eslint/dot-notation
     return {
       alias: wantedDependency.alias || manifest.name,
       dev: wantedDependency.dev,
@@ -610,8 +610,8 @@ async function resolveDependency (
   let prepare!: boolean
   let hasBin!: boolean
   pkg = ctx.readPackageHook
-    ? ctx.readPackageHook(pkgResponse.body.manifest || await pkgResponse.bundledManifest!())
-    : pkgResponse.body.manifest || await pkgResponse.bundledManifest!()
+    ? ctx.readPackageHook(pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!())
+    : pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
 
   if (
     !options.update && currentPkg.dependencyLockfile && currentPkg.depPath &&
@@ -642,7 +642,7 @@ async function resolveDependency (
     ) {
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
-    hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories?.bin)
+    hasBin = Boolean((pkg.bin && !R.isEmpty(pkg.bin)) ?? pkg.directories?.bin)
     /* eslint-enable @typescript-eslint/dot-notation */
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
@@ -775,7 +775,7 @@ function getResolvedPackage (
     filesIndexFile: options.pkgResponse.filesIndexFile!,
     finishing: options.pkgResponse.finishing!,
     hasBin: options.hasBin,
-    hasBundledDependencies: !!(options.pkg.bundledDependencies || options.pkg.bundleDependencies),
+    hasBundledDependencies: !!(options.pkg.bundledDependencies ?? options.pkg.bundleDependencies),
     id: options.pkgResponse.body.id,
     name: options.pkg.name,
     optional: options.wantedDependency.optional,

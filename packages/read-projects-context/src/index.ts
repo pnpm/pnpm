@@ -40,9 +40,9 @@ export default async function <T> (
     currentPublicHoistPattern: modules?.publicHoistPattern,
     hoist: !modules ? undefined : Boolean(modules.hoistPattern),
     hoistedDependencies: modules?.hoistedDependencies ?? {},
-    include: modules?.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
+    include: modules?.included ?? { dependencies: true, devDependencies: true, optionalDependencies: true },
     modules,
-    pendingBuilds: modules?.pendingBuilds || [],
+    pendingBuilds: modules?.pendingBuilds ?? [],
     projects: await Promise.all(
       projects.map(async (project) => {
         const modulesDir = await realpathMissing(path.join(project.rootDir, project.modulesDir ?? relativeModulesDir))
@@ -57,6 +57,6 @@ export default async function <T> (
       })),
     registries: modules?.registries && normalizeRegistries(modules.registries),
     rootModulesDir,
-    skipped: new Set(modules?.skipped || []),
+    skipped: new Set(modules?.skipped ?? []),
   }
 }

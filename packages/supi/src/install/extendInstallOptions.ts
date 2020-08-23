@@ -79,7 +79,7 @@ export type InstallOptions =
   & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
 const defaults = async (opts: InstallOptions) => {
-  const packageManager = opts.packageManager || {
+  const packageManager = opts.packageManager ?? {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
@@ -104,7 +104,7 @@ const defaults = async (opts: InstallOptions) => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    lockfileDir: opts.lockfileDir || opts.dir || process.cwd(),
+    lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
     nodeVersion: process.version,
     ownLifecycleHooksStdio: 'inherit',

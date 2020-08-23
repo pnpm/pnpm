@@ -28,7 +28,7 @@ export default async (
       const output = await render([dir], params, {
         ...opts,
         alwaysPrintRootPackage: depth === -1,
-        lockfileDir: opts.lockfileDir || dir,
+        lockfileDir: opts.lockfileDir ?? dir,
       })
       if (!output) continue
       outputs.push(output)

@@ -50,7 +50,7 @@ export default async function runLifecycleHook (
   await lifecycle(m, stage, opts.pkgRoot, {
     config: opts.rawConfig,
     dir: opts.rootModulesDir,
-    extraBinPaths: opts.extraBinPaths || [],
+    extraBinPaths: opts.extraBinPaths ?? [],
     extraEnv: { PNPM_SCRIPT_SRC_DIR: opts.pkgRoot },
     log: {
       clearProgress: noop,
@@ -64,7 +64,7 @@ export default async function runLifecycleHook (
       warn: noop,
     },
     runConcurrently: true,
-    stdio: opts.stdio || 'pipe',
+    stdio: opts.stdio ?? 'pipe',
     unsafePerm: opts.unsafePerm,
   })
 
@@ -99,5 +99,5 @@ export default async function runLifecycleHook (
 }
 
 function getId (manifest: ProjectManifest | DependencyManifest) {
-  return `${manifest.name || ''}@${manifest.version || ''}`
+  return `${manifest.name ?? ''}@${manifest.version ?? ''}`
 }

@@ -156,7 +156,7 @@ export async function handler (
     storeDir: store.dir,
   })
   if (!opts.ignorePnpmfile) {
-    removeOpts['hooks'] = requireHooks(opts.lockfileDir || opts.dir, opts)
+    removeOpts['hooks'] = requireHooks(opts.lockfileDir ?? opts.dir, opts)
   }
   removeOpts['workspacePackages'] = opts.workspaceDir
     ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))

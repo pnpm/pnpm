@@ -59,12 +59,12 @@ export default async function prune (
     const wantedPkgs = R.toPairs(mergeDependencies(wantedLockfile.importers[id]))
 
     const allCurrentPackages = new Set(
-      (pruneDirectDependencies || removePackages?.length)
-        ? (await readModulesDir(modulesDir) || [])
+      (pruneDirectDependencies === true || removePackages?.length)
+        ? (await readModulesDir(modulesDir) ?? [])
         : []
     )
     const depsToRemove = new Set([
-      ...(removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
+      ...(removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage)),
       ...R.difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
     ])
     if (pruneDirectDependencies) {
@@ -80,9 +80,9 @@ export default async function prune (
 
     return Promise.all(Array.from(depsToRemove).map((depName) => {
       return removeDirectDependency({
-        dependenciesField: currentImporter.devDependencies?.[depName] && 'devDependencies' ||
-          currentImporter.optionalDependencies?.[depName] && 'optionalDependencies' ||
-          currentImporter.dependencies?.[depName] && 'dependencies' ||
+        dependenciesField: currentImporter.devDependencies?.[depName] != null && 'devDependencies' ||
+          currentImporter.optionalDependencies?.[depName] != null && 'optionalDependencies' ||
+          currentImporter.dependencies?.[depName] != null && 'dependencies' ||
           undefined,
         name: depName,
       }, {
@@ -101,7 +101,7 @@ export default async function prune (
   const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
     ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages ?? {}, opts.skipped)
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
-  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages || {}, opts.skipped)
+  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages ?? {}, opts.skipped)
 
   const oldDepPaths = Object.keys(currentPkgIdsByDepPaths)
   const newDepPaths = Object.keys(wantedPkgIdsByDepPaths)
@@ -163,7 +163,7 @@ export default async function prune (
 
 function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: string]: string } {
   return R.mergeAll(
-    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] || {})
+    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] ?? {})
   )
 }
 

@@ -30,8 +30,8 @@ export default async function getPkgInfo (
     description: manifest.description,
 
     homepage: manifest.homepage,
-    repository: manifest.repository && (
+    repository: (manifest.repository && (
       typeof manifest.repository === 'string' ? manifest.repository : manifest.repository.url
-    ) || undefined,
+    )) ?? undefined,
   }
 }

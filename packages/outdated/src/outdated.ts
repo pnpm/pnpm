@@ -48,7 +48,7 @@ export default async function outdated (
   }
   const allDeps = getAllDependenciesFromManifest(opts.manifest)
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
-  const currentLockfile = opts.currentLockfile || { importers: { [importerId]: {} } }
+  const currentLockfile = opts.currentLockfile ?? { importers: { [importerId]: {} } }
 
   const outdated: OutdatedPackage[] = []
 
@@ -87,8 +87,8 @@ export default async function outdated (
 
           const currentRef = currentLockfile.importers[importerId]?.[depType]?.[alias]
           const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
-          const current = currentRelative && dp.parse(currentRelative).version || currentRef
-          const wanted = dp.parse(relativeDepPath).version || ref
+          const current = (currentRelative && dp.parse(currentRelative).version) ?? currentRef
+          const wanted = dp.parse(relativeDepPath).version ?? ref
           const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
 
           // It might be not the best solution to check for pkgSnapshot.name

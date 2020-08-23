@@ -38,7 +38,6 @@
     "@typescript-eslint/no-non-null-assertion": "warn",
     "@typescript-eslint/consistent-type-assertions": "warn",
     "@typescript-eslint/strict-boolean-expressions": "warn",
-    "@typescript-eslint/prefer-nullish-coalescing": "warn",
     "@typescript-eslint/restrict-template-expressions": "off",
     "@typescript-eslint/no-base-to-string": "off",
     "@typescript-eslint/no-dynamic-delete": "warn",

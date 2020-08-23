@@ -49,14 +49,14 @@ export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptio
 }
 
 async function defaults (opts: LinkOptions) {
-  const dir = opts.dir || process.cwd()
+  const dir = opts.dir ?? process.cwd()
   return {
     binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,
     force: false,
     forceSharedLockfile: false,
     hoistPattern: undefined,
-    lockfileDir: opts.lockfileDir || dir,
+    lockfileDir: opts.lockfileDir ?? dir,
     registries: DEFAULT_REGISTRIES,
     storeController: opts.storeController,
     storeDir: opts.storeDir,

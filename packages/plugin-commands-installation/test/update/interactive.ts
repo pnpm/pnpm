@@ -206,7 +206,7 @@ test('interactive update of dev dependencies only', async (t) => {
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
 
   t.deepEqual(
-    Object.keys(lockfile.packages || {}),
+    Object.keys(lockfile.packages ?? {}),
     ['/is-negative/1.0.1', '/is-negative/2.1.0']
   )
 

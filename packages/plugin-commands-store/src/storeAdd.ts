@@ -24,8 +24,8 @@ export default async function (
   const deps = fuzzyDeps.map((dep) => parseWantedDependency(dep))
 
   let hasFailures = false
-  const prefix = opts.prefix || process.cwd()
-  const registries = opts.registries || {
+  const prefix = opts.prefix ?? process.cwd()
+  const registries = opts.registries ?? {
     default: 'https://registry.npmjs.org/',
   }
   await Promise.all(deps.map(async (dep) => {
@@ -35,7 +35,7 @@ export default async function (
         lockfileDir: prefix,
         preferredVersions: {},
         projectDir: prefix,
-        registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,
+        registry: (dep.alias && pickRegistryForPackage(registries, dep.alias)) ?? registries.default,
       })
       await pkgResponse.files!()
       globalInfo(`+ ${pkgResponse.body.id}`)

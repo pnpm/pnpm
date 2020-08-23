@@ -270,7 +270,7 @@ export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage) 
 }
 
 export function renderCurrent ({ current, wanted }: OutdatedPackage) {
-  const output = current || 'missing'
+  const output = current ?? 'missing'
   if (current === wanted) return output
   return `${output} (wanted ${wanted})`
 }

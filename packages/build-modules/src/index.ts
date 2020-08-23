@@ -55,7 +55,7 @@ export default async (
       () => buildDependency(depPath, depGraph, buildDepOpts)
     )
   })
-  await runGroups(opts.childConcurrency || 4, groups)
+  await runGroups(opts.childConcurrency ?? 4, groups)
 }
 
 async function buildDependency (
@@ -141,7 +141,7 @@ function getSubgraphToBuild (
     }
     if (walked.has(depPath)) continue
     walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked) ||
+    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked) === true ||
       graph[depPath].requiresBuild
     if (childShouldBeBuilt) {
       nodesToBuild.add(depPath)
@@ -205,7 +205,7 @@ export async function linkBinsOfDependencies (
         const dep = depGraph[childrenToLink[alias]]
         return {
           location: dep.dir,
-          manifest: await dep.fetchingBundledManifest?.() || (await readPackageFromDir(dep.dir) as DependencyManifest),
+          manifest: await dep.fetchingBundledManifest?.() ?? (await readPackageFromDir(dep.dir) as DependencyManifest),
         }
       })
   )

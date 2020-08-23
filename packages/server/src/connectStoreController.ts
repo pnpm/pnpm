@@ -24,7 +24,7 @@ export default function (
   }
 ): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
-  const limitedFetch = limitFetch.bind(null, pLimit(initOpts.concurrency || 100))
+  const limitedFetch = limitFetch.bind(null, pLimit(initOpts.concurrency ?? 100))
 
   return new Promise((resolve, reject) => {
     resolve({

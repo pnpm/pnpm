@@ -365,7 +365,7 @@ export default async (
 }
 
 function getProcessEnv (env: string) {
-  return process.env[env] ||
-    process.env[env.toUpperCase()] ||
+  return process.env[env] ??
+    process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
 }

@@ -59,7 +59,7 @@ export default function (
       throttleProgress: opts.throttleProgress,
     }),
     reportLifecycleScripts(log$, {
-      appendOnly: opts.appendOnly || opts.streamLifecycleOutput,
+      appendOnly: opts.appendOnly ?? opts.streamLifecycleOutput,
       cwd,
       width,
     }),

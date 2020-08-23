@@ -12,8 +12,8 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) =>
     return false
   }
   for (const depField of DEPENDENCIES_FIELDS) {
-    const importerDeps = importer[depField] || {}
-    const pkgDeps = pkg[depField] || {}
+    const importerDeps = importer[depField] ?? {}
+    const pkgDeps = pkg[depField] ?? {}
 
     let pkgDepNames!: string[]
     switch (depField) {

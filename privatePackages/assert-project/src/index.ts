@@ -43,7 +43,7 @@ export interface Project {
 }
 
 export default (t: Test, projectPath: string, encodedRegistryName?: string): Project => {
-  const ern = encodedRegistryName || `localhost+${REGISTRY_MOCK_PORT}`
+  const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
 
   let cachedStore: {

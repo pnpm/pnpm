@@ -25,9 +25,9 @@ export interface Project {
 }
 
 export default async function findPkgs (root: string, opts?: Options): Promise<Project[]> {
-  opts = opts || {}
+  opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
-  globOpts.ignore = opts.ignore || DEFAULT_IGNORE
+  globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
   const patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
   const paths: string[] = await fastGlob(patterns, globOpts)
 
