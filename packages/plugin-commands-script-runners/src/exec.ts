@@ -3,14 +3,14 @@ import { Config, types } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
-import execa = require('execa')
-import pLimit = require('p-limit')
-import R = require('ramda')
-import renderHelp = require('render-help')
 import {
   PARALLEL_OPTION_HELP,
   shorthands as runShorthands,
 } from './run'
+import execa = require('execa')
+import pLimit = require('p-limit')
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -97,14 +97,14 @@ export async function handler (
             return
           }
 
-          // tslint:disable:no-string-literal
+          /* eslint-disable @typescript-eslint/dot-notation */
           err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
           err['prefix'] = prefix
-          // tslint:enable:no-string-literal
+          /* eslint-enable @typescript-eslint/dot-notation */
           throw err
         }
       }
-    )))
+      )))
   }
 
   throwOnCommandFail('pnpm recursive exec', result)

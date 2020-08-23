@@ -1,16 +1,17 @@
+import promisifyTape from 'tape-promise'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addDependenciesToPackage } from 'supi'
+import { PackageFilesIndex } from '@pnpm/cafs'
+import { testDefaults } from '../utils'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
-import path = require('path')
 import exists = require('path-exists')
-import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import writeJsonFile = require('write-json-file')
-import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 
@@ -50,7 +51,7 @@ test.skip('caching side effects of native package when hoisting is used', async 
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
   })
-  let manifest = await addDependenciesToPackage({}, ['expire-fs@2.2.3'], opts)
+  const manifest = await addDependenciesToPackage({}, ['expire-fs@2.2.3'], opts)
   const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   const stat1 = await fs.stat(cacheBuildDir)
 
@@ -84,10 +85,10 @@ test('using side effects cache', async (t) => {
   const manifest = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts)
 
   const filesIndexFile = path.join(opts.storeDir, 'files/10/0c9ac65f21cb83e1d3b9339731937e96d930d0000075d266d3443307659d27759e81f3bc0e87b202ade1f10c4af6845d060b4a985ee6b3ccc4de163a3d2171-index.json')
-  const filesIndex = await loadJsonFile(filesIndexFile)
-  t.ok(filesIndex['sideEffects'], 'files index has side effects')
-  t.ok(filesIndex['sideEffects'][ENGINE_NAME]['build/Makefile'])
-  delete filesIndex['sideEffects'][ENGINE_NAME]['build/Makefile']
+  const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+  t.ok(filesIndex.sideEffects, 'files index has side effects')
+  t.ok(filesIndex.sideEffects[ENGINE_NAME]['build/Makefile'])
+  delete filesIndex.sideEffects[ENGINE_NAME]['build/Makefile']
   await writeJsonFile(filesIndexFile, filesIndex)
 
   await rimraf('node_modules')

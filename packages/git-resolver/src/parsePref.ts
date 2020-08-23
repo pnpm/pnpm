@@ -1,8 +1,8 @@
+import { URL } from 'url'
 import fetch from '@pnpm/fetch'
+import url = require('url')
 import git = require('graceful-git')
 import HostedGit = require('hosted-git-info')
-import url = require('url')
-import { URL } from 'url'
 
 export type HostedPackageSpec = ({
   fetchSpec: string,
@@ -11,7 +11,7 @@ export type HostedPackageSpec = ({
     user: string,
     project: string,
     committish: string,
-    tarball (): string | void,
+    tarball: () => string | undefined,
   },
   normalizedPref: string,
   gitCommittish: string | null,
@@ -67,7 +67,7 @@ function urlToFetchSpec (urlparse: URL) {
   return fetchSpec
 }
 
-async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // tslint:disable-line
+async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // eslint-disable-line
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
 

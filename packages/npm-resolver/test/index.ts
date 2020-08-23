@@ -1,20 +1,20 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import _createResolveFromNpm from '@pnpm/npm-resolver'
+import path = require('path')
 import loadJsonFile = require('load-json-file')
 import nock = require('nock')
-import path = require('path')
 import exists = require('path-exists')
 import test = require('tape')
 import tempy = require('tempy')
 
-// tslint:disable:no-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const isPositiveMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive.json'))
 const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
 const isPositiveMetaFull = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-full.json'))
 const isPositiveBrokenMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-broken.json'))
 const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
-// tslint:enable:no-any
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registry = 'https://registry.npmjs.org/'
 
@@ -65,7 +65,7 @@ test('resolveFromNpm()', async t => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   t.ok(meta.name)
   t.ok(meta.versions)
   t.ok(meta['dist-tags'])
@@ -515,7 +515,7 @@ test("use the preferred dist-tag if it's inside the wanted range", async t => {
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { 'stable': 'tag' },
+      'is-positive': { stable: 'tag' },
     },
     registry,
   })
@@ -543,7 +543,7 @@ test("ignore the preferred dist-tag if it's not inside the wanted range", async 
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { 'stable': 'tag' },
+      'is-positive': { stable: 'tag' },
     },
     registry,
   })
@@ -700,11 +700,11 @@ test('error is thrown when package is not found in the registry', async t => {
     await resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, `GET https://registry.npmjs.org/foo: Not Found - 404`)
-    t.equal(err['hint'], `${notExistingPackage} is not in the npm registry.`)
-    t.equal(err['pkgName'], notExistingPackage)
-    t.equal(err['code'], 'ERR_PNPM_FETCH_404')
-    t.equal(err['request']['url'], `${registry}${notExistingPackage}`)
+    t.equal(err.message, 'GET https://registry.npmjs.org/foo: Not Found - 404')
+    t.equal(err.hint, `${notExistingPackage} is not in the npm registry.`)
+    t.equal(err.pkgName, notExistingPackage)
+    t.equal(err.code, 'ERR_PNPM_FETCH_404')
+    t.equal(err.request.url, `${registry}${notExistingPackage}`)
     t.end()
   }
 })
@@ -724,11 +724,11 @@ test('extra info is shown if package has valid semver appended', async t => {
     await resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, `GET https://registry.npmjs.org/foo1.0.0: Not Found - 404`)
-    t.equal(err['hint'], `${notExistingPackage} is not in the npm registry. Did you mean foo?`)
-    t.equal(err['pkgName'], notExistingPackage)
-    t.equal(err['code'], 'ERR_PNPM_FETCH_404')
-    t.equal(err['request']['url'], `${registry}${notExistingPackage}`)
+    t.equal(err.message, 'GET https://registry.npmjs.org/foo1.0.0: Not Found - 404')
+    t.equal(err.hint, `${notExistingPackage} is not in the npm registry. Did you mean foo?`)
+    t.equal(err.pkgName, notExistingPackage)
+    t.equal(err.code, 'ERR_PNPM_FETCH_404')
+    t.equal(err.request.url, `${registry}${notExistingPackage}`)
     t.end()
   }
 })
@@ -766,8 +766,8 @@ test('error is thrown when package needs authorization', async t => {
     await resolveFromNpm({ alias: 'needs-auth', pref: '*' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, `GET https://registry.npmjs.org/needs-auth: Forbidden - 403`)
-    t.equal(err['hint'], `No authorization header was set for the request.`)
+    t.equal(err.message, 'GET https://registry.npmjs.org/needs-auth: Forbidden - 403')
+    t.equal(err['hint'], 'No authorization header was set for the request.')
     t.equal(err['pkgName'], 'needs-auth')
     t.equal(err['code'], 'ERR_PNPM_FETCH_403')
     t.equal(err['request']['url'], `${registry}needs-auth`)
@@ -877,7 +877,7 @@ test('resolve when tarball URL is requested from the registry', async t => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   t.ok(meta.name)
   t.ok(meta.versions)
   t.ok(meta['dist-tags'])
@@ -913,7 +913,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   t.ok(meta.name)
   t.ok(meta.versions)
   t.ok(meta['dist-tags'])
@@ -1531,7 +1531,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   t.ok(meta.name)
   t.ok(meta.versions)
   t.ok(meta['dist-tags'])

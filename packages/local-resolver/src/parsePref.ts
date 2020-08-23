@@ -1,9 +1,9 @@
 import PnpmError from '@pnpm/error'
-import normalize = require('normalize-path')
 import os = require('os')
+import normalize = require('normalize-path')
 import path = require('path')
 
-// tslint:disable-next-line
+// eslint-disable-next-line
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const isFilename = /[.](?:tgz|tar.gz|tar)$/i
@@ -25,12 +25,12 @@ export default function parsePref (
   if (pref.startsWith('link:')) {
     return fromLocal(pref, projectDir, lockfileDir, 'directory')
   }
-  if (pref.endsWith('.tgz')
-    || pref.endsWith('.tar.gz')
-    || pref.endsWith('.tar')
-    || pref.includes(path.sep)
-    || pref.startsWith('file:')
-    || isFilespec.test(pref)
+  if (pref.endsWith('.tgz') ||
+    pref.endsWith('.tar.gz') ||
+    pref.endsWith('.tar') ||
+    pref.includes(path.sep) ||
+    pref.startsWith('file:') ||
+    isFilespec.test(pref)
   ) {
     const type = isFilename.test(pref) ? 'file' : 'directory'
     return fromLocal(pref, projectDir, lockfileDir, type)
@@ -38,10 +38,10 @@ export default function parsePref (
   if (pref.startsWith('path:')) {
     const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
       'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
-    // tslint:disable:no-string-literal
+    /* eslint-disable @typescript-eslint/dot-notation */
     err['pref'] = pref
     err['protocol'] = 'path:'
-    // tslint:enable:no-string-literal
+    /* eslint-enable @typescript-eslint/dot-notation */
     throw err
   }
   return null

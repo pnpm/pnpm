@@ -4,10 +4,10 @@ import {
   FetchErrorResponse,
 } from '@pnpm/error'
 import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
-import url = require('url')
 import { PackageMeta } from './pickPackage'
+import url = require('url')
 
-type RegistryResponse = {
+interface RegistryResponse {
   status: number,
   statusText: string,
   json: () => Promise<PackageMeta>,

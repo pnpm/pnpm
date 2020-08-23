@@ -3,18 +3,17 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import chalk = require('chalk')
-import path = require('path')
-import proxyquire = require('proxyquire')
-import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
+import path = require('path')
+import chalk = require('chalk')
+import proxyquire = require('proxyquire')
 import sinon = require('sinon')
 import test = require('tape')
 
 const prompt = sinon.stub()
 
 const update = proxyquire('../../lib/update', {
-  'enquirer': { prompt },
+  enquirer: { prompt },
 })
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -49,7 +48,7 @@ test('interactively update', async (t) => {
       // only 2.0.0 satisfies this range
       'is-positive': '^2.0.0',
       // has many versions that satisfy ^3.0.0
-      'micromatch': '^3.0.0',
+      micromatch: '^3.0.0',
     },
   })
 
@@ -91,7 +90,7 @@ test('interactively update', async (t) => {
       },
     ],
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
-    message: `Choose which packages to update ` +
+    message: 'Choose which packages to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)`,
@@ -133,7 +132,7 @@ test('interactively update', async (t) => {
       },
     ],
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
-    message: `Choose which packages to update ` +
+    message: 'Choose which packages to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)`,
@@ -153,7 +152,7 @@ test('interactively update', async (t) => {
 })
 
 test('interactive update of dev dependencies only', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project1',
 

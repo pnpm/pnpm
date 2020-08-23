@@ -1,8 +1,8 @@
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
 import { ProjectManifest } from '@pnpm/types'
+import path = require('path')
 import fastGlob = require('fast-glob')
 import pFilter = require('p-filter')
-import path = require('path')
 
 const DEFAULT_IGNORE = [
   '**/node_modules/**',
@@ -11,22 +11,20 @@ const DEFAULT_IGNORE = [
   '**/tests/**',
 ]
 
-declare namespace findPkgs {
-  interface Options {
-    ignore?: string[]
-    includeRoot?: boolean
-    patterns?: string[]
-  }
-
-  interface Project {
-    dir: string
-    manifest: ProjectManifest
-
-    writeProjectManifest (manifest: ProjectManifest, force?: boolean | undefined): Promise<void>
-  }
+export interface Options {
+  ignore?: string[],
+  includeRoot?: boolean,
+  patterns?: string[],
 }
 
-export default async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.Project[]> {
+export interface Project {
+  dir: string,
+  manifest: ProjectManifest,
+
+  writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>,
+}
+
+export default async function findPkgs (root: string, opts?: Options): Promise<Project[]> {
   opts = opts || {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore || DEFAULT_IGNORE
@@ -58,7 +56,7 @@ export default async function findPkgs (root: string, opts?: findPkgs.Options): 
           return {
             dir: path.dirname(manifestPath),
             ...await readExactProjectManifest(manifestPath),
-          } as findPkgs.Project
+          } as Project
         } catch (err) {
           if (err.code === 'ENOENT') {
             return null!

@@ -1,12 +1,11 @@
 import parseCliArgs from '@pnpm/parse-cli-args'
 import os = require('os')
-import path = require('path')
 import test = require('tape')
 
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
   getTypesByCommandName: (commandName: string) => ({}),
-  renamedOptions: { 'prefix': 'dir' },
+  renamedOptions: { prefix: 'dir' },
   shorthandsByCommandName: {},
   universalOptionsTypes: {},
   universalShorthands: {},
@@ -26,7 +25,7 @@ test('a command is recursive if -r option is used', async (t) => {
   const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { recursive: Boolean },
-    universalShorthands: { 'r': '--recursive' },
+    universalShorthands: { r: '--recursive' },
   }, ['-r', 'update'])
   t.equal(cmd, 'update')
   t.ok(options['recursive'])
@@ -139,16 +138,16 @@ test('do not incorrectly change "install" command to "add"', async (t) => {
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
       switch (commandName) {
-        case 'install': return { 'network-concurrency': Number }
-        default: return {}
+      case 'install': return { 'network-concurrency': Number }
+      default: return {}
       }
     },
     universalOptionsTypes: {
       prefix: String,
     },
     universalShorthands: {
-      'C': '--prefix',
-      'r': '--recursive',
+      C: '--prefix',
+      r: '--recursive',
     },
   }, ['install', '-C', os.homedir(), '--network-concurrency', '1'])
   t.equal(cmd, 'install')
@@ -177,7 +176,7 @@ test('use command-specific shorthands', async (t) => {
     getTypesByCommandName: (commandName: string) => {
       if (commandName === 'install') {
         return {
-          'dev': Boolean,
+          dev: Boolean,
         }
       }
       return {}

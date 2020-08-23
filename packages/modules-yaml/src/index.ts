@@ -1,7 +1,7 @@
 import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
-import isWindows = require('is-windows')
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
+import path = require('path')
+import isWindows = require('is-windows')
 import writeYamlFile = require('write-yaml-file')
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
@@ -22,7 +22,7 @@ export interface Modules {
   pendingBuilds: string[],
   registries?: Registries, // nullable for backward compatibility
   shamefullyHoist?: boolean, // for backward compatibility
-  publicHoistPattern?: string[]
+  publicHoistPattern?: string[],
   skipped: string[],
   storeDir: string,
   virtualStoreDir: string,
@@ -45,34 +45,34 @@ export async function read (modulesDir: string): Promise<Modules | null> {
     modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
   }
   switch (modules.shamefullyHoist) {
-    case true:
-      if (!modules.publicHoistPattern) {
-        modules.publicHoistPattern = ['*']
-      }
-      if (modules.hoistedAliases && !modules.hoistedDependencies) {
-        modules.hoistedDependencies = {}
-        for (const depPath of Object.keys(modules.hoistedAliases)) {
-          modules.hoistedDependencies[depPath] = {}
-          for (const alias of modules.hoistedAliases[depPath]) {
-            modules.hoistedDependencies[depPath][alias] = 'public'
-          }
+  case true:
+    if (!modules.publicHoistPattern) {
+      modules.publicHoistPattern = ['*']
+    }
+    if (modules.hoistedAliases && !modules.hoistedDependencies) {
+      modules.hoistedDependencies = {}
+      for (const depPath of Object.keys(modules.hoistedAliases)) {
+        modules.hoistedDependencies[depPath] = {}
+        for (const alias of modules.hoistedAliases[depPath]) {
+          modules.hoistedDependencies[depPath][alias] = 'public'
         }
       }
-      break
-    case false:
-      if (!modules.publicHoistPattern) {
-        modules.publicHoistPattern = []
-      }
-      if (modules.hoistedAliases && !modules.hoistedDependencies) {
-        modules.hoistedDependencies = {}
-        for (const depPath of Object.keys(modules.hoistedAliases)) {
-          modules.hoistedDependencies[depPath] = {}
-          for (const alias of modules.hoistedAliases[depPath]) {
-            modules.hoistedDependencies[depPath][alias] = 'private'
-          }
+    }
+    break
+  case false:
+    if (!modules.publicHoistPattern) {
+      modules.publicHoistPattern = []
+    }
+    if (modules.hoistedAliases && !modules.hoistedDependencies) {
+      modules.hoistedDependencies = {}
+      for (const depPath of Object.keys(modules.hoistedAliases)) {
+        modules.hoistedDependencies[depPath] = {}
+        for (const alias of modules.hoistedAliases[depPath]) {
+          modules.hoistedDependencies[depPath][alias] = 'private'
         }
       }
-      break
+    }
+    break
   }
   return modules
 }

@@ -9,7 +9,6 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import path = require('path')
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
@@ -75,8 +74,9 @@ export interface StrictInstallOptions {
   globalBin?: string,
 }
 
-export type InstallOptions = Partial<StrictInstallOptions> &
-  Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
+export type InstallOptions =
+  & Partial<StrictInstallOptions>
+  & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
 const defaults = async (opts: InstallOptions) => {
   const packageManager = opts.packageManager || {
@@ -160,6 +160,6 @@ export default async (
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
-  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default // tslint:disable-line:no-string-literal
+  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default // eslint-disable-line @typescript-eslint/dot-notation
   return extendedOpts
 }

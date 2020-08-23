@@ -11,9 +11,9 @@ export default (
     // Known errors are not printed
     if (obj['err'].code?.startsWith('ERR_PNPM_')) return
 
-    console.log(obj['err']?.message ?? obj['message']) // tslint:disable-line
-    if (obj['err']?.stack) { // tslint:disable-line
-      console.log(`\n${obj['err'].stack}`) // tslint:disable-line
+    console.log(obj['err']?.message ?? obj['message']) // eslint-disable-line
+    if (obj['err']?.stack) { // eslint-disable-line
+      console.log(`\n${obj['err'].stack}`) // eslint-disable-line
     }
   })
 }

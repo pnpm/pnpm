@@ -1,9 +1,9 @@
 import { hookLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
+import requirePnpmfile from './requirePnpmfile'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
-import requirePnpmfile from './requirePnpmfile'
 
 export default function requireHooks (
   prefix: string,
@@ -15,8 +15,8 @@ export default function requireHooks (
   const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
   let globalHooks = globalPnpmfile?.hooks
 
-  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix)
-    || requirePnpmfile(path.join(prefix, 'pnpmfile.js'), prefix)
+  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix) ||
+    requirePnpmfile(path.join(prefix, 'pnpmfile.js'), prefix)
   let hooks = pnpmFile?.hooks
 
   if (!globalHooks && !hooks) return {}

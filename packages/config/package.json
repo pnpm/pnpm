@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "prepublishOnly": "pnpm run compile",
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "test-with-preview": "ts-node test",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/config/coverage ts-node packages/config/test --type-check",
     "test": "pnpm run compile && pnpm run _test",

@@ -1,5 +1,4 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
-import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import {
   outdatedDepsOfProjects,
   OutdatedPackage,
@@ -9,8 +8,6 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import chalk = require('chalk')
-import R = require('ramda')
 import { table } from 'table'
 import {
   getCellWidth,
@@ -22,6 +19,8 @@ import {
   toOutdatedWithVersionDiff,
 } from './outdated'
 import { DEFAULT_COMPARATORS } from './utils'
+import chalk = require('chalk')
+import R = require('ramda')
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,
@@ -71,14 +70,14 @@ export default async (
 }
 
 function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
-  let columnNames = [
+  const columnNames = [
     'Package',
     'Current',
     'Latest',
     'Dependents',
   ]
 
-  let columnFns = [
+  const columnFns = [
     renderPackageName,
     renderCurrent,
     renderLatest,
@@ -122,10 +121,10 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 
       if (dependents) {
         info += `\n${chalk.bold(
-            outdatedPkg.dependentPkgs.length > 1
-              ? 'Dependents:'
-              : 'Dependent:'
-          )} ${dependents}`
+          outdatedPkg.dependentPkgs.length > 1
+            ? 'Dependents:'
+            : 'Dependent:'
+        )} ${dependents}`
       }
 
       if (opts.long) {
@@ -148,7 +147,7 @@ function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
     .join(', ')
 }
 
-function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedInWorkspace>) {
+function sortOutdatedPackages (outdatedPackages: readonly OutdatedInWorkspace[]) {
   return R.sortWith(
     COMPARATORS,
     outdatedPackages.map(toOutdatedWithVersionDiff)

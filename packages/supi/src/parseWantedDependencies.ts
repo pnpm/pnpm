@@ -19,11 +19,11 @@ export default function parseWantedDependencies (
   return rawWantedDependencies
     .map((rawWantedDependency) => {
       const parsed = parseWantedDependency(rawWantedDependency)
-      // tslint:disable:no-string-literal
-      const alias = parsed['alias'] as (string | undefined)
-      let pref = parsed['pref'] as (string | undefined)
+      /* eslint-disable @typescript-eslint/dot-notation */
+      const alias = parsed['alias']
+      let pref = parsed['pref']
       let pinnedVersion!: PinnedVersion | undefined
-      // tslint:enable:no-string-literal
+      /* eslint-enable @typescript-eslint/dot-notation */
       if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
         return null
       }

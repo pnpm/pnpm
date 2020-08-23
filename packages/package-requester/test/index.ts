@@ -1,4 +1,5 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
+import { promisify } from 'util'
 import { getFilePathInCafs } from '@pnpm/cafs'
 import createClient from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
@@ -6,19 +7,18 @@ import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
+import path = require('path')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import nock = require('nock')
 import normalize = require('normalize-path')
-import path = require('path')
 import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')
-import { promisify } from 'util'
 
 const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
-const ncp = promisify(ncpCB as any) // tslint:disable-line:no-any
+const ncp = promisify(ncpCB as any) // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const authConfig = { registry }
 
@@ -44,7 +44,7 @@ test('request package', async t => {
     preferredVersions: {},
     projectDir,
     registry,
-  }) as PackageResponse
+  })
 
   t.ok(pkgResponse, 'response received')
   t.ok(pkgResponse.body, 'response has body')
@@ -87,7 +87,7 @@ test('request package but skip fetching', async t => {
     projectDir,
     registry,
     skipFetch: true,
-  }) as PackageResponse
+  })
 
   t.ok(pkgResponse, 'response received')
   t.ok(pkgResponse.body, 'response has body')
@@ -197,11 +197,11 @@ test('refetch local tarball if its integrity has changed', async t => {
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files!()
-    await response.finishing!()
+    await response.files()
+    await response.finishing()
 
     t.ok(response.body.updated === false, 'resolution not updated')
-    t.notOk((await response.files!()).fromStore, 'unpack tarball if it is not in store yet')
+    t.notOk((await response.files()).fromStore, 'unpack tarball if it is not in store yet')
     t.ok(await response.bundledManifest!())
   }
 
@@ -220,7 +220,7 @@ test('refetch local tarball if its integrity has changed', async t => {
         integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball,
       },
-    }) as PackageResponse
+    })
     await response.files!()
     await response.finishing!()
 
@@ -245,11 +245,11 @@ test('refetch local tarball if its integrity has changed', async t => {
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files!()
-    await response.finishing!()
+    await response.files()
+    await response.finishing()
 
     t.ok(response.body.updated === false, 'resolution not updated')
-    t.ok((await response.files!()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
+    t.ok((await response.files()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
     t.ok(await response.bundledManifest!())
   }
 
@@ -282,11 +282,11 @@ test('refetch local tarball if its integrity has changed. The requester does not
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files!()
-    await response.finishing!()
+    await response.files()
+    await response.finishing()
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.files!()).fromStore, 'unpack tarball if it is not in store yet')
+    t.notOk((await response.files()).fromStore, 'unpack tarball if it is not in store yet')
     t.ok(await response.bundledManifest!())
   }
 
@@ -303,11 +303,11 @@ test('refetch local tarball if its integrity has changed. The requester does not
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files!()
-    await response.finishing!()
+    await response.files()
+    await response.finishing()
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.files!()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
+    t.notOk((await response.files()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
     t.ok(await response.bundledManifest!())
   }
 
@@ -324,7 +324,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     await response.files()
     await response.finishing()
 
-    t.ok((await response.files!()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
+    t.ok((await response.files()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
     t.ok(await response.bundledManifest!())
   }
 
@@ -513,7 +513,7 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
   })
   const files = await fetchResult.files()
   t.deepEqual(Object.keys(files.filesIndex).sort(),
-    [ 'package.json', 'index.js', 'license', 'readme.md' ].sort(),
+    ['package.json', 'index.js', 'license', 'readme.md'].sort(),
     'returned info about files after fetch completed'
   )
   t.notOk(files.fromStore)
@@ -565,7 +565,7 @@ test('always return a package manifest in the response', async t => {
 
     t.ok(pkgResponse.body, 'response has body')
     t.deepEqual(
-      await pkgResponse.bundledManifest!(),
+      await pkgResponse.bundledManifest(),
       {
         engines: { node: '>=0.10.0' },
         name: 'is-positive',

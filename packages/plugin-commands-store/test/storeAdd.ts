@@ -3,9 +3,7 @@ import { store } from '@pnpm/plugin-commands-store'
 import { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fs = require('fs')
-import loadJsonFile = require('load-json-file')
 import path = require('path')
-import exists = require('path-exists')
 import test = require('tape')
 
 const STORE_VERSION = 'v3'
@@ -42,7 +40,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     },
     registries: {
       '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
-      'default': 'https://registry.npmjs.org/',
+      default: 'https://registry.npmjs.org/',
     },
     storeDir,
   }, ['add', '@foo/no-deps@1.0.0'])
@@ -68,7 +66,7 @@ test('should fail if some packages can not be added', async (t) => {
       },
       registries: {
         '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
-        'default': 'https://registry.npmjs.org/',
+        default: 'https://registry.npmjs.org/',
       },
       storeDir,
     }, ['add', '@pnpm/this-does-not-exist'])

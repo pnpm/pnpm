@@ -2,10 +2,10 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
-import test = require('tape')
 import { DEFAULT_OPTS } from './utils'
+import path = require('path')
+import test = require('tape')
 
 test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async (t) => {
   const projects = preparePackages(t, [
@@ -75,7 +75,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
 })
 
 test('recursive add --save-dev, --save-peer on workspace with single lockfile', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',

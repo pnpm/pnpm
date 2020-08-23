@@ -3,9 +3,9 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import { IncludedDependencies } from '@pnpm/types'
+import listRecursive from './recursive'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import listRecursive from './recursive'
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -28,8 +28,8 @@ export const cliOptionsTypes = () => ({
 })
 
 export const shorthands = {
-  'D': '--dev',
-  'P': '--production',
+  D: '--dev',
+  P: '--production',
 }
 
 export const commandNames = ['list', 'ls']
@@ -37,18 +37,18 @@ export const commandNames = ['list', 'ls']
 export function help () {
   return renderHelp({
     aliases: ['list', 'ls', 'la', 'll'],
-    description: `When run as ll or la, it shows extended information by default. \
+    description: 'When run as ll or la, it shows extended information by default. \
 All dependencies are printed by default. Search by patterns is supported. \
-For example: pnpm ls babel-* eslint-*`,
+For example: pnpm ls babel-* eslint-*',
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: `Perform command on every package in subdirectories \
+            description: 'Perform command on every package in subdirectories \
 or on every workspace package, when executed inside a workspace. \
-For options that may be used with \`-r\`, see "pnpm help recursive"`,
+For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -78,16 +78,16 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--depth 0',
           },
           {
-            description: 'Display only projects. Useful in a monorepo. \`pnpm ls -r --depth -1\` lists all projects in a monorepo',
+            description: 'Display only projects. Useful in a monorepo. `pnpm ls -r --depth -1` lists all projects in a monorepo',
             name: '--depth -1',
           },
           {
-            description: 'Display only the dependency graph for packages in \`dependencies\` and \`optionalDependencies\`',
+            description: 'Display only the dependency graph for packages in `dependencies` and `optionalDependencies`',
             name: '--prod',
             shortAlias: '-P',
           },
           {
-            description: 'Display only the dependency graph for packages in \`devDependencies\`',
+            description: 'Display only the dependency graph for packages in `devDependencies`',
             name: '--dev',
             shortAlias: '-D',
           },
@@ -109,12 +109,12 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
 }
 
 export type ListCommandOptions = Pick<Config,
-  | 'allProjects'
-  | 'dev'
-  | 'dir'
-  | 'optional'
-  | 'production'
-  | 'selectedProjectsGraph'
+| 'allProjects'
+| 'dev'
+| 'dir'
+| 'optional'
+| 'production'
+| 'selectedProjectsGraph'
 > & Partial<Pick<Config, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean,
   depth?: number,
@@ -146,7 +146,7 @@ export function handler (
   })
 }
 
-export async function render (
+export function render (
   prefixes: string[],
   params: string[],
   opts: {
@@ -165,7 +165,7 @@ export async function render (
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     long: opts.long,
-    // tslint:disable-next-line: no-unnecessary-type-assertion
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
   return params.length

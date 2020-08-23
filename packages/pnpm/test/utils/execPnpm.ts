@@ -1,7 +1,7 @@
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ChildProcess as NodeChildProcess } from 'child_process'
-import crossSpawn = require('cross-spawn')
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
+import crossSpawn = require('cross-spawn')
 
 const binDir = path.join(__dirname, '..', '..', 'bin')
 const pnpmBinLocation = path.join(binDir, 'pnpm.js')
@@ -19,7 +19,7 @@ export async function execPnpm (
     proc.on('error', reject)
 
     proc.on('close', (code: number) => {
-      if (code > 0) return reject(new Error('Exit code ' + code))
+      if (code > 0) return reject(new Error(`Exit code ${code}`))
       resolve()
     })
   })
@@ -48,7 +48,7 @@ export async function execPnpx (args: string[]): Promise<void> {
     proc.on('error', reject)
 
     proc.on('close', (code: number) => {
-      if (code > 0) return reject(new Error('Exit code ' + code))
+      if (code > 0) return reject(new Error(`Exit code ${code}`))
       resolve()
     })
   })
@@ -61,7 +61,7 @@ export function spawnPnpx (args: string[], opts?: {storeDir?: string}): NodeChil
   })
 }
 
-export type ChildProcess = {
+export interface ChildProcess {
   status: number,
   stdout: Object,
   stderr: Object,
@@ -88,12 +88,12 @@ function createEnv (opts?: {storeDir?: string}): NodeJS.ProcessEnv {
     npm_config_hoist: 'true',
     npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     npm_config_silent: 'true',
-    npm_config_store_dir: opts && opts.storeDir || '../store',
+    npm_config_store_dir: opts?.storeDir ?? '../store',
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     npm_config_verify_store_integrity: 'true',
   }
-  for (let [key, value] of Object.entries(process.env)) {
+  for (const [key, value] of Object.entries(process.env)) {
     if (key.toLowerCase() === 'path' || key === 'COLORTERM' || key === 'APPDATA') {
       env[key] = value
     }

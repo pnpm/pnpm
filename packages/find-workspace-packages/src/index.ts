@@ -2,8 +2,8 @@ import { packageIsInstallable } from '@pnpm/cli-utils'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { Project } from '@pnpm/types'
 import findPackages from 'find-packages'
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
+import path = require('path')
 
 export { Project }
 
@@ -39,7 +39,7 @@ async function requirePackagesManifest (dir: string): Promise<{packages?: string
   try {
     return await readYamlFile<{ packages?: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
   } catch (err) {
-    if (err['code'] === 'ENOENT') { // tslint:disable-line
+    if (err['code'] === 'ENOENT') { // eslint-disable-line
       return null
     }
     throw err

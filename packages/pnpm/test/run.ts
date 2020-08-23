@@ -1,13 +1,13 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import path = require('path')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm, execPnpmSync } from './utils'
+import path = require('path')
+import fs = require('mz/fs')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
-const RECORD_ARGS_FILE = `require('fs').writeFileSync('args.json', JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')`
+const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
 test('run -r: pass the args to the command that is specfied in the build script', async (t: tape.Test) => {
   preparePackages(t, [{
@@ -60,9 +60,9 @@ test('install-test: install dependencies and runs tests', async (t: tape.Test) =
       'json-append': '1',
     },
     scripts: {
-      posttest: `node -e "process.stdout.write('posttest')" | json-append ./output.json`,
-      pretest: `node -e "process.stdout.write('pretest')" | json-append ./output.json`,
-      test: `node -e "process.stdout.write('test')" | json-append ./output.json`,
+      posttest: 'node -e "process.stdout.write(\'posttest\')" | json-append ./output.json',
+      pretest: 'node -e "process.stdout.write(\'pretest\')" | json-append ./output.json',
+      test: 'node -e "process.stdout.write(\'test\')" | json-append ./output.json',
     },
   }, { manifestFormat: 'JSON5' })
 

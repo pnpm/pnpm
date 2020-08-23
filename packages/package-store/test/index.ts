@@ -1,10 +1,9 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
-import path = require('path')
+import './createImportPackage.spec'
 import test = require('tape')
 import tempy = require('tempy')
-import './createImportPackage.spec'
 
 test('store.importPackage()', async (t) => {
   const storeDir = tempy.directory()

@@ -57,7 +57,7 @@ export interface DependenciesGraphNode {
 }
 
 export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode
+  [depPath: string]: DependenciesGraphNode,
 }
 
 export default function (
@@ -76,9 +76,9 @@ export default function (
     strictPeerDependencies: boolean,
   }
 ): {
-  depGraph: DependenciesGraph,
-  projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}},
-} {
+    depGraph: DependenciesGraph,
+    projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}},
+  } {
   const depGraph: DependenciesGraph = {}
   const pathsByNodeId = {}
 
@@ -294,10 +294,10 @@ function resolvePeers (
     strictPeerDependencies: boolean,
   }
 ): {
-  [alias: string]: string,
-} {
+    [alias: string]: string,
+  } {
   const resolvedPeers: {[alias: string]: string} = {}
-  for (const peerName in ctx.resolvedPackage.peerDependencies) { // tslint:disable-line:forin
+  for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName]
 
     let resolved = ctx.parentPkgs[peerName]
@@ -367,7 +367,7 @@ function nodeIdToFriendlyPath (nodeId: string, dependenciesTree: DependenciesTre
 }
 
 interface ParentRefs {
-  [name: string]: ParentRef
+  [name: string]: ParentRef,
 }
 
 interface ParentRef {

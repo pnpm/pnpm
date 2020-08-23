@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import createCafs from '@pnpm/cafs'
 import createFetcher from '@pnpm/git-fetcher'
 import { DependencyManifest } from '@pnpm/types'

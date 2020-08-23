@@ -5,11 +5,6 @@ import {
   RootLog,
   SummaryLog,
 } from '@pnpm/core-loggers'
-import chalk = require('chalk')
-import most = require('most')
-import path = require('path')
-import R = require('ramda')
-import semver = require('semver')
 import { EOL } from '../constants'
 import {
   ADDED_CHAR,
@@ -19,6 +14,11 @@ import getPkgsDiff, {
   PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff'
+import path = require('path')
+import chalk = require('chalk')
+import most = require('most')
+import R = require('ramda')
+import semver = require('semver')
 
 export default (
   log$: {
@@ -44,7 +44,7 @@ export default (
         const diffs = R.values(pkgsDiff[depType])
         if (diffs.length) {
           msg += EOL
-          if (opts.pnpmConfig && opts.pnpmConfig.global) {
+          if (opts.pnpmConfig?.global) {
             msg += chalk.cyanBright(`${opts.cwd}:`)
           } else {
             msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
@@ -59,8 +59,8 @@ export default (
     pkgsDiff$,
     summaryLog$
   )
-  .take(1)
-  .map(most.of)
+    .take(1)
+    .map(most.of)
 }
 
 function printDiffs (

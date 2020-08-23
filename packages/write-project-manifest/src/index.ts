@@ -1,8 +1,8 @@
+import { promisify } from 'util'
 import { ProjectManifest } from '@pnpm/types'
+import path = require('path')
 import JSON5 = require('json5')
 import fs = require('mz/fs')
-import path = require('path')
-import { promisify } from 'util'
 import writeFileAtomicCB = require('write-file-atomic')
 import writeYamlFile = require('write-yaml-file')
 

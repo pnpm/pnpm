@@ -27,7 +27,7 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
       rawSelector = rawSelector.substr(1)
     }
   }
-  const matches = rawSelector.match(/^([^.][^{}[\]]*)?(\{[^\}]+\})?(\[[^\]]+\])?$/)
+  const matches = rawSelector.match(/^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/)
   if (matches === null) {
     if (isSelectorByLocation(rawSelector)) {
       return {
@@ -42,7 +42,7 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
   }
 
   return {
-    diff: matches[3] && matches[3].substr(1, matches[3].length - 2),
+    diff: matches[3]?.substr(1, matches[3].length - 2),
     excludeSelf,
     includeDependencies,
     includeDependents,

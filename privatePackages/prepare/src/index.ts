@@ -1,12 +1,12 @@
 import assertProject, { Modules, Project } from '@pnpm/assert-project'
 import { ProjectManifest } from '@pnpm/types'
+import { Test } from 'tape'
+import { sync as writeJson5File } from 'write-json5-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import fs = require('fs')
 import path = require('path')
-import { Test } from 'tape'
 import tempy = require('tempy')
-import { sync as writeJson5File } from 'write-json5-file'
 import writePkg = require('write-pkg')
-import { sync as writeYamlFile } from 'write-yaml-file'
 
 export { Modules, Project }
 export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'
@@ -42,7 +42,7 @@ export function preparePackages (
 
   const dirname = path.dirname(pkgTmpPath)
   const result: { [name: string]: Project } = {}
-  for (let aPkg of pkgs) {
+  for (const aPkg of pkgs) {
     if (typeof aPkg['location'] === 'string') {
       result[aPkg['package']['name']] = prepare(t, aPkg['package'], {
         manifestFormat,
@@ -71,15 +71,15 @@ export default function prepare (
 
   fs.mkdirSync(dir, { recursive: true })
   switch (opts?.manifestFormat ?? 'JSON') {
-    case 'JSON':
-      writePkg.sync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
-      break
-    case 'JSON5':
-      writeJson5File(path.join(dir, 'package.json5'), { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
-      break
-    case 'YAML':
-      writeYamlFile(path.join(dir, 'package.yaml'), { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
-      break
+  case 'JSON':
+      writePkg.sync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
+    break
+  case 'JSON5':
+      writeJson5File(path.join(dir, 'package.json5'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
+    break
+  case 'YAML':
+      writeYamlFile(path.join(dir, 'package.yaml'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
+    break
   }
   process.chdir(dir)
 

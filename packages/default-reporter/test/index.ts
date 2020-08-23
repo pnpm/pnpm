@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import { Config } from '@pnpm/config'
 import {
   deprecationLogger,
@@ -14,18 +14,17 @@ import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import chalk = require('chalk')
-import normalizeNewline = require('normalize-newline')
-import path = require('path')
-import R = require('ramda')
-import StackTracey = require('stacktracey')
-import test = require('tape')
 import './reportingContext'
 import './reportingErrors'
 import './reportingLifecycleScripts'
 import './reportingProgress'
 import './reportingRequestRetry'
 import './reportingScope'
+import chalk = require('chalk')
+import normalizeNewline = require('normalize-newline')
+import path = require('path')
+import R = require('ramda')
+import test = require('tape')
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')

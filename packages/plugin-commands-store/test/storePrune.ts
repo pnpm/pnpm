@@ -3,9 +3,9 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import fs = require('fs')
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
-import fs = require('fs')
 import path = require('path')
 import R = require('ramda')
 import sinon = require('sinon')
@@ -148,7 +148,7 @@ test('keep dependency used by package', async (t) => {
 })
 
 test('prune will skip scanning non-directory in storeDir', async (t) => {
-  const project = prepare(t)
+  prepare(t)
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
   fs.writeFileSync(path.join(storeDir, STORE_VERSION, 'files/.DS_store'), 'foobar')

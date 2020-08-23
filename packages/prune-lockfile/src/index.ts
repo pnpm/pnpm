@@ -21,7 +21,7 @@ export function pruneSharedLockfile (
     devDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {}))),
     optionalDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
     prodDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
-    warn: opts && opts.warn || ((msg: string) => undefined),
+    warn: opts?.warn || ((msg: string) => undefined),
   })
 
   const prunnedLockfile: Lockfile = {
@@ -61,11 +61,11 @@ export function pruneLockfile (
   Object.keys(lockfileSpecs).forEach((depName) => {
     if (!allDeps.includes(depName)) return
     specifiers[depName] = lockfileSpecs[depName]
-    if (importer.dependencies && importer.dependencies[depName]) {
+    if (importer.dependencies?.[depName]) {
       lockfileDependencies[depName] = importer.dependencies[depName]
-    } else if (importer.optionalDependencies && importer.optionalDependencies[depName]) {
+    } else if (importer.optionalDependencies?.[depName]) {
       lockfileOptionalDependencies[depName] = importer.optionalDependencies[depName]
-    } else if (importer.devDependencies && importer.devDependencies[depName]) {
+    } else if (importer.devDependencies?.[depName]) {
       lockfileDevDependencies[depName] = importer.devDependencies[depName]
     }
   })

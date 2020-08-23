@@ -4,10 +4,10 @@ import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependencyManifest } from '@pnpm/types'
+import Module = require('module')
 import cmdShim = require('@zkochan/cmd-shim')
 import isSubdir = require('is-subdir')
 import isWindows = require('is-windows')
-import Module = require('module')
 import fs = require('mz/fs')
 import normalizePath = require('normalize-path')
 import pSettle = require('p-settle')
@@ -45,7 +45,7 @@ export default async (
         .map((depDir) => normalizePath(depDir))
         .map(getPackageBins.bind(null, pkgBinOpts))
     ))
-    .filter((cmds: Command[]) => cmds.length)
+      .filter((cmds: Command[]) => cmds.length)
   )
 
   return linkBins(allCmds, binsDir, opts)
@@ -68,7 +68,7 @@ export async function linkBinsOfPackages (
       pkgs
         .map((pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
-    .filter((cmds: Command[]) => cmds.length)
+      .filter((cmds: Command[]) => cmds.length)
   )
 
   return linkBins(allCmds, binsTarget, opts)

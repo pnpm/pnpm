@@ -5,6 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/cafs/coverage ts-node packages/cafs/test --type-check",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",

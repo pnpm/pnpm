@@ -1,5 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
-// tslint:disable: no-any
+/// <reference path="../../../typings/index.d.ts"/>
 import {
   isAbsolute,
   parse,
@@ -17,10 +16,12 @@ test('isAbsolute()', t => {
 })
 
 test('parse()', t => {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   t.throws(() => parse(undefined as any), /got `undefined`/)
   t.throws(() => parse(null as any), /got `null`/)
   t.throws(() => parse({} as any), /got `object`/)
   t.throws(() => parse(1 as any), /got `number`/)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   t.deepEqual(parse('/foo/1.0.0'), {
     host: undefined,
@@ -83,7 +84,7 @@ test('parse()', t => {
 test('refToAbsolute()', t => {
   const registries = {
     '@foo': 'http://foo.com/',
-    'default': 'https://registry.npmjs.org/',
+    default: 'https://registry.npmjs.org/',
   }
   t.equal(refToAbsolute('1.0.0', 'foo', registries), 'registry.npmjs.org/foo/1.0.0')
   t.equal(refToAbsolute('1.0.0', '@foo/foo', registries), 'foo.com/@foo/foo/1.0.0')
@@ -104,7 +105,7 @@ test('refToRelative()', t => {
 test('relative()', t => {
   const registries = {
     '@foo': 'http://localhost:4873/',
-    'default': 'https://registry.npmjs.org/',
+    default: 'https://registry.npmjs.org/',
   }
   t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0'), '/foo/1.0.0')
   t.equal(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0'), '/@foo/foo/1.0.0')
@@ -115,7 +116,7 @@ test('relative()', t => {
 test('resolve()', (t) => {
   const registries = {
     '@bar': 'https://bar.com/',
-    'default': 'https://foo.com/',
+    default: 'https://foo.com/',
   }
   t.equal(resolve(registries, '/foo/1.0.0'), 'foo.com/foo/1.0.0')
   t.equal(resolve(registries, '/@bar/bar/1.0.0'), 'bar.com/@bar/bar/1.0.0')

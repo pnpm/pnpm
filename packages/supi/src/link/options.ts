@@ -5,8 +5,8 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import path = require('path')
 import { ReporterFunction } from '../types'
+import path = require('path')
 
 interface StrictLinkOptions {
   binsDir: string,
@@ -30,8 +30,9 @@ interface StrictLinkOptions {
   forcePublicHoistPattern: boolean,
 }
 
-export type LinkOptions = Partial<StrictLinkOptions> &
-  Pick<StrictLinkOptions, 'storeController' | 'manifest'>
+export type LinkOptions =
+  & Partial<StrictLinkOptions>
+  & Pick<StrictLinkOptions, 'storeController' | 'manifest'>
 
 export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptions> {
   if (opts) {

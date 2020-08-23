@@ -1,8 +1,8 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
-import chalk = require('chalk')
 import fs = require('fs')
+import chalk = require('chalk')
 
 class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -26,7 +26,7 @@ class PnpmFileFailError extends PnpmError {
 
 export default (pnpmFilePath: string, prefix: string) => {
   try {
-    const pnpmfile = require(pnpmFilePath)
+    const pnpmfile = require(pnpmFilePath) // eslint-disable-line
     logger.info({
       message: `Using hooks from: ${pnpmFilePath}`,
       prefix,
@@ -43,7 +43,7 @@ export default (pnpmFilePath: string, prefix: string) => {
     }
     if (pnpmfile?.hooks?.readPackage) {
       const readPackage = pnpmfile.hooks.readPackage
-      pnpmfile.hooks.readPackage = function (pkg: PackageManifest, ...args: any[]) { // tslint:disable-line
+      pnpmfile.hooks.readPackage = function (pkg: PackageManifest, ...args: any[]) { // eslint-disable-line
         pkg.dependencies = pkg.dependencies || {}
         pkg.devDependencies = pkg.devDependencies || {}
         pkg.optionalDependencies = pkg.optionalDependencies || {}
@@ -53,7 +53,7 @@ export default (pnpmFilePath: string, prefix: string) => {
           throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
         }
         const dependencies = ['dependencies', 'optionalDependencies', 'peerDependencies']
-        for (let dep of dependencies) {
+        for (const dep of dependencies) {
           if (newPkg[dep] && typeof newPkg[dep] !== 'object') {
             throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
           }
@@ -68,7 +68,6 @@ export default (pnpmFilePath: string, prefix: string) => {
       console.error(chalk.red('A syntax error in the pnpmfile.js\n'))
       console.error(err)
       process.exit(1)
-      return
     }
     if (err.code !== 'MODULE_NOT_FOUND' || pnpmFileExistsSync(pnpmFilePath)) {
       throw new PnpmFileFailError(pnpmFilePath, err)

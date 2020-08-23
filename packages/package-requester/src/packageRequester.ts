@@ -33,17 +33,17 @@ import {
   WantedDependency,
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
-import loadJsonFile = require('load-json-file')
 import * as fs from 'mz/fs'
-import pDefer = require('p-defer')
 import PQueue from 'p-queue'
+import safeDeferredPromise from './safeDeferredPromise'
 import path = require('path')
+import loadJsonFile = require('load-json-file')
+import pDefer = require('p-defer')
 import pathTemp = require('path-temp')
 import pShare = require('promise-share')
 import R = require('ramda')
 import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
-import safeDeferredPromise from './safeDeferredPromise'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -74,18 +74,18 @@ export default function (
     verifyStoreIntegrity: boolean,
   }
 ): RequestPackageFunction & {
-  cafs: Cafs,
-  fetchPackageToStore: FetchPackageToStoreFunction,
-  requestPackage: RequestPackageFunction,
-} {
+    cafs: Cafs,
+    fetchPackageToStore: FetchPackageToStoreFunction,
+    requestPackage: RequestPackageFunction,
+  } {
   opts = opts || {}
 
   const networkConcurrency = opts.networkConcurrency || 16
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
-  requestsQueue['counter'] = 0 // tslint:disable-line
-  requestsQueue['concurrency'] = networkConcurrency // tslint:disable-line
+  requestsQueue['counter'] = 0 // eslint-disable-line
+  requestsQueue['concurrency'] = networkConcurrency // eslint-disable-line
 
   const cafsDir = path.join(opts.storeDir, 'files')
   const cafs = createCafs(cafsDir, opts.ignoreFile)
@@ -123,101 +123,78 @@ async function resolveAndFetch (
   wantedDependency: WantedDependency,
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
-  try {
-    let latest: string | undefined
-    let manifest: DependencyManifest | undefined
-    let normalizedPref: string | undefined
-    let resolution = options.currentResolution as Resolution
-    let pkgId = options.currentPackageId
-    const skipResolution = resolution && !options.update
-    let forceFetch = false
-    let updated = false
-    let resolvedVia: string | undefined
+  let latest: string | undefined
+  let manifest: DependencyManifest | undefined
+  let normalizedPref: string | undefined
+  let resolution = options.currentResolution as Resolution
+  let pkgId = options.currentPackageId
+  const skipResolution = resolution && !options.update
+  let forceFetch = false
+  let updated = false
+  let resolvedVia: string | undefined
 
-    // When fetching is skipped, resolution cannot be skipped.
-    // We need the package's manifest when doing `lockfile-only` installs.
-    // When we don't fetch, the only way to get the package's manifest is via resolving it.
-    //
-    // The resolution step is never skipped for local dependencies.
-    if (!skipResolution || options.skipFetch || pkgId?.startsWith('file:')) {
-      const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
-        alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
-        defaultTag: options.defaultTag,
-        lockfileDir: options.lockfileDir,
-        preferredVersions: options.preferredVersions,
-        projectDir: options.projectDir,
-        registry: options.registry,
-        workspacePackages: options.workspacePackages,
-      }), { priority: options.downloadPriority })
-
-      manifest = resolveResult.manifest
-      latest = resolveResult.latest
-      resolvedVia = resolveResult.resolvedVia
-
-      // If the integrity of a local tarball dependency has changed,
-      // the local tarball should be unpacked, so a fetch to the store should be forced
-      forceFetch = Boolean(
-        options.currentResolution &&
-        pkgId?.startsWith('file:') &&
-        options.currentResolution['integrity'] !== resolveResult.resolution['integrity'] // tslint:disable-line:no-string-literal
-      )
-
-      if (!skipResolution || forceFetch) {
-        updated = pkgId !== resolveResult.id || !resolution || forceFetch
-        // Keep the lockfile resolution when possible
-        // to keep the original shasum.
-        if (updated) {
-          resolution = resolveResult.resolution
-        }
-        pkgId = resolveResult.id
-        normalizedPref = resolveResult.normalizedPref
-      }
-    }
-
-    const id = pkgId as string
-
-    if (resolution.type === 'directory') {
-      if (!manifest) {
-        throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref}`)
-      }
-      return {
-        body: {
-          id,
-          isLocal: true,
-          manifest,
-          normalizedPref,
-          resolution: resolution as DirectoryResolution,
-          resolvedVia,
-          updated,
-        },
-      }
-    }
-
-    // We can skip fetching the package only if the manifest
-    // is present after resolution
-    if (options.skipFetch && manifest) {
-      return {
-        body: {
-          id,
-          isLocal: false as const,
-          latest,
-          manifest,
-          normalizedPref,
-          resolution,
-          resolvedVia,
-          updated,
-        },
-      }
-    }
-
-    const fetchResult = ctx.fetchPackageToStore({
-      fetchRawManifest: updated || !manifest,
-      force: forceFetch,
+  // When fetching is skipped, resolution cannot be skipped.
+  // We need the package's manifest when doing `lockfile-only` installs.
+  // When we don't fetch, the only way to get the package's manifest is via resolving it.
+  //
+  // The resolution step is never skipped for local dependencies.
+  if (!skipResolution || options.skipFetch || pkgId?.startsWith('file:')) {
+    const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
+      alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
+      defaultTag: options.defaultTag,
       lockfileDir: options.lockfileDir,
-      pkgId: id,
-      resolution: resolution,
-    })
+      preferredVersions: options.preferredVersions,
+      projectDir: options.projectDir,
+      registry: options.registry,
+      workspacePackages: options.workspacePackages,
+    }), { priority: options.downloadPriority })
 
+    manifest = resolveResult.manifest
+    latest = resolveResult.latest
+    resolvedVia = resolveResult.resolvedVia
+
+    // If the integrity of a local tarball dependency has changed,
+    // the local tarball should be unpacked, so a fetch to the store should be forced
+    forceFetch = Boolean(
+      options.currentResolution &&
+      pkgId?.startsWith('file:') &&
+      options.currentResolution['integrity'] !== resolveResult.resolution['integrity'] // eslint-disable-line @typescript-eslint/dot-notation
+    )
+
+    if (!skipResolution || forceFetch) {
+      updated = pkgId !== resolveResult.id || !resolution || forceFetch
+      // Keep the lockfile resolution when possible
+      // to keep the original shasum.
+      if (updated) {
+        resolution = resolveResult.resolution
+      }
+      pkgId = resolveResult.id
+      normalizedPref = resolveResult.normalizedPref
+    }
+  }
+
+  const id = pkgId as string
+
+  if (resolution.type === 'directory') {
+    if (!manifest) {
+      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref}`)
+    }
+    return {
+      body: {
+        id,
+        isLocal: true,
+        manifest,
+        normalizedPref,
+        resolution: resolution as DirectoryResolution,
+        resolvedVia,
+        updated,
+      },
+    }
+  }
+
+  // We can skip fetching the package only if the manifest
+  // is present after resolution
+  if (options.skipFetch && manifest) {
     return {
       body: {
         id,
@@ -229,17 +206,36 @@ async function resolveAndFetch (
         resolvedVia,
         updated,
       },
-      bundledManifest: fetchResult.bundledManifest,
-      files: fetchResult.files,
-      filesIndexFile: fetchResult.filesIndexFile,
-      finishing: fetchResult.finishing,
     }
-  } catch (err) {
-    throw err
+  }
+
+  const fetchResult = ctx.fetchPackageToStore({
+    fetchRawManifest: updated || !manifest,
+    force: forceFetch,
+    lockfileDir: options.lockfileDir,
+    pkgId: id,
+    resolution: resolution,
+  })
+
+  return {
+    body: {
+      id,
+      isLocal: false as const,
+      latest,
+      manifest,
+      normalizedPref,
+      resolution,
+      resolvedVia,
+      updated,
+    },
+    bundledManifest: fetchResult.bundledManifest,
+    files: fetchResult.files,
+    filesIndexFile: fetchResult.filesIndexFile,
+    finishing: fetchResult.finishing,
   }
 }
 
-type FetchLock = {
+interface FetchLock {
   bundledManifest?: Promise<BundledManifest>,
   files: Promise<PackageFilesResponse>,
   filesIndexFile: string,
@@ -272,23 +268,23 @@ function fetchToStore (
     resolution: Resolution,
   }
 ): {
-  bundledManifest?: () => Promise<BundledManifest>,
-  filesIndexFile: string,
-  files: () => Promise<PackageFilesResponse>,
-  finishing: () => Promise<void>,
-} {
+    bundledManifest?: () => Promise<BundledManifest>,
+    filesIndexFile: string,
+    files: () => Promise<PackageFilesResponse>,
+    finishing: () => Promise<void>,
+  } {
   const targetRelative = pkgIdToFilename(opts.pkgId, opts.lockfileDir)
   const target = path.join(ctx.storeDir, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
     const bundledManifest = pDefer<BundledManifest>()
     const files = pDefer<PackageFilesResponse>()
-    const finishing = pDefer<void>()
+    const finishing = pDefer<undefined>()
     const filesIndexFile = opts.resolution['integrity']
       ? ctx.getFilePathInCafs(opts.resolution['integrity'], 'index')
       : path.join(target, 'integrity.json')
 
-    doFetchToStore(filesIndexFile, bundledManifest, files, finishing) // tslint:disable-line
+    doFetchToStore(filesIndexFile, bundledManifest, files, finishing) // eslint-disable-line
 
     if (opts.fetchRawManifest) {
       ctx.fetchingLocker.set(opts.pkgId, {
@@ -311,7 +307,7 @@ function fetchToStore (
     // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
     // Otherwise, if a package was not in store when the server started, it will be always
     // reported as "downloaded" instead of "reused".
-    files.promise.then((cache) => { // tslint:disable-line
+    files.promise.then((cache) => { // eslint-disable-line
       // If it's already in the store, we don't need to update the cache
       if (cache.fromStore) {
         return
@@ -331,9 +327,9 @@ function fetchToStore (
         }),
       })
     })
-    .catch(() => {
-      ctx.fetchingLocker.delete(opts.pkgId)
-    })
+      .catch(() => {
+        ctx.fetchingLocker.delete(opts.pkgId)
+      })
   }
 
   const result = ctx.fetchingLocker.get(opts.pkgId)!
@@ -377,7 +373,7 @@ function fetchToStore (
         !opts.force &&
         (
           isLocalTarballDep === false ||
-          await tarballIsUpToDate(opts.resolution as any, target, opts.lockfileDir) // tslint:disable-line
+          await tarballIsUpToDate(opts.resolution as any, target, opts.lockfileDir) // eslint-disable-line
         )
       ) {
         let pkgFilesIndex
@@ -388,7 +384,7 @@ function fetchToStore (
         }
         // if target exists and it wasn't modified, then no need to refetch it
 
-        if (pkgFilesIndex && pkgFilesIndex.files) {
+        if (pkgFilesIndex?.files) {
           const manifest = opts.fetchRawManifest
             ? safeDeferredPromise<DependencyManifest>()
             : undefined
@@ -421,7 +417,7 @@ function fetchToStore (
       // However, when one line is left available, allow it to be picked up by a metadata request.
       // This is done in order to avoid situations when tarballs are downloaded in chunks
       // As much tarballs should be downloaded simultaneously as possible.
-      const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
+      const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // eslint-disable-line
 
       const fetchManifest = opts.fetchRawManifest
         ? safeDeferredPromise<DependencyManifest>()
@@ -475,9 +471,9 @@ function fetchToStore (
       await writeJsonFile(filesIndexFile, { files: integrity })
       finishing.resolve(undefined)
 
-      if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal
+      if (isLocalTarballDep && opts.resolution['integrity']) { // eslint-disable-line @typescript-eslint/dot-notation
         await fs.mkdir(target, { recursive: true })
-        await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // tslint:disable-line:no-string-literal
+        await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // eslint-disable-line @typescript-eslint/dot-notation
       }
 
       files.resolve({

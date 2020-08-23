@@ -1,3 +1,4 @@
+import { promisify } from 'util'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageManifestLog,
@@ -9,22 +10,21 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import { PackageManifest } from '@pnpm/types'
-import existsSymlink = require('exists-link')
-import ncpCB = require('ncp')
-import path = require('path')
-import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
-import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   link,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { promisify } from 'util'
-import writeJsonFile = require('write-json-file')
 import { testDefaults } from './utils'
+import path = require('path')
+import existsSymlink = require('exists-link')
+import ncpCB = require('ncp')
+import exists = require('path-exists')
+import sinon = require('sinon')
+import tape = require('tape')
+import writeJsonFile = require('write-json-file')
 
 const test = promisifyTape(tape)
 const ncp = promisify(ncpCB.ncp)
@@ -184,18 +184,18 @@ test('uninstall package with dependencies and do not touch other deps', async (t
 
 test('uninstall package with its bin files', async (t) => {
   prepareEmpty(t)
-  let manifest = await addDependenciesToPackage({}, ['sh-hello-world@1.0.1'], await testDefaults({ fastUnpack: false, save: true }))
-  manifest = (await mutateModules([
+  const manifest = await addDependenciesToPackage({}, ['sh-hello-world@1.0.1'], await testDefaults({ fastUnpack: false, save: true }))
+  await mutateModules([
     {
       dependencyNames: ['sh-hello-world'],
       manifest,
       mutation: 'uninstallSome',
       rootDir: process.cwd(),
     },
-  ], await testDefaults({ save: true })))[0].manifest
+  ], await testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
-  let stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
+  const stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
   t.notOk(stat, 'sh-hello-world is removed from .bin')
 
   t.notOk(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world')), 'sh-hello-world is removed from .bin')

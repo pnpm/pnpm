@@ -2,9 +2,9 @@ import { lifecycleLogger } from '@pnpm/core-loggers'
 import { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import lifecycle = require('@zkochan/npm-lifecycle')
 
-function noop () {} // tslint:disable-line:no-empty
+function noop () {} // eslint-disable-line:no-empty
 
-export type RunLifecycleHookOptions = {
+export interface RunLifecycleHookOptions {
   args?: string[],
   depPath: string,
   extraBinPaths?: string[],
@@ -40,7 +40,7 @@ export default async function runLifecycleHook (
     lifecycleLogger.debug({
       depPath: opts.depPath,
       optional,
-      script: m.scripts![stage],
+      script: m.scripts[stage],
       stage,
       wd: opts.pkgRoot,
     })
@@ -70,30 +70,30 @@ export default async function runLifecycleHook (
 
   function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
     switch (stdtype) {
-      case 'stdout':
-      case 'stderr':
-        lifecycleLogger.debug({
-          depPath: opts.depPath,
-          line: line.toString(),
-          stage,
-          stdio: stdtype,
-          wd: opts.pkgRoot,
-        })
+    case 'stdout':
+    case 'stderr':
+      lifecycleLogger.debug({
+        depPath: opts.depPath,
+        line: line.toString(),
+        stage,
+        stdio: stdtype,
+        wd: opts.pkgRoot,
+      })
+      return
+    case 'Returned: code:': {
+      if (opts.stdio === 'inherit') {
+        // Preventing the pnpm reporter from overriding the project's script output
         return
-      case 'Returned: code:':
-        if (opts.stdio === 'inherit') {
-          // Preventing the pnpm reporter from overriding the project's script output
-          return
-        }
-        const code = arguments[3]
-        lifecycleLogger.debug({
-          depPath: opts.depPath,
-          exitCode: code,
-          optional,
-          stage,
-          wd: opts.pkgRoot,
-        })
-        return
+      }
+      const code = arguments[3]
+      lifecycleLogger.debug({
+        depPath: opts.depPath,
+        exitCode: code,
+        optional,
+        stage,
+        wd: opts.pkgRoot,
+      })
+    }
     }
   }
 }

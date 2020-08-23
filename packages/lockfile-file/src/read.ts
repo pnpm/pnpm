@@ -1,16 +1,15 @@
-
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import { LockfileBreakingChangeError } from './errors'
 import logger from './logger'
+import path = require('path')
 
-export async function readCurrentLockfile (
+export function readCurrentLockfile (
   virtualStoreDir: string,
   opts: {
     wantedVersion?: number,
@@ -21,7 +20,7 @@ export async function readCurrentLockfile (
   return _read(lockfilePath, virtualStoreDir, opts)
 }
 
-export async function readWantedLockfile (
+export function readWantedLockfile (
   pkgPath: string,
   opts: {
     wantedVersion?: number,
@@ -49,7 +48,7 @@ async function _read (
     }
     return null
   }
-  // tslint:disable:no-string-literal
+  /* eslint-disable @typescript-eslint/dot-notation */
   if (typeof lockfile?.['specifiers'] !== 'undefined') {
     lockfile.importers = {
       '.': {
@@ -65,7 +64,7 @@ async function _read (
     }
   }
   if (lockfile) {
-    // tslint:enable:no-string-literal
+    /* eslint-enable @typescript-eslint/dot-notation */
     if (typeof opts.wantedVersion !== 'number' || Math.floor(lockfile.lockfileVersion) === Math.floor(opts.wantedVersion)) {
       if (typeof opts.wantedVersion === 'number' && lockfile.lockfileVersion > opts.wantedVersion) {
         logger.warn({

@@ -21,10 +21,6 @@ import {
   DependencyManifest,
   ProjectManifest,
 } from '@pnpm/types'
-import normalize = require('normalize-path')
-import path = require('path')
-import pathAbsolute = require('path-absolute')
-import R = require('ramda')
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import save, { guessDependencyType, PackageSpecObject } from '../save'
 import getPref from '../utils/getPref'
@@ -32,6 +28,10 @@ import {
   extendOptions,
   LinkOptions,
 } from './options'
+import path = require('path')
+import normalize = require('normalize-path')
+import pathAbsolute = require('path-absolute')
+import R = require('ramda')
 
 export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,

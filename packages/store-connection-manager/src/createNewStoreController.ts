@@ -2,38 +2,37 @@ import createClient from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import createStore from '@pnpm/package-store'
 import fs = require('mz/fs')
-import path = require('path')
 
 type CreateResolverOptions = Pick<Config,
-  | 'fetchRetries'
-  | 'fetchRetryFactor'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchRetryMintimeout'
-  | 'fetchRetryMintimeout'
-  | 'offline'
-  | 'rawConfig'
-  | 'verifyStoreIntegrity'
+| 'fetchRetries'
+| 'fetchRetryFactor'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchRetryMintimeout'
+| 'offline'
+| 'rawConfig'
+| 'verifyStoreIntegrity'
 > & Required<Pick<Config, 'storeDir'>>
 
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
-    | 'ca'
-    | 'cert'
-    | 'httpProxy'
-    | 'httpsProxy'
-    | 'key'
-    | 'localAddress'
-    | 'networkConcurrency'
-    | 'noProxy'
-    | 'offline'
-    | 'packageImportMethod'
-    | 'preferOffline'
-    | 'registry'
-    | 'strictSsl'
-    | 'userAgent'
-    | 'verifyStoreIntegrity'
-  > & {
-    ignoreFile?: (filename: string) => boolean,
-  }
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'networkConcurrency'
+| 'noProxy'
+| 'offline'
+| 'packageImportMethod'
+| 'preferOffline'
+| 'registry'
+| 'strictSsl'
+| 'userAgent'
+| 'verifyStoreIntegrity'
+> & {
+  ignoreFile?: (filename: string) => boolean,
+}
 
 export default async (
   opts: CreateNewStoreControllerOptions
@@ -67,8 +66,8 @@ export default async (
       networkConcurrency: opts.networkConcurrency,
       packageImportMethod: opts.packageImportMethod,
       storeDir: opts.storeDir,
-      verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean' ?
-        opts.verifyStoreIntegrity : true,
+      verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
+        ? opts.verifyStoreIntegrity : true,
     }),
     dir: opts.storeDir,
   }

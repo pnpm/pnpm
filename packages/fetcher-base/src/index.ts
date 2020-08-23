@@ -2,7 +2,7 @@ import { Resolution } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import { Integrity } from 'ssri'
 
-export type Cafs = {
+export interface Cafs {
   addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>,
   addFilesFromTarball: (stream: NodeJS.ReadableStream, manifest?: DeferredManifestPromise) => Promise<FilesIndex>,
 }
@@ -14,7 +14,7 @@ export interface FetchOptions {
   onProgress?: (downloaded: number) => void,
 }
 
-export type DeferredManifestPromise = {
+export interface DeferredManifestPromise {
   resolve: (manifest: DependencyManifest) => void,
   reject: (err: Error) => void,
 }

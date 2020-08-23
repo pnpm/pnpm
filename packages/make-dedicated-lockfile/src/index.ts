@@ -60,8 +60,6 @@ export default async function (lockfileDir: string, projectDir: string) {
     ], {
       cwd: projectDir,
     })
-  } catch (err) {
-    throw err
   } finally {
     if (modulesRenamed) {
       await renameOverwrite(tempModulesDir, tmp)

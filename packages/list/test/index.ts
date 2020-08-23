@@ -1,11 +1,11 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import renderTree from '@pnpm/list/lib/renderTree'
+import './createPackagesSearcher.spec.ts'
 import chalk = require('chalk')
 import cliColumns = require('cli-columns')
 import path = require('path')
 import test = require('tape')
-import './createPackagesSearcher.spec.ts'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color
@@ -308,7 +308,7 @@ test('JSON list with depth 1', async t => {
 
             resolved: 'https://registry.npmjs.org/make-dir/-/make-dir-1.3.0.tgz',
           },
-          'pify': {
+          pify: {
             from: 'pify',
             version: '3.0.0',
 
@@ -358,7 +358,7 @@ test('JSON list with aliased dep', async t => {
         version: '1.0.0',
 
         dependencies: {
-          'positive': {
+          positive: {
             from: 'is-positive',
             version: '1.0.0',
 
@@ -375,7 +375,7 @@ test('JSON list with aliased dep', async t => {
       version: '1.0.0',
 
       dependencies: {
-        'positive': {
+        positive: {
           from: 'is-positive',
           version: '1.0.0',
 

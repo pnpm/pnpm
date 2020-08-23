@@ -1,5 +1,5 @@
-import test = require('tape')
 import findBestGlobalPrefixOnWindows from '../src/findBestGlobalPrefixOnWindows'
+import test = require('tape')
 
 test('findBestGlobalPrefixOnWindows()', t => {
   if (process.platform !== 'win32') {

@@ -8,9 +8,9 @@ import pnpmLogger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import R = require('ramda')
 import filterImporter from './filterImporter'
 import LockfileMissingDependencyError from './LockfileMissingDependencyError'
+import R = require('ramda')
 
 const logger = pnpmLogger('lockfile')
 

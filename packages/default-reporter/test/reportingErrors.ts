@@ -3,10 +3,10 @@ import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
+import path = require('path')
 import chalk = require('chalk')
 import loadJsonFile = require('load-json-file')
 import normalizeNewline = require('normalize-newline')
-import path = require('path')
 import StackTracey = require('stacktracey')
 import test = require('tape')
 
@@ -454,7 +454,7 @@ test('prints authorization error with auth settings', t => {
     username: 'nagy.gabor',
   }
   const output$ = toOutput$({
-    context: { argv: ['install'], config: { rawConfig } as any }, // tslint:disable-line
+    context: { argv: ['install'], config: { rawConfig } as any }, // eslint-disable-line
     streamParser: createStreamParser(),
   })
 
@@ -487,7 +487,7 @@ username=nagy.gabor`)
 
 test('prints authorization error without auth settings, where there are none', t => {
   const output$ = toOutput$({
-    context: { argv: ['install'], config: { rawConfig: {} } as any }, // tslint:disable-line
+    context: { argv: ['install'], config: { rawConfig: {} } as any }, // eslint-disable-line
     streamParser: createStreamParser(),
   })
 

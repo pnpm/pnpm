@@ -9,9 +9,9 @@ import universalShorthands from './shorthands'
 
 const RENAMED_OPTIONS = {
   'lockfile-directory': 'lockfile-dir',
-  'prefix': 'dir',
+  prefix: 'dir',
   'shrinkwrap-directory': 'lockfile-dir',
-  'store': 'store-dir',
+  store: 'store-dir',
 }
 
 export default function parseCliArgs (inputArgv: string[]) {

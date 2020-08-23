@@ -1,20 +1,19 @@
-import assertProject, { isExecutable } from '@pnpm/assert-project'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import prepare, { preparePackages } from '@pnpm/prepare'
-import isWindows = require('is-windows')
-import fs = require('mz/fs')
-import ncpCB = require('ncp')
-import path = require('path')
-import PATH = require('path-name')
-import readYamlFile from 'read-yaml-file'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
-import writePkg = require('write-pkg')
+import promisifyTape from 'tape-promise'
+import readYamlFile from 'read-yaml-file'
+import prepare, { preparePackages } from '@pnpm/prepare'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import assertProject, { isExecutable } from '@pnpm/assert-project'
 import {
   execPnpm,
   pathToLocalPkg,
 } from './utils'
+import path = require('path')
+import fs = require('mz/fs')
+import ncpCB = require('ncp')
+import PATH = require('path-name')
+import tape = require('tape')
+import writePkg = require('write-pkg')
 
 const ncp = promisify(ncpCB.ncp)
 const test = promisifyTape(tape)
@@ -40,11 +39,11 @@ test('linking multiple packages', async (t: tape.Test) => {
 
   await execPnpm(['link', 'linked-foo', '../linked-bar'], { env })
 
-  project.has('linked-foo')
-  project.has('linked-bar')
+  await project.has('linked-foo')
+  await project.has('linked-bar')
 
   const modules = await readYamlFile<object>('../linked-bar/node_modules/.modules.yaml')
-  t.deepEqual(modules['hoistPattern'], ['*'], 'the linked package used its own configs during installation') // tslint:disable-line:no-string-literal
+  t.deepEqual(modules['hoistPattern'], ['*'], 'the linked package used its own configs during installation') // eslint-disable-line @typescript-eslint/dot-notation
 })
 
 test('link global bin', async function (t: tape.Test) {

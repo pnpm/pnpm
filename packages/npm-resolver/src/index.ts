@@ -12,12 +12,6 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
-import LRU = require('lru-cache')
-import normalize = require('normalize-path')
-import pMemoize = require('p-memoize')
-import path = require('path')
-import semver = require('semver')
-import ssri = require('ssri')
 import createPkgId from './createNpmPkgId'
 import fromRegistry from './fetch'
 import parsePref, {
@@ -30,6 +24,12 @@ import pickPackage, {
   PickPackageOptions,
 } from './pickPackage'
 import toRaw from './toRaw'
+import path = require('path')
+import LRU = require('lru-cache')
+import normalize = require('normalize-path')
+import pMemoize = require('p-memoize')
+import semver = require('semver')
+import ssri = require('ssri')
 
 class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
@@ -63,7 +63,7 @@ export default function createResolver (
   getCredentials: GetCredentials,
   opts: ResolverFactoryOptions
 ) {
-  if (typeof opts.storeDir !== 'string') { // tslint:disable-line
+  if (typeof opts.storeDir !== 'string') { // eslint-disable-line
     throw new TypeError('`opts.storeDir` is required and needs to be a string')
   }
   const fetch = pMemoize(fromRegistry.bind(null, fetchFromRegistry, opts.retry ?? {}), {
@@ -74,7 +74,7 @@ export default function createResolver (
   const metaCache = new LRU({
     max: 10000,
     maxAge: 120 * 1000, // 2 minutes
-  }) as any // tslint:disable-line:no-any
+  }) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI,
     pickPackage: pickPackage.bind(null, {
@@ -229,22 +229,22 @@ function tryResolveFromWorkspacePackages (
 function pickMatchingLocalVersionOrNull (
   versions: {
     [version: string]: {
-      dir: string;
-      manifest: DependencyManifest;
+      dir: string,
+      manifest: DependencyManifest,
     },
   },
   spec: RegistryPackageSpec
 ) {
   const localVersions = Object.keys(versions)
   switch (spec.type) {
-    case 'tag':
-      return semver.maxSatisfying(localVersions, '*')
-    case 'version':
-      return versions[spec.fetchSpec] ? spec.fetchSpec : null
-    case 'range':
-      return resolveWorkspaceRange(spec.fetchSpec, localVersions)
-    default:
-      return null
+  case 'tag':
+    return semver.maxSatisfying(localVersions, '*')
+  case 'version':
+    return versions[spec.fetchSpec] ? spec.fetchSpec : null
+  case 'range':
+    return resolveWorkspaceRange(spec.fetchSpec, localVersions)
+  default:
+    return null
   }
 }
 

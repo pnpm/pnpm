@@ -1,6 +1,6 @@
-import rightPad = require('right-pad')
 import { PREFIX_MAX_LENGTH } from '../outputConstants'
 import formatPrefix from './formatPrefix'
+import rightPad = require('right-pad')
 
 export function autozoom (
   currentPrefix: string,

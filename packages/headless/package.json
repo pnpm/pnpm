@@ -59,7 +59,7 @@
     "start": "pnpm run tsc -- --watch",
     "commit": "commit",
     "commitmsg": "commitlint -e",
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/headless/coverage ts-node packages/headless/test --type-check",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",

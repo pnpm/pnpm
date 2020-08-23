@@ -1,23 +1,23 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import fs = require('fs')
-import isInnerLink = require('is-inner-link')
-import path = require('path')
-import exists = require('path-exists')
-import sinon = require('sinon')
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
   link,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeJsonFile = require('write-json-file')
 import {
   addDistTag,
   testDefaults,
 } from './utils'
+import fs = require('fs')
+import isInnerLink = require('is-inner-link')
+import path = require('path')
+import exists = require('path-exists')
+import sinon = require('sinon')
+import tape = require('tape')
+import writeJsonFile = require('write-json-file')
 
 const test = promisifyTape(tape)
 
@@ -285,7 +285,7 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
 })
 
 test('unlink would remove global bin', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+  prepareEmpty(t)
   process.chdir('..')
   fs.mkdirSync('bin')
   fs.mkdirSync('is-subdir')
@@ -309,7 +309,7 @@ test('unlink would remove global bin', async (t: tape.Test) => {
     store: path.resolve('.store'),
   })
 
-  let manifest = await link(
+  const manifest = await link(
     ['is-subdir'],
     path.join('project', 'node_modules'),
     {

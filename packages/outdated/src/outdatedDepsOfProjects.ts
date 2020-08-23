@@ -9,10 +9,10 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import path = require('path')
-import R = require('ramda')
 import { createManifestGetter, ManifestGetterOptions } from './createManifestGetter'
 import outdated, { OutdatedPackage } from './outdated'
+import path = require('path')
+import R = require('ramda')
 
 export default async function outdatedDepsOfProjects (
   pkgs: Array<{dir: string, manifest: ProjectManifest}>,
@@ -40,8 +40,8 @@ export default async function outdatedDepsOfProjects (
     lockfileDir,
     storeDir,
   })
-  return Promise.all(pkgs.map(async ({ dir, manifest }) => {
-    let match = args.length && matcher(args) || undefined
+  return Promise.all(pkgs.map(({ dir, manifest }) => {
+    const match = args.length && matcher(args) || undefined
     return outdated({
       compatible: opts.compatible,
       currentLockfile,

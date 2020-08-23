@@ -1,7 +1,6 @@
 import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
-import most = require('most')
 import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportContext from './reportContext'
 import reportDeprecations from './reportDeprecations'
@@ -15,6 +14,7 @@ import reportScope from './reportScope'
 import reportSkippedOptionalDependencies from './reportSkippedOptionalDependencies'
 import reportStats from './reportStats'
 import reportSummary from './reportSummary'
+import most = require('most')
 
 export default function (
   log$: {

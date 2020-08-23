@@ -1,20 +1,19 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
-import { PackageFilesResponse } from '@pnpm/store-controller-types'
+import fetch from 'node-fetch'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import isPortReachable = require('is-port-reachable')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
-import fetch from 'node-fetch'
-import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
 
-async function createStoreController (storeDir?: string) {
+function createStoreController (storeDir?: string) {
   if (!storeDir) {
     storeDir = tempy.directory()
   }
@@ -99,7 +98,7 @@ test('fetchPackage', async t => {
 
   t.ok(await response.bundledManifest!())
 
-  const files = await response['files']() as PackageFilesResponse
+  const files = await response['files']()
   t.notOk(files.fromStore)
   t.ok(files.filesIndex['package.json'])
   t.ok(response['finishing'])
@@ -221,7 +220,7 @@ test('stop server with remote call', async t => {
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
-  const server = createServer(storeCtrlForServer, {
+  createServer(storeCtrlForServer, {
     hostname,
     ignoreStopRequests: false,
     port,
@@ -295,7 +294,7 @@ test('server should only allow POST', async (t) => {
   // Try various methods (not including POST)
   const methods = ['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 
-  for (let method of methods) {
+  for (const method of methods) {
     t.comment(`Testing HTTP ${method}`)
     // Ensure 405 error is received
     const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: method })

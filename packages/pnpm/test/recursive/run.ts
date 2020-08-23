@@ -1,10 +1,10 @@
 import { preparePackages } from '@pnpm/prepare'
+import promisifyTape from 'tape-promise'
+import { execPnpm } from '../utils'
 import fs = require('mz/fs')
 import path = require('path')
 import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
-import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
 
@@ -27,8 +27,8 @@ test('pnpm recursive run finds bins from the root of the workspace', async (t: t
         'print-version': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-build')" | json-append ../build-output.json`,
-        postinstall: `node -e "process.stdout.write('project-postinstall')" | json-append ../postinstall-output.json`,
+        build: 'node -e "process.stdout.write(\'project-build\')" | json-append ../build-output.json',
+        postinstall: 'node -e "process.stdout.write(\'project-postinstall\')" | json-append ../postinstall-output.json',
         testBinPriority: 'print-version | json-append ../testBinPriority.json',
       },
     },

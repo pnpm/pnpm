@@ -1,5 +1,5 @@
-import isSubdir = require('is-subdir')
 import path = require('path')
+import isSubdir = require('is-subdir')
 
 export default function findBestGlobalPrefixOnWindows (
   defaultNpmGlobalPrefix: string,

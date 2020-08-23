@@ -1,11 +1,11 @@
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
-import path = require('path')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import fs = require('mz/fs')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

@@ -4,9 +4,9 @@ import {
 import binify from '@pnpm/package-bins'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependencyManifest } from '@pnpm/types'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import isWindows = require('is-windows')
-import path = require('path')
 
 async function removeOnWin (cmd: string) {
   removalLogger.debug(cmd)
@@ -31,7 +31,6 @@ export async function removeBinsOfDependency (
     binsDir: string,
   }
 ) {
-
   const uninstalledPkgJson = await safeReadPackageFromDir(dependencyDir) as DependencyManifest
 
   if (!uninstalledPkgJson) return

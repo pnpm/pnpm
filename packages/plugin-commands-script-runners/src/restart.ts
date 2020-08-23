@@ -1,6 +1,4 @@
 import { types as allTypes } from '@pnpm/config'
-import R = require('ramda')
-import renderHelp = require('render-help')
 import {
   handler as run,
   IF_PRESENT_OPTION,
@@ -9,6 +7,8 @@ import {
 } from './run'
 import { handler as start } from './start'
 import { handler as stop } from './stop'
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return {
@@ -26,7 +26,7 @@ export const commandNames = ['restart']
 
 export function help () {
   return renderHelp({
-    description: `Restarts a package. Runs a package's "stop", "restart", and "start" scripts, and associated pre- and post- scripts.`,
+    description: 'Restarts a package. Runs a package\'s "stop", "restart", and "start" scripts, and associated pre- and post- scripts.',
     descriptionLists: [
       {
         title: 'Options',

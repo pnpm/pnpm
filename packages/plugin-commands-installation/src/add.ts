@@ -2,10 +2,10 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import R = require('ramda')
-import renderHelp = require('render-help')
 import { InstallCommandOptions } from './install'
 import installDeps from './installDeps'
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -80,22 +80,22 @@ export function help () {
 
         list: [
           {
-            description: 'Save package to your \`dependencies\`. The default behavior',
+            description: 'Save package to your `dependencies`. The default behavior',
             name: '--save-prod',
             shortAlias: '-P',
           },
           {
-            description: 'Save package to your \`devDependencies\`',
+            description: 'Save package to your `devDependencies`',
             name: '--save-dev',
             shortAlias: '-D',
           },
           {
-            description: 'Save package to your \`optionalDependencies\`',
+            description: 'Save package to your `optionalDependencies`',
             name: '--save-optional',
             shortAlias: '-O',
           },
           {
-            description: 'Save package to your \`peerDependencies\` and \`devDependencies\`',
+            description: 'Save package to your `peerDependencies` and `devDependencies`',
             name: '--save-peer',
           },
           {
@@ -113,9 +113,9 @@ export function help () {
             shortAlias: '-g',
           },
           {
-            description: `Run installation recursively in every package found in subdirectories \
+            description: 'Run installation recursively in every package found in subdirectories \
 or in every workspace package, when executed inside a workspace. \
-For options that may be used with \`-r\`, see "pnpm help recursive"`,
+For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -149,7 +149,7 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
   })
 }
 
-export async function handler (
+export function handler (
   opts: InstallCommandOptions & {
     allowNew?: boolean,
     ignoreWorkspaceRootCheck?: boolean,

@@ -1,16 +1,16 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
+import './recursive'
+import { DEFAULT_OPTS } from './utils'
 import execa = require('execa')
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
 import test = require('tape')
-import './recursive'
-import { DEFAULT_OPTS } from './utils'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
@@ -217,7 +217,7 @@ test('rebuild dependencies in correct order', async (t) => {
   t.ok(modules)
   t.doesNotEqual(modules!.pendingBuilds.length, 0)
 
-  await project.hasNot(`.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)
+  await project.hasNot('.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
   await rebuild.handler({
@@ -231,7 +231,7 @@ test('rebuild dependencies in correct order', async (t) => {
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
-  t.ok(+project.requireModule(`.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule('.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
   t.end()
 })
 

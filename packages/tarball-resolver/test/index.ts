@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import resolveFromTarball from '@pnpm/tarball-resolver'
 import test = require('tape')
 

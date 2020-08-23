@@ -1,16 +1,16 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
+
+import './recursive'
+import './why'
 import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-
-import './recursive'
-import './why'
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 

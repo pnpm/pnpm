@@ -1,9 +1,9 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

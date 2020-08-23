@@ -1,15 +1,15 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
+import path = require('path')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -120,7 +120,7 @@ test('update dependency when external lockfile directory is used', async (t: tap
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 
-  t.ok(lockfile.packages && lockfile.packages['/foo/100.1.0']) // tslint:disable-line:no-string-literal
+  t.ok(lockfile.packages?.['/foo/100.1.0'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2191

@@ -10,10 +10,10 @@ import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { IncludedDependencies } from '@pnpm/types'
-import R = require('ramda')
 import {
   install,
   mutateModules,
+  WorkspacePackages,
 } from 'supi'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
@@ -27,41 +27,41 @@ const OVERWRITE_UPDATE_OPTIONS = {
 }
 
 export type InstallDepsOptions = Pick<Config,
-  | 'allProjects'
-  | 'bail'
-  | 'bin'
-  | 'cliOptions'
-  | 'depth'
-  | 'dev'
-  | 'engineStrict'
-  | 'global'
-  | 'globalPnpmfile'
-  | 'ignorePnpmfile'
-  | 'ignoreScripts'
-  | 'linkWorkspacePackages'
-  | 'lockfileDir'
-  | 'lockfileOnly'
-  | 'pnpmfile'
-  | 'production'
-  | 'rawLocalConfig'
-  | 'registries'
-  | 'save'
-  | 'saveDev'
-  | 'saveExact'
-  | 'saveOptional'
-  | 'savePeer'
-  | 'savePrefix'
-  | 'saveProd'
-  | 'saveWorkspaceProtocol'
-  | 'selectedProjectsGraph'
-  | 'sideEffectsCache'
-  | 'sideEffectsCacheReadonly'
-  | 'sort'
-  | 'sharedWorkspaceLockfile'
-  | 'tag'
-  | 'optional'
-  | 'workspaceConcurrency'
-  | 'workspaceDir'
+| 'allProjects'
+| 'bail'
+| 'bin'
+| 'cliOptions'
+| 'depth'
+| 'dev'
+| 'engineStrict'
+| 'global'
+| 'globalPnpmfile'
+| 'ignorePnpmfile'
+| 'ignoreScripts'
+| 'linkWorkspacePackages'
+| 'lockfileDir'
+| 'lockfileOnly'
+| 'pnpmfile'
+| 'production'
+| 'rawLocalConfig'
+| 'registries'
+| 'save'
+| 'saveDev'
+| 'saveExact'
+| 'saveOptional'
+| 'savePeer'
+| 'savePrefix'
+| 'saveProd'
+| 'saveWorkspaceProtocol'
+| 'selectedProjectsGraph'
+| 'sideEffectsCache'
+| 'sideEffectsCacheReadonly'
+| 'sort'
+| 'sharedWorkspaceLockfile'
+| 'tag'
+| 'optional'
+| 'workspaceConcurrency'
+| 'workspaceDir'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[],
@@ -92,10 +92,10 @@ export default async function handler (
     }
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
       if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
-        throw new PnpmError('BAD_OPTIONS', `This workspace has link-workspace-packages turned off, \
+        throw new PnpmError('BAD_OPTIONS', 'This workspace has link-workspace-packages turned off, \
 so dependencies are linked from the workspace only when the workspace protocol is used. \
-Either set link-workspace-packages to true or don't use the --no-save-workspace-protocol option \
-when running add/update with the --workspace option`)
+Either set link-workspace-packages to true or don\'t use the --no-save-workspace-protocol option \
+when running add/update with the --workspace option')
       } else {
         opts.saveWorkspaceProtocol = true
       }
@@ -112,8 +112,8 @@ when running add/update with the --workspace option`)
       params,
       {
         ...opts,
-        selectedProjectsGraph: opts.selectedProjectsGraph!,
-        workspaceDir: opts.workspaceDir!,
+        selectedProjectsGraph: opts.selectedProjectsGraph,
+        workspaceDir: opts.workspaceDir,
       },
       opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
     )
@@ -124,7 +124,7 @@ when running add/update with the --workspace option`)
 
   const dir = opts.dir || process.cwd()
   let allProjects = opts.allProjects
-  let workspacePackages = undefined
+  let workspacePackages!: WorkspacePackages
 
   if (opts.workspaceDir) {
     allProjects = allProjects ?? await findWorkspacePackages(opts.workspaceDir, opts)
@@ -145,10 +145,10 @@ when running add/update with the --workspace option`)
     storeDir: store.dir,
     workspacePackages,
 
-    forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined'
-      || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
-    forcePublicHoistPattern: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined'
-      || typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined',
+    forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' ||
+      typeof opts.rawLocalConfig['hoist'] !== 'undefined',
+    forcePublicHoistPattern: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined' ||
+      typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined',
   }
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir || dir, opts)
@@ -180,9 +180,9 @@ when running add/update with the --workspace option`)
   }
   if (opts.workspace) {
     if (!params || !params.length) {
-      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages!)
+      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
     } else {
-      params = createWorkspaceSpecs(params, workspacePackages!)
+      params = createWorkspaceSpecs(params, workspacePackages)
     }
   }
   if (!params || !params.length) {

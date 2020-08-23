@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import nock = require('nock')
 import test = require('tape')

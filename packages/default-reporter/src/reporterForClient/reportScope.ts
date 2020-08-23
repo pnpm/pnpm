@@ -30,7 +30,7 @@ export default (
         if (!log.workspacePrefix) return most.never()
         if (!opts.isRecursive) return most.of({ msg: 'Scope: current workspace package' })
       }
-      let msg = `Scope: `
+      let msg = 'Scope: '
 
       if (log.selected === log.total) {
         msg += `all ${log.total}`

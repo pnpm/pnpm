@@ -72,6 +72,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
+    "@pnpm/cafs": "workspace:^1.0.7",
     "@pnpm/client": "workspace:^2.0.0",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/package-store": "workspace:*",
@@ -147,7 +148,7 @@
     "?commit": "echo 'Run Git commit wizard'",
     "commit": "commit",
     "commitmsg": "commitlint -e",
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/supi/coverage ts-node packages/supi/test --type-check",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",

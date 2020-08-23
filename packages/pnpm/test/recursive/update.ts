@@ -1,10 +1,10 @@
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import fs = require('mz/fs')
-import path = require('path')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
+import path = require('path')
+import fs = require('mz/fs')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -12,7 +12,7 @@ const test = promisifyTape(tape)
 test.skip('recursive update --latest should update deps with correct specs', async (t: tape.Test) => {
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',

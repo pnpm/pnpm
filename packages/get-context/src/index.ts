@@ -14,13 +14,13 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
-import path = require('path')
-import pathAbsolute = require('path-absolute')
-import R = require('ramda')
 import checkCompatibility from './checkCompatibility'
 import readLockfileFile from './readLockfiles'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import fs = require('mz/fs')
+import pathAbsolute = require('path-absolute')
+import R = require('ramda')
 
 export interface PnpmContext<T> {
   currentLockfile: Lockfile,
@@ -60,7 +60,7 @@ interface HookOptions {
 }
 
 export default async function getContext<T> (
-  projects: (ProjectOptions & HookOptions & T)[],
+  projects: Array<ProjectOptions & HookOptions & T>,
   opts: {
     force: boolean,
     forceNewModules?: boolean,
@@ -125,7 +125,7 @@ export default async function getContext<T> (
   if (opts.hooks?.readPackage) {
     for (const project of importersContext.projects) {
       project.originalManifest = project.manifest
-      project.manifest = opts.hooks!.readPackage!(R.clone(project.manifest))
+      project.manifest = opts.hooks.readPackage(R.clone(project.manifest))
     }
   }
 
@@ -209,8 +209,8 @@ async function validateModules (
     }
     throw new PnpmError(
       'PUBLIC_HOIST_PATTERN_DIFF',
-      'This modules directory was created using a different public-hoist-pattern value.'
-      + ' Run "pnpm install" to recreate the modules directory.'
+      'This modules directory was created using a different public-hoist-pattern value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
     )
   }
   let purged = false
@@ -219,8 +219,8 @@ async function validateModules (
       if (!R.equals(opts.currentHoistPattern, (opts.hoistPattern || undefined))) {
         throw new PnpmError(
           'HOIST_PATTERN_DIFF',
-          'This modules directory was created using a different hoist-pattern value.'
-          + ' Run "pnpm install" to recreate the modules directory.'
+          'This modules directory was created using a different hoist-pattern value.' +
+          ' Run "pnpm install" to recreate the modules directory.'
         )
       }
     } catch (err) {

@@ -2,9 +2,9 @@ import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { InstallOptions, mutateModules } from 'supi'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { InstallOptions, mutateModules } from 'supi'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -27,11 +27,11 @@ export function help () {
 
         list: [
           {
-            description: 'Remove the packages specified in \`devDependencies\`',
+            description: 'Remove the packages specified in `devDependencies`',
             name: '--prod',
           },
           {
-            description: 'Remove the packages specified in \`optionalDependencies\`',
+            description: 'Remove the packages specified in `optionalDependencies`',
             name: '--no-optional',
           },
           ...UNIVERSAL_OPTIONS,

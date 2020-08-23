@@ -1,12 +1,14 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
+import path = require('path')
 import git = require('graceful-git')
 import isWindows = require('is-windows')
-import path = require('path')
 import proxyquire = require('proxyquire')
 import test = require('tape')
 
 let gracefulGit = git
-const gracefulGitMock = function () { return gracefulGit.call(this, ...Array.from(arguments)) }
+const gracefulGitMock = function () {
+  return gracefulGit.call(this, ...Array.from(arguments))
+}
 
 const createResolveFromGit = proxyquire('@pnpm/git-resolver', {
   './parsePref': proxyquire('@pnpm/git-resolver/lib/parsePref', {
@@ -142,7 +144,7 @@ test('resolveFromGit() with range semver (v-prefixed tag)', async (t) => {
 
 test('resolveFromGit() fails when ref not found', async (t) => {
   try {
-    const r = await resolveFromGit({ pref: 'zkochan/is-negative#bad-ref' })
+    await resolveFromGit({ pref: 'zkochan/is-negative#bad-ref' })
     t.fail()
   } catch (err) {
     t.equal(err.message, 'Could not resolve bad-ref to a commit of git://github.com/zkochan/is-negative.git.', 'throws the expected error message')
@@ -152,7 +154,7 @@ test('resolveFromGit() fails when ref not found', async (t) => {
 
 test('resolveFromGit() fails when semver ref not found', async (t) => {
   try {
-    const r = await resolveFromGit({ pref: 'zkochan/is-negative#semver:^100.0.0' })
+    await resolveFromGit({ pref: 'zkochan/is-negative#semver:^100.0.0' })
     t.fail()
   } catch (err) {
     t.equal(err.message, 'Could not resolve ^100.0.0 to a commit of git://github.com/zkochan/is-negative.git. Available versions are: 1.0.0, 1.0.1, 2.0.0, 2.0.1, 2.0.2, 2.1.0', 'throws the expected error message')
@@ -382,9 +384,9 @@ test('resolve a private repository using the HTTPS protocol and an auth token', 
     if (!args.includes('https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git')) throw new Error('')
     if (args.includes('--refs')) {
       return {
-        stdout: `\
+        stdout: '\
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
-`,
+',
       }
     }
     return { stdout: '0000000000000000000000000000000000000000\tHEAD' }

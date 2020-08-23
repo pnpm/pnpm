@@ -8,13 +8,13 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import matcher from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
-import chalk = require('chalk')
 import { prompt } from 'enquirer'
-import R = require('ramda')
-import renderHelp = require('render-help')
 import { InstallCommandOptions } from '../install'
 import installDeps from '../installDeps'
 import getUpdateChoices from './getUpdateChoices'
+import chalk = require('chalk')
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -68,8 +68,8 @@ export function cliOptionsTypes () {
 }
 
 export const shorthands = {
-  'D': '--dev',
-  'P': '--production',
+  D: '--dev',
+  P: '--production',
 }
 
 export const commandNames = ['update', 'up', 'upgrade']
@@ -88,9 +88,9 @@ export function help () {
 
         list: [
           {
-            description: `Update in every package found in subdirectories \
+            description: 'Update in every package found in subdirectories \
 or every workspace package, when executed inside a workspace. \
-For options that may be used with \`-r\`, see "pnpm help recursive"`,
+For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
@@ -119,14 +119,14 @@ For options that may be used with \`-r\`, see "pnpm help recursive"`,
             shortAlias: '-D',
           },
           {
-            description: `Don't update packages in "optionalDependencies"`,
+            description: 'Don\'t update packages in "optionalDependencies"',
             name: '--no-optional',
           },
           {
-            description:  `Tries to link all packages from the workspace. \
+            description: 'Tries to link all packages from the workspace. \
 Versions are updated to match the versions of packages inside the workspace. \
 If specific packages are updated, the command will fail if any of the updated \
-dependencies is not found inside the workspace`,
+dependencies is not found inside the workspace',
             name: '--workspace',
           },
           {
@@ -150,7 +150,7 @@ export type UpdateCommandOptions = InstallCommandOptions & {
   latest?: boolean,
 }
 
-export async function handler (
+export function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ) {
@@ -192,10 +192,10 @@ async function interactiveUpdate (
   const { updateDependencies } = await prompt({
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
-    indicator (state: any, choice: any) { // tslint:disable-line:no-any
+    indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       return ` ${choice.enabled ? '●' : '○'}`
     },
-    message: `Choose which packages to update ` +
+    message: 'Choose which packages to update ' +
       `(Press ${chalk.cyan('<space>')} to select, ` +
       `${chalk.cyan('<a>')} to toggle all, ` +
       `${chalk.cyan('<i>')} to invert selection)`,
@@ -215,13 +215,17 @@ async function interactiveUpdate (
     },
 
     // For Vim users (related: https://github.com/enquirer/enquirer/pull/163)
-    j () { return this.down() },
-    k () { return this.up() },
-  } as any) as any // tslint:disable-line:no-any
+    j () {
+      return this.down()
+    },
+    k () {
+      return this.up()
+    },
+  } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   return update(updateDependencies, opts)
 }
 
-async function update (
+function update (
   dependencies: string[],
   opts: UpdateCommandOptions
 ) {

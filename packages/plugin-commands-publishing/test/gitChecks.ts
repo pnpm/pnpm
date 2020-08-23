@@ -1,18 +1,18 @@
 import PnpmError from '@pnpm/error'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { DEFAULT_OPTS } from './utils'
 import execa = require('execa')
 import fs = require('mz/fs')
 import proxyquire = require('proxyquire')
 import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')
-import { DEFAULT_OPTS } from './utils'
 
 const prompt = sinon.stub()
 
 const publish = proxyquire('../lib/publish', {
-  'enquirer': { prompt },
+  enquirer: { prompt },
 })
 
 const CREDENTIALS = [

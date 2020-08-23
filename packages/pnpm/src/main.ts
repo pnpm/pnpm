@@ -1,18 +1,6 @@
 // Map SIGINT & SIGTERM to process exit
 // so that lockfiles are removed automatically
-process
-  .once('SIGINT', () => process.exit(0))
-  .once('SIGTERM', () => process.exit(0))
-
-// Patch the global fs module here at the app level
-import chalk = require('chalk')
-import fs = require('fs')
-import gfs = require('graceful-fs')
-
-gfs.gracefulify(fs)
-
 import loudRejection from 'loud-rejection'
-loudRejection()
 import packageManager from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import {
@@ -22,17 +10,29 @@ import { scopeLogger } from '@pnpm/core-loggers'
 import { filterPackages } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
-import isCI = require('is-ci')
-import path = require('path')
-import R = require('ramda')
-import stripAnsi = require('strip-ansi')
-import which = require('which')
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { getRCOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
 import './logging/fileLogger'
 import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
+import chalk = require('chalk')
+
+process
+  .once('SIGINT', () => process.exit(0))
+  .once('SIGTERM', () => process.exit(0))
+
+// Patch the global fs module here at the app level
+import fs = require('fs')
+import gfs = require('graceful-fs')
+
+gfs.gracefulify(fs)
+loudRejection()
+import isCI = require('is-ci')
+import path = require('path')
+import R = require('ramda')
+import stripAnsi = require('strip-ansi')
+import which = require('which')
 
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',
@@ -51,7 +51,7 @@ export default async function run (inputArgv: string[]) {
   } = await parseCliArgs(inputArgv)
   if (cmd !== null && !pnpmCmds[cmd]) {
     console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown command '${cmd}'`)}`)
-    console.log(`For help, run: pnpm help`)
+    console.log('For help, run: pnpm help')
     process.exit(1)
   }
 
@@ -98,7 +98,6 @@ export default async function run (inputArgv: string[]) {
       console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
     }
     process.exit(1)
-    return
   }
 
   let write: (text: string) => void = process.stdout.write.bind(process.stdout)
@@ -139,7 +138,7 @@ export default async function run (inputArgv: string[]) {
   global['reporterInitialized'] = reporterType
 
   if (selfUpdate) {
-    await pnpmCmds.server(config as any, ['stop']) // tslint:disable-line:no-any
+    await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
     try {
       config.bin = path.dirname(which.sync('pnpm'))
     } catch (err) {
@@ -171,7 +170,6 @@ export default async function run (inputArgv: string[]) {
         console.log(`No projects found in "${wsDir}"`)
       }
       process.exit(0)
-      return
     }
     const filterResults = await filterPackages(allProjects, config.filter ?? [], {
       linkWorkspacePackages: !!config.linkWorkspacePackages,
@@ -184,7 +182,6 @@ export default async function run (inputArgv: string[]) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
       process.exit(0)
-      return
     }
     if (filterResults.unmatchedFilters.length !== 0 && !config['parseable']) {
       console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)

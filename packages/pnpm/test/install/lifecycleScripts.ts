@@ -1,10 +1,10 @@
 import prepare from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
-import loadJsonFile = require('load-json-file')
-import path = require('path')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpmSync } from '../utils'
+import path = require('path')
+import loadJsonFile = require('load-json-file')
+import tape = require('tape')
 
 const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
@@ -12,7 +12,7 @@ const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.j
 const test = promisifyTape(tape)
 
 test('installation fails if lifecycle script fails', t => {
-  const project = prepare(t, {
+  prepare(t, {
     scripts: {
       preinstall: 'exit 1',
     },
@@ -26,7 +26,7 @@ test('installation fails if lifecycle script fails', t => {
 })
 
 test('lifecycle script runs with the correct user agent', t => {
-  const project = prepare(t, {
+  prepare(t, {
     scripts: {
       preinstall: 'node --eval "console.log(process.env.npm_config_user_agent)"',
     },
@@ -42,7 +42,7 @@ test('lifecycle script runs with the correct user agent', t => {
 })
 
 test('preinstall is executed before general installation', t => {
-  const project = prepare(t, {
+  prepare(t, {
     scripts: {
       preinstall: 'echo "Hello world!"',
     },
@@ -57,7 +57,7 @@ test('preinstall is executed before general installation', t => {
 })
 
 test('postinstall is executed after general installation', t => {
-  const project = prepare(t, {
+  prepare(t, {
     scripts: {
       postinstall: 'echo "Hello world!"',
     },
@@ -72,7 +72,7 @@ test('postinstall is executed after general installation', t => {
 })
 
 test('postinstall is not executed after named installation', t => {
-  const project = prepare(t, {
+  prepare(t, {
     scripts: {
       postinstall: 'echo "Hello world!"',
     },
@@ -87,7 +87,7 @@ test('postinstall is not executed after named installation', t => {
 })
 
 test('prepare is not executed after installation with arguments', t => {
-  const project = prepare(t, {
+  prepare(t, {
     scripts: {
       prepare: 'echo "Hello world!"',
     },
@@ -102,7 +102,7 @@ test('prepare is not executed after installation with arguments', t => {
 })
 
 test('prepare is executed after argumentless installation', t => {
-  const project = prepare(t, {
+  prepare(t, {
     scripts: {
       prepare: 'echo "Hello world!"',
     },
@@ -117,7 +117,7 @@ test('prepare is executed after argumentless installation', t => {
 })
 
 test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
-  const project = prepare(t, {
+  prepare(t, {
     dependencies: {
       'write-lifecycle-env': '^1.0.0',
     },

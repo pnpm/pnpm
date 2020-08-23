@@ -15,14 +15,14 @@ export const commandNames = ['root']
 
 export function help () {
   return renderHelp({
-    description: 'Print the effective \`node_modules\` directory.',
+    description: 'Print the effective `node_modules` directory.',
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: 'Print the global \`node_modules\` directory',
+            description: 'Print the global `node_modules` directory',
             name: '--global',
             shortAlias: '-g',
           },

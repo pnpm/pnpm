@@ -3,29 +3,27 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readProjectManifest from '@pnpm/read-project-manifest'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import writeProjectManifest from '@pnpm/write-project-manifest'
-import rimraf = require('@zkochan/rimraf')
-import crossSpawn = require('cross-spawn')
-import delay = require('delay')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import path = require('path')
-import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
-import semver = require('semver')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   execPnpm,
   execPnpmSync,
 } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import crossSpawn = require('cross-spawn')
+import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
+import exists = require('path-exists')
+import semver = require('semver')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
 test('bin files are found by lifecycle scripts', t => {
-  const project = prepare(t, {
+  prepare(t, {
     dependencies: {
       'hello-world-js-bin': '*',
     },
@@ -43,7 +41,7 @@ test('bin files are found by lifecycle scripts', t => {
 })
 
 test('create a "node_modules/.pnpm-debug.log" file when the command fails', async function (t) {
-  const project = prepare(t)
+  prepare(t)
 
   const result = execPnpmSync(['install', '@zkochan/i-do-not-exist'])
 
@@ -137,7 +135,7 @@ test('install to a project that uses package.yaml', async (t: tape.Test) => {
 
   const { manifest } = await readProjectManifest(process.cwd())
 
-  t.deepEqual(manifest && manifest.devDependencies, { 'is-positive': '3.1.0' })
+  t.deepEqual(manifest?.devDependencies, { 'is-positive': '3.1.0' })
 })
 
 test('install save new dep with the specified spec', async (t: tape.Test) => {
@@ -188,7 +186,7 @@ test('lockfile compatibility', async (t: tape.Test) => {
     proc.on('error', reject)
 
     proc.on('close', (code: number) => {
-      if (code > 0) return reject(new Error('Exit code ' + code))
+      if (code > 0) return reject(new Error(`Exit code ${code}`))
       const wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
       t.ok(wrap.dependencies.rimraf.version === '2.5.1',
         'npm shrinkwrap is successful')
@@ -422,12 +420,12 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
 
 test('using a custom virtual-store-dir location', async (t: tape.Test) => {
   prepare(t, {
-    dependencies: { 'rimraf': '2.5.1' },
+    dependencies: { rimraf: '2.5.1' },
   })
 
   await execPnpm(['install', '--virtual-store-dir=.pnpm'])
 
-  t.ok(await exists(`.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json`))
+  t.ok(await exists('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json'))
   t.ok(await exists('.pnpm/lock.yaml'))
   t.ok(await exists('.pnpm/node_modules/once/package.json'))
 
@@ -436,7 +434,7 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
 
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
-  t.ok(await exists(`.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json`))
+  t.ok(await exists('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json'))
   t.ok(await exists('.pnpm/lock.yaml'))
   t.ok(await exists('.pnpm/node_modules/once/package.json'))
 })
@@ -444,13 +442,13 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
 // This is an integration test only because it is hard to mock is-ci
 test('installing in a CI environment', async (t: tape.Test) => {
   const project = prepare(t, {
-    dependencies: { 'rimraf': '2.5.1' },
+    dependencies: { rimraf: '2.5.1' },
   })
 
   await execPnpm(['install'], { env: { CI: 'true' } })
 
   await project.writePackageJson({
-    dependencies: { 'rimraf': '1' },
+    dependencies: { rimraf: '1' },
   })
 
   let err!: Error
@@ -465,7 +463,7 @@ test('installing in a CI environment', async (t: tape.Test) => {
 
   await rimraf('node_modules')
   await project.writePackageJson({
-    dependencies: { 'rimraf': '2' },
+    dependencies: { rimraf: '2' },
   })
 
   await execPnpm(['install', '--no-prefer-frozen-lockfile'], { env: { CI: 'true' } })

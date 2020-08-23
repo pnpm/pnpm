@@ -14,7 +14,7 @@ import pShare = require('promise-share')
 import uuid = require('uuid')
 
 export type StoreServerController = StoreController & {
-  stop (): Promise<void>,
+  stop: () => Promise<void>,
 }
 
 export default function (
@@ -28,9 +28,9 @@ export default function (
 
   return new Promise((resolve, reject) => {
     resolve({
-      close: async () => { return },
+      close: async () => { },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
-      importPackage: async (to: string, opts: {
+      importPackage: (to: string, opts: {
         filesResponse: PackageFilesResponse,
         force: boolean,
       }) => {
@@ -43,7 +43,9 @@ export default function (
         await limitedFetch(`${remotePrefix}/prune`, {})
       },
       requestPackage: requestPackage.bind(null, remotePrefix, limitedFetch),
-      stop: async () => { await limitedFetch(`${remotePrefix}/stop`, {}) },
+      stop: async () => {
+        await limitedFetch(`${remotePrefix}/stop`, {})
+      },
       upload: async (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,
@@ -54,7 +56,7 @@ export default function (
   })
 }
 
-function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: string, body: object): Promise<T> { // tslint:disable-line
+function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: string, body: object): Promise<T> { // eslint-disable-line
   return limit(async () => {
     // TODO: the http://unix: should be also supported by the fetcher
     // but it fails with node-fetch-unix as of v2.3.0
@@ -82,7 +84,7 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
 
 function requestPackage (
   remotePrefix: string,
-  limitedFetch: (url: string, body: object) => any, // tslint:disable-line
+  limitedFetch: (url: string, body: object) => any, // eslint-disable-line
   wantedDependency: WantedDependency,
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
@@ -93,64 +95,64 @@ function requestPackage (
     options,
     wantedDependency,
   })
-  .then((packageResponseBody: object) => {
-    const fetchingBundledManifest = !packageResponseBody['fetchingBundledManifestInProgress'] // tslint:disable-line
-      ? undefined
-      : limitedFetch(`${remotePrefix}/rawManifestResponse`, {
+    .then((packageResponseBody: object) => {
+    const fetchingBundledManifest = !packageResponseBody['fetchingBundledManifestInProgress'] // eslint-disable-line
+        ? undefined
+        : limitedFetch(`${remotePrefix}/rawManifestResponse`, {
+          msgId,
+        })
+    delete packageResponseBody['fetchingBundledManifestInProgress'] // eslint-disable-line
+
+      if (options.skipFetch) {
+        return {
+          body: packageResponseBody,
+          bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
+        }
+      }
+
+      const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
         msgId,
       })
-    delete packageResponseBody['fetchingBundledManifestInProgress'] // tslint:disable-line
-
-    if (options.skipFetch) {
       return {
         body: packageResponseBody,
         bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
+        files: pShare(fetchingFiles),
+        finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
       }
-    }
-
-    const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
-      msgId,
     })
-    return {
-      body: packageResponseBody,
-      bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
-      files: pShare(fetchingFiles),
-      finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
-    }
-  })
 }
 
 function fetchPackage (
   remotePrefix: string,
-  limitedFetch: (url: string, body: object) => any, // tslint:disable-line
+  limitedFetch: (url: string, body: object) => any, // eslint-disable-line
   options: FetchPackageToStoreOptions
 ): {
-  bundledManifest?: () => Promise<DependencyManifest>,
-  files: () => Promise<PackageFilesResponse>,
-  filesIndexFile: string,
-  finishing: () => Promise<void>,
-  inStoreLocation: string,
-} {
+    bundledManifest?: () => Promise<DependencyManifest>,
+    files: () => Promise<PackageFilesResponse>,
+    filesIndexFile: string,
+    finishing: () => Promise<void>,
+    inStoreLocation: string,
+  } {
   const msgId = uuid.v4()
 
   return limitedFetch(`${remotePrefix}/fetchPackage`, {
     msgId,
     options,
   })
-  .then((fetchResponseBody: object & {filesIndexFile: string, inStoreLocation: string}) => {
-    const fetchingBundledManifest = options.fetchRawManifest
-      ? limitedFetch(`${remotePrefix}/rawManifestResponse`, { msgId })
-      : undefined
+    .then((fetchResponseBody: object & {filesIndexFile: string, inStoreLocation: string}) => {
+      const fetchingBundledManifest = options.fetchRawManifest
+        ? limitedFetch(`${remotePrefix}/rawManifestResponse`, { msgId })
+        : undefined
 
-    const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
-      msgId,
+      const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
+        msgId,
+      })
+      return {
+        bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
+        files: pShare(fetchingFiles),
+        filesIndexFile: fetchResponseBody.filesIndexFile,
+        finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
+        inStoreLocation: fetchResponseBody.inStoreLocation,
+      }
     })
-    return {
-      bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
-      files: pShare(fetchingFiles),
-      filesIndexFile: fetchResponseBody.filesIndexFile,
-      finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
-      inStoreLocation: fetchResponseBody.inStoreLocation,
-    }
-  })
 }

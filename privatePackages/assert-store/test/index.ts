@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import assertStore from '@pnpm/assert-store'
 import path = require('path')
 import test = require('tape')

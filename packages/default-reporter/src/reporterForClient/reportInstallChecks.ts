@@ -1,7 +1,7 @@
 import { InstallCheckLog } from '@pnpm/core-loggers'
-import most = require('most')
 import formatWarn from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
+import most = require('most')
 
 export default (
   installCheck$: most.Stream<InstallCheckLog>,
@@ -25,16 +25,16 @@ function formatInstallCheck (
 ) {
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false
   switch (logObj.code) {
-    case 'EBADPLATFORM':
-      return autozoom(
-        currentPrefix,
-        logObj['prefix'],
-        formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
-        { zoomOutCurrent }
-      )
-    case 'ENOTSUP':
-      return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), { zoomOutCurrent })
-    default:
-      return
+  case 'EBADPLATFORM':
+    return autozoom(
+      currentPrefix,
+      logObj['prefix'],
+      formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
+      { zoomOutCurrent }
+    )
+  case 'ENOTSUP':
+    return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), { zoomOutCurrent })
+  default:
+    return undefined
   }
 }

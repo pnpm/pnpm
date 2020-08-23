@@ -3,9 +3,9 @@ import baseLogger, {
   Logger,
 } from '@pnpm/logger'
 
-export const progressLogger = baseLogger('progress') as Logger<ProgressMessage> // tslint:disable-line
+export const progressLogger = baseLogger('progress') as Logger<ProgressMessage> // eslint-disable-line
 
-export type ProgressMessage = {
+export interface ProgressMessage {
   packageId: string,
   requester: string,
   status: 'fetched' | 'found_in_store' | 'resolved',

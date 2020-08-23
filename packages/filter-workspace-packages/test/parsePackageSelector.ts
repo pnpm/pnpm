@@ -1,6 +1,6 @@
 import { PackageSelector, parsePackageSelector } from '@pnpm/filter-workspace-packages'
-import isWindows = require('is-windows')
 import path = require('path')
+import isWindows = require('is-windows')
 import test = require('tape')
 
 const fixtures: Array<[string, PackageSelector]> = [
@@ -178,7 +178,7 @@ const fixtures: Array<[string, PackageSelector]> = [
 ]
 
 test('parsePackageSelector()', (t) => {
-  for (let fixture of fixtures) {
+  for (const fixture of fixtures) {
     t.deepEqual(
       parsePackageSelector(fixture[0], process.cwd()),
       fixture[1],

@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import resolveFromLocal from '@pnpm/local-resolver'
 import path = require('path')
 import test = require('tape')
@@ -8,8 +8,8 @@ test('resolve directory', async t => {
   t.equal(resolveResult!.id, 'link:..')
   t.equal(resolveResult!.normalizedPref, 'link:..')
   t.equal(resolveResult!['manifest']!.name, '@pnpm/local-resolver')
-  t.equal(resolveResult!.resolution!['directory'], '..')
-  t.equal(resolveResult!.resolution!['type'], 'directory')
+  t.equal(resolveResult!.resolution['directory'], '..')
+  t.equal(resolveResult!.resolution['type'], 'directory')
   t.end()
 })
 
@@ -18,8 +18,8 @@ test('resolve directory specified using the file: protocol', async t => {
   t.equal(resolveResult!.id, 'link:..')
   t.equal(resolveResult!.normalizedPref, 'link:..')
   t.equal(resolveResult!['manifest']!.name, '@pnpm/local-resolver')
-  t.equal(resolveResult!.resolution!['directory'], '..')
-  t.equal(resolveResult!.resolution!['type'], 'directory')
+  t.equal(resolveResult!.resolution['directory'], '..')
+  t.equal(resolveResult!.resolution['type'], 'directory')
   t.end()
 })
 
@@ -28,8 +28,8 @@ test('resolve directoty specified using the link: protocol', async t => {
   t.equal(resolveResult!.id, 'link:..')
   t.equal(resolveResult!.normalizedPref, 'link:..')
   t.equal(resolveResult!['manifest']!.name, '@pnpm/local-resolver')
-  t.equal(resolveResult!.resolution!['directory'], '..')
-  t.equal(resolveResult!.resolution!['type'], 'directory')
+  t.equal(resolveResult!.resolution['directory'], '..')
+  t.equal(resolveResult!.resolution['type'], 'directory')
   t.end()
 })
 
@@ -90,7 +90,7 @@ test('resolve tarball specified with file: protocol', async t => {
 test('fail when resolving tarball specified with the link: protocol', async t => {
   try {
     const wantedDependency = { pref: 'link:./pnpm-local-resolver-0.1.1.tgz' }
-    const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
+    await resolveFromLocal(wantedDependency, { projectDir: __dirname })
     t.fail()
   } catch (err) {
     t.ok(err)
@@ -102,7 +102,7 @@ test('fail when resolving tarball specified with the link: protocol', async t =>
 test('fail when resolving from not existing directory', async t => {
   try {
     const wantedDependency = { pref: 'link:./dir-does-not-exist' }
-    const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
+    await resolveFromLocal(wantedDependency, { projectDir: __dirname })
     t.fail()
   } catch (err) {
     t.ok(err)

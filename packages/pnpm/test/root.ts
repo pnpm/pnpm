@@ -1,10 +1,10 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
-import isWindows = require('is-windows')
-import path = require('path')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpmSync } from './utils'
+import path = require('path')
+import isWindows = require('is-windows')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

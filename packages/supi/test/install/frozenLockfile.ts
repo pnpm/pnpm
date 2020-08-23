@@ -1,15 +1,15 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import path = require('path')
-import sinon = require('sinon')
 import {
   install,
   MutatedProject,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

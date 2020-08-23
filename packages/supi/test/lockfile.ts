@@ -6,27 +6,27 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
-import rimraf = require('@zkochan/rimraf')
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import nock = require('nock')
-import path = require('path')
-import exists = require('path-exists')
-import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
-import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
   testDefaults,
 } from './utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
+import nock = require('nock')
+import exists = require('path-exists')
+import R = require('ramda')
+import sinon = require('sinon')
+import tape = require('tape')
+import writeYamlFile = require('write-yaml-file')
 
 const test = promisifyTape(tape)
 
@@ -66,8 +66,8 @@ test('lockfile has correct format', async (t: tape.Test) => {
   t.ok(lockfile.packages[id].dependencies, `has dependency resolutions for ${id}`)
   t.ok(lockfile.packages[id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
   t.ok(lockfile.packages[id].resolution, `has resolution for ${id}`)
-  t.ok((lockfile.packages[id].resolution as {integrity: string}).integrity, `has integrity for package in the default registry`)
-  t.notOk((lockfile.packages[id].resolution as TarballResolution).tarball, `has no tarball for package in the default registry`)
+  t.ok((lockfile.packages[id].resolution as {integrity: string}).integrity, 'has integrity for package in the default registry')
+  t.notOk((lockfile.packages[id].resolution as TarballResolution).tarball, 'has no tarball for package in the default registry')
 
   const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
   t.ok(lockfile.packages[absDepPath])
@@ -157,13 +157,13 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   const project = prepareEmpty(t)
 
   // dependends on react-onclickoutside@5.9.0
-  let manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ fastUnpack: false, save: true }))
+  const manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ fastUnpack: false, save: true }))
 
   // dependends on react-onclickoutside@0.3.4
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   t.equal(
-    project.requireModule(`.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json`).version,
+    project.requireModule('.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json').version,
     '0.3.4',
     'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
 
@@ -337,8 +337,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/foobar@100.0.0/node_modules/foo`))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/foobar@100.0.0/node_modules/bar`))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/bar'))).version, '100.0.0')
 
   await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
@@ -363,8 +363,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/foobar@100.0.0/node_modules/foo`))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/foobar@100.0.0/node_modules/bar`))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/bar'))).version, '100.0.0')
 })
 
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async (t: tape.Test) => {
@@ -479,9 +479,9 @@ test('scoped module from different registry', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults()
-  opts.registries!.default = 'https://registry.npmjs.org/' // tslint:disable-line
-  opts.registries!['@zkochan'] = `http://localhost:${REGISTRY_MOCK_PORT}` // tslint:disable-line
-  opts.registries!['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}` // tslint:disable-line
+  opts.registries!.default = 'https://registry.npmjs.org/' // eslint-disable-line
+  opts.registries!['@zkochan'] = `http://localhost:${REGISTRY_MOCK_PORT}` // eslint-disable-line
+  opts.registries!['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}` // eslint-disable-line
   await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], opts)
 
   await project.has('@zkochan/foo')
@@ -858,7 +858,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   const modules = await readYamlFile<object>(path.resolve('node_modules', '.modules.yaml'))
   t.ok(modules, '.modules.yaml in virtual store directory created')
-  t.equal(modules['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
+  t.equal(modules['pendingBuilds'].length, 0) // eslint-disable-line @typescript-eslint/dot-notation
 
   {
     const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
@@ -879,8 +879,8 @@ test('lockfile file has correct format when lockfile directory does not equal th
     t.ok(lockfile.packages![id].dependencies, `has dependency resolutions for ${id}`)
     t.ok(lockfile.packages![id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
     t.ok(lockfile.packages![id].resolution, `has resolution for ${id}`)
-    t.ok(lockfile.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // tslint:disable-line
-    t.notOk(lockfile.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // tslint:disable-line
+    t.ok(lockfile.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // eslint-disable-line
+    t.notOk(lockfile.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // eslint-disable-line
 
     const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
     t.ok(lockfile.packages![absDepPath])
@@ -915,8 +915,8 @@ test('lockfile file has correct format when lockfile directory does not equal th
     t.ok(lockfile.packages![id].dependencies, `has dependency resolutions for ${id}`)
     t.ok(lockfile.packages![id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
     t.ok(lockfile.packages![id].resolution, `has resolution for ${id}`)
-    t.ok(lockfile.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // tslint:disable-line
-    t.notOk(lockfile.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // tslint:disable-line
+    t.ok(lockfile.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // eslint-disable-line
+    t.notOk(lockfile.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // eslint-disable-line
 
     const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
     t.ok(lockfile.packages![absDepPath])
@@ -1126,16 +1126,16 @@ test('broken lockfile is fixed even if it seems like up-to-date at first. Unless
     },
   ], await testDefaults({ preferFrozenLockfile: true }))
 
-  project.has('pkg-with-1-dep')
+  await project.has('pkg-with-1-dep')
   const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
 })
 
 const REGISTRY_MIRROR_DIR = path.join(__dirname, '../../../registry-mirror')
 
-// tslint:disable:no-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const isPositiveMeta = loadJsonFile.sync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
-// tslint:enable:no-any
+/* eslint-enable @typescript-eslint/no-explicit-any */
 const tarballPath = path.join(REGISTRY_MIRROR_DIR, 'is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async (t: tape.Test) => {

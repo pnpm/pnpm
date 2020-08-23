@@ -1,15 +1,9 @@
 import { PackageFileInfo } from '@pnpm/store-controller-types'
-import getStream = require('get-stream')
-import path = require('path')
-import exists = require('path-exists')
-import pathTemp = require('path-temp')
-import renameOverwrite = require('rename-overwrite')
-import ssri = require('ssri')
 import addFilesFromDir from './addFilesFromDir'
 import addFilesFromTarball from './addFilesFromTarball'
 import checkFilesIntegrity, {
   PackageFilesIndex,
-}from './checkFilesIntegrity'
+} from './checkFilesIntegrity'
 import getFilePathInCafs, {
   contentPathFromHex,
   FileType,
@@ -17,6 +11,12 @@ import getFilePathInCafs, {
   modeIsExecutable,
 } from './getFilePathInCafs'
 import writeFile from './writeFile'
+import path = require('path')
+import getStream = require('get-stream')
+import exists = require('path-exists')
+import pathTemp = require('path-temp')
+import renameOverwrite = require('rename-overwrite')
+import ssri = require('ssri')
 
 export {
   checkFilesIntegrity,

@@ -1,12 +1,12 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+
+import './findBestGlobalPrefixOnWindows'
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
-
-import './findBestGlobalPrefixOnWindows'
 
 // To override any local settings,
 // we force the default values of config
@@ -36,7 +36,7 @@ test('throw error if --link-workspace-packages is used with --global', async (t)
   try {
     await getConfig({
       cliOptions: {
-        'global': true,
+        global: true,
         'link-workspace-packages': true,
       },
       packageManager: {
@@ -55,7 +55,7 @@ test('throw error if --shared-workspace-lockfile is used with --global', async (
   try {
     await getConfig({
       cliOptions: {
-        'global': true,
+        global: true,
         'shared-workspace-lockfile': true,
       },
       packageManager: {
@@ -74,7 +74,7 @@ test('throw error if --lockfile-dir is used with --global', async (t) => {
   try {
     await getConfig({
       cliOptions: {
-        'global': true,
+        global: true,
         'lockfile-dir': '/home/src',
       },
       packageManager: {
@@ -93,7 +93,7 @@ test('throw error if --hoist-pattern is used with --global', async (t) => {
   try {
     await getConfig({
       cliOptions: {
-        'global': true,
+        global: true,
         'hoist-pattern': 'eslint',
       },
       packageManager: {
@@ -112,7 +112,7 @@ test('throw error if --virtual-store-dir is used with --global', async (t) => {
   try {
     await getConfig({
       cliOptions: {
-        'global': true,
+        global: true,
         'virtual-store-dir': 'pkgs',
       },
       packageManager: {
@@ -143,7 +143,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
   {
     const { config } = await getConfig({
       cliOptions: {
-        'global': false,
+        global: false,
       },
       packageManager: {
         name: 'pnpm',
@@ -158,7 +158,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
   {
     const { config } = await getConfig({
       cliOptions: {
-        'global': true,
+        global: true,
       },
       packageManager: {
         name: 'pnpm',
@@ -176,8 +176,8 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
 test('registries of scoped packages are read', async (t) => {
   const { config } = await getConfig({
     cliOptions: {
-      'dir': 'workspace',
-      'userconfig': path.join(__dirname, 'scoped-registries.ini'),
+      dir: 'workspace',
+      userconfig: path.join(__dirname, 'scoped-registries.ini'),
     },
     packageManager: {
       name: 'pnpm',
@@ -185,13 +185,13 @@ test('registries of scoped packages are read', async (t) => {
     },
   })
 
-  // tslint:disable
+  // eslint-disable
   t.deepEqual(config.registries, {
-    'default': 'https://default.com/',
+    default: 'https://default.com/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
   })
-  // tslint:enable
+  // eslint-enable
 
   t.end()
 })
@@ -213,13 +213,13 @@ test('registries in current directory\'s .npmrc have bigger priority then global
     },
   })
 
-  // tslint:disable
+  // eslint-disable
   t.deepEqual(config.registries, {
-    'default': 'https://pnpm.js.org/',
+    default: 'https://pnpm.js.org/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
   })
-  // tslint:enable
+  // eslint-enable
 
   t.end()
 })
@@ -234,7 +234,7 @@ test('filter is read from .npmrc as an array', async (t) => {
 
   const { config } = await getConfig({
     cliOptions: {
-      'global': false,
+      global: false,
     },
     packageManager: {
       name: 'pnpm',
@@ -353,7 +353,7 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
 test('hoist-pattern is undefined if --no-hoist used', async (t) => {
   const { config } = await getConfig({
     cliOptions: {
-      'hoist': false,
+      hoist: false,
     },
     packageManager: {
       name: 'pnpm',
@@ -369,7 +369,7 @@ test('throw error if --no-hoist is used with --shamefully-hoist', async (t) => {
   try {
     await getConfig({
       cliOptions: {
-        'hoist': false,
+        hoist: false,
         'shamefully-hoist': true,
       },
       packageManager: {
@@ -388,7 +388,7 @@ test('throw error if --no-hoist is used with --shamefully-flatten', async (t) =>
   try {
     await getConfig({
       cliOptions: {
-        'hoist': false,
+        hoist: false,
         'shamefully-flatten': true,
       },
       packageManager: {
@@ -407,7 +407,7 @@ test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
   try {
     await getConfig({
       cliOptions: {
-        'hoist': false,
+        hoist: false,
         'hoist-pattern': 'eslint-*',
       },
       packageManager: {

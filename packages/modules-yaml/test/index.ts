@@ -1,8 +1,8 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import { read, write } from '@pnpm/modules-yaml'
-import isWindows = require('is-windows')
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
+import path = require('path')
+import isWindows = require('is-windows')
 import test = require('tape')
 import tempy = require('tempy')
 

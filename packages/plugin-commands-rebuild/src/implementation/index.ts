@@ -1,5 +1,4 @@
 import {
-  ENGINE_NAME,
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -21,18 +20,18 @@ import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { ProjectManifest } from '@pnpm/types'
-import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
-import graphSequencer = require('graph-sequencer')
-import pLimit = require('p-limit')
-import path = require('path')
-import R = require('ramda')
 import runGroups from 'run-groups'
-import semver = require('semver')
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
 } from './extendRebuildOptions'
+import path = require('path')
+import npa = require('@zkochan/npm-package-arg')
+import graphSequencer = require('graph-sequencer')
+import pLimit = require('p-limit')
+import R = require('ramda')
+import semver = require('semver')
 
 export { RebuildOptions }
 
@@ -199,8 +198,8 @@ function getSubgraphToBuild (
       currentShouldBeBuilt = true
     }
 
-    const childShouldBeBuilt = getSubgraphToBuild(next(), nodesToBuildAndTransitive, opts)
-      || opts.pkgsToRebuild.has(depPath)
+    const childShouldBeBuilt = getSubgraphToBuild(next(), nodesToBuildAndTransitive, opts) ||
+      opts.pkgsToRebuild.has(depPath)
     if (childShouldBeBuilt) {
       nodesToBuildAndTransitive.add(depPath)
       currentShouldBeBuilt = true
@@ -252,7 +251,7 @@ async function _rebuild (
   for (const depPath of nodesToBuildAndTransitiveArray) {
     const pkgSnapshot = pkgSnapshots[depPath]
     graph.set(depPath, R.toPairs({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
-      .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
+      .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
       .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
   }
   const graphSequencerResult = graphSequencer({

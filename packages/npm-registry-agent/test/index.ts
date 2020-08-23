@@ -1,16 +1,16 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import proxiquire = require('proxyquire')
 import test = require('tape')
 
 const MockHttp = mockHttpAgent('http')
 MockHttp['HttpsAgent'] = mockHttpAgent('https')
 const agent = proxiquire('../lib/index.js', {
-  'agentkeepalive': MockHttp,
+  agentkeepalive: MockHttp,
   'https-proxy-agent': mockHttpAgent('https-proxy'),
 }).default
 
 function mockHttpAgent (type: string) {
-  return function Agent (opts: any) { // tslint:disable-line:no-any
+  return function Agent (opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     return Object.assign({}, opts, { __type: type })
   }
 }

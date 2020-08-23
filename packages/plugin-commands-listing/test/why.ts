@@ -11,7 +11,7 @@ test('`pnpm why` should fail if no package name was provided', async (t) => {
 
   let err!: PnpmError
   try {
-    const output = await why.handler({
+    await why.handler({
       dir: process.cwd(),
     }, [])
   } catch (_err) {

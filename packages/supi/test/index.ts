@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
 import './allProjectsAreUpToDate.test'
 import './api'
 import './breakingChanges'

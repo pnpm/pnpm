@@ -86,12 +86,12 @@ export interface PackageSnapshot {
 }
 
 export interface Dependencies {
-  [name: string]: string
+  [name: string]: string,
 }
 
 export type PackageBin = string | {[name: string]: string}
 
-/*** @example
+/** @example
  * {
  *   "foo": "registry.npmjs.org/foo/1.0.1"
  * }

@@ -43,13 +43,6 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import rimraf = require('@zkochan/rimraf')
-import isInnerLink = require('is-inner-link')
-import isSubdir = require('is-subdir')
-import pFilter = require('p-filter')
-import pLimit = require('p-limit')
-import path = require('path')
-import R = require('ramda')
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
@@ -71,6 +64,12 @@ import linkPackages, {
   Project as ProjectToLink,
 } from './link'
 import { depPathToRef } from './lockfile'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import isInnerLink = require('is-inner-link')
+import pFilter = require('p-filter')
+import pLimit = require('p-limit')
+import R = require('ramda')
 
 export type DependenciesMutation = (
   {
@@ -201,7 +200,7 @@ export async function mutateModules (
             lockfileDir: ctx.lockfileDir,
             modulesDir: opts.modulesDir,
             ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
-            packageManager:  opts.packageManager,
+            packageManager: opts.packageManager,
             pendingBuilds: ctx.pendingBuilds,
             projects: ctx.projects as Array<{
               binsDir: string,
@@ -260,89 +259,89 @@ export async function mutateModules (
     // TODO: make it concurrent
     for (const project of ctx.projects) {
       switch (project.mutation) {
-        case 'uninstallSome':
-          projectsToInstall.push({
-            pruneDirectDependencies: false,
-            ...project,
-            removePackages: project.dependencyNames,
-            updatePackageManifest: true,
-            wantedDependencies: [],
-          })
-          break
-        case 'install': {
-          await installCase({
-            ...project,
-            updatePackageManifest: opts.updatePackageManifest ?? opts.update === true,
-          })
-          break
-        }
-        case 'installSome': {
-          await installSome({
-            ...project,
-            updatePackageManifest: opts.updatePackageManifest !== false,
-          })
-          break
-        }
-        case 'unlink': {
-          const packageDirs = await readModulesDirs(project.modulesDir)
-          const externalPackages = await pFilter(
-            packageDirs!,
-            (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir)
-          )
-          const allDeps = getAllDependenciesFromManifest(project.manifest)
-          const packagesToInstall: string[] = []
-          for (const pkgName of externalPackages) {
-            await rimraf(path.join(project.modulesDir, pkgName))
-            if (allDeps[pkgName]) {
-              packagesToInstall.push(pkgName)
-            }
+      case 'uninstallSome':
+        projectsToInstall.push({
+          pruneDirectDependencies: false,
+          ...project,
+          removePackages: project.dependencyNames,
+          updatePackageManifest: true,
+          wantedDependencies: [],
+        })
+        break
+      case 'install': {
+        await installCase({
+          ...project,
+          updatePackageManifest: opts.updatePackageManifest ?? opts.update === true,
+        })
+        break
+      }
+      case 'installSome': {
+        await installSome({
+          ...project,
+          updatePackageManifest: opts.updatePackageManifest !== false,
+        })
+        break
+      }
+      case 'unlink': {
+        const packageDirs = await readModulesDirs(project.modulesDir)
+        const externalPackages = await pFilter(
+          packageDirs!,
+          (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir)
+        )
+        const allDeps = getAllDependenciesFromManifest(project.manifest)
+        const packagesToInstall: string[] = []
+        for (const pkgName of externalPackages) {
+          await rimraf(path.join(project.modulesDir, pkgName))
+          if (allDeps[pkgName]) {
+            packagesToInstall.push(pkgName)
           }
-          if (!packagesToInstall.length) return projects
+        }
+        if (!packagesToInstall.length) return projects
 
-          // TODO: install only those that were unlinked
-          // but don't update their version specs in package.json
-          await installCase({ ...project, mutation: 'install' })
-          break
+        // TODO: install only those that were unlinked
+        // but don't update their version specs in package.json
+        await installCase({ ...project, mutation: 'install' })
+        break
+      }
+      case 'unlinkSome': {
+        if (project.manifest?.name && opts.globalBin) {
+          await removeBin(path.join(opts.globalBin, project.manifest?.name))
         }
-        case 'unlinkSome': {
-          if (project.manifest?.name && opts.globalBin) {
-            await removeBin(path.join(opts.globalBin, project.manifest?.name))
-          }
-          const packagesToInstall: string[] = []
-          const allDeps = getAllDependenciesFromManifest(project.manifest)
-          for (const depName of project.dependencyNames) {
-            try {
-              if (!await isExternalLink(ctx.storeDir, project.modulesDir, depName)) {
-                logger.warn({
-                  message: `${depName} is not an external link`,
-                  prefix: project.rootDir,
-                })
-                continue
-              }
-            } catch (err) {
-              if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
+        const packagesToInstall: string[] = []
+        const allDeps = getAllDependenciesFromManifest(project.manifest)
+        for (const depName of project.dependencyNames) {
+          try {
+            if (!await isExternalLink(ctx.storeDir, project.modulesDir, depName)) {
+              logger.warn({
+                message: `${depName} is not an external link`,
+                prefix: project.rootDir,
+              })
+              continue
             }
-            await rimraf(path.join(project.modulesDir, depName))
-            if (allDeps[depName]) {
-              packagesToInstall.push(depName)
-            }
+          } catch (err) {
+            if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
           }
-          if (!packagesToInstall.length) return projects
+          await rimraf(path.join(project.modulesDir, depName))
+          if (allDeps[depName]) {
+            packagesToInstall.push(depName)
+          }
+        }
+        if (!packagesToInstall.length) return projects
 
-          // TODO: install only those that were unlinked
-          // but don't update their version specs in package.json
-          await installSome({
-            ...project,
-            dependencySelectors: packagesToInstall,
-            mutation: 'installSome',
-            updatePackageManifest: false,
-          })
-          break
-        }
+        // TODO: install only those that were unlinked
+        // but don't update their version specs in package.json
+        await installSome({
+          ...project,
+          dependencySelectors: packagesToInstall,
+          mutation: 'installSome',
+          updatePackageManifest: false,
+        })
+        break
+      }
       }
     }
 
-    async function installCase (project: any) { // tslint:disable-line:no-any
+    async function installCase (project: any) { // eslint-disable-line
       const wantedDependencies = getWantedDependencies(project.manifest, {
         includeDirect: opts.includeDirect,
         updateWorkspaceDependencies: opts.update,
@@ -362,7 +361,7 @@ export async function mutateModules (
         ctx.pendingBuilds.push(project.id)
       }
 
-      if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
+      if (scripts['prepublish']) { // eslint-disable-line @typescript-eslint/dot-notation
         logger.warn({
           message: '`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.',
           prefix: project.rootDir,
@@ -375,7 +374,7 @@ export async function mutateModules (
       })
     }
 
-    async function installSome (project: any) { // tslint:disable-line:no-any
+    async function installSome (project: any) { // eslint-disable-line
       const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromManifest(project.manifest)
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
@@ -486,7 +485,7 @@ function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDep
   importer.optionalDependencies = importer.optionalDependencies || {}
   for (const { alias, pref } of wantedDeps) {
     if (alias && importer.specifiers[alias] !== pref) {
-      if (importer.dependencies[alias]?.startsWith('link:') === false) {
+      if (!importer.dependencies[alias]?.startsWith('link:')) {
         delete importer.dependencies[alias]
       }
       delete importer.devDependencies[alias]
@@ -591,11 +590,11 @@ async function installInContext (
     !opts.update &&
     ctx.wantedLockfile.packages &&
     !R.isEmpty(ctx.wantedLockfile.packages) &&
-    getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages!) || undefined
+    getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages) || undefined
   )
-  const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION
-    || !opts.currentLockfileIsUpToDate
-    || opts.force
+  const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
+    !opts.currentLockfileIsUpToDate ||
+    opts.force
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,
     lockfileOnly: opts.lockfileOnly,
@@ -672,14 +671,14 @@ async function installInContext (
 
     const topParents = project.manifest
       ? await getTopParents(
-          R.difference(
-            Object.keys(getAllDependenciesFromManifest(project.manifest)),
-            resolvedImporter.directDependencies
-              .filter((dep, index) => project.wantedDependencies[index].isNew === true)
-              .map(({ alias }) => alias) || []
-          ),
-          project.modulesDir
-        )
+        R.difference(
+          Object.keys(getAllDependenciesFromManifest(project.manifest)),
+          resolvedImporter.directDependencies
+            .filter((dep, index) => project.wantedDependencies[index].isNew === true)
+            .map(({ alias }) => alias) || []
+        ),
+        project.modulesDir
+      )
       : []
 
     return {
@@ -864,17 +863,17 @@ async function toResolveImporter (
       ...project.wantedDependencies,
       ...existingDeps,
     ]
-    .map((dep) => ({
-      ...dep,
-      updateDepth: opts.defaultUpdateDepth,
-    }))
+      .map((dep) => ({
+        ...dep,
+        updateDepth: opts.defaultUpdateDepth,
+      }))
   } else {
     // Direct local tarballs are always checked,
     // so their update depth should be at least 0
     const updateLocalTarballs = (dep: WantedDependency) => ({
       ...dep,
-      updateDepth: opts.updateAll ?
-        opts.defaultUpdateDepth : (prefIsLocalTarball(dep.pref) ? 0 : -1),
+      updateDepth: opts.updateAll
+        ? opts.defaultUpdateDepth : (prefIsLocalTarball(dep.pref) ? 0 : -1),
     })
     wantedDependencies = [
       ...project.wantedDependencies.map(
@@ -904,7 +903,7 @@ function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ProjectToLink) {
   return linkBins(modulesDir, binsDir, { allowExoticManifests: true, warn })
 }
 
-async function linkAllBins (
+function linkAllBins (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
@@ -913,7 +912,7 @@ async function linkAllBins (
   }
 ) {
   return Promise.all(
-    depNodes.map((depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts))))
+    depNodes.map(depNode => limitLinking(() => linkBinsOfDependencies(depNode, depGraph, opts)))
   )
 }
 
@@ -1009,7 +1008,7 @@ async function getTopParents (pkgNames: string[], modules: string) {
   )
   return (
     pkgs
-    .filter(Boolean) as DependencyManifest[]
+      .filter(Boolean) as DependencyManifest[]
   )
     .map(({ name, version }: DependencyManifest) => ({ name, version }))
 }

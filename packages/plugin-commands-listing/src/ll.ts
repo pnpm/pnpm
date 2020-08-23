@@ -1,5 +1,5 @@
-import R = require('ramda')
 import * as list from './list'
+import R = require('ramda')
 
 export const commandNames = ['ll', 'la']
 

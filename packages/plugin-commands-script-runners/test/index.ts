@@ -1,4 +1,4 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
 import {
   restart,
   run,
@@ -7,14 +7,14 @@ import {
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import prepare from '@pnpm/prepare'
-import execa = require('execa')
-import fs = require('mz/fs')
-import path = require('path')
-import test = require('tape')
 import './exec'
 import './runCompletion'
 import './runRecursive'
 import './testRecursive'
+import execa = require('execa')
+import fs = require('mz/fs')
+import path = require('path')
+import test = require('tape')
 
 test('pnpm run: returns correct exit code', async (t) => {
   prepare(t, {
@@ -45,7 +45,7 @@ test('pnpm run: returns correct exit code', async (t) => {
   t.end()
 })
 
-const RECORD_ARGS_FILE = `require('fs').writeFileSync('args.json', JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')`
+const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
 test('run: pass the args to the command that is specfied in the build script', async (t) => {
   prepare(t, {
@@ -185,17 +185,17 @@ test('stop: pass the args to the command that is specfied in the build script of
 test('restart: run stop, restart and start', async (t) => {
   prepare(t, {
     scripts: {
-      poststop: `node -e "process.stdout.write('poststop')" | json-append ./output.json`,
-      prestop: `node -e "process.stdout.write('prestop')" | json-append ./output.json`,
-      stop: `node -e "process.stdout.write('stop')" | json-append ./output.json`,
+      poststop: 'node -e "process.stdout.write(\'poststop\')" | json-append ./output.json',
+      prestop: 'node -e "process.stdout.write(\'prestop\')" | json-append ./output.json',
+      stop: 'node -e "process.stdout.write(\'stop\')" | json-append ./output.json',
 
-      postrestart: `node -e "process.stdout.write('postrestart')" | json-append ./output.json`,
-      prerestart: `node -e "process.stdout.write('prerestart')" | json-append ./output.json`,
-      restart: `node -e "process.stdout.write('restart')" | json-append ./output.json`,
+      postrestart: 'node -e "process.stdout.write(\'postrestart\')" | json-append ./output.json',
+      prerestart: 'node -e "process.stdout.write(\'prerestart\')" | json-append ./output.json',
+      restart: 'node -e "process.stdout.write(\'restart\')" | json-append ./output.json',
 
-      poststart: `node -e "process.stdout.write('poststart')" | json-append ./output.json`,
-      prestart: `node -e "process.stdout.write('prestart')" | json-append ./output.json`,
-      start: `node -e "process.stdout.write('start')" | json-append ./output.json`,
+      poststart: 'node -e "process.stdout.write(\'poststart\')" | json-append ./output.json',
+      prestart: 'node -e "process.stdout.write(\'prestart\')" | json-append ./output.json',
+      start: 'node -e "process.stdout.write(\'start\')" | json-append ./output.json',
     },
   })
 

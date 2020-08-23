@@ -1,19 +1,18 @@
-import PnpmError from '@pnpm/error'
-import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
-import { run } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
+import { run } from '@pnpm/plugin-commands-script-runners'
+import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
+import PnpmError from '@pnpm/error'
+import { DEFAULT_OPTS, REGISTRY } from './utils'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
-import fs = require('mz/fs')
-import path = require('path')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS, REGISTRY } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('pnpm recursive run', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -22,7 +21,7 @@ test('pnpm recursive run', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-1')" | json-append ../output1.json && node -e "process.stdout.write('project-1')" | json-append ../output2.json`,
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
       },
     },
     {
@@ -34,9 +33,9 @@ test('pnpm recursive run', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
-        postbuild: `node -e "process.stdout.write('project-2-postbuild')" | json-append ../output1.json`,
-        prebuild: `node -e "process.stdout.write('project-2-prebuild')" | json-append ../output1.json`,
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output1.json',
+        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output1.json',
       },
     },
     {
@@ -48,7 +47,7 @@ test('pnpm recursive run', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
       },
     },
     {
@@ -86,7 +85,7 @@ test('pnpm recursive run', async (t) => {
 })
 
 test('pnpm recursive run concurrently', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -95,7 +94,7 @@ test('pnpm recursive run concurrently', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); require('json-append').append(Date.now(),'../output1.json');},50)"`,
+        build: 'node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'../output1.json\');},50)"',
       },
     },
     {
@@ -106,7 +105,7 @@ test('pnpm recursive run concurrently', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "let i = 40;setInterval(() => {if (!--i) process.exit(0); require('json-append').append(Date.now(),'../output2.json');},25)"`,
+        build: 'node -e "let i = 40;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'../output2.json\');},25)"',
       },
     },
   ])
@@ -137,7 +136,7 @@ test('pnpm recursive run concurrently', async (t) => {
 })
 
 test('`pnpm recursive run` fails when run without filters and no package has the desired command, unless if-present is set', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -203,7 +202,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
 })
 
 test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command, unless if-present is set', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -257,7 +256,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
 })
 
 test('`pnpm recursive run` succeeds when run against a subset of packages and no package has the desired command', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -407,7 +406,7 @@ Commands available via "pnpm run":
 })
 
 test('testing the bail config with "pnpm recursive run"', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -416,7 +415,7 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
       },
     },
     {
@@ -428,7 +427,7 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `exit 1 && node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+        build: 'exit 1 && node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
       },
     },
     {
@@ -440,7 +439,7 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
       },
     },
   ])
@@ -494,7 +493,7 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
 })
 
 test('pnpm recursive run with filtering', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -503,7 +502,7 @@ test('pnpm recursive run with filtering', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
       },
     },
     {
@@ -515,9 +514,9 @@ test('pnpm recursive run with filtering', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
-        postbuild: `node -e "process.stdout.write('project-2-postbuild')" | json-append ../output.json`,
-        prebuild: `node -e "process.stdout.write('project-2-prebuild')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
+        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output.json',
+        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output.json',
       },
     },
   ])
@@ -552,7 +551,7 @@ test('pnpm recursive run with filtering', async (t) => {
 })
 
 test('`pnpm recursive run` should always trust the scripts', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project',
       version: '1.0.0',
@@ -561,7 +560,7 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project')" | json-append ../output.json`,
+        build: 'node -e "process.stdout.write(\'project\')" | json-append ../output.json',
       },
     },
   ])
@@ -611,7 +610,7 @@ test('`pnpm run -r` should avoid infinite recursion', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
       },
     },
     {
@@ -622,7 +621,7 @@ test('`pnpm run -r` should avoid infinite recursion', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        build: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
       },
     },
   ])

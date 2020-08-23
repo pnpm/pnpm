@@ -1,19 +1,19 @@
-import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import isCI = require('is-ci')
-import isWindows = require('is-windows')
-import fs = require('mz/fs')
-import path = require('path')
-import readYamlFile from 'read-yaml-file'
-import tape = require('tape')
+import { Lockfile } from '@pnpm/lockfile-types'
 import promisifyTape from 'tape-promise'
-import writeYamlFile = require('write-yaml-file')
+import readYamlFile from 'read-yaml-file'
 import {
   execPnpm,
   execPnpmSync,
   retryLoadJsonFile,
   spawnPnpm,
 } from '../utils'
+import isCI = require('is-ci')
+import isWindows = require('is-windows')
+import fs = require('mz/fs')
+import path = require('path')
+import tape = require('tape')
+import writeYamlFile = require('write-yaml-file')
 
 const test = promisifyTape(tape)
 
@@ -45,10 +45,10 @@ test('recursive installation with package-specific .npmrc', async t => {
   t.ok(projects['project-2'].requireModule('is-negative'))
 
   const modulesYaml1 = await readYamlFile<{ hoistPattern: string }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
-  t.deepEqual(modulesYaml1 && modulesYaml1.hoistPattern, ['*'])
+  t.deepEqual(modulesYaml1?.hoistPattern, ['*'])
 
   const modulesYaml2 = await readYamlFile<{ hoistPattern: string }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
-  t.notOk(modulesYaml2 && modulesYaml2.hoistPattern)
+  t.notOk(modulesYaml2?.hoistPattern)
 })
 
 test('workspace .npmrc is always read', async (t: tape.Test) => {
@@ -88,7 +88,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   t.ok(projects['project-1'].requireModule('is-positive'))
 
   const modulesYaml1 = await readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
-  t.deepEqual(modulesYaml1 && modulesYaml1.hoistPattern, ['*'])
+  t.deepEqual(modulesYaml1?.hoistPattern, ['*'])
 
   process.chdir('..')
   process.chdir('project-2')
@@ -98,7 +98,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   t.ok(projects['project-2'].requireModule('is-negative'))
 
   const modulesYaml2 = await readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
-  t.notOk(modulesYaml2 && modulesYaml2.hoistPattern)
+  t.notOk(modulesYaml2?.hoistPattern)
 })
 
 test('recursive installation using server', async (t: tape.Test) => {
@@ -122,7 +122,7 @@ test('recursive installation using server', async (t: tape.Test) => {
   ])
 
   const storeDir = path.resolve('store')
-  const server = spawnPnpm(['server', 'start'], { storeDir })
+  spawnPnpm(['server', 'start'], { storeDir })
 
   const serverJsonPath = path.resolve(storeDir, 'v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
@@ -235,10 +235,10 @@ test('recursive installation of packages in workspace ignores hooks in packages'
   await execPnpm(['recursive', 'install'])
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  // tslint:disable: no-unnecessary-type-assertion
+  /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
   t.notOk(lockfile.packages!['/dep-of-pkg-with-1-dep/100.1.0'])
   t.ok(lockfile.packages!['/is-number/1.0.0'])
-  // tslint:enable: no-unnecessary-type-assertion
+  /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
 test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile is used', async t => {
@@ -320,9 +320,9 @@ test('recursive command with filter from config', async (t: tape.Test) => {
   await fs.writeFile('.npmrc', 'filter=project-1 project-2', 'utf8')
   await execPnpm(['recursive', 'install'])
 
-  projects['project-1'].has('is-positive')
-  projects['project-2'].has('is-negative')
-  projects['project-3'].hasNot('minimatch')
+  await projects['project-1'].has('is-positive')
+  await projects['project-2'].has('is-negative')
+  await projects['project-3'].hasNot('minimatch')
 })
 
 test('non-recursive install ignores filter from config', async (t: tape.Test) => {
@@ -359,9 +359,9 @@ test('non-recursive install ignores filter from config', async (t: tape.Test) =>
   await fs.writeFile('.npmrc', 'filter=project-2', 'utf8')
   await execPnpm(['install'])
 
-  projects['project-1'].has('is-positive')
-  projects['project-2'].hasNot('is-negative')
-  projects['project-3'].hasNot('minimatch')
+  await projects['project-1'].has('is-positive')
+  await projects['project-2'].hasNot('is-negative')
+  await projects['project-3'].hasNot('minimatch')
 })
 
 test('adding new dependency in the root should fail if --ignore-workspace-root-check is not used', async (t: tape.Test) => {
@@ -375,7 +375,7 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
     t.equal(status, 1)
 
     t.ok(
-      stdout.toString().includes(
+      stdout.toString().includes( // eslint-disable-line
         'Running this command will add the dependency to the workspace root, ' +
         'which might not be what you want - if you really meant it, ' +
         'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).'

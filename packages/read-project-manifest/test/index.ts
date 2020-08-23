@@ -1,16 +1,16 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
+import { promisify } from 'util'
 import readProjectManifest, { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import fs = require('graceful-fs')
 import path = require('path')
+import fs = require('graceful-fs')
 import test = require('tape')
 import tempy = require('tempy')
-import { promisify } from 'util'
 
 const writeFile = promisify(fs.writeFile)
 const readFile = promisify(fs.readFile)
 const stat = promisify(fs.stat)
 
-const fixtures = path.join(__dirname, 'fixtures')
+const fixtures = path.join(__dirname, '../fixtures')
 
 test('readProjectManifest()', async (t) => {
   t.deepEqual(
@@ -130,7 +130,7 @@ test('fail on invalid JSON', async (t) => {
 
   t.ok(err)
   t.equal(err['code'], 'ERR_PNPM_JSON_PARSE')
-  t.ok(err.message.startsWith(`Unexpected string in JSON at position 20 while parsing '{  "name": "foo"  "version": "1.0.0"}' in `))
+  t.ok(err.message.startsWith('Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in '))
 
   t.end()
 })

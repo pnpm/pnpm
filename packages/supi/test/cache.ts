@@ -1,11 +1,11 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from './utils'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 

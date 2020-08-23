@@ -10,8 +10,8 @@ export const commandNames = ['recursive', 'multi', 'm']
 
 export function help () {
   return renderHelp({
-    description: `Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules). \
-A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.`,
+    description: 'Concurrently performs some actions in all subdirectories with a `package.json` (excluding node_modules). \
+A `pnpm-workspace.yaml` file may be used to control what directories are searched for packages.',
     descriptionLists: [
       {
         title: 'Commands',
@@ -47,23 +47,23 @@ A \`pnpm-workspace.yaml\` file may be used to control what directories are searc
             name: 'outdated [<pkg>...]',
           },
           {
-            description: `This runs an arbitrary command from each package's "scripts" object. \
-If a package doesn't have the command, it is skipped. \
-If none of the packages have the command, the command fails.`,
+            description: 'This runs an arbitrary command from each package\'s "scripts" object. \
+If a package doesn\'t have the command, it is skipped. \
+If none of the packages have the command, the command fails.',
             name: 'run <command> [-- <args>...]',
           },
           {
-            description: `This runs each package's "test" script, if one was provided.`,
+            description: 'This runs each package\'s "test" script, if one was provided.',
             name: 'test [-- <args>...]',
           },
           {
-            description: `This command runs the "npm build" command on each package. \
+            description: 'This command runs the "npm build" command on each package. \
 This is useful when you install a new version of node, \
-and must recompile all your C++ addons with the new binary.`,
+and must recompile all your C++ addons with the new binary.',
             name: 'rebuild [[<@scope>/<name>]...]',
           },
           {
-            description: `Run a command in each package.`,
+            description: 'Run a command in each package.',
             name: 'exec -- <command> [args...]',
           },
           {
@@ -85,8 +85,8 @@ and must recompile all your C++ addons with the new binary.`,
             name: '--workspace-concurrency <number>',
           },
           {
-            description: `Locally available packages are linked to node_modules instead of being downloaded from the registry. \
-Convenient to use in a multi-package repository.`,
+            description: 'Locally available packages are linked to node_modules instead of being downloaded from the registry. \
+Convenient to use in a multi-package repository.',
             name: '--link-workspace-packages',
           },
           {

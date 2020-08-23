@@ -1,19 +1,19 @@
+import { Stats } from 'fs'
+import { promisify } from 'util'
 import PnpmError from '@pnpm/error'
 import { ProjectManifest } from '@pnpm/types'
 import writeProjectManifest from '@pnpm/write-project-manifest'
-import detectIndent = require('detect-indent')
-import equal = require('fast-deep-equal')
-import fs = require('fs')
-import { Stats } from 'fs'
-import isWindows = require('is-windows')
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
-import sortKeys = require('sort-keys')
-import { promisify } from 'util'
 import {
   readJson5File,
   readJsonFile,
 } from './readFile'
+import fs = require('fs')
+import detectIndent = require('detect-indent')
+import equal = require('fast-deep-equal')
+import isWindows = require('is-windows')
+import path = require('path')
+import sortKeys = require('sort-keys')
 
 const stat = promisify(fs.stat)
 
@@ -21,14 +21,14 @@ type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Prom
 
 export default async function readProjectManifest (projectDir: string): Promise<{
   fileName: string,
-  manifest: ProjectManifest
+  manifest: ProjectManifest,
   writeProjectManifest: WriteProjectManifest,
 }> {
   const result = await tryReadProjectManifest(projectDir)
   if (result.manifest !== null) {
     return result as {
       fileName: string,
-      manifest: ProjectManifest
+      manifest: ProjectManifest,
       writeProjectManifest: WriteProjectManifest,
     }
   }
@@ -43,7 +43,7 @@ export async function readProjectManifestOnly (projectDir: string): Promise<Proj
 
 export async function tryReadProjectManifest (projectDir: string): Promise<{
   fileName: string,
-  manifest: ProjectManifest | null
+  manifest: ProjectManifest | null,
   writeProjectManifest: WriteProjectManifest,
 }> {
   try {
@@ -97,7 +97,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     }
     if (s && !s.isDirectory()) {
       const err = new Error(`"${projectDir}" is not a directory`)
-      err['code'] = 'ENOTDIR' // tslint:disable-line
+      err['code'] = 'ENOTDIR' // eslint-disable-line
       throw err
     }
   }
@@ -119,35 +119,35 @@ function detectFileFormatting (text: string) {
 export async function readExactProjectManifest (manifestPath: string) {
   const base = path.basename(manifestPath).toLowerCase()
   switch (base) {
-    case 'package.json': {
-      const { data, text } = await readJsonFile(manifestPath)
-      return {
-        manifest: data,
-        writeProjectManifest: createManifestWriter({
-          ...detectFileFormatting(text),
-          initialManifest: data,
-          manifestPath,
-        }),
-      }
+  case 'package.json': {
+    const { data, text } = await readJsonFile(manifestPath)
+    return {
+      manifest: data,
+      writeProjectManifest: createManifestWriter({
+        ...detectFileFormatting(text),
+        initialManifest: data,
+        manifestPath,
+      }),
     }
-    case 'package.json5': {
-      const { data, text } = await readJson5File(manifestPath)
-      return {
-        manifest: data,
-        writeProjectManifest: createManifestWriter({
-          ...detectFileFormatting(text),
-          initialManifest: data,
-          manifestPath,
-        }),
-      }
+  }
+  case 'package.json5': {
+    const { data, text } = await readJson5File(manifestPath)
+    return {
+      manifest: data,
+      writeProjectManifest: createManifestWriter({
+        ...detectFileFormatting(text),
+        initialManifest: data,
+        manifestPath,
+      }),
     }
-    case 'package.yaml': {
-      const manifest = await readPackageYaml(manifestPath)
-      return {
-        manifest,
-        writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
-      }
+  }
+  case 'package.yaml': {
+    const manifest = await readPackageYaml(manifestPath)
+    return {
+      manifest,
+      writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
+  }
   }
   throw new Error(`Not supported manifest name "${base}"`)
 }
@@ -157,7 +157,7 @@ async function readPackageYaml (filePath: string) {
     return await readYamlFile<ProjectManifest>(filePath)
   } catch (err) {
     if (err.name !== 'YAMLException') throw err
-    err.message += `\nin ${filePath}`
+    err.message = `${err.message}\nin ${filePath}`
     err['code'] = 'ERR_PNPM_YAML_PARSE'
     throw err
   }
@@ -172,7 +172,7 @@ function createManifestWriter (
   }
 ): (WriteProjectManifest) {
   const initialManifest = normalize(JSON.parse(JSON.stringify(opts.initialManifest)))
-  return async (updatedManifest: ProjectManifest, force?: boolean) => {
+  return (updatedManifest: ProjectManifest, force?: boolean) => {
     updatedManifest = normalize(updatedManifest)
     if (force === true || !equal(initialManifest, updatedManifest)) {
       return writeProjectManifest(opts.manifestPath, updatedManifest, {
@@ -180,6 +180,7 @@ function createManifestWriter (
         insertFinalNewline: opts.insertFinalNewline,
       })
     }
+    return Promise.resolve(undefined)
   }
 }
 

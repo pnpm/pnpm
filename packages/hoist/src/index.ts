@@ -194,8 +194,8 @@ async function symlinkHoistedDependencies (
       .map(async ([depPath, pkgAliases]) => {
         const pkgSnapshot = opts.lockfile.packages![depPath]
         if (!pkgSnapshot) {
-          globalWarn(`Failed to find "${depPath}" in lockfile during hoisting. `
-            + `Next aliases will not be hoisted: ${Object.keys(pkgAliases).join(', ')}`)
+          globalWarn(`Failed to find "${depPath}" in lockfile during hoisting. ` +
+            `Next aliases will not be hoisted: ${Object.keys(pkgAliases).join(', ')}`)
           return
         }
         const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
@@ -207,5 +207,5 @@ async function symlinkHoistedDependencies (
           await symlinkDependency(depLocation, targetDir, pkgAlias)
         }))
       }
-    ))
+      ))
 }

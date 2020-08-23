@@ -1,19 +1,19 @@
-import test = require('tape')
 import {
   currentTypedWordType,
   getLastOption,
   getOptionCompletions,
 } from '../src/getOptionType'
+import test = require('tape')
 
 const TYPES = {
-  'color': ['red', 'blue', Array],
-  'dev': Boolean,
+  color: ['red', 'blue', Array],
+  dev: Boolean,
   'save-dev': Boolean,
   'store-dir': String,
 }
 
 const SHORTHANDS = {
-  'D': '--save-dev',
+  D: '--save-dev',
 }
 
 test('getOptionCompletions()', t => {

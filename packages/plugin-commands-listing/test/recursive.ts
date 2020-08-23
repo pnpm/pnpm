@@ -4,15 +4,15 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import fs = require('mz/fs')
+import { DEFAULT_OPTS } from './utils'
 import path = require('path')
+import fs = require('mz/fs')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS } from './utils'
 
 test('recursive list', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -72,7 +72,7 @@ is-negative 1.0.0`)
 
 test('recursive list with shared-workspace-lockfile', async (t) => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -135,7 +135,7 @@ is-negative 1.0.0`)
 })
 
 test('recursive list --filter', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -182,7 +182,7 @@ test('recursive list --filter', async (t) => {
   }, [])
 
   test('recursive list --filter link-workspace-packages=false', async (t) => {
-    const projects = preparePackages(t, [
+    preparePackages(t, [
       {
         dependencies: {
           'is-positive': '1.0.0',

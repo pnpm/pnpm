@@ -38,10 +38,6 @@ import {
   Registries,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import path = require('path')
-import exists = require('path-exists')
-import R = require('ramda')
-import semver = require('semver')
 import encodePkgId from './encodePkgId'
 import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
 import {
@@ -50,6 +46,10 @@ import {
   splitNodeId,
 } from './nodeIdUtils'
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
+import path = require('path')
+import exists = require('path-exists')
+import R = require('ramda')
+import semver = require('semver')
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -65,7 +65,7 @@ export function nodeIdToParents (
 }
 
 // child nodeId by child alias name in case of non-linked deps
-export type ChildrenMap = {
+export interface ChildrenMap {
   [alias: string]: string,
 }
 
@@ -164,7 +164,7 @@ export type PkgAddress = {
   isLinkedDependency: true,
   version: string,
 } | {
-  isLinkedDependency: void,
+  isLinkedDependency: undefined,
 })
 
 export interface ResolvedPackage {
@@ -326,7 +326,7 @@ export default async function resolveDependencies (
         })
     )
   )
-  .filter(Boolean) as PkgAddress[]
+    .filter(Boolean) as PkgAddress[]
 
   const newPreferredVersions = { ...preferredVersions }
   for (const { pkgId } of pkgAddresses) {
@@ -360,7 +360,7 @@ function getDepsToResolve (
   // is to get information about the existing dependencies, so that they can
   // be merged with the resolved peers.
   const proceedAll = options.proceed
-  let allPeers = new Set<string>()
+  const allPeers = new Set<string>()
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
     let proceed = proceedAll
@@ -371,7 +371,7 @@ function getDepsToResolve (
     // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
     // and foo was updated to 1.1.0 which depends on bar ^1.0.0
     // then bar@1.0.0 can be reused for foo@1.1.0
-    if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // tslint:disable-line
+    if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // eslint-disable-line
       preferredDependencies[wantedDependency.alias] &&
       preferedSatisfiesWanted(
         preferredDependencies[wantedDependency.alias],
@@ -481,7 +481,7 @@ function getInfoFromLockfile (
   }
 }
 
-type ResolveDependencyOptions = {
+interface ResolveDependencyOptions {
   currentDepth: number,
   currentPkg?: {
     depPath?: string,
@@ -581,7 +581,7 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest || await pkgResponse.bundledManifest!() // tslint:disable-line:no-string-literal
+    const manifest = pkgResponse.body.manifest || await pkgResponse.bundledManifest!() // eslint-disable-line @typescript-eslint/dot-notation
     return {
       alias: wantedDependency.alias || manifest.name,
       dev: wantedDependency.dev,
@@ -630,7 +630,7 @@ async function resolveDependency (
       ...pkg,
     }
   } else {
-    // tslint:disable:no-string-literal
+    /* eslint-disable @typescript-eslint/dot-notation */
     prepare = Boolean(
       pkgResponse.body.resolvedVia === 'git-repository' &&
       typeof pkg.scripts?.prepare === 'string'
@@ -643,7 +643,7 @@ async function resolveDependency (
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
     hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories?.bin)
-    // tslint:enable:no-string-literal
+    /* eslint-enable @typescript-eslint/dot-notation */
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
@@ -666,7 +666,7 @@ async function resolveDependency (
   const nodeId = createNodeId(options.parentPkg.nodeId, pkgResponse.body.id)
 
   const currentIsInstallable = (
-      ctx.force ||
+    ctx.force ||
       packageIsInstallable(pkgResponse.body.id, pkg, {
         engineStrict: ctx.engineStrict,
         lockfileDir: ctx.lockfileDir,
@@ -674,7 +674,7 @@ async function resolveDependency (
         optional: wantedDependency.optional,
         pnpmVersion: ctx.pnpmVersion,
       })
-    )
+  )
   const installable = parentIsInstallable && currentIsInstallable !== false
   const isNew = !ctx.resolvedPackagesByPackageId[pkgResponse.body.id]
 

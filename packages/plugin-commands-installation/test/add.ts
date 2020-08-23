@@ -2,8 +2,8 @@ import PnpmError from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import loadJsonFile = require('load-json-file')
 import path = require('path')
+import loadJsonFile = require('load-json-file')
 import test = require('tape')
 import tempy = require('tempy')
 
@@ -54,7 +54,7 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  t.deepEqual(pkg && pkg.dependencies, { 'project-2': 'workspace:^2.0.0' })
+  t.deepEqual(pkg?.dependencies, { 'project-2': 'workspace:^2.0.0' })
 
   await projects['project-1'].has('project-2')
 
@@ -84,7 +84,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  t.deepEqual(pkg && pkg.dependencies, { 'project-2': 'workspace:^2.0.0' })
+  t.deepEqual(pkg?.dependencies, { 'project-2': 'workspace:^2.0.0' })
 
   await projects['project-1'].has('project-2')
 
@@ -92,7 +92,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 })
 
 test('add: fail when "workspace" option is true but the command runs not in a workspace', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -121,7 +121,7 @@ test('add: fail when "workspace" option is true but the command runs not in a wo
 })
 
 test('add: fail when "workspace" option is true but linkWorkspacePackages is false and --no-save-workspace-protocol option is used', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -177,7 +177,7 @@ test('installing with "workspace=true" with linkWorkpacePackages on and saveWork
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  t.deepEqual(pkg && pkg.dependencies, { 'project-2': '^2.0.0' })
+  t.deepEqual(pkg?.dependencies, { 'project-2': '^2.0.0' })
 
   await projects['project-1'].has('project-2')
 

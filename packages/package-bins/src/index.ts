@@ -1,9 +1,9 @@
+import { promisify } from 'util'
 import { DependencyManifest, PackageBin } from '@pnpm/types'
 import { readdir, stat } from 'graceful-fs'
+import path = require('path')
 import isSubdir = require('is-subdir')
 import pFilter = require('p-filter')
-import path = require('path')
-import { promisify } from 'util'
 
 const readdirP = promisify(readdir)
 const statP = promisify(stat)
@@ -17,7 +17,7 @@ export default async function binify (manifest: DependencyManifest, pkgPath: str
   if (manifest.bin) {
     return commandsFromBin(manifest.bin, manifest.name, pkgPath)
   }
-  if (manifest.directories && manifest.directories.bin) {
+  if (manifest.directories?.bin) {
     const binDir = path.join(pkgPath, manifest.directories.bin)
     const files = await findFiles(binDir)
     return pFilter(

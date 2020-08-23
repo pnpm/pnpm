@@ -4,13 +4,13 @@ import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
-import pLimit = require('p-limit')
 import path = require('path')
+import pLimit = require('p-limit')
 import realpathMissing = require('realpath-missing')
 
 export type RecursiveRunOpts = Pick<Config,
-  | 'unsafePerm'
-  | 'rawConfig'
+| 'unsafePerm'
+| 'rawConfig'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -83,14 +83,14 @@ export default async (
             return
           }
 
-          // tslint:disable:no-string-literal
+          /* eslint-disable @typescript-eslint/dot-notation */
           err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
           err['prefix'] = prefix
-          // tslint:enable:no-string-literal
+          /* eslint-enable @typescript-eslint/dot-notation */
           throw err
         }
       }
-    )))
+      )))
   }
 
   if (scriptName !== 'test' && !hasCommand && !opts.ifPresent) {

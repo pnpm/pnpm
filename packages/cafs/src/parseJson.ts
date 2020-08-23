@@ -1,6 +1,6 @@
+import { PassThrough } from 'stream'
 import { DeferredManifestPromise } from '@pnpm/fetcher-base'
 import concatStream = require('concat-stream')
-import { PassThrough } from 'stream'
 import stripBom = require('strip-bom')
 
 export function parseJsonBuffer (

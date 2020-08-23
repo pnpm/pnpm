@@ -1,16 +1,16 @@
 import { ProgressLog, StageLog } from '@pnpm/core-loggers'
 import PushStream from '@zkochan/zen-push'
-import most = require('most')
 import { hlValue } from './outputConstants'
 import { zoomOut } from './utils/zooming'
+import most = require('most')
 
-type ProgressStats = {
+interface ProgressStats {
   fetched: number,
   resolved: number,
   reused: number,
 }
 
-type ModulesInstallProgress = {
+interface ModulesInstallProgress {
   importingDone$: most.Stream<boolean>,
   progress$: most.Stream<ProgressStats>,
   requirer: string,
@@ -37,7 +37,7 @@ export default (
       if (requirer === opts.cwd) {
         return output$
       }
-      return output$.map((msg: any) => { // tslint:disable-line:no-any
+      return output$.map((msg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         msg['msg'] = zoomOut(opts.cwd, requirer, msg['msg'])
         return msg
       })
@@ -63,7 +63,7 @@ function throttledProgressOutput (
   )
   // Avoid logs after all resolved packages were downloaded.
   // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
-  .skipAfter((msg) => msg['done'] === true)
+    .skipAfter((msg) => msg['done'] === true)
 }
 
 function nonThrottledProgressOutput (
@@ -108,6 +108,7 @@ function getModulesInstallProgress$ (
         }
       }, 0)
     })
+    .catch(() => {})
 
   return most.from(modulesInstallProgressPushStream.observable)
 }
@@ -137,21 +138,22 @@ function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog
         }
       }
       switch (log.status) {
-        case 'resolved':
-          previousProgressStatsByRequirer[log.requester].resolved++
-          break
-        case 'fetched':
-          previousProgressStatsByRequirer[log.requester].fetched++
-          break
-        case 'found_in_store':
-          previousProgressStatsByRequirer[log.requester].reused++
-          break
+      case 'resolved':
+        previousProgressStatsByRequirer[log.requester].resolved++
+        break
+      case 'fetched':
+        previousProgressStatsByRequirer[log.requester].fetched++
+        break
+      case 'found_in_store':
+        previousProgressStatsByRequirer[log.requester].reused++
+        break
       }
       if (!progessStatsPushStreamByRequirer[log.requester]) {
         progessStatsPushStreamByRequirer[log.requester] = new PushStream<ProgressStats>()
       }
       progessStatsPushStreamByRequirer[log.requester].next(previousProgressStatsByRequirer[log.requester])
     })
+    .catch(() => {})
 
   return progessStatsPushStreamByRequirer
 }

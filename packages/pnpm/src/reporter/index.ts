@@ -13,40 +13,39 @@ export default (
   }
 ) => {
   switch (reporterType) {
-    case 'default':
-      defaultReporter({
-        context: {
-          argv: opts.cmd ? [opts.cmd] : [],
-          config: opts.config,
-        },
-        reportingOptions: {
-          appendOnly: false,
-          logLevel: opts.config.loglevel as LogLevel,
-          streamLifecycleOutput: opts.config.stream,
-          throttleProgress: 200,
-        },
-        streamParser,
-      })
-      return
-    case 'append-only':
-      defaultReporter({
-        context: {
-          argv: opts.cmd ? [opts.cmd] : [],
-          config: opts.config,
-        },
-        reportingOptions: {
-          appendOnly: true,
-          logLevel: opts.config.loglevel as LogLevel,
-          throttleProgress: 1000,
-        },
-        streamParser,
-      })
-      return
-    case 'ndjson':
-      writeToConsole()
-      return
-    case 'silent':
-      silentReporter(streamParser)
-      return
+  case 'default':
+    defaultReporter({
+      context: {
+        argv: opts.cmd ? [opts.cmd] : [],
+        config: opts.config,
+      },
+      reportingOptions: {
+        appendOnly: false,
+        logLevel: opts.config.loglevel as LogLevel,
+        streamLifecycleOutput: opts.config.stream,
+        throttleProgress: 200,
+      },
+      streamParser,
+    })
+    return
+  case 'append-only':
+    defaultReporter({
+      context: {
+        argv: opts.cmd ? [opts.cmd] : [],
+        config: opts.config,
+      },
+      reportingOptions: {
+        appendOnly: true,
+        logLevel: opts.config.loglevel as LogLevel,
+        throttleProgress: 1000,
+      },
+      streamParser,
+    })
+    return
+  case 'ndjson':
+    writeToConsole()
+    return
+  case 'silent':
+    silentReporter(streamParser)
   }
 }

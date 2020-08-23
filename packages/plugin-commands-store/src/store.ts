@@ -1,15 +1,14 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import logger, { globalInfo, LogBase } from '@pnpm/logger'
+import logger, { LogBase } from '@pnpm/logger'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
-import archy = require('archy')
-import R = require('ramda')
-import renderHelp = require('render-help')
 import storeAdd from './storeAdd'
 import storePrune from './storePrune'
 import storeStatus from './storeStatus'
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -32,9 +31,9 @@ export function help () {
 
         list: [
           {
-            description: `\
+            description: '\
 Checks for modified packages in the store. \
-Returns exit code 0 if the content of the package is the same as it was at the time of unpacking`,
+Returns exit code 0 if the content of the package is the same as it was at the time of unpacking',
             name: 'status',
           },
           {
@@ -42,10 +41,10 @@ Returns exit code 0 if the content of the package is the same as it was at the t
             name: 'add <pkg>...',
           },
           {
-            description: `\
+            description: '\
 Removes unreferenced (extraneous, orphan) packages from the store. \
 Pruning the store is not harmful, but might slow down future installations. \
-Visit the documentation for more information on unreferenced packages and why they occur`,
+Visit the documentation for more information on unreferenced packages and why they occur',
             name: 'prune',
           },
         ],
@@ -71,29 +70,27 @@ export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 's
 export async function handler (opts: StoreCommandOptions, params: string[]) {
   let store
   switch (params[0]) {
-    case 'status':
-      return statusCmd(opts)
-    case 'prune':
-      store = await createOrConnectStoreController(opts)
-      const storePruneOptions = Object.assign(opts, {
-        storeController: store.ctrl,
-        storeDir: store.dir,
-      })
-      return storePrune(storePruneOptions)
-    case 'add':
-      store = await createOrConnectStoreController(opts)
-      return storeAdd(params.slice(1), {
-        prefix: opts.dir,
-        registries: opts.registries,
-        reporter: opts.reporter,
-        storeController: store.ctrl,
-        tag: opts.tag,
-      })
-    default:
-      return help()
-      if (params[0]) {
-        throw new PnpmError('INVALID_STORE_COMMAND', `"store ${params[0]}" is not a pnpm command. See "pnpm help store".`)
-      }
+  case 'status':
+    return statusCmd(opts)
+  case 'prune': {
+    store = await createOrConnectStoreController(opts)
+    const storePruneOptions = Object.assign(opts, {
+      storeController: store.ctrl,
+      storeDir: store.dir,
+    })
+    return storePrune(storePruneOptions)
+  }
+  case 'add':
+    store = await createOrConnectStoreController(opts)
+    return storeAdd(params.slice(1), {
+      prefix: opts.dir,
+      registries: opts.registries,
+      reporter: opts.reporter,
+      storeController: store.ctrl,
+      tag: opts.tag,
+    })
+  default:
+    return help()
   }
 }
 

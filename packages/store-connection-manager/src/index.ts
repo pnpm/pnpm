@@ -6,19 +6,19 @@ import { StoreController } from '@pnpm/package-store'
 import { connectStoreController } from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import delay from 'delay'
-import fs = require('mz/fs')
-import path = require('path')
 import createNewStoreController, { CreateNewStoreControllerOptions } from './createNewStoreController'
 import runServerInBackground from './runServerInBackground'
 import serverConnectionInfoDir from './serverConnectionInfoDir'
+import path = require('path')
+import fs = require('mz/fs')
 
 export { createNewStoreController, serverConnectionInfoDir }
 
 export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions, 'storeDir'> & Pick<Config,
-  | 'storeDir'
-  | 'dir'
-  | 'useRunningStoreServer'
-  | 'useStoreServer'
+| 'storeDir'
+| 'dir'
+| 'useRunningStoreServer'
+| 'useStoreServer'
 >
 
 export async function createOrConnectStoreControllerCached (
@@ -35,9 +35,9 @@ export async function createOrConnectStoreControllerCached (
 export async function createOrConnectStoreController (
   opts: CreateStoreControllerOptions
 ): Promise<{
-  ctrl: StoreController,
-  dir: string,
-}> {
+    ctrl: StoreController,
+    dir: string,
+  }> {
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
@@ -54,7 +54,7 @@ export async function createOrConnectStoreController (
       prefix: opts.dir,
     })
     return {
-      ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
+      ctrl: await connectStoreController(serverJson.connectionOptions), // eslint-disable-line
       dir: storeDir,
     }
   }
@@ -65,11 +65,11 @@ export async function createOrConnectStoreController (
     runServerInBackground(storeDir)
     serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: true })
     logger.info({
-      message: 'A store server has been started. To stop it, use \`pnpm server stop\`',
+      message: 'A store server has been started. To stop it, use `pnpm server stop`',
       prefix: opts.dir,
     })
     return {
-      ctrl: await connectStoreController(serverJson!.connectionOptions), // tslint:disable-line
+      ctrl: await connectStoreController(serverJson!.connectionOptions), // eslint-disable-line
       dir: storeDir,
     }
   }
@@ -80,16 +80,16 @@ export async function createOrConnectStoreController (
 
 export async function tryLoadServerJson (
   options: {
-    serverJsonPath: string;
-    shouldRetryOnNoent: boolean;
+    serverJsonPath: string,
+    shouldRetryOnNoent: boolean,
   }
 ): Promise<null | {
-  connectionOptions: {
-    remotePrefix: string,
-  },
-  pid: number,
-  pnpmVersion: string,
-}> {
+    connectionOptions: {
+      remotePrefix: string,
+    },
+    pid: number,
+    pnpmVersion: string,
+  }> {
   let beforeFirstAttempt = true
   const startHRTime = process.hrtime()
   while (true) {

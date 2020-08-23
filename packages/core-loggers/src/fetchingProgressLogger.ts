@@ -3,7 +3,7 @@ import baseLogger, {
   Logger,
 } from '@pnpm/logger'
 
-export const fetchingProgressLogger = baseLogger('fetching-progress') as Logger<FetchingProgressMessage> // tslint:disable-line
+export const fetchingProgressLogger = baseLogger('fetching-progress') as Logger<FetchingProgressMessage> // eslint-disable-line
 
 export type FetchingProgressMessage = {
   attempt: number,

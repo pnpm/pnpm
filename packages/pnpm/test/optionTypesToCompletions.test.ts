@@ -1,5 +1,5 @@
-import test = require('tape')
 import optionTypesToCompletions from '../src/optionTypesToCompletions'
+import test = require('tape')
 
 test('optionTypesToCompletions()', t => {
   t.deepEqual(

@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/dependencies-hierarchy/coverage ts-node packages/dependencies-hierarchy/test --type-check",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",

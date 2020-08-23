@@ -19,15 +19,6 @@ import {
   ProjectManifest,
   ProjectsGraph,
 } from '@pnpm/types'
-import camelcaseKeys = require('camelcase-keys')
-import isSubdir = require('is-subdir')
-import mem = require('mem')
-import fs = require('mz/fs')
-import pFilter = require('p-filter')
-import pLimit = require('p-limit')
-import path = require('path')
-import R = require('ramda')
-import readIniFile = require('read-ini-file')
 import {
   addDependenciesToPackage,
   install,
@@ -39,31 +30,39 @@ import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+import path = require('path')
+import camelcaseKeys = require('camelcase-keys')
+import isSubdir = require('is-subdir')
+import mem = require('mem')
+import fs = require('mz/fs')
+import pFilter = require('p-filter')
+import pLimit = require('p-limit')
+import readIniFile = require('read-ini-file')
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
-  | 'bail'
-  | 'depth'
-  | 'globalPnpmfile'
-  | 'hoistPattern'
-  | 'ignorePnpmfile'
-  | 'ignoreScripts'
-  | 'linkWorkspacePackages'
-  | 'lockfileDir'
-  | 'lockfileOnly'
-  | 'modulesDir'
-  | 'pnpmfile'
-  | 'rawLocalConfig'
-  | 'registries'
-  | 'save'
-  | 'saveDev'
-  | 'saveExact'
-  | 'saveOptional'
-  | 'savePeer'
-  | 'savePrefix'
-  | 'saveProd'
-  | 'saveWorkspaceProtocol'
-  | 'sharedWorkspaceLockfile'
-  | 'tag'
+| 'bail'
+| 'depth'
+| 'globalPnpmfile'
+| 'hoistPattern'
+| 'ignorePnpmfile'
+| 'ignoreScripts'
+| 'linkWorkspacePackages'
+| 'lockfileDir'
+| 'lockfileOnly'
+| 'modulesDir'
+| 'pnpmfile'
+| 'rawLocalConfig'
+| 'registries'
+| 'save'
+| 'saveDev'
+| 'saveExact'
+| 'saveOptional'
+| 'savePeer'
+| 'savePrefix'
+| 'saveProd'
+| 'saveWorkspaceProtocol'
+| 'sharedWorkspaceLockfile'
+| 'tag'
 > & {
   include?: IncludedDependencies,
   includeDirect?: IncludedDependencies,
@@ -115,8 +114,8 @@ export default async function recursive (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
-    pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
-      && pkgs.length === allProjects.length,
+    pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0) &&
+      pkgs.length === allProjects.length,
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,
@@ -197,48 +196,47 @@ export default async function recursive (
       }
       if (opts.workspace) {
         if (!currentInput || !currentInput.length) {
-          currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages!)
+          currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
         } else {
-          currentInput = createWorkspaceSpecs(currentInput, workspacePackages!)
+          currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
         }
       }
       writeProjectManifests.push(writeProjectManifest)
       switch (mutation) {
-        case 'uninstallSome':
-          mutatedImporters.push({
-            dependencyNames: currentInput,
-            manifest,
-            modulesDir,
-            mutation,
-            rootDir,
-            targetDependenciesField,
-          } as MutatedProject)
-          return
-        case 'installSome':
-          mutatedImporters.push({
-            allowNew: cmdFullName === 'install' || cmdFullName === 'add',
-            dependencySelectors: currentInput,
-            manifest,
-            modulesDir,
-            mutation,
-            peer: opts.savePeer,
-            pinnedVersion: getPinnedVersion({
-              saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
-              savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
-            }),
-            rootDir,
-            targetDependenciesField,
-          } as MutatedProject)
-          return
-        case 'install':
-          mutatedImporters.push({
-            buildIndex,
-            manifest,
-            modulesDir,
-            mutation,
-            rootDir,
-          } as MutatedProject)
-          return
+      case 'uninstallSome':
+        mutatedImporters.push({
+          dependencyNames: currentInput,
+          manifest,
+          modulesDir,
+          mutation,
+          rootDir,
+          targetDependenciesField,
+        } as MutatedProject)
+        return
+      case 'installSome':
+        mutatedImporters.push({
+          allowNew: cmdFullName === 'install' || cmdFullName === 'add',
+          dependencySelectors: currentInput,
+          manifest,
+          modulesDir,
+          mutation,
+          peer: opts.savePeer,
+          pinnedVersion: getPinnedVersion({
+            saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+            savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
+          }),
+          rootDir,
+          targetDependenciesField,
+        } as MutatedProject)
+        return
+      case 'install':
+        mutatedImporters.push({
+          buildIndex,
+          manifest,
+          modulesDir,
+          mutation,
+          rootDir,
+        } as MutatedProject)
       }
     }))
     if (!mutatedImporters.length && cmdFullName === 'update') {
@@ -259,7 +257,7 @@ export default async function recursive (
     return true
   }
 
-  let pkgPaths = chunks.length === 0
+  const pkgPaths = chunks.length === 0
     ? chunks[0]
     : Object.keys(opts.selectedProjectsGraph).sort()
 
@@ -268,7 +266,7 @@ export default async function recursive (
     limitInstallation(async () => {
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
       try {
-        if (opts.ignoredPackages && opts.ignoredPackages.has(rootDir)) {
+        if (opts.ignoredPackages?.has(rootDir)) {
           return
         }
 
@@ -287,29 +285,29 @@ export default async function recursive (
           }
         }
 
-        let action!: any // tslint:disable-line:no-any
+        let action!: any // eslint-disable-line @typescript-eslint/no-explicit-any
         switch (cmdFullName) {
-          case 'unlink':
-            action = (currentInput.length === 0 ? unlink : unlinkPkgs.bind(null, currentInput))
-            break
-          case 'remove':
-            action = async (manifest: PackageManifest, opts: any) => { // tslint:disable-line:no-any
-              const [{ manifest: newManifest }] = await mutateModules([
-                {
-                  dependencyNames: currentInput,
-                  manifest,
-                  mutation: 'uninstallSome',
-                  rootDir,
-                },
-              ], opts)
-              return newManifest
-            }
-            break
-          default:
-            action = currentInput.length === 0
-              ? install
-              : (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // tslint:disable-line:no-any
-            break
+        case 'unlink':
+          action = (currentInput.length === 0 ? unlink : unlinkPkgs.bind(null, currentInput))
+          break
+        case 'remove':
+          action = async (manifest: PackageManifest, opts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+            const [{ manifest: newManifest }] = await mutateModules([
+              {
+                dependencyNames: currentInput,
+                manifest,
+                mutation: 'uninstallSome',
+                rootDir,
+              },
+            ], opts)
+            return newManifest
+          }
+          break
+        default:
+          action = currentInput.length === 0
+            ? install
+            : (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+          break
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
@@ -349,7 +347,7 @@ export default async function recursive (
           return
         }
 
-        err['prefix'] = rootDir // tslint:disable-line:no-string-literal
+        err['prefix'] = rootDir // eslint-disable-line @typescript-eslint/dot-notation
         throw err
       }
     })
@@ -379,7 +377,7 @@ export default async function recursive (
   return true
 }
 
-async function unlink (manifest: ProjectManifest, opts: any) { // tslint:disable-line:no-any
+function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
   return mutateModules(
     [
       {
@@ -392,7 +390,7 @@ async function unlink (manifest: ProjectManifest, opts: any) { // tslint:disable
   )
 }
 
-async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any) { // tslint:disable-line:no-any
+function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
   return mutateModules(
     [
       {

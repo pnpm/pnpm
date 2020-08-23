@@ -1,13 +1,13 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import logger from './logger'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import yaml = require('js-yaml')
 import fs = require('mz/fs')
-import path = require('path')
 import R = require('ramda')
 import writeFileAtomicCB = require('write-file-atomic')
-import logger from './logger'
 
 function writeFileAtomic (filename: string, data: string) {
   return new Promise((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => err ? reject(err) : resolve()))

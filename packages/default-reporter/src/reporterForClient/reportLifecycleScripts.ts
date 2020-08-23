@@ -1,15 +1,15 @@
 import { LifecycleLog } from '@pnpm/core-loggers'
 import PushStream from '@zkochan/zen-push'
-import chalk = require('chalk')
-import most = require('most')
-import path = require('path')
-import prettyTime = require('pretty-time')
-import stripAnsi = require('strip-ansi')
 import { EOL } from '../constants'
 import {
   hlValue,
 } from './outputConstants'
 import formatPrefix, { formatPrefixNoTrim } from './utils/formatPrefix'
+import path = require('path')
+import chalk = require('chalk')
+import most = require('most')
+import prettyTime = require('pretty-time')
+import stripAnsi = require('strip-ansi')
 
 const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 
@@ -56,7 +56,7 @@ export default (
   const lifecyclePushStream = new PushStream()
 
   // TODO: handle promise of .forEach?!
-  log$.lifecycle // tslint:disable-line
+  log$.lifecycle // eslint-disable-line
     .forEach((log: LifecycleLog) => {
       const key = `${log.stage}:${log.depPath}`
       lifecycleMessages[key] = lifecycleMessages[key] || {
@@ -85,7 +85,7 @@ export default (
       }
     })
 
-  return most.from(lifecyclePushStream.observable) as most.Stream<most.Stream<{ msg: string }>>
+  return most.from(lifecyclePushStream.observable)
 }
 
 function renderCollapsedScriptOutput (

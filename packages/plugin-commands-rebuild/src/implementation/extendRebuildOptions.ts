@@ -2,8 +2,8 @@ import { LogBase } from '@pnpm/logger'
 import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
-import loadJsonFile = require('load-json-file')
 import path = require('path')
+import loadJsonFile = require('load-json-file')
 
 export interface StrictRebuildOptions {
   childConcurrency: number,
@@ -34,7 +34,7 @@ export interface StrictRebuildOptions {
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
-  Pick<StrictRebuildOptions, 'storeDir' | 'storeController'>
+Pick<StrictRebuildOptions, 'storeDir' | 'storeController'>
 
 const defaults = async (opts: RebuildOptions) => {
   const packageManager = opts.packageManager ||

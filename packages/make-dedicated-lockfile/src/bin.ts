@@ -2,7 +2,7 @@ import PnpmError from '@pnpm/error'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import makeDedicatedLockfile from '.'
 
-main()
+main() // eslint-disable-line
 
 async function main () {
   const projectDir = process.cwd()

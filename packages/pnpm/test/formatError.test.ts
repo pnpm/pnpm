@@ -1,8 +1,8 @@
+import { formatUnknownOptionsError } from '../src/formatError'
 import chalk = require('chalk')
 import test = require('tape')
-import { formatUnknownOptionsError } from '../src/formatError'
 
-let ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
+const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
 
 test('formatUnknownOptionsError()', async (t) => {
   t.equal(

@@ -12,7 +12,7 @@
     "node": ">=10.13"
   },
   "scripts": {
-    "lint": "tslint -c ../../tslint.json --project .",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-bins/coverage ts-node packages/package-bins/test --type-check",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",

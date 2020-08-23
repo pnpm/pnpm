@@ -1,3 +1,3 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import './getManifest.spec'
 import './outdated.spec'

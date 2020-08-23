@@ -1,3 +1,4 @@
+import { promisify } from 'util'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { connectStoreController } from '@pnpm/server'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
@@ -6,7 +7,6 @@ import delay from 'delay'
 import path = require('path')
 import processExists = require('process-exists')
 import killcb = require('tree-kill')
-import { promisify } from 'util'
 
 const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 

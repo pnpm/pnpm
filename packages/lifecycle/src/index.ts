@@ -1,8 +1,8 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import path = require('path')
-import exists = require('path-exists')
 import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
 import runLifecycleHooksConcurrently from './runLifecycleHooksConcurrently'
+import path = require('path')
+import exists = require('path-exists')
 
 export default runLifecycleHook
 export { runLifecycleHooksConcurrently, RunLifecycleHookOptions }
@@ -52,6 +52,6 @@ async function checkBindingGyp (
   scripts: {}
 ) {
   if (await exists(path.join(root, 'binding.gyp'))) {
-    scripts['install'] = 'node-gyp rebuild' // tslint:disable-line:no-string-literal
+    scripts['install'] = 'node-gyp rebuild' // eslint-disable-line @typescript-eslint/dot-notation
   }
 }

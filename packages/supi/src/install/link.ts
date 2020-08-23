@@ -24,16 +24,16 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import fs = require('mz/fs')
-import pLimit = require('p-limit')
-import path = require('path')
-import R = require('ramda')
 import { depPathToRef } from './lockfile'
 import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
 } from './resolvePeers'
 import updateLockfile from './updateLockfile'
+import path = require('path')
+import fs = require('mz/fs')
+import pLimit = require('p-limit')
+import R = require('ramda')
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -85,13 +85,13 @@ export default async function linkPackages (
     wantedToBeSkippedPackageIds: Set<string>,
   }
 ): Promise<{
-  currentLockfile: Lockfile,
-  depGraph: DependenciesGraph,
-  newDepPaths: string[],
-  newHoistedDependencies: HoistedDependencies,
-  removedDepPaths: Set<string>,
-  wantedLockfile: Lockfile,
-}> {
+    currentLockfile: Lockfile,
+    depGraph: DependenciesGraph,
+    newDepPaths: string[],
+    newHoistedDependencies: HoistedDependencies,
+    removedDepPaths: Set<string>,
+    wantedLockfile: Lockfile,
+  }> {
   // TODO: decide what kind of logging should be here.
   // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
@@ -124,8 +124,8 @@ export default async function linkPackages (
       }
     }
   }
-  const { newLockfile, pendingRequiresBuilds } = updateLockfile(depGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // tslint:disable-line:prefer-const
-  let newWantedLockfile = opts.afterAllResolvedHook
+  const { newLockfile, pendingRequiresBuilds } = updateLockfile(depGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
+  const newWantedLockfile = opts.afterAllResolvedHook
     ? opts.afterAllResolvedHook(newLockfile)
     : newLockfile
 
@@ -276,7 +276,7 @@ export default async function linkPackages (
   ) {
     const packages = opts.currentLockfile.packages || {}
     if (newWantedLockfile.packages) {
-      for (const depPath in newWantedLockfile.packages) { // tslint:disable-line:forin
+      for (const depPath in newWantedLockfile.packages) { // eslint-disable-line:forin
         if (depGraph[depPath]) {
           packages[depPath] = newWantedLockfile.packages[depPath]
         }
@@ -399,7 +399,6 @@ async function linkNewPackages (
       if (currentLockfile.packages[depPath] &&
         (!R.equals(currentLockfile.packages[depPath].dependencies, wantedLockfile.packages[depPath].dependencies) ||
         !R.equals(currentLockfile.packages[depPath].optionalDependencies, wantedLockfile.packages[depPath].optionalDependencies))) {
-
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
         if (depGraph[depPath] && !newDepPathsSet.has(depPath)) {
@@ -468,7 +467,7 @@ async function selectNewFromWantedDeps (
 
 const limitLinking = pLimit(16)
 
-async function linkAllPkgs (
+function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
@@ -490,7 +489,7 @@ async function linkAllPkgs (
   )
 }
 
-async function linkAllModules (
+function linkAllModules (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {

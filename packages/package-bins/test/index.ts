@@ -41,7 +41,7 @@ test('skip dangerous bin names', async (t) => {
       bin: {
         '../bad': './bad',
         '..\\bad': './bad',
-        'good': './good',
+        good: './good',
         '~/bad': './bad',
       },
     }, process.cwd()),
@@ -62,8 +62,8 @@ test('skip dangerous bin locations', async (t) => {
       version: '1.0.0',
 
       bin: {
-        'bad': '../bad',
-        'good': './good',
+        bad: '../bad',
+        good: './good',
       },
     }, process.cwd()),
     [

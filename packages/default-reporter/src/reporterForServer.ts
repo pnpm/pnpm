@@ -1,8 +1,8 @@
 import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
+import reportError from './reportError'
 import chalk = require('chalk')
 import most = require('most')
-import reportError from './reportError'
 
 export default function (
   log$: most.Stream<Log>,
@@ -17,17 +17,16 @@ export default function (
         return
       }
       switch (log.level) {
-        case 'warn':
-          console.log(formatWarn(log['message']))
-          return
-        case 'error':
-          console.log(reportError(log, config))
-          return
-        case 'debug':
-          return
-        default:
-          console.log(log['message'])
-          return
+      case 'warn':
+        console.log(formatWarn(log['message']))
+        return
+      case 'error':
+        console.log(reportError(log, config))
+        return
+      case 'debug':
+        return
+      default:
+        console.log(log['message'])
       }
     },
   })

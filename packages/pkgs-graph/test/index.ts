@@ -1,6 +1,6 @@
-///<reference path="../../../typings/local.d.ts"/>
-import pathResolve = require('better-path-resolve')
+/// <reference path="../../../typings/local.d.ts"/>
 import createPkgGraph from 'pkgs-graph'
+import pathResolve = require('better-path-resolve')
 import test = require('tape')
 
 const BAR1_PATH = pathResolve('/zkochan/src/bar')
@@ -18,7 +18,7 @@ test('create package graph', t => {
         version: '1.0.0',
 
         dependencies: {
-          'foo': '^1.0.0',
+          foo: '^1.0.0',
           'is-positive': '1.0.0',
         },
       },
@@ -64,7 +64,7 @@ test('create package graph', t => {
           version: '1.0.0',
 
           dependencies: {
-            'foo': '^1.0.0',
+            foo: '^1.0.0',
             'is-positive': '1.0.0',
           },
         },
@@ -121,7 +121,7 @@ test('create package graph for local directory dependencies', t => {
         version: '1.0.0',
 
         dependencies: {
-          'foo': '../foo',
+          foo: '../foo',
           'is-positive': '1.0.0',
           'weird-dep': ':aaaaa', // weird deps are skipped
         },
@@ -168,7 +168,7 @@ test('create package graph for local directory dependencies', t => {
           version: '1.0.0',
 
           dependencies: {
-            'foo': '../foo',
+            foo: '../foo',
             'is-positive': '1.0.0',
             'weird-dep': ':aaaaa',
           },
@@ -226,7 +226,7 @@ test('create package graph ignoring the workspace protocol', t => {
         version: '1.0.0',
 
         dependencies: {
-          'foo': 'workspace:^1.0.0',
+          foo: 'workspace:^1.0.0',
           'is-positive': '1.0.0',
         },
       },
@@ -272,7 +272,7 @@ test('create package graph ignoring the workspace protocol', t => {
           version: '1.0.0',
 
           dependencies: {
-            'foo': 'workspace:^1.0.0',
+            foo: 'workspace:^1.0.0',
             'is-positive': '1.0.0',
           },
         },
@@ -326,7 +326,7 @@ test('create package graph respects linked-workspace-packages = false', t => {
       dir: BAR1_PATH,
       manifest: {
         dependencies: {
-          'foo': 'workspace:*',
+          foo: 'workspace:*',
         },
         name: 'bar',
         version: '1.0.0',
@@ -356,7 +356,7 @@ test('create package graph respects linked-workspace-packages = false', t => {
       dir: BAR3_PATH,
       manifest: {
         dependencies: {
-          'foo': 'workspace:~1.0.0',
+          foo: 'workspace:~1.0.0',
         },
         name: 'bar',
         version: '3.0.0',
@@ -371,7 +371,7 @@ test('create package graph respects linked-workspace-packages = false', t => {
         dir: BAR1_PATH,
         manifest: {
           dependencies: {
-            'foo': 'workspace:*',
+            foo: 'workspace:*',
           },
           name: 'bar',
           version: '1.0.0',
@@ -429,7 +429,7 @@ test('* matches prerelease versions', t => {
       dir: BAR1_PATH,
       manifest: {
         dependencies: {
-          'foo': '*',
+          foo: '*',
         },
         name: 'bar',
         version: '1.0.0',
@@ -451,7 +451,7 @@ test('* matches prerelease versions', t => {
         dir: BAR1_PATH,
         manifest: {
           dependencies: {
-            'foo': '*',
+            foo: '*',
           },
           name: 'bar',
           version: '1.0.0',

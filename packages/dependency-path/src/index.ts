@@ -88,10 +88,10 @@ export function refToRelative (
 }
 
 export function parse (dependencyPath: string) {
-  // tslint:disable-next-line: strict-type-predicates
+  // eslint-disable-next-line: strict-type-predicates
   if (typeof dependencyPath !== 'string') {
     throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${
-      // tslint:disable-next-line: strict-type-predicates
+      // eslint-disable-next-line: strict-type-predicates
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }

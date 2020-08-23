@@ -2,11 +2,11 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { preparePackages } from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
-import execa = require('execa')
+import { DEFAULT_OPTS, REGISTRY } from './utils'
 import path = require('path')
+import execa = require('execa')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS, REGISTRY } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
@@ -74,7 +74,7 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        postinstall: `node -e "process.stdout.write('project-1')" | json-append ../output1.json && node -e "process.stdout.write('project-1')" | json-append ../output2.json`,
+        postinstall: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
       },
     },
     {
@@ -86,7 +86,7 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        postinstall: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
+        postinstall: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
       },
     },
     {
@@ -98,7 +98,7 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        postinstall: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
+        postinstall: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
       },
     },
     {

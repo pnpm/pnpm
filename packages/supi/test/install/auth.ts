@@ -1,12 +1,12 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf = require('@zkochan/rimraf')
-import RegClient = require('anonymous-npm-registry-client')
-import path = require('path')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import RegClient = require('anonymous-npm-registry-client')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -15,7 +15,7 @@ test('a package that need authentication', async (t: tape.Test) => {
 
   const client = new RegClient()
 
-  const data = await new Promise((resolve, reject) => {
+  const data: { token: string } = await new Promise((resolve, reject) => {
     client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
       auth: {
         email: 'foo@bar.com',
@@ -23,11 +23,11 @@ test('a package that need authentication', async (t: tape.Test) => {
         username: 'foo',
       },
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
-  }) as {token: string}
+  })
 
   let authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
-    'registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
   const manifest = await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
     authConfig,
@@ -44,7 +44,7 @@ test('a package that need authentication', async (t: tape.Test) => {
 
   authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
-    'registry': 'https://registry.npmjs.org/',
+    registry: 'https://registry.npmjs.org/',
   }
   await addDependenciesToPackage(manifest, ['needs-auth'], await testDefaults({}, {
     authConfig,
@@ -61,7 +61,7 @@ test('installing a package that need authentication, using password', async (t: 
 
   const client = new RegClient()
 
-  const data = await new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
       auth: {
         email: 'foo@bar.com',
@@ -69,13 +69,13 @@ test('installing a package that need authentication, using password', async (t: 
         username: 'foo',
       },
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
-  }) as {token: string}
+  })
 
   const encodedPassword = Buffer.from('bar').toString('base64')
-  let authConfig = {
+  const authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_password`]: encodedPassword,
     [`//localhost:${REGISTRY_MOCK_PORT}/:username`]: 'foo',
-    'registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
   await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
     authConfig,
@@ -91,7 +91,7 @@ test('a package that need authentication, legacy way', async (t: tape.Test) => {
 
   const client = new RegClient()
 
-  const data = await new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
       auth: {
         email: 'foo@bar.com',
@@ -102,9 +102,9 @@ test('a package that need authentication, legacy way', async (t: tape.Test) => {
   })
 
   const authConfig = {
-    '_auth': 'Zm9vOmJhcg==', // base64 encoded foo:bar
+    _auth: 'Zm9vOmJhcg==', // base64 encoded foo:bar
     'always-auth': true,
-    'registry': `http://localhost:${REGISTRY_MOCK_PORT}`,
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
   await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
     authConfig,
@@ -120,7 +120,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
 
   const client = new RegClient()
 
-  const data = await new Promise((resolve, reject) => {
+  const data: { token: string } = await new Promise((resolve, reject) => {
     client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
       auth: {
         email: 'foo@bar.com',
@@ -128,12 +128,12 @@ test('a scoped package that need authentication specific to scope', async (t: ta
         username: 'foo',
       },
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
-  }) as {token: string}
+  })
 
   const authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     '@private:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    'registry': 'https://registry.npmjs.org/',
+    registry: 'https://registry.npmjs.org/',
   }
   let opts = await testDefaults({}, {
     authConfig,
@@ -166,7 +166,7 @@ test('a scoped package that need legacy authentication specific to scope', async
 
   const client = new RegClient()
 
-  const data = await new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
       auth: {
         email: 'foo@bar.com',
@@ -180,7 +180,7 @@ test('a scoped package that need legacy authentication specific to scope', async
     [`//localhost:${REGISTRY_MOCK_PORT}/:_auth`]: 'Zm9vOmJhcg==', // base64 encoded foo:bar
     [`//localhost:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
     '@private:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    'registry': 'https://registry.npmjs.org/',
+    registry: 'https://registry.npmjs.org/',
   }
   let opts = await testDefaults({}, {
     authConfig,
@@ -213,7 +213,7 @@ test('a package that need authentication reuses authorization tokens for tarball
 
   const client = new RegClient()
 
-  const data = await new Promise((resolve, reject) => {
+  const data: { token: string } = await new Promise((resolve, reject) => {
     client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
       auth: {
         email: 'foo@bar.com',
@@ -221,12 +221,12 @@ test('a package that need authentication reuses authorization tokens for tarball
         username: 'foo',
       },
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
-  }) as {token: string}
+  })
 
   const authConfig = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
-    'registry': `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }
   await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({
     registries: {
@@ -247,7 +247,7 @@ test('a package that need authentication reuses authorization tokens for tarball
 
   const client = new RegClient()
 
-  const data = await new Promise((resolve, reject) => {
+  const data: { token: string } = await new Promise((resolve, reject) => {
     client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
       auth: {
         email: 'foo@bar.com',
@@ -255,12 +255,12 @@ test('a package that need authentication reuses authorization tokens for tarball
         username: 'foo',
       },
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
-  }) as {token: string}
+  })
 
   const authConfig = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
-    'registry': `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }
   let opts = await testDefaults({
     registries: {

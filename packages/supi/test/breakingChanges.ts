@@ -1,14 +1,14 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDependenciesToPackage, install } from 'supi'
+import promisifyTape from 'tape-promise'
+import { testDefaults } from './utils'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import isCI = require('is-ci')
 import fs = require('mz/fs')
-import path = require('path')
-import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 

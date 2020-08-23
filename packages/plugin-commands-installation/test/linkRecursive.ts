@@ -1,11 +1,11 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { install, link, unlink } from '@pnpm/plugin-commands-installation'
+import { install, unlink } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
+import { DEFAULT_OPTS } from './utils'
 import path = require('path')
 import exists = require('path-exists')
 import test = require('tape')
-import { DEFAULT_OPTS } from './utils'
 
 test('recursive linking/unlinking', async (t) => {
   const projects = preparePackages(t, [

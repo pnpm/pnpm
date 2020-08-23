@@ -149,7 +149,7 @@
   },
   "scripts": {
     "start": "npm run tsc -- --watch",
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/pnpm/coverage ts-node packages/pnpm/test --type-check",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",

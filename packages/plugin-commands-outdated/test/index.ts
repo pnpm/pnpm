@@ -1,14 +1,14 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import './recursive'
 import fs = require('mz/fs')
 import path = require('path')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
-import './recursive'
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
@@ -270,7 +270,7 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
   t.end()
 })
 
-test(`pnpm outdated should return empty when there is no lockfile and no dependencies`, async (t) => {
+test('pnpm outdated should return empty when there is no lockfile and no dependencies', async (t) => {
   prepare(t)
 
   const { output, exitCode } = await outdated.handler({

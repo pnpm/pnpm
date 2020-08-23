@@ -2,19 +2,19 @@ import assertProject from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
-import path = require('path')
-import exists = require('path-exists')
-import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   MutatedProject,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeYamlFile = require('write-yaml-file')
 import { addDistTag, testDefaults } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import exists = require('path-exists')
+import sinon = require('sinon')
+import tape = require('tape')
+import writeYamlFile = require('write-yaml-file')
 
 const test = promisifyTape(tape)
 
@@ -66,8 +66,8 @@ test('install only the dependencies of the specified importer', async (t) => {
   await projects['project-2'].hasNot('is-negative')
 
   const rootModules = assertProject(t, process.cwd())
-  await rootModules.has(`.pnpm/is-positive@1.0.0`)
-  await rootModules.hasNot(`.pnpm/is-negative@1.0.0`)
+  await rootModules.has('.pnpm/is-positive@1.0.0')
+  await rootModules.hasNot('.pnpm/is-negative@1.0.0')
 })
 
 test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async (t) => {
@@ -120,7 +120,7 @@ test('install only the dependencies of the specified importer. The current lockf
         version: '1.0.0',
 
         dependencies: {
-          'foobar': '100.0.0',
+          foobar: '100.0.0',
         },
       },
       mutation: 'install',
@@ -194,9 +194,9 @@ test('dependencies of other importers are not pruned when installing for a subse
   await projects['project-2'].has('is-negative')
 
   const rootModules = assertProject(t, process.cwd())
-  await rootModules.has(`.pnpm/is-positive@2.0.0`)
-  await rootModules.hasNot(`.pnpm/is-positive@1.0.0`)
-  await rootModules.has(`.pnpm/is-negative@1.0.0`)
+  await rootModules.has('.pnpm/is-positive@2.0.0')
+  await rootModules.hasNot('.pnpm/is-positive@1.0.0')
+  await rootModules.has('.pnpm/is-negative@1.0.0')
 
   const lockfile = await rootModules.readCurrentLockfile()
   t.deepEqual(Object.keys(lockfile.importers), ['project-1', 'project-2'])
@@ -259,9 +259,9 @@ test('dependencies of other importers are not pruned when (headless) installing 
   await projects['project-2'].has('is-negative')
 
   const rootModules = assertProject(t, process.cwd())
-  await rootModules.has(`.pnpm/is-positive@2.0.0`)
-  await rootModules.hasNot(`.pnpm/is-positive@1.0.0`)
-  await rootModules.has(`.pnpm/is-negative@1.0.0`)
+  await rootModules.has('.pnpm/is-positive@2.0.0')
+  await rootModules.hasNot('.pnpm/is-positive@1.0.0')
+  await rootModules.has('.pnpm/is-negative@1.0.0')
 })
 
 test('adding a new dev dependency to project that uses a shared lockfile', async (t) => {
@@ -408,7 +408,7 @@ test('headless install is used when packages are not linked from the workspace (
     version: '1.0.0',
 
     dependencies: {
-      'qar': 'workspace:*',
+      qar: 'workspace:*',
     },
   }
   const bar = {
@@ -416,14 +416,14 @@ test('headless install is used when packages are not linked from the workspace (
     version: '1.0.0',
 
     dependencies: {
-      'qar': '100.0.0',
+      qar: '100.0.0',
     },
   }
   const qar = {
     name: 'qar',
     version: '100.0.0',
   }
-  const projects = preparePackages(t, [foo, bar, qar])
+  preparePackages(t, [foo, bar, qar])
 
   const importers: MutatedProject[] = [
     {
@@ -446,7 +446,7 @@ test('headless install is used when packages are not linked from the workspace (
     },
   ]
   const workspacePackages = {
-    'qar': {
+    qar: {
       '100.0.0': {
         dir: path.resolve('qar'),
         manifest: qar,
@@ -603,9 +603,9 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
   ], await testDefaults())
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/is-positive@2.0.0/node_modules/is-positive`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/pkg-with-1-dep`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/dep-of-pkg-with-1-dep@100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/is-positive@2.0.0/node_modules/is-positive')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/pkg-with-1-dep')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/dep-of-pkg-with-1-dep@100.1.0/node_modules/dep-of-pkg-with-1-dep')))
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen', async (t: tape.Test) => {
@@ -696,16 +696,16 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
   ], await testDefaults({ frozenLockfile: true }))
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/pkg-with-1-dep`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/dep-of-pkg-with-1-dep@100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/pkg-with-1-dep')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/dep-of-pkg-with-1-dep@100.1.0/node_modules/dep-of-pkg-with-1-dep')))
 })
 
 test('adding a new dependency with the workspace: protocol', async (t) => {
   await addDistTag('foo', '1.0.0', 'latest')
   prepareEmpty(t)
 
-  let [{ manifest }] = await mutateModules([
+  const [{ manifest }] = await mutateModules([
     {
       dependencySelectors: ['foo'],
       manifest: {
@@ -730,7 +730,7 @@ test('adding a new dependency with the workspace: protocol', async (t) => {
     },
   }))
 
-  t.deepEqual(manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
+  t.deepEqual(manifest.dependencies, { foo: 'workspace:^1.0.0' })
 })
 
 test('update workspace range', async (t) => {
@@ -900,8 +900,8 @@ test('remove dependencies of a project that was removed from the workspace (duri
     t.deepEqual(Object.keys(currentLockfile.importers), ['project-1', 'project-2'])
     t.deepEqual(Object.keys(currentLockfile.packages), ['/is-negative/1.0.0', '/is-positive/1.0.0'])
 
-    await project.has(`.pnpm/is-positive@1.0.0`)
-    await project.has(`.pnpm/is-negative@1.0.0`)
+    await project.has('.pnpm/is-positive@1.0.0')
+    await project.has('.pnpm/is-negative@1.0.0')
   }
 
   await mutateModules(importers.slice(0, 1), await testDefaults({ preferFrozenLockfile: false }))
@@ -910,8 +910,8 @@ test('remove dependencies of a project that was removed from the workspace (duri
     t.deepEqual(Object.keys(currentLockfile.importers), ['project-1'])
     t.deepEqual(Object.keys(currentLockfile.packages), ['/is-positive/1.0.0'])
 
-    await project.has(`.pnpm/is-positive@1.0.0`)
-    await project.hasNot(`.pnpm/is-negative@1.0.0`)
+    await project.has('.pnpm/is-positive@1.0.0')
+    await project.hasNot('.pnpm/is-negative@1.0.0')
   }
 })
 

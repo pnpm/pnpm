@@ -1,3 +1,4 @@
+import { IncomingMessage, Server, ServerResponse } from 'http'
 import { globalInfo } from '@pnpm/logger'
 import {
   RequestPackageOptions,
@@ -5,10 +6,8 @@ import {
   StoreController,
   WantedDependency,
 } from '@pnpm/store-controller-types'
-import http = require('http')
-import { IncomingMessage, Server, ServerResponse } from 'http'
-
 import locking from './lock'
+import http = require('http')
 
 interface RequestBody {
   msgId: string,
@@ -16,9 +15,9 @@ interface RequestBody {
   options: RequestPackageOptions,
   prefix: string,
   opts: {
-    addDependencies: string[];
-    removeDependencies: string[];
-    prune: boolean;
+    addDependencies: string[],
+    removeDependencies: string[],
+    prune: boolean,
   },
   storePath: string,
   id: string,
@@ -38,11 +37,12 @@ export default function (
   const rawManifestPromises = {}
   const filesPromises = {}
 
+  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   const lock = locking<void>()
 
   const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== 'POST') {
-      res.statusCode = 405  // Method Not Allowed
+      res.statusCode = 405 // Method Not Allowed
       const responseError = { error: `Only POST is allowed, received ${req.method}` }
       res.setHeader('Allow', 'POST')
       res.end(JSON.stringify(responseError))
@@ -50,9 +50,9 @@ export default function (
     }
 
     const bodyPromise = new Promise<RequestBody>((resolve, reject) => {
-      let body: any = '' // tslint:disable-line
+      let body: any = '' // eslint-disable-line
       req.on('data', (data) => {
-        body += data
+        body += data // eslint-disable-line
       })
       req.on('end', async () => {
         try {
@@ -71,97 +71,102 @@ export default function (
     try {
       let body: RequestBody
       switch (req.url) {
-        case '/requestPackage': {
-          try {
-            body = await bodyPromise
-            const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
-            if (pkgResponse['bundledManifest']) { // tslint:disable-line
-              rawManifestPromises[body.msgId] = pkgResponse['bundledManifest'] // tslint:disable-line
-              pkgResponse.body['fetchingBundledManifestInProgress'] = true // tslint:disable-line
-            }
-            if (pkgResponse['files']) { // tslint:disable-line
-              filesPromises[body.msgId] = pkgResponse['files'] // tslint:disable-line
-            }
-            res.end(JSON.stringify(pkgResponse.body))
-          } catch (err) {
-            res.end(JSON.stringify({
-              error: {
-                message: err.message,
-                ...JSON.parse(JSON.stringify(err)),
-              },
-            }))
-          }
-          break
-        }
-        case '/fetchPackage': {
-          try {
-            body = await bodyPromise
-            const pkgResponse = store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
-            if (pkgResponse['bundledManifest']) { // tslint:disable-line
-              rawManifestPromises[body.msgId] = pkgResponse['bundledManifest'] // tslint:disable-line
-            }
-            if (pkgResponse['files']) { // tslint:disable-line
-              filesPromises[body.msgId] = pkgResponse['files'] // tslint:disable-line
-            }
-            res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }))
-          } catch (err) {
-            res.end(JSON.stringify({
-              error: {
-                message: err.message,
-                ...JSON.parse(JSON.stringify(err)),
-              },
-            }))
-          }
-          break
-        }
-        case '/packageFilesResponse':
+      case '/requestPackage': {
+        try {
           body = await bodyPromise
-          const filesResponse = await filesPromises[body.msgId]()
-          delete filesPromises[body.msgId]
-          res.end(JSON.stringify(filesResponse))
-          break
-        case '/rawManifestResponse':
+          const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
+            if (pkgResponse['bundledManifest']) { // eslint-disable-line
+              rawManifestPromises[body.msgId] = pkgResponse['bundledManifest'] // eslint-disable-line
+              pkgResponse.body['fetchingBundledManifestInProgress'] = true // eslint-disable-line
+          }
+            if (pkgResponse['files']) { // eslint-disable-line
+              filesPromises[body.msgId] = pkgResponse['files'] // eslint-disable-line
+          }
+          res.end(JSON.stringify(pkgResponse.body))
+        } catch (err) {
+          res.end(JSON.stringify({
+            error: {
+              message: err.message,
+              ...JSON.parse(JSON.stringify(err)),
+            },
+          }))
+        }
+        break
+      }
+      case '/fetchPackage': {
+        try {
           body = await bodyPromise
-          const manifestResponse = await rawManifestPromises[body.msgId]()
-          delete rawManifestPromises[body.msgId]
-          res.end(JSON.stringify(manifestResponse))
-          break
-        case '/prune':
-          // Disable store pruning when a server is running
+          const pkgResponse = store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
+            if (pkgResponse['bundledManifest']) { // eslint-disable-line
+              rawManifestPromises[body.msgId] = pkgResponse['bundledManifest'] // eslint-disable-line
+          }
+            if (pkgResponse['files']) { // eslint-disable-line
+              filesPromises[body.msgId] = pkgResponse['files'] // eslint-disable-line
+          }
+          res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }))
+        } catch (err) {
+          res.end(JSON.stringify({
+            error: {
+              message: err.message,
+              ...JSON.parse(JSON.stringify(err)),
+            },
+          }))
+        }
+        break
+      }
+      case '/packageFilesResponse': {
+        body = await bodyPromise
+        const filesResponse = await filesPromises[body.msgId]()
+        delete filesPromises[body.msgId]
+        res.end(JSON.stringify(filesResponse))
+        break
+      }
+      case '/rawManifestResponse': {
+        body = await bodyPromise
+        const manifestResponse = await rawManifestPromises[body.msgId]()
+        delete rawManifestPromises[body.msgId]
+        res.end(JSON.stringify(manifestResponse))
+        break
+      }
+      case '/prune':
+        // Disable store pruning when a server is running
+        res.statusCode = 403
+        res.end()
+        break
+      case '/importPackage': {
+        const importPackageBody = (await bodyPromise) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        await store.importPackage(importPackageBody.to, importPackageBody.opts)
+        res.end(JSON.stringify('OK'))
+        break
+      }
+      case '/upload': {
+        // Do not return an error status code, just ignore the upload request entirely
+        if (opts.ignoreUploadRequests) {
           res.statusCode = 403
           res.end()
           break
-        case '/importPackage':
-          const importPackageBody = (await bodyPromise) as any // tslint:disable-line:no-any
-          await store.importPackage(importPackageBody.to, importPackageBody.opts)
-          res.end(JSON.stringify('OK'))
+        }
+        const uploadBody = (await bodyPromise) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        await lock(uploadBody.builtPkgLocation, () => store.upload(uploadBody.builtPkgLocation, uploadBody.opts))
+        res.end(JSON.stringify('OK'))
+        break
+      }
+      case '/stop':
+        if (opts.ignoreStopRequests) {
+          res.statusCode = 403
+          res.end()
           break
-        case '/upload':
-          // Do not return an error status code, just ignore the upload request entirely
-          if (opts.ignoreUploadRequests) {
-            res.statusCode = 403
-            res.end()
-            break
-          }
-          const uploadBody = (await bodyPromise) as any // tslint:disable-line:no-any
-          await lock(uploadBody.builtPkgLocation, () => store.upload(uploadBody.builtPkgLocation, uploadBody.opts))
-          res.end(JSON.stringify('OK'))
-          break
-        case '/stop':
-          if (opts.ignoreStopRequests) {
-            res.statusCode = 403
-            res.end()
-            break
-          }
-          globalInfo('Got request to stop the server')
-          await close()
-          res.end(JSON.stringify('OK'))
-          globalInfo('Server stopped')
-          break
-        default:
-          res.statusCode = 404
-          const error = { error: `${req.url} does not match any route` }
-          res.end(JSON.stringify(error))
+        }
+        globalInfo('Got request to stop the server')
+        await close()
+        res.end(JSON.stringify('OK'))
+        globalInfo('Server stopped')
+        break
+      default: {
+        res.statusCode = 404
+        const error = { error: `${req.url} does not match any route` }
+        res.end(JSON.stringify(error))
+      }
       }
     } catch (e) {
       res.statusCode = 503

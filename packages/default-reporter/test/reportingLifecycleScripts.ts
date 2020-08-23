@@ -1,9 +1,9 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
+import path = require('path')
 import chalk = require('chalk')
 import normalizeNewline = require('normalize-newline')
-import path = require('path')
 import test = require('tape')
 
 const hlValue = chalk.cyanBright
@@ -233,7 +233,7 @@ test('groups lifecycle output when append-only is used', t => {
 
   t.plan(1)
 
-  let allOutputs = [] as string[]
+  const allOutputs = [] as string[]
 
   output$.take(11).map(normalizeNewline).subscribe({
     complete: () => {
@@ -252,7 +252,9 @@ ${chalk.blue('packages/qar')} ${INSTALL}: Done`)
       t.end()
     },
     error: t.end,
-    next: (output: string) => { allOutputs.push(output) },
+    next: (output: string) => {
+      allOutputs.push(output)
+    },
   })
 })
 

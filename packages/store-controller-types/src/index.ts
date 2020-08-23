@@ -12,29 +12,29 @@ import {
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
-  DependencyManifest,
-  | 'bin'
-  | 'bundledDependencies'
-  | 'bundleDependencies'
-  | 'dependencies'
-  | 'directories'
-  | 'engines'
-  | 'name'
-  | 'optionalDependencies'
-  | 'os'
-  | 'peerDependencies'
-  | 'peerDependenciesMeta'
-  | 'scripts'
-  | 'version'
+DependencyManifest,
+| 'bin'
+| 'bundledDependencies'
+| 'bundleDependencies'
+| 'dependencies'
+| 'directories'
+| 'engines'
+| 'name'
+| 'optionalDependencies'
+| 'os'
+| 'peerDependencies'
+| 'peerDependenciesMeta'
+| 'scripts'
+| 'version'
 >
 
 export interface StoreController {
   requestPackage: RequestPackageFunction,
   fetchPackage: FetchPackageToStoreFunction,
   importPackage: ImportPackageFunction,
-  close (): Promise<void>,
-  prune (): Promise<void>,
-  upload (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}): Promise<void>,
+  close: () => Promise<void>,
+  prune: () => Promise<void>,
+  upload: (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) => Promise<void>,
 }
 
 export type FetchPackageToStoreFunction = (
@@ -63,7 +63,7 @@ export type ImportPackageFunction = (
   }
 ) => Promise<{ isBuilt: boolean }>
 
-export type PackageFileInfo = {
+export interface PackageFileInfo {
   integrity: string,
   mode: number,
   size: number,
@@ -72,7 +72,7 @@ export type PackageFileInfo = {
 export interface PackageFilesResponse {
   fromStore: boolean,
   filesIndex: Record<string, PackageFileInfo>,
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  sideEffects?: Record<string, Record<string, PackageFileInfo>>,
 }
 
 export type RequestPackageFunction = (
@@ -96,7 +96,7 @@ export interface RequestPackageOptions {
   workspacePackages?: WorkspacePackages,
 }
 
-export type PackageResponse = {
+export interface PackageResponse {
   bundledManifest?: () => Promise<BundledManifest>,
   files?: () => Promise<PackageFilesResponse>,
   filesIndexFile?: string,
@@ -104,7 +104,7 @@ export type PackageResponse = {
   body: {
     isLocal: boolean,
     resolution: Resolution,
-    manifest?: PackageManifest
+    manifest?: PackageManifest,
     id: string,
     normalizedPref?: string,
     updated: boolean,

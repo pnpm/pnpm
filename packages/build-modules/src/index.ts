@@ -6,10 +6,10 @@ import logger from '@pnpm/logger'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest, PackageManifest } from '@pnpm/types'
-import graphSequencer = require('graph-sequencer')
-import path = require('path')
-import R = require('ramda')
 import runGroups from 'run-groups'
+import path = require('path')
+import graphSequencer = require('graph-sequencer')
+import R = require('ramda')
 
 export default async (
   depGraph: DependenciesGraph,
@@ -37,7 +37,7 @@ export default async (
   const nodesToBuildArray = Array.from(nodesToBuild)
   const graph = new Map(
     nodesToBuildArray
-      .map((depPath) => [depPath, onlyFromBuildGraph(R.values(depGraph[depPath].children))]) as Array<[string, string[]]>
+      .map((depPath) => [depPath, onlyFromBuildGraph(R.values(depGraph[depPath].children))])
   )
   const graphSequencerResult = graphSequencer({
     graph,
@@ -52,7 +52,7 @@ export default async (
     }
 
     return chunk.map((depPath: string) =>
-      async () => buildDependency(depPath, depGraph, buildDepOpts)
+      () => buildDependency(depPath, depGraph, buildDepOpts)
     )
   })
   await runGroups(opts.childConcurrency || 4, groups)
@@ -141,8 +141,8 @@ function getSubgraphToBuild (
     }
     if (walked.has(depPath)) continue
     walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked)
-      || graph[depPath].requiresBuild
+    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked) ||
+      graph[depPath].requiresBuild
     if (childShouldBeBuilt) {
       nodesToBuild.add(depPath)
       currentShouldBeBuilt = true
@@ -167,7 +167,7 @@ export interface DependenciesGraphNode {
 }
 
 export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode
+  [depPath: string]: DependenciesGraphNode,
 }
 
 export async function linkBinsOfDependencies (

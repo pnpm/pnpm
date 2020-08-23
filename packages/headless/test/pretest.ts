@@ -1,5 +1,5 @@
-import fs = require('mz/fs')
 import path = require('path')
+import fs = require('mz/fs')
 import rimrafModule = require('rimraf')
 
 const fixtures = path.join(__dirname, 'fixtures')
@@ -18,7 +18,7 @@ async function removeModules () {
     workspaceFixture,
     workspaceFixture2,
   ]
-  .map((dir) => path.join(dir, 'node_modules'))
+    .map((dir) => path.join(dir, 'node_modules'))
   await Promise.all(dirsToRemove.map((dir) => rimraf(dir)))
 }
 

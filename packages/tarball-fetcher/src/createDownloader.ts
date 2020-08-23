@@ -1,17 +1,16 @@
+import { IncomingMessage } from 'http'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError, { FetchError } from '@pnpm/error'
 import {
   Cafs,
   DeferredManifestPromise,
   FetchResult,
-  FilesIndex,
 } from '@pnpm/fetcher-base'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
-import { IncomingMessage } from 'http'
-import ssri = require('ssri')
-import urlLib = require('url')
 import { BadTarballError } from './errorTypes'
+import urlLib = require('url')
+import ssri = require('ssri')
 
 class TarballIntegrityError extends PnpmError {
   public readonly found: string
@@ -37,7 +36,7 @@ class TarballIntegrityError extends PnpmError {
 }
 
 export interface HttpResponse {
-  body: string
+  body: string,
 }
 
 export type DownloadFunction = (url: string, opts: {
@@ -79,7 +78,7 @@ export default (
     ...gotOpts.retry,
   }
 
-  return async function download (url: string, opts: {
+  return function download (url: string, opts: {
     auth?: {
       authHeaderValue: string | undefined,
       alwaysAuth: boolean | undefined,
@@ -157,6 +156,7 @@ export default (
           if (onProgress) onProgress(downloaded)
         })
 
+        // eslint-disable-next-line no-async-promise-executor
         return await new Promise<FetchResult>(async (resolve, reject) => {
           const stream = res.body
             .on('error', reject)
@@ -170,7 +170,7 @@ export default (
             if (integrityCheckResult !== true) {
               throw integrityCheckResult
             }
-            resolve({ filesIndex: filesIndex as FilesIndex })
+            resolve({ filesIndex: filesIndex })
           } catch (err) {
             reject(err)
           }
@@ -184,7 +184,7 @@ export default (
   }
 }
 
-async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // tslint:disable-line:no-any
+async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // eslint-disable-line @typescript-eslint/no-explicit-any
   try {
     await ssri.checkStream(stream, integrity)
     return true

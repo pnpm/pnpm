@@ -1,13 +1,13 @@
 import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
 import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
-import execa = require('execa')
-import path = require('path')
-import test = require('tape')
 import { DEFAULT_OPTS, REGISTRY } from './utils'
+import path = require('path')
+import execa = require('execa')
+import test = require('tape')
 
 test('pnpm recursive test', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -16,7 +16,7 @@ test('pnpm recursive test', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        test: `node -e "process.stdout.write('project-1')" | json-append ../output1.json && node -e "process.stdout.write('project-1')" | json-append ../output2.json`,
+        test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
       },
     },
     {
@@ -28,7 +28,7 @@ test('pnpm recursive test', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        test: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
+        test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
       },
     },
     {
@@ -40,7 +40,7 @@ test('pnpm recursive test', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        test: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
+        test: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
       },
     },
     {
@@ -78,7 +78,7 @@ test('pnpm recursive test', async (t) => {
 })
 
 test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -131,7 +131,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
 })
 
 test('pnpm recursive test with filtering', async (t) => {
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -140,7 +140,7 @@ test('pnpm recursive test with filtering', async (t) => {
         'json-append': '1',
       },
       scripts: {
-        test: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+        test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
       },
     },
     {
@@ -152,7 +152,7 @@ test('pnpm recursive test with filtering', async (t) => {
         'project-1': '1',
       },
       scripts: {
-        test: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+        test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
       },
     },
   ])

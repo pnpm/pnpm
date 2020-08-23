@@ -1,12 +1,12 @@
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
 import dh from 'dependencies-hierarchy'
-import R = require('ramda')
 import createPackagesSearcher from './createPackagesSearcher'
 import renderJson from './renderJson'
 import renderParseable from './renderParseable'
 import renderTree from './renderTree'
 import { PackageDependencyHierarchy } from './types'
+import R = require('ramda')
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
@@ -41,16 +41,16 @@ export async function forPackages (
       registries: opts.registries,
       search,
     }))
-    .map(async ([projectPath, dependenciesHierarchy]) => {
-      const entryPkg = await readProjectManifestOnly(projectPath)
-      return {
-        name: entryPkg.name,
-        version: entryPkg.version,
+      .map(async ([projectPath, dependenciesHierarchy]) => {
+        const entryPkg = await readProjectManifestOnly(projectPath)
+        return {
+          name: entryPkg.name,
+          version: entryPkg.version,
 
-        path: projectPath,
-        ...dependenciesHierarchy,
-      } as PackageDependencyHierarchy
-    })
+          path: projectPath,
+          ...dependenciesHierarchy,
+        } as PackageDependencyHierarchy
+      })
   )
 
   const print = getPrinter(opts.reportAs)
@@ -79,27 +79,27 @@ export default async function (
   const pkgs = await Promise.all(
     R.toPairs(
       opts.depth === -1
-      ? projectPaths.reduce((acc, projectPath) => {
-        acc[projectPath] = {}
-        return acc
-      }, {})
-      : await dh(projectPaths, {
-        depth: opts.depth,
-        include: maybeOpts?.include,
-        lockfileDir: maybeOpts?.lockfileDir,
-        registries: opts.registries,
-      })
+        ? projectPaths.reduce((acc, projectPath) => {
+          acc[projectPath] = {}
+          return acc
+        }, {})
+        : await dh(projectPaths, {
+          depth: opts.depth,
+          include: maybeOpts?.include,
+          lockfileDir: maybeOpts?.lockfileDir,
+          registries: opts.registries,
+        })
     )
-    .map(async ([projectPath, dependenciesHierarchy]) => {
-      const entryPkg = await readProjectManifestOnly(projectPath)
-      return {
-        name: entryPkg.name,
-        version: entryPkg.version,
+      .map(async ([projectPath, dependenciesHierarchy]) => {
+        const entryPkg = await readProjectManifestOnly(projectPath)
+        return {
+          name: entryPkg.name,
+          version: entryPkg.version,
 
-        path: projectPath,
-        ...dependenciesHierarchy,
-      } as PackageDependencyHierarchy
-    })
+          path: projectPath,
+          ...dependenciesHierarchy,
+        } as PackageDependencyHierarchy
+      })
   )
 
   const print = getPrinter(opts.reportAs)
@@ -113,8 +113,8 @@ export default async function (
 
 function getPrinter (reportAs: 'parseable' | 'tree' | 'json') {
   switch (reportAs) {
-    case 'parseable': return renderParseable
-    case 'json': return renderJson
-    case 'tree': return renderTree
+  case 'parseable': return renderParseable
+  case 'json': return renderJson
+  case 'tree': return renderTree
   }
 }

@@ -1,17 +1,17 @@
 import { PackageManifest } from '@pnpm/types'
+import { promisify } from 'util'
 import path = require('path')
 import readPackageManifestCB = require('read-package-json')
-import { promisify } from 'util'
 
-const readPackageManifest = promisify(readPackageManifestCB)
+const readPackageManifest = promisify<string, PackageManifest>(readPackageManifestCB)
 
 export default async function readPkg (pkgPath: string): Promise<PackageManifest> {
   try {
     return await readPackageManifest(pkgPath)
   } catch (err) {
-    if (err['code']) throw err // tslint:disable-line
+    if (err['code']) throw err // eslint-disable-line
     const pnpmError = new Error(`${pkgPath}: ${err.message}`)
-    pnpmError['code'] = 'ERR_PNPM_BAD_PACKAGE_JSON' // tslint:disable-line
+    pnpmError['code'] = 'ERR_PNPM_BAD_PACKAGE_JSON' // eslint-disable-line
     throw pnpmError
   }
 }

@@ -3,11 +3,11 @@ import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import R = require('ramda')
-import renderHelp = require('render-help')
 import start from './start'
 import status from './status'
 import stop from './stop'
+import R = require('ramda')
+import renderHelp = require('render-help')
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -17,11 +17,11 @@ export function cliOptionsTypes () {
       'store',
       'store-dir',
     ], allTypes),
-    'background': Boolean,
+    background: Boolean,
     'ignore-stop-requests': Boolean,
     'ignore-upload-requests': Boolean,
-    'port': Number,
-    'protocol': ['auto', 'tcp', 'ipc'],
+    port: Number,
+    protocol: ['auto', 'tcp', 'ipc'],
   }
 }
 
@@ -36,9 +36,9 @@ export function help () {
 
         list: [
           {
-            description: `\
+            description: '\
 Starts a service that does all interactions with the store. \
-Other commands will delegate any store-related tasks to this service`,
+Other commands will delegate any store-related tasks to this service',
             name: 'start',
           },
           {
@@ -80,7 +80,7 @@ Other commands will delegate any store-related tasks to this service`,
             name: '--[no-]lock',
           },
           {
-            description: 'Disallows stopping the server using \`pnpm server stop\`',
+            description: 'Disallows stopping the server using `pnpm server stop`',
             name: '--ignore-stop-requests',
           },
           {
@@ -96,7 +96,7 @@ Other commands will delegate any store-related tasks to this service`,
   })
 }
 
-export async function handler (
+export function handler (
   opts: CreateStoreControllerOptions & {
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,
@@ -105,16 +105,17 @@ export async function handler (
   params: string[]
 ) {
   switch (params[0]) {
-    case 'start':
-      return start(opts)
-    case 'status':
-      return status(opts)
-    case 'stop':
-      return stop(opts)
-    default:
-      help()
-      if (params[0]) {
-        throw new PnpmError('INVALID_SERVER_COMMAND', `"server ${params[0]}" is not a pnpm command. See "pnpm help server".`)
-      }
+  case 'start':
+    return start(opts)
+  case 'status':
+    return status(opts)
+  case 'stop':
+    return stop(opts)
+  default:
+    help()
+    if (params[0]) {
+      throw new PnpmError('INVALID_SERVER_COMMAND', `"server ${params[0]}" is not a pnpm command. See "pnpm help server".`)
+    }
+    return undefined
   }
 }

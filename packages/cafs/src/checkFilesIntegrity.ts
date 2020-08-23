@@ -1,18 +1,18 @@
 import { DeferredManifestPromise } from '@pnpm/fetcher-base'
 import { PackageFileInfo } from '@pnpm/store-controller-types'
+import { getFilePathByModeInCafs } from './getFilePathInCafs'
+import { parseJsonBuffer } from './parseJson'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
 import ssri = require('ssri')
-import { getFilePathByModeInCafs } from './getFilePathInCafs'
-import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
-export type PackageFilesIndex = {
+export interface PackageFilesIndex {
   files: Record<string, PackageFileInfo>,
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  sideEffects?: Record<string, Record<string, PackageFileInfo>>,
 }
 
 export default async function (
@@ -58,12 +58,12 @@ async function verifyFile (
       return ok
     } catch (err) {
       switch (err.code) {
-        case 'ENOENT': return false
-        case 'EINTEGRITY': {
-          // Broken files are removed from the store
-          await rimraf(filename)
-          return false
-        }
+      case 'ENOENT': return false
+      case 'EINTEGRITY': {
+        // Broken files are removed from the store
+        await rimraf(filename)
+        return false
+      }
       }
       throw err
     }
@@ -80,12 +80,12 @@ async function verifyFile (
     return ok
   } catch (err) {
     switch (err.code) {
-      case 'ENOENT': return false
-      case 'EINTEGRITY': {
-        // Broken files are removed from the store
-        await rimraf(filename)
-        return false
-      }
+    case 'ENOENT': return false
+    case 'EINTEGRITY': {
+      // Broken files are removed from the store
+      await rimraf(filename)
+      return false
+    }
     }
     throw err
   }

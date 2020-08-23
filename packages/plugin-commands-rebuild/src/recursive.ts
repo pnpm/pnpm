@@ -4,29 +4,28 @@ import {
 } from '@pnpm/cli-utils'
 import {
   Config,
-  types as allTypes,
 } from '@pnpm/config'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { Project, ProjectManifest } from '@pnpm/types'
+import { rebuild as rebuildAll, RebuildOptions, rebuildPkgs } from './implementation'
+import path = require('path')
 import camelcaseKeys = require('camelcase-keys')
 import mem = require('mem')
 import pLimit = require('p-limit')
-import path = require('path')
 import readIniFile = require('read-ini-file')
-import { rebuild as rebuildAll, RebuildOptions, rebuildPkgs } from './implementation'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
-  | 'hoistPattern'
-  | 'ignorePnpmfile'
-  | 'ignoreScripts'
-  | 'lockfileDir'
-  | 'lockfileOnly'
-  | 'rawLocalConfig'
-  | 'registries'
-  | 'sharedWorkspaceLockfile'
+| 'hoistPattern'
+| 'ignorePnpmfile'
+| 'ignoreScripts'
+| 'lockfileDir'
+| 'lockfileOnly'
+| 'rawLocalConfig'
+| 'registries'
+| 'sharedWorkspaceLockfile'
 > & {
   pending?: boolean,
 } & Partial<Pick<Config, 'bail' | 'sort' | 'workspaceConcurrency'>>
@@ -53,7 +52,7 @@ export default async function recursive (
     manifestsByPath[dir] = { manifest, writeProjectManifest }
   }
 
-  const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive rebuild`)
+  const throwOnFail = throwOnCommandFail.bind(null, 'pnpm recursive rebuild')
 
   const chunks = opts.sort !== false
     ? sortPackages(opts.selectedProjectsGraph)
@@ -64,8 +63,8 @@ export default async function recursive (
   const workspacePackages = arrayOfWorkspacePackagesToMap(allProjects)
   const rebuildOpts = Object.assign(opts, {
     ownLifecycleHooksStdio: 'pipe',
-    pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
-      && pkgs.length === allProjects.length,
+    pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0) &&
+      pkgs.length === allProjects.length,
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
@@ -99,8 +98,8 @@ export default async function recursive (
 
   const rebuild = (
     params.length === 0
-    ? rebuildAll
-    : (importers: any, opts: any) => rebuildPkgs(importers, params, opts) // tslint:disable-line
+      ? rebuildAll
+    : (importers: any, opts: any) => rebuildPkgs(importers, params, opts) // eslint-disable-line
   )
   if (opts.lockfileDir) {
     const importers = await getImporters()
@@ -118,7 +117,7 @@ export default async function recursive (
     await Promise.all(chunk.map((rootDir: string) =>
       limitRebuild(async () => {
         try {
-          if (opts.ignoredPackages && opts.ignoredPackages.has(rootDir)) {
+          if (opts.ignoredPackages?.has(rootDir)) {
             return
           }
           const localConfig = await memReadLocalConfig(rootDir)
@@ -154,7 +153,7 @@ export default async function recursive (
             return
           }
 
-          err['prefix'] = rootDir // tslint:disable-line:no-string-literal
+          err['prefix'] = rootDir // eslint-disable-line @typescript-eslint/dot-notation
           throw err
         }
       })

@@ -5,12 +5,12 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -30,7 +30,7 @@ test("don't override existing spec in package.json on named installation", async
     dependencies: {
       'is-negative': '^1.0.0', // this will be updated
       'is-positive': '^2.0.0', // this will be kept as no newer version is available from the range
-      'sec': 'sindresorhus/sec',
+      sec: 'sindresorhus/sec',
     },
   }, ['is-positive'], await testDefaults())
   manifest = await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults())
@@ -42,7 +42,7 @@ test("don't override existing spec in package.json on named installation", async
   t.deepEqual(manifest.dependencies, {
     'is-negative': '^1.0.1',
     'is-positive': '^2.0.0',
-    'sec': 'github:sindresorhus/sec',
+    sec: 'github:sindresorhus/sec',
   })
 })
 
@@ -212,7 +212,7 @@ test('an update bumps the versions in the manifest', async (t: tape.Test) => {
           'peer-a': '~1.0.0',
         },
         devDependencies: {
-          'foo': '^100.0.0',
+          foo: '^100.0.0',
         },
         optionalDependencies: {
           'peer-c': '^1.0.1',
@@ -231,7 +231,7 @@ test('an update bumps the versions in the manifest', async (t: tape.Test) => {
       'peer-a': '~1.0.1',
     },
     devDependencies: {
-      'foo': '^100.1.0',
+      foo: '^100.1.0',
     },
     optionalDependencies: {
       'peer-c': '^1.0.1',

@@ -22,7 +22,7 @@
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "test": "pnpm run compile",
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },

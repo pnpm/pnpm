@@ -2,12 +2,12 @@ import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import PushStream from '@zkochan/zen-push'
-import createDiffer = require('ansi-diff')
-import most = require('most')
 import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
 import reporterForServer from './reporterForServer'
+import createDiffer = require('ansi-diff')
+import most = require('most')
 
 export default function (
   opts: {
@@ -35,7 +35,7 @@ export default function (
   if (opts.reportingOptions?.appendOnly) {
     output$
       .subscribe({
-        complete () {}, // tslint:disable-line:no-empty
+        complete () {}, // eslint-disable-line:no-empty
         error: (err) => console.error(err.message),
         next: (line) => console.log(line),
       })
@@ -47,7 +47,7 @@ export default function (
   })
   output$
     .subscribe({
-      complete () {}, // tslint:disable-line:no-empty
+      complete () {}, // eslint-disable-line:no-empty
       error: (err) => logUpdate(err.message),
       next: logUpdate,
     })
@@ -99,66 +99,66 @@ export function toOutput$ (
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
-        case 'pnpm:context':
-          contextPushStream.next(log)
-          break
-        case 'pnpm:fetching-progress':
-          fetchingProgressPushStream.next(log)
-          break
-        case 'pnpm:progress':
-          progressPushStream.next(log)
-          break
-        case 'pnpm:stage':
-          stagePushStream.next(log)
-          break
-        case 'pnpm:deprecation':
-          deprecationPushStream.next(log)
-          break
-        case 'pnpm:summary':
-          summaryPushStream.next(log)
-          break
-        case 'pnpm:lifecycle':
-          lifecyclePushStream.next(log)
-          break
-        case 'pnpm:stats':
-          statsPushStream.next(log)
-          break
-        case 'pnpm:package-import-method':
-          packageImportMethodPushStream.next(log)
-          break
-        case 'pnpm:install-check':
-          installCheckPushStream.next(log)
-          break
-        case 'pnpm:registry':
-          registryPushStream.next(log)
-          break
-        case 'pnpm:root':
-          rootPushStream.next(log)
-          break
-        case 'pnpm:package-manifest':
-          packageManifestPushStream.next(log)
-          break
-        case 'pnpm:link':
-          linkPushStream.next(log)
-          break
-        case 'pnpm:hook':
-          hookPushStream.next(log)
-          break
-        case 'pnpm:skipped-optional-dependency':
-          skippedOptionalDependencyPushStream.next(log)
-          break
-        case 'pnpm:scope':
-          scopePushStream.next(log)
-          break
-        case 'pnpm:request-retry':
-          requestRetryPushStream.next(log)
-          break
-        case 'pnpm' as any: // tslint:disable-line
-        case 'pnpm:global' as any: // tslint:disable-line
-        case 'pnpm:store' as any: // tslint:disable-line
-        case 'pnpm:lockfile' as any: // tslint:disable-line
-          otherPushStream.next(log)
-          break
+      case 'pnpm:context':
+        contextPushStream.next(log)
+        break
+      case 'pnpm:fetching-progress':
+        fetchingProgressPushStream.next(log)
+        break
+      case 'pnpm:progress':
+        progressPushStream.next(log)
+        break
+      case 'pnpm:stage':
+        stagePushStream.next(log)
+        break
+      case 'pnpm:deprecation':
+        deprecationPushStream.next(log)
+        break
+      case 'pnpm:summary':
+        summaryPushStream.next(log)
+        break
+      case 'pnpm:lifecycle':
+        lifecyclePushStream.next(log)
+        break
+      case 'pnpm:stats':
+        statsPushStream.next(log)
+        break
+      case 'pnpm:package-import-method':
+        packageImportMethodPushStream.next(log)
+        break
+      case 'pnpm:install-check':
+        installCheckPushStream.next(log)
+        break
+      case 'pnpm:registry':
+        registryPushStream.next(log)
+        break
+      case 'pnpm:root':
+        rootPushStream.next(log)
+        break
+      case 'pnpm:package-manifest':
+        packageManifestPushStream.next(log)
+        break
+      case 'pnpm:link':
+        linkPushStream.next(log)
+        break
+      case 'pnpm:hook':
+        hookPushStream.next(log)
+        break
+      case 'pnpm:skipped-optional-dependency':
+        skippedOptionalDependencyPushStream.next(log)
+        break
+      case 'pnpm:scope':
+        scopePushStream.next(log)
+        break
+      case 'pnpm:request-retry':
+        requestRetryPushStream.next(log)
+        break
+        case 'pnpm' as any: // eslint-disable-line
+        case 'pnpm:global' as any: // eslint-disable-line
+        case 'pnpm:store' as any: // eslint-disable-line
+        case 'pnpm:lockfile' as any: // eslint-disable-line
+        otherPushStream.next(log)
+        break
       }
     })
   }, 0)
@@ -201,7 +201,7 @@ export function toOutput$ (
   if (opts.reportingOptions?.appendOnly) {
     return most.join(
       most.mergeArray(outputs)
-      .map((log: most.Stream<{msg: string}>) => log.map((msg) => msg.msg))
+        .map((log: most.Stream<{msg: string}>) => log.map((msg) => msg.msg))
     )
   }
   return mergeOutputs(outputs).multicast()

@@ -9,13 +9,13 @@ export interface ParsedCliArgs {
     remain: string[],
     cooked: string[],
     original: string[],
-  }
-  params: string[]
-  // tslint:disable-next-line: no-any
-  options: Record<string, any>
-  cmd: string | null
-  unknownOptions: Map<string, string[]>
-  workspaceDir?: string
+  },
+  params: string[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  options: Record<string, any>,
+  cmd: string | null,
+  unknownOptions: Map<string, string[]>,
+  workspaceDir?: string,
 }
 
 export default async function parseCliArgs (
@@ -40,7 +40,7 @@ export default async function parseCliArgs (
       ...opts.getTypesByCommandName('install'),
     },
     {
-      'r': '--recursive',
+      r: '--recursive',
       ...opts.universalShorthands,
     },
     inputArgv,
@@ -67,7 +67,7 @@ export default async function parseCliArgs (
   const types = {
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(commandName),
-  } as any // tslint:disable-line:no-any
+  } as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
   function getCommandName (args: string[]) {
     if (recursiveCommandUsed) {
@@ -81,7 +81,7 @@ export default async function parseCliArgs (
 
   const { argv, ...options } = nopt(
     {
-      'recursive': Boolean,
+      recursive: Boolean,
       ...types,
     },
     {
@@ -106,7 +106,7 @@ export default async function parseCliArgs (
 
   if (options['recursive'] !== true && (options['filter'] || recursiveCommandUsed)) {
     options['recursive'] = true
-    let subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
+    const subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
     if (subCmd && recursiveCommandUsed) {
       params.shift()
       argv.remain.shift()
@@ -114,7 +114,7 @@ export default async function parseCliArgs (
     }
   }
   const dir = options['dir'] ?? process.cwd()
-  const workspaceDir = options['global'] // tslint:disable-line
+  const workspaceDir = options['global'] // eslint-disable-line
     ? undefined
     : await findWorkspaceDir(dir)
 
@@ -161,7 +161,6 @@ function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
     unknownOptions.set(usedOption, closestMatches(usedOption))
   }
   return unknownOptions
-
 }
 
 function getClosestOptionMatches (knownOptions: string[], option: string) {

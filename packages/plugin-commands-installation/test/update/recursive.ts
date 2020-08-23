@@ -5,8 +5,8 @@ import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
-import test = require('tape')
 import { DEFAULT_OPTS } from '../utils'
+import test = require('tape')
 
 test('recursive update', async (t) => {
   const projects = preparePackages(t, [
@@ -48,7 +48,7 @@ test('recursive update', async (t) => {
   }, ['is-positive@2.0.0'])
 
   t.equal(projects['project-1'].requireModule('is-positive/package.json').version, '2.0.0')
-  projects['project-2'].hasNot('is-positive')
+  await projects['project-2'].hasNot('is-positive')
   t.end()
 })
 
@@ -56,13 +56,13 @@ test('recursive update prod dependencies only', async (t) => {
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
 
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
 
       dependencies: {
-        'foo': '^100.0.0',
+        foo: '^100.0.0',
       },
     },
     {
@@ -70,7 +70,7 @@ test('recursive update prod dependencies only', async (t) => {
       version: '1.0.0',
 
       devDependencies: {
-        'bar': '^100.0.0',
+        bar: '^100.0.0',
       },
     },
   ])
@@ -242,14 +242,14 @@ test('recursive update --latest foo should only update projects that have foo', 
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
 
-  const projects = preparePackages(t, [
+  preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
 
       dependencies: {
-        'foo': '100.0.0',
-        'qar': '100.0.0',
+        foo: '100.0.0',
+        qar: '100.0.0',
       },
     },
     {
@@ -258,7 +258,7 @@ test('recursive update --latest foo should only update projects that have foo', 
 
       dependencies: {
         '@zkochan/async-regex-replace': '0.1.0',
-        'bar': '^100.0.0',
+        bar: '^100.0.0',
       },
     },
   ])
@@ -307,8 +307,8 @@ test('recursive update --latest foo should only update packages that have foo', 
       version: '1.0.0',
 
       dependencies: {
-        'foo': '100.0.0',
-        'qar': '100.0.0',
+        foo: '100.0.0',
+        qar: '100.0.0',
       },
     },
     {
@@ -316,7 +316,7 @@ test('recursive update --latest foo should only update packages that have foo', 
       version: '1.0.0',
 
       dependencies: {
-        'bar': '^100.0.0',
+        bar: '^100.0.0',
       },
     },
   ])
@@ -385,7 +385,7 @@ test('recursive update in workspace should not add new dependencies', async (t) 
   t.ok(err)
   t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
 
-  projects['project-1'].hasNot('is-positive')
-  projects['project-2'].hasNot('is-positive')
+  await projects['project-1'].hasNot('is-positive')
+  await projects['project-2'].hasNot('is-positive')
   t.end()
 })

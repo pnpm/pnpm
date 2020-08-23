@@ -1,9 +1,9 @@
+import { promisify } from 'util'
 import { ProjectManifest } from '@pnpm/types'
 import fs = require('graceful-fs')
 import JSON5 = require('json5')
 import parseJson = require('parse-json')
 import stripBom = require('strip-bom')
-import { promisify } from 'util'
 const readFile = promisify(fs.readFile)
 
 export async function readJson5File (filePath: string) {
@@ -14,7 +14,7 @@ export async function readJson5File (filePath: string) {
       text,
     }
   } catch (err) {
-    err.message += ` in ${filePath}`
+    err.message = `${err.message} in ${filePath}`
     err['code'] = 'ERR_PNPM_JSON5_PARSE'
     throw err
   }

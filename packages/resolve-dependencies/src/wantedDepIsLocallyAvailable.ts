@@ -1,8 +1,8 @@
 import parsePref, { RegistryPackageSpec } from '@pnpm/npm-resolver/lib/parsePref'
 import { WorkspacePackages } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
-import semver = require('semver')
 import { WantedDependency } from './getNonDevWantedDependencies'
+import semver = require('semver')
 
 export default function wantedDepIsLocallyAvailable (
   workspacePackages: WorkspacePackages,
@@ -21,21 +21,21 @@ export default function wantedDepIsLocallyAvailable (
 function pickMatchingLocalVersionOrNull (
   versions: {
     [version: string]: {
-      dir: string;
-      manifest: PackageManifest;
+      dir: string,
+      manifest: PackageManifest,
     },
   },
   spec: RegistryPackageSpec
 ) {
   const localVersions = Object.keys(versions)
   switch (spec.type) {
-    case 'tag':
-      return semver.maxSatisfying(localVersions, '*')
-    case 'version':
-      return versions[spec.fetchSpec] ? spec.fetchSpec : null
-    case 'range':
-      return semver.maxSatisfying(localVersions, spec.fetchSpec, true)
-    default:
-      return null
+  case 'tag':
+    return semver.maxSatisfying(localVersions, '*')
+  case 'version':
+    return versions[spec.fetchSpec] ? spec.fetchSpec : null
+  case 'range':
+    return semver.maxSatisfying(localVersions, spec.fetchSpec, true)
+  default:
+    return null
   }
 }

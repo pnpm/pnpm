@@ -19,10 +19,10 @@ import {
   HoistedDependencies,
   Registries,
 } from '@pnpm/types'
-import rimraf = require('@zkochan/rimraf')
-import path = require('path')
-import R = require('ramda')
 import removeDirectDependency from './removeDirectDependency'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import R = require('ramda')
 
 export default async function prune (
   importers: Array<{
@@ -201,6 +201,7 @@ function getPkgsDepPathsOwnedOnlyByImporters (
       include,
       skipped,
     })
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   const packagesOfSelectedOnly = R.pickAll(R.difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
   return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
 }

@@ -33,7 +33,7 @@ export const DEFAULT_OPTS = {
   pending: false,
   pnpmfile: './pnpmfile.js',
   proxy: undefined,
-  rawConfig: { registry:  REGISTRY },
+  rawConfig: { registry: REGISTRY },
   rawLocalConfig: {},
   registries: { default: REGISTRY },
   registry: REGISTRY,

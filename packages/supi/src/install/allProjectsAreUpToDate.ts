@@ -16,7 +16,7 @@ import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
 
-export default async function allProjectsAreUpToDate (
+export default function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
     linkWorkspacePackages: boolean,
@@ -31,7 +31,7 @@ export default async function allProjectsAreUpToDate (
     manifestsByDir,
     workspacePackages: opts.workspacePackages,
   })
-  return pEvery(projects, async (project) => {
+  return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
     return importer && !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(project.manifest, project.id) &&
@@ -120,9 +120,9 @@ function getVersionRange (spec: string) {
 }
 
 function hasLocalTarballDepsInRoot (importer: ProjectSnapshot) {
-  return R.any(refIsLocalTarball, Object.values(importer.dependencies ?? {}))
-    || R.any(refIsLocalTarball, Object.values(importer.devDependencies ?? {}))
-    || R.any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
+  return R.any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
+    R.any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
+    R.any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
 }
 
 function refIsLocalTarball (ref: string) {

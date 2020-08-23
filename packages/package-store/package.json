@@ -69,7 +69,7 @@
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "pretest": "rimraf .tmp",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-store/coverage ts-node packages/package-store/test --type-check",
     "test": "pnpm run compile && pnpm run _test",

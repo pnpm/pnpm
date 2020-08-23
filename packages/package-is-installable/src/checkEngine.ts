@@ -33,7 +33,7 @@ export default function checkEngine (
   return null
 }
 
-export type Engine = {
+export interface Engine {
   node: string,
   pnpm?: string,
 }

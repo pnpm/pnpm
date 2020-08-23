@@ -1,7 +1,7 @@
 import nopt = require('nopt')
 import R = require('ramda')
 
-export type CompletionCtx = {
+export interface CompletionCtx {
   last: string,
   lastPartial: string,
   line: string,
@@ -22,12 +22,12 @@ export function getOptionCompletions (
 
 function optionTypeToCompletion (optionType: Object): undefined | string[] {
   switch (optionType) {
-    // In this case the option is complete
-    case undefined:
-    case Boolean: return undefined
+  // In this case the option is complete
+  case undefined:
+  case Boolean: return undefined
     // In this case, anything may be the option value
-    case String:
-    case Number: return []
+  case String:
+  case Number: return []
   }
   if (!Array.isArray(optionType)) return []
   if (optionType.length === 1) {

@@ -1,8 +1,8 @@
 import PnpmError from '@pnpm/error'
+import path = require('path')
 import execa = require('execa')
 import findUp = require('find-up')
 import isSubdir = require('is-subdir')
-import path = require('path')
 
 export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string }): Promise<string[]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) || opts.workspaceDir, '..')
