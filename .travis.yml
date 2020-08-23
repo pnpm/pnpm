@@ -15,6 +15,7 @@ before_install:
   - pnpm -v
 install:
   - pnpm install --force
+  - pnpm list
 script:
   - set -e # Fail on first error
   # TODO: fix commitlint
