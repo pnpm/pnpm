@@ -90,6 +90,8 @@ test('publish: fails git check if branch is not clean', async (t) => {
   })
 
   await execa('git', ['init'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
 
@@ -121,6 +123,8 @@ test('publish: fails git check if branch is not up-to-date', async (t) => {
   })
 
   await execa('git', ['init'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['init', '--bare'], { cwd: remote })
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
