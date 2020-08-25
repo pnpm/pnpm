@@ -86,11 +86,11 @@ export function help () {
 export async function handler (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
-      original: string[],
-    },
-    engineStrict?: boolean,
-    recursive?: boolean,
-    workspaceDir?: string,
+      original: string[]
+    }
+    engineStrict?: boolean
+    recursive?: boolean
+    workspaceDir?: string
   } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch'>,
   params: string[]
 ) {
@@ -185,9 +185,9 @@ const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => P
 
 export async function fakeRegularManifest (
   opts: {
-    engineStrict?: boolean,
-    dir: string,
-    workspaceDir: string,
+    engineStrict?: boolean
+    dir: string
+    workspaceDir: string
   },
   fn: (publishManifest: ProjectManifest) => Promise<void>
 ) {

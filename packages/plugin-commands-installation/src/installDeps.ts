@@ -64,19 +64,19 @@ export type InstallDepsOptions = Pick<Config,
 | 'workspaceDir'
 > & CreateStoreControllerOptions & {
   argv: {
-    original: string[],
-  },
-  allowNew?: boolean,
-  frozenLockfileIfExists?: boolean,
-  include?: IncludedDependencies,
-  includeDirect?: IncludedDependencies,
-  latest?: boolean,
-  update?: boolean,
-  updateMatching?: (pkgName: string) => boolean,
-  updatePackageManifest?: boolean,
-  useBetaCli?: boolean,
-  recursive?: boolean,
-  workspace?: boolean,
+    original: string[]
+  }
+  allowNew?: boolean
+  frozenLockfileIfExists?: boolean
+  include?: IncludedDependencies
+  includeDirect?: IncludedDependencies
+  latest?: boolean
+  update?: boolean
+  updateMatching?: (pkgName: string) => boolean
+  updatePackageManifest?: boolean
+  useBetaCli?: boolean
+  recursive?: boolean
+  workspace?: boolean
 }
 
 export default async function handler (

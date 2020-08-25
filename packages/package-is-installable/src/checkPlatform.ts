@@ -33,8 +33,8 @@ export default function checkPlatform (
 }
 
 export interface Platform {
-  cpu: string | string[],
-  os: string | string[],
+  cpu: string | string[]
+  os: string | string[]
 }
 
 export type WantedPlatform = Partial<Platform>

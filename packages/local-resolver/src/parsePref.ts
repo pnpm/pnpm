@@ -10,11 +10,11 @@ const isFilename = /[.](?:tgz|tar.gz|tar)$/i
 const isAbsolutePath = /^[/]|^[A-Za-z]:/
 
 export interface LocalPackageSpec {
-  dependencyPath: string,
-  fetchSpec: string,
-  id: string,
-  type: 'directory' | 'file',
-  normalizedPref: string,
+  dependencyPath: string
+  fetchSpec: string
+  id: string
+  type: 'directory' | 'file'
+  normalizedPref: string
 }
 
 export default function parsePref (

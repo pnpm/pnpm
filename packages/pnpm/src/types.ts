@@ -6,20 +6,20 @@ import {
 
 export type PnpmOptions = Omit<Config, 'reporter'> & {
   argv: {
-    cooked: string[],
-    original: string[],
-    remain: string[],
-  },
-  cliOptions: object,
-  reporter?: (logObj: LogBase) => void,
+    cooked: string[]
+    original: string[]
+    remain: string[]
+  }
+  cliOptions: object
+  reporter?: (logObj: LogBase) => void
   packageManager?: {
-    name: string,
-    version: string,
-  },
+    name: string
+    version: string
+  }
 
   hooks?: {
-    readPackage?: ReadPackageHook,
-  },
+    readPackage?: ReadPackageHook
+  }
 
-  ignoreFile?: (filename: string) => boolean,
+  ignoreFile?: (filename: string) => boolean
 }

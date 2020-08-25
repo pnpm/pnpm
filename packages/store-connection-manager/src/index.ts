@@ -35,8 +35,8 @@ export async function createOrConnectStoreControllerCached (
 export async function createOrConnectStoreController (
   opts: CreateStoreControllerOptions
 ): Promise<{
-    ctrl: StoreController,
-    dir: string,
+    ctrl: StoreController
+    dir: string
   }> {
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
@@ -80,15 +80,15 @@ export async function createOrConnectStoreController (
 
 export async function tryLoadServerJson (
   options: {
-    serverJsonPath: string,
-    shouldRetryOnNoent: boolean,
+    serverJsonPath: string
+    shouldRetryOnNoent: boolean
   }
 ): Promise<null | {
     connectionOptions: {
-      remotePrefix: string,
-    },
-    pid: number,
-    pnpmVersion: string,
+      remotePrefix: string
+    }
+    pid: number
+    pnpmVersion: string
   }> {
   let beforeFirstAttempt = true
   const startHRTime = process.hrtime()

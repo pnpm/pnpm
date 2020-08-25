@@ -14,25 +14,25 @@ import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 
 export interface PackageMeta {
-  'dist-tag': { [name: string]: string },
+  'dist-tag': { [name: string]: string }
   versions: {
-    [name: string]: PackageInRegistry,
-  },
-  cachedAt?: number,
+    [name: string]: PackageInRegistry
+  }
+  cachedAt?: number
 }
 
 export interface PackageMetaCache {
-  get: (key: string) => PackageMeta | undefined,
-  set: (key: string, meta: PackageMeta) => void,
-  has: (key: string) => boolean,
+  get: (key: string) => PackageMeta | undefined
+  set: (key: string, meta: PackageMeta) => void
+  has: (key: string) => boolean
 }
 
 export type PackageInRegistry = PackageManifest & {
   dist: {
-    integrity?: string,
-    shasum: string,
-    tarball: string,
-  },
+    integrity?: string
+    shasum: string
+    tarball: string
+  }
 }
 
 /**
@@ -40,24 +40,24 @@ export type PackageInRegistry = PackageManifest & {
  * otherwise it would cause EPERM exceptions
  */
 const metafileOperationLimits = {} as {
-  [pkgMirror: string]: pLimit.Limit,
+  [pkgMirror: string]: pLimit.Limit
 }
 
 export interface PickPackageOptions {
-  authHeaderValue?: string,
-  preferredVersionSelectors: VersionSelectors | undefined,
-  registry: string,
-  dryRun: boolean,
+  authHeaderValue?: string
+  preferredVersionSelectors: VersionSelectors | undefined
+  registry: string
+  dryRun: boolean
 }
 
 export default async (
   ctx: {
-    fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>,
-    metaDir: string,
-    metaCache: PackageMetaCache,
-    storeDir: string,
-    offline?: boolean,
-    preferOffline?: boolean,
+    fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>
+    metaDir: string
+    metaCache: PackageMetaCache
+    storeDir: string
+    offline?: boolean
+    preferOffline?: boolean
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions

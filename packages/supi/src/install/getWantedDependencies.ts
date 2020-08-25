@@ -9,19 +9,19 @@ import guessPinnedVersionFromExistingSpec from '../guessPinnedVersionFromExistin
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
 export interface WantedDependency {
-  alias: string,
-  pref: string, // package reference
-  dev: boolean,
-  optional: boolean,
-  raw: string,
-  pinnedVersion?: PinnedVersion,
+  alias: string
+  pref: string // package reference
+  dev: boolean
+  optional: boolean
+  raw: string
+  pinnedVersion?: PinnedVersion
 }
 
 export default function getWantedDependencies (
   pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
   opts?: {
-    includeDirect?: IncludedDependencies,
-    updateWorkspaceDependencies?: boolean,
+    includeDirect?: IncludedDependencies
+    updateWorkspaceDependencies?: boolean
   }
 ): WantedDependency[] {
   const depsToInstall = filterDependenciesByType(pkg,
@@ -46,9 +46,9 @@ function updateWorkspacePref (pref: string) {
 function getWantedDependenciesFromGivenSet (
   deps: Dependencies,
   opts: {
-    devDependencies: Dependencies,
-    optionalDependencies: Dependencies,
-    updatePref: (pref: string) => string,
+    devDependencies: Dependencies
+    optionalDependencies: Dependencies
+    updatePref: (pref: string) => string
   }
 ): WantedDependency[] {
   if (!deps) return []

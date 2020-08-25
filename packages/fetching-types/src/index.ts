@@ -6,12 +6,12 @@ export { RetryTimeoutOptions }
 export type FetchFromRegistry = (
   url: string,
   opts?: {
-    authHeaderValue?: string,
-    retry?: RetryTimeoutOptions,
+    authHeaderValue?: string
+    retry?: RetryTimeoutOptions
   }
 ) => Promise<Response>
 
 export type GetCredentials = (registry: string) => {
-  authHeaderValue: string | undefined,
-  alwaysAuth: boolean | undefined,
+  authHeaderValue: string | undefined
+  alwaysAuth: boolean | undefined
 }

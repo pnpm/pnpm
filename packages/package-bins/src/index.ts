@@ -9,8 +9,8 @@ const readdirP = promisify(readdir)
 const statP = promisify(stat)
 
 export interface Command {
-  name: string,
-  path: string,
+  name: string
+  path: string
 }
 
 export default async function binify (manifest: DependencyManifest, pkgPath: string): Promise<Command[]> {

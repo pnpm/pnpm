@@ -64,7 +64,7 @@ class StoreStatusError extends PnpmError {
 }
 
 export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
-  reporter?: (logObj: LogBase) => void,
+  reporter?: (logObj: LogBase) => void
 }
 
 export async function handler (opts: StoreCommandOptions, params: string[]) {

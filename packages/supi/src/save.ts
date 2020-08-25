@@ -6,10 +6,10 @@ import {
 } from '@pnpm/types'
 
 export interface PackageSpecObject {
-  alias: string,
-  peer?: boolean,
-  pref?: string,
-  saveType?: DependenciesField,
+  alias: string
+  peer?: boolean
+  pref?: string
+  saveType?: DependenciesField
 }
 
 export default async function save (
@@ -17,7 +17,7 @@ export default async function save (
   packageManifest: ProjectManifest,
   packageSpecs: PackageSpecObject[],
   opts?: {
-    dryRun?: boolean,
+    dryRun?: boolean
   }
 ): Promise<ProjectManifest> {
   packageSpecs.forEach((packageSpec) => {

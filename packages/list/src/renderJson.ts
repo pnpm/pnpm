@@ -9,9 +9,9 @@ const sortPackages = R.sortBy(R.path(['pkg', 'alias']) as (pkg: object) => R.Ord
 export default async function (
   pkgs: PackageDependencyHierarchy[],
   opts: {
-    depth: number,
-    long: boolean,
-    search: boolean,
+    depth: number
+    long: boolean
+    search: boolean
   }
 ) {
   const jsonArr = await Promise.all(pkgs.map(async (pkg) => {
@@ -35,7 +35,7 @@ export default async function (
 export async function toJsonResult (
   entryNodes: PackageNode[],
   opts: {
-    long: boolean,
+    long: boolean
   }
 ): Promise<{}> {
   const dependencies = {}

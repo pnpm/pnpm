@@ -64,22 +64,22 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 > & {
-  include?: IncludedDependencies,
-  includeDirect?: IncludedDependencies,
-  latest?: boolean,
-  pending?: boolean,
-  workspace?: boolean,
+  include?: IncludedDependencies
+  includeDirect?: IncludedDependencies
+  latest?: boolean
+  pending?: boolean
+  workspace?: boolean
 } & Partial<Pick<Config, 'sort' | 'workspaceConcurrency'>>
 
 export default async function recursive (
   allProjects: Project[],
   params: string[],
   opts: RecursiveOptions & {
-    allowNew?: boolean,
-    ignoredPackages?: Set<string>,
-    update?: boolean,
-    useBetaCli?: boolean,
-    selectedProjectsGraph: ProjectsGraph,
+    allowNew?: boolean
+    ignoredPackages?: Set<string>
+    update?: boolean
+    useBetaCli?: boolean
+    selectedProjectsGraph: ProjectsGraph
   } & Required<Pick<Config, 'workspaceDir'>>,
   cmdFullName: 'install' | 'add' | 'remove' | 'unlink' | 'update'
 ): Promise<boolean | string> {

@@ -16,13 +16,13 @@ import R = require('ramda')
 
 export default async function hoistByLockfile (
   opts: {
-    lockfile: Lockfile,
-    lockfileDir: string,
-    privateHoistPattern: string[],
-    privateHoistedModulesDir: string,
-    publicHoistPattern: string[],
-    publicHoistedModulesDir: string,
-    virtualStoreDir: string,
+    lockfile: Lockfile
+    lockfileDir: string
+    privateHoistPattern: string[]
+    privateHoistedModulesDir: string
+    publicHoistPattern: string[]
+    publicHoistedModulesDir: string
+    virtualStoreDir: string
   }
 ) {
   if (!opts.lockfile.packages) return {}
@@ -138,16 +138,16 @@ async function getDependencies (
 }
 
 export interface Dependency {
-  children: {[alias: string]: string},
-  depPath: string,
-  depth: number,
+  children: {[alias: string]: string}
+  depPath: string
+  depth: number
 }
 
 async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
-    getAliasHoistType: GetAliasHoistType,
+    getAliasHoistType: GetAliasHoistType
   }
 ): Promise<HoistedDependencies> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
@@ -182,11 +182,11 @@ async function hoistGraph (
 async function symlinkHoistedDependencies (
   hoistedDependencies: HoistedDependencies,
   opts: {
-    lockfile: Lockfile,
-    lockfileDir: string,
-    privateHoistedModulesDir: string,
-    publicHoistedModulesDir: string,
-    virtualStoreDir: string,
+    lockfile: Lockfile
+    lockfileDir: string
+    privateHoistedModulesDir: string
+    publicHoistedModulesDir: string
+    virtualStoreDir: string
   }
 ) {
   await Promise.all(

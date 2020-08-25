@@ -47,13 +47,13 @@ export type Command = (
 ) => CommandResponse | Promise<CommandResponse>
 
 const commands: Array<{
-  cliOptionsTypes: () => Object,
-  commandNames: string[],
-  completion?: CompletionFunc,
-  handler: Function,
-  help: () => string,
-  rcOptionsTypes: () => Record<string, unknown>,
-  shorthands?: Record<string, string | string[]>,
+  cliOptionsTypes: () => Object
+  commandNames: string[]
+  completion?: CompletionFunc
+  handler: Function
+  help: () => string
+  rcOptionsTypes: () => Record<string, unknown>
+  shorthands?: Record<string, string | string[]>
 }> = [
   add,
   audit,

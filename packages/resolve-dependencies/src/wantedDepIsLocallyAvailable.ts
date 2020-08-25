@@ -8,8 +8,8 @@ export default function wantedDepIsLocallyAvailable (
   workspacePackages: WorkspacePackages,
   wantedDependency: WantedDependency,
   opts: {
-    defaultTag: string,
-    registry: string,
+    defaultTag: string
+    registry: string
   }
 ) {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
@@ -21,9 +21,9 @@ export default function wantedDepIsLocallyAvailable (
 function pickMatchingLocalVersionOrNull (
   versions: {
     [version: string]: {
-      dir: string,
-      manifest: PackageManifest,
-    },
+      dir: string
+      manifest: PackageManifest
+    }
   },
   spec: RegistryPackageSpec
 ) {

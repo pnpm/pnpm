@@ -8,9 +8,9 @@ import { PackageMeta } from './pickPackage'
 import url = require('url')
 
 interface RegistryResponse {
-  status: number,
-  statusText: string,
-  json: () => Promise<PackageMeta>,
+  status: number
+  statusText: string
+  json: () => Promise<PackageMeta>
 }
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string

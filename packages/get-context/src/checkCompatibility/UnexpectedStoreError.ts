@@ -6,9 +6,9 @@ export default class UnexpectedStoreError extends PnpmError {
   public modulesDir: string
   constructor (
     opts: {
-      expectedStorePath: string,
-      actualStorePath: string,
-      modulesDir: string,
+      expectedStorePath: string
+      actualStorePath: string
+      modulesDir: string
     }
   ) {
     super('UNEXPECTED_STORE', 'Unexpected store location')

@@ -26,8 +26,8 @@ export default async (
   modulesDir: string,
   binsDir: string,
   opts: {
-    allowExoticManifests?: boolean,
-    warn: WarnFunction,
+    allowExoticManifests?: boolean
+    warn: WarnFunction
   }
 ) => {
   const allDeps = await readModulesDir(modulesDir)
@@ -53,12 +53,12 @@ export default async (
 
 export async function linkBinsOfPackages (
   pkgs: Array<{
-    manifest: DependencyManifest,
-    location: string,
+    manifest: DependencyManifest
+    location: string
   }>,
   binsTarget: string,
   opts: {
-    warn: WarnFunction,
+    warn: WarnFunction
   }
 ) {
   if (!pkgs.length) return
@@ -76,12 +76,12 @@ export async function linkBinsOfPackages (
 
 async function linkBins (
   allCmds: Array<Command & {
-    ownName: boolean,
-    pkgName: string,
+    ownName: boolean
+    pkgName: string
   }>,
   binsDir: string,
   opts: {
-    warn: WarnFunction,
+    warn: WarnFunction
   }
 ) {
   if (!allCmds.length) return [] as string[]
@@ -119,8 +119,8 @@ async function isFromModules (filename: string) {
 
 async function getPackageBins (
   opts: {
-    allowExoticManifests: boolean,
-    warn: WarnFunction,
+    allowExoticManifests: boolean
+    warn: WarnFunction
   },
   target: string
 ) {

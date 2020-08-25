@@ -39,10 +39,10 @@ Partial<Pick<Config,
 | 'userAgent'
 | 'verifyStoreIntegrity'
 >> & {
-  access?: 'public' | 'restricted',
+  access?: 'public' | 'restricted'
   argv: {
-    original: string[],
-  },
+    original: string[]
+  }
 }
 
 export default async function (
@@ -99,10 +99,10 @@ export default async function (
 
 async function isAlreadyPublished (
   opts: {
-    dir: string,
-    lockfileDir: string,
-    registries: Registries,
-    resolve: ResolveFunction,
+    dir: string
+    lockfileDir: string
+    registries: Registries
+    resolve: ResolveFunction
   },
   pkgName: string,
   pkgVersion: string

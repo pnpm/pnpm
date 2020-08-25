@@ -1,5 +1,5 @@
-import { PackageManifest } from '@pnpm/types'
 import { promisify } from 'util'
+import { PackageManifest } from '@pnpm/types'
 import path = require('path')
 import readPackageManifestCB = require('read-package-json')
 

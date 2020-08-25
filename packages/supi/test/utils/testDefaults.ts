@@ -18,9 +18,9 @@ const retryOpts = {
 
 export default async function testDefaults<T> (
   opts?: T & {
-    fastUnpack?: boolean,
-    storeDir?: string,
-    prefix?: string,
+    fastUnpack?: boolean
+    storeDir?: string
+    prefix?: string
   }, // eslint-disable-line
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
@@ -28,9 +28,9 @@ export default async function testDefaults<T> (
 ): Promise<
   InstallOptions &
   {
-    registries: Registries,
-    storeController: StoreController,
-    storeDir: string,
+    registries: Registries
+    storeController: StoreController
+    storeDir: string
   } &
   T
   > {
@@ -57,9 +57,9 @@ export default async function testDefaults<T> (
   const result: (
     InstallOptions &
     {
-      registries: Registries,
-      storeController: StoreController,
-      storeDir: string,
+      registries: Registries
+      storeController: StoreController
+      storeDir: string
     } &
     T
   ) = {

@@ -7,8 +7,8 @@ import most = require('most')
 export default (
   deprecation$: most.Stream<DeprecationLog>,
   opts: {
-    cwd: string,
-    isRecursive: boolean,
+    cwd: string
+    isRecursive: boolean
   }
 ) => {
   return deprecation$

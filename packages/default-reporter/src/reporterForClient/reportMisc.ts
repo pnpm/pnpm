@@ -18,14 +18,14 @@ const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
 
 export default (
   log$: {
-    registry: most.Stream<RegistryLog>,
-    other: most.Stream<Log>,
+    registry: most.Stream<RegistryLog>
+    other: most.Stream<Log>
   },
   opts: {
-    cwd: string,
-    logLevel?: LogLevel,
-    config?: Config,
-    zoomOutCurrent: boolean,
+    cwd: string
+    logLevel?: LogLevel
+    config?: Config
+    zoomOutCurrent: boolean
   }
 ) => {
   const maxLogLevel = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']

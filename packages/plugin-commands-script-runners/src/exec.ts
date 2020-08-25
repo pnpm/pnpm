@@ -50,11 +50,11 @@ export function help () {
 
 export async function handler (
   opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
-    bail?: boolean,
-    unsafePerm?: boolean,
-    rawConfig: object,
-    sort?: boolean,
-    workspaceConcurrency?: number,
+    bail?: boolean
+    unsafePerm?: boolean
+    rawConfig: object
+    sort?: boolean
+    workspaceConcurrency?: number
   } & Pick<Config, 'recursive'>,
   params: string[]
 ) {

@@ -4,23 +4,23 @@ import * as dp from 'dependency-path'
 import R = require('ramda')
 
 export interface LockedDependency {
-  depPath: string,
-  pkgSnapshot: PackageSnapshot,
-  next: () => LockfileWalkerStep,
+  depPath: string
+  pkgSnapshot: PackageSnapshot
+  next: () => LockfileWalkerStep
 }
 
 export interface LockfileWalkerStep {
-  dependencies: LockedDependency[],
-  links: string[],
-  missing: string[],
+  dependencies: LockedDependency[]
+  links: string[]
+  missing: string[]
 }
 
 export function lockfileWalkerGroupImporterSteps (
   lockfile: Lockfile,
   importerIds: string[],
   opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    skipped?: Set<string>,
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    skipped?: Set<string>
   }
 ) {
   const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
@@ -49,8 +49,8 @@ export default function lockfileWalker (
   lockfile: Lockfile,
   importerIds: string[],
   opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    skipped?: Set<string>,
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    skipped?: Set<string>
   }
 ) {
   const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
@@ -83,9 +83,9 @@ export default function lockfileWalker (
 
 function step (
   ctx: {
-    includeOptionalDependencies: boolean,
-    lockfile: Lockfile,
-    walked: Set<string>,
+    includeOptionalDependencies: boolean
+    lockfile: Lockfile
+    walked: Set<string>
   },
   nextDepPaths: string[]
 ) {

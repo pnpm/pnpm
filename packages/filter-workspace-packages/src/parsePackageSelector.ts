@@ -1,12 +1,12 @@
 import path = require('path')
 
 export interface PackageSelector {
-  diff?: string,
-  excludeSelf?: boolean,
-  includeDependencies?: boolean,
-  includeDependents?: boolean,
-  namePattern?: string,
-  parentDir?: string,
+  diff?: string
+  excludeSelf?: boolean
+  includeDependencies?: boolean
+  includeDependents?: boolean
+  namePattern?: string
+  parentDir?: string
 }
 
 export default (rawSelector: string, prefix: string): PackageSelector => {

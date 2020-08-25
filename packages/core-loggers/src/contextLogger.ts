@@ -5,9 +5,9 @@ import baseLogger, {
 export const contextLogger = baseLogger('context')
 
 export interface ContextMessage {
-  currentLockfileExists: boolean,
-  storeDir: string,
-  virtualStoreDir: string,
+  currentLockfileExists: boolean
+  storeDir: string
+  virtualStoreDir: string
 }
 
 export type ContextLog = {name: 'pnpm:context'} & LogBase & ContextMessage

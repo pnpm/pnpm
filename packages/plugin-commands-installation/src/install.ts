@@ -277,11 +277,11 @@ export type InstallCommandOptions = Pick<Config,
 | 'workspaceDir'
 > & CreateStoreControllerOptions & {
   argv: {
-    original: string[],
-  },
-  useBetaCli?: boolean,
-  recursive?: boolean,
-  workspace?: boolean,
+    original: string[]
+  }
+  useBetaCli?: boolean
+  recursive?: boolean
+  workspace?: boolean
 }
 
 export function handler (

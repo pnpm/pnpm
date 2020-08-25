@@ -33,8 +33,8 @@ export function preparePackages (
   t: Test,
   pkgs: Array<{ location: string, package: ProjectManifest } | ProjectManifest>,
   opts?: {
-    manifestFormat?: ManifestFormat,
-    tempDir?: string,
+    manifestFormat?: ManifestFormat
+    tempDir?: string
   }
 ) {
   const pkgTmpPath = opts?.tempDir ?? path.join(tempDir(t), 'project')
@@ -63,8 +63,8 @@ export default function prepare (
   test: Test,
   manifest?: ProjectManifest,
   opts?: {
-    manifestFormat?: ManifestFormat,
-    tempDir?: string,
+    manifestFormat?: ManifestFormat
+    tempDir?: string
   }
 ) {
   const dir = opts?.tempDir ?? path.join(tempDir(test), 'project')

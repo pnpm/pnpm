@@ -78,9 +78,9 @@ export async function handler (
   > &
   CreateStoreControllerOptions &
   {
-    recursive?: boolean,
-    reporter?: (logObj: LogBase) => void,
-    pending: boolean,
+    recursive?: boolean
+    reporter?: (logObj: LogBase) => void
+    pending: boolean
   },
   params: string[]
 ) {

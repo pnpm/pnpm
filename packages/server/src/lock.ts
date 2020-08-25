@@ -1,5 +1,5 @@
 interface CachedPromises<T> {
-  [name: string]: Promise<T>,
+  [name: string]: Promise<T>
 }
 
 export type LockedFunc<T> = (key: string, fn: () => Promise<T>) => Promise<T>

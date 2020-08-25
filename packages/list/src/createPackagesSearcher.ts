@@ -14,8 +14,8 @@ type MatchFunction = (entry: string) => boolean
 
 function search (
   packageSelector: {
-    matchName: MatchFunction,
-    matchVersion?: MatchFunction,
+    matchName: MatchFunction
+    matchVersion?: MatchFunction
   },
   pkg: { name: string, version: string }
 ) {

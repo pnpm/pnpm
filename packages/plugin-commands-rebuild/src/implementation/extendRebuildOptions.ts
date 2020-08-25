@@ -6,31 +6,31 @@ import path = require('path')
 import loadJsonFile = require('load-json-file')
 
 export interface StrictRebuildOptions {
-  childConcurrency: number,
-  extraBinPaths: string[],
-  lockfileDir: string,
-  sideEffectsCacheRead: boolean,
-  storeDir: string, // TODO: remove this property
-  storeController: StoreController,
-  force: boolean,
-  forceSharedLockfile: boolean,
-  useLockfile: boolean,
-  registries: Registries,
-  dir: string,
+  childConcurrency: number
+  extraBinPaths: string[]
+  lockfileDir: string
+  sideEffectsCacheRead: boolean
+  storeDir: string // TODO: remove this property
+  storeController: StoreController
+  force: boolean
+  forceSharedLockfile: boolean
+  useLockfile: boolean
+  registries: Registries
+  dir: string
 
-  reporter: (logObj: LogBase) => void,
-  production: boolean,
-  development: boolean,
-  optional: boolean,
-  rawConfig: object,
-  userAgent: string,
+  reporter: (logObj: LogBase) => void
+  production: boolean
+  development: boolean
+  optional: boolean
+  rawConfig: object
+  userAgent: string
   packageManager: {
-    name: string,
-    version: string,
-  },
-  unsafePerm: boolean,
-  pending: boolean,
-  shamefullyHoist: boolean,
+    name: string
+    version: string
+  }
+  unsafePerm: boolean
+  pending: boolean
+  shamefullyHoist: boolean
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &

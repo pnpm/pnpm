@@ -5,16 +5,16 @@ import lifecycle = require('@zkochan/npm-lifecycle')
 function noop () {} // eslint-disable-line:no-empty
 
 export interface RunLifecycleHookOptions {
-  args?: string[],
-  depPath: string,
-  extraBinPaths?: string[],
-  optional?: boolean,
-  pkgRoot: string,
-  rawConfig: object,
-  rootModulesDir: string,
-  silent?: boolean,
-  stdio?: string,
-  unsafePerm: boolean,
+  args?: string[]
+  depPath: string
+  extraBinPaths?: string[]
+  optional?: boolean
+  pkgRoot: string
+  rawConfig: object
+  rootModulesDir: string
+  silent?: boolean
+  stdio?: string
+  unsafePerm: boolean
 }
 
 export default async function runLifecycleHook (

@@ -10,11 +10,11 @@ import tabtab = require('@pnpm/tabtab')
 
 export default function (
   opts: {
-    cliOptionsTypesByCommandName: Record<string, () => Object>,
-    completionByCommandName: Record<string, CompletionFunc>,
-    initialCompletion: () => Completion[],
-    shorthandsByCommandName: Record<string, Record<string, string | string[]>>,
-    universalOptionsTypes: Record<string, Object>,
+    cliOptionsTypesByCommandName: Record<string, () => Object>
+    completionByCommandName: Record<string, CompletionFunc>
+    initialCompletion: () => Completion[]
+    shorthandsByCommandName: Record<string, Record<string, string | string[]>>
+    universalOptionsTypes: Record<string, Object>
   }
 ) {
   return async () => {

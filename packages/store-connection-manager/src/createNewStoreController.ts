@@ -31,7 +31,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'userAgent'
 | 'verifyStoreIntegrity'
 > & {
-  ignoreFile?: (filename: string) => boolean,
+  ignoreFile?: (filename: string) => boolean
 }
 
 export default async (

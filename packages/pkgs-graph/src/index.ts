@@ -4,34 +4,34 @@ import npa = require('@zkochan/npm-package-arg')
 import R = require('ramda')
 
 export interface Manifest {
-  name?: string,
-  version?: string,
+  name?: string
+  version?: string
   dependencies?: {
-    [name: string]: string,
-  },
+    [name: string]: string
+  }
   devDependencies?: {
-    [name: string]: string,
-  },
+    [name: string]: string
+  }
   optionalDependencies?: {
-    [name: string]: string,
-  },
+    [name: string]: string
+  }
 }
 
 export interface Package {
-  manifest: Manifest,
-  dir: string,
+  manifest: Manifest
+  dir: string
 }
 
 export interface PackageNode<T> {
-  package: Package & T,
-  dependencies: string[],
+  package: Package & T
+  dependencies: string[]
 }
 
 export default function<T> (pkgs: Array<Package & T>, opts?: {
-  linkWorkspacePackages?: boolean,
+  linkWorkspacePackages?: boolean
 }): {
-    graph: {[id: string]: PackageNode<T>},
-    unmatched: Array<{pkgName: string, range: string}>,
+    graph: {[id: string]: PackageNode<T>}
+    unmatched: Array<{pkgName: string, range: string}>
   } {
   const pkgMap = createPkgMap(pkgs)
   const unmatched: Array<{pkgName: string, range: string}> = []
@@ -104,7 +104,7 @@ export default function<T> (pkgs: Array<Package & T>, opts?: {
 }
 
 function createPkgMap (pkgs: Package[]): {
-  [pkgId: string]: Package,
+  [pkgId: string]: Package
 } {
   const pkgMap = {}
   for (const pkg of pkgs) {

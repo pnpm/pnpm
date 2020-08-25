@@ -2,7 +2,7 @@ import BreakingChangeError from './BreakingChangeError'
 import ErrorRelatedSources from './ErrorRelatedSources'
 
 export type ModulesBreakingChangeErrorOptions = ErrorRelatedSources & {
-  modulesPath: string,
+  modulesPath: string
 }
 
 export default class ModulesBreakingChangeError extends BreakingChangeError {

@@ -9,11 +9,11 @@ import { ReporterFunction } from './types'
 export default async function (
   fuzzyDeps: string[],
   opts: {
-    prefix?: string,
-    registries?: Registries,
-    reporter?: ReporterFunction,
-    storeController: StoreController,
-    tag?: string,
+    prefix?: string
+    registries?: Registries
+    reporter?: ReporterFunction
+    storeController: StoreController
+    tag?: string
   }
 ) {
   const reporter = opts?.reporter

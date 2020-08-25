@@ -26,36 +26,36 @@ import resolveLinkTarget = require('resolve-link-target')
 export type SearchFunction = (pkg: { name: string, version: string }) => boolean
 
 export interface PackageNode {
-  alias: string,
-  circular?: true,
-  dependencies?: PackageNode[],
-  dev?: boolean,
-  isPeer: boolean,
-  isSkipped: boolean,
-  isMissing: boolean,
-  name: string,
-  optional?: true,
-  path: string,
-  resolved?: string,
-  searched?: true,
-  version: string,
+  alias: string
+  circular?: true
+  dependencies?: PackageNode[]
+  dev?: boolean
+  isPeer: boolean
+  isSkipped: boolean
+  isMissing: boolean
+  name: string
+  optional?: true
+  path: string
+  resolved?: string
+  searched?: true
+  version: string
 }
 
 export interface DependenciesHierarchy {
-  dependencies?: PackageNode[],
-  devDependencies?: PackageNode[],
-  optionalDependencies?: PackageNode[],
-  unsavedDependencies?: PackageNode[],
+  dependencies?: PackageNode[]
+  devDependencies?: PackageNode[]
+  optionalDependencies?: PackageNode[]
+  unsavedDependencies?: PackageNode[]
 }
 
 export default async function dependenciesHierarchy (
   projectPaths: string[],
   maybeOpts: {
-    depth: number,
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    registries?: Registries,
-    search?: SearchFunction,
-    lockfileDir: string,
+    depth: number
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    registries?: Registries
+    search?: SearchFunction
+    lockfileDir: string
   }
 ): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
   if (!maybeOpts || !maybeOpts.lockfileDir) {
@@ -107,12 +107,12 @@ async function dependenciesHierarchyForPackage (
   projectPath: string,
   currentLockfile: Lockfile,
   opts: {
-    depth: number,
-    include: { [dependenciesField in DependenciesField]: boolean },
-    registries: Registries,
-    search?: SearchFunction,
-    skipped: Set<string>,
-    lockfileDir: string,
+    depth: number
+    include: { [dependenciesField in DependenciesField]: boolean }
+    registries: Registries
+    search?: SearchFunction
+    skipped: Set<string>
+    lockfileDir: string
   }
 ) {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
@@ -225,16 +225,16 @@ function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
 }
 
 interface GetTreeOpts {
-  currentDepth: number,
-  maxDepth: number,
-  lockfileDir: string,
-  modulesDir: string,
-  includeOptionalDependencies: boolean,
-  search?: SearchFunction,
-  skipped: Set<string>,
-  registries: Registries,
-  currentPackages: PackageSnapshots,
-  wantedPackages: PackageSnapshots,
+  currentDepth: number
+  maxDepth: number
+  lockfileDir: string
+  modulesDir: string
+  includeOptionalDependencies: boolean
+  search?: SearchFunction
+  skipped: Set<string>
+  registries: Registries
+  currentPackages: PackageSnapshots
+  wantedPackages: PackageSnapshots
 }
 
 interface DependencyInfo { circular?: true, dependencies: PackageNode[] }
@@ -341,15 +341,15 @@ function getTreeHelper (
 
 function getPkgInfo (
   opts: {
-    alias: string,
-    lockfileDir: string,
-    modulesDir: string,
-    ref: string,
-    currentPackages: PackageSnapshots,
-    peers?: Set<string>,
-    registries: Registries,
-    skipped: Set<string>,
-    wantedPackages: PackageSnapshots,
+    alias: string
+    lockfileDir: string
+    modulesDir: string
+    ref: string
+    currentPackages: PackageSnapshots
+    peers?: Set<string>
+    registries: Registries
+    skipped: Set<string>
+    wantedPackages: PackageSnapshots
   }
 ) {
   let name!: string

@@ -1,6 +1,6 @@
 import { promisify } from 'util'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
 import makeDedicatedLockfile from '../lib'
+import { readWantedLockfile } from '@pnpm/lockfile-file'
 import path = require('path')
 import ncpCB = require('ncp')
 import test = require('tape')

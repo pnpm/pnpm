@@ -3,9 +3,9 @@ export type ResolveFunction<T> = (value?: T | PromiseLike<T>) => void
 export type RejectFunction = (reason?: Error) => void
 
 export interface Deferred<T> {
-  resolve: ResolveFunction<T>,
-  reject: RejectFunction,
-  promise: Promise<T>,
+  resolve: ResolveFunction<T>
+  reject: RejectFunction
+  promise: Promise<T>
 }
 
 export default function <T> (): Deferred<T> {

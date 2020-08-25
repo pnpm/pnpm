@@ -5,25 +5,25 @@ import { zoomOut } from './utils/zooming'
 import most = require('most')
 
 interface ProgressStats {
-  fetched: number,
-  resolved: number,
-  reused: number,
+  fetched: number
+  resolved: number
+  reused: number
 }
 
 interface ModulesInstallProgress {
-  importingDone$: most.Stream<boolean>,
-  progress$: most.Stream<ProgressStats>,
-  requirer: string,
+  importingDone$: most.Stream<boolean>
+  progress$: most.Stream<ProgressStats>
+  requirer: string
 }
 
 export default (
   log$: {
-    progress: most.Stream<ProgressLog>,
-    stage: most.Stream<StageLog>,
+    progress: most.Stream<ProgressLog>
+    stage: most.Stream<StageLog>
   },
   opts: {
-    cwd: string,
-    throttleProgress?: number,
+    cwd: string
+    throttleProgress?: number
   }
 ) => {
   const progressOutput = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
@@ -85,7 +85,7 @@ function getModulesInstallProgress$ (
   const progessStatsPushStreamByRequirer = getProgessStatsPushStreamByRequirer(progress$)
 
   const stagePushStreamByRequirer: {
-    [requirer: string]: PushStream<StageLog>,
+    [requirer: string]: PushStream<StageLog>
   } = {}
   stage$
     .forEach((log: StageLog) => {
@@ -124,7 +124,7 @@ function stage$ToImportingDone$ (stage$: most.Stream<StageLog>) {
 
 function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog>) {
   const progessStatsPushStreamByRequirer: {
-    [requirer: string]: PushStream<ProgressStats>,
+    [requirer: string]: PushStream<ProgressStats>
   } = {}
 
   const previousProgressStatsByRequirer: { [requirer: string]: ProgressStats } = {}

@@ -25,47 +25,47 @@ export * from './nodeIdUtils'
 export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 
 export interface ResolvedDirectDependency {
-  alias: string,
-  optional: boolean,
-  dev: boolean,
-  resolution: Resolution,
-  pkgId: string,
-  version: string,
-  name: string,
-  normalizedPref?: string,
+  alias: string
+  optional: boolean
+  dev: boolean
+  resolution: Resolution
+  pkgId: string
+  version: string
+  name: string
+  normalizedPref?: string
 }
 
 export interface Importer {
-  id: string,
-  hasRemovedDependencies?: boolean,
-  modulesDir: string,
-  preferredVersions?: PreferredVersions,
-  rootDir: string,
-  wantedDependencies: Array<WantedDependency & { updateDepth: number }>,
+  id: string
+  hasRemovedDependencies?: boolean
+  modulesDir: string
+  preferredVersions?: PreferredVersions
+  rootDir: string
+  wantedDependencies: Array<WantedDependency & { updateDepth: number }>
 }
 
 export default async function (
   importers: Importer[],
   opts: {
-    currentLockfile: Lockfile,
-    dryRun: boolean,
-    engineStrict: boolean,
-    force: boolean,
-    forceFullResolution: boolean,
+    currentLockfile: Lockfile
+    dryRun: boolean
+    engineStrict: boolean
+    force: boolean
+    forceFullResolution: boolean
     hooks: {
-      readPackage?: ReadPackageHook,
-    },
-    nodeVersion: string,
-    registries: Registries,
-    pnpmVersion: string,
-    updateMatching?: (pkgName: string) => boolean,
-    linkWorkspacePackagesDepth?: number,
-    lockfileDir: string,
-    storeController: StoreController,
-    tag: string,
-    virtualStoreDir: string,
-    wantedLockfile: Lockfile,
-    workspacePackages: WorkspacePackages,
+      readPackage?: ReadPackageHook
+    }
+    nodeVersion: string
+    registries: Registries
+    pnpmVersion: string
+    updateMatching?: (pkgName: string) => boolean
+    linkWorkspacePackagesDepth?: number
+    lockfileDir: string
+    storeController: StoreController
+    tag: string
+    virtualStoreDir: string
+    wantedLockfile: Lockfile
+    workspacePackages: WorkspacePackages
   }
 ) {
   const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}
@@ -148,12 +148,12 @@ export default async function (
 
   const resolvedImporters = {} as {
     [id: string]: {
-      directDependencies: ResolvedDirectDependency[],
+      directDependencies: ResolvedDirectDependency[]
       directNodeIdsByAlias: {
-        [alias: string]: string,
-      },
-      linkedDependencies: LinkedDependency[],
-    },
+        [alias: string]: string
+      }
+      linkedDependencies: LinkedDependency[]
+    }
   }
 
   for (const { id } of importers) {
@@ -198,10 +198,10 @@ export default async function (
 
 function buildTree (
   ctx: {
-    childrenByParentId: ChildrenByParentId,
-    dependenciesTree: DependenciesTree,
-    resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
-    skipped: Set<string>,
+    childrenByParentId: ChildrenByParentId
+    dependenciesTree: DependenciesTree
+    resolvedPackagesByPackageId: ResolvedPackagesByPackageId
+    skipped: Set<string>
   },
   parentNodeId: string,
   parentId: string,

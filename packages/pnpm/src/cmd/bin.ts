@@ -34,7 +34,7 @@ export function help () {
 
 export async function handler (
   opts: {
-    bin: string,
+    bin: string
   }
 ) {
   return opts.bin

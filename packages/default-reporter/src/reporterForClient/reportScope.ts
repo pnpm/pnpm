@@ -16,8 +16,8 @@ const COMMANDS_THAT_REPORT_SCOPE = new Set([
 export default (
   scope$: most.Stream<ScopeLog>,
   opts: {
-    isRecursive: boolean,
-    cmd: string,
+    isRecursive: boolean
+    cmd: string
   }
 ) => {
   if (!COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd)) {

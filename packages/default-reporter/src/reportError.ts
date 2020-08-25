@@ -232,8 +232,8 @@ For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\``
 
 function reportLifecycleError (
   msg: {
-    stage: string,
-    errno?: number | string,
+    stage: string
+    errno?: number | string
   }
 ) {
   if (msg.stage === 'test') {
@@ -248,16 +248,16 @@ function reportLifecycleError (
 function reportEngineError (
   err: Error,
   msg: {
-    message: string,
+    message: string
     current: {
-      node: string,
-      pnpm: string,
-    },
-    packageId: string,
+      node: string
+      pnpm: string
+    }
+    packageId: string
     wanted: {
-      node?: string,
-      pnpm?: string,
-    },
+      node?: string
+      pnpm?: string
+    }
   }
 ) {
   let output = ''

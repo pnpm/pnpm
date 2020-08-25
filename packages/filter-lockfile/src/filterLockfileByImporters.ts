@@ -15,9 +15,9 @@ export default function filterByImporters (
   lockfile: Lockfile,
   importerIds: string[],
   opts: {
-    include: { [dependenciesField in DependenciesField]: boolean },
-    skipped: Set<string>,
-    failOnMissingDependencies: boolean,
+    include: { [dependenciesField in DependenciesField]: boolean }
+    skipped: Set<string>
+    failOnMissingDependencies: boolean
   }
 ): Lockfile {
   const packages = {} as PackageSnapshots
@@ -51,7 +51,7 @@ function pkgAllDeps (
   step: LockfileWalkerStep,
   pickedPackages: PackageSnapshots,
   opts: {
-    failOnMissingDependencies: boolean,
+    failOnMissingDependencies: boolean
   }
 ) {
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {

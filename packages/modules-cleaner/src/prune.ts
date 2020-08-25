@@ -26,27 +26,27 @@ import R = require('ramda')
 
 export default async function prune (
   importers: Array<{
-    binsDir: string,
-    id: string,
-    modulesDir: string,
-    pruneDirectDependencies?: boolean,
-    removePackages?: string[],
-    rootDir: string,
+    binsDir: string
+    id: string
+    modulesDir: string
+    pruneDirectDependencies?: boolean
+    removePackages?: string[]
+    rootDir: string
   }>,
   opts: {
-    dryRun?: boolean,
-    include: { [dependenciesField in DependenciesField]: boolean },
-    hoistedDependencies: HoistedDependencies,
-    hoistedModulesDir?: string,
-    publicHoistedModulesDir?: string,
-    wantedLockfile: Lockfile,
-    currentLockfile: Lockfile,
-    pruneStore?: boolean,
-    registries: Registries,
-    skipped: Set<string>,
-    virtualStoreDir: string,
-    lockfileDir: string,
-    storeController: StoreController,
+    dryRun?: boolean
+    include: { [dependenciesField in DependenciesField]: boolean }
+    hoistedDependencies: HoistedDependencies
+    hoistedModulesDir?: string
+    publicHoistedModulesDir?: string
+    wantedLockfile: Lockfile
+    currentLockfile: Lockfile
+    pruneStore?: boolean
+    registries: Registries
+    skipped: Set<string>
+    virtualStoreDir: string
+    lockfileDir: string
+    storeController: StoreController
   }
 ): Promise<Set<string>> {
   const wantedLockfile = filterLockfile(opts.wantedLockfile, {

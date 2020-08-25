@@ -146,8 +146,8 @@ dependencies is not found inside the workspace',
 }
 
 export type UpdateCommandOptions = InstallCommandOptions & {
-  interactive?: boolean,
-  latest?: boolean,
+  interactive?: boolean
+  latest?: boolean
 }
 
 export function handler (

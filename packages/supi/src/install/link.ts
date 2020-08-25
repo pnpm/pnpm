@@ -43,54 +43,54 @@ export {
 }
 
 export interface Project {
-  binsDir: string,
-  directNodeIdsByAlias: {[alias: string]: string},
-  id: string,
-  linkedDependencies: LinkedDependency[],
-  manifest: ProjectManifest,
-  modulesDir: string,
-  pruneDirectDependencies: boolean,
-  removePackages?: string[],
-  rootDir: string,
-  topParents: Array<{name: string, version: string}>,
+  binsDir: string
+  directNodeIdsByAlias: {[alias: string]: string}
+  id: string
+  linkedDependencies: LinkedDependency[]
+  manifest: ProjectManifest
+  modulesDir: string
+  pruneDirectDependencies: boolean
+  removePackages?: string[]
+  rootDir: string
+  topParents: Array<{name: string, version: string}>
 }
 
 export default async function linkPackages (
   projects: Project[],
   dependenciesTree: DependenciesTree,
   opts: {
-    afterAllResolvedHook?: (lockfile: Lockfile) => Lockfile,
-    currentLockfile: Lockfile,
-    dryRun: boolean,
-    force: boolean,
-    hoistedDependencies: HoistedDependencies,
-    hoistedModulesDir: string,
-    hoistPattern?: string[],
-    publicHoistPattern?: string[],
-    include: IncludedDependencies,
-    lockfileDir: string,
-    makePartialCurrentLockfile: boolean,
-    outdatedDependencies: {[pkgId: string]: string},
-    pruneStore: boolean,
-    registries: Registries,
-    rootModulesDir: string,
-    sideEffectsCacheRead: boolean,
-    skipped: Set<string>,
-    storeController: StoreController,
-    strictPeerDependencies: boolean,
+    afterAllResolvedHook?: (lockfile: Lockfile) => Lockfile
+    currentLockfile: Lockfile
+    dryRun: boolean
+    force: boolean
+    hoistedDependencies: HoistedDependencies
+    hoistedModulesDir: string
+    hoistPattern?: string[]
+    publicHoistPattern?: string[]
+    include: IncludedDependencies
+    lockfileDir: string
+    makePartialCurrentLockfile: boolean
+    outdatedDependencies: {[pkgId: string]: string}
+    pruneStore: boolean
+    registries: Registries
+    rootModulesDir: string
+    sideEffectsCacheRead: boolean
+    skipped: Set<string>
+    storeController: StoreController
+    strictPeerDependencies: boolean
     // This is only needed till lockfile v4
-    updateLockfileMinorVersion: boolean,
-    virtualStoreDir: string,
-    wantedLockfile: Lockfile,
-    wantedToBeSkippedPackageIds: Set<string>,
+    updateLockfileMinorVersion: boolean
+    virtualStoreDir: string
+    wantedLockfile: Lockfile
+    wantedToBeSkippedPackageIds: Set<string>
   }
 ): Promise<{
-    currentLockfile: Lockfile,
-    depGraph: DependenciesGraph,
-    newDepPaths: string[],
-    newHoistedDependencies: HoistedDependencies,
-    removedDepPaths: Set<string>,
-    wantedLockfile: Lockfile,
+    currentLockfile: Lockfile
+    depGraph: DependenciesGraph
+    newDepPaths: string[]
+    newHoistedDependencies: HoistedDependencies
+    removedDepPaths: Set<string>
+    wantedLockfile: Lockfile
   }> {
   // TODO: decide what kind of logging should be here.
   // The `Creating dependency graph` is not good to report in all cases as
@@ -366,14 +366,14 @@ async function linkNewPackages (
   wantedLockfile: Lockfile,
   depGraph: DependenciesGraph,
   opts: {
-    dryRun: boolean,
-    force: boolean,
-    optional: boolean,
-    lockfileDir: string,
-    sideEffectsCacheRead: boolean,
-    skipped: Set<string>,
-    storeController: StoreController,
-    virtualStoreDir: string,
+    dryRun: boolean
+    force: boolean
+    optional: boolean
+    lockfileDir: string
+    sideEffectsCacheRead: boolean
+    skipped: Set<string>
+    storeController: StoreController
+    virtualStoreDir: string
   }
 ): Promise<string[]> {
   const wantedRelDepPaths = R.difference(R.keys(wantedLockfile.packages), Array.from(opts.skipped))
@@ -475,8 +475,8 @@ function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
-    force: boolean,
-    targetEngine?: string,
+    force: boolean
+    targetEngine?: string
   }
 ) {
   return Promise.all(
@@ -497,8 +497,8 @@ function linkAllModules (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
-    lockfileDir: string,
-    optional: boolean,
+    lockfileDir: string
+    optional: boolean
   }
 ) {
   return Promise.all(

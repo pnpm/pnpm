@@ -35,12 +35,12 @@ const COMPARATORS = [
 ]
 
 interface OutdatedInWorkspace extends OutdatedPackage {
-  belongsTo: DependenciesField,
-  current?: string,
-  dependentPkgs: Array<{ location: string, manifest: ProjectManifest }>,
-  latest?: string,
-  packageName: string,
-  wanted: string,
+  belongsTo: DependenciesField
+  current?: string
+  dependentPkgs: Array<{ location: string, manifest: ProjectManifest }>
+  latest?: string
+  packageName: string
+  wanted: string
 }
 
 export default async (

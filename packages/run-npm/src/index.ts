@@ -16,9 +16,9 @@ export function runScriptSync (
   command: string,
   args: string[],
   opts: {
-    cwd: string,
-    stdio: childProcess.StdioOptions,
-    userAgent?: string,
+    cwd: string
+    stdio: childProcess.StdioOptions
+    userAgent?: string
   }
 ) {
   opts = Object.assign({}, opts)
@@ -29,8 +29,8 @@ export function runScriptSync (
 
 function createEnv (
   opts: {
-    cwd: string,
-    userAgent?: string,
+    cwd: string
+    userAgent?: string
   }
 ) {
   const env = Object.create(process.env)

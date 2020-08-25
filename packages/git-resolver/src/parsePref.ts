@@ -5,17 +5,17 @@ import git = require('graceful-git')
 import HostedGit = require('hosted-git-info')
 
 export type HostedPackageSpec = ({
-  fetchSpec: string,
+  fetchSpec: string
   hosted?: {
-    type: string,
-    user: string,
-    project: string,
-    committish: string,
-    tarball: () => string | undefined,
-  },
-  normalizedPref: string,
-  gitCommittish: string | null,
-  gitRange?: string,
+    type: string
+    user: string
+    project: string
+    committish: string
+    tarball: () => string | undefined
+  }
+  normalizedPref: string
+  gitCommittish: string | null
+  gitRange?: string
 })
 
 const gitProtocols = new Set([

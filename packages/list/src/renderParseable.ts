@@ -7,10 +7,10 @@ const sortPackages = R.sortBy(R.prop('name'))
 export default async function (
   pkgs: PackageDependencyHierarchy[],
   opts: {
-    long: boolean,
-    depth: number,
-    alwaysPrintRootPackage: boolean,
-    search: boolean,
+    long: boolean
+    depth: number
+    alwaysPrintRootPackage: boolean
+    search: boolean
   }
 ) {
   return pkgs.map((pkg) => renderParseableForPackage(pkg, opts)).join('\n')
@@ -19,10 +19,10 @@ export default async function (
 function renderParseableForPackage (
   pkg: PackageDependencyHierarchy,
   opts: {
-    long: boolean,
-    depth: number,
-    alwaysPrintRootPackage: boolean,
-    search: boolean,
+    long: boolean
+    depth: number
+    alwaysPrintRootPackage: boolean
+    search: boolean
   }
 ) {
   const pkgs = sortPackages(

@@ -16,8 +16,8 @@ import ssri = require('ssri')
 export default async function resolveLocal (
   wantedDependency: {pref: string},
   opts: {
-    lockfileDir?: string,
-    projectDir: string,
+    lockfileDir?: string
+    projectDir: string
   }
 ): Promise<
   (
@@ -25,9 +25,9 @@ export default async function resolveLocal (
     Required<Pick<ResolveResult, 'normalizedPref'>> &
     (
       {
-        resolution: TarballResolution,
+        resolution: TarballResolution
       } | ({
-        resolution: DirectoryResolution,
+        resolution: DirectoryResolution
       } & Required<Pick<ResolveResult, 'manifest'>>)
     )
   ) | null

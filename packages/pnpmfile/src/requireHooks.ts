@@ -8,8 +8,8 @@ import R = require('ramda')
 export default function requireHooks (
   prefix: string,
   opts: {
-    globalPnpmfile?: string,
-    pnpmfile?: string,
+    globalPnpmfile?: string
+    pnpmfile?: string
   }
 ) {
   const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)

@@ -8,9 +8,9 @@ import save, { PackageSpecObject } from '../save'
 export async function updateProjectManifest (
   importer: ImporterToUpdate,
   opts: {
-    directDependencies: ResolvedDirectDependency[],
-    preserveWorkspaceProtocol: boolean,
-    saveWorkspaceProtocol: boolean,
+    directDependencies: ResolvedDirectDependency[]
+    preserveWorkspaceProtocol: boolean
+    saveWorkspaceProtocol: boolean
   }
 ) {
   if (!importer.manifest) {
@@ -62,9 +62,9 @@ function resolvedDirectDepToSpecObject (
   }: ResolvedDirectDependency & { isNew?: Boolean, specRaw: string },
   importer: ImporterToUpdate,
   opts: {
-    pinnedVersion: PinnedVersion,
-    preserveWorkspaceProtocol: boolean,
-    saveWorkspaceProtocol: boolean,
+    pinnedVersion: PinnedVersion
+    preserveWorkspaceProtocol: boolean
+    saveWorkspaceProtocol: boolean
   }
 ): PackageSpecObject {
   let pref!: string
@@ -114,7 +114,7 @@ export default function getPref (
   name: string,
   version: string,
   opts: {
-    pinnedVersion?: PinnedVersion,
+    pinnedVersion?: PinnedVersion
   }
 ) {
   const prefix = getPrefix(alias, name)
@@ -123,11 +123,11 @@ export default function getPref (
 
 function getPrefPreferSpecifiedSpec (
   opts: {
-    alias: string,
-    name: string,
-    version: string,
-    specRaw: string,
-    pinnedVersion?: PinnedVersion,
+    alias: string
+    name: string
+    version: string
+    specRaw: string
+    pinnedVersion?: PinnedVersion
   }
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
@@ -145,11 +145,11 @@ function getPrefPreferSpecifiedSpec (
 
 function getPrefPreferSpecifiedExoticSpec (
   opts: {
-    alias: string,
-    name: string,
-    version: string,
-    specRaw: string,
-    pinnedVersion: PinnedVersion,
+    alias: string
+    name: string
+    version: string
+    specRaw: string
+    pinnedVersion: PinnedVersion
   }
 ) {
   const prefix = getPrefix(opts.alias, opts.name)

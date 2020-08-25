@@ -20,11 +20,11 @@ class TarballIntegrityError extends PnpmError {
   public readonly url: string
 
   constructor (opts: {
-    found: string,
-    expected: string,
-    algorithm: string,
-    sri: string,
-    url: string,
+    found: string
+    expected: string
+    algorithm: string
+    sri: string
+    url: string
   }) {
     super('TARBALL_INTEGRITY', `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`)
     this.found = opts.found
@@ -36,25 +36,25 @@ class TarballIntegrityError extends PnpmError {
 }
 
 export interface HttpResponse {
-  body: string,
+  body: string
 }
 
 export type DownloadFunction = (url: string, opts: {
   auth?: {
-    authHeaderValue: string | undefined,
-    alwaysAuth: boolean | undefined,
-  },
-  cafs: Cafs,
-  manifest?: DeferredManifestPromise,
-  registry?: string,
-  onStart?: (totalSize: number | null, attempt: number) => void,
-  onProgress?: (downloaded: number) => void,
-  integrity?: string,
+    authHeaderValue: string | undefined
+    alwaysAuth: boolean | undefined
+  }
+  cafs: Cafs
+  manifest?: DeferredManifestPromise
+  registry?: string
+  onStart?: (totalSize: number | null, attempt: number) => void
+  onProgress?: (downloaded: number) => void
+  integrity?: string
 }) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
-  get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void,
-  fetch: (url: string, opts: {auth?: object}, cb: (err: Error, res: IncomingMessage) => void) => void,
+  get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
+  fetch: (url: string, opts: {auth?: object}, cb: (err: Error, res: IncomingMessage) => void) => void
 }
 
 export default (
@@ -62,12 +62,12 @@ export default (
   gotOpts: {
     // retry
     retry?: {
-      retries?: number,
-      factor?: number,
-      minTimeout?: number,
-      maxTimeout?: number,
-      randomize?: boolean,
-    },
+      retries?: number
+      factor?: number
+      minTimeout?: number
+      maxTimeout?: number
+      randomize?: boolean
+    }
   }
 ): DownloadFunction => {
   const retryOpts = {
@@ -80,15 +80,15 @@ export default (
 
   return function download (url: string, opts: {
     auth?: {
-      authHeaderValue: string | undefined,
-      alwaysAuth: boolean | undefined,
-    },
-    cafs: Cafs,
-    manifest?: DeferredManifestPromise,
-    registry?: string,
-    onStart?: (totalSize: number | null, attempt: number) => void,
-    onProgress?: (downloaded: number) => void,
-    integrity?: string,
+      authHeaderValue: string | undefined
+      alwaysAuth: boolean | undefined
+    }
+    cafs: Cafs
+    manifest?: DeferredManifestPromise
+    registry?: string
+    onStart?: (totalSize: number | null, attempt: number) => void
+    onProgress?: (downloaded: number) => void
+    integrity?: string
   }): Promise<FetchResult> {
     // If a tarball is hosted on a different place than the manifest, only send
     // credentials on `alwaysAuth`
@@ -201,10 +201,10 @@ async function safeCheckStream (stream: any, integrity: string, url: string): Pr
 
 function waitTillClosed (
   opts: {
-    stream: NodeJS.EventEmitter,
-    size: null | number,
-    getDownloaded: () => number,
-    url: string,
+    stream: NodeJS.EventEmitter
+    size: null | number
+    getDownloaded: () => number
+    url: string
   }
 ) {
   return new Promise((resolve, reject) => {

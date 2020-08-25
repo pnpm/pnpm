@@ -9,8 +9,8 @@ export default async function (
   packageManifest: ProjectManifest,
   removedPackages: string[],
   opts: {
-    saveType?: DependenciesField,
-    prefix: string,
+    saveType?: DependenciesField
+    prefix: string
   }
 ): Promise<ProjectManifest> {
   if (opts.saveType) {

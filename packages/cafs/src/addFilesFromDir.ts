@@ -11,8 +11,8 @@ const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
 export default async function (
   cafs: {
-    addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<ssri.Integrity>,
-    addBuffer: (buffer: Buffer, mode: number) => Promise<ssri.Integrity>,
+    addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<ssri.Integrity>
+    addBuffer: (buffer: Buffer, mode: number) => Promise<ssri.Integrity>
   },
   dirname: string,
   manifest?: DeferredManifestPromise
@@ -24,8 +24,8 @@ export default async function (
 
 async function _retrieveFileIntegrities (
   cafs: {
-    addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<ssri.Integrity>,
-    addBuffer: (buffer: Buffer, mode: number) => Promise<ssri.Integrity>,
+    addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<ssri.Integrity>
+    addBuffer: (buffer: Buffer, mode: number) => Promise<ssri.Integrity>
   },
   rootDir: string,
   currDir: string,

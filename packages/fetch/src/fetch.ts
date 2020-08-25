@@ -12,13 +12,13 @@ const FACTOR = 6
 export { Response, RetryTimeoutOptions }
 
 interface URLLike {
-  href: string,
+  href: string
 }
 
 export type RequestInfo = string | URLLike | Request
 
 export interface RequestInit extends NodeRequestInit {
-  retry?: RetryTimeoutOptions,
+  retry?: RetryTimeoutOptions
 }
 
 export const isRedirect = fetch.isRedirect

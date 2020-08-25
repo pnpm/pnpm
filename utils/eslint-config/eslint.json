@@ -49,16 +49,6 @@
     "@typescript-eslint/no-unnecessary-boolean-literal-compare": "off",
     "@typescript-eslint/no-unnecessary-type-assertion": "warn",
     "@typescript-eslint/type-annotation-spacing": "error",
-    "@typescript-eslint/member-delimiter-style": ["error", {
-        "multiline": {
-          "delimiter": "comma",
-          "requireLast": true
-        },
-        "singleline": {
-          "delimiter": "comma",
-          "requireLast": false
-        }
-      }],
     "brace-style": [
         "error",
         "1tbs"

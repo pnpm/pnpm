@@ -4,8 +4,8 @@ import most = require('most')
 
 export default (
   log$: {
-    context: most.Stream<ContextLog>,
-    packageImportMethod: most.Stream<PackageImportMethodLog>,
+    context: most.Stream<ContextLog>
+    packageImportMethod: most.Stream<PackageImportMethodLog>
   },
   opts: { cwd: string }
 ) => {

@@ -23,65 +23,65 @@ import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 
 export interface PnpmContext<T> {
-  currentLockfile: Lockfile,
-  currentLockfileIsUpToDate: boolean,
-  existsCurrentLockfile: boolean,
-  existsWantedLockfile: boolean,
-  extraBinPaths: string[],
-  hoistedDependencies: HoistedDependencies,
-  include: IncludedDependencies,
-  modulesFile: Modules | null,
-  pendingBuilds: string[],
+  currentLockfile: Lockfile
+  currentLockfileIsUpToDate: boolean
+  existsCurrentLockfile: boolean
+  existsWantedLockfile: boolean
+  extraBinPaths: string[]
+  hoistedDependencies: HoistedDependencies
+  include: IncludedDependencies
+  modulesFile: Modules | null
+  pendingBuilds: string[]
   projects: Array<{
-    modulesDir: string,
-    id: string,
-  } & HookOptions & T & Required<ProjectOptions>>,
-  rootModulesDir: string,
-  hoistPattern: string[] | undefined,
-  hoistedModulesDir: string,
-  publicHoistPattern: string[] | undefined,
-  lockfileDir: string,
-  virtualStoreDir: string,
-  skipped: Set<string>,
-  storeDir: string,
-  wantedLockfile: Lockfile,
-  registries: Registries,
+    modulesDir: string
+    id: string
+  } & HookOptions & T & Required<ProjectOptions>>
+  rootModulesDir: string
+  hoistPattern: string[] | undefined
+  hoistedModulesDir: string
+  publicHoistPattern: string[] | undefined
+  lockfileDir: string
+  virtualStoreDir: string
+  skipped: Set<string>
+  storeDir: string
+  wantedLockfile: Lockfile
+  registries: Registries
 }
 
 export interface ProjectOptions {
-  binsDir?: string,
-  manifest: ProjectManifest,
-  modulesDir?: string,
-  rootDir: string,
+  binsDir?: string
+  manifest: ProjectManifest
+  modulesDir?: string
+  rootDir: string
 }
 
 interface HookOptions {
-  originalManifest?: ProjectManifest,
+  originalManifest?: ProjectManifest
 }
 
 export default async function getContext<T> (
   projects: Array<ProjectOptions & HookOptions & T>,
   opts: {
-    force: boolean,
-    forceNewModules?: boolean,
-    forceSharedLockfile: boolean,
-    extraBinPaths: string[],
-    lockfileDir: string,
-    modulesDir?: string,
+    force: boolean
+    forceNewModules?: boolean
+    forceSharedLockfile: boolean
+    extraBinPaths: string[]
+    lockfileDir: string
+    modulesDir?: string
     hooks?: {
-      readPackage?: ReadPackageHook,
-    },
-    include?: IncludedDependencies,
-    registries: Registries,
-    storeDir: string,
-    useLockfile: boolean,
-    virtualStoreDir?: string,
+      readPackage?: ReadPackageHook
+    }
+    include?: IncludedDependencies
+    registries: Registries
+    storeDir: string
+    useLockfile: boolean
+    virtualStoreDir?: string
 
-    hoistPattern?: string[] | undefined,
-    forceHoistPattern?: boolean,
+    hoistPattern?: string[] | undefined
+    forceHoistPattern?: boolean
 
-    publicHoistPattern?: string[] | undefined,
-    forcePublicHoistPattern?: boolean,
+    publicHoistPattern?: string[] | undefined
+    forcePublicHoistPattern?: boolean
   }
 ): Promise<PnpmContext<T>> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
@@ -176,26 +176,26 @@ export default async function getContext<T> (
 async function validateModules (
   modules: Modules,
   projects: Array<{
-    modulesDir: string,
-    id: string,
-    rootDir: string,
+    modulesDir: string
+    id: string
+    rootDir: string
   }>,
   opts: {
-    currentHoistPattern?: string[],
-    currentPublicHoistPattern?: string[],
-    forceNewModules: boolean,
-    include?: IncludedDependencies,
-    lockfileDir: string,
-    modulesDir: string,
-    registries: Registries,
-    storeDir: string,
-    virtualStoreDir: string,
+    currentHoistPattern?: string[]
+    currentPublicHoistPattern?: string[]
+    forceNewModules: boolean
+    include?: IncludedDependencies
+    lockfileDir: string
+    modulesDir: string
+    registries: Registries
+    storeDir: string
+    virtualStoreDir: string
 
-    hoistPattern?: string[] | undefined,
-    forceHoistPattern?: boolean,
+    hoistPattern?: string[] | undefined
+    forceHoistPattern?: boolean
 
-    publicHoistPattern?: string[] | undefined,
-    forcePublicHoistPattern?: boolean,
+    publicHoistPattern?: string[] | undefined
+    forcePublicHoistPattern?: boolean
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
@@ -272,8 +272,8 @@ async function validateModules (
 
 async function purgeModulesDirsOfImporter (
   importer: {
-    modulesDir: string,
-    rootDir: string,
+    modulesDir: string
+    rootDir: string
   }
 ) {
   logger.info({
@@ -302,55 +302,55 @@ function stringifyIncludedDeps (included: IncludedDependencies) {
 }
 
 export interface PnpmSingleContext {
-  currentLockfile: Lockfile,
-  currentLockfileIsUpToDate: boolean,
-  existsCurrentLockfile: boolean,
-  existsWantedLockfile: boolean,
-  extraBinPaths: string[],
-  hoistedDependencies: HoistedDependencies,
-  hoistedModulesDir: string,
-  hoistPattern: string[] | undefined,
-  manifest: ProjectManifest,
-  modulesDir: string,
-  importerId: string,
-  prefix: string,
-  include: IncludedDependencies,
-  modulesFile: Modules | null,
-  pendingBuilds: string[],
-  publicHoistPattern: string[] | undefined,
-  registries: Registries,
-  rootModulesDir: string,
-  lockfileDir: string,
-  virtualStoreDir: string,
-  skipped: Set<string>,
-  storeDir: string,
-  wantedLockfile: Lockfile,
+  currentLockfile: Lockfile
+  currentLockfileIsUpToDate: boolean
+  existsCurrentLockfile: boolean
+  existsWantedLockfile: boolean
+  extraBinPaths: string[]
+  hoistedDependencies: HoistedDependencies
+  hoistedModulesDir: string
+  hoistPattern: string[] | undefined
+  manifest: ProjectManifest
+  modulesDir: string
+  importerId: string
+  prefix: string
+  include: IncludedDependencies
+  modulesFile: Modules | null
+  pendingBuilds: string[]
+  publicHoistPattern: string[] | undefined
+  registries: Registries
+  rootModulesDir: string
+  lockfileDir: string
+  virtualStoreDir: string
+  skipped: Set<string>
+  storeDir: string
+  wantedLockfile: Lockfile
 }
 
 export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
-    force: boolean,
-    forceNewModules?: boolean,
-    forceSharedLockfile: boolean,
-    extraBinPaths: string[],
-    lockfileDir: string,
-    modulesDir?: string,
+    force: boolean
+    forceNewModules?: boolean
+    forceSharedLockfile: boolean
+    extraBinPaths: string[]
+    lockfileDir: string
+    modulesDir?: string
     hooks?: {
-      readPackage?: ReadPackageHook,
-    },
-    include?: IncludedDependencies,
-    dir: string,
-    registries: Registries,
-    storeDir: string,
-    useLockfile: boolean,
-    virtualStoreDir?: string,
+      readPackage?: ReadPackageHook
+    }
+    include?: IncludedDependencies
+    dir: string
+    registries: Registries
+    storeDir: string
+    useLockfile: boolean
+    virtualStoreDir?: string
 
-    hoistPattern?: string[] | undefined,
-    forceHoistPattern?: boolean,
+    hoistPattern?: string[] | undefined
+    forceHoistPattern?: boolean
 
-    publicHoistPattern?: string[] | undefined,
-    forcePublicHoistPattern?: boolean,
+    publicHoistPattern?: string[] | undefined
+    forcePublicHoistPattern?: boolean
   },
   alreadyPurged: boolean = false
 ): Promise<PnpmSingleContext> {

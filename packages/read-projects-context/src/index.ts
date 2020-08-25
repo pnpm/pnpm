@@ -6,31 +6,31 @@ import path = require('path')
 import realpathMissing = require('realpath-missing')
 
 export interface ProjectOptions {
-  binsDir?: string,
-  modulesDir?: string,
-  rootDir: string,
+  binsDir?: string
+  modulesDir?: string
+  rootDir: string
 }
 
 export default async function <T> (
   projects: Array<ProjectOptions & T>,
   opts: {
-    lockfileDir: string,
-    modulesDir?: string,
+    lockfileDir: string
+    modulesDir?: string
   }
 ): Promise<{
-    currentHoistPattern?: string[],
-    currentPublicHoistPattern?: string[],
-    hoist?: boolean,
-    hoistedDependencies: HoistedDependencies,
+    currentHoistPattern?: string[]
+    currentPublicHoistPattern?: string[]
+    hoist?: boolean
+    hoistedDependencies: HoistedDependencies
     projects: Array<{
-      id: string,
-    } & T & Required<ProjectOptions>>,
-    include: Record<DependenciesField, boolean>,
-    modules: Modules | null,
-    pendingBuilds: string[],
-    registries: Registries | null | undefined,
-    rootModulesDir: string,
-    skipped: Set<string>,
+      id: string
+    } & T & Required<ProjectOptions>>
+    include: Record<DependenciesField, boolean>
+    modules: Modules | null
+    pendingBuilds: string[]
+    registries: Registries | null | undefined
+    rootModulesDir: string
+    skipped: Set<string>
   }> {
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(opts.lockfileDir, relativeModulesDir))

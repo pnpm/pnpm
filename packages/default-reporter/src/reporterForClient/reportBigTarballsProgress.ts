@@ -10,7 +10,7 @@ const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
 export default (
   log$: {
-    fetchingProgress: most.Stream<FetchingProgressLog>,
+    fetchingProgress: most.Stream<FetchingProgressLog>
   }
 ) => {
   return log$.fetchingProgress

@@ -7,15 +7,15 @@ import path = require('path')
 
 export default async function removeDirectDependency (
   dependency: {
-    dependenciesField?: DependenciesField | undefined,
-    name: string,
+    dependenciesField?: DependenciesField | undefined
+    name: string
   },
   opts: {
-    binsDir: string,
-    dryRun?: boolean,
-    modulesDir: string,
-    muteLogs?: boolean,
-    rootDir: string,
+    binsDir: string
+    dryRun?: boolean
+    modulesDir: string
+    muteLogs?: boolean
+    rootDir: string
   }
 ) {
   const dependencyDir = path.join(opts.modulesDir, dependency.name)

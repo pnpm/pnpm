@@ -19,15 +19,15 @@ export default function filterByImportersAndEngine (
   importerIds: string[],
   opts: {
     currentEngine: {
-      nodeVersion: string,
-      pnpmVersion: string,
-    },
-    engineStrict: boolean,
-    include: { [dependenciesField in DependenciesField]: boolean },
-    includeIncompatiblePackages?: boolean,
-    failOnMissingDependencies: boolean,
-    lockfileDir: string,
-    skipped: Set<string>,
+      nodeVersion: string
+      pnpmVersion: string
+    }
+    engineStrict: boolean
+    include: { [dependenciesField in DependenciesField]: boolean }
+    includeIncompatiblePackages?: boolean
+    failOnMissingDependencies: boolean
+    lockfileDir: string
+    skipped: Set<string>
   }
 ): Lockfile {
   const importerDeps = importerIds
@@ -78,15 +78,15 @@ function pickPkgsWithAllDeps (
   depPaths: string[],
   opts: {
     currentEngine: {
-      nodeVersion: string,
-      pnpmVersion: string,
-    },
-    engineStrict: boolean,
-    failOnMissingDependencies: boolean,
-    include: { [dependenciesField in DependenciesField]: boolean },
-    includeIncompatiblePackages: boolean,
-    lockfileDir: string,
-    skipped: Set<string>,
+      nodeVersion: string
+      pnpmVersion: string
+    }
+    engineStrict: boolean
+    failOnMissingDependencies: boolean
+    include: { [dependenciesField in DependenciesField]: boolean }
+    includeIncompatiblePackages: boolean
+    lockfileDir: string
+    skipped: Set<string>
   }
 ) {
   const pickedPackages = {} as PackageSnapshots
@@ -96,22 +96,22 @@ function pickPkgsWithAllDeps (
 
 function pkgAllDeps (
   ctx: {
-    pkgSnapshots: PackageSnapshots,
-    pickedPackages: PackageSnapshots,
+    pkgSnapshots: PackageSnapshots
+    pickedPackages: PackageSnapshots
   },
   depPaths: string[],
   parentIsInstallable: boolean,
   opts: {
     currentEngine: {
-      nodeVersion: string,
-      pnpmVersion: string,
-    },
-    engineStrict: boolean,
-    failOnMissingDependencies: boolean,
-    include: { [dependenciesField in DependenciesField]: boolean },
-    includeIncompatiblePackages: boolean,
-    lockfileDir: string,
-    skipped: Set<string>,
+      nodeVersion: string
+      pnpmVersion: string
+    }
+    engineStrict: boolean
+    failOnMissingDependencies: boolean
+    include: { [dependenciesField in DependenciesField]: boolean }
+    includeIncompatiblePackages: boolean
+    lockfileDir: string
+    skipped: Set<string>
   }
 ) {
   for (const depPath of depPaths) {

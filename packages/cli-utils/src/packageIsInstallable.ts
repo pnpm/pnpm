@@ -5,12 +5,12 @@ import { checkPackage, UnsupportedEngineError, WantedEngine } from '@pnpm/packag
 export function packageIsInstallable (
   pkgPath: string,
   pkg: {
-    engines?: WantedEngine,
-    cpu?: string[],
-    os?: string[],
+    engines?: WantedEngine
+    cpu?: string[]
+    os?: string[]
   },
   opts: {
-    engineStrict?: boolean,
+    engineStrict?: boolean
   }
 ) {
   const pnpmVersion = packageManager.name === 'pnpm'

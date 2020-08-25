@@ -6,11 +6,11 @@ import { ProjectManifest } from '@pnpm/types'
 export const packageManifestLogger = baseLogger<PackageManifestMessage>('package-manifest')
 
 export type PackageManifestMessage = {
-  prefix: string,
+  prefix: string
 } & ({
-  initial: ProjectManifest,
+  initial: ProjectManifest
 } | {
-  updated: ProjectManifest,
+  updated: ProjectManifest
 })
 
 export type PackageManifestLog = { name: 'pnpm:package-manifest' } & LogBase & PackageManifestMessage

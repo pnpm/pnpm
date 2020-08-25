@@ -51,11 +51,11 @@ const META_DIR = 'metadata'
 const FULL_META_DIR = 'metadata-full'
 
 export interface ResolverFactoryOptions {
-  storeDir: string,
-  fullMetadata?: boolean,
-  offline?: boolean,
-  preferOffline?: boolean,
-  retry?: RetryTimeoutOptions,
+  storeDir: string
+  fullMetadata?: boolean
+  offline?: boolean
+  preferOffline?: boolean
+  retry?: RetryTimeoutOptions
 }
 
 export default function createResolver (
@@ -89,23 +89,23 @@ export default function createResolver (
 }
 
 export type ResolveFromNpmOptions = {
-  alwaysTryWorkspacePackages?: boolean,
-  defaultTag?: string,
-  dryRun?: boolean,
-  registry: string,
-  preferredVersions?: PreferredVersions,
+  alwaysTryWorkspacePackages?: boolean
+  defaultTag?: string
+  dryRun?: boolean
+  registry: string
+  preferredVersions?: PreferredVersions
 } & ({
-  projectDir?: string,
-  workspacePackages?: undefined,
+  projectDir?: string
+  workspacePackages?: undefined
 } | {
-  projectDir: string,
-  workspacePackages: WorkspacePackages,
+  projectDir: string
+  workspacePackages: WorkspacePackages
 })
 
 async function resolveNpm (
   ctx: {
-    pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>,
-    getAuthHeaderValueByURI: (registry: string) => string | undefined,
+    pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
+    getAuthHeaderValueByURI: (registry: string) => string | undefined
   },
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
@@ -187,10 +187,10 @@ async function resolveNpm (
 function tryResolveFromWorkspace (
   wantedDependency: WantedDependency,
   opts: {
-    defaultTag: string,
-    projectDir?: string,
-    registry: string,
-    workspacePackages?: WorkspacePackages,
+    defaultTag: string
+    projectDir?: string
+    registry: string
+    workspacePackages?: WorkspacePackages
   }
 ) {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
@@ -229,9 +229,9 @@ function tryResolveFromWorkspacePackages (
 function pickMatchingLocalVersionOrNull (
   versions: {
     [version: string]: {
-      dir: string,
-      manifest: DependencyManifest,
-    },
+      dir: string
+      manifest: DependencyManifest
+    }
   },
   spec: RegistryPackageSpec
 ) {
@@ -250,8 +250,8 @@ function pickMatchingLocalVersionOrNull (
 
 function resolveFromLocalPackage (
   localPackage: {
-    dir: string,
-    manifest: DependencyManifest,
+    dir: string
+    manifest: DependencyManifest
   },
   normalizedPref: string | undefined,
   projectDir: string
@@ -277,9 +277,9 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
 }
 
 function getIntegrity (dist: {
-  integrity?: string,
-  shasum: string,
-  tarball: string,
+  integrity?: string
+  shasum: string
+  tarball: string
 }) {
   if (dist.integrity) {
     return dist.integrity

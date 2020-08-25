@@ -23,9 +23,9 @@ import renderHelp = require('render-help')
 class RemoveMissingDepsError extends PnpmError {
   constructor (
     opts: {
-      availableDependencies: string[],
-      nonMatchedDependencies: string[],
-      targetDependenciesField?: DependenciesField,
+      availableDependencies: string[]
+      nonMatchedDependencies: string[]
+      targetDependenciesField?: DependenciesField
     }
   ) {
     let message = 'Cannot remove '
@@ -141,7 +141,7 @@ export async function handler (
   | 'selectedProjectsGraph'
   | 'workspaceDir'
   > & {
-    recursive?: boolean,
+    recursive?: boolean
   },
   params: string[]
 ) {

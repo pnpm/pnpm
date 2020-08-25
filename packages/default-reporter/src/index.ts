@@ -11,18 +11,18 @@ import most = require('most')
 
 export default function (
   opts: {
-    streamParser: object,
+    streamParser: object
     reportingOptions?: {
-      appendOnly?: boolean,
-      logLevel?: LogLevel,
-      streamLifecycleOutput?: boolean,
-      throttleProgress?: number,
-      outputMaxWidth?: number,
-    },
+      appendOnly?: boolean
+      logLevel?: LogLevel
+      streamLifecycleOutput?: boolean
+      throttleProgress?: number
+      outputMaxWidth?: number
+    }
     context: {
-      argv: string[],
-      config?: Config,
-    },
+      argv: string[]
+      config?: Config
+    }
   }
 ) {
   if (opts.context.argv[0] === 'server') {
@@ -62,18 +62,18 @@ export default function (
 
 export function toOutput$ (
   opts: {
-    streamParser: object,
+    streamParser: object
     reportingOptions?: {
-      appendOnly?: boolean,
-      logLevel?: LogLevel,
-      outputMaxWidth?: number,
-      streamLifecycleOutput?: boolean,
-      throttleProgress?: number,
-    },
+      appendOnly?: boolean
+      logLevel?: LogLevel
+      outputMaxWidth?: number
+      streamLifecycleOutput?: boolean
+      throttleProgress?: number
+    }
     context: {
-      argv: string[],
-      config?: Config,
-    },
+      argv: string[]
+      config?: Config
+    }
   }
 ): most.Stream<string> {
   opts = opts || {}

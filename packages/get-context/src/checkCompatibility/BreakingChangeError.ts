@@ -2,8 +2,8 @@ import PnpmError from '@pnpm/error'
 import ErrorRelatedSources from './ErrorRelatedSources'
 
 export type BreakingChangeErrorOptions = ErrorRelatedSources & {
-  code: string,
-  message: string,
+  code: string
+  message: string
 }
 
 export default class BreakingChangeError extends PnpmError {

@@ -116,12 +116,12 @@ export type ListCommandOptions = Pick<Config,
 | 'production'
 | 'selectedProjectsGraph'
 > & Partial<Pick<Config, 'cliOptions'>> & {
-  alwaysPrintRootPackage?: boolean,
-  depth?: number,
-  lockfileDir?: string,
-  long?: boolean,
-  parseable?: boolean,
-  recursive?: boolean,
+  alwaysPrintRootPackage?: boolean
+  depth?: number
+  lockfileDir?: string
+  long?: boolean
+  parseable?: boolean
+  recursive?: boolean
 }
 
 export function handler (
@@ -150,13 +150,13 @@ export function render (
   prefixes: string[],
   params: string[],
   opts: {
-    alwaysPrintRootPackage?: boolean,
-    depth?: number,
-    include: IncludedDependencies,
-    lockfileDir: string,
-    long?: boolean,
-    json?: boolean,
-    parseable?: boolean,
+    alwaysPrintRootPackage?: boolean
+    depth?: number
+    include: IncludedDependencies
+    lockfileDir: string
+    long?: boolean
+    json?: boolean
+    parseable?: boolean
   }
 ) {
   const listOpts = {

@@ -1,6 +1,6 @@
+import { execPnpm } from '../utils'
 import { preparePackages } from '@pnpm/prepare'
 import promisifyTape from 'tape-promise'
-import { execPnpm } from '../utils'
 import fs = require('mz/fs')
 import path = require('path')
 import tape = require('tape')

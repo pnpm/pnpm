@@ -15,31 +15,31 @@ export { isExecutable, Modules }
 export type RawLockfile = Lockfile & Partial<ProjectSnapshot>
 
 export interface Project {
-  requireModule: NodeRequireFunction,
-  has: (pkgName: string, modulesDir?: string) => Promise<void>,
-  hasNot: (pkgName: string, modulesDir?: string) => Promise<void>,
-  getStorePath: () => Promise<string>,
-  resolve: (pkgName: string, version?: string, relativePath?: string) => Promise<string>,
-  getPkgIndexFilePath: (pkgName: string, version?: string) => Promise<string>,
-  cafsHas: (pkgName: string, version?: string) => Promise<void>,
-  cafsHasNot: (pkgName: string, version?: string) => Promise<void>,
-  storeHas: (pkgName: string, version?: string) => Promise<string>,
-  storeHasNot: (pkgName: string, version?: string) => Promise<void>,
-  isExecutable: (pathToExe: string) => Promise<void>,
+  requireModule: NodeRequireFunction
+  has: (pkgName: string, modulesDir?: string) => Promise<void>
+  hasNot: (pkgName: string, modulesDir?: string) => Promise<void>
+  getStorePath: () => Promise<string>
+  resolve: (pkgName: string, version?: string, relativePath?: string) => Promise<string>
+  getPkgIndexFilePath: (pkgName: string, version?: string) => Promise<string>
+  cafsHas: (pkgName: string, version?: string) => Promise<void>
+  cafsHasNot: (pkgName: string, version?: string) => Promise<void>
+  storeHas: (pkgName: string, version?: string) => Promise<string>
+  storeHasNot: (pkgName: string, version?: string) => Promise<void>
+  isExecutable: (pathToExe: string) => Promise<void>
   /**
    * TODO: Remove the `Required<T>` cast.
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readCurrentLockfile: () => Promise<Required<RawLockfile>>,
-  readModulesManifest: () => Promise<Modules | null>,
+  readCurrentLockfile: () => Promise<Required<RawLockfile>>
+  readModulesManifest: () => Promise<Modules | null>
   /**
    * TODO: Remove the `Required<T>` cast.
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readLockfile: () => Promise<Required<RawLockfile>>,
-  writePackageJson: (pkgJson: object) => Promise<void>,
+  readLockfile: () => Promise<Required<RawLockfile>>
+  writePackageJson: (pkgJson: object) => Promise<void>
 }
 
 export default (t: Test, projectPath: string, encodedRegistryName?: string): Project => {
@@ -47,13 +47,13 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
   const modules = path.join(projectPath, 'node_modules')
 
   let cachedStore: {
-    storePath: string,
-    getPkgIndexFilePath: (pkgName: string, version?: string) => Promise<string>,
-    cafsHas: (pkgName: string, version?: string | undefined) => Promise<void>,
-    cafsHasNot: (pkgName: string, version?: string | undefined) => Promise<void>,
-    storeHas: (pkgName: string, version?: string | undefined) => Promise<void>,
-    storeHasNot: (pkgName: string, version?: string | undefined) => Promise<void>,
-    resolve: (pkgName: string, version?: string | undefined, relativePath?: string | undefined) => Promise<string>,
+    storePath: string
+    getPkgIndexFilePath: (pkgName: string, version?: string) => Promise<string>
+    cafsHas: (pkgName: string, version?: string | undefined) => Promise<void>
+    cafsHasNot: (pkgName: string, version?: string | undefined) => Promise<void>
+    storeHas: (pkgName: string, version?: string | undefined) => Promise<void>
+    storeHasNot: (pkgName: string, version?: string | undefined) => Promise<void>
+    resolve: (pkgName: string, version?: string | undefined, relativePath?: string | undefined) => Promise<string>
   }
   async function getStoreInstance () {
     if (!cachedStore) {

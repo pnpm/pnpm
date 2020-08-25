@@ -151,11 +151,11 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 
 export function handler (
   opts: InstallCommandOptions & {
-    allowNew?: boolean,
-    ignoreWorkspaceRootCheck?: boolean,
-    save?: boolean,
-    update?: boolean,
-    useBetaCli?: boolean,
+    allowNew?: boolean
+    ignoreWorkspaceRootCheck?: boolean
+    save?: boolean
+    update?: boolean
+    useBetaCli?: boolean
   },
   params: string[]
 ) {

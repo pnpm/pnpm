@@ -27,14 +27,14 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'registries'
 | 'sharedWorkspaceLockfile'
 > & {
-  pending?: boolean,
+  pending?: boolean
 } & Partial<Pick<Config, 'bail' | 'sort' | 'workspaceConcurrency'>>
 
 export default async function recursive (
   allProjects: Project[],
   params: string[],
   opts: RecursiveRebuildOpts & {
-    ignoredPackages?: Set<string>,
+    ignoredPackages?: Set<string>
   } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>
 ) {
   if (allProjects.length === 0) {

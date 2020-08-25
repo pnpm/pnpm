@@ -24,12 +24,12 @@ type ColorByPkg = Map<string, (txt: string) => string>
 
 export default (
   log$: {
-    lifecycle: most.Stream<LifecycleLog>,
+    lifecycle: most.Stream<LifecycleLog>
   },
   opts: {
-    appendOnly?: boolean,
-    cwd: string,
-    width: number,
+    appendOnly?: boolean
+    cwd: string
+    width: number
   }
 ) => {
   // When the reporter is not append-only, the length of output is limited
@@ -43,15 +43,15 @@ export default (
   }
   const lifecycleMessages: {
     [depPath: string]: {
-      collapsed: boolean,
-      output: string[],
-      script: string,
-      startTime: [number, number],
-      status: string,
-    },
+      collapsed: boolean
+      output: string[]
+      script: string
+      startTime: [number, number]
+      status: string
+    }
   } = {}
   const lifecycleStreamByDepPath: {
-    [depPath: string]: PushStream<{ msg: string }>,
+    [depPath: string]: PushStream<{ msg: string }>
   } = {}
   const lifecyclePushStream = new PushStream()
 
@@ -91,16 +91,16 @@ export default (
 function renderCollapsedScriptOutput (
   log: LifecycleLog,
   messageCache: {
-    collapsed: boolean,
-    output: string[],
-    script: string,
-    startTime: [number, number],
-    status: string,
+    collapsed: boolean
+    output: string[]
+    script: string
+    startTime: [number, number]
+    status: string
   },
   opts: {
-    cwd: string,
-    exit: boolean,
-    maxWidth: number,
+    cwd: string
+    exit: boolean
+    maxWidth: number
   }
 ) {
   messageCache['label'] = messageCache['label'] ||
@@ -122,16 +122,16 @@ function renderCollapsedScriptOutput (
 function renderScriptOutput (
   log: LifecycleLog,
   messageCache: {
-    collapsed: boolean,
-    output: string[],
-    script: string,
-    startTime: [number, number],
-    status: string,
+    collapsed: boolean
+    output: string[]
+    script: string
+    startTime: [number, number]
+    status: string
   },
   opts: {
-    cwd: string,
-    exit: boolean,
-    maxWidth: number,
+    cwd: string
+    exit: boolean
+    maxWidth: number
   }
 ) {
   updateMessageCache(log, messageCache, opts)
@@ -160,16 +160,16 @@ function renderScriptOutput (
 function updateMessageCache (
   log: LifecycleLog,
   messageCache: {
-    collapsed: boolean,
-    output: string[],
-    script: string,
-    startTime: [number, number],
-    status: string,
+    collapsed: boolean
+    output: string[]
+    script: string
+    startTime: [number, number]
+    status: string
   },
   opts: {
-    cwd: string,
-    exit: boolean,
-    maxWidth: number,
+    cwd: string
+    exit: boolean
+    maxWidth: number
   }
 ) {
   if (log['script']) {

@@ -12,9 +12,9 @@ import mem = require('mem')
 export { ResolveFunction }
 
 export type ClientOptions = {
-  authConfig: Record<string, string>,
-  retry?: RetryTimeoutOptions,
-  userAgent?: string,
+  authConfig: Record<string, string>
+  retry?: RetryTimeoutOptions
+  userAgent?: string
 } & ResolverFactoryOptions & AgentOptions
 
 export default function (opts: ClientOptions) {
@@ -36,7 +36,7 @@ function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   opts: {
-    retry?: RetryTimeoutOptions,
+    retry?: RetryTimeoutOptions
   }
 ) {
   return {

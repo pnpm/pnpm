@@ -2,13 +2,13 @@ import nopt = require('nopt')
 import R = require('ramda')
 
 export interface CompletionCtx {
-  last: string,
-  lastPartial: string,
-  line: string,
-  partial: string,
-  point: number,
-  prev: string,
-  words: number,
+  last: string
+  lastPartial: string
+  line: string
+  partial: string
+  point: number
+  prev: string
+  words: number
 }
 
 export function getOptionCompletions (

@@ -584,7 +584,7 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
     workspaceDir: process.cwd(),
     ...await readProjects(process.cwd(), []),
   }, ['build'])
-  delete process.env['npm_config_unsafe_perm']
+  delete process.env.npm_config_unsafe_perm
 
   const outputs = await import(path.resolve('output.json')) as string[]
 

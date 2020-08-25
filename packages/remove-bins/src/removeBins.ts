@@ -27,8 +27,8 @@ export const removeBin = isWindows() ? removeOnWin : removeOnNonWin
 export async function removeBinsOfDependency (
   dependencyDir: string,
   opts: {
-    dryRun?: boolean,
-    binsDir: string,
+    dryRun?: boolean
+    binsDir: string
   }
 ) {
   const uninstalledPkgJson = await safeReadPackageFromDir(dependencyDir) as DependencyManifest

@@ -14,7 +14,7 @@ export * from '@pnpm/lockfile-types'
 export function pruneSharedLockfile (
   lockfile: Lockfile,
   opts?: {
-    warn?: (msg: string) => void,
+    warn?: (msg: string) => void
   }
 ) {
   const copiedPackages = !lockfile.packages ? {} : copyPackageSnapshots(lockfile.packages, {
@@ -39,7 +39,7 @@ export function pruneLockfile (
   pkg: PackageManifest,
   importerId: string,
   opts?: {
-    warn?: (msg: string) => void,
+    warn?: (msg: string) => void
   }
 ): Lockfile {
   const packages: PackageSnapshots = {}
@@ -111,10 +111,10 @@ export function pruneLockfile (
 function copyPackageSnapshots (
   originalPackages: PackageSnapshots,
   opts: {
-    devDepPaths: string[],
-    optionalDepPaths: string[],
-    prodDepPaths: string[],
-    warn: (msg: string) => void,
+    devDepPaths: string[]
+    optionalDepPaths: string[]
+    prodDepPaths: string[]
+    warn: (msg: string) => void
   }
 ): PackageSnapshots {
   const copiedSnapshots: PackageSnapshots = {}
@@ -151,17 +151,17 @@ function resolvedDepsToDepPaths (deps: ResolvedDependencies) {
 
 function copyDependencySubGraph (
   ctx: {
-    copiedSnapshots: PackageSnapshots,
-    nonOptional: Set<string>,
-    notProdOnly: Set<string>,
-    originalPackages: PackageSnapshots,
-    walked: Set<string>,
-    warn: (msg: string) => void,
+    copiedSnapshots: PackageSnapshots
+    nonOptional: Set<string>
+    notProdOnly: Set<string>
+    originalPackages: PackageSnapshots
+    walked: Set<string>
+    warn: (msg: string) => void
   },
   depPaths: string[],
   opts: {
-    dev: boolean,
-    optional: boolean,
+    dev: boolean
+    optional: boolean
   }
 ) {
   for (const depPath of depPaths) {

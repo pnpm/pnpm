@@ -14,9 +14,9 @@ export default (
 ): (
     to: string,
     opts: {
-      filesMap: Record<string, string>,
-      fromStore: boolean,
-      force: boolean,
+      filesMap: Record<string, string>
+      fromStore: boolean
+      force: boolean
     }
   ) => ReturnType<(to: string, opts: { filesResponse: PackageFilesResponse, force: boolean }) => Promise<void>> => {
   const importPackage = createImportPackage(packageImportMethod)
@@ -55,9 +55,9 @@ function createAutoImporter () {
   async function initialAuto (
     to: string,
     opts: {
-      filesMap: Record<string, string>,
-      force: boolean,
-      fromStore: boolean,
+      filesMap: Record<string, string>
+      force: boolean
+      fromStore: boolean
     }
   ) {
     try {
@@ -87,9 +87,9 @@ function createAutoImporter () {
 async function clonePkg (
   to: string,
   opts: {
-    filesMap: Record<string, string>,
-    fromStore: boolean,
-    force: boolean,
+    filesMap: Record<string, string>
+    fromStore: boolean
+    force: boolean
   }
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
@@ -107,9 +107,9 @@ async function cloneFile (from: string, to: string) {
 async function hardlinkPkg (
   to: string,
   opts: {
-    filesMap: Record<string, string>,
-    force: boolean,
-    fromStore: boolean,
+    filesMap: Record<string, string>
+    force: boolean
+    fromStore: boolean
   }
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
@@ -149,9 +149,9 @@ async function isSameFile (file1: string, file2: string) {
 export async function copyPkg (
   to: string,
   opts: {
-    filesMap: Record<string, string>,
-    fromStore: boolean,
-    force: boolean,
+    filesMap: Record<string, string>
+    fromStore: boolean
+    force: boolean
   }
 ) {
   const pkgJsonPath = path.join(to, 'package.json')

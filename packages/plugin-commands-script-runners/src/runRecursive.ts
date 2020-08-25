@@ -14,7 +14,7 @@ export type RecursiveRunOpts = Pick<Config,
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>> &
 {
-  ifPresent?: boolean,
+  ifPresent?: boolean
 }
 
 export default async (

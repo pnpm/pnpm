@@ -91,14 +91,14 @@ export type CliOptions = Record<string, unknown> & { dir?: string }
 
 export default async (
   opts: {
-    globalDirShouldAllowWrite?: boolean,
-    cliOptions: CliOptions,
+    globalDirShouldAllowWrite?: boolean
+    cliOptions: CliOptions
     packageManager: {
-      name: string,
-      version: string,
-    },
-    rcOptionsTypes?: Record<string, unknown>,
-    workspaceDir?: string | undefined,
+      name: string
+      version: string
+    }
+    rcOptionsTypes?: Record<string, unknown>
+    workspaceDir?: string | undefined
   }
 ): Promise<{ config: Config, warnings: string[] }> => {
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
@@ -165,7 +165,7 @@ export default async (
     'workspace-concurrency': 4,
     'workspace-prefix': opts.workspaceDir,
   })
-  delete cliOptions['prefix']
+  delete cliOptions.prefix
 
   process.execPath = originalExecPath
 

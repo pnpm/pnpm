@@ -64,50 +64,50 @@ const brokenModulesLogger = logger('_broken_node_modules')
 export type ReporterFunction = (logObj: LogBase) => void
 
 export interface HeadlessOptions {
-  childConcurrency?: number,
-  currentLockfile?: Lockfile,
+  childConcurrency?: number
+  currentLockfile?: Lockfile
   currentEngine: {
-    nodeVersion: string,
-    pnpmVersion: string,
-  },
-  engineStrict: boolean,
-  extraBinPaths?: string[],
-  ignoreScripts: boolean,
-  include: IncludedDependencies,
+    nodeVersion: string
+    pnpmVersion: string
+  }
+  engineStrict: boolean
+  extraBinPaths?: string[]
+  ignoreScripts: boolean
+  include: IncludedDependencies
   projects: Array<{
-    binsDir: string,
-    buildIndex: number,
-    manifest: ProjectManifest,
-    modulesDir: string,
-    id: string,
-    pruneDirectDependencies?: boolean,
-    rootDir: string,
-  }>,
-  hoistedDependencies: HoistedDependencies,
-  hoistPattern?: string[],
-  publicHoistPattern?: string[],
-  lockfileDir: string,
-  modulesDir?: string,
-  virtualStoreDir?: string,
-  storeController: StoreController,
-  sideEffectsCacheRead: boolean,
-  sideEffectsCacheWrite: boolean,
-  force: boolean,
-  storeDir: string,
-  rawConfig: object,
-  unsafePerm: boolean,
-  userAgent: string,
-  registries: Registries,
-  reporter?: ReporterFunction,
+    binsDir: string
+    buildIndex: number
+    manifest: ProjectManifest
+    modulesDir: string
+    id: string
+    pruneDirectDependencies?: boolean
+    rootDir: string
+  }>
+  hoistedDependencies: HoistedDependencies
+  hoistPattern?: string[]
+  publicHoistPattern?: string[]
+  lockfileDir: string
+  modulesDir?: string
+  virtualStoreDir?: string
+  storeController: StoreController
+  sideEffectsCacheRead: boolean
+  sideEffectsCacheWrite: boolean
+  force: boolean
+  storeDir: string
+  rawConfig: object
+  unsafePerm: boolean
+  userAgent: string
+  registries: Registries
+  reporter?: ReporterFunction
   packageManager: {
-    name: string,
-    version: string,
-  },
-  pruneStore: boolean,
-  wantedLockfile?: Lockfile,
-  ownLifecycleHooksStdio?: 'inherit' | 'pipe',
-  pendingBuilds: string[],
-  skipped: Set<string>,
+    name: string
+    version: string
+  }
+  pruneStore: boolean
+  wantedLockfile?: Lockfile
+  ownLifecycleHooksStdio?: 'inherit' | 'pipe'
+  pendingBuilds: string[]
+  skipped: Set<string>
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -364,9 +364,9 @@ export default async (opts: HeadlessOptions) => {
 
 function linkBinsOfImporter (
   { modulesDir, binsDir, rootDir }: {
-    binsDir: string,
-    modulesDir: string,
-    rootDir: string,
+    binsDir: string
+    modulesDir: string
+    rootDir: string
   }
 ) {
   const warn = (message: string) => logger.warn({ message, prefix: rootDir })
@@ -379,13 +379,13 @@ function linkBinsOfImporter (
 function linkRootPackages (
   lockfile: Lockfile,
   opts: {
-    registries: Registries,
-    projectDir: string,
-    importerId: string,
-    importerModulesDir: string,
-    projects: Array<{ id: string, manifest: ProjectManifest }>,
-    lockfileDir: string,
-    rootDependencies: {[alias: string]: string},
+    registries: Registries
+    projectDir: string
+    importerId: string
+    importerModulesDir: string
+    projects: Array<{ id: string, manifest: ProjectManifest }>
+    lockfileDir: string
+    rootDependencies: {[alias: string]: string}
   }
 ) {
   const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
@@ -455,16 +455,16 @@ function linkRootPackages (
 }
 
 interface LockfileToDepGraphOptions {
-  force: boolean,
-  include: IncludedDependencies,
-  importerIds: string[],
-  lockfileDir: string,
-  skipped: Set<string>,
-  storeController: StoreController,
-  storeDir: string,
-  registries: Registries,
-  sideEffectsCacheRead: boolean,
-  virtualStoreDir: string,
+  force: boolean
+  include: IncludedDependencies
+  importerIds: string[]
+  lockfileDir: string
+  skipped: Set<string>
+  storeController: StoreController
+  storeDir: string
+  registries: Registries
+  sideEffectsCacheRead: boolean
+  virtualStoreDir: string
 }
 
 async function lockfileToDepGraph (
@@ -580,16 +580,16 @@ async function lockfileToDepGraph (
 
 async function getChildrenPaths (
   ctx: {
-    graph: DependenciesGraph,
-    force: boolean,
-    registries: Registries,
-    virtualStoreDir: string,
-    storeDir: string,
-    skipped: Set<string>,
-    pkgSnapshotsByDepPaths: Record<string, PackageSnapshot>,
-    lockfileDir: string,
-    sideEffectsCacheRead: boolean,
-    storeController: StoreController,
+    graph: DependenciesGraph
+    force: boolean
+    registries: Registries
+    virtualStoreDir: string
+    storeDir: string
+    skipped: Set<string>
+    pkgSnapshotsByDepPaths: Record<string, PackageSnapshot>
+    lockfileDir: string
+    sideEffectsCacheRead: boolean
+    storeController: StoreController
   },
   allDeps: {[alias: string]: string},
   peerDeps: Set<string> | null
@@ -618,25 +618,25 @@ async function getChildrenPaths (
 }
 
 export interface DependenciesGraphNode {
-  hasBundledDependencies: boolean,
-  modules: string,
-  name: string,
-  fetchingFiles: () => Promise<PackageFilesResponse>,
-  finishing: () => Promise<void>,
-  dir: string,
-  children: {[alias: string]: string},
-  optionalDependencies: Set<string>,
-  optional: boolean,
-  depPath: string, // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
-  isBuilt?: boolean,
-  requiresBuild: boolean,
-  prepare: boolean,
-  hasBin: boolean,
-  filesIndexFile: string,
+  hasBundledDependencies: boolean
+  modules: string
+  name: string
+  fetchingFiles: () => Promise<PackageFilesResponse>
+  finishing: () => Promise<void>
+  dir: string
+  children: {[alias: string]: string}
+  optionalDependencies: Set<string>
+  optional: boolean
+  depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
+  isBuilt?: boolean
+  requiresBuild: boolean
+  prepare: boolean
+  hasBin: boolean
+  filesIndexFile: string
 }
 
 export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode,
+  [depPath: string]: DependenciesGraphNode
 }
 
 const limitLinking = pLimit(16)
@@ -645,8 +645,8 @@ function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
-    force: boolean,
-    targetEngine?: string,
+    force: boolean
+    targetEngine?: string
   }
 ) {
   return Promise.all(
@@ -666,8 +666,8 @@ function linkAllPkgs (
 function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
-    optional: boolean,
-    warn: (message: string) => void,
+    optional: boolean
+    warn: (message: string) => void
   }
 ) {
   return Promise.all(
@@ -713,8 +713,8 @@ function linkAllBins (
 function linkAllModules (
   depNodes: DependenciesGraphNode[],
   opts: {
-    optional: boolean,
-    lockfileDir: string,
+    optional: boolean
+    lockfileDir: string
   }
 ) {
   return Promise.all(

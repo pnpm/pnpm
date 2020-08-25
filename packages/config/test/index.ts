@@ -10,11 +10,11 @@ import tempy = require('tempy')
 
 // To override any local settings,
 // we force the default values of config
-delete process.env['npm_config_depth']
+delete process.env.npm_config_depth
 process.env['npm_config_hoist'] = 'true'
-delete process.env['npm_config_registry']
-delete process.env['npm_config_virtual_store_dir']
-delete process.env['npm_config_shared_workspace_lockfile']
+delete process.env.npm_config_registry
+delete process.env.npm_config_virtual_store_dir
+delete process.env.npm_config_shared_workspace_lockfile
 
 test('getConfig()', async (t) => {
   const { config } = await getConfig({

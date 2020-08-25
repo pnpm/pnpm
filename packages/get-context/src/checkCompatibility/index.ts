@@ -8,9 +8,9 @@ import path = require('path')
 export default function checkCompatibility (
   modules: Modules,
   opts: {
-    storeDir: string,
-    modulesDir: string,
-    virtualStoreDir: string,
+    storeDir: string
+    modulesDir: string
+    virtualStoreDir: string
   }
 ) {
   if (!modules.layoutVersion || modules.layoutVersion !== LAYOUT_VERSION) {

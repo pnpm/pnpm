@@ -1,5 +1,5 @@
-import { prepareEmpty } from '@pnpm/prepare'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,

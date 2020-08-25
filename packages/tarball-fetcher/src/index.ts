@@ -20,8 +20,8 @@ export default function (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   opts: {
-    retry?: RetryTimeoutOptions,
-    offline?: boolean,
+    retry?: RetryTimeoutOptions
+    offline?: boolean
   }
 ): { tarball: FetchFunction } {
   const download = createDownloader(fetchFromRegistry, {
@@ -38,18 +38,18 @@ export default function (
 
 function fetchFromTarball (
   ctx: {
-    download: DownloadFunction,
+    download: DownloadFunction
     getCredentialsByURI: (registry: string) => {
-      authHeaderValue: string | undefined,
-      alwaysAuth: boolean | undefined,
-    },
-    offline?: boolean,
+      authHeaderValue: string | undefined
+      alwaysAuth: boolean | undefined
+    }
+    offline?: boolean
   },
   cafs: Cafs,
   resolution: {
-    integrity?: string,
-    registry?: string,
-    tarball: string,
+    integrity?: string
+    registry?: string
+    tarball: string
   },
   opts: FetchOptions
 ) {
@@ -87,8 +87,8 @@ async function fetchFromLocalTarball (
   cafs: Cafs,
   tarball: string,
   opts: {
-    integrity?: string,
-    manifest?: DeferredManifestPromise,
+    integrity?: string
+    manifest?: DeferredManifestPromise
   }
 ): Promise<FetchResult> {
   try {

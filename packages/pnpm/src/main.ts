@@ -74,8 +74,8 @@ export default async function run (inputArgv: string[]) {
   process.env['npm_config_argv'] = JSON.stringify(argv)
 
   let config: Config & {
-    forceSharedLockfile: boolean,
-    argv: { remain: string[], cooked: string[], original: string[] },
+    forceSharedLockfile: boolean
+    argv: { remain: string[], cooked: string[], original: string[] }
   }
   try {
     // When we just want to print the location of the global bin directory,

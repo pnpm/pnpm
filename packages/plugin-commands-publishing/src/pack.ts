@@ -29,11 +29,11 @@ export function help () {
 export async function handler (
   opts: Pick<UniversalOptions, 'dir'> & {
     argv: {
-      original: string[],
-    },
-    engineStrict?: boolean,
-    npmPath?: string,
-    workspaceDir?: string,
+      original: string[]
+    }
+    engineStrict?: boolean
+    npmPath?: string
+    workspaceDir?: string
   }
 ) {
   let _status!: number

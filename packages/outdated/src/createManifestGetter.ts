@@ -7,10 +7,10 @@ import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { DependencyManifest, Registries } from '@pnpm/types'
 
 interface GetManifestOpts {
-  dir: string,
-  lockfileDir: string,
-  rawConfig: object,
-  registries: Registries,
+  dir: string
+  lockfileDir: string
+  rawConfig: object
+  registries: Registries
 }
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>

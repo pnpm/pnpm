@@ -14,31 +14,31 @@ import isCI = require('is-ci')
 import R = require('ramda')
 
 export interface PnpmContext {
-  currentLockfile: Lockfile,
-  existsCurrentLockfile: boolean,
-  existsWantedLockfile: boolean,
-  wantedLockfile: Lockfile,
+  currentLockfile: Lockfile
+  existsCurrentLockfile: boolean
+  existsWantedLockfile: boolean
+  wantedLockfile: Lockfile
 }
 
 export default async function (
   opts: {
-    force: boolean,
-    forceSharedLockfile: boolean,
+    force: boolean
+    forceSharedLockfile: boolean
     projects: Array<{
-      id: string,
-      rootDir: string,
-    }>,
-    lockfileDir: string,
-    registry: string,
-    useLockfile: boolean,
-    virtualStoreDir: string,
+      id: string
+      rootDir: string
+    }>
+    lockfileDir: string
+    registry: string
+    useLockfile: boolean
+    virtualStoreDir: string
   }
 ): Promise<{
-    currentLockfile: Lockfile,
-    currentLockfileIsUpToDate: boolean,
-    existsCurrentLockfile: boolean,
-    existsWantedLockfile: boolean,
-    wantedLockfile: Lockfile,
+    currentLockfile: Lockfile
+    currentLockfileIsUpToDate: boolean
+    existsCurrentLockfile: boolean
+    existsWantedLockfile: boolean
+    wantedLockfile: Lockfile
   }> {
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds

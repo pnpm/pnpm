@@ -19,9 +19,9 @@ import semver = require('semver')
 export default function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
-    linkWorkspacePackages: boolean,
-    wantedLockfile: Lockfile,
-    workspacePackages: WorkspacePackages,
+    linkWorkspacePackages: boolean
+    wantedLockfile: Lockfile
+    workspacePackages: WorkspacePackages
   }
 ) {
   const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
@@ -59,14 +59,14 @@ async function linkedPackagesAreUpToDate (
     manifestsByDir,
     workspacePackages,
   }: {
-    linkWorkspacePackages: boolean,
-    manifestsByDir: Record<string, DependencyManifest>,
-    workspacePackages: WorkspacePackages,
+    linkWorkspacePackages: boolean
+    manifestsByDir: Record<string, DependencyManifest>
+    workspacePackages: WorkspacePackages
   },
   project: {
-    dir: string,
-    manifest: ProjectManifest,
-    snapshot: ProjectSnapshot,
+    dir: string
+    manifest: ProjectManifest
+    snapshot: ProjectSnapshot
   }
 ) {
   for (const depField of DEPENDENCIES_FIELDS) {

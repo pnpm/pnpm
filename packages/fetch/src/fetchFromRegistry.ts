@@ -13,8 +13,8 @@ export { AgentOptions }
 
 export default function (
   defaultOpts: {
-    fullMetadata?: boolean,
-    userAgent?: string,
+    fullMetadata?: boolean
+    userAgent?: string
   } & AgentOptions
 ): FetchFromRegistry {
   return async (url, opts): Promise<Response> => {
@@ -64,9 +64,9 @@ export default function (
 
 function getHeaders (
   opts: {
-    auth?: string,
-    fullMetadata?: boolean,
-    userAgent?: string,
+    auth?: string
+    fullMetadata?: boolean
+    userAgent?: string
   }
 ) {
   const headers = {

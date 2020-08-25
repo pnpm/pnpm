@@ -7,7 +7,7 @@ export function autozoom (
   logPrefix: string | undefined,
   line: string,
   opts: {
-    zoomOutCurrent: boolean,
+    zoomOutCurrent: boolean
   }
 ) {
   if (!logPrefix || !opts.zoomOutCurrent && currentPrefix === logPrefix) {

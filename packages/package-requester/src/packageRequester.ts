@@ -68,15 +68,15 @@ export default function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
   opts: {
-    ignoreFile?: (filename: string) => boolean,
-    networkConcurrency?: number,
-    storeDir: string,
-    verifyStoreIntegrity: boolean,
+    ignoreFile?: (filename: string) => boolean
+    networkConcurrency?: number
+    storeDir: string
+    verifyStoreIntegrity: boolean
   }
 ): RequestPackageFunction & {
-    cafs: Cafs,
-    fetchPackageToStore: FetchPackageToStoreFunction,
-    requestPackage: RequestPackageFunction,
+    cafs: Cafs
+    fetchPackageToStore: FetchPackageToStoreFunction
+    requestPackage: RequestPackageFunction
   } {
   opts = opts || {}
 
@@ -114,11 +114,11 @@ export default function (
 
 async function resolveAndFetch (
   ctx: {
-    requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
-    resolve: ResolveFunction,
-    fetchPackageToStore: FetchPackageToStoreFunction,
-    storeDir: string,
-    verifyStoreIntegrity: boolean,
+    requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>}
+    resolve: ResolveFunction
+    fetchPackageToStore: FetchPackageToStoreFunction
+    storeDir: string
+    verifyStoreIntegrity: boolean
   },
   wantedDependency: WantedDependency,
   options: RequestPackageOptions
@@ -236,10 +236,10 @@ async function resolveAndFetch (
 }
 
 interface FetchLock {
-  bundledManifest?: Promise<BundledManifest>,
-  files: Promise<PackageFilesResponse>,
-  filesIndexFile: string,
-  finishing: Promise<void>,
+  bundledManifest?: Promise<BundledManifest>
+  files: Promise<PackageFilesResponse>
+  filesIndexFile: string
+  finishing: Promise<void>
 }
 
 function fetchToStore (
@@ -247,31 +247,31 @@ function fetchToStore (
     checkFilesIntegrity: (
       pkgIndex: Record<string, PackageFileInfo>,
       manifest?: DeferredManifestPromise
-    ) => Promise<boolean>,
+    ) => Promise<boolean>
     fetch: (
       packageId: string,
       resolution: Resolution,
       opts: FetchOptions
-    ) => Promise<FetchResult>,
-    fetchingLocker: Map<string, FetchLock>,
-    getFilePathInCafs: (integrity: string, fileType: FileType) => string,
-    getFilePathByModeInCafs: (integrity: string, mode: number) => string,
-    requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
-    storeDir: string,
-    verifyStoreIntegrity: boolean,
+    ) => Promise<FetchResult>
+    fetchingLocker: Map<string, FetchLock>
+    getFilePathInCafs: (integrity: string, fileType: FileType) => string
+    getFilePathByModeInCafs: (integrity: string, mode: number) => string
+    requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>}
+    storeDir: string
+    verifyStoreIntegrity: boolean
   },
   opts: {
-    fetchRawManifest?: boolean,
-    force: boolean,
-    pkgId: string,
-    lockfileDir: string,
-    resolution: Resolution,
+    fetchRawManifest?: boolean
+    force: boolean
+    pkgId: string
+    lockfileDir: string
+    resolution: Resolution
   }
 ): {
-    bundledManifest?: () => Promise<BundledManifest>,
-    filesIndexFile: string,
-    files: () => Promise<PackageFilesResponse>,
-    finishing: () => Promise<void>,
+    bundledManifest?: () => Promise<BundledManifest>
+    filesIndexFile: string
+    files: () => Promise<PackageFilesResponse>
+    finishing: () => Promise<void>
   } {
   const targetRelative = pkgIdToFilename(opts.pkgId, opts.lockfileDir)
   const target = path.join(ctx.storeDir, targetRelative)
@@ -506,9 +506,9 @@ async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifes
 
 async function tarballIsUpToDate (
   resolution: {
-    integrity?: string,
-    registry?: string,
-    tarball: string,
+    integrity?: string
+    registry?: string
+    tarball: string
   },
   pkgInStoreLocation: string,
   lockfileDir: string

@@ -8,8 +8,8 @@ export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
 export default (
   reporterType: ReporterType,
   opts: {
-    cmd: string | null,
-    config: Config,
+    cmd: string | null
+    config: Config
   }
 ) => {
   switch (reporterType) {

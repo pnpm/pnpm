@@ -4,8 +4,8 @@ import { ReporterFunction } from './types'
 
 export default async function (
   opts: {
-    reporter?: ReporterFunction,
-    storeController: StoreController,
+    reporter?: ReporterFunction
+    storeController: StoreController
   }
 ) {
   const reporter = opts?.reporter

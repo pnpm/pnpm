@@ -15,10 +15,10 @@ import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
 import testDefaults from './utils/testDefaults'
+import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
-import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
 import test = require('tape')

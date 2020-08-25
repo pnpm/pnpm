@@ -18,8 +18,8 @@ export default async function outdatedDepsOfProjects (
   pkgs: Array<{dir: string, manifest: ProjectManifest}>,
   args: string[],
   opts: Omit<ManifestGetterOptions, 'storeDir' | 'lockfileDir'> & {
-    compatible?: boolean,
-    include: IncludedDependencies,
+    compatible?: boolean
+    include: IncludedDependencies
   } & Partial<Pick<ManifestGetterOptions, 'storeDir' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {

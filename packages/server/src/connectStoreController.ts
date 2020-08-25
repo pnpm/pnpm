@@ -14,13 +14,13 @@ import pShare = require('promise-share')
 import uuid = require('uuid')
 
 export type StoreServerController = StoreController & {
-  stop: () => Promise<void>,
+  stop: () => Promise<void>
 }
 
 export default function (
   initOpts: {
-    remotePrefix: string,
-    concurrency?: number,
+    remotePrefix: string
+    concurrency?: number
   }
 ): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
@@ -31,8 +31,8 @@ export default function (
       close: async () => { },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
       importPackage: (to: string, opts: {
-        filesResponse: PackageFilesResponse,
-        force: boolean,
+        filesResponse: PackageFilesResponse
+        force: boolean
       }) => {
         return limitedFetch(`${remotePrefix}/importPackage`, {
           opts,
@@ -127,11 +127,11 @@ function fetchPackage (
   limitedFetch: (url: string, body: object) => any, // eslint-disable-line
   options: FetchPackageToStoreOptions
 ): {
-    bundledManifest?: () => Promise<DependencyManifest>,
-    files: () => Promise<PackageFilesResponse>,
-    filesIndexFile: string,
-    finishing: () => Promise<void>,
-    inStoreLocation: string,
+    bundledManifest?: () => Promise<DependencyManifest>
+    files: () => Promise<PackageFilesResponse>
+    filesIndexFile: string
+    finishing: () => Promise<void>
+    inStoreLocation: string
   } {
   const msgId = uuid.v4()
 

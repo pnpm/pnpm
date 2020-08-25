@@ -1,17 +1,17 @@
-import prepare, { preparePackages } from '@pnpm/prepare'
-import { Lockfile } from '@pnpm/lockfile-types'
-import promisifyTape from 'tape-promise'
 import readYamlFile from 'read-yaml-file'
+import promisifyTape from 'tape-promise'
+import { Lockfile } from '@pnpm/lockfile-types'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import {
   execPnpm,
   execPnpmSync,
   retryLoadJsonFile,
   spawnPnpm,
 } from '../utils'
+import path = require('path')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
-import path = require('path')
 import tape = require('tape')
 import writeYamlFile = require('write-yaml-file')
 

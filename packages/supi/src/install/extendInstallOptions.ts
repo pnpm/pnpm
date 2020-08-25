@@ -13,65 +13,65 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface StrictInstallOptions {
-  forceSharedLockfile: boolean,
-  frozenLockfile: boolean,
-  frozenLockfileIfExists: boolean,
-  extraBinPaths: string[],
-  useLockfile: boolean,
-  linkWorkspacePackagesDepth: number,
-  lockfileOnly: boolean,
-  preferFrozenLockfile: boolean,
-  saveWorkspaceProtocol: boolean,
-  preserveWorkspaceProtocol: boolean,
-  storeController: StoreController,
-  storeDir: string,
-  reporter: ReporterFunction,
-  force: boolean,
-  update: boolean,
-  updateMatching?: (pkgName: string) => boolean,
-  updatePackageManifest: boolean,
-  depth: number,
-  lockfileDir: string,
-  modulesDir: string,
-  rawConfig: object,
-  verifyStoreIntegrity: boolean,
-  engineStrict: boolean,
-  nodeVersion: string,
+  forceSharedLockfile: boolean
+  frozenLockfile: boolean
+  frozenLockfileIfExists: boolean
+  extraBinPaths: string[]
+  useLockfile: boolean
+  linkWorkspacePackagesDepth: number
+  lockfileOnly: boolean
+  preferFrozenLockfile: boolean
+  saveWorkspaceProtocol: boolean
+  preserveWorkspaceProtocol: boolean
+  storeController: StoreController
+  storeDir: string
+  reporter: ReporterFunction
+  force: boolean
+  update: boolean
+  updateMatching?: (pkgName: string) => boolean
+  updatePackageManifest: boolean
+  depth: number
+  lockfileDir: string
+  modulesDir: string
+  rawConfig: object
+  verifyStoreIntegrity: boolean
+  engineStrict: boolean
+  nodeVersion: string
   packageManager: {
-    name: string,
-    version: string,
-  },
-  pruneLockfileImporters: boolean,
+    name: string
+    version: string
+  }
+  pruneLockfileImporters: boolean
   hooks: {
-    readPackage?: ReadPackageHook,
-    afterAllResolved?: (lockfile: Lockfile) => Lockfile,
-  },
-  sideEffectsCacheRead: boolean,
-  sideEffectsCacheWrite: boolean,
-  strictPeerDependencies: boolean,
-  include: IncludedDependencies,
-  includeDirect: IncludedDependencies,
-  ignoreCurrentPrefs: boolean,
-  ignoreScripts: boolean,
-  childConcurrency: number,
-  userAgent: string,
-  unsafePerm: boolean,
-  registries: Registries,
-  tag: string,
-  ownLifecycleHooksStdio: 'inherit' | 'pipe',
-  workspacePackages: WorkspacePackages,
-  pruneStore: boolean,
-  virtualStoreDir?: string,
-  dir: string,
+    readPackage?: ReadPackageHook
+    afterAllResolved?: (lockfile: Lockfile) => Lockfile
+  }
+  sideEffectsCacheRead: boolean
+  sideEffectsCacheWrite: boolean
+  strictPeerDependencies: boolean
+  include: IncludedDependencies
+  includeDirect: IncludedDependencies
+  ignoreCurrentPrefs: boolean
+  ignoreScripts: boolean
+  childConcurrency: number
+  userAgent: string
+  unsafePerm: boolean
+  registries: Registries
+  tag: string
+  ownLifecycleHooksStdio: 'inherit' | 'pipe'
+  workspacePackages: WorkspacePackages
+  pruneStore: boolean
+  virtualStoreDir?: string
+  dir: string
 
-  hoistPattern: string[] | undefined,
-  forceHoistPattern: boolean,
+  hoistPattern: string[] | undefined
+  forceHoistPattern: boolean
 
-  shamefullyHoist: boolean,
-  forceShamefullyHoist: boolean,
+  shamefullyHoist: boolean
+  forceShamefullyHoist: boolean
 
-  global: boolean,
-  globalBin?: string,
+  global: boolean
+  globalBin?: string
 }
 
 export type InstallOptions =

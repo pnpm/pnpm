@@ -6,27 +6,27 @@ const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
 export interface ParsedCliArgs {
   argv: {
-    remain: string[],
-    cooked: string[],
-    original: string[],
-  },
-  params: string[],
+    remain: string[]
+    cooked: string[]
+    original: string[]
+  }
+  params: string[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  options: Record<string, any>,
-  cmd: string | null,
-  unknownOptions: Map<string, string[]>,
-  workspaceDir?: string,
+  options: Record<string, any>
+  cmd: string | null
+  unknownOptions: Map<string, string[]>
+  workspaceDir?: string
 }
 
 export default async function parseCliArgs (
   opts: {
-    fallbackCommand?: string,
-    getCommandLongName: (commandName: string) => string | null,
-    getTypesByCommandName: (commandName: string) => object,
-    renamedOptions?: Record<string, string>,
-    shorthandsByCommandName: Record<string, Record<string, string | string[]>>,
-    universalOptionsTypes: Record<string, unknown>,
-    universalShorthands: Record<string, string | string[]>,
+    fallbackCommand?: string
+    getCommandLongName: (commandName: string) => string | null
+    getTypesByCommandName: (commandName: string) => object
+    renamedOptions?: Record<string, string>
+    shorthandsByCommandName: Record<string, Record<string, string | string[]>>
+    universalOptionsTypes: Record<string, unknown>
+    universalShorthands: Record<string, string | string[]>
   },
   inputArgv: string[]
 ): Promise<ParsedCliArgs> {

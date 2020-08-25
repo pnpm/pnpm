@@ -3,20 +3,20 @@ import { DependencyManifest } from '@pnpm/types'
 import { Integrity } from 'ssri'
 
 export interface Cafs {
-  addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>,
-  addFilesFromTarball: (stream: NodeJS.ReadableStream, manifest?: DeferredManifestPromise) => Promise<FilesIndex>,
+  addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
+  addFilesFromTarball: (stream: NodeJS.ReadableStream, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
 }
 
 export interface FetchOptions {
-  manifest?: DeferredManifestPromise,
-  lockfileDir: string,
-  onStart?: (totalSize: number | null, attempt: number) => void,
-  onProgress?: (downloaded: number) => void,
+  manifest?: DeferredManifestPromise
+  lockfileDir: string
+  onStart?: (totalSize: number | null, attempt: number) => void
+  onProgress?: (downloaded: number) => void
 }
 
 export interface DeferredManifestPromise {
-  resolve: (manifest: DependencyManifest) => void,
-  reject: (err: Error) => void,
+  resolve: (manifest: DependencyManifest) => void
+  reject: (err: Error) => void
 }
 
 export type FetchFunction = (
@@ -26,13 +26,13 @@ export type FetchFunction = (
 ) => Promise<FetchResult>
 
 export interface FetchResult {
-  filesIndex: FilesIndex,
+  filesIndex: FilesIndex
 }
 
 export interface FilesIndex {
   [filename: string]: {
-    mode: number,
-    size: number,
-    generatingIntegrity: Promise<Integrity>,
-  },
+    mode: number
+    size: number
+    generatingIntegrity: Promise<Integrity>
+  }
 }

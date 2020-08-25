@@ -39,7 +39,7 @@ function findPackages (
   packages: PackageSnapshots,
   searched: PackageSelector[],
   opts: {
-    prefix: string,
+    prefix: string
   }
 ): string[] {
   return Object.keys(packages)
@@ -73,8 +73,8 @@ function matches (
 }
 
 type PackageSelector = string | {
-  name: string,
-  range: string,
+  name: string
+  range: string
 }
 
 export async function rebuildPkgs (
@@ -189,7 +189,7 @@ function getSubgraphToBuild (
   step: LockfileWalkerStep,
   nodesToBuildAndTransitive: Set<string>,
   opts: {
-    pkgsToRebuild: Set<string>,
+    pkgsToRebuild: Set<string>
   }
 ) {
   let currentShouldBeBuilt = false
@@ -217,12 +217,12 @@ const limitLinking = pLimit(16)
 
 async function _rebuild (
   ctx: {
-    pkgsToRebuild: Set<string>,
-    virtualStoreDir: string,
-    rootModulesDir: string,
-    currentLockfile: Lockfile,
-    projects: Array<{ id: string, rootDir: string }>,
-    extraBinPaths: string[],
+    pkgsToRebuild: Set<string>
+    virtualStoreDir: string
+    rootModulesDir: string
+    currentLockfile: Lockfile
+    projects: Array<{ id: string, rootDir: string }>
+    extraBinPaths: string[]
   },
   opts: StrictRebuildOptions
 ) {

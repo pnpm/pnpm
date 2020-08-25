@@ -10,8 +10,8 @@ export { Project }
 export default async (
   workspaceRoot: string,
   opts?: {
-    engineStrict?: boolean,
-    patterns?: string[],
+    engineStrict?: boolean
+    patterns?: string[]
   }
 ) => {
   let patterns = opts?.patterns

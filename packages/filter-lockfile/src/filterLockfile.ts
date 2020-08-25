@@ -6,8 +6,8 @@ import R = require('ramda')
 export default function filterLockfile (
   lockfile: Lockfile,
   opts: {
-    include: { [dependenciesField in DependenciesField]: boolean },
-    skipped: Set<string>,
+    include: { [dependenciesField in DependenciesField]: boolean }
+    skipped: Set<string>
   }
 ): Lockfile {
   let pairs = Object.entries(lockfile.packages ?? {})

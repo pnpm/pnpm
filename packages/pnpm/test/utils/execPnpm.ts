@@ -10,7 +10,7 @@ const pnpxBinLocation = path.join(binDir, 'pnpx.js')
 export async function execPnpm (
   args: string[],
   opts?: {
-    env: Object,
+    env: Object
   }
 ): Promise<void> {
   await new Promise((resolve, reject) => {
@@ -28,8 +28,8 @@ export async function execPnpm (
 export function spawnPnpm (
   args: string[],
   opts?: {
-    env?: Object,
-    storeDir?: string,
+    env?: Object
+    storeDir?: string
   }
 ): NodeChildProcess {
   return crossSpawn.spawn('node', [pnpmBinLocation, ...args], {
@@ -62,9 +62,9 @@ export function spawnPnpx (args: string[], opts?: {storeDir?: string}): NodeChil
 }
 
 export interface ChildProcess {
-  status: number,
-  stdout: Object,
-  stderr: Object,
+  status: number
+  stdout: Object
+  stderr: Object
 }
 
 export function execPnpmSync (args: string[], opts?: { env: Object }): ChildProcess {

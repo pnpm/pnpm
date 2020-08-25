@@ -6,9 +6,9 @@ export async function readProjectManifest (
   projectDir: string,
   opts: { engineStrict?: boolean }
 ): Promise<{
-    fileName: string,
-    manifest: ProjectManifest,
-    writeProjectManifest: (manifest: ProjectManifest, force?: boolean) => Promise<void>,
+    fileName: string
+    manifest: ProjectManifest
+    writeProjectManifest: (manifest: ProjectManifest, force?: boolean) => Promise<void>
   }> {
   const { fileName, manifest, writeProjectManifest } = await _readProjectManifest(projectDir)
   packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -28,9 +28,9 @@ export async function tryReadProjectManifest (
   projectDir: string,
   opts: { engineStrict?: boolean }
 ): Promise<{
-    fileName: string,
-    manifest: ProjectManifest | null,
-    writeProjectManifest: (manifest: ProjectManifest, force?: boolean) => Promise<void>,
+    fileName: string
+    manifest: ProjectManifest | null
+    writeProjectManifest: (manifest: ProjectManifest, force?: boolean) => Promise<void>
   }> {
   const { fileName, manifest, writeProjectManifest } = await utils.tryReadProjectManifest(projectDir)
   if (!manifest) return { fileName, manifest, writeProjectManifest }

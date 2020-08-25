@@ -134,11 +134,11 @@ test('request package but skip fetching, when resolution is already available', 
     update: false,
   }) as PackageResponse & {
     body: {
-      latest: string,
-      manifest: {name: string},
-    },
-    files: () => Promise<object>,
-    finishing: () => Promise<void>,
+      latest: string
+      manifest: {name: string}
+    }
+    files: () => Promise<object>
+    finishing: () => Promise<void>
   }
 
   t.ok(pkgResponse, 'response received')
@@ -194,8 +194,8 @@ test('refetch local tarball if its integrity has changed', async t => {
         tarball,
       },
     }) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>,
-      finishing: () => Promise<void>,
+      files: () => Promise<PackageFilesResponse>
+      finishing: () => Promise<void>
     }
     await response.files()
     await response.finishing()
@@ -242,8 +242,8 @@ test('refetch local tarball if its integrity has changed', async t => {
         tarball,
       },
     }) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>,
-      finishing: () => Promise<void>,
+      files: () => Promise<PackageFilesResponse>
+      finishing: () => Promise<void>
     }
     await response.files()
     await response.finishing()
@@ -279,8 +279,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>,
-      finishing: () => Promise<void>,
+      files: () => Promise<PackageFilesResponse>
+      finishing: () => Promise<void>
     }
     await response.files()
     await response.finishing()
@@ -300,8 +300,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>,
-      finishing: () => Promise<void>,
+      files: () => Promise<PackageFilesResponse>
+      finishing: () => Promise<void>
     }
     await response.files()
     await response.finishing()
@@ -318,8 +318,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>,
-      finishing: () => Promise<void>,
+      files: () => Promise<PackageFilesResponse>
+      finishing: () => Promise<void>
     }
     await response.files()
     await response.finishing()

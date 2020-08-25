@@ -10,9 +10,9 @@ export * from './types'
 export default async function audit (
   lockfile: Lockfile,
   opts: {
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    registry: string,
-    retry?: RetryTimeoutOptions,
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    registry: string
+    retry?: RetryTimeoutOptions
   }
 ) {
   const auditTree = lockfileToAuditTree(lockfile, { include: opts.include })

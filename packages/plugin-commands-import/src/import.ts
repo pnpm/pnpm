@@ -65,7 +65,7 @@ async function readNpmLockfile (dir: string) {
 
 function getPreferredVersions (
   versionsByPackageNames: {
-    [packageName: string]: Set<string>,
+    [packageName: string]: Set<string>
   }
 ) {
   const preferredVersions = {}
@@ -81,7 +81,7 @@ function getPreferredVersions (
 function getAllVersionsByPackageNames (
   npmPackageLock: NpmPackageLock | LockedPackage,
   versionsByPackageNames: {
-    [packageName: string]: Set<string>,
+    [packageName: string]: Set<string>
   }
 ) {
   if (!npmPackageLock.dependencies) return
@@ -97,14 +97,14 @@ function getAllVersionsByPackageNames (
 }
 
 interface NpmPackageLock {
-  dependencies: LockedPackagesMap,
+  dependencies: LockedPackagesMap
 }
 
 interface LockedPackage {
-  version: string,
-  dependencies?: LockedPackagesMap,
+  version: string
+  dependencies?: LockedPackagesMap
 }
 
 interface LockedPackagesMap {
-  [name: string]: LockedPackage,
+  [name: string]: LockedPackage
 }

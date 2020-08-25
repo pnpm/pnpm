@@ -6,14 +6,14 @@ import { PinnedVersion, WantedDependency } from './install/getWantedDependencies
 export default function parseWantedDependencies (
   rawWantedDependencies: string[],
   opts: {
-    allowNew: boolean,
-    currentPrefs: Dependencies,
-    defaultTag: string,
-    dev: boolean,
-    devDependencies: Dependencies,
-    optional: boolean,
-    optionalDependencies: Dependencies,
-    updateWorkspaceDependencies?: boolean,
+    allowNew: boolean
+    currentPrefs: Dependencies
+    defaultTag: string
+    dev: boolean
+    devDependencies: Dependencies
+    optional: boolean
+    optionalDependencies: Dependencies
+    updateWorkspaceDependencies?: boolean
   }
 ): WantedDependency[] {
   return rawWantedDependencies

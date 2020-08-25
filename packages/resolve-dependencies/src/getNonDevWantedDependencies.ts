@@ -1,10 +1,10 @@
 import { Dependencies, DependencyManifest } from '@pnpm/types'
 
 export interface WantedDependency {
-  alias: string,
-  pref: string, // package reference
-  dev: boolean,
-  optional: boolean,
+  alias: string
+  pref: string // package reference
+  dev: boolean
+  optional: boolean
 }
 
 export default function getNonDevWantedDependencies (pkg: DependencyManifest) {
@@ -23,8 +23,8 @@ export default function getNonDevWantedDependencies (pkg: DependencyManifest) {
 function getWantedDependenciesFromGivenSet (
   deps: Dependencies,
   opts: {
-    devDependencies: Dependencies,
-    optionalDependencies: Dependencies,
+    devDependencies: Dependencies
+    optionalDependencies: Dependencies
   }
 ): WantedDependency[] {
   if (!deps) return []

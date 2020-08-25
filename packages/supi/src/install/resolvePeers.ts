@@ -18,66 +18,66 @@ import R = require('ramda')
 import semver = require('semver')
 
 export interface DependenciesGraphNode {
-  name: string,
+  name: string
   // at this point the version is really needed only for logging
-  version: string,
-  hasBin: boolean,
-  hasBundledDependencies: boolean,
-  modules: string,
-  fetchingBundledManifest?: () => Promise<DependencyManifest>,
-  fetchingFiles: () => Promise<PackageFilesResponse>,
-  filesIndexFile: string,
-  resolution: Resolution,
-  dir: string,
-  children: {[alias: string]: string},
-  optionalDependencies: Set<string>,
-  depth: number,
-  depPath: string,
-  prod: boolean,
-  dev: boolean,
-  optional: boolean,
-  packageId: string,
-  installable: boolean,
+  version: string
+  hasBin: boolean
+  hasBundledDependencies: boolean
+  modules: string
+  fetchingBundledManifest?: () => Promise<DependencyManifest>
+  fetchingFiles: () => Promise<PackageFilesResponse>
+  filesIndexFile: string
+  resolution: Resolution
+  dir: string
+  children: {[alias: string]: string}
+  optionalDependencies: Set<string>
+  depth: number
+  depPath: string
+  prod: boolean
+  dev: boolean
+  optional: boolean
+  packageId: string
+  installable: boolean
   additionalInfo: {
-    deprecated?: string,
-    peerDependencies?: Dependencies,
-    bundleDependencies?: string[],
-    bundledDependencies?: string[],
+    deprecated?: string
+    peerDependencies?: Dependencies
+    bundleDependencies?: string[]
+    bundledDependencies?: string[]
     engines?: {
-      node?: string,
-      npm?: string,
-    },
-    cpu?: string[],
-    os?: string[],
-  },
-  isBuilt?: boolean,
-  requiresBuild?: boolean,
-  prepare: boolean,
-  isPure: boolean,
+      node?: string
+      npm?: string
+    }
+    cpu?: string[]
+    os?: string[]
+  }
+  isBuilt?: boolean
+  requiresBuild?: boolean
+  prepare: boolean
+  isPure: boolean
 }
 
 export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode,
+  [depPath: string]: DependenciesGraphNode
 }
 
 export default function (
   opts: {
     projects: Array<{
-      directNodeIdsByAlias: {[alias: string]: string},
+      directNodeIdsByAlias: {[alias: string]: string}
       // only the top dependencies that were already installed
       // to avoid warnings about unresolved peer dependencies
-      topParents: Array<{name: string, version: string}>,
-      rootDir: string, // is only needed for logging
-      id: string,
-    }>,
-    dependenciesTree: DependenciesTree,
-    virtualStoreDir: string,
-    lockfileDir: string,
-    strictPeerDependencies: boolean,
+      topParents: Array<{name: string, version: string}>
+      rootDir: string // is only needed for logging
+      id: string
+    }>
+    dependenciesTree: DependenciesTree
+    virtualStoreDir: string
+    lockfileDir: string
+    strictPeerDependencies: boolean
   }
 ): {
-    depGraph: DependenciesGraph,
-    projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}},
+    depGraph: DependenciesGraph
+    projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}}
   } {
   const depGraph: DependenciesGraph = {}
   const pathsByNodeId = {}
@@ -140,14 +140,14 @@ function resolvePeersOfNode (
   nodeId: string,
   parentParentPkgs: ParentRefs,
   ctx: {
-    dependenciesTree: DependenciesTree,
-    pathsByNodeId: {[nodeId: string]: string},
-    depGraph: DependenciesGraph,
-    virtualStoreDir: string,
-    purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
-    rootDir: string,
-    lockfileDir: string,
-    strictPeerDependencies: boolean,
+    dependenciesTree: DependenciesTree
+    pathsByNodeId: {[nodeId: string]: string}
+    depGraph: DependenciesGraph
+    virtualStoreDir: string
+    purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
+    rootDir: string
+    lockfileDir: string
+    strictPeerDependencies: boolean
   }
 ): {[alias: string]: string} {
   const node = ctx.dependenciesTree[nodeId]
@@ -253,18 +253,18 @@ function resolvePeersOfNode (
 
 function resolvePeersOfChildren (
   children: {
-    [alias: string]: string,
+    [alias: string]: string
   },
   parentPkgs: ParentRefs,
   ctx: {
-    pathsByNodeId: {[nodeId: string]: string},
-    virtualStoreDir: string,
-    purePkgs: Set<string>,
-    depGraph: DependenciesGraph,
-    dependenciesTree: DependenciesTree,
-    rootDir: string,
-    lockfileDir: string,
-    strictPeerDependencies: boolean,
+    pathsByNodeId: {[nodeId: string]: string}
+    virtualStoreDir: string
+    purePkgs: Set<string>
+    depGraph: DependenciesGraph
+    dependenciesTree: DependenciesTree
+    rootDir: string
+    lockfileDir: string
+    strictPeerDependencies: boolean
   }
 ): {[alias: string]: string} {
   const allResolvedPeers: {[alias: string]: string} = {}
@@ -285,16 +285,16 @@ function resolvePeersOfChildren (
 
 function resolvePeers (
   ctx: {
-    currentDepth: number,
-    nodeId: string,
-    parentPkgs: ParentRefs,
-    resolvedPackage: ResolvedPackage,
-    dependenciesTree: DependenciesTree,
-    rootDir: string,
-    strictPeerDependencies: boolean,
+    currentDepth: number
+    nodeId: string
+    parentPkgs: ParentRefs
+    resolvedPackage: ResolvedPackage
+    dependenciesTree: DependenciesTree
+    rootDir: string
+    strictPeerDependencies: boolean
   }
 ): {
-    [alias: string]: string,
+    [alias: string]: string
   } {
   const resolvedPeers: {[alias: string]: string} = {}
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
@@ -367,14 +367,14 @@ function nodeIdToFriendlyPath (nodeId: string, dependenciesTree: DependenciesTre
 }
 
 interface ParentRefs {
-  [name: string]: ParentRef,
+  [name: string]: ParentRef
 }
 
 interface ParentRef {
-  version: string,
-  depth: number,
+  version: string
+  depth: number
   // this is null only for already installed top dependencies
-  nodeId?: string,
+  nodeId?: string
 }
 
 function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: DependenciesTreeNode}>): ParentRefs {

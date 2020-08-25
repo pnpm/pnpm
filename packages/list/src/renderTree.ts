@@ -1,7 +1,7 @@
+import { PackageDependencyHierarchy } from './types'
+import getPkgInfo from './getPkgInfo'
 import { PackageNode } from 'dependencies-hierarchy'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import getPkgInfo from './getPkgInfo'
-import { PackageDependencyHierarchy } from './types'
 import path = require('path')
 import archy = require('archy')
 import chalk = require('chalk')
@@ -20,10 +20,10 @@ const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP
 export default async function (
   packages: PackageDependencyHierarchy[],
   opts: {
-    alwaysPrintRootPackage: boolean,
-    depth: number,
-    long: boolean,
-    search: boolean,
+    alwaysPrintRootPackage: boolean
+    depth: number
+    long: boolean
+    search: boolean
   }
 ) {
   const output = (
@@ -37,10 +37,10 @@ export default async function (
 async function renderTreeForPackage (
   pkg: PackageDependencyHierarchy,
   opts: {
-    alwaysPrintRootPackage: boolean,
-    depth: number,
-    long: boolean,
-    search: boolean,
+    alwaysPrintRootPackage: boolean
+    depth: number
+    long: boolean
+    search: boolean
   }
 ) {
   if (
@@ -94,8 +94,8 @@ export function toArchyTree (
   getPkgColor: GetPkgColor,
   entryNodes: PackageNode[],
   opts: {
-    long: boolean,
-    modules: string,
+    long: boolean
+    modules: string
   }
 ): Promise<archy.Data[]> {
   return Promise.all(

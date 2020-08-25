@@ -34,8 +34,8 @@ export default function checkEngine (
 }
 
 export interface Engine {
-  node: string,
-  pnpm?: string,
+  node: string
+  pnpm?: string
 }
 
 export type WantedEngine = Partial<Engine>

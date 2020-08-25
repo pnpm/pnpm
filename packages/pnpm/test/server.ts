@@ -23,9 +23,9 @@ import writeJsonFile = require('write-json-file')
 
 // Third element is true if and only if we attempted to kill the process via a signal.
 interface ServerProcess {
-  childProcess: ChildProcess,
-  running: Deferred<void>,
-  attemptedToKill: boolean,
+  childProcess: ChildProcess
+  running: Deferred<void>
+  attemptedToKill: boolean
 }
 const test = promisifyTape(tape)
 
@@ -211,10 +211,10 @@ test('store server started in the background should use store location wanted by
 
 async function testParallelServerStart (
   options: {
-    test: tape.Test,
-    timeoutMillis?: number,
-    onProcessClosed: (serverProcess: ChildProcess, weAttemptedKill: boolean) => void,
-    n: number,
+    test: tape.Test
+    timeoutMillis?: number
+    onProcessClosed: (serverProcess: ChildProcess, weAttemptedKill: boolean) => void
+    n: number
   }
 ) {
   let stopped = false

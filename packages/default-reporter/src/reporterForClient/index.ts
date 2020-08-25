@@ -18,36 +18,36 @@ import most = require('most')
 
 export default function (
   log$: {
-    context: most.Stream<logs.ContextLog>,
-    fetchingProgress: most.Stream<logs.FetchingProgressLog>,
-    progress: most.Stream<logs.ProgressLog>,
-    stage: most.Stream<logs.StageLog>,
-    deprecation: most.Stream<logs.DeprecationLog>,
-    summary: most.Stream<logs.SummaryLog>,
-    lifecycle: most.Stream<logs.LifecycleLog>,
-    stats: most.Stream<logs.StatsLog>,
-    installCheck: most.Stream<logs.InstallCheckLog>,
-    registry: most.Stream<logs.RegistryLog>,
-    root: most.Stream<logs.RootLog>,
-    packageManifest: most.Stream<logs.PackageManifestLog>,
-    requestRetry: most.Stream<logs.RequestRetryLog>,
-    link: most.Stream<logs.LinkLog>,
-    other: most.Stream<logs.Log>,
-    hook: most.Stream<logs.HookLog>,
-    scope: most.Stream<logs.ScopeLog>,
-    skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,
-    packageImportMethod: most.Stream<logs.PackageImportMethodLog>,
+    context: most.Stream<logs.ContextLog>
+    fetchingProgress: most.Stream<logs.FetchingProgressLog>
+    progress: most.Stream<logs.ProgressLog>
+    stage: most.Stream<logs.StageLog>
+    deprecation: most.Stream<logs.DeprecationLog>
+    summary: most.Stream<logs.SummaryLog>
+    lifecycle: most.Stream<logs.LifecycleLog>
+    stats: most.Stream<logs.StatsLog>
+    installCheck: most.Stream<logs.InstallCheckLog>
+    registry: most.Stream<logs.RegistryLog>
+    root: most.Stream<logs.RootLog>
+    packageManifest: most.Stream<logs.PackageManifestLog>
+    requestRetry: most.Stream<logs.RequestRetryLog>
+    link: most.Stream<logs.LinkLog>
+    other: most.Stream<logs.Log>
+    hook: most.Stream<logs.HookLog>
+    scope: most.Stream<logs.ScopeLog>
+    skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>
+    packageImportMethod: most.Stream<logs.PackageImportMethodLog>
   },
   opts: {
-    appendOnly?: boolean,
-    cmd: string,
-    config?: Config,
-    isRecursive: boolean,
-    logLevel?: LogLevel,
-    pnpmConfig?: Config,
-    streamLifecycleOutput?: boolean,
-    throttleProgress?: number,
-    width?: number,
+    appendOnly?: boolean
+    cmd: string
+    config?: Config
+    isRecursive: boolean
+    logLevel?: LogLevel
+    pnpmConfig?: Config
+    streamLifecycleOutput?: boolean
+    throttleProgress?: number
+    width?: number
   }
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = opts.width ?? process.stdout.columns ?? 80

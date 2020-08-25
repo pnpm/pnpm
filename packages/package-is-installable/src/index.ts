@@ -17,18 +17,18 @@ export {
 export default function packageIsInstallable (
   pkgId: string,
   pkg: {
-    name: string,
-    version: string,
-    engines?: WantedEngine,
-    cpu?: string[],
-    os?: string[],
+    name: string
+    version: string
+    engines?: WantedEngine
+    cpu?: string[]
+    os?: string[]
   },
   options: {
-    engineStrict?: boolean,
-    nodeVersion?: string,
-    optional: boolean,
-    pnpmVersion?: string,
-    lockfileDir: string,
+    engineStrict?: boolean
+    nodeVersion?: string
+    optional: boolean
+    pnpmVersion?: string
+    lockfileDir: string
   }
 ): boolean | null {
   const warn = checkPackage(pkgId, pkg, options)
@@ -63,13 +63,13 @@ export default function packageIsInstallable (
 export function checkPackage (
   pkgId: string,
   manifest: {
-    engines?: WantedEngine,
-    cpu?: string[],
-    os?: string[],
+    engines?: WantedEngine
+    cpu?: string[]
+    os?: string[]
   },
   options: {
-    nodeVersion?: string,
-    pnpmVersion?: string,
+    nodeVersion?: string
+    pnpmVersion?: string
   }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
   return checkPlatform(pkgId, {

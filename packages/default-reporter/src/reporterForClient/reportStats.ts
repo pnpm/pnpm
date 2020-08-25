@@ -1,10 +1,10 @@
 import { StatsLog } from '@pnpm/core-loggers'
+import { zoomOut } from './utils/zooming'
 import { EOL } from '../constants'
 import {
   ADDED_CHAR,
   REMOVED_CHAR,
 } from './outputConstants'
-import { zoomOut } from './utils/zooming'
 import chalk = require('chalk')
 import most = require('most')
 import R = require('ramda')
@@ -12,13 +12,13 @@ import stringLength = require('string-length')
 
 export default (
   log$: {
-    stats: most.Stream<StatsLog>,
+    stats: most.Stream<StatsLog>
   },
   opts: {
-    cmd: string,
-    cwd: string,
-    isRecursive: boolean,
-    width: number,
+    cmd: string
+    cwd: string
+    isRecursive: boolean
+    width: number
   }
 ) => {
   const stats$ = opts.isRecursive
@@ -47,9 +47,9 @@ export default (
 function statsForCurrentPackage (
   stats$: most.Stream<StatsLog>,
   opts: {
-    cmd: string,
-    currentPrefix: string,
-    width: number,
+    cmd: string
+    currentPrefix: string
+    width: number
   }
 ) {
   return most.fromPromise(
@@ -88,9 +88,9 @@ function statsForCurrentPackage (
 function statsForNotCurrentPackage (
   stats$: most.Stream<StatsLog>,
   opts: {
-    cmd: string,
-    currentPrefix: string,
-    width: number,
+    cmd: string
+    currentPrefix: string
+    width: number
   }
 ) {
   const cookedStats$ = (

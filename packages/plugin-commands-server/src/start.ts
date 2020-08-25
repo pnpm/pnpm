@@ -19,11 +19,11 @@ const storeServerLogger = logger('store-server')
 
 export default async (
   opts: CreateStoreControllerOptions & {
-    background?: boolean,
-    protocol?: 'auto' | 'tcp' | 'ipc',
-    port?: number,
-    ignoreStopRequests?: boolean,
-    ignoreUploadRequests?: boolean,
+    background?: boolean
+    protocol?: 'auto' | 'tcp' | 'ipc'
+    port?: number
+    ignoreStopRequests?: boolean
+    ignoreUploadRequests?: boolean
   }
 ) => {
   if (opts.protocol === 'ipc' && opts.port) {
@@ -108,8 +108,8 @@ export default async (
 async function getServerOptions (
   connectionInfoDir: string,
   opts: {
-    protocol: 'auto' | 'tcp' | 'ipc',
-    port?: number,
+    protocol: 'auto' | 'tcp' | 'ipc'
+    port?: number
   }
 ): Promise<{hostname?: string, port?: number, path?: string}> {
   switch (opts.protocol) {

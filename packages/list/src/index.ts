@@ -20,13 +20,13 @@ export async function forPackages (
   packages: string[],
   projectPaths: string[],
   maybeOpts: {
-    alwaysPrintRootPackage?: boolean,
-    depth?: number,
-    lockfileDir: string,
-    long?: boolean,
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    reportAs?: 'parseable' | 'tree' | 'json',
-    registries?: Registries,
+    alwaysPrintRootPackage?: boolean
+    depth?: number
+    lockfileDir: string
+    long?: boolean
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    reportAs?: 'parseable' | 'tree' | 'json'
+    registries?: Registries
   }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -65,13 +65,13 @@ export async function forPackages (
 export default async function (
   projectPaths: string[],
   maybeOpts: {
-    alwaysPrintRootPackage?: boolean,
-    depth?: number,
-    lockfileDir: string,
-    long?: boolean,
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    reportAs?: 'parseable' | 'tree' | 'json',
-    registries?: Registries,
+    alwaysPrintRootPackage?: boolean
+    depth?: number
+    lockfileDir: string
+    long?: boolean
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    reportAs?: 'parseable' | 'tree' | 'json'
+    registries?: Registries
   }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }

@@ -12,16 +12,16 @@ const DEFAULT_IGNORE = [
 ]
 
 export interface Options {
-  ignore?: string[],
-  includeRoot?: boolean,
-  patterns?: string[],
+  ignore?: string[]
+  includeRoot?: boolean
+  patterns?: string[]
 }
 
 export interface Project {
-  dir: string,
-  manifest: ProjectManifest,
+  dir: string
+  manifest: ProjectManifest
 
-  writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>,
+  writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>
 }
 
 export default async function findPkgs (root: string, opts?: Options): Promise<Project[]> {

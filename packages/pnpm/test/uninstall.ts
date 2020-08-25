@@ -1,9 +1,9 @@
+import { execPnpm } from './utils'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import prepare from '@pnpm/prepare'
 import promisifyTape from 'tape-promise'
-import { execPnpm } from './utils'
-import path = require('path')
 import fs = require('mz/fs')
+import path = require('path')
 import exists = require('path-exists')
 import PATH = require('path-name')
 import tape = require('tape')

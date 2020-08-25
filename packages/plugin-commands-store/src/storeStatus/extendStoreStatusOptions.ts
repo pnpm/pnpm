@@ -4,20 +4,20 @@ import { ReporterFunction } from '../types'
 import path = require('path')
 
 export interface StrictStoreStatusOptions {
-  lockfileDir: string,
-  dir: string,
-  storeDir: string,
-  force: boolean,
-  forceSharedLockfile: boolean,
-  useLockfile: boolean,
-  registries: Registries,
-  shamefullyHoist: boolean,
+  lockfileDir: string
+  dir: string
+  storeDir: string
+  force: boolean
+  forceSharedLockfile: boolean
+  useLockfile: boolean
+  registries: Registries
+  shamefullyHoist: boolean
 
-  reporter: ReporterFunction,
-  production: boolean,
-  development: boolean,
-  optional: boolean,
-  binsDir: string,
+  reporter: ReporterFunction
+  production: boolean
+  development: boolean
+  optional: boolean
+  binsDir: string
 }
 
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &

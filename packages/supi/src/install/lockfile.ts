@@ -6,10 +6,10 @@ import encodeRegistry = require('encode-registry')
 export function depPathToRef (
   depPath: string,
   opts: {
-    alias: string,
-    realName: string,
-    registries: Registries,
-    resolution: Resolution,
+    alias: string
+    realName: string
+    registries: Registries
+    resolution: Resolution
   }
 ) {
   if (opts.resolution.type) return depPath

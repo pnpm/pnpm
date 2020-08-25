@@ -6,7 +6,7 @@ import most = require('most')
 export default (
   installCheck$: most.Stream<InstallCheckLog>,
   opts: {
-    cwd: string,
+    cwd: string
   }
 ) => {
   return installCheck$
@@ -20,7 +20,7 @@ function formatInstallCheck (
   currentPrefix: string,
   logObj: InstallCheckLog,
   opts?: {
-    zoomOutCurrent: boolean,
+    zoomOutCurrent: boolean
   }
 ) {
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false

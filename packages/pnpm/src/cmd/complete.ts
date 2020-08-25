@@ -7,18 +7,18 @@ import universalShorthands from '../shorthands'
 
 export default async function complete (
   ctx: {
-    cliOptionsTypesByCommandName: Record<string, () => Object>,
-    completionByCommandName: Record<string, CompletionFunc>,
-    initialCompletion: () => Completion[],
-    shorthandsByCommandName: Record<string, Record<string, string | string[]>>,
-    universalOptionsTypes: Record<string, Object>,
+    cliOptionsTypesByCommandName: Record<string, () => Object>
+    completionByCommandName: Record<string, CompletionFunc>
+    initialCompletion: () => Completion[]
+    shorthandsByCommandName: Record<string, Record<string, string | string[]>>
+    universalOptionsTypes: Record<string, Object>
   },
   input: {
-    params: string[],
-    cmd: string | null,
-    currentTypedWordType: 'option' | 'value' | null,
-    lastOption: string | null,
-    options: Record<string, unknown>,
+    params: string[]
+    cmd: string | null
+    currentTypedWordType: 'option' | 'value' | null
+    lastOption: string | null
+    options: Record<string, unknown>
   }
 ) {
   if (input.options.version) return []

@@ -14,11 +14,11 @@ import {
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import { table } from 'table'
+import outdatedRecursive from './recursive'
 import {
   DEFAULT_COMPARATORS,
   OutdatedWithVersionDiff,
 } from './utils'
-import outdatedRecursive from './recursive'
 import chalk = require('chalk')
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -116,10 +116,10 @@ export const completion: CompletionFunc = (cliOpts) => {
 }
 
 export type OutdatedCommandOptions = {
-  compatible?: boolean,
-  long?: boolean,
-  recursive?: boolean,
-  table?: boolean,
+  compatible?: boolean
+  long?: boolean
+  recursive?: boolean
+  table?: boolean
 } & Pick<Config,
 | 'allProjects'
 | 'alwaysAuth'

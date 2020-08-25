@@ -20,11 +20,11 @@ export default async function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
   initOpts: {
-    ignoreFile?: (filename: string) => boolean,
-    storeDir: string,
-    networkConcurrency?: number,
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone',
-    verifyStoreIntegrity: boolean,
+    ignoreFile?: (filename: string) => boolean
+    storeDir: string
+    networkConcurrency?: number
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+    verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
   const storeDir = initOpts.storeDir

@@ -10,16 +10,16 @@ const HttpsAgent = HttpAgent.HttpsAgent
 const AGENT_CACHE = new LRU({ max: 50 })
 
 export interface AgentOptions {
-  ca?: string,
-  cert?: string,
-  httpProxy?: string,
-  httpsProxy?: string,
-  key?: string,
-  localAddress?: string,
-  maxSockets?: number,
-  noProxy?: boolean | string,
-  strictSSL?: boolean,
-  timeout?: number,
+  ca?: string
+  cert?: string
+  httpProxy?: string
+  httpsProxy?: string
+  key?: string
+  localAddress?: string
+  maxSockets?: number
+  noProxy?: boolean | string
+  strictSSL?: boolean
+  timeout?: number
 }
 
 export default function getAgent (uri: string, opts: AgentOptions) {
@@ -100,9 +100,9 @@ function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }) {
 function getProxyUri (
   uri: string,
   opts: {
-    httpProxy?: string,
-    httpsProxy?: string,
-    noProxy?: boolean | string,
+    httpProxy?: string
+    httpsProxy?: string
+    noProxy?: boolean | string
   }
 ) {
   const { protocol } = new URL(uri)
@@ -135,13 +135,13 @@ function getProxyUri (
 function getProxy (
   proxyUrl: URL,
   opts: {
-    ca?: string,
-    cert?: string,
-    key?: string,
-    timeout?: number,
-    localAddress?: string,
-    maxSockets?: number,
-    strictSSL?: boolean,
+    ca?: string
+    cert?: string
+    key?: string
+    timeout?: number
+    localAddress?: string
+    maxSockets?: number
+    strictSSL?: boolean
   },
   isHttps: boolean
 ) {

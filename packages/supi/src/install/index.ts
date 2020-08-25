@@ -73,37 +73,37 @@ import R = require('ramda')
 
 export type DependenciesMutation = (
   {
-    buildIndex: number,
-    mutation: 'install',
-    pruneDirectDependencies?: boolean,
+    buildIndex: number
+    mutation: 'install'
+    pruneDirectDependencies?: boolean
   } | {
-    allowNew?: boolean,
-    dependencySelectors: string[],
-    mutation: 'installSome',
-    peer?: boolean,
-    pruneDirectDependencies?: boolean,
-    pinnedVersion?: PinnedVersion,
-    targetDependenciesField?: DependenciesField,
+    allowNew?: boolean
+    dependencySelectors: string[]
+    mutation: 'installSome'
+    peer?: boolean
+    pruneDirectDependencies?: boolean
+    pinnedVersion?: PinnedVersion
+    targetDependenciesField?: DependenciesField
   } | {
-    mutation: 'uninstallSome',
-    dependencyNames: string[],
-    targetDependenciesField?: DependenciesField,
+    mutation: 'uninstallSome'
+    dependencyNames: string[]
+    targetDependenciesField?: DependenciesField
   } | {
-    mutation: 'unlink',
+    mutation: 'unlink'
   } | {
-    mutation: 'unlinkSome',
-    dependencyNames: string[],
+    mutation: 'unlinkSome'
+    dependencyNames: string[]
   }
 ) & (
   {
-    manifest: ProjectManifest,
+    manifest: ProjectManifest
   }
 )
 
 export async function install (
   manifest: ProjectManifest,
   opts: InstallOptions & {
-    preferredVersions?: PreferredVersions,
+    preferredVersions?: PreferredVersions
   }
 ) {
   const projects = await mutateModules(
@@ -125,7 +125,7 @@ export type MutatedProject = ProjectOptions & DependenciesMutation
 export async function mutateModules (
   projects: MutatedProject[],
   maybeOpts: InstallOptions & {
-    preferredVersions?: PreferredVersions,
+    preferredVersions?: PreferredVersions
   }
 ) {
   const reporter = maybeOpts?.reporter
@@ -203,13 +203,13 @@ export async function mutateModules (
             packageManager: opts.packageManager,
             pendingBuilds: ctx.pendingBuilds,
             projects: ctx.projects as Array<{
-              binsDir: string,
-              buildIndex: number,
-              id: string,
-              manifest: ProjectManifest,
-              modulesDir: string,
-              rootDir: string,
-              pruneDirectDependencies?: boolean,
+              binsDir: string
+              buildIndex: number
+              id: string
+              manifest: ProjectManifest
+              modulesDir: string
+              rootDir: string
+              pruneDirectDependencies?: boolean
             }>,
             pruneStore: opts.pruneStore,
             publicHoistPattern: ctx.publicHoistPattern,
@@ -438,12 +438,12 @@ function pkgHasDependencies (manifest: ProjectManifest) {
 async function partitionLinkedPackages (
   dependencies: WantedDependency[],
   opts: {
-    projectDir: string,
-    lockfileOnly: boolean,
-    modulesDir: string,
-    storeDir: string,
-    virtualStoreDir: string,
-    workspacePackages?: WorkspacePackages,
+    projectDir: string
+    lockfileOnly: boolean
+    modulesDir: string
+    storeDir: string
+    virtualStoreDir: string
+    workspacePackages?: WorkspacePackages
   }
 ) {
   const nonLinkedDependencies: WantedDependency[] = []
@@ -498,10 +498,10 @@ export async function addDependenciesToPackage (
   manifest: ProjectManifest,
   dependencySelectors: string[],
   opts: InstallOptions & {
-    allowNew?: boolean,
-    peer?: boolean,
-    pinnedVersion?: 'major' | 'minor' | 'patch',
-    targetDependenciesField?: DependenciesField,
+    allowNew?: boolean
+    peer?: boolean
+    pinnedVersion?: 'major' | 'minor' | 'patch'
+    targetDependenciesField?: DependenciesField
   }
 ) {
   const projects = await mutateModules(
@@ -525,26 +525,26 @@ export async function addDependenciesToPackage (
 }
 
 export type ImporterToUpdate = {
-  binsDir: string,
-  id: string,
-  manifest: ProjectManifest,
-  originalManifest?: ProjectManifest,
-  modulesDir: string,
-  rootDir: string,
-  pruneDirectDependencies: boolean,
-  removePackages?: string[],
-  updatePackageManifest: boolean,
-  wantedDependencies: Array<WantedDependency & { isNew?: Boolean, updateSpec?: Boolean }>,
+  binsDir: string
+  id: string
+  manifest: ProjectManifest
+  originalManifest?: ProjectManifest
+  modulesDir: string
+  rootDir: string
+  pruneDirectDependencies: boolean
+  removePackages?: string[]
+  updatePackageManifest: boolean
+  wantedDependencies: Array<WantedDependency & { isNew?: Boolean, updateSpec?: Boolean }>
 } & DependenciesMutation
 
 async function installInContext (
   projects: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
-    makePartialCurrentLockfile: boolean,
-    updateLockfileMinorVersion: boolean,
-    preferredVersions?: PreferredVersions,
-    currentLockfileIsUpToDate: boolean,
+    makePartialCurrentLockfile: boolean
+    updateLockfileMinorVersion: boolean
+    preferredVersions?: PreferredVersions
+    currentLockfileIsUpToDate: boolean
   }
 ) {
   if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
@@ -837,13 +837,13 @@ async function installInContext (
 
 async function toResolveImporter (
   opts: {
-    defaultUpdateDepth: number,
-    lockfileOnly: boolean,
-    preferredVersions?: PreferredVersions,
-    storeDir: string,
-    updateAll: boolean,
-    virtualStoreDir: string,
-    workspacePackages: WorkspacePackages,
+    defaultUpdateDepth: number
+    lockfileOnly: boolean
+    preferredVersions?: PreferredVersions
+    storeDir: string
+    updateAll: boolean
+    virtualStoreDir: string
+    workspacePackages: WorkspacePackages
   },
   project: ImporterToUpdate
 ) {
@@ -908,8 +908,8 @@ function linkAllBins (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
-    optional: boolean,
-    warn: (message: string) => void,
+    optional: boolean
+    warn: (message: string) => void
   }
 ) {
   return Promise.all(

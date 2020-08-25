@@ -66,139 +66,139 @@ export function nodeIdToParents (
 
 // child nodeId by child alias name in case of non-linked deps
 export interface ChildrenMap {
-  [alias: string]: string,
+  [alias: string]: string
 }
 
 export type DependenciesTreeNode = {
-  children: (() => ChildrenMap) | ChildrenMap,
-  installable: boolean,
+  children: (() => ChildrenMap) | ChildrenMap
+  installable: boolean
 } & ({
-  resolvedPackage: ResolvedPackage,
-  depth: number,
+  resolvedPackage: ResolvedPackage
+  depth: number
 } | {
-  resolvedPackage: { version: string },
-  depth: -1,
+  resolvedPackage: { version: string }
+  depth: -1
 })
 
 export interface DependenciesTree {
   // a node ID is the join of the package's keypath with a colon
   // E.g., a subdeps node ID which parent is `foo` will be
   // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-  [nodeId: string]: DependenciesTreeNode,
+  [nodeId: string]: DependenciesTreeNode
 }
 
 export interface ResolvedPackagesByPackageId {
-  [packageId: string]: ResolvedPackage,
+  [packageId: string]: ResolvedPackage
 }
 
 export interface LinkedDependency {
-  isLinkedDependency: true,
-  optional: boolean,
-  dev: boolean,
-  resolution: DirectoryResolution,
-  pkgId: string,
-  version: string,
-  name: string,
-  normalizedPref?: string,
-  alias: string,
+  isLinkedDependency: true
+  optional: boolean
+  dev: boolean
+  resolution: DirectoryResolution
+  pkgId: string
+  version: string
+  name: string
+  normalizedPref?: string
+  alias: string
 }
 
 export interface PendingNode {
-  alias: string,
-  nodeId: string,
-  resolvedPackage: ResolvedPackage,
-  depth: number,
-  installable: boolean,
+  alias: string
+  nodeId: string
+  resolvedPackage: ResolvedPackage
+  depth: number
+  installable: boolean
 }
 
 export interface ChildrenByParentId {
   [parentId: string]: Array<{
-    alias: string,
-    pkgId: string,
-  }>,
+    alias: string
+    pkgId: string
+  }>
 }
 
 export interface ResolutionContext {
-  alwaysTryWorkspacePackages?: boolean,
-  defaultTag: string,
-  dryRun: boolean,
-  forceFullResolution: boolean,
-  resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
-  outdatedDependencies: {[pkgId: string]: string},
-  childrenByParentId: ChildrenByParentId,
-  pendingNodes: PendingNode[],
-  wantedLockfile: Lockfile,
-  currentLockfile: Lockfile,
-  linkWorkspacePackagesDepth: number,
-  lockfileDir: string,
-  storeController: StoreController,
+  alwaysTryWorkspacePackages?: boolean
+  defaultTag: string
+  dryRun: boolean
+  forceFullResolution: boolean
+  resolvedPackagesByPackageId: ResolvedPackagesByPackageId
+  outdatedDependencies: {[pkgId: string]: string}
+  childrenByParentId: ChildrenByParentId
+  pendingNodes: PendingNode[]
+  wantedLockfile: Lockfile
+  currentLockfile: Lockfile
+  linkWorkspacePackagesDepth: number
+  lockfileDir: string
+  storeController: StoreController
   // the IDs of packages that are not installable
-  skipped: Set<string>,
-  dependenciesTree: DependenciesTree,
-  force: boolean,
-  prefix: string,
-  readPackageHook?: ReadPackageHook,
-  engineStrict: boolean,
-  modulesDir: string,
-  nodeVersion: string,
-  pnpmVersion: string,
-  registries: Registries,
-  virtualStoreDir: string,
-  updateMatching?: (pkgName: string) => boolean,
+  skipped: Set<string>
+  dependenciesTree: DependenciesTree
+  force: boolean
+  prefix: string
+  readPackageHook?: ReadPackageHook
+  engineStrict: boolean
+  modulesDir: string
+  nodeVersion: string
+  pnpmVersion: string
+  registries: Registries
+  virtualStoreDir: string
+  updateMatching?: (pkgName: string) => boolean
 }
 
 export type PkgAddress = {
-  alias: string,
-  depIsLinked: boolean,
-  isNew: boolean,
-  isLinkedDependency?: false,
-  nodeId: string,
-  pkgId: string,
-  normalizedPref?: string, // is returned only for root dependencies
-  installable: boolean,
-  pkg: PackageManifest,
-  version?: string,
-  updated: boolean,
-  useManifestInfoFromLockfile: boolean,
+  alias: string
+  depIsLinked: boolean
+  isNew: boolean
+  isLinkedDependency?: false
+  nodeId: string
+  pkgId: string
+  normalizedPref?: string // is returned only for root dependencies
+  installable: boolean
+  pkg: PackageManifest
+  version?: string
+  updated: boolean
+  useManifestInfoFromLockfile: boolean
 } & ({
-  isLinkedDependency: true,
-  version: string,
+  isLinkedDependency: true
+  version: string
 } | {
-  isLinkedDependency: undefined,
+  isLinkedDependency: undefined
 })
 
 export interface ResolvedPackage {
-  id: string,
-  resolution: Resolution,
-  prod: boolean,
-  dev: boolean,
-  optional: boolean,
-  fetchingFiles: () => Promise<PackageFilesResponse>,
-  fetchingBundledManifest?: () => Promise<DependencyManifest>,
-  filesIndexFile: string,
-  finishing: () => Promise<void>,
-  name: string,
-  version: string,
-  peerDependencies: Dependencies,
-  optionalDependencies: Set<string>,
-  hasBin: boolean,
-  hasBundledDependencies: boolean,
-  prepare: boolean,
-  depPath: string,
-  requiresBuild: boolean | undefined, // added to fix issue #1201
+  id: string
+  resolution: Resolution
+  prod: boolean
+  dev: boolean
+  optional: boolean
+  fetchingFiles: () => Promise<PackageFilesResponse>
+  fetchingBundledManifest?: () => Promise<DependencyManifest>
+  filesIndexFile: string
+  finishing: () => Promise<void>
+  name: string
+  version: string
+  peerDependencies: Dependencies
+  optionalDependencies: Set<string>
+  hasBin: boolean
+  hasBundledDependencies: boolean
+  prepare: boolean
+  depPath: string
+  requiresBuild: boolean | undefined // added to fix issue #1201
   additionalInfo: {
-    deprecated?: string,
-    peerDependencies?: Dependencies,
-    peerDependenciesMeta?: PeerDependenciesMeta,
-    bundleDependencies?: string[],
-    bundledDependencies?: string[],
+    deprecated?: string
+    peerDependencies?: Dependencies
+    peerDependenciesMeta?: PeerDependenciesMeta
+    bundleDependencies?: string[]
+    bundledDependencies?: string[]
     engines?: {
-      node?: string,
-      npm?: string,
-    },
-    cpu?: string[],
-    os?: string[],
-  },
+      node?: string
+      npm?: string
+    }
+    cpu?: string[]
+    os?: string[]
+  }
 }
 
 type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'pkgId'>
@@ -208,16 +208,16 @@ export default async function resolveDependencies (
   preferredVersions: PreferredVersions,
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: {
-    currentDepth: number,
-    parentPkg: ParentPkg,
+    currentDepth: number
+    parentPkg: ParentPkg
     // If the package has been updated, the dependencies
     // which were used by the previous version are passed
     // via this option
-    preferredDependencies?: ResolvedDependencies,
-    proceed: boolean,
-    resolvedDependencies?: ResolvedDependencies,
-    updateDepth: number,
-    workspacePackages?: WorkspacePackages,
+    preferredDependencies?: ResolvedDependencies
+    proceed: boolean
+    resolvedDependencies?: ResolvedDependencies
+    updateDepth: number
+    workspacePackages?: WorkspacePackages
   }
 ): Promise<Array<PkgAddress | LinkedDependency>> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
@@ -346,11 +346,11 @@ function getDepsToResolve (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   wantedLockfile: Lockfile,
   options: {
-    preferredDependencies?: ResolvedDependencies,
-    prefix: string,
-    proceed: boolean,
-    registries: Registries,
-    resolvedDependencies?: ResolvedDependencies,
+    preferredDependencies?: ResolvedDependencies
+    prefix: string
+    proceed: boolean
+    registries: Registries
+    resolvedDependencies?: ResolvedDependencies
   }
 ) {
   const resolvedDependencies = options.resolvedDependencies ?? {}
@@ -416,7 +416,7 @@ function preferedSatisfiesWanted (
   wantedDep: {alias: string, pref: string},
   lockfile: Lockfile,
   opts: {
-    prefix: string,
+    prefix: string
   }
 ) {
   const depPath = dp.refToRelative(preferredRef, wantedDep.alias)
@@ -482,19 +482,19 @@ function getInfoFromLockfile (
 }
 
 interface ResolveDependencyOptions {
-  currentDepth: number,
+  currentDepth: number
   currentPkg?: {
-    depPath?: string,
-    pkgId?: string,
-    resolution?: Resolution,
-    dependencyLockfile?: PackageSnapshot,
-  },
-  parentPkg: ParentPkg,
-  preferredVersions: PreferredVersions,
-  proceed: boolean,
-  update: boolean,
-  updateDepth: number,
-  workspacePackages?: WorkspacePackages,
+    depPath?: string
+    pkgId?: string
+    resolution?: Resolution
+    dependencyLockfile?: PackageSnapshot
+  }
+  parentPkg: ParentPkg
+  preferredVersions: PreferredVersions
+  proceed: boolean
+  update: boolean
+  updateDepth: number
+  workspacePackages?: WorkspacePackages
 }
 
 async function resolveDependency (
@@ -745,14 +745,14 @@ async function resolveDependency (
 
 function getResolvedPackage (
   options: {
-    dependencyLockfile?: PackageSnapshot,
-    depPath: string,
-    force: boolean,
-    hasBin: boolean,
-    pkg: PackageManifest,
-    pkgResponse: PackageResponse,
-    prepare: boolean,
-    wantedDependency: WantedDependency,
+    dependencyLockfile?: PackageSnapshot
+    depPath: string
+    force: boolean
+    hasBin: boolean
+    pkg: PackageManifest
+    pkgResponse: PackageResponse
+    prepare: boolean
+    wantedDependency: WantedDependency
   }
 ) {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
@@ -815,9 +815,9 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest) {
 function getWantedDependencies (
   pkg: PackageManifest,
   opts: {
-    resolvedDependencies?: ResolvedDependencies,
-    optionalDependencyNames?: string[],
-    useManifestInfoFromLockfile: boolean,
+    resolvedDependencies?: ResolvedDependencies
+    optionalDependencyNames?: string[]
+    useManifestInfoFromLockfile: boolean
   }
 ) {
   let deps = getNonDevWantedDependencies(pkg)

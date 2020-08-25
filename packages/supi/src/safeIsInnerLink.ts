@@ -8,10 +8,10 @@ export default async function safeIsInnerLink (
   projectModulesDir: string,
   depName: string,
   opts: {
-    hideAlienModules: boolean,
-    projectDir: string,
-    storeDir: string,
-    virtualStoreDir: string,
+    hideAlienModules: boolean
+    projectDir: string
+    storeDir: string
+    virtualStoreDir: string
   }
 ): Promise<true | string> {
   try {

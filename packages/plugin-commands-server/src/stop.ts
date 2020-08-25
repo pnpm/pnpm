@@ -12,8 +12,8 @@ const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
 export default async (
   opts: {
-    storeDir?: string,
-    dir: string,
+    storeDir?: string
+    dir: string
   }
 ) => {
   const storeDir = await storePath(opts.dir, opts.storeDir)

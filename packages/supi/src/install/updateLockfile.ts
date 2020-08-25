@@ -24,8 +24,8 @@ export default function (
   prefix: string,
   registries: Registries
 ): {
-    newLockfile: Lockfile,
-    pendingRequiresBuilds: string[],
+    newLockfile: Lockfile
+    pendingRequiresBuilds: string[]
   } {
   lockfile.packages = lockfile.packages ?? {}
   const pendingRequiresBuilds = [] as string[]
@@ -55,26 +55,26 @@ export default function (
 function toLockfileDependency (
   pendingRequiresBuilds: string[],
   pkg: {
-    deprecated?: string,
-    peerDependencies?: Dependencies,
-    peerDependenciesMeta?: PeerDependenciesMeta,
-    bundleDependencies?: string[],
-    bundledDependencies?: string[],
+    deprecated?: string
+    peerDependencies?: Dependencies
+    peerDependenciesMeta?: PeerDependenciesMeta
+    bundleDependencies?: string[]
+    bundledDependencies?: string[]
     engines?: {
-      node?: string,
-      npm?: string,
-    },
-    cpu?: string[],
-    os?: string[],
+      node?: string
+      npm?: string
+    }
+    cpu?: string[]
+    os?: string[]
   },
   opts: {
-    depPath: string,
-    registry: string,
-    registries: Registries,
-    updatedDeps: Array<{alias: string, depPath: string}>,
-    updatedOptionalDeps: Array<{alias: string, depPath: string}>,
-    depGraph: DependenciesGraph,
-    prevSnapshot?: PackageSnapshot,
+    depPath: string
+    registry: string
+    registries: Registries
+    updatedDeps: Array<{alias: string, depPath: string}>
+    updatedOptionalDeps: Array<{alias: string, depPath: string}>
+    depGraph: DependenciesGraph
+    prevSnapshot?: PackageSnapshot
   }
 ): PackageSnapshot {
   const depNode = opts.depGraph[opts.depPath]
@@ -219,8 +219,8 @@ function updateResolvedDeps (
 
 function toLockfileResolution (
   pkg: {
-    name: string,
-    version: string,
+    name: string
+    version: string
   },
   depPath: string,
   resolution: Resolution,

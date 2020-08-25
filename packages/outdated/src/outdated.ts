@@ -21,25 +21,25 @@ export * from './createManifestGetter'
 export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string) => Promise<PackageManifest | null>
 
 export interface OutdatedPackage {
-  alias: string,
-  belongsTo: DependenciesField,
-  current?: string, // not defined means the package is not installed
-  latestManifest?: PackageManifest,
-  packageName: string,
-  wanted: string,
+  alias: string
+  belongsTo: DependenciesField
+  current?: string // not defined means the package is not installed
+  latestManifest?: PackageManifest
+  packageName: string
+  wanted: string
 }
 
 export default async function outdated (
   opts: {
-    compatible?: boolean,
-    currentLockfile: Lockfile | null,
-    getLatestManifest: GetLatestManifestFunction,
-    include?: IncludedDependencies,
-    lockfileDir: string,
-    manifest: ProjectManifest,
-    match?: (dependencyName: string) => boolean,
-    prefix: string,
-    wantedLockfile: Lockfile | null,
+    compatible?: boolean
+    currentLockfile: Lockfile | null
+    getLatestManifest: GetLatestManifestFunction
+    include?: IncludedDependencies
+    lockfileDir: string
+    manifest: ProjectManifest
+    match?: (dependencyName: string) => boolean
+    prefix: string
+    wantedLockfile: Lockfile | null
   }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []

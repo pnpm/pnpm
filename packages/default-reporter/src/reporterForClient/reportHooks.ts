@@ -6,8 +6,8 @@ import most = require('most')
 export default (
   hook$: most.Stream<HookLog>,
   opts: {
-    cwd: string,
-    isRecursive: boolean,
+    cwd: string
+    isRecursive: boolean
   }
 ) => {
   return hook$

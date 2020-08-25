@@ -6,9 +6,9 @@ export default class UnexpectedVirtualStoreDirError extends PnpmError {
   public modulesDir: string
   constructor (
     opts: {
-      expected: string,
-      actual: string,
-      modulesDir: string,
+      expected: string
+      actual: string
+      modulesDir: string
     }
   ) {
     super('UNEXPECTED_VIRTUAL_STORE', 'Unexpected virtual store location')

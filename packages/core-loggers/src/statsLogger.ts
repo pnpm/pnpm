@@ -5,11 +5,11 @@ import baseLogger, {
 export const statsLogger = baseLogger<StatsMessage>('stats')
 
 export type StatsMessage = {
-  prefix: string,
+  prefix: string
 } & ({
-  added: number,
+  added: number
 } | {
-  removed: number,
+  removed: number
 })
 
 export type StatsLog = {name: 'pnpm:stats'} & LogBase & StatsMessage

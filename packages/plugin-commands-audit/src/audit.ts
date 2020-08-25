@@ -89,11 +89,11 @@ export function help () {
 
 export async function handler (
   opts: Pick<UniversalOptions, 'dir'> & {
-    auditLevel?: 'low' | 'moderate' | 'high' | 'critical',
-    include: IncludedDependencies,
-    json?: boolean,
-    lockfileDir?: string,
-    registries: Registries,
+    auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+    include: IncludedDependencies
+    json?: boolean
+    lockfileDir?: string
+    registries: Registries
   } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor'>
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })

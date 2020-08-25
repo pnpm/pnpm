@@ -18,12 +18,12 @@ export default async function symlinkDirectRootDependency (
   destModulesDir: string,
   importAs: string,
   opts: {
-    fromDependenciesField?: DependenciesField,
+    fromDependenciesField?: DependenciesField
     linkedPackage: {
-      name: string,
-      version: string,
-    },
-    prefix: string,
+      name: string
+      version: string
+    }
+    prefix: string
   }
 ) {
   // `opts.destModulesDir` may be a non-existent `node_modules` dir

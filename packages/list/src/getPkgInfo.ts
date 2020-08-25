@@ -3,11 +3,11 @@ import path = require('path')
 
 export default async function getPkgInfo (
   pkg: {
-    alias: string,
-    name: string,
-    version: string,
-    path: string,
-    resolved?: string,
+    alias: string
+    name: string
+    version: string
+    path: string
+    resolved?: string
   }
 ) {
   let manifest

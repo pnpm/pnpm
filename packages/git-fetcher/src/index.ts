@@ -9,12 +9,12 @@ export default () => {
     git: async function fetchFromGit (
       cafs: Cafs,
       resolution: {
-        commit: string,
-        repo: string,
-        type: 'git',
+        commit: string
+        repo: string
+        type: 'git'
       },
       opts: {
-        manifest?: DeferredManifestPromise,
+        manifest?: DeferredManifestPromise
       }
     ) {
       const tempLocation = tempy.directory()

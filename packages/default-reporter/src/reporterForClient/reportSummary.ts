@@ -22,14 +22,14 @@ import semver = require('semver')
 
 export default (
   log$: {
-    deprecation: most.Stream<DeprecationLog>,
-    summary: most.Stream<SummaryLog>,
-    root: most.Stream<RootLog>,
-    packageManifest: most.Stream<PackageManifestLog>,
+    deprecation: most.Stream<DeprecationLog>
+    summary: most.Stream<SummaryLog>
+    root: most.Stream<RootLog>
+    packageManifest: most.Stream<PackageManifestLog>
   },
   opts: {
-    cwd: string,
-    pnpmConfig?: Config,
+    cwd: string
+    pnpmConfig?: Config
   }
 ) => {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
@@ -66,7 +66,7 @@ export default (
 function printDiffs (
   pkgsDiff: PackageDiff[],
   opts: {
-    prefix: string,
+    prefix: string
   }
 ) {
   // Sorts by alphabet then by removed/added

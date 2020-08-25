@@ -98,9 +98,9 @@ Other commands will delegate any store-related tasks to this service',
 
 export function handler (
   opts: CreateStoreControllerOptions & {
-    protocol?: 'auto' | 'tcp' | 'ipc',
-    port?: number,
-    unstoppable?: boolean,
+    protocol?: 'auto' | 'tcp' | 'ipc'
+    port?: number
+    unstoppable?: boolean
   },
   params: string[]
 ) {

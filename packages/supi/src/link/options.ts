@@ -9,25 +9,25 @@ import { ReporterFunction } from '../types'
 import path = require('path')
 
 interface StrictLinkOptions {
-  binsDir: string,
-  force: boolean,
-  forceSharedLockfile: boolean,
-  useLockfile: boolean,
-  lockfileDir: string,
-  pinnedVersion: 'major' | 'minor' | 'patch',
-  storeController: StoreController,
-  manifest: ProjectManifest,
-  registries: Registries,
-  storeDir: string,
-  reporter: ReporterFunction,
-  targetDependenciesField?: DependenciesField,
-  dir: string,
+  binsDir: string
+  force: boolean
+  forceSharedLockfile: boolean
+  useLockfile: boolean
+  lockfileDir: string
+  pinnedVersion: 'major' | 'minor' | 'patch'
+  storeController: StoreController
+  manifest: ProjectManifest
+  registries: Registries
+  storeDir: string
+  reporter: ReporterFunction
+  targetDependenciesField?: DependenciesField
+  dir: string
 
-  hoistPattern: string[] | undefined,
-  forceHoistPattern: boolean,
+  hoistPattern: string[] | undefined
+  forceHoistPattern: boolean
 
-  publicHoistPattern: string[] | undefined,
-  forcePublicHoistPattern: boolean,
+  publicHoistPattern: string[] | undefined
+  forcePublicHoistPattern: boolean
 }
 
 export type LinkOptions =

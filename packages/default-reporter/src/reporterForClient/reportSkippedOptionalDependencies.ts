@@ -4,7 +4,7 @@ import most = require('most')
 export default (
   skippedOptionalDependency$: most.Stream<SkippedOptionalDependencyLog>,
   opts: {
-    cwd: string,
+    cwd: string
   }
 ) => {
   return skippedOptionalDependency$

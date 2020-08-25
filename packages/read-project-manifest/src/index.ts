@@ -20,16 +20,16 @@ const stat = promisify(fs.stat)
 type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
 export default async function readProjectManifest (projectDir: string): Promise<{
-  fileName: string,
-  manifest: ProjectManifest,
-  writeProjectManifest: WriteProjectManifest,
+  fileName: string
+  manifest: ProjectManifest
+  writeProjectManifest: WriteProjectManifest
 }> {
   const result = await tryReadProjectManifest(projectDir)
   if (result.manifest !== null) {
     return result as {
-      fileName: string,
-      manifest: ProjectManifest,
-      writeProjectManifest: WriteProjectManifest,
+      fileName: string
+      manifest: ProjectManifest
+      writeProjectManifest: WriteProjectManifest
     }
   }
   throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
@@ -42,9 +42,9 @@ export async function readProjectManifestOnly (projectDir: string): Promise<Proj
 }
 
 export async function tryReadProjectManifest (projectDir: string): Promise<{
-  fileName: string,
-  manifest: ProjectManifest | null,
-  writeProjectManifest: WriteProjectManifest,
+  fileName: string
+  manifest: ProjectManifest | null
+  writeProjectManifest: WriteProjectManifest
 }> {
   try {
     const manifestPath = path.join(projectDir, 'package.json')
@@ -165,10 +165,10 @@ async function readPackageYaml (filePath: string) {
 
 function createManifestWriter (
   opts: {
-    initialManifest: ProjectManifest,
-    indent?: string | number | undefined,
-    insertFinalNewline?: boolean,
-    manifestPath: string,
+    initialManifest: ProjectManifest
+    indent?: string | number | undefined
+    insertFinalNewline?: boolean
+    manifestPath: string
   }
 ): (WriteProjectManifest) {
   const initialManifest = normalize(JSON.parse(JSON.stringify(opts.initialManifest)))

@@ -37,8 +37,8 @@ export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,
   destModules: string,
   maybeOpts: LinkOptions & {
-    linkToBin?: string,
-    dir: string,
+    linkToBin?: string
+    dir: string
   }
 ) {
   const reporter = maybeOpts?.reporter
@@ -174,9 +174,9 @@ export default async function link (
 function addLinkToLockfile (
   projectSnapshot: ProjectSnapshot,
   opts: {
-    linkedPkgName: string,
-    packagePath: string,
-    manifest?: ProjectManifest,
+    linkedPkgName: string
+    packagePath: string
+    manifest?: ProjectManifest
   }
 ) {
   const id = `link:${opts.packagePath}`
@@ -226,8 +226,8 @@ export async function linkFromGlobal (
 export async function linkToGlobal (
   linkFrom: string,
   maybeOpts: LinkOptions & {
-    globalBin: string,
-    globalDir: string,
+    globalBin: string
+    globalDir: string
   }
 ) {
   const reporter = maybeOpts?.reporter

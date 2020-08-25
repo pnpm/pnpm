@@ -9,18 +9,18 @@ import R = require('ramda')
 export { parsePackageSelector, PackageSelector }
 
 export interface PackageGraph<T> {
-  [id: string]: PackageNode<T>,
+  [id: string]: PackageNode<T>
 }
 
 interface Graph {
-  [nodeId: string]: string[],
+  [nodeId: string]: string[]
 }
 
 export async function readProjects (
   workspaceDir: string,
   pkgSelectors: PackageSelector[],
   opts?: {
-    linkWorkspacePackages?: boolean,
+    linkWorkspacePackages?: boolean
   }
 ) {
   const allProjects = await findWorkspacePackages(workspaceDir, {})
@@ -39,13 +39,13 @@ export async function filterPackages<T> (
   pkgs: Array<Package & T>,
   filter: string[],
   opts: {
-    linkWorkspacePackages?: boolean,
-    prefix: string,
-    workspaceDir: string,
+    linkWorkspacePackages?: boolean
+    prefix: string
+    workspaceDir: string
   }
 ): Promise<{
-    selectedProjectsGraph: PackageGraph<T>,
-    unmatchedFilters: string[],
+    selectedProjectsGraph: PackageGraph<T>
+    unmatchedFilters: string[]
   }> {
   const packageSelectors = filter
     .map((f) => parsePackageSelector(f, opts.prefix))
@@ -57,12 +57,12 @@ export function filterPkgsBySelectorObjects<T> (
   pkgs: Array<Package & T>,
   packageSelectors: PackageSelector[],
   opts: {
-    linkWorkspacePackages?: boolean,
-    workspaceDir: string,
+    linkWorkspacePackages?: boolean
+    workspaceDir: string
   }
 ): Promise<{
-    selectedProjectsGraph: PackageGraph<T>,
-    unmatchedFilters: string[],
+    selectedProjectsGraph: PackageGraph<T>
+    unmatchedFilters: string[]
   }> {
   const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
   if (packageSelectors?.length) {
@@ -78,11 +78,11 @@ export default async function filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   packageSelectors: PackageSelector[],
   opts: {
-    workspaceDir: string,
+    workspaceDir: string
   }
 ): Promise<{
-    selectedProjectsGraph: PackageGraph<T>,
-    unmatchedFilters: string[],
+    selectedProjectsGraph: PackageGraph<T>
+    unmatchedFilters: string[]
   }> {
   const cherryPickedPackages = [] as string[]
   const walkedDependencies = new Set<string>()
@@ -182,7 +182,7 @@ function pickSubgraph (
   nextNodeIds: string[],
   walked: Set<string>,
   opts: {
-    includeRoot: boolean,
+    includeRoot: boolean
   }
 ) {
   for (const nextNodeId of nextNodeIds) {

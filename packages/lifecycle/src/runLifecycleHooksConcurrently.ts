@@ -7,10 +7,10 @@ export default async function runLifecycleHooksConcurrently (
   importers: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string, modulesDir: string }>,
   childConcurrency: number,
   opts: {
-    extraBinPaths?: string[],
-    rawConfig: object,
-    stdio?: string,
-    unsafePerm: boolean,
+    extraBinPaths?: string[]
+    rawConfig: object
+    stdio?: string
+    unsafePerm: boolean
   }
 ) {
   const importersByBuildIndex = new Map<number, Array<{ rootDir: string, manifest: ProjectManifest, modulesDir: string }>>()

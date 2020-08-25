@@ -9,14 +9,14 @@ export { runLifecycleHooksConcurrently, RunLifecycleHookOptions }
 
 export async function runPostinstallHooks (
   opts: {
-    depPath: string,
-    extraBinPaths?: string[],
-    optional?: boolean,
-    pkgRoot: string,
-    prepare?: boolean,
-    rawConfig: object,
-    rootModulesDir: string,
-    unsafePerm: boolean,
+    depPath: string
+    extraBinPaths?: string[]
+    optional?: boolean
+    pkgRoot: string
+    prepare?: boolean
+    rawConfig: object
+    rootModulesDir: string
+    unsafePerm: boolean
   }
 ): Promise<boolean> {
   const pkg = await readPackageJsonFromDir(opts.pkgRoot)

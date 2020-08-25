@@ -7,11 +7,11 @@ export default async (
   pkgs: Project[],
   params: string[],
   opts: Pick<Config, 'lockfileDir'> & {
-    depth?: number,
-    include: IncludedDependencies,
-    long?: boolean,
-    parseable?: boolean,
-    lockfileDir?: string,
+    depth?: number
+    include: IncludedDependencies
+    long?: boolean
+    parseable?: boolean
+    lockfileDir?: string
   }
 ) => {
   const depth = opts.depth ?? 0

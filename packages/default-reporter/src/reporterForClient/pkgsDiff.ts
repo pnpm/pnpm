@@ -4,17 +4,17 @@ import most = require('most')
 import R = require('ramda')
 
 export interface PackageDiff {
-  added: boolean,
-  from?: string,
-  name: string,
-  realName?: string,
-  version?: string,
-  deprecated?: boolean,
-  latest?: string,
+  added: boolean
+  from?: string
+  name: string
+  realName?: string
+  version?: string
+  deprecated?: boolean
+  latest?: string
 }
 
 export interface Map<T> {
-  [index: string]: T,
+  [index: string]: T
 }
 
 export const propertyByDependencyType = {
@@ -27,13 +27,13 @@ export const propertyByDependencyType = {
 
 export default function (
   log$: {
-    deprecation: most.Stream<logs.DeprecationLog>,
-    summary: most.Stream<logs.SummaryLog>,
-    root: most.Stream<logs.RootLog>,
-    packageManifest: most.Stream<logs.PackageManifestLog>,
+    deprecation: most.Stream<logs.DeprecationLog>
+    summary: most.Stream<logs.SummaryLog>
+    root: most.Stream<logs.RootLog>
+    packageManifest: most.Stream<logs.PackageManifestLog>
   },
   opts: {
-    prefix: string,
+    prefix: string
   }
 ) {
   const deprecationSet$ = log$.deprecation
@@ -79,10 +79,10 @@ export default function (
       peer: {},
       prod: {},
     } as {
-      dev: Map<PackageDiff>,
-      nodeModulesOnly: Map<PackageDiff>,
-      optional: Map<PackageDiff>,
-      prod: Map<PackageDiff>,
+      dev: Map<PackageDiff>
+      nodeModulesOnly: Map<PackageDiff>
+      optional: Map<PackageDiff>
+      prod: Map<PackageDiff>
     })
 
   const packageManifest$ = most.fromPromise(

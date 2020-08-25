@@ -17,8 +17,8 @@ export default async function writeProjectManifest (
   filePath: string,
   manifest: ProjectManifest,
   opts?: {
-    indent?: string | number | undefined,
-    insertFinalNewline?: boolean,
+    indent?: string | number | undefined
+    insertFinalNewline?: boolean
   }
 ): Promise<void> {
   const fileType = filePath.substr(filePath.lastIndexOf('.') + 1).toLowerCase()

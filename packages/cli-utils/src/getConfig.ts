@@ -4,10 +4,10 @@ import getConfig, { CliOptions } from '@pnpm/config'
 export default async function (
   cliOptions: CliOptions,
   opts: {
-    excludeReporter: boolean,
-    globalDirShouldAllowWrite?: boolean,
-    rcOptionsTypes: Record<string, unknown>,
-    workspaceDir: string | undefined,
+    excludeReporter: boolean
+    globalDirShouldAllowWrite?: boolean
+    rcOptionsTypes: Record<string, unknown>
+    workspaceDir: string | undefined
   }
 ) {
   const { config, warnings } = await getConfig({

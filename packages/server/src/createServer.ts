@@ -10,28 +10,28 @@ import locking from './lock'
 import http = require('http')
 
 interface RequestBody {
-  msgId: string,
-  wantedDependency: WantedDependency,
-  options: RequestPackageOptions,
-  prefix: string,
+  msgId: string
+  wantedDependency: WantedDependency
+  options: RequestPackageOptions
+  prefix: string
   opts: {
-    addDependencies: string[],
-    removeDependencies: string[],
-    prune: boolean,
-  },
-  storePath: string,
-  id: string,
-  searchQueries: string[],
+    addDependencies: string[]
+    removeDependencies: string[]
+    prune: boolean
+  }
+  storePath: string
+  id: string
+  searchQueries: string[]
 }
 
 export default function (
   store: StoreController,
   opts: {
-    path?: string,
-    port?: number,
-    hostname?: string,
-    ignoreStopRequests?: boolean,
-    ignoreUploadRequests?: boolean,
+    path?: string
+    port?: number
+    hostname?: string
+    ignoreStopRequests?: boolean
+    ignoreUploadRequests?: boolean
   }
 ) {
   const rawManifestPromises = {}

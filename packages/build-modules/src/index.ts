@@ -15,17 +15,17 @@ export default async (
   depGraph: DependenciesGraph,
   rootDepPaths: string[],
   opts: {
-    childConcurrency?: number,
-    depsToBuild?: Set<string>,
-    extraBinPaths?: string[],
-    lockfileDir: string,
-    optional: boolean,
-    rawConfig: object,
-    unsafePerm: boolean,
-    userAgent: string,
-    sideEffectsCacheWrite: boolean,
-    storeController: StoreController,
-    rootModulesDir: string,
+    childConcurrency?: number
+    depsToBuild?: Set<string>
+    extraBinPaths?: string[]
+    lockfileDir: string
+    optional: boolean
+    rawConfig: object
+    unsafePerm: boolean
+    userAgent: string
+    sideEffectsCacheWrite: boolean
+    storeController: StoreController
+    rootModulesDir: string
   }
 ) => {
   const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
@@ -62,15 +62,15 @@ async function buildDependency (
   depPath: string,
   depGraph: DependenciesGraph,
   opts: {
-    extraBinPaths?: string[],
-    lockfileDir: string,
-    optional: boolean,
-    rawConfig: object,
-    rootModulesDir: string,
-    sideEffectsCacheWrite: boolean,
-    storeController: StoreController,
-    unsafePerm: boolean,
-    warn: (message: string) => void,
+    extraBinPaths?: string[]
+    lockfileDir: string
+    optional: boolean
+    rawConfig: object
+    rootModulesDir: string
+    sideEffectsCacheWrite: boolean
+    storeController: StoreController
+    unsafePerm: boolean
+    warn: (message: string) => void
   }
 ) {
   const depNode = depGraph[depPath]
@@ -152,30 +152,30 @@ function getSubgraphToBuild (
 }
 
 export interface DependenciesGraphNode {
-  children: {[alias: string]: string},
-  dir: string,
-  fetchingBundledManifest?: () => Promise<PackageManifest>,
-  filesIndexFile: string,
-  hasBin: boolean,
-  hasBundledDependencies: boolean,
-  installable?: boolean,
-  isBuilt?: boolean,
-  optional: boolean,
-  optionalDependencies: Set<string>,
-  prepare: boolean,
-  requiresBuild?: boolean,
+  children: {[alias: string]: string}
+  dir: string
+  fetchingBundledManifest?: () => Promise<PackageManifest>
+  filesIndexFile: string
+  hasBin: boolean
+  hasBundledDependencies: boolean
+  installable?: boolean
+  isBuilt?: boolean
+  optional: boolean
+  optionalDependencies: Set<string>
+  prepare: boolean
+  requiresBuild?: boolean
 }
 
 export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode,
+  [depPath: string]: DependenciesGraphNode
 }
 
 export async function linkBinsOfDependencies (
   depNode: DependenciesGraphNode,
   depGraph: DependenciesGraph,
   opts: {
-    optional: boolean,
-    warn: (message: string) => void,
+    optional: boolean
+    warn: (message: string) => void
   }
 ) {
   const childrenToLink = opts.optional

@@ -53,7 +53,7 @@ export async function handler (
   | 'pnpmfile'
   | 'workspaceDir'
   > & {
-    recursive?: boolean,
+    recursive?: boolean
   },
   params: string[]
 ) {

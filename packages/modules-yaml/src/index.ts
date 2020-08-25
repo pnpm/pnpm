@@ -13,19 +13,19 @@ export type IncludedDependencies = {
 }
 
 export interface Modules {
-  hoistedAliases?: {[depPath: string]: string[]}, // for backward compatibility
-  hoistedDependencies: HoistedDependencies,
-  hoistPattern?: string[],
-  included: IncludedDependencies,
-  layoutVersion: number,
-  packageManager: string,
-  pendingBuilds: string[],
-  registries?: Registries, // nullable for backward compatibility
-  shamefullyHoist?: boolean, // for backward compatibility
-  publicHoistPattern?: string[],
-  skipped: string[],
-  storeDir: string,
-  virtualStoreDir: string,
+  hoistedAliases?: {[depPath: string]: string[]} // for backward compatibility
+  hoistedDependencies: HoistedDependencies
+  hoistPattern?: string[]
+  included: IncludedDependencies
+  layoutVersion: number
+  packageManager: string
+  pendingBuilds: string[]
+  registries?: Registries // nullable for backward compatibility
+  shamefullyHoist?: boolean // for backward compatibility
+  publicHoistPattern?: string[]
+  skipped: string[]
+  storeDir: string
+  virtualStoreDir: string
 }
 
 export async function read (modulesDir: string): Promise<Modules | null> {

@@ -1,11 +1,11 @@
+import logger from './logger'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import logger from './logger'
-import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import yaml = require('js-yaml')
 import fs = require('mz/fs')
+import path = require('path')
 import R = require('ramda')
 import writeFileAtomicCB = require('write-file-atomic')
 
@@ -24,7 +24,7 @@ export function writeWantedLockfile (
   pkgPath: string,
   wantedLockfile: Lockfile,
   opts?: {
-    forceSharedFormat?: boolean,
+    forceSharedFormat?: boolean
   }
 ) {
   return writeLockfile(WANTED_LOCKFILE, pkgPath, wantedLockfile, opts)
@@ -34,7 +34,7 @@ export async function writeCurrentLockfile (
   virtualStoreDir: string,
   currentLockfile: Lockfile,
   opts?: {
-    forceSharedFormat?: boolean,
+    forceSharedFormat?: boolean
   }
 ) {
   await fs.mkdir(virtualStoreDir, { recursive: true })
@@ -46,7 +46,7 @@ function writeLockfile (
   pkgPath: string,
   wantedLockfile: Lockfile,
   opts?: {
-    forceSharedFormat?: boolean,
+    forceSharedFormat?: boolean
   }
 ) {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
@@ -109,11 +109,11 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
 
 export default function writeLockfiles (
   opts: {
-    forceSharedFormat?: boolean,
-    wantedLockfile: Lockfile,
-    wantedLockfileDir: string,
-    currentLockfile: Lockfile,
-    currentLockfileDir: string,
+    forceSharedFormat?: boolean
+    wantedLockfile: Lockfile
+    wantedLockfileDir: string
+    currentLockfile: Lockfile
+    currentLockfileDir: string
   }
 ) {
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, WANTED_LOCKFILE)

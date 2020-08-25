@@ -4,24 +4,24 @@ import { lockfileWalkerGroupImporterSteps, LockfileWalkerStep } from '@pnpm/lock
 import { DependenciesField } from '@pnpm/types'
 
 export interface AuditNode {
-  version?: string,
-  integrity?: string,
-  requires?: Record<string, string>,
-  dependencies?: { [name: string]: AuditNode },
-  dev: boolean,
+  version?: string
+  integrity?: string
+  requires?: Record<string, string>
+  dependencies?: { [name: string]: AuditNode }
+  dev: boolean
 }
 
 export type AuditTree = AuditNode & {
-  name?: string,
-  install: string[],
-  remove: string[],
-  metadata: Object,
+  name?: string
+  install: string[]
+  remove: string[]
+  metadata: Object
 }
 
 export default function lockfileToAuditTree (
   lockfile: Lockfile,
   opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean },
+    include?: { [dependenciesField in DependenciesField]: boolean }
   }
 ): AuditTree {
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers), { include: opts?.include })
