@@ -142,10 +142,10 @@ export default async function linkPackages (
     return true
   })
   if (!opts.include.dependencies) {
-    depNodes = depNodes.filter(({ dev, optional }) => dev !== false || optional)
+    depNodes = depNodes.filter(({ dev, optional }) => dev || optional)
   }
   if (!opts.include.devDependencies) {
-    depNodes = depNodes.filter(({ dev }) => dev !== true)
+    depNodes = depNodes.filter(({ dev }) => !dev)
   }
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)

@@ -61,7 +61,7 @@ async function renderTreeForPackage (
   }
   label += pkg.path
   let output = `${label}\n`
-  const useColumns = opts.depth === 0 && opts.long === false && !opts.search
+  const useColumns = opts.depth === 0 && !opts.long && !opts.search
   for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
     if (pkg[dependenciesField]?.length) {
       const depsLabel = chalk.cyanBright(

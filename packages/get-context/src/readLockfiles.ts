@@ -48,7 +48,7 @@ export default async function (
   }
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   const files = await Promise.all<Lockfile | null | undefined>([
-    (opts.useLockfile === true && readWantedLockfile(opts.lockfileDir, lockfileOpts)) ||
+    (opts.useLockfile && readWantedLockfile(opts.lockfileDir, lockfileOpts)) ||
       (await existsWantedLockfile(opts.lockfileDir) &&
         logger.warn({
           message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,

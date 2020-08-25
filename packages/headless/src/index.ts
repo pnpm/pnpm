@@ -196,7 +196,7 @@ export default async (opts: HeadlessOptions) => {
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
-    includeIncompatiblePackages: opts.force === true,
+    includeIncompatiblePackages: opts.force,
     lockfileDir,
   })
   const { directDependenciesByImporterId, graph } = await lockfileToDepGraph(

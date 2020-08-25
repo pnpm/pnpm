@@ -129,7 +129,7 @@ async function dependenciesHierarchyForPackage (
   const getChildrenTree = getTree.bind(null, {
     currentDepth: 1,
     currentPackages: currentLockfile.packages ?? {},
-    includeOptionalDependencies: opts.include.optionalDependencies === true,
+    includeOptionalDependencies: opts.include.optionalDependencies,
     lockfileDir: opts.lockfileDir,
     maxDepth: opts.depth,
     modulesDir,
@@ -258,7 +258,7 @@ function getTreeHelper (
   const result: DependencyInfo = { dependencies: [] }
   if (opts.currentDepth > opts.maxDepth || !opts.currentPackages || !opts.currentPackages[parentId]) return result
 
-  const deps = opts.includeOptionalDependencies === false
+  const deps = !opts.includeOptionalDependencies
     ? opts.currentPackages[parentId].dependencies
     : {
       ...opts.currentPackages[parentId].dependencies,

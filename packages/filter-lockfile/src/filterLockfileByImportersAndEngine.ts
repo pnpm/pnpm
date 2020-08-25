@@ -138,7 +138,7 @@ function pkgAllDeps (
         os: pkgSnapshot.os,
       }
       // TODO: depPath is not the package ID. Should be fixed
-      installable = opts.includeIncompatiblePackages === true || packageIsInstallable(pkgSnapshot.id ?? depPath, pkg, {
+      installable = opts.includeIncompatiblePackages || packageIsInstallable(pkgSnapshot.id ?? depPath, pkg, {
         engineStrict: opts.engineStrict,
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.currentEngine.nodeVersion,

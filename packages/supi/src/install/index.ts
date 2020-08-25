@@ -271,7 +271,7 @@ export async function mutateModules (
       case 'install': {
         await installCase({
           ...project,
-          updatePackageManifest: opts.updatePackageManifest ?? opts.update === true,
+          updatePackageManifest: opts.updatePackageManifest ?? opts.update,
         })
         break
       }
@@ -454,7 +454,7 @@ async function partitionLinkedPackages (
       continue
     }
     const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
-      hideAlienModules: opts.lockfileOnly === false,
+      hideAlienModules: !opts.lockfileOnly,
       projectDir: opts.projectDir,
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,

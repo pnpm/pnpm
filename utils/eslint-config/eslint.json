@@ -46,7 +46,6 @@
     "no-multi-str": "off",
     "no-mixed-operators": "warn",
     "@typescript-eslint/dot-notation": "off",
-    "@typescript-eslint/no-unnecessary-boolean-literal-compare": "off",
     "@typescript-eslint/no-unnecessary-type-assertion": "warn",
     "@typescript-eslint/type-annotation-spacing": "error",
     "brace-style": [

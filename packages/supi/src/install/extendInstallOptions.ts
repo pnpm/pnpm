@@ -29,7 +29,7 @@ export interface StrictInstallOptions {
   force: boolean
   update: boolean
   updateMatching?: (pkgName: string) => boolean
-  updatePackageManifest: boolean
+  updatePackageManifest?: boolean
   depth: number
   lockfileDir: string
   modulesDir: string

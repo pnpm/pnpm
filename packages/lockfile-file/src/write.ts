@@ -68,7 +68,7 @@ function isEmptyLockfile (lockfile: Lockfile) {
 type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
 
 function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
-  if (forceSharedFormat === false && R.equals(R.keys(lockfile.importers), ['.'])) {
+  if (!forceSharedFormat && R.equals(R.keys(lockfile.importers), ['.'])) {
     const lockfileToSave: LockfileFile = {
       ...lockfile,
       ...lockfile.importers['.'],

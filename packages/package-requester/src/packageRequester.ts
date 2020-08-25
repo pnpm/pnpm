@@ -372,7 +372,7 @@ function fetchToStore (
       if (
         !opts.force &&
         (
-          isLocalTarballDep === false ||
+          !isLocalTarballDep ||
           await tarballIsUpToDate(opts.resolution as any, target, opts.lockfileDir) // eslint-disable-line
         )
       ) {

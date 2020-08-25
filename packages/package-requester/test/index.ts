@@ -200,7 +200,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.files()
     await response.finishing()
 
-    t.ok(response.body.updated === false, 'resolution not updated')
+    t.notOk(response.body.updated, 'resolution not updated')
     t.notOk((await response.files()).fromStore, 'unpack tarball if it is not in store yet')
     t.ok(await response.bundledManifest!())
   }
@@ -224,7 +224,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.files!()
     await response.finishing!()
 
-    t.ok(response.body.updated === true, 'resolution updated')
+    t.ok(response.body.updated, 'resolution updated')
     t.notOk((await response.files!()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
     t.ok(await response.bundledManifest!())
   }
@@ -248,7 +248,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.files()
     await response.finishing()
 
-    t.ok(response.body.updated === false, 'resolution not updated')
+    t.notOk(response.body.updated, 'resolution not updated')
     t.ok((await response.files()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
     t.ok(await response.bundledManifest!())
   }
@@ -285,7 +285,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     await response.files()
     await response.finishing()
 
-    t.ok(response.body.updated === true, 'resolution updated')
+    t.ok(response.body.updated, 'resolution updated')
     t.notOk((await response.files()).fromStore, 'unpack tarball if it is not in store yet')
     t.ok(await response.bundledManifest!())
   }
@@ -306,7 +306,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     await response.files()
     await response.finishing()
 
-    t.ok(response.body.updated === true, 'resolution updated')
+    t.ok(response.body.updated, 'resolution updated')
     t.notOk((await response.files()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
     t.ok(await response.bundledManifest!())
   }
