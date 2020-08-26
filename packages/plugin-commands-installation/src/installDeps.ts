@@ -107,11 +107,17 @@ when running add/update with the --workspace option')
     devDependencies: true,
     optionalDependencies: true,
   }
+  const forceHoistPattern = typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' ||
+    typeof opts.rawLocalConfig['hoist'] !== 'undefined'
+  const forcePublicHoistPattern = typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined' ||
+    typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined'
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
     await recursive(opts.allProjects,
       params,
       {
         ...opts,
+        forceHoistPattern,
+        forcePublicHoistPattern,
         selectedProjectsGraph: opts.selectedProjectsGraph,
         workspaceDir: opts.workspaceDir,
       },
@@ -134,6 +140,8 @@ when running add/update with the --workspace option')
   const store = await createOrConnectStoreController(opts)
   const installOpts = {
     ...opts,
+    forceHoistPattern,
+    forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
     // The dependencies should be built first,
     // so ignoring scripts for now
@@ -144,11 +152,6 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
-
-    forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' ||
-      typeof opts.rawLocalConfig['hoist'] !== 'undefined',
-    forcePublicHoistPattern: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined' ||
-      typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined',
   }
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)

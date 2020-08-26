@@ -76,6 +76,8 @@ export default async function recursive (
   params: string[],
   opts: RecursiveOptions & {
     allowNew?: boolean
+    forceHoistPattern?: boolean
+    forcePublicHoistPattern?: boolean
     ignoredPackages?: Set<string>
     update?: boolean
     useBetaCli?: boolean
