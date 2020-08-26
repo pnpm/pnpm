@@ -17,7 +17,7 @@ export function pathToLocalPkg (pkgName: string) {
   while (true) {
     const checkDir = path.join(dir, 'fixtures', pkgName)
     if (fs.existsSync(checkDir)) return checkDir
-    if (dir === root) return null
+    if (dir === root) throw new Error(`Local package "${pkgName}" not found`)
     dir = path.dirname(dir)
   }
 }

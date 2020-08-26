@@ -29,12 +29,12 @@ export default function getAgent (uri: string, opts: AgentOptions) {
 
   /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
   const key = [
-    `https:${isHttps}`,
+    `https:${isHttps.toString()}`,
     pxuri
       ? `proxy:${pxuri.protocol}//${pxuri.host}:${pxuri.port}`
       : '>no-proxy<',
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
-    `strict-ssl:${isHttps ? !!opts.strictSSL : '>no-strict-ssl<'}`,
+    `strict-ssl:${isHttps ? Boolean(opts.strictSSL).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && opts.ca) || '>no-ca<'}`,
     `cert:${(isHttps && opts.cert) || '>no-cert<'}`,
     `key:${(isHttps && opts.key) || '>no-key<'}`,

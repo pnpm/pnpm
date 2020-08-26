@@ -38,7 +38,7 @@ export default (
         return autozoom(opts.cwd, obj.prefix, formatWarn(obj.message), opts)
       case 'error':
         if (obj['message']?.['prefix'] && obj['message']['prefix'] !== opts.cwd) {
-          return `${obj['message']['prefix']}:` + os.EOL + reportError(obj, opts.config)
+          return `${obj['message']['prefix'] as string}:` + os.EOL + reportError(obj, opts.config)
         }
         return reportError(obj, opts.config)
       default:

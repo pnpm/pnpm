@@ -43,7 +43,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
     packageImportMethodLogger.debug({ method: 'copy' })
     return copyPkg
   default:
-    throw new Error(`Unknown package import method ${packageImportMethod}`)
+    throw new Error(`Unknown package import method ${packageImportMethod as string}`)
   }
 }
 

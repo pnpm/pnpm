@@ -100,7 +100,7 @@ export function parse (dependencyPath: string) {
   if (!_isAbsolute) parts.shift()
   const host = _isAbsolute ? parts.shift() : undefined
   const name = parts[0].startsWith('@')
-    ? `${parts.shift()}/${parts.shift()}`
+    ? `${parts.shift()}/${parts.shift()}` // eslint-disable-line @typescript-eslint/restrict-template-expressions
     : parts.shift()
   let version = parts.shift()
   if (version) {

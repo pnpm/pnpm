@@ -43,7 +43,7 @@ export default function (
   const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== 'POST') {
       res.statusCode = 405 // Method Not Allowed
-      const responseError = { error: `Only POST is allowed, received ${req.method}` }
+      const responseError = { error: `Only POST is allowed, received ${req.method ?? 'unknown'}` }
       res.setHeader('Allow', 'POST')
       res.end(JSON.stringify(responseError))
       return
@@ -164,7 +164,7 @@ export default function (
         break
       default: {
         res.statusCode = 404
-        const error = { error: `${req.url} does not match any route` }
+        const error = { error: `${req.url!} does not match any route` }
         res.end(JSON.stringify(error))
       }
       }

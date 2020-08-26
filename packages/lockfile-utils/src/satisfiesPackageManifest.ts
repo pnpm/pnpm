@@ -32,7 +32,7 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) =>
         .filter((depName) => !pkg.optionalDependencies || !pkg.optionalDependencies[depName])
       break
     default:
-      throw new Error(`Unknown dependency type "${depField}"`)
+      throw new Error(`Unknown dependency type "${depField as string}"`)
     }
     if (pkgDepNames.length !== Object.keys(importerDeps).length &&
       pkgDepNames.length !== countOfNonLinkedDeps(importerDeps)) {

@@ -35,7 +35,7 @@ export default function createResolver (
     if (!resolution) {
       throw new PnpmError(
         'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',
-        `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref} isn't supported by any available resolver.`)
+        `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''} isn't supported by any available resolver.`)
     }
     return resolution
   }

@@ -10,6 +10,7 @@ export default (
     .map((log) => {
       const retriesLeft = log.maxRetries - log.attempt + 1
       const errorCode = log.error['httpStatusCode'] || log.error['status'] || log.error['errno'] || log.error['code']
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       const msg = `${log.method} ${log.url} error (${errorCode}). \
 Will retry in ${prettyMilliseconds(log.timeout, { verbose: true })}. \
 ${retriesLeft} retries left.`

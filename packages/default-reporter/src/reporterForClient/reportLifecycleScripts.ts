@@ -92,6 +92,7 @@ function renderCollapsedScriptOutput (
   log: LifecycleLog,
   messageCache: {
     collapsed: boolean
+    label?: string
     output: string[]
     script: string
     startTime: [number, number]
@@ -103,20 +104,20 @@ function renderCollapsedScriptOutput (
     maxWidth: number
   }
 ) {
-  messageCache['label'] = messageCache['label'] ||
+  messageCache.label = messageCache.label ??
     `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}: Running ${log.stage} script`
   if (!opts.exit) {
     updateMessageCache(log, messageCache, opts)
-    return `${messageCache['label']}...`
+    return `${messageCache.label}...`
   }
   const time = prettyTime(process.hrtime(messageCache.startTime))
   if (log['exitCode'] === 0) {
-    return `${messageCache['label']}, done in ${time}`
+    return `${messageCache.label}, done in ${time}`
   }
   if (log['optional'] === true) {
-    return `${messageCache['label']}, failed in ${time} (skipped as optional)`
+    return `${messageCache.label}, failed in ${time} (skipped as optional)`
   }
-  return `${messageCache['label']}, failed in ${time}${EOL}${renderScriptOutput(log, messageCache, opts)}`
+  return `${messageCache.label}, failed in ${time}${EOL}${renderScriptOutput(log, messageCache, opts)}`
 }
 
 function renderScriptOutput (
@@ -219,7 +220,7 @@ function streamLifecycleOutput (
     }
   }
   if (logObj['script']) {
-    return `${prefix}$ ${logObj['script']}`
+    return `${prefix}$ ${logObj['script'] as string}`
   }
   const line = formatLine(Infinity, logObj)
   return `${prefix}: ${line}`

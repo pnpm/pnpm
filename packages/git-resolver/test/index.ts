@@ -187,7 +187,7 @@ test('resolveFromGit() with commit from non-github repo', async (t) => {
 test.skip('resolveFromGit() with commit from non-github repo with no commit', async (t) => {
   const localPath = path.resolve('..', '..')
   const result = await git(['rev-parse', 'origin/master'], { retries: 0 })
-  const hash = result.stdout.trim()
+  const hash: string = result.stdout.trim()
   const resolveResult = await resolveFromGit({ pref: `git+file://${localPath}` })
   t.deepEqual(resolveResult, {
     id: `${localPath}/${hash}`,
@@ -225,7 +225,7 @@ test.skip('resolveFromGit() bitbucket with commit', async (t) => {
 test.skip('resolveFromGit() bitbucket with no commit', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver' })
   const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
-  const hash = result.stdout.trim().split('\t')[0]
+  const hash: string = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `bitbucket.org/pnpmjs/git-resolver/${hash}`,
     normalizedPref: 'bitbucket:pnpmjs/git-resolver',
@@ -241,7 +241,7 @@ test.skip('resolveFromGit() bitbucket with no commit', async (t) => {
 test.skip('resolveFromGit() bitbucket with branch', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver#master' })
   const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
-  const hash = result.stdout.trim().split('\t')[0]
+  const hash: string = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `bitbucket.org/pnpmjs/git-resolver/${hash}`,
     normalizedPref: 'bitbucket:pnpmjs/git-resolver#master',
@@ -283,7 +283,7 @@ test('resolveFromGit() gitlab with commit', async (t) => {
 test('resolveFromGit() gitlab with no commit', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver' })
   const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
-  const hash = result.stdout.trim().split('\t')[0]
+  const hash: string = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `gitlab.com/pnpm/git-resolver/${hash}`,
     normalizedPref: 'gitlab:pnpm/git-resolver',
@@ -298,7 +298,7 @@ test('resolveFromGit() gitlab with no commit', async (t) => {
 test('resolveFromGit() gitlab with branch', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#master' })
   const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
-  const hash = result.stdout.trim().split('\t')[0]
+  const hash: string = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `gitlab.com/pnpm/git-resolver/${hash}`,
     normalizedPref: 'gitlab:pnpm/git-resolver#master',

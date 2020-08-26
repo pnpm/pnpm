@@ -28,7 +28,7 @@ test('prints generic error', t => {
     error: t.end,
     next: output => {
       t.equal(output, `${ERROR} ${chalk.red('some error')}
-${new StackTracey(err.stack).pretty}`)
+${new StackTracey(err.stack).pretty as string}`)
     },
   })
 })
@@ -51,7 +51,7 @@ test('prints generic error when recursive install fails', t => {
     next: output => {
       t.equal(output, `/home/src/:
 ${ERROR} ${chalk.red('some error')}
-${new StackTracey(err.stack).pretty}`)
+${new StackTracey(err.stack).pretty as string}`)
     },
   })
 })

@@ -34,7 +34,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string) {
       ], { cwd: workingDir })
     ).stdout
   } catch (err) {
-    throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${err.stderr}`)
+    throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${err.stderr as string}`)
   }
   const changedDirs = new Set<string>()
 

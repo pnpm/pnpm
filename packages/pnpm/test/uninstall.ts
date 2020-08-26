@@ -40,7 +40,7 @@ test('uninstall global package with its bin files', async (t: tape.Test) => {
 
   const env = {
     NPM_CONFIG_PREFIX: global,
-    [PATH]: `${globalBin}${path.delimiter}${process.env[PATH]}`,
+    [PATH]: `${globalBin}${path.delimiter}${process.env[PATH] ?? ''}`,
   }
   if (process.env.APPDATA) env['APPDATA'] = global
 

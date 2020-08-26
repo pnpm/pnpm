@@ -155,10 +155,10 @@ export async function readExactProjectManifest (manifestPath: string) {
 async function readPackageYaml (filePath: string) {
   try {
     return await readYamlFile<ProjectManifest>(filePath)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.name !== 'YAMLException') throw err
-    err.message = `${err.message}\nin ${filePath}`
-    err['code'] = 'ERR_PNPM_YAML_PARSE'
+    err.message = `${err.message as string}\nin ${filePath}`
+    err.code = 'ERR_PNPM_YAML_PARSE'
     throw err
   }
 }

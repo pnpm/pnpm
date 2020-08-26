@@ -57,7 +57,7 @@ export default function reportError (logObj: Log, config?: Config) {
         errorOutput += `${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
       }
       if (logObj['message']['hint']) {
-        errorOutput += `${EOL}${logObj['message']['hint']}`
+        errorOutput += `${EOL}${logObj['message']['hint'] as string}`
       }
       return errorOutput
     }
@@ -69,11 +69,15 @@ export default function reportError (logObj: Log, config?: Config) {
 function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: string }>) {
   return `This error happened while installing the dependencies of \
 ${pkgsStack[0].name}@${pkgsStack[0].version}\
-${pkgsStack.slice(1).map(({ name, version }) => `${EOL} at ${name}@${version}`)}`
+${pkgsStack.slice(1).map(({ name, version }) => `${EOL} at ${name}@${version}`).join('')}`
 }
 
 function formatNoMatchingVersion (err: Error, msg: object) {
-  const meta = msg['packageMeta']
+  const meta: {
+    name: string
+    'dist-tags': Record<string, string> & { latest: string }
+    versions: Record<string, object>
+  } = msg['packageMeta']
   let output = `\
 ${formatErrorSummary(err.message)}
 
@@ -93,12 +97,19 @@ The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
   return output
 }
 
-function reportUnexpectedStore (err: Error, msg: object) {
+function reportUnexpectedStore (
+  err: Error,
+  msg: {
+    actualStorePath: string
+    expectedStorePath: string
+    modulesDir: string
+  }
+) {
   return `${formatErrorSummary(err.message)}
 
-The dependencies at "${msg['modulesDir']}" are currently linked from the store at "${msg['expectedStorePath']}".
+The dependencies at "${msg.modulesDir}" are currently linked from the store at "${msg.expectedStorePath}".
 
-pnpm now wants to use the store at "${msg['actualStorePath']}" to link dependencies.
+pnpm now wants to use the store at "${msg.actualStorePath}" to link dependencies.
 
 If you want to use the new store location, reinstall your dependencies with "pnpm install".
 
@@ -106,61 +117,81 @@ You may change the global store location by running "pnpm config set store-dir <
 (This error may happen if the node_modules was installed with a different major version of pnpm)`
 }
 
-function reportUnexpectedVirtualStoreDir (err: Error, msg: object) {
+function reportUnexpectedVirtualStoreDir (
+  err: Error,
+  msg: {
+    actual: string
+    expected: string
+    modulesDir: string
+  }
+) {
   return `${formatErrorSummary(err.message)}
 
-The dependencies at "${msg['modulesDir']}" are currently symlinked from the virtual store directory at "${msg['expected']}".
+The dependencies at "${msg.modulesDir}" are currently symlinked from the virtual store directory at "${msg.expected}".
 
-pnpm now wants to use the virtual store at "${msg['actual']}" to link dependencies from the store.
+pnpm now wants to use the virtual store at "${msg.actual}" to link dependencies from the store.
 
 If you want to use the new virtual store location, reinstall your dependencies with "pnpm install".
 
 You may change the virtual store location by changing the value of the virtual-store-dir config.`
 }
 
-function reportStoreBreakingChange (msg: object) {
+function reportStoreBreakingChange (msg: {
+  additionalInformation?: string
+  storePath: string
+  relatedIssue?: number
+  relatedPR?: number
+}) {
   let output = `\
 ${formatErrorSummary('The store used for the current node_modules is incomatible with the current version of pnpm')}
-Store path: ${colorPath(msg['storePath'])}
+Store path: ${colorPath(msg.storePath)}
 
 Run "pnpm install" to recreate node_modules.`
 
-  if (msg['additionalInformation']) {
-    output = `${output}${EOL}${EOL}${msg['additionalInformation']}`
+  if (msg.additionalInformation) {
+    output = `${output}${EOL}${EOL}${msg.additionalInformation}`
   }
 
   output += formatRelatedSources(msg)
   return output
 }
 
-function reportModulesBreakingChange (msg: object) {
+function reportModulesBreakingChange (msg: {
+  additionalInformation?: string
+  modulesPath: string
+  relatedIssue?: number
+  relatedPR?: number
+}) {
   let output = `\
 ${formatErrorSummary('The current version of pnpm is not compatible with the available node_modules structure')}
-node_modules path: ${colorPath(msg['modulesPath'])}
+node_modules path: ${colorPath(msg.modulesPath)}
 
 Run ${highlight('pnpm install')} to recreate node_modules.`
 
-  if (msg['additionalInformation']) {
-    output = `${output}${EOL}${EOL}${msg['additionalInformation']}`
+  if (msg.additionalInformation) {
+    output = `${output}${EOL}${EOL}${msg.additionalInformation}`
   }
 
   output += formatRelatedSources(msg)
   return output
 }
 
-function formatRelatedSources (msg: object) {
+function formatRelatedSources (msg: {
+  relatedIssue?: number
+  relatedPR?: number
+}) {
   let output = ''
 
-  if (!msg['relatedIssue'] && !msg['relatedPR']) return output
+  if (!msg.relatedIssue && !msg.relatedPR) return output
 
   output += EOL
 
-  if (msg['relatedIssue']) {
-    output += EOL + `Related issue: ${colorPath(`https://github.com/pnpm/pnpm/issues/${msg['relatedIssue']}`)}`
+  if (msg.relatedIssue) {
+    output += EOL + `Related issue: ${colorPath(`https://github.com/pnpm/pnpm/issues/${msg.relatedIssue}`)}`
   }
 
-  if (msg['relatedPR']) {
-    output += EOL + `Related PR: ${colorPath(`https://github.com/pnpm/pnpm/pull/${msg['relatedPR']}`)}`
+  if (msg.relatedPR) {
+    output += EOL + `Related PR: ${colorPath(`https://github.com/pnpm/pnpm/pull/${msg.relatedPR}`)}`
   }
 
   return output
@@ -185,12 +216,12 @@ function formatErrorSummary (message: string) {
   return `${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(message)}`
 }
 
-function reportModifiedDependency (msg: object) {
+function reportModifiedDependency (msg: { modified: string[] }) {
   return `\
 ${formatErrorSummary('Packages in the store have been mutated')}
 
 These packages are modified:
-${msg['modified'].map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
+${msg.modified.map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
 
 You can run ${highlight('pnpm install')} to refetch the modified packages`
 }
@@ -296,6 +327,7 @@ function reportAuthError (
   const foundSettings = [] as string[]
   for (const [key, value] of Object.entries(config?.rawConfig ?? {})) {
     if (key.startsWith('@')) {
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       foundSettings.push(`${key}=${value}`)
       continue
     }

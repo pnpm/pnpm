@@ -793,7 +793,7 @@ test('should throw error when trying to install a package without name', async (
     if (err.message.match(/^Can't install .*: Missing package name$/)) {
       t.pass('correct error message')
     } else {
-      t.fail(`incorrect error message "${err.message}"`)
+      t.fail(`incorrect error message "${err.message as string}"`)
     }
     t.equal(err.code, 'ERR_PNPM_MISSING_PACKAGE_NAME', 'failed with correct error code')
   }

@@ -209,7 +209,7 @@ function tryResolveFromWorkspace (
   if (!resolvedFromLocal) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
-      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${wantedDependency.alias}@${pref} inside the workspace`
+      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${wantedDependency.alias ?? ''}@${pref} inside the workspace`
     )
   }
   return resolvedFromLocal

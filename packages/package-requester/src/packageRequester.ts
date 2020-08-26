@@ -177,7 +177,7 @@ async function resolveAndFetch (
 
   if (resolution.type === 'directory') {
     if (!manifest) {
-      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref}`)
+      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
     }
     return {
       body: {
@@ -539,7 +539,7 @@ async function fetcher (
 ): Promise<FetchResult> {
   const fetch = fetcherByHostingType[resolution.type ?? 'tarball']
   if (!fetch) {
-    throw new Error(`Fetching for dependency type "${resolution.type}" is not supported`)
+    throw new Error(`Fetching for dependency type "${resolution.type ?? 'undefined'}" is not supported`)
   }
   try {
     return await fetch(cafs, resolution, opts)

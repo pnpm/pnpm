@@ -47,7 +47,7 @@ export default (
           if (opts.pnpmConfig?.global) {
             msg += chalk.cyanBright(`${opts.cwd}:`)
           } else {
-            msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
+            msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
           }
           msg += EOL
           msg += printDiffs(diffs, { prefix: opts.cwd })

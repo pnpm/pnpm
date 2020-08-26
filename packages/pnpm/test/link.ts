@@ -55,7 +55,7 @@ test('link global bin', async function (t: tape.Test) {
   await fs.mkdir(globalBin, { recursive: true })
   const env = {
     NPM_CONFIG_PREFIX: global,
-    [PATH]: `${globalBin}${path.delimiter}${process.env[PATH]}`,
+    [PATH]: `${globalBin}${path.delimiter}${process.env[PATH] ?? ''}`,
   }
   if (process.env.APPDATA) env['APPDATA'] = global
 

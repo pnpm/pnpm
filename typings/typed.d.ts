@@ -16,9 +16,19 @@ declare module 'normalize-registry-url' {
   export = normalizeRegistryUrl;
 }
 
+declare module 'path-name' {
+  const pathname: string;
+  export = pathname;
+}
+
 declare module 'read-ini-file' {
   function readIniFile (filename: string): Promise<Object>;
   export = readIniFile;
+}
+
+declare module 'right-pad' {
+  function rightPad (txt: string, size: number): string;
+  export = rightPad;
 }
 
 declare module 'semver-utils' {

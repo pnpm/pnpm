@@ -14,7 +14,7 @@ export async function readJson5File (filePath: string) {
       text,
     }
   } catch (err) {
-    err.message = `${err.message} in ${filePath}`
+    err.message = `${err.message as string} in ${filePath}`
     err['code'] = 'ERR_PNPM_JSON5_PARSE'
     throw err
   }

@@ -165,7 +165,7 @@ function copyDependencySubGraph (
   }
 ) {
   for (const depPath of depPaths) {
-    const key = `${depPath}:${opts.optional}:${opts.dev}`
+    const key = `${depPath}:${opts.optional.toString()}:${opts.dev.toString()}`
     if (ctx.walked.has(key)) continue
     ctx.walked.add(key)
     if (!ctx.originalPackages[depPath]) {

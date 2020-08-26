@@ -98,11 +98,6 @@ declare module 'normalize-newline' {
   export = anything;
 }
 
-declare module 'path-name' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'process-exists' {
   const anything: any;
   export = anything;
@@ -114,11 +109,6 @@ declare module 'read-package-json' {
 }
 
 declare module 'remove-all-except-outer-links' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'right-pad' {
   const anything: any;
   export = anything;
 }

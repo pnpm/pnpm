@@ -77,9 +77,9 @@ export default async (
   const protocol = opts.protocol ?? (opts.port ? 'tcp' : 'auto')
   const serverOptions = await getServerOptions(connectionInfoDir, { protocol, port: opts.port })
   const connectionOptions = {
-    remotePrefix: serverOptions.path
+    remotePrefix: serverOptions.path != null
       ? `http://unix:${serverOptions.path}:`
-      : `http://${serverOptions.hostname}:${serverOptions.port}`,
+      : `http://${serverOptions.hostname!}:${serverOptions.port!}`,
   }
   server = createServer(store.ctrl, {
     ...serverOptions,
@@ -111,7 +111,12 @@ async function getServerOptions (
     protocol: 'auto' | 'tcp' | 'ipc'
     port?: number
   }
-): Promise<{hostname?: string, port?: number, path?: string}> {
+): Promise<(
+    {
+      hostname: string
+      port: number
+    } | { path: string }
+  ) & { hostname?: string, port?: number, path?: string }> {
   switch (opts.protocol) {
   case 'tcp':
     return getTcpOptions()
@@ -126,7 +131,7 @@ async function getServerOptions (
     }
     return getIpcOptions()
   default:
-    throw new Error(`Protocol ${opts.protocol} is not supported`)
+    throw new Error(`Protocol ${opts.protocol as string} is not supported`)
   }
 
   async function getTcpOptions () {

@@ -119,7 +119,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
         return store.storeHasNot(pkgName, version)
       } catch (err) {
         if (err.message.startsWith('Cannot find module store')) {
-          t.pass(`${pkgName}@${version} is not in store (store does not even exist)`)
+          t.pass(`${pkgName}@${version ?? ''} is not in store (store does not even exist)`)
           return
         }
         throw err

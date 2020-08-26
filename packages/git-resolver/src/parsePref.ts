@@ -77,7 +77,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   }
 
   if (!fetchSpec) {
-    const httpsUrl = hosted.https({ noGitPlus: true, noCommittish: true })
+    const httpsUrl: string | null = hosted.https({ noGitPlus: true, noCommittish: true })
     if (httpsUrl) {
       if (hosted.auth && await accessRepository(httpsUrl)) {
         return {

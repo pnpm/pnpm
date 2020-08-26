@@ -75,10 +75,12 @@ function statsForCurrentPackage (
 
       let msg = 'Packages:'
       if (stats['added']) {
-        msg += ' ' + chalk.green(`+${stats['added']}`)
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        msg += ' ' + chalk.green(`+${stats['added'].toString()}`)
       }
       if (stats['removed']) {
-        msg += ' ' + chalk.red(`-${stats['removed']}`)
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        msg += ' ' + chalk.red(`-${stats['removed'].toString()}`)
       }
       msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
       return most.of({ msg })
@@ -124,10 +126,12 @@ function statsForNotCurrentPackage (
       const parts = [] as string[]
 
       if (stats['added']) {
-        parts.push(padStep(chalk.green(`+${stats['added']}`), 4))
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        parts.push(padStep(chalk.green(`+${stats['added'].toString()}`), 4))
       }
       if (stats['removed']) {
-        parts.push(padStep(chalk.red(`-${stats['removed']}`), 4))
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        parts.push(padStep(chalk.red(`-${stats['removed'].toString()}`), 4))
       }
 
       let msg = zoomOut(opts.currentPrefix, stats['prefix'], parts.join(' '))

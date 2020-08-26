@@ -66,7 +66,7 @@ export default async function (
   const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
   const appendedArgs = []
   if (opts.cliOptions['access']) {
-    appendedArgs.push(`--access=${opts.cliOptions['access']}`)
+    appendedArgs.push(`--access=${opts.cliOptions['access'] as string}`)
   }
   if (opts.dryRun) {
     appendedArgs.push('--dry-run')

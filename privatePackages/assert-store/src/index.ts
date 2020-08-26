@@ -18,19 +18,19 @@ export default (
     },
     async cafsHas (pkgName: string, version?: string): Promise<void> {
       const pathToCheck = await store.getPkgIndexFilePath(pkgName, version)
-      t.ok(await exists(pathToCheck), `${pkgName}@${version} is in store (at ${pathToCheck})`)
+      t.ok(await exists(pathToCheck), `${pkgName}@${version ?? ''} is in store (at ${pathToCheck})`)
     },
     async cafsHasNot (pkgName: string, version?: string): Promise<void> {
       const pathToCheck = await store.getPkgIndexFilePath(pkgName, version)
-      t.notOk(await exists(pathToCheck), `${pkgName}@${version} is not in store (at ${pathToCheck})`)
+      t.notOk(await exists(pathToCheck), `${pkgName}@${version ?? ''} is not in store (at ${pathToCheck})`)
     },
     async storeHas (pkgName: string, version?: string): Promise<void> {
       const pathToCheck = await store.resolve(pkgName, version)
-      t.ok(await exists(pathToCheck), `${pkgName}@${version} is in store (at ${pathToCheck})`)
+      t.ok(await exists(pathToCheck), `${pkgName}@${version ?? ''} is in store (at ${pathToCheck})`)
     },
     async storeHasNot (pkgName: string, version?: string): Promise<void> {
       const pathToCheck = await store.resolve(pkgName, version)
-      t.notOk(await exists(pathToCheck), `${pkgName}@${version} is not in store (at ${pathToCheck})`)
+      t.notOk(await exists(pathToCheck), `${pkgName}@${version ?? ''} is not in store (at ${pathToCheck})`)
     },
     async resolve (pkgName: string, version?: string, relativePath?: string): Promise<string> {
       const pkgFolder = version ? path.join(ern, pkgName, version) : pkgName
