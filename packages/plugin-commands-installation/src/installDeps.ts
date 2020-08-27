@@ -9,7 +9,7 @@ import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find
 import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { IncludedDependencies } from '@pnpm/types'
+import { IncludedDependencies, Project } from '@pnpm/types'
 import {
   install,
   mutateModules,
@@ -20,6 +20,7 @@ import getSaveType from './getSaveType'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+import path = require('path')
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -111,30 +112,34 @@ when running add/update with the --workspace option')
     typeof opts.rawLocalConfig['hoist'] !== 'undefined'
   const forcePublicHoistPattern = typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined' ||
     typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined'
-  if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
-    await recursive(opts.allProjects,
-      params,
-      {
-        ...opts,
-        forceHoistPattern,
-        forcePublicHoistPattern,
-        selectedProjectsGraph: opts.selectedProjectsGraph,
-        workspaceDir: opts.workspaceDir,
-      },
-      opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
-    )
-    return
+  const allProjects = opts.allProjects ?? (
+    opts.workspaceDir ? await findWorkspacePackages(opts.workspaceDir, opts) : []
+  )
+  if (opts.workspaceDir) {
+    const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
+    if (selectedProjectsGraph) {
+      await recursive(allProjects,
+        params,
+        {
+          ...opts,
+          forceHoistPattern,
+          forcePublicHoistPattern,
+          selectedProjectsGraph,
+          workspaceDir: opts.workspaceDir,
+        },
+        opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
+      )
+      return
+    }
   }
   // `pnpm install ""` is going to be just `pnpm install`
   params = params.filter(Boolean)
 
   const dir = opts.dir || process.cwd()
-  let allProjects = opts.allProjects
   let workspacePackages!: WorkspacePackages
 
   if (opts.workspaceDir) {
-    allProjects = allProjects ?? await findWorkspacePackages(opts.workspaceDir, opts)
-    workspacePackages = arrayOfWorkspacePackagesToMap(allProjects)
+    workspacePackages = arrayOfWorkspacePackagesToMap(allProjects!)
   }
 
   const store = await createOrConnectStoreController(opts)
@@ -188,12 +193,7 @@ when running add/update with the --workspace option')
       params = createWorkspaceSpecs(params, workspacePackages)
     }
   }
-  if (!params || !params.length) {
-    const updatedManifest = await install(manifest, installOpts)
-    if (opts.update === true && opts.save !== false) {
-      await writeProjectManifest(updatedManifest)
-    }
-  } else {
+  if (params?.length) {
     const [updatedImporter] = await mutateModules([
       {
         allowNew: opts.allowNew,
@@ -210,10 +210,15 @@ when running add/update with the --workspace option')
     if (opts.save !== false) {
       await writeProjectManifest(updatedImporter.manifest)
     }
+    return
+  }
+
+  const updatedManifest = await install(manifest, installOpts)
+  if (opts.update === true && opts.save !== false) {
+    await writeProjectManifest(updatedManifest)
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
-    allProjects = allProjects ?? await findWorkspacePackages(opts.workspaceDir, opts)
     const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(allProjects, [
       {
         excludeSelf: true,
@@ -247,4 +252,10 @@ when running add/update with the --workspace option')
       }
     )
   }
+}
+
+function selectProjectByDir (projects: Project[], searchedDir: string) {
+  const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
+  if (!project) return undefined
+  return { [searchedDir]: { dependencies: [], package: project } }
 }

@@ -99,7 +99,7 @@ test('update: fail when package not in dependencies', async (t) => {
     err = _err
   }
   t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
-  t.equal(err.message, 'None of the specified packages were found in the dependencies.')
+  t.equal(err.message, 'None of the specified packages were found in the dependencies of any of the projects.')
   t.end()
 })
 
