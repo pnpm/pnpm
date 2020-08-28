@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 3.1.11
+
+### Patch Changes
+
+- 6cc36c85c: `pnpm install -r` should recreate the modules directory
+  if the hoisting patterns were updated in a local config file.
+  The hoisting patterns are configure via the `hoist-pattern`
+  and `public-hoist-pattern` settings.
+- 3feae5342: The same code should run when running some command inside a project directory, or when using `--filter` to select a specific workspace project.
+- Updated dependencies [ac0d3e122]
+  - @pnpm/config@11.2.6
+  - @pnpm/cli-utils@0.4.24
+  - @pnpm/plugin-commands-rebuild@2.0.33
+  - @pnpm/store-connection-manager@0.3.28
+  - @pnpm/find-workspace-packages@2.3.10
+  - @pnpm/filter-workspace-packages@2.1.17
+
 ## 3.1.10
 
 ### Patch Changes

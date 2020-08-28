@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.2.6
+
+### Patch Changes
+
+- ac0d3e122: Publicly hoist any dependency that is related to ESLint.
+
 ## 11.2.5
 
 ### Patch Changes

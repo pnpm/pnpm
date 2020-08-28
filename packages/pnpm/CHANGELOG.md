@@ -1,5 +1,20 @@
 # pnpm
 
+## 5.5.4
+
+### Patch Changes
+
+- Any ESLint related dependencies are publicly hoisted by default (#2799).
+- `pnpm install -r` should recreate the modules directory
+  if the hoisting patterns were updated in a local config file.
+  The hoisting patterns are configured via the `hoist-pattern`
+  and `public-hoist-pattern` settings (#2802).
+- The same code should run when running some command inside a project directory,
+  or when using `--filter` to select a specific workspace project (#2805).
+
+  This fixes an issue that was happening when running `pnpm add pkg` inside a workspace.
+  The issue was not reproducible when running `pnpm add pkg --filter project` (#2798).
+
 ## 5.5.3
 
 ### Patch Changes
