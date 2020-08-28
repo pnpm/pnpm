@@ -286,6 +286,13 @@ export default async function recursive (
             if (!currentInput.length) return
           }
         }
+        if (opts.workspace) {
+          if (!currentInput || !currentInput.length) {
+            currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+          } else {
+            currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
+          }
+        }
 
         let action!: any // eslint-disable-line @typescript-eslint/no-explicit-any
         switch (cmdFullName) {
