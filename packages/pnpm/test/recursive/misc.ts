@@ -51,7 +51,7 @@ test('recursive installation with package-specific .npmrc', async t => {
   t.notOk(modulesYaml2?.hoistPattern)
 })
 
-test.only('workspace .npmrc is always read', async (t: tape.Test) => {
+test('workspace .npmrc is always read', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       location: 'workspace/project-1',
