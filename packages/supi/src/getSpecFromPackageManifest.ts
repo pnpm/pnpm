@@ -4,8 +4,8 @@ export default (
   manifest: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
   depName: string
 ) => {
-  return manifest.dependencies?.[depName] ??
+  return manifest.optionalDependencies?.[depName] ??
+    manifest.dependencies?.[depName] ??
     manifest.devDependencies?.[depName] ??
-    manifest.optionalDependencies?.[depName] ??
     ''
 }

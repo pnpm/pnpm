@@ -31,6 +31,7 @@ export default function getWantedDependencies (
       optionalDependencies: true,
     })
   return getWantedDependenciesFromGivenSet(depsToInstall, {
+    dependencies: pkg.dependencies ?? {},
     devDependencies: pkg.devDependencies ?? {},
     optionalDependencies: pkg.optionalDependencies ?? {},
     updatePref: opts?.updateWorkspaceDependencies === true
@@ -46,6 +47,7 @@ function updateWorkspacePref (pref: string) {
 function getWantedDependenciesFromGivenSet (
   deps: Dependencies,
   opts: {
+    dependencies: Dependencies
     devDependencies: Dependencies
     optionalDependencies: Dependencies
     updatePref: (pref: string) => string
@@ -54,10 +56,14 @@ function getWantedDependenciesFromGivenSet (
   if (!deps) return []
   return Object.keys(deps).map((alias) => {
     const pref = opts.updatePref(deps[alias])
+    let depType
+    if (opts.optionalDependencies[alias] != null) depType = 'optional'
+    else if (opts.dependencies[alias] != null) depType = 'prod'
+    else if (opts.devDependencies[alias] != null) depType = 'dev'
     return {
       alias,
-      dev: !!opts.devDependencies[alias],
-      optional: !!opts.optionalDependencies[alias],
+      dev: depType === 'dev',
+      optional: depType === 'optional',
       pinnedVersion: guessPinnedVersionFromExistingSpec(deps[alias]),
       pref,
       raw: `${alias}@${pref}`,
