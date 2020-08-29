@@ -11,6 +11,10 @@ export function rcOptionsTypes () {
   return R.pick([
     'child-concurrency',
     'engine-strict',
+    'fetch-retries',
+    'fetch-retry-factor',
+    'fetch-retry-maxtimeout',
+    'fetch-retry-mintimeout',
     'force',
     'global-dir',
     'global-pnpmfile',
