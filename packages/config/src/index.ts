@@ -224,6 +224,7 @@ export default async (
     : pnpmConfig['sharedWorkspaceLockfile']
 
   if (cliOptions['global']) {
+    pnpmConfig.save = true
     pnpmConfig.dir = path.join(pnpmConfig.globalDir, LAYOUT_VERSION.toString())
     pnpmConfig.bin = cliOptions['dir']
       ? (

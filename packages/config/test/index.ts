@@ -51,6 +51,21 @@ test('throw error if --link-workspace-packages is used with --global', async (t)
   }
 })
 
+test('"save" should always be true during global installation', async (t) => {
+  const { config } = await getConfig({
+    cliOptions: {
+      global: true,
+      save: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  t.ok(config.save)
+  t.end()
+})
+
 test('throw error if --shared-workspace-lockfile is used with --global', async (t) => {
   try {
     await getConfig({
