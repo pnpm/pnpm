@@ -105,6 +105,7 @@ export default function (
     )
 
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
+      cache: new Map(),
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
@@ -136,10 +137,13 @@ export default function (
   }
 }
 
+type PeersCache = Map<string, Array<{ resolvedPeers: Record<string, string>, depPath: string }>>
+
 function resolvePeersOfNode (
   nodeId: string,
   parentParentPkgs: ParentRefs,
   ctx: {
+    cache: PeersCache,
     dependenciesTree: DependenciesTree
     pathsByNodeId: {[nodeId: string]: string}
     depGraph: DependenciesGraph
@@ -157,7 +161,6 @@ function resolvePeersOfNode (
     ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
     return {}
   }
-
   const children = typeof node.children === 'function' ? node.children() : node.children
   const parentPkgs = R.isEmpty(children)
     ? parentParentPkgs
@@ -171,6 +174,18 @@ function resolvePeersOfNode (
         }))
       ),
     }
+  if (ctx.cache.has(resolvedPackage.depPath)) {
+    // console.log('reading from cache')
+    for (const x of ctx.cache.get(resolvedPackage.depPath)!) {
+      if (Object.entries(x.resolvedPeers)
+        .every(([name, nodeId]) => parentPkgs[name]?.nodeId === nodeId || parentPkgs[name] && ctx.purePkgs.has((ctx.dependenciesTree[nodeId].resolvedPackage as ResolvedPackage).depPath))) {
+        // console.log('hit', nodeId)
+        ctx.pathsByNodeId[nodeId] = x.depPath
+        return {}
+      }
+    }
+  }
+
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx)
 
   const resolvedPeers = R.isEmpty(resolvedPackage.peerDependencies)
@@ -205,6 +220,12 @@ function resolvePeersOfNode (
       })))
     modules = path.join(`${localLocation}${peersFolderSuffix}`, 'node_modules')
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
+    // console.log('adding to cache')
+    if (ctx.cache.has(resolvedPackage.depPath)) {
+      ctx.cache.get(resolvedPackage.depPath)!.push({ resolvedPeers: allResolvedPeers, depPath })
+    } else {
+      ctx.cache.set(resolvedPackage.depPath, [{ resolvedPeers: allResolvedPeers, depPath }])
+    }
   }
 
   ctx.pathsByNodeId[nodeId] = depPath
@@ -257,6 +278,7 @@ function resolvePeersOfChildren (
   },
   parentPkgs: ParentRefs,
   ctx: {
+    cache: PeersCache,
     pathsByNodeId: {[nodeId: string]: string}
     virtualStoreDir: string
     purePkgs: Set<string>
