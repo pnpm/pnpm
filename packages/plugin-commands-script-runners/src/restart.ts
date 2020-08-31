@@ -5,8 +5,6 @@ import {
   IF_PRESENT_OPTION_HELP,
   RunOpts,
 } from './run'
-import { handler as start } from './start'
-import { handler as stop } from './stop'
 import R = require('ramda')
 import renderHelp = require('render-help')
 
@@ -44,7 +42,7 @@ export async function handler (
   opts: RunOpts,
   params: string[]
 ) {
-  await stop(opts, params)
+  await run(opts, ['stop', ...params])
   await run(opts, ['restart', ...params])
-  await start(opts, params)
+  await run(opts, ['start', ...params])
 }

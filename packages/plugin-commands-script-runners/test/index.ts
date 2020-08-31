@@ -2,8 +2,6 @@
 import {
   restart,
   run,
-  start,
-  stop,
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import prepare from '@pnpm/prepare'
@@ -128,7 +126,7 @@ test('test: pass the args to the command that is specfied in the build script of
   t.end()
 })
 
-test('start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t) => {
+test('run start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t) => {
   prepare(t, {
     scripts: {
       poststart: 'node recordArgs',
@@ -139,11 +137,11 @@ test('start: pass the args to the command that is specfied in the build script o
   await fs.writeFile('args.json', '[]', 'utf8')
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await start.handler({
+  await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  }, ['arg', '--flag=true', '--help', '-h'])
+  }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
   const args = await import(path.resolve('args.json'))
   t.deepEqual(args, [
@@ -155,7 +153,7 @@ test('start: pass the args to the command that is specfied in the build script o
   t.end()
 })
 
-test('stop: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t) => {
+test('run stop: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t) => {
   prepare(t, {
     scripts: {
       poststop: 'node recordArgs',
@@ -166,11 +164,11 @@ test('stop: pass the args to the command that is specfied in the build script of
   await fs.writeFile('args.json', '[]', 'utf8')
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await stop.handler({
+  await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  }, ['arg', '--flag=true', '--help', '-h'])
+  }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
   const args = await import(path.resolve('args.json'))
   t.deepEqual(args, [

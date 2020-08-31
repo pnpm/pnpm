@@ -11,8 +11,6 @@ import {
   exec,
   restart,
   run,
-  start,
-  stop,
   test,
 } from '@pnpm/plugin-commands-script-runners'
 import { server } from '@pnpm/plugin-commands-server'
@@ -75,8 +73,6 @@ const commands: Array<{
   root,
   run,
   server,
-  start,
-  stop,
   store,
   test,
   unlink,
