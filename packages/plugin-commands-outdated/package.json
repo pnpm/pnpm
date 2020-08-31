@@ -65,7 +65,7 @@
     "lru-cache": "^6.0.0",
     "ramda": "^0.27.1",
     "render-help": "^1.0.0",
-    "table": "^5.4.6",
+    "table": "^6.0.1",
     "wrap-ansi": "^7.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
