@@ -25,7 +25,7 @@ export class FetchError extends PnpmError {
     const message = `GET ${request.url}: ${response.statusText} - ${response.status}`
     const authHeaderValue = request.authHeaderValue
       ? hideAuthInformation(request.authHeaderValue) : undefined
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401 || response.status === 403 || response.status === 404) {
       hint = hint ? `${hint}\n\n` : ''
       if (authHeaderValue) {
         hint += `An authorization header was used: ${authHeaderValue}`
