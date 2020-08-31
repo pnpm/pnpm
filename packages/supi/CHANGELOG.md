@@ -1,5 +1,11 @@
 # supi
 
+## 0.41.21
+
+### Patch Changes
+
+- 83e2e6879: When updating specs in the lockfile, read the specs from the manifest in the right order: optionalDependencies > dependencies > devDependencies.
+
 ## 0.41.20
 
 ### Patch Changes

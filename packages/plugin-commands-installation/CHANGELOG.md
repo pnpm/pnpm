@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 3.1.12
+
+### Patch Changes
+
+- e65e9bb3d: It should be possible to set the fetch related options through CLI options.
+  These are the fetch options:
+
+  - `--fetch-retries=<number>`
+  - `--fetch-retry-factor=<number>`
+  - `--fetch-retry-maxtimeout=<number>`
+  - `--fetch-retry-mintimeout=<number>`
+
+- 6138b56d0: Update table to v6.
+- Updated dependencies [83e2e6879]
+  - supi@0.41.21
+
 ## 3.1.11
 
 ### Patch Changes

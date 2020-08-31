@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 7.6.3
+
+### Patch Changes
+
+- 13c332e69: Fixes a regression published in pnpm v5.5.3 as a result of nullish coalescing refactoring.
+
 ## 7.6.2
 
 ### Patch Changes

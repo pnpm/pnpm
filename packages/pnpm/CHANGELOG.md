@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.5.5
+
+### Patch Changes
+
+- Generate a valid lockfile, when the same dependency is specified both in `devDependencies` and `optionalDependencies` (#2807).
+- It should be possible to set the fetch related options through CLI options (#2810).
+- Fix a regression introduced to `pnpm run --parallel <script>` in pnpm v5.5.4.
+
 ## 5.5.4
 
 ### Patch Changes

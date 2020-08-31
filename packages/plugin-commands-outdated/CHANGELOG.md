@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.9
+
+### Patch Changes
+
+- 6138b56d0: Update table to v6.
+
 ## 3.0.8
 
 ### Patch Changes

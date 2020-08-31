@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.10
+
+### Patch Changes
+
+- 6138b56d0: Update table to v6.
+
 ## 2.0.9
 
 ### Patch Changes
