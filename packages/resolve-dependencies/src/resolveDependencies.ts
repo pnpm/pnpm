@@ -663,9 +663,7 @@ async function resolveDependency (
   }
 
   // using colon as it will never be used inside a package ID
-  const nodeId = pkgIsLeaf(pkg)
-    ? pkgResponse.body.id
-    : createNodeId(options.parentPkg.nodeId, pkgResponse.body.id)
+  const nodeId = createNodeId(options.parentPkg.nodeId, pkgResponse.body.id)
 
   const currentIsInstallable = (
     ctx.force ||
@@ -743,12 +741,6 @@ async function resolveDependency (
     updated: pkgResponse.body.updated,
     useManifestInfoFromLockfile,
   }
-}
-
-function pkgIsLeaf (pkg: PackageManifest) {
-  return R.isEmpty(pkg.dependencies ?? {}) &&
-    R.isEmpty(pkg.optionalDependencies ?? {}) &&
-    R.isEmpty(pkg.peerDependencies ?? {})
 }
 
 function getResolvedPackage (
