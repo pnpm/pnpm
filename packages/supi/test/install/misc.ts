@@ -1183,3 +1183,19 @@ test('ignore files in node_modules', async (t: tape.Test) => {
   t.ok(typeof m.clone === 'function', '_.clone is available')
   t.equal(await fs.readFile('node_modules/foo', 'utf8'), 'x')
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/2339
+test('memory consumption is under control on huge package with many peer dependencies', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['@teambit/bit@0.0.30'],
+    await testDefaults({ fastUnpack: true, lockfileOnly: true })
+  )
+
+  t.ok(await exists('pnpm-lock.yaml'), 'lockfile created')
+})
