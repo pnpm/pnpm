@@ -1,28 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
-import { handler as run, RunOpts } from './run'
-import R = require('ramda')
+import * as run from './run'
 import renderHelp = require('render-help')
-
-export function rcOptionsTypes () {
-  return R.pick([
-    'npm-path',
-    'unsafe-perm',
-    'workspace-concurrency',
-  ], allTypes)
-}
-
-export function cliOptionsTypes () {
-  return {
-    ...rcOptionsTypes(),
-    ...R.pick([
-      'bail',
-      'sort',
-    ], allTypes),
-    recursive: Boolean,
-  }
-}
 
 export const commandNames = ['test', 't', 'tst']
 
@@ -53,8 +32,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 }
 
 export function handler (
-  opts: RunOpts,
+  opts: run.RunOpts,
   params: string[] = []
 ) {
-  return run(opts, ['test', ...params])
+  return run.handler(opts, ['test', ...params])
 }
