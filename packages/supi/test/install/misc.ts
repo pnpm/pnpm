@@ -1194,7 +1194,7 @@ test('memory consumption is under control on huge package with many peer depende
       version: '0.0.0',
     },
     ['@teambit/bit@0.0.30'],
-    await testDefaults({ fastUnpack: false })
+    await testDefaults()
   )
 
   await project.has('@teambit/bit')
