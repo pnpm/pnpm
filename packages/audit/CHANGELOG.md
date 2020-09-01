@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 1.1.12
+
+### Patch Changes
+
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+
 ## 1.1.11
 
 ### Patch Changes

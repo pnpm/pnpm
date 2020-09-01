@@ -1,5 +1,14 @@
 # @pnpm/link-bins
 
+## 5.3.13
+
+### Patch Changes
+
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+  - @pnpm/read-package-json@3.1.5
+  - @pnpm/read-project-manifest@1.0.13
+
 ## 5.3.12
 
 ### Patch Changes

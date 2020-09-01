@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 10.0.1
+
+### Patch Changes
+
+- 75a36deba: Report information about any used auth token, if an error happens during fetch.
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+
 ## 10.0.0
 
 ### Major Changes

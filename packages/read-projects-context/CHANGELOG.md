@@ -1,5 +1,11 @@
 # @pnpm/read-projects-context
 
+## 4.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile-file@3.0.14
+
 ## 4.0.4
 
 ### Patch Changes

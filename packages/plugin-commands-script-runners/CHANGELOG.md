@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.0.0
+
+### Major Changes
+
+- de61940a5: The start and stop script commands are removed.
+  There is no reason to define separate handlers for shorthand commands
+  as any unknown command is automatically converted to a script.
+
+### Patch Changes
+
+- de61940a5: `pnpm test|start|stop` support the same options as `pnpm run test|start|stop`.
+- Updated dependencies [75a36deba]
+- Updated dependencies [9f1a29ff9]
+  - @pnpm/error@1.3.1
+  - @pnpm/config@11.2.7
+  - @pnpm/cli-utils@0.4.25
+  - @pnpm/lifecycle@9.2.4
+
 ## 1.2.19
 
 ### Patch Changes

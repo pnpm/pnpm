@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 11.2.7
+
+### Patch Changes
+
+- 9f1a29ff9: During global install, changes should always be saved to the global package.json, even when save is set to false.
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+  - @pnpm/global-bin-dir@1.2.3
+
 ## 11.2.6
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "5.0.13",
+  "version": "5.0.14",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,9 +32,9 @@
   "dependencies": {
     "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/core-loggers": "workspace:4.2.0",
-    "@pnpm/lifecycle": "workspace:9.2.3",
-    "@pnpm/link-bins": "workspace:5.3.12",
-    "@pnpm/read-package-json": "workspace:3.1.4",
+    "@pnpm/lifecycle": "workspace:9.2.4",
+    "@pnpm/link-bins": "workspace:5.3.13",
+    "@pnpm/read-package-json": "workspace:3.1.5",
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
     "graph-sequencer": "2.0.0",

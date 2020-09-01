@@ -1,5 +1,13 @@
 # @pnpm/filter-workspace-packages
 
+## 2.1.18
+
+### Patch Changes
+
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+  - @pnpm/find-workspace-packages@2.3.11
+
 ## 2.1.17
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # supi
 
+## 0.41.22
+
+### Patch Changes
+
+- 8351fce25: Cache the already resolved peer dependencies to make peers resolution faster and consume less memory.
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+  - @pnpm/filter-lockfile@4.0.8
+  - @pnpm/get-context@3.2.5
+  - @pnpm/headless@14.0.18
+  - @pnpm/link-bins@5.3.13
+  - @pnpm/lockfile-file@3.0.14
+  - @pnpm/read-package-json@3.1.5
+  - @pnpm/read-project-manifest@1.0.13
+  - @pnpm/resolve-dependencies@16.1.4
+  - @pnpm/modules-cleaner@10.0.9
+  - @pnpm/build-modules@5.0.14
+  - @pnpm/hoist@4.0.10
+  - @pnpm/lifecycle@9.2.4
+  - @pnpm/package-requester@12.0.11
+  - @pnpm/remove-bins@1.0.5
+
 ## 0.41.21
 
 ### Patch Changes

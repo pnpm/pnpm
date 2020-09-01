@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 0.1.16
+
+### Patch Changes
+
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+
 ## 0.1.15
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # pnpm
 
+## 5.5.6
+
+### Patch Changes
+
+- "Heap out of memory" error fixed, which happened on some huge projects with big amount of peer dependencies, since pnpm v3.4.0 (#2339).
+- `pnpm add --global <pkg>` should not break the global package, when the `save` setting is set to `false` (#2261).
+- `pnpm test|start|stop` should allow the same options as `pnpm run test|start|stop` (#2814).
+- Improve the error message on 404 errors. Include authorization details (#2818).
+
 ## 5.5.5
 
 ### Patch Changes

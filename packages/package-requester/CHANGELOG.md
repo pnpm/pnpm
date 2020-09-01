@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 12.0.11
+
+### Patch Changes
+
+- @pnpm/read-package-json@3.1.5
+
 ## 12.0.10
 
 ### Patch Changes
