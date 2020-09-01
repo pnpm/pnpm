@@ -191,6 +191,10 @@ function resolvePeersOfNode (
         const parentPkgNodeId = parentPkgs[name]?.nodeId
         if (!parentPkgNodeId || !cachedNodeId) return false
         if (parentPkgs[name].nodeId === cachedNodeId) return true
+        if (
+          ctx.pathsByNodeId[cachedNodeId] &&
+          ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgs[name].nodeId!]
+        ) return true
         const parentDepPath = (ctx.dependenciesTree[parentPkgNodeId].resolvedPackage as ResolvedPackage).depPath
         if (!ctx.purePkgs.has(parentDepPath)) return false
         const cachedDepPath = (ctx.dependenciesTree[cachedNodeId].resolvedPackage as ResolvedPackage).depPath
@@ -199,7 +203,10 @@ function resolvePeersOfNode (
     )
   if (hit) {
     ctx.pathsByNodeId[nodeId] = hit.depPath
-    return { resolvedPeers: {}, missingPeers: [] }
+    return {
+      missingPeers: hit.missingPeers,
+      resolvedPeers: R.fromPairs(hit.resolvedPeers),
+    }
   }
 
   const {
