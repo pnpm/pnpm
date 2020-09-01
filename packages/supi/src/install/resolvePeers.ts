@@ -225,10 +225,11 @@ function resolvePeersOfNode (
       })))
     modules = path.join(`${localLocation}${peersFolderSuffix}`, 'node_modules')
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
+    const cache = { resolvedPeers: Object.entries(allResolvedPeers), depPath }
     if (ctx.peersCache.has(resolvedPackage.depPath)) {
-      ctx.peersCache.get(resolvedPackage.depPath)!.push({ resolvedPeers: Object.entries(allResolvedPeers), depPath })
+      ctx.peersCache.get(resolvedPackage.depPath)!.push(cache)
     } else {
-      ctx.peersCache.set(resolvedPackage.depPath, [{ resolvedPeers: Object.entries(allResolvedPeers), depPath }])
+      ctx.peersCache.set(resolvedPackage.depPath, [cache])
     }
   }
 
