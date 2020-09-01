@@ -137,7 +137,7 @@ export default function (
   }
 }
 
-type PeersCache = Map<string, Array<{ resolvedPeers: Record<string, string>, depPath: string }>>
+type PeersCache = Map<string, Array<{ resolvedPeers: Array<[string, string]>, depPath: string }>>
 
 function resolvePeersOfNode (
   nodeId: string,
@@ -176,8 +176,16 @@ function resolvePeersOfNode (
     }
   if (ctx.peersCache.has(resolvedPackage.depPath)) {
     for (const x of ctx.peersCache.get(resolvedPackage.depPath)!) {
-      if (Object.entries(x.resolvedPeers)
-        .every(([name, nodeId]) => parentPkgs[name]?.nodeId === nodeId || parentPkgs[name] && ctx.purePkgs.has((ctx.dependenciesTree[nodeId].resolvedPackage as ResolvedPackage).depPath))) {
+      if (
+        x.resolvedPeers
+          .every(([name, nodeId]) => {
+            if (!parentPkgs[name]) return false
+            if (parentPkgs[name].nodeId === nodeId) return true
+            const parentDepPath = (ctx.dependenciesTree[parentPkgs[name].nodeId!].resolvedPackage as ResolvedPackage).depPath
+            const cacheDepPath = (ctx.dependenciesTree[nodeId].resolvedPackage as ResolvedPackage).depPath
+            return parentDepPath === cacheDepPath && ctx.purePkgs.has(parentDepPath)
+          })
+      ) {
         ctx.pathsByNodeId[nodeId] = x.depPath
         return {}
       }
@@ -219,9 +227,9 @@ function resolvePeersOfNode (
     modules = path.join(`${localLocation}${peersFolderSuffix}`, 'node_modules')
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
     if (ctx.peersCache.has(resolvedPackage.depPath)) {
-      ctx.peersCache.get(resolvedPackage.depPath)!.push({ resolvedPeers: allResolvedPeers, depPath })
+      ctx.peersCache.get(resolvedPackage.depPath)!.push({ resolvedPeers: Object.entries(allResolvedPeers), depPath })
     } else {
-      ctx.peersCache.set(resolvedPackage.depPath, [{ resolvedPeers: allResolvedPeers, depPath }])
+      ctx.peersCache.set(resolvedPackage.depPath, [{ resolvedPeers: Object.entries(allResolvedPeers), depPath }])
     }
   }
 
