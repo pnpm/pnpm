@@ -153,7 +153,7 @@ function toLockfileDependency (
   if (pkg.os) {
     result['os'] = pkg.os
   }
-  if (pkg.bundledDependencies != null || pkg.bundleDependencies != null) {
+  if (Array.isArray(pkg.bundledDependencies) || Array.isArray(pkg.bundleDependencies)) {
     result['bundledDependencies'] = pkg.bundledDependencies ?? pkg.bundleDependencies
   }
   if (pkg.deprecated) {

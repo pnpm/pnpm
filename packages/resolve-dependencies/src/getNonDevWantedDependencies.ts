@@ -8,7 +8,8 @@ export interface WantedDependency {
 }
 
 export default function getNonDevWantedDependencies (pkg: DependencyManifest) {
-  const bundledDeps = new Set(pkg.bundleDependencies ?? pkg.bundledDependencies ?? [])
+  const bd = pkg.bundleDependencies ?? pkg.bundleDependencies
+  const bundledDeps = new Set(Array.isArray(bd) ? bd : [])
   bundledDeps.add(pkg.name)
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
   return getWantedDependenciesFromGivenSet(
