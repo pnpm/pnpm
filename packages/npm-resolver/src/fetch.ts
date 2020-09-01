@@ -26,7 +26,7 @@ class RegistryResponseError extends FetchError {
   ) {
     let hint: string | undefined
     if (response.status === 404) {
-      hint = `${pkgName} is not in the npm registry.`
+      hint = `${pkgName} is not in the npm registry, or you have no permission to fetch it.`
       const matched = pkgName.match(semvarRegex)
       if (matched) {
         hint += ` Did you mean ${matched[1]}?`
@@ -48,7 +48,7 @@ export default async function fromRegistry (
   const response = await fetch(uri, { authHeaderValue, retry }) as RegistryResponse
   if (response.status > 400) {
     const request = {
-      authToken: authHeaderValue,
+      authHeaderValue,
       url: uri,
     }
     throw new RegistryResponseError(request, response, pkgName)
