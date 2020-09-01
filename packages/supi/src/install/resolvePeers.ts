@@ -174,22 +174,19 @@ function resolvePeersOfNode (
         }))
       ),
     }
-  if (ctx.peersCache.has(resolvedPackage.depPath)) {
-    for (const x of ctx.peersCache.get(resolvedPackage.depPath)!) {
-      if (
-        x.resolvedPeers
-          .every(([name, nodeId]) => {
-            if (!parentPkgs[name]) return false
-            if (parentPkgs[name].nodeId === nodeId) return true
-            const parentDepPath = (ctx.dependenciesTree[parentPkgs[name].nodeId!].resolvedPackage as ResolvedPackage).depPath
-            const cacheDepPath = (ctx.dependenciesTree[nodeId].resolvedPackage as ResolvedPackage).depPath
-            return parentDepPath === cacheDepPath && ctx.purePkgs.has(parentDepPath)
-          })
-      ) {
-        ctx.pathsByNodeId[nodeId] = x.depPath
-        return {}
-      }
-    }
+  const hit = ctx.peersCache.get(resolvedPackage.depPath)?.find((cache) =>
+    cache.resolvedPeers
+      .every(([name, nodeId]) => {
+        if (!parentPkgs[name]) return false
+        if (parentPkgs[name].nodeId === nodeId) return true
+        const parentDepPath = (ctx.dependenciesTree[parentPkgs[name].nodeId!].resolvedPackage as ResolvedPackage).depPath
+        const cacheDepPath = (ctx.dependenciesTree[nodeId].resolvedPackage as ResolvedPackage).depPath
+        return parentDepPath === cacheDepPath && ctx.purePkgs.has(parentDepPath)
+      })
+    )
+  if (hit) {
+    ctx.pathsByNodeId[nodeId] = hit.depPath
+    return {}
   }
 
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx)
