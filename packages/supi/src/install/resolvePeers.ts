@@ -176,12 +176,14 @@ function resolvePeersOfNode (
     }
   const hit = ctx.peersCache.get(resolvedPackage.depPath)?.find((cache) =>
     cache.resolvedPeers
-      .every(([name, nodeId]) => {
-        if (!parentPkgs[name]) return false
-        if (parentPkgs[name].nodeId === nodeId) return true
-        const parentDepPath = (ctx.dependenciesTree[parentPkgs[name].nodeId!].resolvedPackage as ResolvedPackage).depPath
-        const cacheDepPath = (ctx.dependenciesTree[nodeId].resolvedPackage as ResolvedPackage).depPath
-        return parentDepPath === cacheDepPath && ctx.purePkgs.has(parentDepPath)
+      .every(([name, cachedNodeId]) => {
+        const parentPkgNodeId = parentPkgs[name]?.nodeId
+        if (!parentPkgNodeId || !cachedNodeId) return false
+        if (parentPkgs[name].nodeId === cachedNodeId) return true
+        const parentDepPath = (ctx.dependenciesTree[parentPkgNodeId].resolvedPackage as ResolvedPackage).depPath
+        if (!ctx.purePkgs.has(parentDepPath)) return false
+        const cachedDepPath = (ctx.dependenciesTree[cachedNodeId].resolvedPackage as ResolvedPackage).depPath
+        return parentDepPath === cachedDepPath
       })
     )
   if (hit) {
