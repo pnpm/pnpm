@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-installation
 
+## 3.1.17
+
+### Patch Changes
+
+- Updated dependencies [11dea936a]
+  - supi@0.41.26
+  - @pnpm/package-store@9.1.7
+  - @pnpm/store-connection-manager@0.3.30
+  - @pnpm/plugin-commands-rebuild@2.0.35
+
 ## 3.1.16
 
 ### Patch Changes

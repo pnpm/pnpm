@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 12.0.12
+
+### Patch Changes
+
+- 501efdabd: The `finishing` promise is resolved always after the `files` promise.
+
 ## 12.0.11
 
 ### Patch Changes

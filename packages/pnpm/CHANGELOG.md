@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.5.10
+
+### Patch Changes
+
+- Fixing a regression that was shipped with pnpm v5.5.6. Cyclic dependencies that have peer dependencies were not symlinked to the root of `node_modules`, when they were direct dependencies.
+
 ## 5.5.9
 
 ### Patch Changes

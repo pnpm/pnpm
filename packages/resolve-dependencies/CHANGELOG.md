@@ -1,5 +1,24 @@
 # @pnpm/resolve-dependencies
 
+## 17.0.0
+
+### Major Changes
+
+- 9d9456442: In case of leaf dependencies (dependencies that have no prod deps or peer deps), we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless, like the package ID.
+- 501efdabd: Use depPath in nodeIds instead of package IDs (depPath is unique as well but shorter).
+- 501efdabd: `resolvedPackagesByPackageId` is replaced with `resolvedPackagesByDepPath`.
+
+### Minor Changes
+
+- a43c12afe: We are building the dependency tree only until there are new packages or the packages repeat in a unique order. This is needed later during peer dependencies resolution.
+
+  So we resolve `foo > bar > qar > foo`.
+  But we stop on `foo > bar > qar > foo > qar`.
+  In the second example, there's no reason to walk qar again when qar is included the first time, the dependencies of foo are already resolved and included as parent dependencies of qar. So during peers resolution, qar cannot possibly get any new or different peers resolved, after the first ocurrence.
+
+  However, in the next example we would analyze the second qar as well, because zoo is a new parent package:
+  `foo > bar > qar > zoo > qar`
+
 ## 16.1.5
 
 ### Patch Changes

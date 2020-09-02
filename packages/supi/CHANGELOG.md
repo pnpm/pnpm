@@ -1,5 +1,19 @@
 # supi
 
+## 0.41.26
+
+### Patch Changes
+
+- 11dea936a: Fixing a regression that was shipped with supi v0.41.22. Cyclic dependencies that have peer dependencies are not symlinked to the root of node_modules, when they are direct dependencies.
+- Updated dependencies [9d9456442]
+- Updated dependencies [501efdabd]
+- Updated dependencies [501efdabd]
+- Updated dependencies [a43c12afe]
+- Updated dependencies [501efdabd]
+  - @pnpm/resolve-dependencies@17.0.0
+  - @pnpm/package-requester@12.0.12
+  - @pnpm/headless@14.0.19
+
 ## 0.41.25
 
 ### Patch Changes
