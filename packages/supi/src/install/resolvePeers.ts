@@ -206,6 +206,7 @@ function resolvePeersOfNode (
     )
   if (hit) {
     ctx.pathsByNodeId[nodeId] = hit.depPath
+    ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
     return {
       missingPeers: hit.missingPeers,
       resolvedPeers: R.fromPairs(hit.resolvedPeers),
