@@ -1185,7 +1185,7 @@ test('ignore files in node_modules', async (t: tape.Test) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2339
-test.skip('memory consumption is under control on huge package with many peer dependencies. Sample 1', async (t: tape.Test) => {
+test('memory consumption is under control on huge package with many peer dependencies. Sample 1', async (t: tape.Test) => {
   prepareEmpty(t)
 
   await addDependenciesToPackage(
@@ -1201,7 +1201,7 @@ test.skip('memory consumption is under control on huge package with many peer de
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2339
-test.skip('memory consumption is under control on huge package with many peer dependencies. Sample 2', async (t: tape.Test) => {
+test('memory consumption is under control on huge package with many peer dependencies. Sample 2', async (t: tape.Test) => {
   prepareEmpty(t)
 
   await addDependenciesToPackage(
