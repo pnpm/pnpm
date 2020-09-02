@@ -312,6 +312,12 @@ function resolvePeersOfNode (
   return { resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers }
 }
 
+// When a package has itself in the subdependencies, so there's a cycle,
+// pnpm will break the cycle, when it first repeats itself.
+// However, when the cycle is broken up, the last repeated package is removed
+// from the dependencies of the parent package.
+// So we need to merge all the children of all the parent packages with same ID as the resolved package.
+// This way we get all the children that were removed, when ending cycles.
 function getPreviouslyResolvedChildren (nodeId: string, dependenciesTree: DependenciesTree) {
   const parentIds = splitNodeId(nodeId)
   const ownId = parentIds.pop()
@@ -323,10 +329,10 @@ function getPreviouslyResolvedChildren (nodeId: string, dependenciesTree: Depend
   nodeIdChunks.pop()
   nodeIdChunks.reduce((accNodeId, part) => {
     accNodeId += `${part}${ownId}`
-    const rootNode = dependenciesTree[`${accNodeId}>`]
+    const parentNode = dependenciesTree[`${accNodeId}>`]
     Object.assign(
       allChildren,
-      typeof rootNode.children === 'function' ? rootNode.children() : rootNode.children
+      typeof parentNode.children === 'function' ? parentNode.children() : parentNode.children
     )
     return accNodeId
   }, '>')
