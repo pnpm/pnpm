@@ -137,7 +137,18 @@ export default function (
   }
 }
 
-type PeersCache = Map<string, Array<{ resolvedPeers: Array<[string, string]>, depPath: string }>>
+interface PeersCacheItem {
+  depPath: string
+  resolvedPeers: Array<[string, string]>
+  missingPeers: string[]
+}
+
+type PeersCache = Map<string, PeersCacheItem[]>
+
+interface PeersResolution {
+  missingPeers: string[]
+  resolvedPeers: Record<string, string>
+}
 
 function resolvePeersOfNode (
   nodeId: string,
@@ -153,15 +164,18 @@ function resolvePeersOfNode (
     lockfileDir: string
     strictPeerDependencies: boolean
   }
-): {[alias: string]: string} {
+): PeersResolution {
   const node = ctx.dependenciesTree[nodeId]
-  if (node.depth === -1) return {}
+  if (node.depth === -1) return { resolvedPeers: {}, missingPeers: [] }
   const resolvedPackage = node.resolvedPackage as ResolvedPackage
   if (ctx.purePkgs.has(resolvedPackage.depPath) && ctx.depGraph[resolvedPackage.depPath].depth <= node.depth) {
     ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
-    return {}
+    return { resolvedPeers: {}, missingPeers: [] }
   }
-  const children = typeof node.children === 'function' ? node.children() : node.children
+  if (typeof node.children === 'function') {
+    node.children = node.children()
+  }
+  const children = node.children
   const parentPkgs = R.isEmpty(children)
     ? parentParentPkgs
     : {
@@ -180,21 +194,31 @@ function resolvePeersOfNode (
         const parentPkgNodeId = parentPkgs[name]?.nodeId
         if (!parentPkgNodeId || !cachedNodeId) return false
         if (parentPkgs[name].nodeId === cachedNodeId) return true
+        if (
+          ctx.pathsByNodeId[cachedNodeId] &&
+          ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgs[name].nodeId!]
+        ) return true
         const parentDepPath = (ctx.dependenciesTree[parentPkgNodeId].resolvedPackage as ResolvedPackage).depPath
         if (!ctx.purePkgs.has(parentDepPath)) return false
         const cachedDepPath = (ctx.dependenciesTree[cachedNodeId].resolvedPackage as ResolvedPackage).depPath
         return parentDepPath === cachedDepPath
-      })
+      }) && cache.missingPeers.every((missingPeer) => !parentPkgs[missingPeer])
     )
   if (hit) {
     ctx.pathsByNodeId[nodeId] = hit.depPath
-    return {}
+    return {
+      missingPeers: hit.missingPeers,
+      resolvedPeers: R.fromPairs(hit.resolvedPeers),
+    }
   }
 
-  const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx)
+  const {
+    resolvedPeers: unknownResolvedPeersOfChildren,
+    missingPeers: missingPeersOfChildren,
+  } = resolvePeersOfChildren(children, parentPkgs, ctx)
 
-  const resolvedPeers = R.isEmpty(resolvedPackage.peerDependencies)
-    ? {}
+  const { resolvedPeers, missingPeers } = R.isEmpty(resolvedPackage.peerDependencies)
+    ? { resolvedPeers: {}, missingPeers: [] }
     : resolvePeers({
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
@@ -206,6 +230,7 @@ function resolvePeersOfNode (
     })
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
+  const allMissingPeers = Array.from(new Set([...missingPeersOfChildren, ...missingPeers]))
 
   let modules: string
   let depPath: string
@@ -225,7 +250,13 @@ function resolvePeersOfNode (
       })))
     modules = path.join(`${localLocation}${peersFolderSuffix}`, 'node_modules')
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
-    const cache = { resolvedPeers: Object.entries(allResolvedPeers), depPath }
+  }
+  if (!isPure || !R.isEmpty(resolvedPackage.peerDependencies)) {
+    const cache = {
+      missingPeers: allMissingPeers,
+      depPath,
+      resolvedPeers: Object.entries(allResolvedPeers),
+    }
     if (ctx.peersCache.has(resolvedPackage.depPath)) {
       ctx.peersCache.get(resolvedPackage.depPath)!.push(cache)
     } else {
@@ -250,7 +281,11 @@ function resolvePeersOfNode (
     }
     ctx.depGraph[depPath] = {
       additionalInfo: resolvedPackage.additionalInfo,
-      children: Object.assign(children, resolvedPeers),
+      children: Object.assign(
+        getPreviouslyResolvedChildren(nodeId, ctx.dependenciesTree),
+        children,
+        resolvedPeers
+      ),
       depPath,
       depth: node.depth,
       dev: resolvedPackage.dev,
@@ -274,7 +309,34 @@ function resolvePeersOfNode (
       version: resolvedPackage.version,
     }
   }
-  return allResolvedPeers
+  return { resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers }
+}
+
+// When a package has itself in the subdependencies, so there's a cycle,
+// pnpm will break the cycle, when it first repeats itself.
+// However, when the cycle is broken up, the last repeated package is removed
+// from the dependencies of the parent package.
+// So we need to merge all the children of all the parent packages with same ID as the resolved package.
+// This way we get all the children that were removed, when ending cycles.
+function getPreviouslyResolvedChildren (nodeId: string, dependenciesTree: DependenciesTree) {
+  const parentIds = splitNodeId(nodeId)
+  const ownId = parentIds.pop()
+  const allChildren = {}
+
+  if (!ownId || !parentIds.includes(ownId)) return allChildren
+
+  const nodeIdChunks = parentIds.join('>').split(ownId)
+  nodeIdChunks.pop()
+  nodeIdChunks.reduce((accNodeId, part) => {
+    accNodeId += `${part}${ownId}`
+    const parentNode = dependenciesTree[`${accNodeId}>`]
+    Object.assign(
+      allChildren,
+      typeof parentNode.children === 'function' ? parentNode.children() : parentNode.children
+    )
+    return accNodeId
+  }, '>')
+  return allChildren
 }
 
 function resolvePeersOfChildren (
@@ -293,11 +355,14 @@ function resolvePeersOfChildren (
     lockfileDir: string
     strictPeerDependencies: boolean
   }
-): {[alias: string]: string} {
-  const allResolvedPeers: {[alias: string]: string} = {}
+): PeersResolution {
+  const allResolvedPeers: Record<string, string> = {}
+  const allMissingPeers = new Set<string>()
 
   for (const childNodeId of R.values(children)) {
-    Object.assign(allResolvedPeers, resolvePeersOfNode(childNodeId, parentPkgs, ctx))
+    const { resolvedPeers, missingPeers } = resolvePeersOfNode(childNodeId, parentPkgs, ctx)
+    Object.assign(allResolvedPeers, resolvedPeers)
+    missingPeers.forEach((missingPeer) => allMissingPeers.add(missingPeer))
   }
 
   const unknownResolvedPeersOfChildren = R.keys(allResolvedPeers)
@@ -307,7 +372,7 @@ function resolvePeersOfChildren (
       return acc
     }, {})
 
-  return unknownResolvedPeersOfChildren
+  return { resolvedPeers: unknownResolvedPeersOfChildren, missingPeers: Array.from(allMissingPeers) }
 }
 
 function resolvePeers (
@@ -320,10 +385,9 @@ function resolvePeers (
     rootDir: string
     strictPeerDependencies: boolean
   }
-): {
-    [alias: string]: string
-  } {
+): PeersResolution {
   const resolvedPeers: {[alias: string]: string} = {}
+  const missingPeers = []
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName]
 
@@ -352,6 +416,7 @@ requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
           message,
           prefix: ctx.rootDir,
         })
+        missingPeers.push(peerName)
         continue
       }
     }
@@ -377,7 +442,7 @@ requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.versio
 
     if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
   }
-  return resolvedPeers
+  return { resolvedPeers, missingPeers }
 }
 
 function packageFriendlyId (manifest: {name: string, version: string}) {
