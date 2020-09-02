@@ -1185,7 +1185,7 @@ test('ignore files in node_modules', async (t: tape.Test) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2339
-test('memory consumption is under control on huge package with many peer dependencies', async (t: tape.Test) => {
+test.skip('memory consumption is under control on huge package with many peer dependencies. Sample 1', async (t: tape.Test) => {
   prepareEmpty(t)
 
   await addDependenciesToPackage(
@@ -1194,6 +1194,22 @@ test('memory consumption is under control on huge package with many peer depende
       version: '0.0.0',
     },
     ['@teambit/bit@0.0.30'],
+    await testDefaults({ fastUnpack: true, lockfileOnly: true })
+  )
+
+  t.ok(await exists('pnpm-lock.yaml'), 'lockfile created')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/2339
+test.skip('memory consumption is under control on huge package with many peer dependencies. Sample 2', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['@teambit/react@0.0.30'],
     await testDefaults({ fastUnpack: true, lockfileOnly: true })
   )
 
