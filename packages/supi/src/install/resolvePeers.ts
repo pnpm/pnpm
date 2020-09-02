@@ -282,13 +282,13 @@ function resolvePeersOfNode (
     const parts = splitNodeId(nodeId)
     const end = parts.pop()
     if (end && parts.includes(end)) {
-      let allChildren = {}
+      const allChildren = {}
       const arr = parts.join('>').split(end)
       arr.pop()
       arr.reduce((acc, part) => {
         acc += part + end
         const rootNode = ctx.dependenciesTree[acc + '>']
-        Object.assign(allChildren, typeof rootNode.children === 'function' ? rootNode.children(): rootNode.children)
+        Object.assign(allChildren, typeof rootNode.children === 'function' ? rootNode.children() : rootNode.children)
         return acc
       }, '>')
       children = Object.assign(allChildren, children)
