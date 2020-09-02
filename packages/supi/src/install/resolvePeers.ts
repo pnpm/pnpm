@@ -401,6 +401,7 @@ function resolvePeers (
           version,
         }
       } catch (err) {
+        missingPeers.push(peerName)
         if (
           ctx.resolvedPackage.additionalInfo.peerDependenciesMeta?.[peerName]?.optional === true
         ) {
@@ -416,7 +417,6 @@ requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
           message,
           prefix: ctx.rootDir,
         })
-        missingPeers.push(peerName)
         continue
       }
     }
