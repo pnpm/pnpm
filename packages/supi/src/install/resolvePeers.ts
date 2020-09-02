@@ -175,7 +175,7 @@ function resolvePeersOfNode (
   if (typeof node.children === 'function') {
     node.children = node.children()
   }
-  let children = node.children
+  const children = node.children
   const parentPkgs = R.isEmpty(children)
     ? parentParentPkgs
     : {
@@ -279,23 +279,13 @@ function resolvePeersOfNode (
         }
       }
     }
-    const parts = splitNodeId(nodeId)
-    const end = parts.pop()
-    if (end && parts.includes(end)) {
-      const allChildren = {}
-      const arr = parts.join('>').split(end)
-      arr.pop()
-      arr.reduce((acc, part) => {
-        acc += part + end
-        const rootNode = ctx.dependenciesTree[acc + '>']
-        Object.assign(allChildren, typeof rootNode.children === 'function' ? rootNode.children() : rootNode.children)
-        return acc
-      }, '>')
-      children = Object.assign(allChildren, children)
-    }
     ctx.depGraph[depPath] = {
       additionalInfo: resolvedPackage.additionalInfo,
-      children: Object.assign(children, resolvedPeers),
+      children: Object.assign(
+        getPreviouslyResolvedChildren(nodeId, ctx.dependenciesTree),
+        children,
+        resolvedPeers
+      ),
       depPath,
       depth: node.depth,
       dev: resolvedPackage.dev,
@@ -320,6 +310,27 @@ function resolvePeersOfNode (
     }
   }
   return { resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers }
+}
+
+function getPreviouslyResolvedChildren (nodeId: string, dependenciesTree: DependenciesTree) {
+  const parentIds = splitNodeId(nodeId)
+  const ownId = parentIds.pop()
+  const allChildren = {}
+
+  if (!ownId || !parentIds.includes(ownId)) return allChildren
+
+  const nodeIdChunks = parentIds.join('>').split(ownId)
+  nodeIdChunks.pop()
+  nodeIdChunks.reduce((accNodeId, part) => {
+    accNodeId += `${part}${ownId}`
+    const rootNode = dependenciesTree[`${accNodeId}>`]
+    Object.assign(
+      allChildren,
+      typeof rootNode.children === 'function' ? rootNode.children() : rootNode.children
+    )
+    return accNodeId
+  }, '>')
+  return allChildren
 }
 
 function resolvePeersOfChildren (
