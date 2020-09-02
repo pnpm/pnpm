@@ -677,8 +677,11 @@ async function resolveDependency (
     })
   }
 
-  // using colon as it will never be used inside a package ID
-  const nodeId = createNodeId(options.parentPkg.nodeId, pkgResponse.body.id)
+  // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
+  // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
+  const nodeId = pkgIsLeaf(pkg)
+    ? pkgResponse.body.id
+    : createNodeId(options.parentPkg.nodeId, pkgResponse.body.id)
 
   const currentIsInstallable = (
     ctx.force ||
@@ -732,13 +735,17 @@ async function resolveDependency (
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev || wantedDependency.dev
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional && wantedDependency.optional
 
-    ctx.pendingNodes.push({
-      alias: wantedDependency.alias || pkg.name,
-      depth: options.currentDepth,
-      installable,
-      nodeId,
-      resolvedPackage: ctx.resolvedPackagesByPackageId[pkgResponse.body.id],
-    })
+    if (ctx.dependenciesTree[nodeId]) {
+      ctx.dependenciesTree[nodeId].depth = Math.min(ctx.dependenciesTree[nodeId].depth, options.currentDepth)
+    } else {
+      ctx.pendingNodes.push({
+        alias: wantedDependency.alias || pkg.name,
+        depth: options.currentDepth,
+        installable,
+        nodeId,
+        resolvedPackage: ctx.resolvedPackagesByPackageId[pkgResponse.body.id],
+      })
+    }
   }
 
   return {
@@ -756,6 +763,12 @@ async function resolveDependency (
     updated: pkgResponse.body.updated,
     useManifestInfoFromLockfile,
   }
+}
+
+function pkgIsLeaf (pkg: PackageManifest) {
+  return R.isEmpty(pkg.dependencies ?? {}) &&
+    R.isEmpty(pkg.optionalDependencies ?? {}) &&
+    R.isEmpty(pkg.peerDependencies ?? {})
 }
 
 function getResolvedPackage (

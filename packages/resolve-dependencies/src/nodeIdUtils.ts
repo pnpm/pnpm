@@ -8,6 +8,7 @@ export function nodeIdContainsSequence (nodeId: string, pkgId1: string, pkgId2: 
 }
 
 export function createNodeId (parentNodeId: string, pkgId: string) {
+  // using ">" as a separator because it will never be used inside a package ID
   return `${parentNodeId}${pkgId}>`
 }
 
