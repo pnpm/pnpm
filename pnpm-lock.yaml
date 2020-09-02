@@ -1547,7 +1547,7 @@ importers:
       load-json-file: ^6.2.0
       ncp: ^2.0.0
       render-help: ^1.0.0
-      supi: 'workspace:0.41.23'
+      supi: 'workspace:0.41.24'
       tempy: ^0.6.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1663,7 +1663,7 @@ importers:
       read-yaml-file: ^2.0.0
       render-help: ^1.0.0
       sinon: ^9.0.3
-      supi: 'workspace:0.41.23'
+      supi: 'workspace:0.41.24'
       table: ^6.0.1
       tempy: ^0.6.0
       version-selector-type: ^3.0.0
@@ -2234,8 +2234,8 @@ importers:
       '@pnpm/modules-yaml': 'workspace:*'
       '@pnpm/parse-cli-args': 'workspace:3.1.2'
       '@pnpm/plugin-commands-audit': 'workspace:2.0.11'
-      '@pnpm/plugin-commands-import': 'workspace:1.0.55'
-      '@pnpm/plugin-commands-installation': 'workspace:3.1.14'
+      '@pnpm/plugin-commands-import': 'workspace:1.0.56'
+      '@pnpm/plugin-commands-installation': 'workspace:3.1.15'
       '@pnpm/plugin-commands-listing': 'workspace:2.0.21'
       '@pnpm/plugin-commands-outdated': 'workspace:3.0.10'
       '@pnpm/plugin-commands-publishing': 'workspace:2.1.20'

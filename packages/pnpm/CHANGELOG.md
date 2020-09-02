@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.5.8
+
+### Patch Changes
+
+- "Heap out of memory" error fixed, which happened on some huge projects with big amount of peer dependencies, since pnpm v3.4.0 (#2339).
+
 ## 5.5.7
 
 ### Patch Changes

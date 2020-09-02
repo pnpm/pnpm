@@ -1,5 +1,11 @@
 # supi
 
+## 0.41.24
+
+### Patch Changes
+
+- c7e856fac: Cache the already resolved peer dependencies to make peers resolution faster and consume less memory.
+
 ## 0.41.23
 
 ### Patch Changes
