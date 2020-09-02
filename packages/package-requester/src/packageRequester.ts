@@ -469,7 +469,6 @@ function fetchToStore (
           })
       )
       await writeJsonFile(filesIndexFile, { files: integrity })
-      finishing.resolve(undefined)
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // eslint-disable-line @typescript-eslint/dot-notation
         await fs.mkdir(target, { recursive: true })
@@ -480,6 +479,7 @@ function fetchToStore (
         filesIndex: integrity,
         fromStore: false,
       })
+      finishing.resolve(undefined)
     } catch (err) {
       files.reject(err)
       if (opts.fetchRawManifest) {

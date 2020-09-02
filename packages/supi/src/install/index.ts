@@ -30,7 +30,6 @@ import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package
 import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
   ResolvedDirectDependency,
-  ResolvedPackage,
 } from '@pnpm/resolve-dependencies'
 import {
   PreferredVersions,
@@ -610,7 +609,7 @@ async function installInContext (
     dependenciesTree,
     outdatedDependencies,
     resolvedImporters,
-    resolvedPackagesByPackageId,
+    resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
   } = await resolveDependencies(
     projectsToResolve,
@@ -780,17 +779,8 @@ async function installInContext (
     }))
   }
 
-  // waiting till the skipped packages are downloaded to the store
-  await Promise.all(
-    R.props<string, ResolvedPackage>(Array.from(wantedToBeSkippedPackageIds), resolvedPackagesByPackageId)
-      // skipped packages might have not been reanalized on a repeat install
-      // so lets just ignore those by excluding nulls
-      .filter(Boolean)
-      .map(({ fetchingFiles }) => fetchingFiles())
-  )
-
   // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing()))
+  await Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
 
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
