@@ -172,7 +172,10 @@ function resolvePeersOfNode (
     ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
     return { resolvedPeers: {}, missingPeers: [] }
   }
-  const children = typeof node.children === 'function' ? node.children() : node.children
+  if (typeof node.children === 'function') {
+    node.children = node.children()
+  }
+  const children = node.children
   const parentPkgs = R.isEmpty(children)
     ? parentParentPkgs
     : {
@@ -275,6 +278,13 @@ function resolvePeersOfNode (
           resolvedPackage.additionalInfo.peerDependencies[unknownPeer] = '*'
         }
       }
+    }
+    const parts = splitNodeId(nodeId)
+    const end = parts.pop()
+    if (end && parts.includes(end)) {
+      const root = nodeId.substring(0, nodeId.indexOf(`>${end}>`) + end.length + 2)
+      const rootNode = ctx.dependenciesTree[root]
+      Object.assign(children, typeof rootNode.children === 'function' ? rootNode.children() : rootNode.children)
     }
     ctx.depGraph[depPath] = {
       additionalInfo: resolvedPackage.additionalInfo,
