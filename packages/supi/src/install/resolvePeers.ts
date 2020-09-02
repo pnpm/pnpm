@@ -175,7 +175,7 @@ function resolvePeersOfNode (
   if (typeof node.children === 'function') {
     node.children = node.children()
   }
-  const children = node.children
+  let children = node.children
   const parentPkgs = R.isEmpty(children)
     ? parentParentPkgs
     : {
@@ -282,9 +282,16 @@ function resolvePeersOfNode (
     const parts = splitNodeId(nodeId)
     const end = parts.pop()
     if (end && parts.includes(end)) {
-      const root = nodeId.substring(0, nodeId.indexOf(`>${end}>`) + end.length + 2)
-      const rootNode = ctx.dependenciesTree[root]
-      Object.assign(children, typeof rootNode.children === 'function' ? rootNode.children() : rootNode.children)
+      let allChildren = {}
+      const arr = parts.join('>').split(end)
+      arr.pop()
+      arr.reduce((acc, part) => {
+        acc += part + end
+        const rootNode = ctx.dependenciesTree[acc + '>']
+        Object.assign(allChildren, typeof rootNode.children === 'function' ? rootNode.children(): rootNode.children)
+        return acc
+      }, '>')
+      children = Object.assign(allChildren, children)
     }
     ctx.depGraph[depPath] = {
       additionalInfo: resolvedPackage.additionalInfo,

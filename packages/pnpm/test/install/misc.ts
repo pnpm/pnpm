@@ -418,7 +418,7 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
   t.ok(stdout.toString().includes('Unsupported engine'))
 })
 
-test.skip('using a custom virtual-store-dir location', async (t: tape.Test) => {
+test('using a custom virtual-store-dir location', async (t: tape.Test) => {
   prepare(t, {
     dependencies: { rimraf: '2.5.1' },
   })
@@ -440,7 +440,7 @@ test.skip('using a custom virtual-store-dir location', async (t: tape.Test) => {
 })
 
 // This is an integration test only because it is hard to mock is-ci
-test.skip('installing in a CI environment', async (t: tape.Test) => {
+test('installing in a CI environment', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: { rimraf: '2.5.1' },
   })
