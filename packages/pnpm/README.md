@@ -68,7 +68,7 @@ pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](htt
 
 Benchmarks on an app with lots of dependencies:
 
-![](https://cdn.rawgit.com/pnpm/benchmarks-of-javascript-package-managers/5328f01/results/imgs/alotta-files.svg)
+![](https://cdn.rawgit.com/pnpm/benchmarks-of-javascript-package-managers/b9c7f23/results/imgs/alotta-files.svg)
 
 ## Support
 
