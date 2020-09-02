@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.5.9
+
+### Patch Changes
+
+- Always try to resolve optional peer dependencies. Fixes a regression introduced in pnpm v5.5.8
+
 ## 5.5.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # supi
 
+## 0.41.25
+
+### Patch Changes
+
+- c4165dccb: Always try to resolve optional peer dependencies. Fixes a regression introduced in pnpm v5.5.8
+
 ## 0.41.24
 
 ### Patch Changes
