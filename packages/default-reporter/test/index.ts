@@ -1029,3 +1029,40 @@ test('logLevel=error', t => {
     },
   })
 })
+
+test('warnings are collapsed', t => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    reportingOptions: {
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.warn({ message: 'Some issue 1', prefix })
+  logger.warn({ message: 'Some issue 2', prefix })
+  logger.warn({ message: 'Some issue 3', prefix })
+  logger.warn({ message: 'Some issue 4', prefix })
+  logger.warn({ message: 'Some issue 5', prefix })
+  logger.warn({ message: 'Some issue 6', prefix })
+  logger.warn({ message: 'Some issue 7', prefix })
+
+  t.plan(1)
+
+  output$.skip(6).take(1).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `${WARN} Some issue 1
+${WARN} Some issue 2
+${WARN} Some issue 3
+${WARN} Some issue 4
+${WARN} Some issue 5
+${WARN} 2 other warnings`)
+    },
+  })
+})
