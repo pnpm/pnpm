@@ -203,7 +203,7 @@ function resolvePeersOfNode (
         const cachedDepPath = (ctx.dependenciesTree[cachedNodeId].resolvedPackage as ResolvedPackage).depPath
         return parentDepPath === cachedDepPath
       }) && cache.missingPeers.every((missingPeer) => !parentPkgs[missingPeer])
-    )
+  )
   if (hit) {
     ctx.pathsByNodeId[nodeId] = hit.depPath
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
