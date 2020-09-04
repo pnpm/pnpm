@@ -67,7 +67,7 @@
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7770 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.js m i -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
+    "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.js i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
     "prepareFixtures": "registry-mock prepare && run-p -r registry-mock runPrepareFixtures",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },

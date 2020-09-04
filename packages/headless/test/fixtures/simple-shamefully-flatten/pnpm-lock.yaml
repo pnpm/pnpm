@@ -34,7 +34,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
-  /glob/7.1.4:
+  /glob/7.1.6:
     dependencies:
       fs.realpath: 1.0.0
       inflight: 1.0.6
@@ -44,12 +44,12 @@ packages:
       path-is-absolute: 1.0.1
     dev: false
     resolution:
-      integrity: sha512-hkLPepehmnKk41pUGm3sYxoFs/umurYfYJCerbXEyFIWcAzvpipAgVkBqqT9RBKMGjnq6kMuyYwha6csxbiM1A==
+      integrity: sha512-LwaxwyZ72Lk7vZINtNNrywX0ZuLyStrdDtabefZKAY5ZGJhVtgdznluResxNmPitE0SAO+O26sWTHeKSI2wMBA==
   /hello-world-js-bin/1.0.0:
     dev: false
     hasBin: true
     resolution:
-      integrity: sha512-EnV7u31UVbqSFf4+acCPPRoEjjhH1OTR5e8XCxsrsuXxuhvnFRqGNR04eeAKO7LvGQkzwFXH7Cu0mZgKUjQNZQ==
+      integrity: sha512-/ENgcDSnEOz7y99zf3U9IrvQ0WQL+Ddr5Z3nqrrBkr6jaFFu7ujJye0Ne1/4lziovy6UiXMbjVp6vv6P7etKSA==
   /inflight/1.0.6:
     dependencies:
       once: 1.4.0
@@ -98,10 +98,10 @@ packages:
     peerDependencies:
       peer-with-bin: ^1.0.0
     resolution:
-      integrity: sha512-X3GaxrRE/nIoqXCDHolew2z3v6cCx6OeJGd3GKQY2wn1rprYnEvzJa9lceEtcATQiBKiIOeOd2y9Fo+H3iIyCg==
+      integrity: sha512-UrbRC+vOD2Rs32vSzpZFXuzHm/ewvz9Fst9/uu13SrCOc4o6ioj+DBN+fdyG6JxD46EFSGP3bSlev3RRL2c3XQ==
   /rimraf/2.7.1:
     dependencies:
-      glob: 7.1.4
+      glob: 7.1.6
     dev: false
     hasBin: true
     resolution:

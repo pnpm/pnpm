@@ -6,7 +6,7 @@ packages:
     dev: false
     optional: true
     resolution:
-      integrity: sha512-CcWxVV76rxjVg+Z1lxrjnUqArDABZcOHRxcYVzr4H+qdh4cr8z12YpJ7mRIrXRS3tWqpndTXjGjiDzg6Uyve3w==
+      integrity: sha512-tjuG0SSHFpKfpCtJWdc5OHa1N79sigKT7QQPuweVHKljKZivDKbYj7WNasweHROUm99ui+8eX95a5Q90v2mbyQ==
   /not-compatible-with-any-os/1.0.0:
     dependencies:
       dep-of-optional-pkg: 1.0.0
@@ -15,12 +15,12 @@ packages:
     os:
       - this-os-does-not-exist
     resolution:
-      integrity: sha512-0tAyfGm/XxS8KF2jE30g0ra+4XuFPLrX7YFUUZwx1MiTNYIKFr89eAXxkmusJ3uB8t6naC2Tn22xyIXb59WvGQ==
+      integrity: sha512-nmRtxRbdUBglmxurx7soaPoZXcGW5v5yPgVev4g462E2FaAX2mxGTjgn5oKLYV95h85ZW4HHiil3D0OjzBWnOQ==
   /pkg-with-optional/1.0.0:
     dev: false
     optionalDependencies:
       not-compatible-with-any-os: 1.0.0
     resolution:
-      integrity: sha512-bVDJbNpNwvCcvtqSlj73DDZpVPofixlrrvGwkDKjE3vfC1KDX0QGs5i9vF3fQ+Hu3KTeOGBvmiB2grtHIGCC6w==
+      integrity: sha512-7AWJ2Klh/yO1j5Gm0I1z67Wfc7nRm5gjT/y8WMGzWi2CaByepwP00VAbs1QHJtmiccGT0UEC8Oz2So+lCjHdvA==
 specifiers:
   pkg-with-optional: 1.0.0
