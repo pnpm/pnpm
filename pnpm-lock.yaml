@@ -3,7 +3,7 @@ importers:
     devDependencies:
       '@changesets/cli': 2.10.2
       '@pnpm/eslint-config': 'link:utils/eslint-config'
-      '@pnpm/registry-mock': 2.0.1
+      '@pnpm/registry-mock': 2.1.0
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@types/node': 12.12.54
       '@types/tape': 4.13.0
@@ -23,7 +23,7 @@ importers:
     specifiers:
       '@changesets/cli': ^2.10.2
       '@pnpm/eslint-config': 'workspace:*'
-      '@pnpm/registry-mock': ^2.0.1
+      '@pnpm/registry-mock': ^2.1.0
       '@pnpm/tsconfig': 'workspace:*'
       '@types/node': ^12.12.54
       '@types/tape': ^4.13.0
@@ -3526,13 +3526,13 @@ packages:
       node: '>=10.13'
     resolution:
       integrity: sha512-4XVzYoO77hziiJRVTk5pv+9KD631tlqR5+MVu2BlDyrTpgfp+7Su5XPI/2Cek46X2L71vTpYW6LMW22DpmjocA==
-  /@pnpm/registry-mock/2.0.1:
+  /@pnpm/registry-mock/2.1.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       read-yaml-file: 2.0.0
       rimraf: 3.0.2
-      tempy: 0.5.0
+      tempy: 0.6.0
       verdaccio: 4.8.1
       write-yaml-file: 4.1.0
     dev: true
@@ -3540,7 +3540,7 @@ packages:
       node: '>=10.13'
     hasBin: true
     resolution:
-      integrity: sha512-rHimIrV+aclTGBU0S2OLMytV44boh0RV3G8jRyW3bBQrp5sio2xcXEfYXXh2N4iO5/JbfMMsuFSRIXAWyFv1qw==
+      integrity: sha512-taMFAtACZ1eXLonoAzjmw6WP06OlUIBhv5VLoVHI09RlQUm2Ihji99UIURtIhq6Q7kEDgfZ/kH1xx2U7XYbLUA==
   /@pnpm/self-installer/2.1.0:
     dev: false
     engines:
@@ -11848,17 +11848,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==
-  /tempy/0.5.0:
-    dependencies:
-      is-stream: 2.0.0
-      temp-dir: 2.0.0
-      type-fest: 0.12.0
-      unique-string: 2.0.0
-    dev: true
-    engines:
-      node: '>=10'
-    resolution:
-      integrity: sha512-VEY96x7gbIRfsxqsafy2l5yVxxp3PhwAGoWMyC2D2Zt5DmEv+2tGiPOrquNRpf21hhGnKLVEsuqleqiZmKG/qw==
   /tempy/0.6.0:
     dependencies:
       is-stream: 2.0.0
@@ -12216,12 +12205,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-0fr/mIH1dlO+x7TlcMy+bIDqKPsw/70tVyeHW787goQjhmqaZe10uwLujubK9q9Lg6Fiho1KUKDYz0Z7k7g5/g==
-  /type-fest/0.12.0:
-    dev: true
-    engines:
-      node: '>=10'
-    resolution:
-      integrity: sha512-53RyidyjvkGpnWPMF9bQgFtWp+Sl8O2Rp13VavmJgfAP9WWG6q6TkrKU8iyJdnwnfgHI6k2hTlgqH4aSdjoTbg==
   /type-fest/0.13.1:
     dev: true
     engines:

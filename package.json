@@ -17,7 +17,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.10.2",
     "@pnpm/eslint-config": "workspace:*",
-    "@pnpm/registry-mock": "^2.0.1",
+    "@pnpm/registry-mock": "^2.1.0",
     "@pnpm/tsconfig": "workspace:*",
     "@types/node": "^12.12.54",
     "@types/tape": "^4.13.0",

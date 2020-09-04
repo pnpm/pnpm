@@ -528,6 +528,18 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async (t: tape.T
   )
 })
 
+test('installing a package with bundleDependencies set to false (pkg-with-bundle-dependencies-false)', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['pkg-with-bundle-dependencies-false'], await testDefaults({ fastUnpack: false }))
+
+  const lockfile = await project.readLockfile()
+  t.equal(
+    typeof lockfile.packages['/pkg-with-bundle-dependencies-false/1.0.0'].bundledDependencies,
+    'undefined'
+  )
+})
+
 test('compiled modules (ursa@0.9.1)', async (t) => {
   // TODO: fix this for Node.js v7
   if (!isCI || IS_WINDOWS || semver.satisfies(process.version, '>=7.0.0')) {

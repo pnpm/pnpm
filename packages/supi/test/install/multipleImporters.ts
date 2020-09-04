@@ -1034,6 +1034,7 @@ test('resolve a subdependency from the workspace', async (t) => {
 })
 
 test('resolve a subdependency from the workspace and use it as a peer', async (t) => {
+  await addDistTag('peer-c', '1.0.1', 'latest')
   preparePackages(t, [
     {
       location: 'project',
