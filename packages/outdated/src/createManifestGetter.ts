@@ -15,7 +15,7 @@ interface GetManifestOpts {
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
 & GetManifestOpts
-& { rawConfig: Record<string, string> }
+& { fullMetadata: boolean, rawConfig: Record<string, string> }
 
 export function createManifestGetter (
   opts: ManifestGetterOptions

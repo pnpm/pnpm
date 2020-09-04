@@ -171,7 +171,11 @@ export async function handler (
       manifest: await readProjectManifestOnly(opts.dir, opts),
     },
   ]
-  const [outdatedPackages] = (await outdatedDepsOfProjects(packages, params, { ...opts, include }))
+  const [outdatedPackages] = await outdatedDepsOfProjects(packages, params, {
+    ...opts,
+    fullMetadata: opts.long,
+    include,
+  })
 
   if (!outdatedPackages.length) return { output: '', exitCode: 0 }
 
