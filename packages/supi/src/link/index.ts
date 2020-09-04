@@ -11,6 +11,13 @@ import {
   writeLockfiles,
 } from '@pnpm/lockfile-file'
 import logger, { streamParser } from '@pnpm/logger'
+import {
+  getPref,
+  getSpecFromPackageManifest,
+  guessDependencyType,
+  PackageSpecObject,
+  save,
+} from '@pnpm/manifest-utils'
 import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import readProjectManifest from '@pnpm/read-project-manifest'
@@ -21,9 +28,6 @@ import {
   DependencyManifest,
   ProjectManifest,
 } from '@pnpm/types'
-import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
-import save, { guessDependencyType, PackageSpecObject } from '../save'
-import getPref from '../utils/getPref'
 import {
   extendOptions,
   LinkOptions,

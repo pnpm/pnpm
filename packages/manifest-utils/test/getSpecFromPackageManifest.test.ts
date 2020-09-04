@@ -1,8 +1,5 @@
-import getSpecFromPackageManifest from 'supi/lib/getSpecFromPackageManifest'
-import promisifyTape from 'tape-promise'
-import tape = require('tape')
-
-const test = promisifyTape(tape)
+import { getSpecFromPackageManifest } from '@pnpm/manifest-utils'
+import test = require('tape')
 
 test('getSpecFromPackageManifest()', (t) => {
   t.equal(

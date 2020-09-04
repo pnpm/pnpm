@@ -16,7 +16,12 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
-import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
+import {
+  DependenciesGraph,
+  DependenciesGraphNode,
+  LinkedDependency,
+  ProjectToLink,
+} from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
@@ -24,12 +29,6 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import { depPathToRef } from './lockfile'
-import resolvePeers, {
-  DependenciesGraph,
-  DependenciesGraphNode,
-} from './resolvePeers'
-import updateLockfile from './updateLockfile'
 import path = require('path')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
@@ -37,27 +36,9 @@ import R = require('ramda')
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
-export {
-  DependenciesGraph,
-  DependenciesGraphNode,
-}
-
-export interface Project {
-  binsDir: string
-  directNodeIdsByAlias: {[alias: string]: string}
-  id: string
-  linkedDependencies: LinkedDependency[]
-  manifest: ProjectManifest
-  modulesDir: string
-  pruneDirectDependencies: boolean
-  removePackages?: string[]
-  rootDir: string
-  topParents: Array<{name: string, version: string}>
-}
-
 export default async function linkPackages (
-  projects: Project[],
-  dependenciesTree: DependenciesTree,
+  projects: ProjectToLink[],
+  depGraph: DependenciesGraph,
   opts: {
     afterAllResolvedHook?: (lockfile: Lockfile) => Lockfile
     currentLockfile: Lockfile
@@ -71,6 +52,10 @@ export default async function linkPackages (
     lockfileDir: string
     makePartialCurrentLockfile: boolean
     outdatedDependencies: {[pkgId: string]: string}
+    pendingRequiresBuilds: string[]
+    projectsDirectPathsByAlias: {
+      [id: string]: {[alias: string]: string}
+    }
     pruneStore: boolean
     registries: Registries
     rootModulesDir: string
@@ -81,7 +66,7 @@ export default async function linkPackages (
     // This is only needed till lockfile v4
     updateLockfileMinorVersion: boolean
     virtualStoreDir: string
-    wantedLockfile: Lockfile
+    newLockfile: Lockfile,
     wantedToBeSkippedPackageIds: Set<string>
   }
 ): Promise<{
@@ -92,42 +77,9 @@ export default async function linkPackages (
     removedDepPaths: Set<string>
     wantedLockfile: Lockfile
   }> {
-  // TODO: decide what kind of logging should be here.
-  // The `Creating dependency graph` is not good to report in all cases as
-  // sometimes node_modules is alread up-to-date
-  // logger.info(`Creating dependency graph`)
-  const { depGraph, projectsDirectPathsByAlias } = resolvePeers({
-    dependenciesTree,
-    lockfileDir: opts.lockfileDir,
-    projects,
-    strictPeerDependencies: opts.strictPeerDependencies,
-    virtualStoreDir: opts.virtualStoreDir,
-  })
-  for (const { id } of projects) {
-    for (const [alias, depPath] of R.toPairs(projectsDirectPathsByAlias[id])) {
-      const depNode = depGraph[depPath]
-      if (depNode.isPure) continue
-
-      const projectSnapshot = opts.wantedLockfile.importers[id]
-      const ref = depPathToRef(depPath, {
-        alias,
-        realName: depNode.name,
-        registries: opts.registries,
-        resolution: depNode.resolution,
-      })
-      if (projectSnapshot.dependencies?.[alias]) {
-        projectSnapshot.dependencies[alias] = ref
-      } else if (projectSnapshot.devDependencies?.[alias]) {
-        projectSnapshot.devDependencies[alias] = ref
-      } else if (projectSnapshot.optionalDependencies?.[alias]) {
-        projectSnapshot.optionalDependencies[alias] = ref
-      }
-    }
-  }
-  const { newLockfile, pendingRequiresBuilds } = updateLockfile(depGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
   const newWantedLockfile = opts.afterAllResolvedHook
-    ? opts.afterAllResolvedHook(newLockfile)
-    : newLockfile
+    ? opts.afterAllResolvedHook(opts.newLockfile)
+    : opts.newLockfile
 
   let depNodes = R.values(depGraph).filter(({ depPath, packageId }) => {
     if (newWantedLockfile.packages?.[depPath] && !newWantedLockfile.packages[depPath].optional) {
@@ -214,7 +166,7 @@ export default async function linkPackages (
     }, {})
 
   await Promise.all(projects.map(({ id, manifest, modulesDir, rootDir }) => {
-    const directPathsByAlias = projectsDirectPathsByAlias[id]
+    const directPathsByAlias = opts.projectsDirectPathsByAlias[id]
     return Promise.all(
       Object.keys(directPathsByAlias)
         .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directPathsByAlias[rootAlias]] }))
@@ -246,7 +198,7 @@ export default async function linkPackages (
     newWantedLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
-  await Promise.all(pendingRequiresBuilds.map(async (depPath) => {
+  await Promise.all(opts.pendingRequiresBuilds.map(async (depPath) => {
     const depNode = depGraph[depPath]
     if (!depNode.fetchingBundledManifest) {
       // This should never ever happen

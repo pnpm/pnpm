@@ -22,12 +22,15 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils",
   "scripts": {
-    "test": "pnpm run compile",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/manifest-utils/coverage ts-node packages/manifest-utils/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
+    "@pnpm/core-loggers": "workspace:^4.2.0",
+    "@pnpm/error": "workspace:^1.3.1",
     "@pnpm/types": "workspace:6.2.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils#readme",
