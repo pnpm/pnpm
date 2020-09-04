@@ -595,7 +595,7 @@ async function installInContext (
     workspacePackages: opts.workspacePackages,
   })
   const projectsToResolve = await Promise.all(projects.map((project) => _toResolveImporter(project)))
-  const {
+  let {
     dependenciesGraph,
     newLockfile,
     outdatedDependencies,
@@ -635,51 +635,84 @@ async function installInContext (
     stage: 'resolution_done',
   })
 
-  const result = await linkPackages(
-    projectsToLink,
-    dependenciesGraph,
-    {
-      afterAllResolvedHook: opts.hooks?.afterAllResolved,
-      currentLockfile: ctx.currentLockfile,
-      dryRun: opts.lockfileOnly,
-      force: opts.force,
-      hoistedDependencies: ctx.hoistedDependencies,
-      hoistedModulesDir: ctx.hoistedModulesDir,
-      hoistPattern: ctx.hoistPattern,
-      include: opts.include,
-      lockfileDir: opts.lockfileDir,
-      makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
-      outdatedDependencies,
-      pendingRequiresBuilds,
-      projectsDirectPathsByAlias,
-      pruneStore: opts.pruneStore,
-      publicHoistPattern: ctx.publicHoistPattern,
-      registries: ctx.registries,
-      rootModulesDir: ctx.rootModulesDir,
-      sideEffectsCacheRead: opts.sideEffectsCacheRead,
-      skipped: ctx.skipped,
-      storeController: opts.storeController,
-      strictPeerDependencies: opts.strictPeerDependencies,
-      updateLockfileMinorVersion: opts.updateLockfileMinorVersion,
-      virtualStoreDir: ctx.virtualStoreDir,
-      newLockfile,
-      wantedToBeSkippedPackageIds,
-    }
-  )
+  newLockfile = opts.hooks?.afterAllResolved
+    ? opts.hooks?.afterAllResolved(newLockfile)
+    : newLockfile
 
-  ctx.pendingBuilds = ctx.pendingBuilds
-    .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
-
-  if (opts.ignoreScripts) {
-    // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
-    ctx.pendingBuilds = ctx.pendingBuilds
-      .concat(
-        result.newDepPaths
-          .filter((depPath) => result.depGraph[depPath].requiresBuild)
-      )
+  if (opts.updateLockfileMinorVersion) {
+    newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
+  await Promise.all(pendingRequiresBuilds.map(async (depPath) => {
+    const depNode = dependenciesGraph[depPath]
+    if (!depNode.fetchingBundledManifest) {
+      // This should never ever happen
+      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
+    }
+    const filesResponse = await depNode.fetchingFiles()
+    // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+    const pkgJson = await depNode.fetchingBundledManifest()
+    depNode.requiresBuild = Boolean(
+      pkgJson.scripts != null && (
+        Boolean(pkgJson.scripts.preinstall) ||
+        Boolean(pkgJson.scripts.install) ||
+        Boolean(pkgJson.scripts.postinstall)
+      ) ||
+      filesResponse.filesIndex['binding.gyp'] ||
+        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
+    )
+
+    // TODO: try to cover with unit test the case when entry is no longer available in lockfile
+    // It is an edge that probably happens if the entry is removed during lockfile prune
+    if (depNode.requiresBuild && newLockfile.packages![depPath]) {
+      newLockfile.packages![depPath].requiresBuild = true
+    }
+  }))
+
+  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (!opts.lockfileOnly) {
+    const result = await linkPackages(
+      projectsToLink,
+      dependenciesGraph,
+      {
+        currentLockfile: ctx.currentLockfile,
+        dryRun: opts.lockfileOnly,
+        force: opts.force,
+        hoistedDependencies: ctx.hoistedDependencies,
+        hoistedModulesDir: ctx.hoistedModulesDir,
+        hoistPattern: ctx.hoistPattern,
+        include: opts.include,
+        lockfileDir: opts.lockfileDir,
+        makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
+        outdatedDependencies,
+        projectsDirectPathsByAlias,
+        pruneStore: opts.pruneStore,
+        publicHoistPattern: ctx.publicHoistPattern,
+        registries: ctx.registries,
+        rootModulesDir: ctx.rootModulesDir,
+        sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        skipped: ctx.skipped,
+        storeController: opts.storeController,
+        strictPeerDependencies: opts.strictPeerDependencies,
+        updateLockfileMinorVersion: opts.updateLockfileMinorVersion,
+        virtualStoreDir: ctx.virtualStoreDir,
+        newWantedLockfile: newLockfile,
+        wantedToBeSkippedPackageIds,
+      }
+    )
+
+    ctx.pendingBuilds = ctx.pendingBuilds
+      .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
+
+    if (opts.ignoreScripts) {
+      // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
+      ctx.pendingBuilds = ctx.pendingBuilds
+        .concat(
+          result.newDepPaths
+            .filter((depPath) => result.depGraph[depPath].requiresBuild)
+        )
+    }
+
     // postinstall hooks
     if (!opts.ignoreScripts && result.newDepPaths?.length) {
       const depPaths = Object.keys(result.depGraph)
@@ -719,15 +752,7 @@ async function installInContext (
         })
       }
     }))
-  }
 
-  // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
-
-  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
-  if (opts.lockfileOnly) {
-    await writeWantedLockfile(ctx.lockfileDir, result.wantedLockfile, lockfileOpts)
-  } else {
     await Promise.all([
       opts.useLockfile
         ? writeLockfiles({
@@ -758,7 +783,18 @@ async function installInContext (
         })
       })(),
     ])
+  } else {
+    await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
+
+    // This is only needed because otherwise the reporter will hang
+    stageLogger.debug({
+      prefix: opts.lockfileDir,
+      stage: 'importing_done',
+    })
   }
+
+  // waiting till package requests are finished
+  await Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
 
@@ -848,4 +884,3 @@ function linkAllBins (
     depNodes.map(depNode => limitLinking(() => linkBinsOfDependencies(depNode, depGraph, opts)))
   )
 }
-

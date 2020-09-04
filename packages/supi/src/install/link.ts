@@ -1,8 +1,4 @@
-import {
-  ENGINE_NAME,
-  LOCKFILE_VERSION,
-  WANTED_LOCKFILE,
-} from '@pnpm/constants'
+import { ENGINE_NAME } from '@pnpm/constants'
 import {
   rootLogger,
   stageLogger,
@@ -19,14 +15,12 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import {
   DependenciesGraph,
   DependenciesGraphNode,
-  LinkedDependency,
   ProjectToLink,
 } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   HoistedDependencies,
-  ProjectManifest,
   Registries,
 } from '@pnpm/types'
 import path = require('path')
@@ -40,7 +34,6 @@ export default async function linkPackages (
   projects: ProjectToLink[],
   depGraph: DependenciesGraph,
   opts: {
-    afterAllResolvedHook?: (lockfile: Lockfile) => Lockfile
     currentLockfile: Lockfile
     dryRun: boolean
     force: boolean
@@ -52,7 +45,6 @@ export default async function linkPackages (
     lockfileDir: string
     makePartialCurrentLockfile: boolean
     outdatedDependencies: {[pkgId: string]: string}
-    pendingRequiresBuilds: string[]
     projectsDirectPathsByAlias: {
       [id: string]: {[alias: string]: string}
     }
@@ -66,7 +58,7 @@ export default async function linkPackages (
     // This is only needed till lockfile v4
     updateLockfileMinorVersion: boolean
     virtualStoreDir: string
-    newLockfile: Lockfile,
+    newWantedLockfile: Lockfile
     wantedToBeSkippedPackageIds: Set<string>
   }
 ): Promise<{
@@ -77,12 +69,8 @@ export default async function linkPackages (
     removedDepPaths: Set<string>
     wantedLockfile: Lockfile
   }> {
-  const newWantedLockfile = opts.afterAllResolvedHook
-    ? opts.afterAllResolvedHook(opts.newLockfile)
-    : opts.newLockfile
-
   let depNodes = R.values(depGraph).filter(({ depPath, packageId }) => {
-    if (newWantedLockfile.packages?.[depPath] && !newWantedLockfile.packages[depPath].optional) {
+    if (opts.newWantedLockfile.packages?.[depPath] && !opts.newWantedLockfile.packages[depPath].optional) {
       opts.skipped.delete(depPath)
       return true
     }
@@ -115,7 +103,7 @@ export default async function linkPackages (
     skipped: opts.skipped,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
-    wantedLockfile: newWantedLockfile,
+    wantedLockfile: opts.newWantedLockfile,
   })
 
   stageLogger.debug({
@@ -129,7 +117,7 @@ export default async function linkPackages (
     registries: opts.registries,
     skipped: opts.skipped,
   }
-  const newCurrentLockfile = filterLockfileByImporters(newWantedLockfile, projectIds, {
+  const newCurrentLockfile = filterLockfileByImporters(opts.newWantedLockfile, projectIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
     skipped: new Set(),
@@ -194,57 +182,27 @@ export default async function linkPackages (
     )
   }))
 
-  if (opts.updateLockfileMinorVersion) {
-    newWantedLockfile.lockfileVersion = LOCKFILE_VERSION
-  }
-
-  await Promise.all(opts.pendingRequiresBuilds.map(async (depPath) => {
-    const depNode = depGraph[depPath]
-    if (!depNode.fetchingBundledManifest) {
-      // This should never ever happen
-      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
-    }
-    const filesResponse = await depNode.fetchingFiles()
-    // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-    const pkgJson = await depNode.fetchingBundledManifest()
-    depNode.requiresBuild = Boolean(
-      pkgJson.scripts != null && (
-        Boolean(pkgJson.scripts.preinstall) ||
-        Boolean(pkgJson.scripts.install) ||
-        Boolean(pkgJson.scripts.postinstall)
-      ) ||
-      filesResponse.filesIndex['binding.gyp'] ||
-        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
-    )
-
-    // TODO: try to cover with unit test the case when entry is no longer available in lockfile
-    // It is an edge that probably happens if the entry is removed during lockfile prune
-    if (depNode.requiresBuild && newWantedLockfile.packages![depPath]) {
-      newWantedLockfile.packages![depPath].requiresBuild = true
-    }
-  }))
-
   let currentLockfile: Lockfile
-  const allImportersIncluded = R.equals(projectIds.sort(), Object.keys(newWantedLockfile.importers).sort())
+  const allImportersIncluded = R.equals(projectIds.sort(), Object.keys(opts.newWantedLockfile.importers).sort())
   if (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
   ) {
     const packages = opts.currentLockfile.packages ?? {}
-    if (newWantedLockfile.packages) {
-      for (const depPath in newWantedLockfile.packages) { // eslint-disable-line:forin
+    if (opts.newWantedLockfile.packages) {
+      for (const depPath in opts.newWantedLockfile.packages) { // eslint-disable-line:forin
         if (depGraph[depPath]) {
-          packages[depPath] = newWantedLockfile.packages[depPath]
+          packages[depPath] = opts.newWantedLockfile.packages[depPath]
         }
       }
     }
     const projects = projectIds.reduce((acc, projectId) => {
-      acc[projectId] = newWantedLockfile.importers[projectId]
+      acc[projectId] = opts.newWantedLockfile.importers[projectId]
       return acc
     }, opts.currentLockfile.importers)
     currentLockfile = filterLockfileByImporters(
       {
-        ...newWantedLockfile,
+        ...opts.newWantedLockfile,
         importers: projects,
         packages,
       },
@@ -260,7 +218,7 @@ export default async function linkPackages (
     opts.include.optionalDependencies &&
     opts.skipped.size === 0
   ) {
-    currentLockfile = newWantedLockfile
+    currentLockfile = opts.newWantedLockfile
   } else {
     currentLockfile = newCurrentLockfile
   }
@@ -301,7 +259,7 @@ export default async function linkPackages (
     newDepPaths,
     newHoistedDependencies,
     removedDepPaths,
-    wantedLockfile: newWantedLockfile,
+    wantedLockfile: opts.newWantedLockfile,
   }
 }
 
