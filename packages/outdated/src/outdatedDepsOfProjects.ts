@@ -17,10 +17,10 @@ import R = require('ramda')
 export default async function outdatedDepsOfProjects (
   pkgs: Array<{dir: string, manifest: ProjectManifest}>,
   args: string[],
-  opts: Omit<ManifestGetterOptions, 'storeDir' | 'lockfileDir'> & {
+  opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'storeDir' | 'lockfileDir'> & {
     compatible?: boolean
     include: IncludedDependencies
-  } & Partial<Pick<ManifestGetterOptions, 'storeDir' | 'lockfileDir'>>
+  } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'storeDir' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
     return R.unnest(await Promise.all(
@@ -37,6 +37,7 @@ export default async function outdatedDepsOfProjects (
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const getLatestManifest = createManifestGetter({
     ...opts,
+    fullMetadata: opts.fullMetadata === true,
     lockfileDir,
     storeDir,
   })

@@ -12,6 +12,7 @@ import test = require('tape')
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
+const has2OutdatedDepsFixture = path.join(fixtures, 'has-2-outdated-deps')
 const hasOutdatedDepsFixtureAndExternalLockfile = path.join(fixtures, 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
 const hasNotOutdatedDepsFixture = path.join(fixtures, 'has-not-outdated-deps')
 const hasMajorOutdatedDepsFixture = path.join(fixtures, 'has-major-outdated-deps')
@@ -62,6 +63,34 @@ test('pnpm outdated: show details', async (t) => {
 ├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
 │ is-positive (dev) │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
 └───────────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
+`)
+  t.end()
+})
+
+test('pnpm outdated: show details (using the public registry to verify that full metadata is being requested)', async (t) => {
+  tempDir(t)
+
+  await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
+  await fs.copyFile(path.join(has2OutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  await fs.copyFile(path.join(has2OutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+    long: true,
+    rawConfig: { registry: 'https://registry.npmjs.org/' },
+    registries: { default: 'https://registry.npmjs.org/' },
+  })
+
+  t.equal(exitCode, 1)
+  t.equal(stripAnsi(output), `\
+┌───────────────────┬─────────┬────────┬─────────────────────────────────────────────┐
+│ Package           │ Current │ Latest │ Details                                     │
+├───────────────────┼─────────┼────────┼─────────────────────────────────────────────┤
+│ is-negative       │ 1.0.1   │ 2.1.0  │ https://github.com/kevva/is-negative#readme │
+├───────────────────┼─────────┼────────┼─────────────────────────────────────────────┤
+│ is-positive (dev) │ 1.0.0   │ 3.1.0  │ https://github.com/kevva/is-positive#readme │
+└───────────────────┴─────────┴────────┴─────────────────────────────────────────────┘
 `)
   t.end()
 })
