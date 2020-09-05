@@ -1061,10 +1061,14 @@ importers:
       tempy: ^0.6.0
   packages/manifest-utils:
     dependencies:
+      '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
     devDependencies:
       '@pnpm/manifest-utils': 'link:'
     specifiers:
+      '@pnpm/core-loggers': 'workspace:^4.2.0'
+      '@pnpm/error': 'workspace:^1.3.1'
       '@pnpm/manifest-utils': 'link:'
       '@pnpm/types': 'workspace:6.2.0'
   packages/matcher:
@@ -2447,37 +2451,49 @@ importers:
       is-windows: ^1.0.2
   packages/resolve-dependencies:
     dependencies:
+      '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/manifest-utils': 'link:../manifest-utils'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/pkgid-to-filename': 3.0.0
+      '@pnpm/prune-lockfile': 'link:../prune-lockfile'
+      '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
+      encode-registry: 2.0.2
+      get-npm-tarball-url: 2.0.1
+      import-from: 3.0.0
       path-exists: 4.0.0
       ramda: 0.27.1
       replace-string: 3.1.0
       semver: 7.3.2
+      version-selector-type: 2.0.1
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@pnpm/resolve-dependencies': 'link:'
       '@types/ramda': 0.27.14
       '@types/semver': 7.3.3
     specifiers:
+      '@pnpm/constants': 'workspace:^4.0.0'
       '@pnpm/core-loggers': 'workspace:4.2.0'
       '@pnpm/error': 'workspace:1.3.1'
       '@pnpm/lockfile-types': 'workspace:2.0.1'
       '@pnpm/lockfile-utils': 'workspace:2.0.16'
       '@pnpm/logger': ^3.2.2
+      '@pnpm/manifest-utils': 'workspace:^1.0.3'
       '@pnpm/npm-resolver': 'workspace:10.0.1'
       '@pnpm/package-is-installable': 'workspace:4.0.14'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.3'
       '@pnpm/pkgid-to-filename': ^3.0.0
+      '@pnpm/prune-lockfile': 'workspace:^2.0.14'
+      '@pnpm/read-package-json': 'workspace:^3.1.5'
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@pnpm/store-controller-types': 'workspace:8.0.2'
@@ -2485,10 +2501,14 @@ importers:
       '@types/ramda': ^0.27.14
       '@types/semver': ^7.3.3
       dependency-path: 'workspace:5.0.3'
+      encode-registry: ^2.0.2
+      get-npm-tarball-url: ^2.0.1
+      import-from: ^3.0.0
       path-exists: ^4.0.0
       ramda: ^0.27.1
       replace-string: ^3.1.0
       semver: ^7.3.2
+      version-selector-type: ^2.0.1
   packages/resolve-workspace-range:
     dependencies:
       semver: 7.3.2
@@ -2644,11 +2664,8 @@ importers:
       '@zkochan/npm-package-arg': 1.0.2
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'link:../dependency-path'
-      encode-registry: 2.0.2
-      get-npm-tarball-url: 2.0.1
       graceful-fs: 4.2.4
       graph-sequencer: 2.0.0
-      import-from: 3.0.0
       is-inner-link: 2.0.2
       is-subdir: 1.1.1
       load-json-file: 6.2.0
@@ -2763,13 +2780,10 @@ importers:
       deep-require-cwd: 1.0.0
       dependency-path: 'workspace:5.0.3'
       dir-is-case-sensitive: ^1.0.2
-      encode-registry: ^2.0.2
       execa: ^4.0.3
       exists-link: 2.0.0
-      get-npm-tarball-url: ^2.0.1
       graceful-fs: ^4.2.4
       graph-sequencer: 2.0.0
-      import-from: ^3.0.0
       is-ci: ^2.0.0
       is-inner-link: ^2.0.2
       is-subdir: ^1.1.1
@@ -12513,6 +12527,14 @@ packages:
       '0': node >=0.6.0
     resolution:
       integrity: sha1-OhBcoXBTr1XW4nDB+CiGguGNpAA=
+  /version-selector-type/2.0.1:
+    dependencies:
+      semver: 6.3.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-wglKuX3nE2jJPld8UfSKo8YZeYovkAsErRCzbzEt5hHWp+s1Ai4q97dQI5X7wFXAykeHxvez38HJScuUWPxb6g==
   /version-selector-type/3.0.0:
     dependencies:
       semver: 7.3.2

@@ -1,12 +1,16 @@
-import PnpmError from '@pnpm/error'
-import { ResolvedDirectDependency } from '@pnpm/resolve-dependencies'
+import {
+  createVersionSpec,
+  getPrefix,
+  PackageSpecObject,
+  PinnedVersion,
+  updateProjectManifestObject,
+} from '@pnpm/manifest-utils'
 import versionSelectorType from 'version-selector-type'
-import { ImporterToUpdate } from '../install'
-import { PinnedVersion } from '../install/getWantedDependencies'
-import save, { PackageSpecObject } from '../save'
+import { ResolvedDirectDependency } from './resolveDependencyTree'
+import { ImporterToResolve } from '.'
 
-export async function updateProjectManifest (
-  importer: ImporterToUpdate,
+export default async function updateProjectManifest (
+  importer: ImporterToResolve,
   opts: {
     directDependencies: ResolvedDirectDependency[]
     preserveWorkspaceProtocol: boolean
@@ -35,17 +39,15 @@ export async function updateProjectManifest (
       })
     }
   }
-  const hookedManifest = await save(
+  const hookedManifest = await updateProjectManifestObject(
     importer.rootDir,
     importer.manifest,
-    specsToUpsert,
-    { dryRun: true }
+    specsToUpsert
   )
-  const originalManifest = importer.originalManifest && await save(
+  const originalManifest = importer.originalManifest && await updateProjectManifestObject(
     importer.rootDir,
     importer.originalManifest,
-    specsToUpsert,
-    { dryRun: true }
+    specsToUpsert
   )
   return [hookedManifest, originalManifest]
 }
@@ -60,7 +62,7 @@ function resolvedDirectDepToSpecObject (
     specRaw,
     version,
   }: ResolvedDirectDependency & { isNew?: Boolean, specRaw: string },
-  importer: ImporterToUpdate,
+  importer: ImporterToResolve,
   opts: {
     pinnedVersion: PinnedVersion
     preserveWorkspaceProtocol: boolean
@@ -107,20 +109,6 @@ function resolvedDirectDepToSpecObject (
   }
 }
 
-const getPrefix = (alias: string, name: string) => alias !== name ? `npm:${name}@` : ''
-
-export default function getPref (
-  alias: string,
-  name: string,
-  version: string,
-  opts: {
-    pinnedVersion?: PinnedVersion
-  }
-) {
-  const prefix = getPrefix(alias, name)
-  return `${prefix}${createVersionSpec(version, opts.pinnedVersion)}`
-}
-
 function getPrefPreferSpecifiedSpec (
   opts: {
     alias: string
@@ -161,19 +149,4 @@ function getPrefPreferSpecifiedExoticSpec (
     }
   }
   return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`
-}
-
-function createVersionSpec (version: string, pinnedVersion?: PinnedVersion) {
-  switch (pinnedVersion ?? 'major') {
-  case 'none':
-    return '*'
-  case 'major':
-    return `^${version}`
-  case 'minor':
-    return `~${version}`
-  case 'patch':
-    return `${version}`
-  default:
-    throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
-  }
 }

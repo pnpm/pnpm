@@ -3,6 +3,12 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
+import getSpecFromPackageManifest from './getSpecFromPackageManifest'
+
+export * from './getPref'
+export * from './updateProjectManifestObject'
+
+export { getSpecFromPackageManifest }
 
 export function filterDependenciesByType (
   manifest: ProjectManifest,

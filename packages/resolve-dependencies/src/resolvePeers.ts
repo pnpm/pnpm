@@ -1,16 +1,18 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import {
-  createNodeId,
-  DependenciesTree,
-  DependenciesTreeNode,
-  ResolvedPackage,
-  splitNodeId,
-} from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import { Dependencies, DependencyManifest } from '@pnpm/types'
+import {
+  createNodeId,
+  splitNodeId,
+} from './nodeIdUtils'
+import {
+  DependenciesTree,
+  DependenciesTreeNode,
+  ResolvedPackage,
+} from './resolveDependencies'
 import crypto = require('crypto')
 import importFrom = require('import-from')
 import path = require('path')
@@ -76,7 +78,7 @@ export default function (
     strictPeerDependencies: boolean
   }
 ): {
-    depGraph: DependenciesGraph
+    dependenciesGraph: DependenciesGraph
     projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}}
   } {
   const depGraph: DependenciesGraph = {}
@@ -132,7 +134,7 @@ export default function (
     }, {})
   }
   return {
-    depGraph,
+    dependenciesGraph: depGraph,
     projectsDirectPathsByAlias,
   }
 }

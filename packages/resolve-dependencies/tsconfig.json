@@ -22,6 +22,9 @@
       "path": "../lockfile-utils"
     },
     {
+      "path": "../manifest-utils"
+    },
+    {
       "path": "../npm-resolver"
     },
     {
@@ -29,6 +32,12 @@
     },
     {
       "path": "../pick-registry-for-package"
+    },
+    {
+      "path": "../prune-lockfile"
+    },
+    {
+      "path": "../read-package-json"
     },
     {
       "path": "../resolver-base"

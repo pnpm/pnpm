@@ -15,7 +15,7 @@ import {
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import * as R from 'ramda'
-import { depPathToRef } from './lockfile'
+import depPathToRef from './depPathToRef'
 import { DependenciesGraph } from './resolvePeers'
 
 export default function (

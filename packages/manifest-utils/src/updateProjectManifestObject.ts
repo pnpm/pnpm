@@ -12,13 +12,10 @@ export interface PackageSpecObject {
   saveType?: DependenciesField
 }
 
-export default async function save (
+export async function updateProjectManifestObject (
   prefix: string,
   packageManifest: ProjectManifest,
-  packageSpecs: PackageSpecObject[],
-  opts?: {
-    dryRun?: boolean
-  }
+  packageSpecs: PackageSpecObject[]
 ): Promise<ProjectManifest> {
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {

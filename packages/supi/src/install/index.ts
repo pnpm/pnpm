@@ -5,7 +5,6 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
-  packageManifestLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -26,10 +25,11 @@ import logger, { streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
-import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
 import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
-  ResolvedDirectDependency,
+  DependenciesGraph,
+  DependenciesGraphNode,
+  ProjectToLink,
 } from '@pnpm/resolve-dependencies'
 import {
   PreferredVersions,
@@ -37,16 +37,11 @@ import {
 } from '@pnpm/resolver-base'
 import {
   DependenciesField,
-  DEPENDENCIES_FIELDS,
-  DependencyManifest,
   ProjectManifest,
-  Registries,
 } from '@pnpm/types'
-import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
-import { updateProjectManifest } from '../utils/getPref'
 import allProjectsAreUpToDate from './allProjectsAreUpToDate'
 import extendOptions, {
   InstallOptions,
@@ -57,12 +52,7 @@ import getWantedDependencies, {
   PinnedVersion,
   WantedDependency,
 } from './getWantedDependencies'
-import linkPackages, {
-  DependenciesGraph,
-  DependenciesGraphNode,
-  Project as ProjectToLink,
-} from './link'
-import { depPathToRef } from './lockfile'
+import linkPackages from './link'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import isInnerLink = require('is-inner-link')
@@ -605,12 +595,15 @@ async function installInContext (
     workspacePackages: opts.workspacePackages,
   })
   const projectsToResolve = await Promise.all(projects.map((project) => _toResolveImporter(project)))
-  const {
-    dependenciesTree,
+  let {
+    dependenciesGraph,
+    finishLockfileUpdates,
+    newLockfile,
     outdatedDependencies,
-    resolvedImporters,
-    resolvedPackagesByDepPath,
+    projectsToLink,
+    projectsDirectPathsByAlias,
     wantedToBeSkippedPackageIds,
+    waitTillAllFetchingsFinish,
   } = await resolveDependencies(
     projectsToResolve,
     {
@@ -624,8 +617,11 @@ async function installInContext (
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+      preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: opts.registries,
+      saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
+      strictPeerDependencies: opts.strictPeerDependencies,
       tag: opts.tag,
       updateMatching: opts.updateMatching,
       virtualStoreDir: ctx.virtualStoreDir,
@@ -639,111 +635,61 @@ async function installInContext (
     stage: 'resolution_done',
   })
 
-  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
-    const resolvedImporter = resolvedImporters[project.id]
-    let updatedManifest: ProjectManifest | undefined = project.manifest
-    let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
-    if (project.updatePackageManifest) {
-      const manifests = await updateProjectManifest(projectsToResolve[index], {
-        directDependencies: resolvedImporter.directDependencies,
-        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
-        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
-      })
-      updatedManifest = manifests[0]
-      updatedOriginalManifest = manifests[1]
-    } else {
-      packageManifestLogger.debug({
-        prefix: project.rootDir,
-        updated: project.manifest,
-      })
-    }
+  newLockfile = opts.hooks?.afterAllResolved
+    ? opts.hooks?.afterAllResolved(newLockfile)
+    : newLockfile
 
-    if (updatedManifest) {
-      const projectSnapshot = ctx.wantedLockfile.importers[project.id]
-      ctx.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
-        updatedManifest,
-        projectSnapshot,
-        resolvedImporter.linkedDependencies,
-        resolvedImporter.directDependencies,
-        ctx.registries
-      )
-    }
-
-    const topParents = project.manifest
-      ? await getTopParents(
-        R.difference(
-          Object.keys(getAllDependenciesFromManifest(project.manifest)),
-          resolvedImporter.directDependencies
-            .filter((dep, index) => project.wantedDependencies[index].isNew === true)
-            .map(({ alias }) => alias) || []
-        ),
-        project.modulesDir
-      )
-      : []
-
-    return {
-      binsDir: project.binsDir,
-      directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
-      id: project.id,
-      linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: updatedOriginalManifest ?? project.originalManifest ?? project.manifest,
-      modulesDir: project.modulesDir,
-      pruneDirectDependencies: project.pruneDirectDependencies,
-      removePackages: project.removePackages,
-      rootDir: project.rootDir,
-      topParents,
-    }
-  }))
-
-  const result = await linkPackages(
-    projectsToLink,
-    dependenciesTree,
-    {
-      afterAllResolvedHook: opts.hooks?.afterAllResolved,
-      currentLockfile: ctx.currentLockfile,
-      dryRun: opts.lockfileOnly,
-      force: opts.force,
-      hoistedDependencies: ctx.hoistedDependencies,
-      hoistedModulesDir: ctx.hoistedModulesDir,
-      hoistPattern: ctx.hoistPattern,
-      include: opts.include,
-      lockfileDir: opts.lockfileDir,
-      makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
-      outdatedDependencies,
-      pruneStore: opts.pruneStore,
-      publicHoistPattern: ctx.publicHoistPattern,
-      registries: ctx.registries,
-      rootModulesDir: ctx.rootModulesDir,
-      sideEffectsCacheRead: opts.sideEffectsCacheRead,
-      skipped: ctx.skipped,
-      storeController: opts.storeController,
-      strictPeerDependencies: opts.strictPeerDependencies,
-      updateLockfileMinorVersion: opts.updateLockfileMinorVersion,
-      virtualStoreDir: ctx.virtualStoreDir,
-      wantedLockfile: ctx.wantedLockfile,
-      wantedToBeSkippedPackageIds,
-    }
-  )
-
-  ctx.pendingBuilds = ctx.pendingBuilds
-    .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
-
-  if (opts.ignoreScripts) {
-    // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
-    ctx.pendingBuilds = ctx.pendingBuilds
-      .concat(
-        result.newDepPaths
-          .filter((depPath) => result.depGraph[depPath].requiresBuild)
-      )
+  if (opts.updateLockfileMinorVersion) {
+    newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
+  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (!opts.lockfileOnly) {
-    // postinstall hooks
-    if (!opts.ignoreScripts && result.newDepPaths?.length) {
-      const depPaths = Object.keys(result.depGraph)
-      const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
+    const result = await linkPackages(
+      projectsToLink,
+      dependenciesGraph,
+      {
+        currentLockfile: ctx.currentLockfile,
+        force: opts.force,
+        hoistedDependencies: ctx.hoistedDependencies,
+        hoistedModulesDir: ctx.hoistedModulesDir,
+        hoistPattern: ctx.hoistPattern,
+        include: opts.include,
+        lockfileDir: opts.lockfileDir,
+        makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
+        outdatedDependencies,
+        projectsDirectPathsByAlias,
+        pruneStore: opts.pruneStore,
+        publicHoistPattern: ctx.publicHoistPattern,
+        registries: ctx.registries,
+        rootModulesDir: ctx.rootModulesDir,
+        sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        skipped: ctx.skipped,
+        storeController: opts.storeController,
+        strictPeerDependencies: opts.strictPeerDependencies,
+        virtualStoreDir: ctx.virtualStoreDir,
+        wantedLockfile: newLockfile,
+        wantedToBeSkippedPackageIds,
+      }
+    )
+    await finishLockfileUpdates()
 
-      await buildModules(result.depGraph, rootNodes, {
+    ctx.pendingBuilds = ctx.pendingBuilds
+      .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
+
+    if (opts.ignoreScripts) {
+      // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
+      ctx.pendingBuilds = ctx.pendingBuilds
+        .concat(
+          result.newDepPaths
+            .filter((depPath) => dependenciesGraph[depPath].requiresBuild)
+        )
+    } else if (result.newDepPaths?.length) {
+      // postinstall hooks
+      const depPaths = Object.keys(dependenciesGraph)
+      const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
+
+      await buildModules(dependenciesGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
         extraBinPaths: ctx.extraBinPaths,
@@ -759,8 +705,8 @@ async function installInContext (
     }
 
     if (result.newDepPaths?.length) {
-      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
-      await linkAllBins(newPkgs, result.depGraph, {
+      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      await linkAllBins(newPkgs, dependenciesGraph, {
         optional: opts.include.optionalDependencies,
         warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDir }),
       })
@@ -777,21 +723,13 @@ async function installInContext (
         })
       }
     }))
-  }
 
-  // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
-
-  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
-  if (opts.lockfileOnly) {
-    await writeWantedLockfile(ctx.lockfileDir, result.wantedLockfile, lockfileOpts)
-  } else {
     await Promise.all([
       opts.useLockfile
         ? writeLockfiles({
           currentLockfile: result.currentLockfile,
           currentLockfileDir: ctx.virtualStoreDir,
-          wantedLockfile: result.wantedLockfile,
+          wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
         })
@@ -816,7 +754,18 @@ async function installInContext (
         })
       })(),
     ])
+  } else {
+    await finishLockfileUpdates()
+    await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
+
+    // This is only needed because otherwise the reporter will hang
+    stageLogger.debug({
+      prefix: opts.lockfileDir,
+      stage: 'importing_done',
+    })
   }
+
+  await waitTillAllFetchingsFinish()
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
 
@@ -905,101 +854,4 @@ function linkAllBins (
   return Promise.all(
     depNodes.map(depNode => limitLinking(() => linkBinsOfDependencies(depNode, depGraph, opts)))
   )
-}
-
-function addDirectDependenciesToLockfile (
-  newManifest: ProjectManifest,
-  projectSnapshot: ProjectSnapshot,
-  linkedPackages: Array<{alias: string}>,
-  directDependencies: ResolvedDirectDependency[],
-  registries: Registries
-): ProjectSnapshot {
-  const newProjectSnapshot = {
-    dependencies: {},
-    devDependencies: {},
-    optionalDependencies: {},
-    specifiers: {},
-  }
-
-  linkedPackages.forEach((linkedPkg) => {
-    newProjectSnapshot.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
-  })
-
-  const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
-    acc[directDependency.alias] = directDependency
-    return acc
-  }, {})
-
-  const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
-
-  for (const alias of allDeps) {
-    if (directDependenciesByAlias[alias]) {
-      const dep = directDependenciesByAlias[alias]
-      const ref = depPathToRef(dep.pkgId, {
-        alias: dep.alias,
-        realName: dep.name,
-        registries,
-        resolution: dep.resolution,
-      })
-      if (dep.dev) {
-        newProjectSnapshot.devDependencies[dep.alias] = ref
-      } else if (dep.optional) {
-        newProjectSnapshot.optionalDependencies[dep.alias] = ref
-      } else {
-        newProjectSnapshot.dependencies[dep.alias] = ref
-      }
-      newProjectSnapshot.specifiers[dep.alias] = getSpecFromPackageManifest(newManifest, dep.alias)
-    } else if (projectSnapshot.specifiers[alias]) {
-      newProjectSnapshot.specifiers[alias] = projectSnapshot.specifiers[alias]
-      if (projectSnapshot.dependencies?.[alias]) {
-        newProjectSnapshot.dependencies[alias] = projectSnapshot.dependencies[alias]
-      } else if (projectSnapshot.optionalDependencies?.[alias]) {
-        newProjectSnapshot.optionalDependencies[alias] = projectSnapshot.optionalDependencies[alias]
-      } else if (projectSnapshot.devDependencies?.[alias]) {
-        newProjectSnapshot.devDependencies[alias] = projectSnapshot.devDependencies[alias]
-      }
-    }
-  }
-
-  alignDependencyTypes(newManifest, newProjectSnapshot)
-
-  return newProjectSnapshot
-}
-
-function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: ProjectSnapshot) {
-  const depTypesOfAliases = getAliasToDependencyTypeMap(manifest)
-
-  // Aligning the dependency types in pnpm-lock.yaml
-  for (const depType of DEPENDENCIES_FIELDS) {
-    if (!projectSnapshot[depType]) continue
-    for (const alias of Object.keys(projectSnapshot[depType] ?? {})) {
-      if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
-      projectSnapshot[depTypesOfAliases[alias]][alias] = projectSnapshot[depType]![alias]
-      delete projectSnapshot[depType]![alias]
-    }
-  }
-}
-
-function getAliasToDependencyTypeMap (manifest: ProjectManifest) {
-  const depTypesOfAliases = {}
-  for (const depType of DEPENDENCIES_FIELDS) {
-    if (!manifest[depType]) continue
-    for (const alias of Object.keys(manifest[depType] ?? {})) {
-      if (!depTypesOfAliases[alias]) {
-        depTypesOfAliases[alias] = depType
-      }
-    }
-  }
-  return depTypesOfAliases
-}
-
-async function getTopParents (pkgNames: string[], modules: string) {
-  const pkgs = await Promise.all(
-    pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir)
-  )
-  return (
-    pkgs
-      .filter(Boolean) as DependencyManifest[]
-  )
-    .map(({ name, version }: DependencyManifest) => ({ name, version }))
 }

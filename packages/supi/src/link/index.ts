@@ -11,6 +11,13 @@ import {
   writeLockfiles,
 } from '@pnpm/lockfile-file'
 import logger, { streamParser } from '@pnpm/logger'
+import {
+  getPref,
+  getSpecFromPackageManifest,
+  guessDependencyType,
+  PackageSpecObject,
+  updateProjectManifestObject,
+} from '@pnpm/manifest-utils'
 import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import readProjectManifest from '@pnpm/read-project-manifest'
@@ -21,9 +28,6 @@ import {
   DependencyManifest,
   ProjectManifest,
 } from '@pnpm/types'
-import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
-import save, { guessDependencyType, PackageSpecObject } from '../save'
-import getPref from '../utils/getPref'
 import {
   extendOptions,
   LinkOptions,
@@ -142,7 +146,7 @@ export default async function link (
 
   let newPkg!: ProjectManifest
   if (opts.targetDependenciesField) {
-    newPkg = await save(opts.dir, opts.manifest, specsToUpsert)
+    newPkg = await updateProjectManifestObject(opts.dir, opts.manifest, specsToUpsert)
     for (const { alias } of specsToUpsert) {
       updatedWantedLockfile.importers[importerId].specifiers[alias] = getSpecFromPackageManifest(newPkg, alias)
     }

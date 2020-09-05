@@ -27,22 +27,30 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
+    "@pnpm/constants": "workspace:^4.0.0",
     "@pnpm/core-loggers": "workspace:4.2.0",
     "@pnpm/error": "workspace:1.3.1",
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.16",
+    "@pnpm/manifest-utils": "workspace:^1.0.3",
     "@pnpm/npm-resolver": "workspace:10.0.1",
     "@pnpm/package-is-installable": "workspace:4.0.14",
     "@pnpm/pick-registry-for-package": "workspace:1.0.3",
     "@pnpm/pkgid-to-filename": "^3.0.0",
+    "@pnpm/prune-lockfile": "workspace:^2.0.14",
+    "@pnpm/read-package-json": "workspace:^3.1.5",
     "@pnpm/resolver-base": "workspace:7.0.3",
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
     "dependency-path": "workspace:5.0.3",
+    "encode-registry": "^2.0.2",
+    "get-npm-tarball-url": "^2.0.1",
+    "import-from": "^3.0.0",
     "path-exists": "^4.0.0",
     "ramda": "^0.27.1",
     "replace-string": "^3.1.0",
-    "semver": "^7.3.2"
+    "semver": "^7.3.2",
+    "version-selector-type": "^2.0.1"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.2",
