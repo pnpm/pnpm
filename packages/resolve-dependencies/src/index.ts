@@ -73,10 +73,16 @@ export default async function (
     strictPeerDependencies: boolean
   }
 ) {
-  const resolveDepTreeResult = await resolveDependencyTree(importers, opts)
+  const {
+    dependenciesTree,
+    outdatedDependencies,
+    resolvedImporters,
+    resolvedPackagesByDepPath,
+    wantedToBeSkippedPackageIds,
+  } = await resolveDependencyTree(importers, opts)
 
   const projectsToLink = await Promise.all<ProjectToLink>(importers.map(async (project, index) => {
-    const resolvedImporter = resolveDepTreeResult.resolvedImporters[project.id]
+    const resolvedImporter = resolvedImporters[project.id]
     let updatedManifest: ProjectManifest | undefined = project.manifest
     let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
     if (project.updatePackageManifest) {
@@ -131,8 +137,11 @@ export default async function (
     }
   }))
 
-  const resolvePeersResult = resolvePeers({
-    dependenciesTree: resolveDepTreeResult.dependenciesTree,
+  const {
+    dependenciesGraph,
+    projectsDirectPathsByAlias,
+  } = resolvePeers({
+    dependenciesTree,
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,
     strictPeerDependencies: opts.strictPeerDependencies,
@@ -140,8 +149,8 @@ export default async function (
   })
 
   for (const { id } of projectsToLink) {
-    for (const [alias, depPath] of R.toPairs(resolvePeersResult.projectsDirectPathsByAlias[id])) {
-      const depNode = resolvePeersResult.depGraph[depPath]
+    for (const [alias, depPath] of R.toPairs(projectsDirectPathsByAlias[id])) {
+      const depNode = dependenciesGraph[depPath]
       if (depNode.isPure) continue
 
       const projectSnapshot = opts.wantedLockfile.importers[id]
@@ -160,17 +169,20 @@ export default async function (
       }
     }
   }
-  const { newLockfile, pendingRequiresBuilds } = updateLockfile(resolvePeersResult.depGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
+  const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
+
+  // waiting till package requests are finished
+  const waitTillAllFetchingsFinish = () => Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
 
   return {
-    dependenciesGraph: resolvePeersResult.depGraph,
-    finishLockfileUpdates: finishLockfileUpdates.bind(null, resolvePeersResult.depGraph, pendingRequiresBuilds, newLockfile),
-    outdatedDependencies: resolveDepTreeResult.outdatedDependencies,
+    dependenciesGraph,
+    finishLockfileUpdates: finishLockfileUpdates.bind(null, dependenciesGraph, pendingRequiresBuilds, newLockfile),
+    outdatedDependencies,
     projectsToLink,
-    projectsDirectPathsByAlias: resolvePeersResult.projectsDirectPathsByAlias,
-    resolvedPackagesByDepPath: resolveDepTreeResult.resolvedPackagesByDepPath,
+    projectsDirectPathsByAlias,
     newLockfile,
-    wantedToBeSkippedPackageIds: resolveDepTreeResult.wantedToBeSkippedPackageIds,
+    waitTillAllFetchingsFinish,
+    wantedToBeSkippedPackageIds,
   }
 }
 

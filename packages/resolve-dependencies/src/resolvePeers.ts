@@ -78,7 +78,7 @@ export default function (
     strictPeerDependencies: boolean
   }
 ): {
-    depGraph: DependenciesGraph
+    dependenciesGraph: DependenciesGraph
     projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}}
   } {
   const depGraph: DependenciesGraph = {}
@@ -134,7 +134,7 @@ export default function (
     }, {})
   }
   return {
-    depGraph,
+    dependenciesGraph: depGraph,
     projectsDirectPathsByAlias,
   }
 }

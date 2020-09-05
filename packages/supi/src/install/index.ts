@@ -602,8 +602,8 @@ async function installInContext (
     outdatedDependencies,
     projectsToLink,
     projectsDirectPathsByAlias,
-    resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
+    waitTillAllFetchingsFinish,
   } = await resolveDependencies(
     projectsToResolve,
     {
@@ -767,8 +767,7 @@ async function installInContext (
     })
   }
 
-  // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
+  await waitTillAllFetchingsFinish()
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
 
