@@ -2664,11 +2664,8 @@ importers:
       '@zkochan/npm-package-arg': 1.0.2
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'link:../dependency-path'
-      encode-registry: 2.0.2
-      get-npm-tarball-url: 2.0.1
       graceful-fs: 4.2.4
       graph-sequencer: 2.0.0
-      import-from: 3.0.0
       is-inner-link: 2.0.2
       is-subdir: 1.1.1
       load-json-file: 6.2.0
@@ -2783,13 +2780,10 @@ importers:
       deep-require-cwd: 1.0.0
       dependency-path: 'workspace:5.0.3'
       dir-is-case-sensitive: ^1.0.2
-      encode-registry: ^2.0.2
       execa: ^4.0.3
       exists-link: 2.0.0
-      get-npm-tarball-url: ^2.0.1
       graceful-fs: ^4.2.4
       graph-sequencer: 2.0.0
-      import-from: ^3.0.0
       is-ci: ^2.0.0
       is-inner-link: ^2.0.2
       is-subdir: ^1.1.1
