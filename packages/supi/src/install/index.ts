@@ -684,10 +684,8 @@ async function installInContext (
           result.newDepPaths
             .filter((depPath) => dependenciesGraph[depPath].requiresBuild)
         )
-    }
-
-    // postinstall hooks
-    if (!opts.ignoreScripts && result.newDepPaths?.length) {
+    } else if (result.newDepPaths?.length) {
+      // postinstall hooks
       const depPaths = Object.keys(dependenciesGraph)
       const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
 
