@@ -29,7 +29,7 @@ import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
   DependenciesGraph,
   DependenciesGraphNode,
-  ProjectToLink,
+  ImporterToResolve,
 } from '@pnpm/resolve-dependencies'
 import {
   PreferredVersions,
@@ -598,9 +598,9 @@ async function installInContext (
   let {
     dependenciesGraph,
     finishLockfileUpdates,
+    linkedDependenciesByProjectId,
     newLockfile,
     outdatedDependencies,
-    projectsToLink,
     projectsDirectPathsByAlias,
     wantedToBeSkippedPackageIds,
     waitTillAllFetchingsFinish,
@@ -646,7 +646,7 @@ async function installInContext (
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (!opts.lockfileOnly) {
     const result = await linkPackages(
-      projectsToLink,
+      projectsToResolve,
       dependenciesGraph,
       {
         currentLockfile: ctx.currentLockfile,
@@ -655,6 +655,7 @@ async function installInContext (
         hoistedModulesDir: ctx.hoistedModulesDir,
         hoistPattern: ctx.hoistPattern,
         include: opts.include,
+        linkedDependenciesByProjectId,
         lockfileDir: opts.lockfileDir,
         makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
         outdatedDependencies,
@@ -712,7 +713,7 @@ async function installInContext (
       })
     }
 
-    await Promise.all(projectsToLink.map(async (project, index) => {
+    await Promise.all(projectsToResolve.map(async (project, index) => {
       const linkedPackages = await linkBinsOfImporter(project)
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation.includes('install')) {
@@ -771,7 +772,7 @@ async function installInContext (
 
   await opts.storeController.close()
 
-  return projectsToLink.map(({ manifest, rootDir }) => ({ rootDir, manifest }))
+  return projectsToResolve.map(({ manifest, rootDir }) => ({ rootDir, manifest }))
 }
 
 async function toResolveImporter (
@@ -838,7 +839,7 @@ function prefIsLocalTarball (pref: string) {
 
 const limitLinking = pLimit(16)
 
-function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ProjectToLink) {
+function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ImporterToResolve) {
   const warn = (message: string) => logger.warn({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, { allowExoticManifests: true, warn })
 }

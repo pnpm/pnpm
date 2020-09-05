@@ -37,7 +37,7 @@ export {
   LinkedDependency,
 }
 
-export interface ProjectToLink {
+interface ProjectToLink {
   binsDir: string
   directNodeIdsByAlias: {[alias: string]: string}
   id: string
@@ -81,8 +81,10 @@ export default async function (
     wantedToBeSkippedPackageIds,
   } = await resolveDependencyTree(importers, opts)
 
+  const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   const projectsToLink = await Promise.all<ProjectToLink>(importers.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
+    linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
     let updatedManifest: ProjectManifest | undefined = project.manifest
     let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
     if (project.updatePackageManifest) {
@@ -178,8 +180,8 @@ export default async function (
     dependenciesGraph,
     finishLockfileUpdates: finishLockfileUpdates.bind(null, dependenciesGraph, pendingRequiresBuilds, newLockfile),
     outdatedDependencies,
-    projectsToLink,
     projectsDirectPathsByAlias,
+    linkedDependenciesByProjectId,
     newLockfile,
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,

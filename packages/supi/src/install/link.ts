@@ -15,7 +15,8 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import {
   DependenciesGraph,
   DependenciesGraphNode,
-  ProjectToLink,
+  LinkedDependency,
+  ImporterToResolve,
 } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
@@ -31,7 +32,7 @@ import R = require('ramda')
 const brokenModulesLogger = logger('_broken_node_modules')
 
 export default async function linkPackages (
-  projects: ProjectToLink[],
+  projects: ImporterToResolve[],
   depGraph: DependenciesGraph,
   opts: {
     currentLockfile: Lockfile
@@ -41,6 +42,7 @@ export default async function linkPackages (
     hoistPattern?: string[]
     publicHoistPattern?: string[]
     include: IncludedDependencies
+    linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
     lockfileDir: string
     makePartialCurrentLockfile: boolean
     outdatedDependencies: {[pkgId: string]: string}
@@ -85,6 +87,7 @@ export default async function linkPackages (
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
+  depGraph = R.fromPairs(depNodes.map((depNode) => [depNode.depPath, depNode]))
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     hoistedDependencies: opts.hoistedDependencies,
@@ -139,18 +142,11 @@ export default async function linkPackages (
     stage: 'importing_done',
   })
 
-  const rootDepsByDepPath = depNodes
-    .filter(({ depth }) => depth === 0)
-    .reduce((acc, depNode) => {
-      acc[depNode.depPath] = depNode
-      return acc
-    }, {})
-
-  await Promise.all(projects.map(({ id, manifest, modulesDir, rootDir }) => {
+  await Promise.all(projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
     const directPathsByAlias = opts.projectsDirectPathsByAlias[id]
-    return Promise.all(
-      Object.keys(directPathsByAlias)
-        .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directPathsByAlias[rootAlias]] }))
+    await Promise.all(
+      Object.entries(directPathsByAlias)
+        .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
         .filter(({ depGraphNode }) => depGraphNode)
         .map(async ({ rootAlias, depGraphNode }) => {
           if (
@@ -172,6 +168,14 @@ export default async function linkPackages (
           })
         })
     )
+    await Promise.all(opts.linkedDependenciesByProjectId[id].map((linkedDependency) => {
+      const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
+      return symlinkDirectRootDependency(depLocation, modulesDir, linkedDependency.alias, {
+        fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
+        linkedPackage: linkedDependency,
+        prefix: rootDir,
+      })
+    }))
   }))
 
   let currentLockfile: Lockfile
@@ -229,19 +233,6 @@ export default async function linkPackages (
   } else {
     newHoistedDependencies = {}
   }
-
-  await Promise.all(
-    projects.map((project) =>
-      Promise.all(project.linkedDependencies.map((linkedDependency) => {
-        const depLocation = resolvePath(project.rootDir, linkedDependency.resolution.directory)
-        return symlinkDirectRootDependency(depLocation, project.modulesDir, linkedDependency.alias, {
-          fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
-          linkedPackage: linkedDependency,
-          prefix: project.rootDir,
-        })
-      }))
-    )
-  )
 
   return {
     currentLockfile,
