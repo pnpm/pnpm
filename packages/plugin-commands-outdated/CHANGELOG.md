@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.11
+
+### Patch Changes
+
+- 1c2a8e03d: `pnpm outdated --long` should print details about the outdated dependency.
+- Updated dependencies [1c2a8e03d]
+  - @pnpm/outdated@7.2.0
+
 ## 3.0.10
 
 ### Patch Changes

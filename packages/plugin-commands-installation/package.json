@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "3.1.17",
+  "version": "3.1.18",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -65,7 +65,7 @@
     "@pnpm/find-workspace-packages": "workspace:2.3.11",
     "@pnpm/global-bin-dir": "workspace:^1.2.3",
     "@pnpm/manifest-utils": "workspace:1.0.3",
-    "@pnpm/outdated": "workspace:7.1.12",
+    "@pnpm/outdated": "workspace:7.2.0",
     "@pnpm/package-store": "workspace:9.1.7",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",
     "@pnpm/plugin-commands-rebuild": "workspace:2.0.35",

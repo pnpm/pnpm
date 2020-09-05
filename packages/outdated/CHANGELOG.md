@@ -1,5 +1,11 @@
 # @pnpm/outdated
 
+## 7.2.0
+
+### Minor Changes
+
+- 1c2a8e03d: `outdatedDepsOfProjects()` accepts a new option: `fullMetadata`. When `fullMetadata` is `true`, the full version of the package's latest manifest is returned.
+
 ## 7.1.12
 
 ### Patch Changes

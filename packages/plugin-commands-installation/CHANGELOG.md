@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 3.1.18
+
+### Patch Changes
+
+- Updated dependencies [1c2a8e03d]
+  - @pnpm/outdated@7.2.0
+
 ## 3.1.17
 
 ### Patch Changes
