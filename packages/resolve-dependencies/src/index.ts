@@ -1,7 +1,9 @@
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import {
+  Lockfile,
   ProjectSnapshot,
 } from '@pnpm/lockfile-types'
 import {
@@ -12,6 +14,7 @@ import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package
 import {
   DEPENDENCIES_FIELDS,
   DependencyManifest,
+  PinnedVersion,
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
@@ -47,8 +50,16 @@ export interface ProjectToLink {
   topParents: Array<{name: string, version: string}>
 }
 
-export type ImporterToResolve = Importer & {
+export type ImporterToResolve = Importer<{
+  isNew?: boolean
+  pinnedVersion?: PinnedVersion
+  raw: string
+  updateSpec?: boolean
+}>
+& {
   binsDir: string
+  manifest: ProjectManifest
+  originalManifest?: ProjectManifest
   removePackages?: string[]
   pruneDirectDependencies: boolean
   updatePackageManifest: boolean
@@ -153,14 +164,46 @@ export default async function (
 
   return {
     dependenciesGraph: resolvePeersResult.depGraph,
+    finishLockfileUpdates: finishLockfileUpdates.bind(null, resolvePeersResult.depGraph, pendingRequiresBuilds, newLockfile),
     outdatedDependencies: resolveDepTreeResult.outdatedDependencies,
-    pendingRequiresBuilds,
     projectsToLink,
     projectsDirectPathsByAlias: resolvePeersResult.projectsDirectPathsByAlias,
     resolvedPackagesByDepPath: resolveDepTreeResult.resolvedPackagesByDepPath,
     newLockfile,
     wantedToBeSkippedPackageIds: resolveDepTreeResult.wantedToBeSkippedPackageIds,
   }
+}
+
+function finishLockfileUpdates (
+  dependenciesGraph: DependenciesGraph,
+  pendingRequiresBuilds: string[],
+  newLockfile: Lockfile
+) {
+  return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
+    const depNode = dependenciesGraph[depPath]
+    if (!depNode.fetchingBundledManifest) {
+      // This should never ever happen
+      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
+    }
+    const filesResponse = await depNode.fetchingFiles()
+    // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+    const pkgJson = await depNode.fetchingBundledManifest()
+    depNode.requiresBuild = Boolean(
+      pkgJson.scripts != null && (
+        Boolean(pkgJson.scripts.preinstall) ||
+        Boolean(pkgJson.scripts.install) ||
+        Boolean(pkgJson.scripts.postinstall)
+      ) ||
+      filesResponse.filesIndex['binding.gyp'] ||
+        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
+    )
+
+    // TODO: try to cover with unit test the case when entry is no longer available in lockfile
+    // It is an edge that probably happens if the entry is removed during lockfile prune
+    if (depNode.requiresBuild && newLockfile.packages![depPath]) {
+      newLockfile.packages![depPath].requiresBuild = true
+    }
+  }))
 }
 
 function addDirectDependenciesToLockfile (

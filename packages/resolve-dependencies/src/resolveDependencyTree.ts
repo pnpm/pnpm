@@ -2,8 +2,6 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
-  PinnedVersion,
-  ProjectManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -37,21 +35,13 @@ export interface ResolvedDirectDependency {
   normalizedPref?: string
 }
 
-export interface Importer {
+export interface Importer<T> {
   id: string
   hasRemovedDependencies?: boolean
-  manifest: ProjectManifest
   modulesDir: string
-  originalManifest?: ProjectManifest
   preferredVersions?: PreferredVersions
   rootDir: string
-  wantedDependencies: Array<WantedDependency & {
-    isNew?: Boolean
-    pinnedVersion?: PinnedVersion
-    raw: string
-    updateDepth: number
-    updateSpec?: Boolean
-  }>
+  wantedDependencies: Array<T & WantedDependency & { updateDepth: number }>
 }
 
 export interface ResolveDependenciesOptions {
@@ -76,8 +66,8 @@ export interface ResolveDependenciesOptions {
   workspacePackages: WorkspacePackages
 }
 
-export default async function (
-  importers: Importer[],
+export default async function<T> (
+  importers: Array<Importer<T>>,
   opts: ResolveDependenciesOptions
 ) {
   const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}

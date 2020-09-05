@@ -597,9 +597,9 @@ async function installInContext (
   const projectsToResolve = await Promise.all(projects.map((project) => _toResolveImporter(project)))
   let {
     dependenciesGraph,
+    finishLockfileUpdates,
     newLockfile,
     outdatedDependencies,
-    pendingRequiresBuilds,
     projectsToLink,
     projectsDirectPathsByAlias,
     resolvedPackagesByDepPath,
@@ -643,32 +643,6 @@ async function installInContext (
     newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
-  const updateRequiresBuildFieldsInLockfile = () => Promise.all(pendingRequiresBuilds.map(async (depPath) => {
-    const depNode = dependenciesGraph[depPath]
-    if (!depNode.fetchingBundledManifest) {
-      // This should never ever happen
-      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
-    }
-    const filesResponse = await depNode.fetchingFiles()
-    // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-    const pkgJson = await depNode.fetchingBundledManifest()
-    depNode.requiresBuild = Boolean(
-      pkgJson.scripts != null && (
-        Boolean(pkgJson.scripts.preinstall) ||
-        Boolean(pkgJson.scripts.install) ||
-        Boolean(pkgJson.scripts.postinstall)
-      ) ||
-      filesResponse.filesIndex['binding.gyp'] ||
-        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
-    )
-
-    // TODO: try to cover with unit test the case when entry is no longer available in lockfile
-    // It is an edge that probably happens if the entry is removed during lockfile prune
-    if (depNode.requiresBuild && newLockfile.packages![depPath]) {
-      newLockfile.packages![depPath].requiresBuild = true
-    }
-  }))
-
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (!opts.lockfileOnly) {
     const result = await linkPackages(
@@ -698,7 +672,7 @@ async function installInContext (
         wantedToBeSkippedPackageIds,
       }
     )
-    await updateRequiresBuildFieldsInLockfile()
+    await finishLockfileUpdates()
 
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
@@ -783,7 +757,7 @@ async function installInContext (
       })(),
     ])
   } else {
-    await updateRequiresBuildFieldsInLockfile()
+    await finishLockfileUpdates()
     await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
 
     // This is only needed because otherwise the reporter will hang

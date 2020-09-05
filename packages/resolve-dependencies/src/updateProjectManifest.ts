@@ -1,10 +1,11 @@
 import { createVersionSpec, getPrefix, PackageSpecObject, save } from '@pnpm/manifest-utils'
 import { PinnedVersion } from '@pnpm/types'
 import versionSelectorType from 'version-selector-type'
-import { Importer, ResolvedDirectDependency } from './resolveDependencyTree'
+import { ResolvedDirectDependency } from './resolveDependencyTree'
+import { ImporterToResolve } from '.'
 
 export default async function updateProjectManifest (
-  importer: Importer,
+  importer: ImporterToResolve,
   opts: {
     directDependencies: ResolvedDirectDependency[]
     preserveWorkspaceProtocol: boolean
@@ -56,7 +57,7 @@ function resolvedDirectDepToSpecObject (
     specRaw,
     version,
   }: ResolvedDirectDependency & { isNew?: Boolean, specRaw: string },
-  importer: Importer,
+  importer: ImporterToResolve,
   opts: {
     pinnedVersion: PinnedVersion
     preserveWorkspaceProtocol: boolean

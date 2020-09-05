@@ -2451,6 +2451,7 @@ importers:
       is-windows: ^1.0.2
   packages/resolve-dependencies:
     dependencies:
+      '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
@@ -2480,6 +2481,7 @@ importers:
       '@types/ramda': 0.27.14
       '@types/semver': 7.3.3
     specifiers:
+      '@pnpm/constants': 'workspace:^4.0.0'
       '@pnpm/core-loggers': 'workspace:4.2.0'
       '@pnpm/error': 'workspace:1.3.1'
       '@pnpm/lockfile-types': 'workspace:2.0.1'
