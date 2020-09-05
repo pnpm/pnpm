@@ -643,7 +643,7 @@ async function installInContext (
     newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
-  await Promise.all(pendingRequiresBuilds.map(async (depPath) => {
+  const updateRequiresBuildFieldsInLockfile = () => Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
     if (!depNode.fetchingBundledManifest) {
       // This should never ever happen
@@ -698,6 +698,7 @@ async function installInContext (
         wantedToBeSkippedPackageIds,
       }
     )
+    await updateRequiresBuildFieldsInLockfile()
 
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
@@ -782,6 +783,7 @@ async function installInContext (
       })(),
     ])
   } else {
+    await updateRequiresBuildFieldsInLockfile()
     await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
 
     // This is only needed because otherwise the reporter will hang
