@@ -44,8 +44,6 @@ interface ProjectToLink {
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
   modulesDir: string
-  pruneDirectDependencies: boolean
-  removePackages?: string[]
   rootDir: string
   topParents: Array<{name: string, version: string}>
 }
@@ -60,8 +58,6 @@ export type ImporterToResolve = Importer<{
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
-  removePackages?: string[]
-  pruneDirectDependencies: boolean
   updatePackageManifest: boolean
 }
 
@@ -132,8 +128,6 @@ export default async function (
       linkedDependencies: resolvedImporter.linkedDependencies,
       manifest: updatedOriginalManifest ?? project.originalManifest ?? project.manifest,
       modulesDir: project.modulesDir,
-      pruneDirectDependencies: project.pruneDirectDependencies,
-      removePackages: project.removePackages,
       rootDir: project.rootDir,
       topParents,
     }
