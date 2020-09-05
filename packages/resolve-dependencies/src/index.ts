@@ -9,12 +9,12 @@ import {
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
+  PinnedVersion,
 } from '@pnpm/manifest-utils'
 import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
 import {
   DEPENDENCIES_FIELDS,
   DependencyManifest,
-  PinnedVersion,
   ProjectManifest,
   Registries,
 } from '@pnpm/types'

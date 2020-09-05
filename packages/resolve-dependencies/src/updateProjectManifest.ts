@@ -2,9 +2,9 @@ import {
   createVersionSpec,
   getPrefix,
   PackageSpecObject,
+  PinnedVersion,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
-import { PinnedVersion } from '@pnpm/types'
 import versionSelectorType from 'version-selector-type'
 import { ResolvedDirectDependency } from './resolveDependencyTree'
 import { ImporterToResolve } from '.'

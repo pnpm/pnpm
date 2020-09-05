@@ -1,5 +1,6 @@
 import PnpmError from '@pnpm/error'
-import { PinnedVersion } from '@pnpm/types'
+
+export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
 export const getPrefix = (alias: string, name: string) => alias !== name ? `npm:${name}@` : ''
 
