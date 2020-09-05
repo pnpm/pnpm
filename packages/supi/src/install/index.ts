@@ -676,7 +676,6 @@ async function installInContext (
       dependenciesGraph,
       {
         currentLockfile: ctx.currentLockfile,
-        dryRun: opts.lockfileOnly,
         force: opts.force,
         hoistedDependencies: ctx.hoistedDependencies,
         hoistedModulesDir: ctx.hoistedModulesDir,
@@ -694,9 +693,8 @@ async function installInContext (
         skipped: ctx.skipped,
         storeController: opts.storeController,
         strictPeerDependencies: opts.strictPeerDependencies,
-        updateLockfileMinorVersion: opts.updateLockfileMinorVersion,
         virtualStoreDir: ctx.virtualStoreDir,
-        newWantedLockfile: newLockfile,
+        wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
       }
     )
@@ -709,16 +707,16 @@ async function installInContext (
       ctx.pendingBuilds = ctx.pendingBuilds
         .concat(
           result.newDepPaths
-            .filter((depPath) => result.depGraph[depPath].requiresBuild)
+            .filter((depPath) => dependenciesGraph[depPath].requiresBuild)
         )
     }
 
     // postinstall hooks
     if (!opts.ignoreScripts && result.newDepPaths?.length) {
-      const depPaths = Object.keys(result.depGraph)
-      const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
+      const depPaths = Object.keys(dependenciesGraph)
+      const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
 
-      await buildModules(result.depGraph, rootNodes, {
+      await buildModules(dependenciesGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
         extraBinPaths: ctx.extraBinPaths,
@@ -734,8 +732,8 @@ async function installInContext (
     }
 
     if (result.newDepPaths?.length) {
-      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
-      await linkAllBins(newPkgs, result.depGraph, {
+      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      await linkAllBins(newPkgs, dependenciesGraph, {
         optional: opts.include.optionalDependencies,
         warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDir }),
       })
@@ -758,7 +756,7 @@ async function installInContext (
         ? writeLockfiles({
           currentLockfile: result.currentLockfile,
           currentLockfileDir: ctx.virtualStoreDir,
-          wantedLockfile: result.wantedLockfile,
+          wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
         })

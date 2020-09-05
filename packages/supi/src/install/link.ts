@@ -35,7 +35,6 @@ export default async function linkPackages (
   depGraph: DependenciesGraph,
   opts: {
     currentLockfile: Lockfile
-    dryRun: boolean
     force: boolean
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir: string
@@ -55,22 +54,18 @@ export default async function linkPackages (
     skipped: Set<string>
     storeController: StoreController
     strictPeerDependencies: boolean
-    // This is only needed till lockfile v4
-    updateLockfileMinorVersion: boolean
     virtualStoreDir: string
-    newWantedLockfile: Lockfile
+    wantedLockfile: Lockfile
     wantedToBeSkippedPackageIds: Set<string>
   }
 ): Promise<{
     currentLockfile: Lockfile
-    depGraph: DependenciesGraph
     newDepPaths: string[]
     newHoistedDependencies: HoistedDependencies
     removedDepPaths: Set<string>
-    wantedLockfile: Lockfile
   }> {
   let depNodes = R.values(depGraph).filter(({ depPath, packageId }) => {
-    if (opts.newWantedLockfile.packages?.[depPath] && !opts.newWantedLockfile.packages[depPath].optional) {
+    if (opts.wantedLockfile.packages?.[depPath] && !opts.wantedLockfile.packages[depPath].optional) {
       opts.skipped.delete(depPath)
       return true
     }
@@ -92,7 +87,6 @@ export default async function linkPackages (
   }
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
-    dryRun: opts.dryRun,
     hoistedDependencies: opts.hoistedDependencies,
     hoistedModulesDir: (opts.hoistPattern && opts.hoistedModulesDir) ?? undefined,
     include: opts.include,
@@ -103,7 +97,7 @@ export default async function linkPackages (
     skipped: opts.skipped,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
-    wantedLockfile: opts.newWantedLockfile,
+    wantedLockfile: opts.wantedLockfile,
   })
 
   stageLogger.debug({
@@ -117,7 +111,7 @@ export default async function linkPackages (
     registries: opts.registries,
     skipped: opts.skipped,
   }
-  const newCurrentLockfile = filterLockfileByImporters(opts.newWantedLockfile, projectIds, {
+  const newCurrentLockfile = filterLockfileByImporters(opts.wantedLockfile, projectIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
     skipped: new Set(),
@@ -130,7 +124,6 @@ export default async function linkPackages (
     newCurrentLockfile,
     depGraph,
     {
-      dryRun: opts.dryRun,
       force: opts.force,
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
@@ -161,7 +154,6 @@ export default async function linkPackages (
         .filter(({ depGraphNode }) => depGraphNode)
         .map(async ({ rootAlias, depGraphNode }) => {
           if (
-            !opts.dryRun &&
             (await symlinkDependency(depGraphNode.dir, modulesDir, rootAlias)).reused
           ) return
 
@@ -183,26 +175,26 @@ export default async function linkPackages (
   }))
 
   let currentLockfile: Lockfile
-  const allImportersIncluded = R.equals(projectIds.sort(), Object.keys(opts.newWantedLockfile.importers).sort())
+  const allImportersIncluded = R.equals(projectIds.sort(), Object.keys(opts.wantedLockfile.importers).sort())
   if (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
   ) {
     const packages = opts.currentLockfile.packages ?? {}
-    if (opts.newWantedLockfile.packages) {
-      for (const depPath in opts.newWantedLockfile.packages) { // eslint-disable-line:forin
+    if (opts.wantedLockfile.packages) {
+      for (const depPath in opts.wantedLockfile.packages) { // eslint-disable-line:forin
         if (depGraph[depPath]) {
-          packages[depPath] = opts.newWantedLockfile.packages[depPath]
+          packages[depPath] = opts.wantedLockfile.packages[depPath]
         }
       }
     }
     const projects = projectIds.reduce((acc, projectId) => {
-      acc[projectId] = opts.newWantedLockfile.importers[projectId]
+      acc[projectId] = opts.wantedLockfile.importers[projectId]
       return acc
     }, opts.currentLockfile.importers)
     currentLockfile = filterLockfileByImporters(
       {
-        ...opts.newWantedLockfile,
+        ...opts.wantedLockfile,
         importers: projects,
         packages,
       },
@@ -218,7 +210,7 @@ export default async function linkPackages (
     opts.include.optionalDependencies &&
     opts.skipped.size === 0
   ) {
-    currentLockfile = opts.newWantedLockfile
+    currentLockfile = opts.wantedLockfile
   } else {
     currentLockfile = newCurrentLockfile
   }
@@ -238,28 +230,24 @@ export default async function linkPackages (
     newHoistedDependencies = {}
   }
 
-  if (!opts.dryRun) {
-    await Promise.all(
-      projects.map((project) =>
-        Promise.all(project.linkedDependencies.map((linkedDependency) => {
-          const depLocation = resolvePath(project.rootDir, linkedDependency.resolution.directory)
-          return symlinkDirectRootDependency(depLocation, project.modulesDir, linkedDependency.alias, {
-            fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
-            linkedPackage: linkedDependency,
-            prefix: project.rootDir,
-          })
-        }))
-      )
+  await Promise.all(
+    projects.map((project) =>
+      Promise.all(project.linkedDependencies.map((linkedDependency) => {
+        const depLocation = resolvePath(project.rootDir, linkedDependency.resolution.directory)
+        return symlinkDirectRootDependency(depLocation, project.modulesDir, linkedDependency.alias, {
+          fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
+          linkedPackage: linkedDependency,
+          prefix: project.rootDir,
+        })
+      }))
     )
-  }
+  )
 
   return {
     currentLockfile,
-    depGraph,
     newDepPaths,
     newHoistedDependencies,
     removedDepPaths,
-    wantedLockfile: opts.newWantedLockfile,
   }
 }
 
@@ -276,7 +264,6 @@ async function linkNewPackages (
   wantedLockfile: Lockfile,
   depGraph: DependenciesGraph,
   opts: {
-    dryRun: boolean
     force: boolean
     optional: boolean
     lockfileDir: string
@@ -325,8 +312,6 @@ async function linkNewPackages (
   if (!newDepPathsSet.size && !existingWithUpdatedDeps.length) return []
 
   const newDepPaths = Array.from(newDepPathsSet)
-
-  if (opts.dryRun) return newDepPaths
 
   const newPkgs = R.props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
