@@ -16,7 +16,7 @@ import {
   getSpecFromPackageManifest,
   guessDependencyType,
   PackageSpecObject,
-  save,
+  updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
 import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
@@ -146,7 +146,7 @@ export default async function link (
 
   let newPkg!: ProjectManifest
   if (opts.targetDependenciesField) {
-    newPkg = await save(opts.dir, opts.manifest, specsToUpsert)
+    newPkg = await updateProjectManifestObject(opts.dir, opts.manifest, specsToUpsert)
     for (const { alias } of specsToUpsert) {
       updatedWantedLockfile.importers[importerId].specifiers[alias] = getSpecFromPackageManifest(newPkg, alias)
     }

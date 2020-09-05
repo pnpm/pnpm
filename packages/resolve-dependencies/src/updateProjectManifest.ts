@@ -1,4 +1,9 @@
-import { createVersionSpec, getPrefix, PackageSpecObject, save } from '@pnpm/manifest-utils'
+import {
+  createVersionSpec,
+  getPrefix,
+  PackageSpecObject,
+  updateProjectManifestObject,
+} from '@pnpm/manifest-utils'
 import { PinnedVersion } from '@pnpm/types'
 import versionSelectorType from 'version-selector-type'
 import { ResolvedDirectDependency } from './resolveDependencyTree'
@@ -34,12 +39,12 @@ export default async function updateProjectManifest (
       })
     }
   }
-  const hookedManifest = await save(
+  const hookedManifest = await updateProjectManifestObject(
     importer.rootDir,
     importer.manifest,
     specsToUpsert
   )
-  const originalManifest = importer.originalManifest && await save(
+  const originalManifest = importer.originalManifest && await updateProjectManifestObject(
     importer.rootDir,
     importer.originalManifest,
     specsToUpsert

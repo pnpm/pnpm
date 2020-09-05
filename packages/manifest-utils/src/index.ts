@@ -6,7 +6,7 @@ import {
 import getSpecFromPackageManifest from './getSpecFromPackageManifest'
 
 export * from './getPref'
-export * from './save'
+export * from './updateProjectManifestObject'
 
 export { getSpecFromPackageManifest }
 

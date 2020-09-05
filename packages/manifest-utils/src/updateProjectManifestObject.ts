@@ -12,7 +12,7 @@ export interface PackageSpecObject {
   saveType?: DependenciesField
 }
 
-export async function save (
+export async function updateProjectManifestObject (
   prefix: string,
   packageManifest: ProjectManifest,
   packageSpecs: PackageSpecObject[]
