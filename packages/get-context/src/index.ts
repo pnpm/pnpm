@@ -290,9 +290,17 @@ async function purgeModulesDirsOfImporter (
   }
 }
 
+// A RegExp used to match files that should be kept,
+// matches all .dot_files excluding the .bin directory and pnpm's files:
+const KEEP_FILES = /^\.(?!(bin|modules\.yaml|pnpm)$)/;
+
 async function removeContentsOfDir (dir: string) {
   const items = await fs.readdir(dir)
   for (const item of items) {
+    if (KEEP_FILES.test(item)) {
+      continue
+    }
+
     await rimraf(path.join(dir, item))
   }
 }
