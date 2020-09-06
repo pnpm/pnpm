@@ -408,7 +408,7 @@ function linkAllModules (
                 return
               }
               const pkg = depGraph[childrenToLink[childAlias]]
-              if (!pkg.installable && pkg.optional) return
+              if (!pkg || !pkg.installable && pkg.optional) return
               if (childAlias === name) {
                 logger.warn({
                   message: `Cannot link dependency with name ${childAlias} to ${modules}. Dependency's name should differ from the parent's name.`,
