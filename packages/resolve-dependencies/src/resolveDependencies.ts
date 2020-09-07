@@ -69,22 +69,22 @@ export interface ChildrenMap {
   [alias: string]: string
 }
 
-export type DependenciesTreeNode = {
+export type DependenciesTreeNode<T> = {
   children: (() => ChildrenMap) | ChildrenMap
   installable: boolean
 } & ({
-  resolvedPackage: ResolvedPackage
+  resolvedPackage: T & { version: string }
   depth: number
 } | {
   resolvedPackage: { version: string }
   depth: -1
 })
 
-export interface DependenciesTree {
+export interface DependenciesTree<T> {
   // a node ID is the join of the package's keypath with a colon
   // E.g., a subdeps node ID which parent is `foo` will be
   // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-  [nodeId: string]: DependenciesTreeNode
+  [nodeId: string]: DependenciesTreeNode<T>
 }
 
 export type ResolvedPackagesByDepPath = Record<string, ResolvedPackage>
@@ -133,7 +133,7 @@ export interface ResolutionContext {
   storeController: StoreController
   // the IDs of packages that are not installable
   skipped: Set<string>
-  dependenciesTree: DependenciesTree
+  dependenciesTree: DependenciesTree<ResolvedPackage>
   force: boolean
   prefix: string
   readPackageHook?: ReadPackageHook
@@ -180,6 +180,7 @@ export interface ResolvedPackage {
   name: string
   version: string
   peerDependencies: Dependencies
+  peerDependenciesMeta?: PeerDependenciesMeta
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
@@ -188,8 +189,6 @@ export interface ResolvedPackage {
   requiresBuild: boolean | undefined // added to fix issue #1201
   additionalInfo: {
     deprecated?: string
-    peerDependencies?: Dependencies
-    peerDependenciesMeta?: PeerDependenciesMeta
     bundleDependencies?: string[]
     bundledDependencies?: string[]
     engines?: {
@@ -796,8 +795,6 @@ function getResolvedPackage (
       deprecated: options.pkg.deprecated,
       engines: options.pkg.engines,
       os: options.pkg.os,
-      peerDependencies,
-      peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     },
     depPath: options.depPath,
     dev: options.wantedDependency.dev,
@@ -812,6 +809,7 @@ function getResolvedPackage (
     optional: options.wantedDependency.optional,
     optionalDependencies: new Set(R.keys(options.pkg.optionalDependencies)),
     peerDependencies: peerDependencies ?? {},
+    peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     requiresBuild: options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild),

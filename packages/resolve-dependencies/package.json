@@ -21,10 +21,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolve-dependencies#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run compile",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/resolve-dependencies/coverage ts-node packages/resolve-dependencies/test --type-check"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:^4.0.0",

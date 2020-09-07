@@ -24,17 +24,24 @@ import resolveDependencyTree, {
   LinkedDependency,
   ResolveDependenciesOptions,
   ResolvedDirectDependency,
+  ResolvedPackage,
 } from './resolveDependencyTree'
-import resolvePeers, { DependenciesGraph, DependenciesGraphNode } from './resolvePeers'
+import resolvePeers, {
+  GenericDependenciesGraph,
+  GenericDependenciesGraphNode,
+} from './resolvePeers'
 import updateLockfile from './updateLockfile'
 import updateProjectManifest from './updateProjectManifest'
 import path = require('path')
 import R = require('ramda')
 
+export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
+
+export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
+
 export {
-  DependenciesGraph,
-  DependenciesGraphNode,
   LinkedDependency,
+  ResolvedPackage,
 }
 
 interface ProjectToLink {

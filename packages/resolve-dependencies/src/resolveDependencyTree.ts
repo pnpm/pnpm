@@ -78,7 +78,7 @@ export default async function<T> (
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
-    dependenciesTree: {} as DependenciesTree,
+    dependenciesTree: {} as DependenciesTree<ResolvedPackage>,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
@@ -201,7 +201,7 @@ export default async function<T> (
 function buildTree (
   ctx: {
     childrenByParentDepPath: ChildrenByParentDepPath
-    dependenciesTree: DependenciesTree
+    dependenciesTree: DependenciesTree<ResolvedPackage>
     resolvedPackagesByDepPath: ResolvedPackagesByDepPath
     skipped: Set<string>
   },

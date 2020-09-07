@@ -66,12 +66,12 @@ export default async function linkPackages (
     newHoistedDependencies: HoistedDependencies
     removedDepPaths: Set<string>
   }> {
-  let depNodes = R.values(depGraph).filter(({ depPath, packageId }) => {
+  let depNodes = R.values(depGraph).filter(({ depPath, id }) => {
     if (opts.wantedLockfile.packages?.[depPath] && !opts.wantedLockfile.packages[depPath].optional) {
       opts.skipped.delete(depPath)
       return true
     }
-    if (opts.wantedToBeSkippedPackageIds.has(packageId)) {
+    if (opts.wantedToBeSkippedPackageIds.has(id)) {
       opts.skipped.add(depPath)
       return false
     }
@@ -158,8 +158,8 @@ export default async function linkPackages (
           rootLogger.debug({
             added: {
               dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-              id: depGraphNode.packageId,
-              latest: opts.outdatedDependencies[depGraphNode.packageId],
+              id: depGraphNode.id,
+              latest: opts.outdatedDependencies[depGraphNode.id],
               name: rootAlias,
               realName: depGraphNode.name,
               version: depGraphNode.version,

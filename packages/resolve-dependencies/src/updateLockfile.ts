@@ -7,16 +7,13 @@ import {
   ResolvedDependencies,
 } from '@pnpm/prune-lockfile'
 import { Resolution } from '@pnpm/resolver-base'
-import {
-  Dependencies,
-  PeerDependenciesMeta,
-  Registries,
-} from '@pnpm/types'
+import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import * as R from 'ramda'
 import depPathToRef from './depPathToRef'
-import { DependenciesGraph } from './resolvePeers'
+import { DependenciesGraph } from '.'
+import { ResolvedPackage } from './resolveDependencies'
 
 export default function (
   depGraph: DependenciesGraph,
@@ -35,7 +32,7 @@ export default function (
       (child) => depNode.optionalDependencies.has(child.alias),
       Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] }))
     )
-    lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode.additionalInfo, {
+    lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode, {
       depGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath],
@@ -54,19 +51,7 @@ export default function (
 
 function toLockfileDependency (
   pendingRequiresBuilds: string[],
-  pkg: {
-    deprecated?: string
-    peerDependencies?: Dependencies
-    peerDependenciesMeta?: PeerDependenciesMeta
-    bundleDependencies?: string[]
-    bundledDependencies?: string[]
-    engines?: {
-      node?: string
-      npm?: string
-    }
-    cpu?: string[]
-    os?: string[]
-  },
+  pkg: ResolvedPackage,
   opts: {
     depPath: string
     registry: string
@@ -77,11 +62,10 @@ function toLockfileDependency (
     prevSnapshot?: PackageSnapshot
   }
 ): PackageSnapshot {
-  const depNode = opts.depGraph[opts.depPath]
   const lockfileResolution = toLockfileResolution(
-    { name: depNode.name, version: depNode.version },
+    { name: pkg.name, version: pkg.version },
     opts.depPath,
-    depNode.resolution,
+    pkg.resolution,
     opts.registry
   )
   const newResolvedDeps = updateResolvedDeps(
@@ -101,12 +85,12 @@ function toLockfileDependency (
   }
   /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(opts.depPath)) {
-    result['name'] = depNode.name
+    result['name'] = pkg.name
 
     // There is no guarantee that a non-npmjs.org-hosted package
     // is going to have a version field
-    if (depNode.version) {
-      result['version'] = depNode.version
+    if (pkg.version) {
+      result['version'] = pkg.version
     }
   }
   if (!R.isEmpty(newResolvedDeps)) {
@@ -115,18 +99,18 @@ function toLockfileDependency (
   if (!R.isEmpty(newResolvedOptionalDeps)) {
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
-  if (depNode.dev && !depNode.prod) {
+  if (pkg.dev && !pkg.prod) {
     result['dev'] = true
-  } else if (depNode.prod && !depNode.dev) {
+  } else if (pkg.prod && !pkg.dev) {
     result['dev'] = false
   }
-  if (depNode.optional) {
+  if (pkg.optional) {
     result['optional'] = true
   }
-  if (opts.depPath[0] !== '/' && !depNode.packageId.endsWith(opts.depPath)) {
-    result['id'] = depNode.packageId
+  if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
+    result['id'] = pkg.id
   }
-  if (pkg.peerDependencies) {
+  if (!R.isEmpty(pkg.peerDependencies ?? {})) {
     result['peerDependencies'] = pkg.peerDependencies
   }
   if (pkg.peerDependenciesMeta) {
@@ -140,26 +124,26 @@ function toLockfileDependency (
       result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
     }
   }
-  if (pkg.engines) {
-    for (const engine of R.keys(pkg.engines)) {
-      if (pkg.engines[engine] === '*') continue
+  if (pkg.additionalInfo.engines) {
+    for (const engine of R.keys(pkg.additionalInfo.engines)) {
+      if (pkg.additionalInfo.engines[engine] === '*') continue
       result['engines'] = result['engines'] || {}
-      result['engines'][engine] = pkg.engines[engine]
+      result['engines'][engine] = pkg.additionalInfo.engines[engine]
     }
   }
-  if (pkg.cpu) {
-    result['cpu'] = pkg.cpu
+  if (pkg.additionalInfo.cpu) {
+    result['cpu'] = pkg.additionalInfo.cpu
   }
-  if (pkg.os) {
-    result['os'] = pkg.os
+  if (pkg.additionalInfo.os) {
+    result['os'] = pkg.additionalInfo.os
   }
-  if (Array.isArray(pkg.bundledDependencies) || Array.isArray(pkg.bundleDependencies)) {
-    result['bundledDependencies'] = pkg.bundledDependencies ?? pkg.bundleDependencies
+  if (Array.isArray(pkg.additionalInfo.bundledDependencies) || Array.isArray(pkg.additionalInfo.bundleDependencies)) {
+    result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies ?? pkg.additionalInfo.bundleDependencies
   }
-  if (pkg.deprecated) {
-    result['deprecated'] = pkg.deprecated
+  if (pkg.additionalInfo.deprecated) {
+    result['deprecated'] = pkg.additionalInfo.deprecated
   }
-  if (depNode.hasBin) {
+  if (pkg.hasBin) {
     result['hasBin'] = true
   }
   if (opts.prevSnapshot) {
@@ -169,17 +153,17 @@ function toLockfileDependency (
     if (opts.prevSnapshot.prepare) {
       result['prepare'] = opts.prevSnapshot.prepare
     }
-  } else if (depNode.prepare) {
+  } else if (pkg.prepare) {
     result['prepare'] = true
     result['requiresBuild'] = true
-  } else if (depNode.requiresBuild !== undefined) {
-    if (depNode.requiresBuild) {
+  } else if (pkg.requiresBuild !== undefined) {
+    if (pkg.requiresBuild) {
       result['requiresBuild'] = true
     }
   } else {
     pendingRequiresBuilds.push(opts.depPath)
   }
-  depNode.requiresBuild = result['requiresBuild']
+  pkg.requiresBuild = result['requiresBuild']
   /* eslint-enable @typescript-eslint/dot-notation */
   return result
 }
