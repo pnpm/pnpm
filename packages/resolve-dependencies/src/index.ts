@@ -37,15 +37,13 @@ export {
   LinkedDependency,
 }
 
-export interface ProjectToLink {
+interface ProjectToLink {
   binsDir: string
   directNodeIdsByAlias: {[alias: string]: string}
   id: string
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
   modulesDir: string
-  pruneDirectDependencies: boolean
-  removePackages?: string[]
   rootDir: string
   topParents: Array<{name: string, version: string}>
 }
@@ -60,8 +58,6 @@ export type ImporterToResolve = Importer<{
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
-  removePackages?: string[]
-  pruneDirectDependencies: boolean
   updatePackageManifest: boolean
 }
 
@@ -81,8 +77,10 @@ export default async function (
     wantedToBeSkippedPackageIds,
   } = await resolveDependencyTree(importers, opts)
 
+  const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   const projectsToLink = await Promise.all<ProjectToLink>(importers.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
+    linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
     let updatedManifest: ProjectManifest | undefined = project.manifest
     let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
     if (project.updatePackageManifest) {
@@ -123,15 +121,14 @@ export default async function (
       )
       : []
 
+    project.manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
     return {
       binsDir: project.binsDir,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: updatedOriginalManifest ?? project.originalManifest ?? project.manifest,
+      manifest: project.manifest,
       modulesDir: project.modulesDir,
-      pruneDirectDependencies: project.pruneDirectDependencies,
-      removePackages: project.removePackages,
       rootDir: project.rootDir,
       topParents,
     }
@@ -139,7 +136,7 @@ export default async function (
 
   const {
     dependenciesGraph,
-    projectsDirectPathsByAlias,
+    dependenciesByProjectId,
   } = resolvePeers({
     dependenciesTree,
     lockfileDir: opts.lockfileDir,
@@ -149,7 +146,7 @@ export default async function (
   })
 
   for (const { id } of projectsToLink) {
-    for (const [alias, depPath] of R.toPairs(projectsDirectPathsByAlias[id])) {
+    for (const [alias, depPath] of R.toPairs(dependenciesByProjectId[id])) {
       const depNode = dependenciesGraph[depPath]
       if (depNode.isPure) continue
 
@@ -175,11 +172,11 @@ export default async function (
   const waitTillAllFetchingsFinish = () => Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
 
   return {
+    dependenciesByProjectId,
     dependenciesGraph,
     finishLockfileUpdates: finishLockfileUpdates.bind(null, dependenciesGraph, pendingRequiresBuilds, newLockfile),
     outdatedDependencies,
-    projectsToLink,
-    projectsDirectPathsByAlias,
+    linkedDependenciesByProjectId,
     newLockfile,
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
