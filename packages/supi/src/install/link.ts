@@ -144,8 +144,8 @@ export default async function linkPackages (
 
   await Promise.all(projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
     const deps = opts.dependenciesByProjectId[id]
-    await Promise.all(
-      Object.entries(deps)
+    await Promise.all([
+      ...Object.entries(deps)
         .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
         .filter(({ depGraphNode }) => depGraphNode)
         .map(async ({ rootAlias, depGraphNode }) => {
@@ -166,16 +166,16 @@ export default async function linkPackages (
             },
             prefix: rootDir,
           })
+        }),
+      ...opts.linkedDependenciesByProjectId[id].map((linkedDependency) => {
+        const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
+        return symlinkDirectRootDependency(depLocation, modulesDir, linkedDependency.alias, {
+          fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
+          linkedPackage: linkedDependency,
+          prefix: rootDir,
         })
-    )
-    await Promise.all(opts.linkedDependenciesByProjectId[id].map((linkedDependency) => {
-      const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
-      return symlinkDirectRootDependency(depLocation, modulesDir, linkedDependency.alias, {
-        fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
-        linkedPackage: linkedDependency,
-        prefix: rootDir,
-      })
-    }))
+      }),
+    ])
   }))
 
   let currentLockfile: Lockfile
