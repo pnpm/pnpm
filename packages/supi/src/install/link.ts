@@ -36,6 +36,9 @@ export default async function linkPackages (
   depGraph: DependenciesGraph,
   opts: {
     currentLockfile: Lockfile
+    dependenciesByProjectId: {
+      [id: string]: {[alias: string]: string}
+    }
     force: boolean
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir: string
@@ -46,9 +49,6 @@ export default async function linkPackages (
     lockfileDir: string
     makePartialCurrentLockfile: boolean
     outdatedDependencies: {[pkgId: string]: string}
-    projectsDirectPathsByAlias: {
-      [id: string]: {[alias: string]: string}
-    }
     pruneStore: boolean
     registries: Registries
     rootModulesDir: string
@@ -143,9 +143,9 @@ export default async function linkPackages (
   })
 
   await Promise.all(projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
-    const directPathsByAlias = opts.projectsDirectPathsByAlias[id]
+    const deps = opts.dependenciesByProjectId[id]
     await Promise.all(
-      Object.entries(directPathsByAlias)
+      Object.entries(deps)
         .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
         .filter(({ depGraphNode }) => depGraphNode)
         .map(async ({ rootAlias, depGraphNode }) => {

@@ -79,7 +79,7 @@ export default function (
   }
 ): {
     dependenciesGraph: DependenciesGraph
-    projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}}
+    dependenciesByProjectId: {[id: string]: {[alias: string]: string}}
   } {
   const depGraph: DependenciesGraph = {}
   const pathsByNodeId = {}
@@ -126,16 +126,16 @@ export default function (
     }, {})
   })
 
-  const projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}} = {}
+  const dependenciesByProjectId: {[id: string]: {[alias: string]: string}} = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
-    projectsDirectPathsByAlias[id] = R.keys(directNodeIdsByAlias).reduce((rootPathsByAlias, alias) => {
+    dependenciesByProjectId[id] = R.keys(directNodeIdsByAlias).reduce((rootPathsByAlias, alias) => {
       rootPathsByAlias[alias] = pathsByNodeId[directNodeIdsByAlias[alias]]
       return rootPathsByAlias
     }, {})
   }
   return {
     dependenciesGraph: depGraph,
-    projectsDirectPathsByAlias,
+    dependenciesByProjectId,
   }
 }
 

@@ -597,11 +597,11 @@ async function installInContext (
   const projectsToResolve = await Promise.all(projects.map((project) => _toResolveImporter(project)))
   let {
     dependenciesGraph,
+    dependenciesByProjectId,
     finishLockfileUpdates,
     linkedDependenciesByProjectId,
     newLockfile,
     outdatedDependencies,
-    projectsDirectPathsByAlias,
     wantedToBeSkippedPackageIds,
     waitTillAllFetchingsFinish,
   } = await resolveDependencies(
@@ -650,6 +650,7 @@ async function installInContext (
       dependenciesGraph,
       {
         currentLockfile: ctx.currentLockfile,
+        dependenciesByProjectId,
         force: opts.force,
         hoistedDependencies: ctx.hoistedDependencies,
         hoistedModulesDir: ctx.hoistedModulesDir,
@@ -659,7 +660,6 @@ async function installInContext (
         lockfileDir: opts.lockfileDir,
         makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
         outdatedDependencies,
-        projectsDirectPathsByAlias,
         pruneStore: opts.pruneStore,
         publicHoistPattern: ctx.publicHoistPattern,
         registries: ctx.registries,

@@ -121,12 +121,13 @@ export default async function (
       )
       : []
 
+    project.manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
     return {
       binsDir: project.binsDir,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: updatedOriginalManifest ?? project.originalManifest ?? project.manifest,
+      manifest: project.manifest,
       modulesDir: project.modulesDir,
       rootDir: project.rootDir,
       topParents,
@@ -135,7 +136,7 @@ export default async function (
 
   const {
     dependenciesGraph,
-    projectsDirectPathsByAlias,
+    dependenciesByProjectId,
   } = resolvePeers({
     dependenciesTree,
     lockfileDir: opts.lockfileDir,
@@ -145,7 +146,7 @@ export default async function (
   })
 
   for (const { id } of projectsToLink) {
-    for (const [alias, depPath] of R.toPairs(projectsDirectPathsByAlias[id])) {
+    for (const [alias, depPath] of R.toPairs(dependenciesByProjectId[id])) {
       const depNode = dependenciesGraph[depPath]
       if (depNode.isPure) continue
 
@@ -171,10 +172,10 @@ export default async function (
   const waitTillAllFetchingsFinish = () => Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
 
   return {
+    dependenciesByProjectId,
     dependenciesGraph,
     finishLockfileUpdates: finishLockfileUpdates.bind(null, dependenciesGraph, pendingRequiresBuilds, newLockfile),
     outdatedDependencies,
-    projectsDirectPathsByAlias,
     linkedDependenciesByProjectId,
     newLockfile,
     waitTillAllFetchingsFinish,
