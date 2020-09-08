@@ -25,6 +25,7 @@
     "coveralls": "^3.1.0",
     "cross-env": "^7.0.2",
     "eslint": "^7.7.0",
+    "husky": "^4.3.0",
     "lcov-result-merger": "^3.1.0",
     "npm-run-all": "^4.1.5",
     "publish-packed": "^3.0.2",
@@ -33,9 +34,18 @@
     "ts-node": "^9.0.0",
     "typescript": "^4.0.2",
     "verdaccio": "^4.8.1",
-    "yarn": "^1.22.5"
+    "yarn": "^1.22.5",
+    "yarnhook": "^0.4.3"
   },
   "engines": {
     "pnpm": ">=5 || ^0.0.0-x"
+  },
+  "husky": {
+    "hooks": {
+      "pre-push": "pnpm run lint -- --quiet",
+      "post-checkout": "yarnhook",
+      "post-merge": "yarnhook",
+      "post-rewrite": "yarnhook"
+    }
   }
 }
