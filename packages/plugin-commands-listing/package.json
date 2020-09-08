@@ -39,7 +39,7 @@
     "@pnpm/plugin-commands-listing": "link:",
     "@pnpm/prepare": "workspace:0.0.9",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.14",
+    "@types/ramda": "^0.27.15",
     "execa": "^4.0.3",
     "mz": "^2.7.0",
     "strip-ansi": "^6.0.0",

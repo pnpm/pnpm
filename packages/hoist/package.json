@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.2",
-    "@types/ramda": "^0.27.14"
+    "@types/ramda": "^0.27.15"
   },
   "directories": {
     "test": "test"

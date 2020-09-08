@@ -33,7 +33,7 @@
     "@pnpm/plugin-commands-server": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.14",
+    "@types/ramda": "^0.27.15",
     "@types/signal-exit": "^3.0.0"
   },
   "dependencies": {

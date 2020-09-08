@@ -41,7 +41,7 @@
     "@pnpm/types": "workspace:6.2.0",
     "@types/lru-cache": "^5.1.0",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.14",
+    "@types/ramda": "^0.27.15",
     "@types/table": "^5.0.0",
     "@types/wrap-ansi": "^3.0.0",
     "mz": "^2.7.0",
@@ -65,7 +65,7 @@
     "lru-cache": "^6.0.0",
     "ramda": "^0.27.1",
     "render-help": "^1.0.0",
-    "table": "^6.0.1",
+    "table": "^6.0.3",
     "wrap-ansi": "^7.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

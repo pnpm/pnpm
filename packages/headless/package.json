@@ -26,7 +26,7 @@
     "@pnpm/test-fixtures": "workspace:^0.0.0",
     "@types/fs-extra": "^9.0.1",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.14",
+    "@types/ramda": "^0.27.15",
     "@types/rimraf": "^3.0.0",
     "@types/sinon": "^9.0.5",
     "@types/tape-promise": "^4.0.1",
