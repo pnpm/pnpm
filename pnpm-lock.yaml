@@ -1539,6 +1539,8 @@ importers:
       '@pnpm/plugin-commands-import': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/ncp': 2.0.4
+      '@types/yarnpkg__lockfile': 1.1.3
+      '@yarnpkg/lockfile': 1.1.0
       ncp: 2.0.0
       tempy: 0.6.0
     specifiers:
@@ -1551,6 +1553,8 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:1.0.13'
       '@pnpm/store-connection-manager': 'workspace:0.3.30'
       '@types/ncp': ^2.0.4
+      '@types/yarnpkg__lockfile': ^1.1.3
+      '@yarnpkg/lockfile': ^1.1.0
       '@zkochan/rimraf': ^1.0.0
       load-json-file: ^6.2.0
       ncp: ^2.0.0
@@ -3912,6 +3916,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-o5Pl/qux8JEuFpof5fUg/Fl6R3N26ExJlsmWpB67ayrEJDMIxWdM9NDJacisXeNB7YW+vij8onctH8Pr1Zhi5g==
+  /@types/yarnpkg__lockfile/1.1.3:
+    dev: true
+    resolution:
+      integrity: sha512-mhdQq10tYpiNncMkg1vovCud5jQm+rWeRVz6fxjCJlY6uhDlAn9GnMSmBa2DQwqPf/jS5YR0K/xChDEh1jdOQg==
   /@types/zen-observable/0.8.1:
     dev: false
     resolution:
@@ -4066,6 +4074,10 @@ packages:
       npm: '>=5'
     resolution:
       integrity: sha512-J9UEf6MkKugeq5sFhDfqPPGNy4dTSf3fVYK3Q2hGFQiKXvOw7hqovjz6PVOJRNMymBXb2fJuMPIXx1Br3kwD2Q==
+  /@yarnpkg/lockfile/1.1.0:
+    dev: true
+    resolution:
+      integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==
   /@zkochan/cmd-shim/5.0.0:
     dependencies:
       is-windows: 1.0.2
