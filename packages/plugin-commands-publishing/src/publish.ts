@@ -83,6 +83,8 @@ export function help () {
   })
 }
 
+const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false".'
+
 export async function handler (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
@@ -96,22 +98,30 @@ export async function handler (
 ) {
   if (opts.gitChecks !== false && await isGitRepo()) {
     const branch = opts.publishBranch ?? 'master'
-    if (await getCurrentBranch() !== branch) {
+    const currentBranch = await getCurrentBranch()
+    if (currentBranch !== branch) {
       const { confirm } = await prompt({
-        message: `You are not on ${branch} branch, do you want to continue?`,
+        message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branch}". \
+Do you want to continue?`,
         name: 'confirm',
         type: 'confirm',
       } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
       if (!confirm) {
-        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branch}'.`)
+        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branch}'.`, {
+          hint: GIT_CHECKS_HINT,
+        })
       }
     }
     if (!(await isWorkingTreeClean())) {
-      throw new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
+      throw new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
+        hint: GIT_CHECKS_HINT,
+      })
     }
     if (!(await isRemoteHistoryClean())) {
-      throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.')
+      throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.', {
+        hint: GIT_CHECKS_HINT,
+      })
     }
   }
   if (opts.recursive && opts.selectedProjectsGraph) {
