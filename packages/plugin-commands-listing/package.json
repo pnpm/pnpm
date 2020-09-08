@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-listing",
-  "version": "2.0.21",
+  "version": "2.0.22",
   "description": "The list and why commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -46,7 +46,7 @@
     "write-yaml-file": "^4.1.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.25",
+    "@pnpm/cli-utils": "workspace:0.4.26",
     "@pnpm/common-cli-options-help": "workspace:0.1.6",
     "@pnpm/config": "workspace:11.2.7",
     "@pnpm/error": "workspace:1.3.1",

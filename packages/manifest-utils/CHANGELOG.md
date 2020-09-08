@@ -1,5 +1,13 @@
 # @pnpm/manifest-utils
 
+## 1.1.0
+
+### Minor Changes
+
+- e2f6b40b1: `getSpecFromPackageManifest()` added.
+- e2f6b40b1: `getPref()` added.
+- e2f6b40b1: `updateProjectManifestObject()` added.
+
 ## 1.0.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 7.2.1
+
+### Patch Changes
+
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [e2f6b40b1]
+  - @pnpm/manifest-utils@1.1.0
+
 ## 7.2.0
 
 ### Minor Changes

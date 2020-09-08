@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 3.1.19
+
+### Patch Changes
+
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [5a3420ee5]
+- Updated dependencies [e2f6b40b1]
+  - @pnpm/manifest-utils@1.1.0
+  - supi@0.41.27
+  - @pnpm/cli-utils@0.4.26
+  - @pnpm/outdated@7.2.1
+  - @pnpm/find-workspace-packages@2.3.12
+  - @pnpm/plugin-commands-rebuild@2.0.36
+  - @pnpm/filter-workspace-packages@2.1.19
+
 ## 3.1.18
 
 ### Patch Changes

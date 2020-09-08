@@ -1,5 +1,17 @@
 # supi
 
+## 0.41.27
+
+### Patch Changes
+
+- 5a3420ee5: In some rare cases, `pnpm install --no-prefer-frozen-lockfile` didn't link the direct dependencies to the root `node_modules`. This was happening when the direct dependency was also resolving some peer dependencies.
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [e2f6b40b1]
+  - @pnpm/manifest-utils@1.1.0
+  - @pnpm/resolve-dependencies@18.0.0
+
 ## 0.41.26
 
 ### Patch Changes

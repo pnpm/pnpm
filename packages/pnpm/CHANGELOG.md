@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.5.12
+
+### Patch Changes
+
+- In some rare cases, `pnpm install --no-prefer-frozen-lockfile` didn't link the direct dependencies to the root `node_modules`. This was happening when the direct dependency was also resolving some peer dependencies.
+
 ## 5.5.11
 
 ### Patch Changes

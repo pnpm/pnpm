@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 18.0.0
+
+### Major Changes
+
+- e2f6b40b1: Breaking changes to the API. `resolveDependencies()` now returns a dependency graph with peer dependencies resolved.
+
+### Patch Changes
+
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [e2f6b40b1]
+- Updated dependencies [e2f6b40b1]
+  - @pnpm/manifest-utils@1.1.0
+
 ## 17.0.0
 
 ### Major Changes
