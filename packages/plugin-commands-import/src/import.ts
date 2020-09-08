@@ -1,5 +1,7 @@
+import path from 'path'
+import fs from 'fs'
 import { docsUrl } from '@pnpm/cli-utils'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import * as pnpmConst from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
@@ -7,12 +9,15 @@ import {
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { install, InstallOptions } from 'supi'
-import path = require('path')
+import { parse as parseYarnLock } from '@yarnpkg/lockfile'
+
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import renderHelp = require('render-help')
 
 export const rcOptionsTypes = cliOptionsTypes
+
+const WANTED_LOCKFILE: string = pnpmConst.WANTED_LOCKFILE
 
 export function cliOptionsTypes () {
   return {}
@@ -20,7 +25,7 @@ export function cliOptionsTypes () {
 
 export function help () {
   return renderHelp({
-    description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json) file.`,
+    description: `Generates ${WANTED_LOCKFILE} from a foreign lockfile (package-lock.json or npm-shrinkwrap.json or yarn.lock).`,
     url: docsUrl('import'),
     usages: ['pnpm import'],
   })
@@ -49,6 +54,28 @@ export async function handler (
   await install(await readProjectManifestOnly(opts.dir), installOpts)
 }
 
+function loadYarnLockFile<T> (path: string): T {
+  const o = parseYarnLock(fs.readFileSync(path, { encoding: 'utf-8' }))
+  const d = Object.keys(o.object).reduce(
+    (acc, key) => {
+      // convert key to npm format: pkgname@version to pkgname
+      acc[key.replace(/@[^@]+$/, '')] = o.object[key]
+      return acc
+    },
+    {}
+  )
+  if (o.type === 'success') {
+    // TODO? remove (sub-) 'dependencies' keys
+    // seems only top-level versions are fixed
+    return {
+      version: '*', // TODO? version of root package
+      dependencies: d,
+    } as any
+  } else {
+    throw new Error('failed to parse yarn.lock')
+  }
+}
+
 async function readNpmLockfile (dir: string) {
   try {
     return await loadJsonFile<LockedPackage>(path.join(dir, 'package-lock.json'))
@@ -60,7 +87,12 @@ async function readNpmLockfile (dir: string) {
   } catch (err) {
     if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
   }
-  throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
+  try {
+    return loadYarnLockFile<LockedPackage>(path.join(dir, 'yarn.lock'))
+  } catch (err) {
+    if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
+  }
+  throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No foreign lockfile found: package-lock.json or npm-shrinkwrap.json or yarn.lock')
 }
 
 function getPreferredVersions (
@@ -84,9 +116,9 @@ function getAllVersionsByPackageNames (
     [packageName: string]: Set<string>
   }
 ) {
-  if (!npmPackageLock.dependencies) return
+  if (npmPackageLock.dependencies === undefined) return
   for (const packageName of Object.keys(npmPackageLock.dependencies)) {
-    if (!versionsByPackageNames[packageName]) {
+    if (versionsByPackageNames[packageName] === undefined) {
       versionsByPackageNames[packageName] = new Set()
     }
     versionsByPackageNames[packageName].add(npmPackageLock.dependencies[packageName].version)
