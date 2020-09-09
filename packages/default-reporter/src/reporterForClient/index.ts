@@ -1,6 +1,7 @@
 import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
+import * as Rx from 'rxjs'
 import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportContext from './reportContext'
 import reportDeprecations from './reportDeprecations'
@@ -14,29 +15,28 @@ import reportScope from './reportScope'
 import reportSkippedOptionalDependencies from './reportSkippedOptionalDependencies'
 import reportStats from './reportStats'
 import reportSummary from './reportSummary'
-import most = require('most')
 
 export default function (
   log$: {
-    context: most.Stream<logs.ContextLog>
-    fetchingProgress: most.Stream<logs.FetchingProgressLog>
-    progress: most.Stream<logs.ProgressLog>
-    stage: most.Stream<logs.StageLog>
-    deprecation: most.Stream<logs.DeprecationLog>
-    summary: most.Stream<logs.SummaryLog>
-    lifecycle: most.Stream<logs.LifecycleLog>
-    stats: most.Stream<logs.StatsLog>
-    installCheck: most.Stream<logs.InstallCheckLog>
-    registry: most.Stream<logs.RegistryLog>
-    root: most.Stream<logs.RootLog>
-    packageManifest: most.Stream<logs.PackageManifestLog>
-    requestRetry: most.Stream<logs.RequestRetryLog>
-    link: most.Stream<logs.LinkLog>
-    other: most.Stream<logs.Log>
-    hook: most.Stream<logs.HookLog>
-    scope: most.Stream<logs.ScopeLog>
-    skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>
-    packageImportMethod: most.Stream<logs.PackageImportMethodLog>
+    context: Rx.Observable<logs.ContextLog>
+    fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
+    progress: Rx.Observable<logs.ProgressLog>
+    stage: Rx.Observable<logs.StageLog>
+    deprecation: Rx.Observable<logs.DeprecationLog>
+    summary: Rx.Observable<logs.SummaryLog>
+    lifecycle: Rx.Observable<logs.LifecycleLog>
+    stats: Rx.Observable<logs.StatsLog>
+    installCheck: Rx.Observable<logs.InstallCheckLog>
+    registry: Rx.Observable<logs.RegistryLog>
+    root: Rx.Observable<logs.RootLog>
+    packageManifest: Rx.Observable<logs.PackageManifestLog>
+    requestRetry: Rx.Observable<logs.RequestRetryLog>
+    link: Rx.Observable<logs.LinkLog>
+    other: Rx.Observable<logs.Log>
+    hook: Rx.Observable<logs.HookLog>
+    scope: Rx.Observable<logs.ScopeLog>
+    skippedOptionalDependency: Rx.Observable<logs.SkippedOptionalDependencyLog>
+    packageImportMethod: Rx.Observable<logs.PackageImportMethodLog>
   },
   opts: {
     appendOnly?: boolean
@@ -49,11 +49,11 @@ export default function (
     throttleProgress?: number
     width?: number
   }
-): Array<most.Stream<most.Stream<{msg: string}>>> {
+): Array<Rx.Observable<Rx.Observable<{msg: string}>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
   const cwd = opts.pnpmConfig?.dir ?? process.cwd()
 
-  const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = [
+  const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
     reportProgress(log$, {
       cwd,
       throttleProgress: opts.throttleProgress,

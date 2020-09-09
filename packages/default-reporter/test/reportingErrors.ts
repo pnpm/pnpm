@@ -3,6 +3,7 @@ import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
+import { map, take } from 'rxjs/operators'
 import path = require('path')
 import chalk = require('chalk')
 import loadJsonFile = require('load-json-file')
@@ -23,7 +24,7 @@ test('prints generic error', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -45,7 +46,7 @@ test('prints generic error when recursive install fails', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -64,7 +65,7 @@ test('prints no matching version error when many dist-tags exist', async (t) => 
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -94,7 +95,7 @@ test('prints no matching version error when only the latest dist-tag exists', as
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -119,7 +120,7 @@ test('prints suggestions when an internet-connection related error happens', asy
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -156,7 +157,7 @@ test('prints test error', async (t) => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -178,7 +179,7 @@ test('prints command error with exit code', async (t) => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -201,7 +202,7 @@ test('prints command error without exit code', async (t) => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -223,7 +224,7 @@ test('prints unsupported pnpm version error', async (t) => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -255,7 +256,7 @@ test('prints unsupported Node version error', async (t) => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -284,7 +285,7 @@ test('prints unsupported pnpm and Node versions error', async (t) => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -326,7 +327,7 @@ test('prints error even if the error object not passed in through the message ob
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -347,7 +348,7 @@ test('prints error without packages stacktrace when pkgsStack is empty', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -374,7 +375,7 @@ test('prints error with packages stacktrace - depth 1 and hint', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -408,7 +409,7 @@ test('prints error with packages stacktrace - depth 2', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -430,7 +431,7 @@ test('prints error and hint', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -463,7 +464,7 @@ test('prints authorization error with auth settings', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -496,7 +497,7 @@ test('prints authorization error without auth settings, where there are none', t
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {

@@ -1,19 +1,20 @@
 import { InstallCheckLog } from '@pnpm/core-loggers'
+import * as Rx from 'rxjs'
+import { filter, map } from 'rxjs/operators'
 import formatWarn from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
-import most = require('most')
 
 export default (
-  installCheck$: most.Stream<InstallCheckLog>,
+  installCheck$: Rx.Observable<InstallCheckLog>,
   opts: {
     cwd: string
   }
 ) => {
-  return installCheck$
-    .map(formatInstallCheck.bind(null, opts.cwd))
-    .filter(Boolean)
-    .map((msg) => ({ msg }))
-    .map(most.of) as most.Stream<most.Stream<{msg: string}>>
+  return installCheck$.pipe(
+    map((log) => formatInstallCheck(opts.cwd, log)),
+    filter(Boolean),
+    map((msg) => Rx.of({ msg }))
+  )
 }
 
 function formatInstallCheck (

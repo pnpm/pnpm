@@ -1,11 +1,11 @@
 import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
+import * as Rx from 'rxjs'
 import reportError from './reportError'
 import chalk = require('chalk')
-import most = require('most')
 
 export default function (
-  log$: most.Stream<Log>,
+  log$: Rx.Observable<Log>,
   config?: Config
 ) {
   log$.subscribe({

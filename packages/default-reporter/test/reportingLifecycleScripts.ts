@@ -1,6 +1,7 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
+import { map, skip, take } from 'rxjs/operators'
 import path = require('path')
 import chalk = require('chalk')
 import normalizeNewline = require('normalize-newline')
@@ -114,7 +115,7 @@ test('groups lifecycle output', t => {
 
   t.plan(1)
 
-  output$.skip(9).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(9), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
@@ -235,7 +236,7 @@ test('groups lifecycle output when append-only is used', t => {
 
   const allOutputs = [] as string[]
 
-  output$.take(11).map(normalizeNewline).subscribe({
+  output$.pipe(take(11), map(normalizeNewline)).subscribe({
     complete: () => {
       t.equal(allOutputs.join(EOL), `\
 ${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
@@ -355,7 +356,7 @@ test('groups lifecycle output when streamLifecycleOutput is used', t => {
 
   t.plan(1)
 
-  output$.skip(11).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(11), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
@@ -409,7 +410,7 @@ test('collapse lifecycle output when it has too many lines', t => {
 
   t.plan(1)
 
-  output$.skip(101).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(101), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
@@ -523,7 +524,7 @@ test('collapses lifecycle output of packages from node_modules', t => {
 
   t.plan(1)
 
-  output$.skip(5).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(5), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
@@ -569,7 +570,7 @@ test('output of failed optional dependency is not shown', t => {
 
   t.plan(1)
 
-  output$.skip(1).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(1), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
@@ -611,7 +612,7 @@ test('output of failed non-optional dependency is printed', t => {
 
   t.plan(1)
 
-  output$.skip(1).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(1), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
@@ -671,7 +672,7 @@ test['skip']('prints lifecycle progress', t => {
   const childOutputColor = chalk.grey
   const childOutputError = chalk.red
 
-  output$.skip(3).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(3), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {

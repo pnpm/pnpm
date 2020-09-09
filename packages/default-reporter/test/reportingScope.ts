@@ -3,6 +3,7 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
+import { take } from 'rxjs/operators'
 import test = require('tape')
 
 const scopeLogger = logger<object>('scope')
@@ -22,7 +23,7 @@ test('prints scope of non-recursive install in a workspace', (t) => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -48,7 +49,7 @@ test('prints scope of recursive install in a workspace when not all packages are
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -74,7 +75,7 @@ test('prints scope of recursive install in a workspace when all packages are sel
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -99,7 +100,7 @@ test('prints scope of recursive install not in a workspace when not all packages
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -124,7 +125,7 @@ test('prints scope of recursive install not in a workspace when all packages are
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
