@@ -234,7 +234,7 @@ export default async (opts: HeadlessOptions) => {
   })
 
   function warn (message: string) {
-    logger.warn({
+    logger.info({
       message,
       prefix: lockfileDir,
     })
@@ -369,7 +369,7 @@ function linkBinsOfImporter (
     rootDir: string
   }
 ) {
-  const warn = (message: string) => logger.warn({ message, prefix: rootDir })
+  const warn = (message: string) => logger.info({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
     warn,
