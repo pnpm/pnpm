@@ -54,7 +54,7 @@ export async function handler (
   await install(await readProjectManifestOnly(opts.dir), installOpts)
 }
 
-function loadYarnLockFile<T> (path: string): T {
+function loadYarnLockFile<T extends LockedPackage> (path: string): T {
   const o = parseYarnLock(fs.readFileSync(path, { encoding: 'utf-8' }))
   const d = Object.keys(o.object).reduce(
     (acc, key) => {
@@ -70,7 +70,7 @@ function loadYarnLockFile<T> (path: string): T {
     return {
       version: '*', // TODO? version of root package
       dependencies: d,
-    } as any
+    } as T
   } else {
     throw new Error('failed to parse yarn.lock')
   }
