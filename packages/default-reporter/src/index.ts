@@ -206,5 +206,5 @@ export function toOutput$ (
         mergeAll()
       )
   }
-  return mergeOutputs(outputs) // .pipe(multicast(() => new Rx.Subject<string>()))
+  return mergeOutputs(outputs)
 }

@@ -100,13 +100,11 @@ function getModulesInstallProgress$ (
           requirer: log.prefix,
         })
       }
-      // setTimeout(() => { // without this, `pnpm m i` might hang in some cases
       stagePushStreamByRequirer[log.prefix].next(log)
       if (log.stage === 'importing_done') {
         progessStatsPushStreamByRequirer[log.prefix].complete()
         stagePushStreamByRequirer[log.prefix].complete()
       }
-      // }, 0)
     })
     .catch(() => {})
 
@@ -120,7 +118,6 @@ function stage$ToImportingDone$ (stage$: Rx.Observable<StageLog>) {
       mapTo(true),
       take(1),
       startWith(false)
-      // multicast(() => new Rx.Subject<boolean>()),
     )
 }
 

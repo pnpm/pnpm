@@ -10,8 +10,7 @@ import logger, {
   createStreamParser,
 } from '@pnpm/logger'
 import delay from 'delay'
-import * as Rx from 'rxjs'
-import { map, skip, take, tap } from 'rxjs/operators'
+import { map, skip, take } from 'rxjs/operators'
 import chalk = require('chalk')
 import normalizeNewline = require('normalize-newline')
 import test = require('tape')
@@ -265,85 +264,59 @@ test('prints "Already up-to-date"', t => {
   })
 })
 
-test.skip('prints progress of big files download', async t => {
+test('prints progress of big files download', async t => {
   t.plan(6)
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-  let output$ = toOutput$({
+  const output$ = toOutput$({
     context: {
       argv: ['install'],
       config: { dir: '/src/project' } as Config,
     },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
-  }).pipe(
-    map(normalizeNewline)
-  ) as Rx.Observable<string>
-  const stream$: Array<Rx.Observable<string>> = []
+  })
 
   const pkgId1 = 'registry.npmjs.org/foo/1.0.0'
   const pkgId2 = 'registry.npmjs.org/bar/2.0.0'
   const pkgId3 = 'registry.npmjs.org/qar/3.0.0'
 
-  stream$.push(
-    output$.pipe(take(1),
-      tap(output => t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`))
-    )
-  )
-
-  output$ = output$.pipe(skip(1))
-
-  stream$.push(
-    output$.pipe(take(1),
-      tap(output => t.equal(output, `\
+  output$.pipe(
+    map(normalizeNewline),
+    map((output, index) => {
+      switch (index) {
+      case 0:
+        t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
+        return
+      case 1:
+        t.equal(output, `\
 Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}`))
-    )
-  )
-
-  output$ = output$.pipe(skip(1))
-
-  stream$.push(
-    output$.pipe(take(1),
-      tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}`)
+        return
+      case 2:
+        t.equal(output, `\
 Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}`))
-    )
-  )
-
-  output$ = output$.pipe(skip(2))
-
-  stream$.push(
-    output$.pipe(take(1),
-      tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}`)
+        return
+      case 4:
+        t.equal(output, `\
 Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}`, 'downloading of small package not reported'))
-    )
-  )
-
-  output$ = output$.pipe(skip(3))
-
-  stream$.push(
-    output$.pipe(take(1),
-      tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}`, 'downloading of small package not reported')
+        return
+      case 7:
+        t.equal(output, `\
 Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
 Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
-    )
-  )
-
-  output$ = output$.pipe(skip(1))
-
-  stream$.push(
-    output$.pipe(take(1),
-      tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
+        return
+      case 8:
+        t.equal(output, `\
 Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
 Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
-    )
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
+        return // eslint-disable-line
+      }
+    })
   )
-
-  Rx.merge(...stream$)
     .subscribe({
       complete: () => t.end(),
       error: t.end,
