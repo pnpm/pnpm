@@ -9,7 +9,6 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import delay from 'delay'
 import { map, skip, take } from 'rxjs/operators'
 import chalk = require('chalk')
 import normalizeNewline = require('normalize-newline')
@@ -179,8 +178,6 @@ test('prints progress on first download', async t => {
     status: 'resolved',
   })
 
-  await delay(10)
-
   progressLogger.debug({
     packageId,
     requester: '/src/project',
@@ -221,16 +218,12 @@ test('moves fixed line to the end', async t => {
     status: 'resolved',
   })
 
-  await delay(10)
-
   progressLogger.debug({
     packageId,
     requester: prefix,
     status: 'fetched',
   })
   logger.warn({ message: 'foo', prefix })
-
-  await delay(10) // w/o delay warning goes below for some reason. Started to happen after switch to most
 
   stageLogger.debug({
     prefix: prefix,
@@ -334,16 +327,12 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
     status: 'resolved',
   })
 
-  await delay(10)
-
   fetchingProgressLogger.debug({
     attempt: 1,
     packageId: pkgId1,
     size: 1024 * 1024 * 10, // 10 MB
     status: 'started',
   })
-
-  await delay(10)
 
   fetchingProgressLogger.debug({
     downloaded: 1024 * 1024 * 5.5, // 5.5 MB
@@ -356,8 +345,6 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
     requester: '/src/project',
     status: 'resolved',
   })
-
-  await delay(10)
 
   fetchingProgressLogger.debug({
     attempt: 1,
@@ -384,8 +371,6 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
     size: 1024 * 1024 * 20, // 20 MB
     status: 'started',
   })
-
-  await delay(10)
 
   fetchingProgressLogger.debug({
     downloaded: 1024 * 1024 * 19, // 19 MB

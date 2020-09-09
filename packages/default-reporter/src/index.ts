@@ -97,7 +97,7 @@ export function toOutput$ (
   const skippedOptionalDependencyPushStream = new Rx.Subject<logs.SkippedOptionalDependencyLog>()
   const scopePushStream = new Rx.Subject<logs.ScopeLog>()
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
-  setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
+  setTimeout(() => {
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
       case 'pnpm:context':
