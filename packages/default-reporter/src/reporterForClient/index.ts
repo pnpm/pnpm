@@ -6,6 +6,7 @@ import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportContext from './reportContext'
 import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
+import reportImporting from './reportImporting'
 import reportInstallChecks from './reportInstallChecks'
 import reportLifecycleScripts from './reportLifecycleScripts'
 import reportMisc from './reportMisc'
@@ -26,6 +27,7 @@ export default function (
     summary: Rx.Observable<logs.SummaryLog>
     lifecycle: Rx.Observable<logs.LifecycleLog>
     stats: Rx.Observable<logs.StatsLog>
+    importing: Rx.Observable<logs.ImportingLog>
     installCheck: Rx.Observable<logs.InstallCheckLog>
     registry: Rx.Observable<logs.RegistryLog>
     root: Rx.Observable<logs.RootLog>
@@ -79,6 +81,7 @@ export default function (
       isRecursive: opts.isRecursive,
       width,
     }),
+    Rx.of(reportImporting(log$)),
     reportInstallChecks(log$.installCheck, { cwd }),
     reportRequestRetry(log$.requestRetry),
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
