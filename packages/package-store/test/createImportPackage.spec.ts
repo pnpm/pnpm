@@ -68,3 +68,24 @@ test('packageImportMethod=auto: link files if cloning fails', async (t) => {
   t.ok(fsMock.link.calledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js')))
   t.end()
 })
+
+test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', async (t) => {
+  const importPackage = createImportPackage('hardlink')
+  fsMock.link = sinon.spy(() => {
+    throw new Error('This file system does not support hard linking')
+  })
+  fsMock.copyFile = sinon.spy()
+  await importPackage('project/package', {
+    filesMap: {
+      'index.js': 'hash2',
+      'package.json': 'hash1',
+    },
+    force: false,
+    fromStore: false,
+  })
+  t.ok(fsMock.link.called)
+  t.ok(fsMock.copyFile.calledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json')))
+  t.ok(fsMock.copyFile.calledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js')))
+  fsMock.copyFile.resetHistory()
+  t.end()
+})
