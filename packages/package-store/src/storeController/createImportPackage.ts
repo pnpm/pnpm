@@ -104,8 +104,8 @@ async function clonePkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({ to, method: 'clone' })
     await importIndexedDir(cloneFile, to, opts.filesMap)
+    importingLogger.debug({ to, method: 'clone' })
   }
 }
 
@@ -124,8 +124,8 @@ async function hardlinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, opts.filesMap['package.json'], to)) {
-    importingLogger.debug({ to, method: 'hardlink' })
     await importIndexedDir(linkOrCopy, to, opts.filesMap)
+    importingLogger.debug({ to, method: 'hardlink' })
   }
 }
 
@@ -166,7 +166,7 @@ export async function copyPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({ to, method: 'copy' })
     await importIndexedDir(fs.copyFile, to, opts.filesMap)
+    importingLogger.debug({ to, method: 'copy' })
   }
 }
