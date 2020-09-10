@@ -1,7 +1,7 @@
 import { importingLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
-import importIndexedDir from '../fs/importIndexedDir'
+import importIndexedDir, { ImportFile } from '../fs/importIndexedDir'
 import path = require('path')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
@@ -37,7 +37,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
     return clonePkg
   case 'hardlink':
     packageImportMethodLogger.debug({ method: 'hardlink' })
-    return hardlinkPkg
+    return hardlinkPkg.bind(null, linkOrCopy)
   case 'auto': {
     return createAutoImporter()
   }
@@ -80,9 +80,9 @@ function createAutoImporter () {
       // ignore
     }
     try {
-      if (!await hardlinkPkg(to, opts)) return false
+      if (!await hardlinkPkg(fs.link, to, opts)) return false
       packageImportMethodLogger.debug({ method: 'hardlink' })
-      auto = hardlinkPkg
+      auto = hardlinkPkg.bind(null, linkOrCopy)
       return true
     } catch (err) {
       if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
@@ -118,6 +118,7 @@ async function cloneFile (from: string, to: string) {
 }
 
 async function hardlinkPkg (
+  importFile: ImportFile,
   to: string,
   opts: {
     filesMap: Record<string, string>
@@ -128,7 +129,7 @@ async function hardlinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, opts.filesMap['package.json'], to)) {
-    await importIndexedDir(linkOrCopy, to, opts.filesMap)
+    await importIndexedDir(importFile, to, opts.filesMap)
     importingLogger.debug({ to, method: 'hardlink' })
     return true
   }
