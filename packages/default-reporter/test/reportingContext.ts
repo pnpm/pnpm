@@ -4,6 +4,7 @@ import {
   createStreamParser,
 } from '@pnpm/logger'
 import delay from 'delay'
+import { take } from 'rxjs/operators'
 import test = require('tape')
 
 test('print context and import method info', (t) => {
@@ -25,7 +26,7 @@ test('print context and import method info', (t) => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {

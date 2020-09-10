@@ -9,9 +9,8 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import delay from 'delay'
+import { map, skip, take } from 'rxjs/operators'
 import chalk = require('chalk')
-import most = require('most')
 import normalizeNewline = require('normalize-newline')
 import test = require('tape')
 
@@ -42,7 +41,7 @@ test('prints progress beginning', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -72,7 +71,7 @@ test('prints progress beginning of node_modules from not cwd', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -105,7 +104,7 @@ test('prints progress beginning when appendOnly is true', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -138,7 +137,7 @@ test('prints progress beginning during recursive install', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -159,7 +158,7 @@ test('prints progress on first download', async t => {
     streamParser: createStreamParser(),
   })
 
-  output$.skip(1).take(1).subscribe({
+  output$.pipe(skip(1), take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -178,8 +177,6 @@ test('prints progress on first download', async t => {
     requester: '/src/project',
     status: 'resolved',
   })
-
-  await delay(10)
 
   progressLogger.debug({
     packageId,
@@ -200,7 +197,7 @@ test('moves fixed line to the end', async t => {
     streamParser: createStreamParser(),
   })
 
-  output$.skip(3).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(3), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -221,16 +218,12 @@ test('moves fixed line to the end', async t => {
     status: 'resolved',
   })
 
-  await delay(10)
-
   progressLogger.debug({
     packageId,
     requester: prefix,
     status: 'fetched',
   })
   logger.warn({ message: 'foo', prefix })
-
-  await delay(10) // w/o delay warning goes below for some reason. Started to happen after switch to most
 
   stageLogger.debug({
     prefix: prefix,
@@ -255,7 +248,7 @@ test('prints "Already up-to-date"', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -267,8 +260,7 @@ test('prints "Already up-to-date"', t => {
 test('prints progress of big files download', async t => {
   t.plan(6)
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-  let output$ = toOutput$({
+  const output$ = toOutput$({
     context: {
       argv: ['install'],
       config: { dir: '/src/project' } as Config,
@@ -276,66 +268,48 @@ test('prints progress of big files download', async t => {
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
   })
-    .map(normalizeNewline) as most.Stream<string>
-  const stream$: Array<most.Stream<string>> = []
 
   const pkgId1 = 'registry.npmjs.org/foo/1.0.0'
   const pkgId2 = 'registry.npmjs.org/bar/2.0.0'
   const pkgId3 = 'registry.npmjs.org/qar/3.0.0'
 
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`))
-  )
-
-  output$ = output$.skip(1)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, `\
+  output$.pipe(
+    map(normalizeNewline),
+    map((output, index) => {
+      switch (index) {
+      case 0:
+        t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
+        return
+      case 1:
+        t.equal(output, `\
 Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}`))
-  )
-
-  output$ = output$.skip(1)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}`)
+        return
+      case 2:
+        t.equal(output, `\
 Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}`))
-  )
-
-  output$ = output$.skip(2)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}`)
+        return
+      case 4:
+        t.equal(output, `\
 Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}`, 'downloading of small package not reported'))
-  )
-
-  output$ = output$.skip(3)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}`, 'downloading of small package not reported')
+        return
+      case 7:
+        t.equal(output, `\
 Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
 Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
-  )
-
-  output$ = output$.skip(1)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, `\
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
+        return
+      case 8:
+        t.equal(output, `\
 Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
 Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
+        return // eslint-disable-line
+      }
+    })
   )
-
-  most.mergeArray(stream$)
     .subscribe({
       complete: () => t.end(),
       error: t.end,
@@ -353,16 +327,12 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
     status: 'resolved',
   })
 
-  await delay(10)
-
   fetchingProgressLogger.debug({
     attempt: 1,
     packageId: pkgId1,
     size: 1024 * 1024 * 10, // 10 MB
     status: 'started',
   })
-
-  await delay(10)
 
   fetchingProgressLogger.debug({
     downloaded: 1024 * 1024 * 5.5, // 5.5 MB
@@ -375,8 +345,6 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
     requester: '/src/project',
     status: 'resolved',
   })
-
-  await delay(10)
 
   fetchingProgressLogger.debug({
     attempt: 1,
@@ -403,8 +371,6 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`))
     size: 1024 * 1024 * 20, // 20 MB
     status: 'started',
   })
-
-  await delay(10)
 
   fetchingProgressLogger.debug({
     downloaded: 1024 * 1024 * 19, // 19 MB

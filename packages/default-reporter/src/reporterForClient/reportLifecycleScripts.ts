@@ -1,13 +1,13 @@
 import { LifecycleLog } from '@pnpm/core-loggers'
-import PushStream from '@zkochan/zen-push'
+import * as Rx from 'rxjs'
+import { map } from 'rxjs/operators'
 import { EOL } from '../constants'
+import formatPrefix, { formatPrefixNoTrim } from './utils/formatPrefix'
 import {
   hlValue,
 } from './outputConstants'
-import formatPrefix, { formatPrefixNoTrim } from './utils/formatPrefix'
-import path = require('path')
 import chalk = require('chalk')
-import most = require('most')
+import path = require('path')
 import prettyTime = require('pretty-time')
 import stripAnsi = require('strip-ansi')
 
@@ -24,7 +24,7 @@ type ColorByPkg = Map<string, (txt: string) => string>
 
 export default (
   log$: {
-    lifecycle: most.Stream<LifecycleLog>
+    lifecycle: Rx.Observable<LifecycleLog>
   },
   opts: {
     appendOnly?: boolean
@@ -36,10 +36,11 @@ export default (
   // in order to reduce flickering
   if (opts.appendOnly) {
     const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd)
-    return log$.lifecycle
-      .map((log: LifecycleLog) => most.of({
+    return log$.lifecycle.pipe(
+      map((log: LifecycleLog) => Rx.of({
         msg: streamLifecycleOutput(log),
       }))
+    )
   }
   const lifecycleMessages: {
     [depPath: string]: {
@@ -51,9 +52,9 @@ export default (
     }
   } = {}
   const lifecycleStreamByDepPath: {
-    [depPath: string]: PushStream<{ msg: string }>
+    [depPath: string]: Rx.Subject<{ msg: string }>
   } = {}
-  const lifecyclePushStream = new PushStream()
+  const lifecyclePushStream = new Rx.Subject<Rx.Observable<{ msg: string }>>()
 
   // TODO: handle promise of .forEach?!
   log$.lifecycle // eslint-disable-line
@@ -76,8 +77,8 @@ export default (
         delete lifecycleMessages[key]
       }
       if (!lifecycleStreamByDepPath[key]) {
-        lifecycleStreamByDepPath[key] = new PushStream()
-        lifecyclePushStream.next(most.from(lifecycleStreamByDepPath[key].observable))
+        lifecycleStreamByDepPath[key] = new Rx.Subject<{ msg: string }>()
+        lifecyclePushStream.next(Rx.from(lifecycleStreamByDepPath[key]))
       }
       lifecycleStreamByDepPath[key].next({ msg })
       if (exit) {
@@ -85,7 +86,7 @@ export default (
       }
     })
 
-  return most.from(lifecyclePushStream.observable)
+  return Rx.from(lifecyclePushStream)
 }
 
 function renderCollapsedScriptOutput (

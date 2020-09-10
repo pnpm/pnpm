@@ -20,6 +20,7 @@ import './reportingLifecycleScripts'
 import './reportingProgress'
 import './reportingRequestRetry'
 import './reportingScope'
+import { map, skip, take } from 'rxjs/operators'
 import chalk = require('chalk')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
@@ -181,7 +182,7 @@ test('prints summary (of current package only)', t => {
 
   t.plan(1)
 
-  output$.skip(2).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(2), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -264,7 +265,7 @@ test('prints summary for global installation', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -308,7 +309,7 @@ test('prints added peer dependency', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -375,7 +376,7 @@ test('prints summary correctly when the same package is specified both in option
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -395,7 +396,7 @@ test('prints summary when some packages fail', async (t) => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -462,7 +463,7 @@ test('prints info', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -483,7 +484,7 @@ test('prints added/removed stats during installation', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -506,7 +507,7 @@ test('prints added/removed stats during installation when 0 removed', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -529,7 +530,7 @@ test('prints only the added stats if nothing was removed', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -551,7 +552,7 @@ test('prints only the removed stats if nothing was added', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -574,7 +575,7 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -597,7 +598,7 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -620,7 +621,7 @@ test('prints at least one remove sign when removed !== 0', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -644,7 +645,7 @@ test('prints at least one add sign when added !== 0', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -665,7 +666,7 @@ test('prints just removed during uninstallation', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -718,7 +719,7 @@ test('prints added/removed stats and warnings during recursive installation', t 
 
   t.plan(1)
 
-  output$.skip(8).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(8), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -751,7 +752,7 @@ test('recursive installation: prints only the added stats if nothing was removed
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -775,7 +776,7 @@ test('recursive installation: prints only the removed stats if nothing was added
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -799,7 +800,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -823,7 +824,7 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -846,7 +847,7 @@ test('recursive uninstall: prints removed packages number', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -873,7 +874,7 @@ test('install: print hook message', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -900,7 +901,7 @@ test('recursive: print hook message', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -934,7 +935,7 @@ test('prints skipped optional dependency info message', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -960,7 +961,7 @@ test('logLevel=default', t => {
 
   t.plan(1)
 
-  output$.skip(2).take(1).subscribe({
+  output$.pipe(skip(2), take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -991,7 +992,7 @@ test('logLevel=warn', t => {
 
   t.plan(1)
 
-  output$.skip(1).take(1).subscribe({
+  output$.pipe(skip(1), take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -1021,7 +1022,7 @@ test('logLevel=error', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -1053,7 +1054,7 @@ test('warnings are collapsed', t => {
 
   t.plan(1)
 
-  output$.skip(6).take(1).subscribe({
+  output$.pipe(skip(6), take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {

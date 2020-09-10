@@ -3,6 +3,7 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import {
   createStreamParser,
 } from '@pnpm/logger'
+import { take } from 'rxjs/operators'
 import chalk = require('chalk')
 import test = require('tape')
 
@@ -27,7 +28,7 @@ test('print warning about request retry', (t) => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {

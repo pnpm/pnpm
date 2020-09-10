@@ -1,8 +1,8 @@
 import { ProgressLog, StageLog } from '@pnpm/core-loggers'
-import PushStream from '@zkochan/zen-push'
+import * as Rx from 'rxjs'
+import { filter, map, mapTo, sampleTime, takeWhile, startWith, take } from 'rxjs/operators'
 import { hlValue } from './outputConstants'
 import { zoomOut } from './utils/zooming'
-import most = require('most')
 
 interface ProgressStats {
   fetched: number
@@ -11,15 +11,15 @@ interface ProgressStats {
 }
 
 interface ModulesInstallProgress {
-  importingDone$: most.Stream<boolean>
-  progress$: most.Stream<ProgressStats>
+  importingDone$: Rx.Observable<boolean>
+  progress$: Rx.Observable<ProgressStats>
   requirer: string
 }
 
 export default (
   log$: {
-    progress: most.Stream<ProgressLog>
-    stage: most.Stream<StageLog>
+    progress: Rx.Observable<ProgressLog>
+    stage: Rx.Observable<StageLog>
   },
   opts: {
     cwd: string
@@ -30,101 +30,100 @@ export default (
     ? throttledProgressOutput.bind(null, opts.throttleProgress)
     : nonThrottledProgressOutput
 
-  return getModulesInstallProgress$(log$.stage, log$.progress)
-    .map(({ importingDone$, progress$, requirer }) => {
+  return getModulesInstallProgress$(log$.stage, log$.progress).pipe(
+    map(({ importingDone$, progress$, requirer }) => {
       const output$ = progressOutput(importingDone$, progress$)
 
       if (requirer === opts.cwd) {
         return output$
       }
-      return output$.map((msg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-        msg['msg'] = zoomOut(opts.cwd, requirer, msg['msg'])
-        return msg
-      })
+      return output$.pipe(
+        map((msg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          msg['msg'] = zoomOut(opts.cwd, requirer, msg['msg'])
+          return msg
+        })
+      )
     })
+  )
 }
 
 function throttledProgressOutput (
   throttleProgress: number,
-  importingDone$: most.Stream<boolean>,
-  progress$: most.Stream<ProgressStats>
+  importingDone$: Rx.Observable<boolean>,
+  progress$: Rx.Observable<ProgressStats>
 ) {
   // Reporting is done every `throttleProgress` milliseconds
   // and once all packages are fetched.
-  const sampler = most.merge(
-    most.periodic(throttleProgress).until(importingDone$.skip(1)),
+  return Rx.combineLatest(
+    progress$.pipe(sampleTime(throttleProgress)),
     importingDone$
   )
-  return most.sample(
-    createStatusMessage,
-    sampler,
-    progress$,
-    importingDone$
-  )
-  // Avoid logs after all resolved packages were downloaded.
-  // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
-    .skipAfter((msg) => msg['done'] === true)
+    .pipe(
+      map(createStatusMessage),
+      // Avoid logs after all resolved packages were downloaded.
+      // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
+      takeWhile((msg) => msg['done'] !== true, true)
+    )
 }
 
 function nonThrottledProgressOutput (
-  importingDone$: most.Stream<boolean>,
-  progress$: most.Stream<ProgressStats>
+  importingDone$: Rx.Observable<boolean>,
+  progress$: Rx.Observable<ProgressStats>
 ) {
-  return most.combine(
-    createStatusMessage,
+  return Rx.combineLatest(
     progress$,
     importingDone$
   )
+    .pipe(map(createStatusMessage))
 }
 
 function getModulesInstallProgress$ (
-  stage$: most.Stream<StageLog>,
-  progress$: most.Stream<ProgressLog>
-): most.Stream<ModulesInstallProgress> {
-  const modulesInstallProgressPushStream = new PushStream<ModulesInstallProgress>()
+  stage$: Rx.Observable<StageLog>,
+  progress$: Rx.Observable<ProgressLog>
+): Rx.Observable<ModulesInstallProgress> {
+  const modulesInstallProgressPushStream = new Rx.Subject<ModulesInstallProgress>()
   const progessStatsPushStreamByRequirer = getProgessStatsPushStreamByRequirer(progress$)
 
   const stagePushStreamByRequirer: {
-    [requirer: string]: PushStream<StageLog>
+    [requirer: string]: Rx.Subject<StageLog>
   } = {}
   stage$
     .forEach((log: StageLog) => {
       if (!stagePushStreamByRequirer[log.prefix]) {
-        stagePushStreamByRequirer[log.prefix] = new PushStream<StageLog>()
+        stagePushStreamByRequirer[log.prefix] = new Rx.Subject<StageLog>()
         if (!progessStatsPushStreamByRequirer[log.prefix]) {
-          progessStatsPushStreamByRequirer[log.prefix] = new PushStream()
+          progessStatsPushStreamByRequirer[log.prefix] = new Rx.Subject()
         }
         modulesInstallProgressPushStream.next({
-          importingDone$: stage$ToImportingDone$(most.from(stagePushStreamByRequirer[log.prefix].observable)),
-          progress$: most.from(progessStatsPushStreamByRequirer[log.prefix].observable),
+          importingDone$: stage$ToImportingDone$(Rx.from(stagePushStreamByRequirer[log.prefix])),
+          progress$: Rx.from(progessStatsPushStreamByRequirer[log.prefix]),
           requirer: log.prefix,
         })
       }
-      setTimeout(() => { // without this, `pnpm m i` might hang in some cases
-        stagePushStreamByRequirer[log.prefix].next(log)
-        if (log.stage === 'importing_done') {
-          progessStatsPushStreamByRequirer[log.prefix].complete()
-          stagePushStreamByRequirer[log.prefix].complete()
-        }
-      }, 0)
+      stagePushStreamByRequirer[log.prefix].next(log)
+      if (log.stage === 'importing_done') {
+        progessStatsPushStreamByRequirer[log.prefix].complete()
+        stagePushStreamByRequirer[log.prefix].complete()
+      }
     })
     .catch(() => {})
 
-  return most.from(modulesInstallProgressPushStream.observable)
+  return Rx.from(modulesInstallProgressPushStream)
 }
 
-function stage$ToImportingDone$ (stage$: most.Stream<StageLog>) {
+function stage$ToImportingDone$ (stage$: Rx.Observable<StageLog>) {
   return stage$
-    .filter((log: StageLog) => log.stage === 'importing_done')
-    .constant(true)
-    .take(1)
-    .startWith(false)
-    .multicast()
+    .pipe(
+      filter((log: StageLog) => log.stage === 'importing_done'),
+      mapTo(true),
+      take(1),
+      startWith(false)
+    )
 }
 
-function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog>) {
+function getProgessStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressLog>) {
   const progessStatsPushStreamByRequirer: {
-    [requirer: string]: PushStream<ProgressStats>
+    [requirer: string]: Rx.Subject<ProgressStats>
   } = {}
 
   const previousProgressStatsByRequirer: { [requirer: string]: ProgressStats } = {}
@@ -149,7 +148,7 @@ function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog
         break
       }
       if (!progessStatsPushStreamByRequirer[log.requester]) {
-        progessStatsPushStreamByRequirer[log.requester] = new PushStream<ProgressStats>()
+        progessStatsPushStreamByRequirer[log.requester] = new Rx.Subject<ProgressStats>()
       }
       progessStatsPushStreamByRequirer[log.requester].next(previousProgressStatsByRequirer[log.requester])
     })
@@ -158,10 +157,7 @@ function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog
   return progessStatsPushStreamByRequirer
 }
 
-function createStatusMessage (
-  progress: ProgressStats,
-  importingDone: boolean
-) {
+function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean]) {
   const msg = `Resolving: total ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}`
   if (importingDone) {
     return {
