@@ -840,7 +840,7 @@ function prefIsLocalTarball (pref: string) {
 const limitLinking = pLimit(16)
 
 function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ImporterToResolve) {
-  const warn = (message: string) => logger.warn({ message, prefix: rootDir })
+  const warn = (message: string) => logger.info({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, { allowExoticManifests: true, warn })
 }
 

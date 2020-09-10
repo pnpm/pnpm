@@ -89,7 +89,7 @@ async function linkAllBins (modulesDir: string) {
   const bin = path.join(modulesDir, '.bin')
   const warn: WarnFunction = (message, code) => {
     if (code === 'BINARIES_CONFLICT') return
-    logger.warn({ message, prefix: path.join(modulesDir, '../..') })
+    logger.info({ message, prefix: path.join(modulesDir, '../..') })
   }
   try {
     await linkBins(modulesDir, bin, { allowExoticManifests: true, warn })
