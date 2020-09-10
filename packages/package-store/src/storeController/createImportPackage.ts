@@ -1,6 +1,5 @@
 import { importingLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import importIndexedDir, { ImportFile } from '../fs/importIndexedDir'
 import path = require('path')
 import fs = require('mz/fs')
@@ -9,16 +8,17 @@ import exists = require('path-exists')
 
 const limitLinking = pLimit(16)
 
+interface ImportOptions {
+  filesMap: Record<string, string>
+  force: boolean
+  fromStore: boolean
+}
+
+type ImportFunction = (to: string, opts: ImportOptions) => Promise<void>
+
 export default (
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
-): (
-    to: string,
-    opts: {
-      filesMap: Record<string, string>
-      fromStore: boolean
-      force: boolean
-    }
-  ) => ReturnType<(to: string, opts: { filesResponse: PackageFilesResponse, force: boolean }) => Promise<void>> => {
+): ImportFunction => {
   const importPackage = createImportPackage(packageImportMethod)
   return (to, opts) => limitLinking(async () => {
     await importPackage(to, opts)
@@ -49,27 +49,16 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   }
 }
 
-function createAutoImporter () {
+function createAutoImporter (): ImportFunction {
   let auto = initialAuto
 
-  return async function (
-    to: string,
-    opts: {
-      filesMap: Record<string, string>
-      force: boolean
-      fromStore: boolean
-    }
-  ) {
-    return auto(to, opts)
+  return async (to, opts) => {
+    await auto(to, opts)
   }
 
   async function initialAuto (
     to: string,
-    opts: {
-      filesMap: Record<string, string>
-      force: boolean
-      fromStore: boolean
-    }
+    opts: ImportOptions
   ): Promise<boolean> {
     try {
       if (!await clonePkg(to, opts)) return false
@@ -97,11 +86,7 @@ function createAutoImporter () {
 
 async function clonePkg (
   to: string,
-  opts: {
-    filesMap: Record<string, string>
-    fromStore: boolean
-    force: boolean
-  }
+  opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
@@ -120,11 +105,7 @@ async function cloneFile (from: string, to: string) {
 async function hardlinkPkg (
   importFile: ImportFile,
   to: string,
-  opts: {
-    filesMap: Record<string, string>
-    force: boolean
-    fromStore: boolean
-  }
+  opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
@@ -164,11 +145,7 @@ async function isSameFile (file1: string, file2: string) {
 
 export async function copyPkg (
   to: string,
-  opts: {
-    filesMap: Record<string, string>
-    fromStore: boolean
-    force: boolean
-  }
+  opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
