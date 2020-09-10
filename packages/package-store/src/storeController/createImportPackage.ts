@@ -50,7 +50,16 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
 function createAutoImporter () {
   let auto = initialAuto
 
-  return auto
+  return async function initialAuto (
+    to: string,
+    opts: {
+      filesMap: Record<string, string>
+      force: boolean
+      fromStore: boolean
+    }
+  ) {
+    return auto(to, opts)
+  }
 
   async function initialAuto (
     to: string,
