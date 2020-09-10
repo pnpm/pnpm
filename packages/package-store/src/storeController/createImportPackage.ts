@@ -20,7 +20,9 @@ export default (
     }
   ) => ReturnType<(to: string, opts: { filesResponse: PackageFilesResponse, force: boolean }) => Promise<void>> => {
   const importPackage = createImportPackage(packageImportMethod)
-  return (to, opts) => limitLinking(() => importPackage(to, opts))
+  return (to, opts) => limitLinking(async () => {
+    await importPackage(to, opts)
+  })
 }
 
 function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
@@ -50,7 +52,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
 function createAutoImporter () {
   let auto = initialAuto
 
-  return async function initialAuto (
+  return async function (
     to: string,
     opts: {
       filesMap: Record<string, string>
@@ -68,27 +70,27 @@ function createAutoImporter () {
       force: boolean
       fromStore: boolean
     }
-  ) {
+  ): Promise<boolean> {
     try {
-      await clonePkg(to, opts)
+      if (!await clonePkg(to, opts)) return false
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = clonePkg
-      return
+      return true
     } catch (err) {
       // ignore
     }
     try {
-      await hardlinkPkg(to, opts)
+      if (!await hardlinkPkg(to, opts)) return false
       packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg
-      return
+      return true
     } catch (err) {
       if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
       globalWarn(err.message)
       globalInfo('Falling back to copying packages from store')
       packageImportMethodLogger.debug({ method: 'copy' })
       auto = copyPkg
-      await auto(to, opts)
+      return auto(to, opts)
     }
   }
 }
@@ -106,7 +108,9 @@ async function clonePkg (
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
     await importIndexedDir(cloneFile, to, opts.filesMap)
     importingLogger.debug({ to, method: 'clone' })
+    return true
   }
+  return false
 }
 
 async function cloneFile (from: string, to: string) {
@@ -126,7 +130,9 @@ async function hardlinkPkg (
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, opts.filesMap['package.json'], to)) {
     await importIndexedDir(linkOrCopy, to, opts.filesMap)
     importingLogger.debug({ to, method: 'hardlink' })
+    return true
   }
+  return false
 }
 
 async function linkOrCopy (existingPath: string, newPath: string) {
@@ -168,5 +174,7 @@ export async function copyPkg (
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
     await importIndexedDir(fs.copyFile, to, opts.filesMap)
     importingLogger.debug({ to, method: 'copy' })
+    return true
   }
+  return false
 }
