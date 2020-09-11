@@ -23,12 +23,10 @@ export default (
   },
   opts: {
     cwd: string
-    throttleProgress?: number
+    throttle?: Rx.OperatorFunction<any, any>
   }
 ) => {
-  const progressOutput = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
-    ? throttledProgressOutput.bind(null, opts.throttleProgress)
-    : nonThrottledProgressOutput
+  const progressOutput = throttledProgressOutput.bind(null, opts.throttle)
 
   return getModulesInstallProgress$(log$.stage, log$.progress).pipe(
     map(({ importingDone$, progress$, requirer }) => {
@@ -48,14 +46,14 @@ export default (
 }
 
 function throttledProgressOutput (
-  throttleProgress: number,
+  throttle: Rx.OperatorFunction<any, any> | undefined,
   importingDone$: Rx.Observable<boolean>,
   progress$: Rx.Observable<ProgressStats>
 ) {
   // Reporting is done every `throttleProgress` milliseconds
   // and once all packages are fetched.
   return Rx.combineLatest(
-    progress$.pipe(sampleTime(throttleProgress)),
+    throttle ? progress$.pipe(throttle) : progress$,
     importingDone$
   )
     .pipe(
@@ -64,17 +62,6 @@ function throttledProgressOutput (
       // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
       takeWhile((msg) => msg['done'] !== true, true)
     )
-}
-
-function nonThrottledProgressOutput (
-  importingDone$: Rx.Observable<boolean>,
-  progress$: Rx.Observable<ProgressStats>
-) {
-  return Rx.combineLatest(
-    progress$,
-    importingDone$
-  )
-    .pipe(map(createStatusMessage))
 }
 
 function getModulesInstallProgress$ (
