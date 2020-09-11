@@ -8,7 +8,7 @@ import renameOverwrite = require('rename-overwrite')
 
 const filenameConflictsLogger = pnpmLogger('_filename-conflicts')
 
-type ImportFile = (src: string, dest: string) => Promise<void>
+export type ImportFile = (src: string, dest: string) => Promise<void>
 
 export default async function importIndexedDir (
   importFile: ImportFile,
