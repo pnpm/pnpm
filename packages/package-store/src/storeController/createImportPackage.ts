@@ -74,6 +74,13 @@ function createAutoImporter (): ImportFunction {
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return true
     } catch (err) {
+      if (err.code === 'EINVAL') {
+        // This error sometimes happens on Windows.
+        // We still choose hard linking that will fall back to copying in edge cases.
+        packageImportMethodLogger.debug({ method: 'hardlink' })
+        auto = hardlinkPkg.bind(null, linkOrCopy)
+        return true
+      }
       if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
       globalWarn(err.message)
       globalInfo('Falling back to copying packages from store')
