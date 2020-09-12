@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.0.37
+
+### Patch Changes
+
+- 968c26470: Report an info log instead of a warning when some binaries cannot be linked.
+  - @pnpm/store-connection-manager@0.3.31
+
 ## 2.0.36
 
 ### Patch Changes

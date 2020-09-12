@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 9.1.8
+
+### Patch Changes
+
+- 6457562c4: When `package-import-method` is set to `auto`, cloning is only tried once. If it fails, it is not retried for other packages.
+- 6457562c4: Report package importing once it actually succeeds.
+  - @pnpm/package-requester@12.0.12
+
 ## 9.1.7
 
 ### Patch Changes

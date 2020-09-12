@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 7.8.0
+
+### Minor Changes
+
+- 09b42d3ab: Use RxJS instead of "most".
+
 ## 7.7.0
 
 ### Minor Changes

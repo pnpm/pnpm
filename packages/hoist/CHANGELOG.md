@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 4.0.11
+
+### Patch Changes
+
+- 968c26470: Report an info log instead of a warning when some binaries cannot be linked.
+
 ## 4.0.10
 
 ### Patch Changes

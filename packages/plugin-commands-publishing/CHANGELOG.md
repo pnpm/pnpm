@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.2.0
+
+### Minor Changes
+
+- 273f11af4: More information added to the Git check errors and prompt.
+
+### Patch Changes
+
+- @pnpm/client@2.0.2
+
 ## 2.1.21
 
 ### Patch Changes

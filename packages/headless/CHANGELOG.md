@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 14.0.20
+
+### Patch Changes
+
+- 968c26470: Report an info log instead of a warning when some binaries cannot be linked.
+- Updated dependencies [968c26470]
+  - @pnpm/hoist@4.0.11
+  - @pnpm/package-requester@12.0.12
+
 ## 14.0.19
 
 ### Patch Changes

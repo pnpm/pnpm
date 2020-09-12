@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 8.2.0
+
+### Minor Changes
+
+- 7605570e6: Download progress should be logged only for big tarballs.
+
 ## 8.1.1
 
 ### Patch Changes

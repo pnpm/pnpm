@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "2.0.36",
+  "version": "2.0.37",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -62,7 +62,7 @@
     "@pnpm/normalize-registries": "workspace:1.0.3",
     "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/sort-packages": "workspace:1.0.13",
-    "@pnpm/store-connection-manager": "workspace:0.3.30",
+    "@pnpm/store-connection-manager": "workspace:0.3.31",
     "@pnpm/store-controller-types": "workspace:8.0.2",
     "@pnpm/types": "workspace:6.2.0",
     "@zkochan/npm-package-arg": "^1.0.2",

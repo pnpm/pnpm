@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 18.0.1
+
+### Patch Changes
+
+- @pnpm/npm-resolver@10.0.1
+
 ## 18.0.0
 
 ### Major Changes

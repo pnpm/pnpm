@@ -1,5 +1,16 @@
 # supi
 
+## 0.41.28
+
+### Patch Changes
+
+- 968c26470: Report an info log instead of a warning when some binaries cannot be linked.
+- Updated dependencies [968c26470]
+  - @pnpm/headless@14.0.20
+  - @pnpm/hoist@4.0.11
+  - @pnpm/package-requester@12.0.12
+  - @pnpm/resolve-dependencies@18.0.1
+
 ## 0.41.27
 
 ### Patch Changes

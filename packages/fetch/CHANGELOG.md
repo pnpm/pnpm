@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 2.1.4
+
+### Patch Changes
+
+- 3981f5558: Update node-fetch to v2.6.1.
+
 ## 2.1.3
 
 ### Patch Changes

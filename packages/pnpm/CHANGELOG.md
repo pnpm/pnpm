@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.5.13
+
+### Patch Changes
+
+- When `package-import-method` is set to `auto`, cloning is only tried once. If it fails, it is not retried for other packages.
+- More information added to the Git check errors and prompt.
+- Report an info log instead of a warning when some binaries cannot be linked.
+
 ## 5.5.12
 
 ### Patch Changes
