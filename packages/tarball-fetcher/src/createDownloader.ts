@@ -12,6 +12,8 @@ import { BadTarballError } from './errorTypes'
 import urlLib = require('url')
 import ssri = require('ssri')
 
+const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
+
 class TarballIntegrityError extends PnpmError {
   public readonly found: string
   public readonly expected: string
@@ -149,7 +151,9 @@ export default (
         if (opts.onStart) {
           opts.onStart(size, currentAttempt)
         }
-        const onProgress = opts.onProgress
+        // In order to reduce the amount of logs, we only report the download progress of big tarballs
+        const onProgress = size != null && size >= BIG_TARBALL_SIZE
+          ? opts.onProgress : undefined
         let downloaded = 0
         res.body.on('data', (chunk: Buffer) => {
           downloaded += chunk.length
