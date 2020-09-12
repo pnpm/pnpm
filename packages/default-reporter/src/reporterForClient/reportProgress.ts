@@ -1,6 +1,6 @@
 import { ProgressLog, StageLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
-import { filter, map, mapTo, sampleTime, takeWhile, startWith, take } from 'rxjs/operators'
+import { filter, map, mapTo, takeWhile, startWith, take } from 'rxjs/operators'
 import { hlValue } from './outputConstants'
 import { zoomOut } from './utils/zooming'
 
@@ -23,6 +23,7 @@ export default (
   },
   opts: {
     cwd: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     throttle?: Rx.OperatorFunction<any, any>
   }
 ) => {
@@ -46,6 +47,7 @@ export default (
 }
 
 function throttledProgressOutput (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   throttle: Rx.OperatorFunction<any, any> | undefined,
   importingDone$: Rx.Observable<boolean>,
   progress$: Rx.Observable<ProgressStats>

@@ -2,7 +2,7 @@ import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
-import { sampleTime } from 'rxjs/operators'
+import { throttleTime } from 'rxjs/operators'
 import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportContext from './reportContext'
 import reportDeprecations from './reportDeprecations'
@@ -56,7 +56,7 @@ export default function (
   const width = opts.width ?? process.stdout.columns ?? 80
   const cwd = opts.pnpmConfig?.dir ?? process.cwd()
   const throttle = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
-    ? sampleTime(opts.throttleProgress)
+    ? throttleTime(opts.throttleProgress)
     : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
@@ -85,7 +85,7 @@ export default function (
       isRecursive: opts.isRecursive,
       width,
     }),
-    Rx.of(reportImporting(log$)),
+    Rx.of(reportImporting(log$, { throttle })),
     reportInstallChecks(log$.installCheck, { cwd }),
     reportRequestRetry(log$.requestRetry),
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
