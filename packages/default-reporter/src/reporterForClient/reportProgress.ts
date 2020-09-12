@@ -6,6 +6,7 @@ import { zoomOut } from './utils/zooming'
 
 interface ProgressStats {
   fetched: number
+  imported: number
   resolved: number
   reused: number
 }
@@ -121,6 +122,7 @@ function getProgessStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressL
       if (!previousProgressStatsByRequirer[log.requester]) {
         previousProgressStatsByRequirer[log.requester] = {
           fetched: 0,
+          imported: 0,
           resolved: 0,
           reused: 0,
         }
@@ -135,6 +137,9 @@ function getProgessStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressL
       case 'found_in_store':
         previousProgressStatsByRequirer[log.requester].reused++
         break
+      case 'imported':
+        previousProgressStatsByRequirer[log.requester].imported++
+        break
       }
       if (!progessStatsPushStreamByRequirer[log.requester]) {
         progessStatsPushStreamByRequirer[log.requester] = new Rx.Subject<ProgressStats>()
@@ -147,7 +152,7 @@ function getProgessStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressL
 }
 
 function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean]) {
-  const msg = `Resolving: total ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}`
+  const msg = `Progress: resolved ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}, added ${hlValue(progress.imported.toString())}`
   if (importingDone) {
     return {
       done: true,

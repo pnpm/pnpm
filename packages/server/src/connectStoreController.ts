@@ -37,7 +37,7 @@ export default function (
         return limitedFetch(`${remotePrefix}/importPackage`, {
           opts,
           to,
-        }) as Promise<{ isBuilt: boolean }>
+        }) as Promise<{ importMethod: string | undefined, isBuilt: boolean }>
       },
       prune: async () => {
         await limitedFetch(`${remotePrefix}/prune`, {})

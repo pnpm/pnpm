@@ -1,5 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import {
+  progressLogger,
   rootLogger,
   stageLogger,
   statsLogger,
@@ -317,6 +318,7 @@ async function linkNewPackages (
     }),
     linkAllPkgs(opts.storeController, newPkgs, {
       force: opts.force,
+      lockfileDir: opts.lockfileDir,
       targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
     }),
   ])
@@ -362,6 +364,7 @@ function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean
+    lockfileDir: string
     targetEngine?: string
   }
 ) {
@@ -369,11 +372,19 @@ function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
-      const { isBuilt } = await storeController.importPackage(depNode.dir, {
+      const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
         targetEngine: opts.targetEngine,
       })
+      if (importMethod) {
+        progressLogger.debug({
+          method: importMethod,
+          requester: opts.lockfileDir,
+          status: 'imported',
+          to: depNode.dir,
+        })
+      }
       depNode.isBuilt = isBuilt
     })
   )

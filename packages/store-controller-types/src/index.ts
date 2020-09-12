@@ -61,7 +61,7 @@ export type ImportPackageFunction = (
     filesResponse: PackageFilesResponse
     force: boolean
   }
-) => Promise<{ isBuilt: boolean }>
+) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
 
 export interface PackageFileInfo {
   integrity: string

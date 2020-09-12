@@ -97,7 +97,6 @@ export function toOutput$ (
   const skippedOptionalDependencyPushStream = new Rx.Subject<logs.SkippedOptionalDependencyLog>()
   const scopePushStream = new Rx.Subject<logs.ScopeLog>()
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
-  const importingPushStream = new Rx.Subject<logs.ImportingLog>()
   setTimeout(() => {
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
@@ -155,9 +154,6 @@ export function toOutput$ (
       case 'pnpm:request-retry':
         requestRetryPushStream.next(log)
         break
-      case 'pnpm:importing':
-        importingPushStream.next(log)
-        break
       case 'pnpm' as any: // eslint-disable-line
       case 'pnpm:global' as any: // eslint-disable-line
       case 'pnpm:store' as any: // eslint-disable-line
@@ -173,7 +169,6 @@ export function toOutput$ (
     fetchingProgress: Rx.from(fetchingProgressPushStream),
     hook: Rx.from(hookPushStream),
     installCheck: Rx.from(installCheckPushStream),
-    importing: Rx.from(importingPushStream),
     lifecycle: Rx.from(lifecyclePushStream),
     link: Rx.from(linkPushStream),
     other: Rx.from(otherPushStream),

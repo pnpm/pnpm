@@ -3,7 +3,6 @@ import {
   DeprecationLog,
   FetchingProgressLog,
   HookLog,
-  ImportingLog,
   InstallCheckLog,
   LifecycleLog,
   LinkLog,
@@ -27,7 +26,6 @@ export type Log =
   | DeprecationLog
   | FetchingProgressLog
   | HookLog
-  | ImportingLog
   | InstallCheckLog
   | LifecycleLog
   | LinkLog
