@@ -154,10 +154,10 @@ export function toOutput$ (
       case 'pnpm:request-retry':
         requestRetryPushStream.next(log)
         break
-        case 'pnpm' as any: // eslint-disable-line
-        case 'pnpm:global' as any: // eslint-disable-line
-        case 'pnpm:store' as any: // eslint-disable-line
-        case 'pnpm:lockfile' as any: // eslint-disable-line
+      case 'pnpm' as any: // eslint-disable-line
+      case 'pnpm:global' as any: // eslint-disable-line
+      case 'pnpm:store' as any: // eslint-disable-line
+      case 'pnpm:lockfile' as any: // eslint-disable-line
         otherPushStream.next(log)
         break
       }

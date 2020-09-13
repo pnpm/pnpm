@@ -52,8 +52,8 @@ export default async function (
     for (const [fileName, fileMeta] of Object.entries(filesIndex)) {
       filesMap[fileName] = getFilePathByModeInCafs(fileMeta.integrity, fileMeta.mode)
     }
-    await impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
-    return { isBuilt }
+    const importMethod = await impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
+    return { importMethod, isBuilt }
   }
 
   return {

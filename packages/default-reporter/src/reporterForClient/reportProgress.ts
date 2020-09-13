@@ -1,11 +1,12 @@
 import { ProgressLog, StageLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
-import { filter, map, mapTo, sampleTime, takeWhile, startWith, take } from 'rxjs/operators'
+import { filter, map, mapTo, takeWhile, startWith, take } from 'rxjs/operators'
 import { hlValue } from './outputConstants'
 import { zoomOut } from './utils/zooming'
 
 interface ProgressStats {
   fetched: number
+  imported: number
   resolved: number
   reused: number
 }
@@ -23,12 +24,11 @@ export default (
   },
   opts: {
     cwd: string
-    throttleProgress?: number
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    throttle?: Rx.OperatorFunction<any, any>
   }
 ) => {
-  const progressOutput = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
-    ? throttledProgressOutput.bind(null, opts.throttleProgress)
-    : nonThrottledProgressOutput
+  const progressOutput = throttledProgressOutput.bind(null, opts.throttle)
 
   return getModulesInstallProgress$(log$.stage, log$.progress).pipe(
     map(({ importingDone$, progress$, requirer }) => {
@@ -48,14 +48,15 @@ export default (
 }
 
 function throttledProgressOutput (
-  throttleProgress: number,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  throttle: Rx.OperatorFunction<any, any> | undefined,
   importingDone$: Rx.Observable<boolean>,
   progress$: Rx.Observable<ProgressStats>
 ) {
   // Reporting is done every `throttleProgress` milliseconds
   // and once all packages are fetched.
   return Rx.combineLatest(
-    progress$.pipe(sampleTime(throttleProgress)),
+    throttle ? progress$.pipe(throttle) : progress$,
     importingDone$
   )
     .pipe(
@@ -64,17 +65,6 @@ function throttledProgressOutput (
       // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
       takeWhile((msg) => msg['done'] !== true, true)
     )
-}
-
-function nonThrottledProgressOutput (
-  importingDone$: Rx.Observable<boolean>,
-  progress$: Rx.Observable<ProgressStats>
-) {
-  return Rx.combineLatest(
-    progress$,
-    importingDone$
-  )
-    .pipe(map(createStatusMessage))
 }
 
 function getModulesInstallProgress$ (
@@ -132,6 +122,7 @@ function getProgessStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressL
       if (!previousProgressStatsByRequirer[log.requester]) {
         previousProgressStatsByRequirer[log.requester] = {
           fetched: 0,
+          imported: 0,
           resolved: 0,
           reused: 0,
         }
@@ -146,6 +137,9 @@ function getProgessStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressL
       case 'found_in_store':
         previousProgressStatsByRequirer[log.requester].reused++
         break
+      case 'imported':
+        previousProgressStatsByRequirer[log.requester].imported++
+        break
       }
       if (!progessStatsPushStreamByRequirer[log.requester]) {
         progessStatsPushStreamByRequirer[log.requester] = new Rx.Subject<ProgressStats>()
@@ -158,7 +152,7 @@ function getProgessStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressL
 }
 
 function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean]) {
-  const msg = `Resolving: total ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}`
+  const msg = `Progress: resolved ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}, added ${hlValue(progress.imported.toString())}`
   if (importingDone) {
     return {
       done: true,

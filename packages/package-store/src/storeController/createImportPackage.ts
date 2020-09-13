@@ -1,4 +1,4 @@
-import { importingLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
+import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import importIndexedDir, { ImportFile } from '../fs/importIndexedDir'
 import path = require('path')
@@ -14,15 +14,13 @@ interface ImportOptions {
   fromStore: boolean
 }
 
-type ImportFunction = (to: string, opts: ImportOptions) => Promise<void>
+type ImportFunction = (to: string, opts: ImportOptions) => Promise<string | undefined>
 
 export default (
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
 ): ImportFunction => {
   const importPackage = createImportPackage(packageImportMethod)
-  return (to, opts) => limitLinking(async () => {
-    await importPackage(to, opts)
-  })
+  return (to, opts) => limitLinking(() => importPackage(to, opts))
 }
 
 function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
@@ -52,34 +50,32 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
 function createAutoImporter (): ImportFunction {
   let auto = initialAuto
 
-  return async (to, opts) => {
-    await auto(to, opts)
-  }
+  return (to, opts) => auto(to, opts)
 
   async function initialAuto (
     to: string,
     opts: ImportOptions
-  ): Promise<boolean> {
+  ): Promise<string | undefined> {
     try {
-      if (!await clonePkg(to, opts)) return false
+      if (!await clonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = clonePkg
-      return true
+      return 'clone'
     } catch (err) {
       // ignore
     }
     try {
-      if (!await hardlinkPkg(fs.link, to, opts)) return false
+      if (!await hardlinkPkg(fs.link, to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg.bind(null, linkOrCopy)
-      return true
+      return 'hardlink'
     } catch (err) {
       if (err.code === 'EINVAL') {
         // This error sometimes happens on Windows.
         // We still choose hard linking that will fall back to copying in edge cases.
         packageImportMethodLogger.debug({ method: 'hardlink' })
         auto = hardlinkPkg.bind(null, linkOrCopy)
-        return true
+        return 'hardlink'
       }
       if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
       globalWarn(err.message)
@@ -99,10 +95,9 @@ async function clonePkg (
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
     await importIndexedDir(cloneFile, to, opts.filesMap)
-    importingLogger.debug({ to, method: 'clone' })
-    return true
+    return 'clone'
   }
-  return false
+  return undefined
 }
 
 async function cloneFile (from: string, to: string) {
@@ -118,10 +113,9 @@ async function hardlinkPkg (
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, opts.filesMap['package.json'], to)) {
     await importIndexedDir(importFile, to, opts.filesMap)
-    importingLogger.debug({ to, method: 'hardlink' })
-    return true
+    return 'hardlink'
   }
-  return false
+  return undefined
 }
 
 async function linkOrCopy (existingPath: string, newPath: string) {
@@ -158,8 +152,7 @@ export async function copyPkg (
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
     await importIndexedDir(fs.copyFile, to, opts.filesMap)
-    importingLogger.debug({ to, method: 'copy' })
-    return true
+    return 'copy'
   }
-  return false
+  return undefined
 }
