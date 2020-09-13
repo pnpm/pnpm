@@ -40,7 +40,7 @@
     "@types/json5": "^0.0.30",
     "@types/mz": "^2.7.1",
     "@types/write-file-atomic": "^3.0.1",
-    "tempy": "^0.6.0"
+    "tempy": "^0.7.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }
