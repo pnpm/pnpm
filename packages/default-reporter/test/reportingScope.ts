@@ -3,12 +3,13 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
+import delay from 'delay'
 import { take } from 'rxjs/operators'
 import test = require('tape')
 
 const scopeLogger = logger<object>('scope')
 
-test('prints scope of non-recursive install in a workspace', (t) => {
+test('does not print scope of non-recursive install in a workspace', async (t) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -23,13 +24,17 @@ test('prints scope of non-recursive install in a workspace', (t) => {
 
   t.plan(1)
 
-  output$.pipe(take(1)).subscribe({
+  const subscription = output$.subscribe({
     complete: () => t.end(),
     error: t.end,
-    next: output => {
-      t.equal(output, 'Scope: current workspace package')
+    next: () => {
+      t.fail('should not log anything')
     },
   })
+
+  await delay(10)
+  t.ok('output$ has no event')
+  subscription.unsubscribe()
 })
 
 test('prints scope of recursive install in a workspace when not all packages are selected', (t) => {
@@ -42,7 +47,7 @@ test('prints scope of recursive install in a workspace when not all packages are
   })
 
   scopeLogger.debug({
-    selected: 1,
+    selected: 2,
     total: 10,
     workspacePrefix: '/home/src',
   })
@@ -53,7 +58,7 @@ test('prints scope of recursive install in a workspace when not all packages are
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, 'Scope: 1 of 10 workspace projects')
+      t.equal(output, 'Scope: 2 of 10 workspace projects')
     },
   })
 })
@@ -94,7 +99,7 @@ test('prints scope of recursive install not in a workspace when not all packages
   })
 
   scopeLogger.debug({
-    selected: 1,
+    selected: 2,
     total: 10,
   })
 
@@ -104,7 +109,7 @@ test('prints scope of recursive install not in a workspace when not all packages
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, 'Scope: 1 of 10 projects')
+      t.equal(output, 'Scope: 2 of 10 projects')
     },
   })
 })
