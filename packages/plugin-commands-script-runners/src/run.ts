@@ -152,6 +152,8 @@ so you may run "pnpm -w ${scriptName}"`,
     }
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
   }
+  const hasPreScript = manifest.scripts?.[`pre${scriptName}`]
+  const hasPostScript = manifest.scripts?.[`post${scriptName}`]
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
@@ -159,7 +161,7 @@ so you may run "pnpm -w ${scriptName}"`,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     scriptShell: opts.scriptShell,
-    silent: opts.reporter === 'silent',
+    silent: opts.reporter === 'silent' || !hasPreScript && !hasPostScript,
     shellEmulator: opts.shellEmulator,
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
@@ -171,11 +173,11 @@ so you may run "pnpm -w ${scriptName}"`,
     lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
   }
   try {
-    if (manifest.scripts?.[`pre${scriptName}`]) {
+    if (hasPreScript) {
       await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
     }
     await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
-    if (manifest.scripts?.[`post${scriptName}`]) {
+    if (hasPostScript) {
       await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
     }
   } catch (err) {
