@@ -1,18 +1,23 @@
 /// <reference path="../../../typings/index.d.ts" />
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import {
   restart,
   run,
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import './exec'
 import './runCompletion'
 import './runRecursive'
 import './testRecursive'
+import { DEFAULT_OPTS, REGISTRY } from './utils'
 import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
+import writeYamlFile = require('write-yaml-file')
+
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('pnpm run: returns correct exit code', async (t) => {
   prepare(t, {
@@ -254,5 +259,47 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
     rawConfig: {},
   }, ['build'])
 
+  t.end()
+})
+
+test('inside a workspace, if the script is not found, try to run the script on the root project', async (t) => {
+  preparePackages(t, [
+    {
+      location: '.',
+      package: {
+        dependencies: {
+          'json-append': '1',
+        },
+        scripts: {
+          build: 'node -e "process.stdout.write(\'root\')" | json-append ./output.json',
+        },
+      },
+    },
+    {
+      name: 'foo',
+      version: '1.0.0',
+    },
+  ])
+  await writeYamlFile('pnpm-workspace.yaml', {})
+
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: path.resolve('foo'),
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  const output = await import(path.resolve('output.json')) as string[]
+  t.deepEqual(output, ['root'])
   t.end()
 })

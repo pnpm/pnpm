@@ -1,4 +1,8 @@
-import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
+import {
+  docsUrl,
+  readProjectManifestOnly,
+  tryReadProjectManifest,
+} from '@pnpm/cli-utils'
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
@@ -126,26 +130,47 @@ export async function handler (
   if (!scriptName) {
     return printProjectCommands(manifest)
   }
-  if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
-    if (opts.ifPresent) return
-    throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
+  const _runScript = runScript.bind(null, opts, passedThruArgs, scriptName)
+  if (scriptName === 'start' || manifest.scripts?.[scriptName]) {
+    await _runScript({ dir, manifest })
+    return
   }
+  if (opts.workspaceDir) {
+    const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
+    if (rootManifest?.scripts?.[scriptName]) {
+      await _runScript({ dir: opts.workspaceDir, manifest: rootManifest })
+      return
+    }
+  }
+  if (opts.ifPresent) return
+  throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
+}
+
+async function runScript (
+  opts: RunOpts,
+  passedThruArgs: string[],
+  scriptName: string,
+  project: {
+    dir: string
+    manifest: ProjectManifest
+  }
+) {
   const lifecycleOpts = {
-    depPath: dir,
+    depPath: project.dir,
     extraBinPaths: opts.extraBinPaths,
-    pkgRoot: dir,
+    pkgRoot: project.dir,
     rawConfig: opts.rawConfig,
-    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    rootModulesDir: await realpathMissing(path.join(project.dir, 'node_modules')),
     silent: opts.reporter === 'silent',
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
-  if (manifest.scripts?.[`pre${scriptName}`]) {
-    await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
+  if (project.manifest.scripts?.[`pre${scriptName}`]) {
+    await runLifecycleHooks(`pre${scriptName}`, project.manifest, lifecycleOpts)
   }
-  await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
-  if (manifest.scripts?.[`post${scriptName}`]) {
-    await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
+  await runLifecycleHooks(scriptName, project.manifest, { ...lifecycleOpts, args: passedThruArgs })
+  if (project.manifest.scripts?.[`post${scriptName}`]) {
+    await runLifecycleHooks(`post${scriptName}`, project.manifest, lifecycleOpts)
   }
   return undefined
 }
