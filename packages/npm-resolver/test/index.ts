@@ -792,7 +792,7 @@ test('error is thrown when there is no package found for the requested range', a
     await resolveFromNpm({ alias: 'is-positive', pref: '^1000.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err.message.startsWith('No matching version found for is-positive@>=1000.0.0 <1001.0.0'), 'failed with correct error message')
+    t.ok(err.message.startsWith('No matching version found for is-positive@^1000.0.0'), 'failed with correct error message')
     t.end()
   }
 })

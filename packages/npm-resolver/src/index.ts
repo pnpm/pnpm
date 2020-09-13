@@ -23,7 +23,6 @@ import pickPackage, {
   PackageMetaCache,
   PickPackageOptions,
 } from './pickPackage'
-import toRaw from './toRaw'
 import path = require('path')
 import LRU = require('lru-cache')
 import normalize = require('normalize-path')
@@ -33,8 +32,11 @@ import ssri = require('ssri')
 
 class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
-  constructor (opts: { spec: RegistryPackageSpec, packageMeta: PackageMeta}) {
-    super('NO_MATCHING_VERSION', `No matching version found for ${toRaw(opts.spec)}`)
+  constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta}) {
+    const dep = opts.wantedDependency.alias
+      ? `${opts.wantedDependency.alias}@${opts.wantedDependency.pref ?? ''}`
+      : opts.wantedDependency.pref!
+    super('NO_MATCHING_VERSION', `No matching version found for ${dep}`)
     this.packageMeta = opts.packageMeta
   }
 }
@@ -149,7 +151,7 @@ async function resolveNpm (
       const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, opts.projectDir)
       if (resolvedFromLocal) return resolvedFromLocal
     }
-    throw new NoMatchingVersionError({ spec, packageMeta: meta })
+    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta })
   }
 
   if (workspacePackages?.[pickedPackage.name] && opts.projectDir) {
