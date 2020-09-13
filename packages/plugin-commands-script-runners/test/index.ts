@@ -249,6 +249,60 @@ Commands available via "pnpm run":
   t.end()
 })
 
+test('"pnpm run" prints the list of available commands, including commands of the root workspace project', async (t) => {
+  preparePackages(t, [
+    {
+      location: '.',
+      package: {
+        dependencies: {
+          'json-append': '1',
+        },
+        scripts: {
+          build: 'echo root',
+          test: 'test-all',
+        },
+      },
+    },
+    {
+      name: 'foo',
+      version: '1.0.0',
+
+      scripts: {
+        foo: 'echo hi',
+        test: 'ts-node test',
+      },
+    },
+  ])
+  await writeYamlFile('pnpm-workspace.yaml', {})
+  const workspaceDir = process.cwd()
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+
+  process.chdir('foo')
+  const output = await run.handler({
+    allProjects,
+    dir: process.cwd(),
+    extraBinPaths: [],
+    rawConfig: {},
+    selectedProjectsGraph,
+    workspaceDir,
+  }, [])
+
+  t.equal(output, `\
+Lifecycle scripts:
+  test
+    ts-node test
+
+Commands available via "pnpm run":
+  foo
+    echo hi
+
+Commands declared in the root:
+  build
+    echo root`)
+  t.end()
+})
+
 test('pnpm run does not fail with --if-present even if the wanted script is not present', async (t) => {
   prepare(t, {})
 
