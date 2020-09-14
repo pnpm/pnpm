@@ -48,7 +48,7 @@
     "path-exists": "^4.0.0",
     "sinon": "^9.0.3",
     "ssri": "6.0.1",
-    "tempy": "^0.6.0"
+    "tempy": "^0.7.0"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:^1.0.7",
