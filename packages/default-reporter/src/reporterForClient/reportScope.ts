@@ -27,9 +27,8 @@ export default (
   return scope$.pipe(
     take(1),
     map((log) => {
-      if (log.selected === 1 && typeof log.total !== 'number') {
-        if (!log.workspacePrefix) return Rx.NEVER
-        if (!opts.isRecursive) return Rx.of({ msg: 'Scope: current workspace package' })
+      if (log.selected === 1) {
+        return Rx.NEVER
       }
       let msg = 'Scope: '
 
