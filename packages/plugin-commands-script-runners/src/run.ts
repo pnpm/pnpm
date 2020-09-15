@@ -1,4 +1,8 @@
-import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
+import {
+  docsUrl,
+  readProjectManifestOnly,
+  tryReadProjectManifest,
+} from '@pnpm/cli-utils'
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
@@ -124,10 +128,20 @@ export async function handler (
   }
   const manifest = await readProjectManifestOnly(dir, opts)
   if (!scriptName) {
-    return printProjectCommands(manifest)
+    const rootManifest = opts.workspaceDir ? (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest : undefined
+    return printProjectCommands(manifest, rootManifest ?? undefined)
   }
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
     if (opts.ifPresent) return
+    if (opts.workspaceDir) {
+      const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
+      if (rootManifest?.scripts?.[scriptName]) {
+        throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
+          hint: `But ${scriptName} is present in the root of the workspace,
+  so you may run this command in: ${opts.workspaceDir}`,
+        })
+      }
+    }
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
   }
   const lifecycleOpts = {
@@ -184,11 +198,14 @@ const ALL_LIFECYCLE_SCRIPTS = new Set([
   'postshrinkwrap',
 ])
 
-function printProjectCommands (manifest: ProjectManifest) {
+function printProjectCommands (
+  manifest: ProjectManifest,
+  rootManifest?: ProjectManifest
+) {
   const lifecycleScripts = [] as string[][]
   const otherScripts = [] as string[][]
 
-  for (const [scriptName, script] of R.toPairs(manifest.scripts ?? {})) {
+  for (const [scriptName, script] of Object.entries(manifest.scripts ?? {})) {
     if (ALL_LIFECYCLE_SCRIPTS.has(scriptName)) {
       lifecycleScripts.push([scriptName, script])
     } else {
@@ -207,6 +224,15 @@ function printProjectCommands (manifest: ProjectManifest) {
   if (otherScripts.length > 0) {
     if (output !== '') output += '\n\n'
     output += `Commands available via "pnpm run":\n${renderCommands(otherScripts)}`
+  }
+  if (rootManifest?.scripts) {
+    const rootScripts = Object.entries(rootManifest.scripts)
+      .filter(([scriptName]) => !manifest.scripts?.[scriptName])
+    if (rootScripts.length) {
+      if (output !== '') output += '\n\n'
+      output += `Commands of the root workspace project (to run them, go to the root of the workspace):
+${renderCommands(rootScripts)}`
+    }
   }
   return output
 }
