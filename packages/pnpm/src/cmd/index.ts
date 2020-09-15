@@ -35,6 +35,7 @@ export const GLOBAL_OPTIONS = R.pick([
   'reporter',
   'stream',
   'workspace-packages',
+  'workspace-root',
 ], allTypes)
 
 export type CommandResponse = string | { output: string, exitCode: number } | undefined

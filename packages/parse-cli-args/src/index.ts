@@ -117,6 +117,10 @@ export default async function parseCliArgs (
   const workspaceDir = options['global'] // eslint-disable-line
     ? undefined
     : await findWorkspaceDir(dir)
+  if (options['workspace-root']) {
+    if (!workspaceDir) throw new Error('--workspace-root may only be used inside a workspace')
+    options['dir'] = workspaceDir
+  }
 
   if (cmd === 'install' && params.length > 0) {
     cmd = 'add'
