@@ -138,7 +138,7 @@ export async function handler (
       if (rootManifest?.scripts?.[scriptName]) {
         throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
           hint: `But ${scriptName} is present in the root of the workspace,
-  so you may run this command in: ${opts.workspaceDir}`,
+so you may run this command in: ${opts.workspaceDir}`,
         })
       }
     }
