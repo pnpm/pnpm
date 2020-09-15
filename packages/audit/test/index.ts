@@ -5,7 +5,6 @@ import PnpmError from '@pnpm/error'
 import nock = require('nock')
 
 describe('audit', () => {
-
   test('lockfileToAuditTree()', () => {
     expect(lockfileToAuditTree({
       importers: {
