@@ -1,5 +1,11 @@
 # @pnpm/store-controller-types
 
+## 9.0.0
+
+### Major Changes
+
+- 86cd72de3: The `importPackage` function of the store controller returns the `importMethod` that was used to link the package to the virtual store. If importing was not needed, `importMethod` is `undefined`.
+
 ## 8.0.2
 
 ### Patch Changes

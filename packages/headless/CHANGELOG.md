@@ -1,5 +1,25 @@
 # @pnpm/headless
 
+## 14.1.0
+
+### Minor Changes
+
+- 86cd72de3: After a package is linked, copied, or cloned to the virtual store, a progress log is logged with the `imported` status.
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+  - @pnpm/store-controller-types@9.0.0
+  - @pnpm/build-modules@5.0.15
+  - @pnpm/lifecycle@9.2.5
+  - @pnpm/modules-cleaner@10.0.10
+  - @pnpm/package-requester@12.0.13
+  - @pnpm/symlink-dependency@3.0.10
+  - @pnpm/filter-lockfile@4.0.9
+  - @pnpm/hoist@4.0.12
+
 ## 14.0.20
 
 ### Patch Changes

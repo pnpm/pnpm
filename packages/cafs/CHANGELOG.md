@@ -1,5 +1,12 @@
 # @pnpm/cafs
 
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+  - @pnpm/store-controller-types@9.0.0
+
 ## 1.0.7
 
 ### Patch Changes

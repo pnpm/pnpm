@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 7.9.0
+
+### Minor Changes
+
+- 663afd68e: Scope is not reported when the scope is only one project.
+- 86cd72de3: Show the progress of adding packages to the virtual store.
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+
 ## 7.8.0
 
 ### Minor Changes

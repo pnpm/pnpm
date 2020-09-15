@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 18.0.2
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+- Updated dependencies [3633f5e46]
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+  - @pnpm/npm-resolver@10.0.2
+  - @pnpm/store-controller-types@9.0.0
+  - @pnpm/manifest-utils@1.1.1
+  - @pnpm/package-is-installable@4.0.15
+
 ## 18.0.1
 
 ### Patch Changes

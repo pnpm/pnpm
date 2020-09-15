@@ -1,5 +1,15 @@
 # @pnpm/build-modules
 
+## 5.0.15
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+  - @pnpm/store-controller-types@9.0.0
+  - @pnpm/lifecycle@9.2.5
+
 ## 5.0.14
 
 ### Patch Changes

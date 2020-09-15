@@ -1,5 +1,11 @@
 # @pnpm/core-loggers
 
+## 5.0.0
+
+### Major Changes
+
+- 86cd72de3: Remove `importingLogger`. Importing should be logged by a new type of progress log status: `imported`.
+
 ## 4.2.0
 
 ### Minor Changes

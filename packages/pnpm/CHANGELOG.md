@@ -1,5 +1,17 @@
 # pnpm
 
+## 5.6.0-0
+
+### Minor Changes
+
+- The progress indicator also shows the number of dependencies that are being added to the modules direcotory (#2832).
+- Don't report scope, when only one workspace package is selected (#2855).
+- If a script is not found in the current project but is present in the root project of the workspace, notify the user about it in the hint of the error (#2859).
+
+### Patch Changes
+
+- When no matching version is found, report the actually specified version spec in the error message (not the normalized one) (#1314).
+
 ## 5.5.13
 
 ### Patch Changes

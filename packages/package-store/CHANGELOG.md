@@ -1,5 +1,20 @@
 # @pnpm/package-store
 
+## 10.0.0
+
+### Major Changes
+
+- 86cd72de3: The `importPackage` function of the store controller returns the `importMethod` that was used to link the package to the virtual store. If importing was not needed, `importMethod` is `undefined`.
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+  - @pnpm/store-controller-types@9.0.0
+  - @pnpm/package-requester@12.0.13
+  - @pnpm/cafs@1.0.8
+
 ## 9.1.8
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.1.0
+
+### Minor Changes
+
+- d11442a57: If a script is not found in the current project but is present in the root project of the workspace, notify the user about it in the hint of the error.
+
+### Patch Changes
+
+- @pnpm/lifecycle@9.2.5
+- @pnpm/cli-utils@0.4.27
+
 ## 2.0.1
 
 ### Patch Changes

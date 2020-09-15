@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 1.1.14
+
+### Patch Changes
+
+- @pnpm/fetch@2.1.5
+
 ## 1.1.13
 
 ### Patch Changes

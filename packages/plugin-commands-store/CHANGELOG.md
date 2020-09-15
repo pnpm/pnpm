@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.37
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+  - @pnpm/store-controller-types@9.0.0
+  - @pnpm/get-context@3.2.6
+  - @pnpm/store-connection-manager@0.3.32
+  - @pnpm/cafs@1.0.8
+  - @pnpm/cli-utils@0.4.27
+
 ## 2.0.36
 
 ### Patch Changes

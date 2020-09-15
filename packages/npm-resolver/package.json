@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "10.0.1",
+  "version": "10.0.2",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -54,7 +54,7 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:^2.1.4",
+    "@pnpm/fetch": "workspace:^2.1.5",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/npm-resolver": "link:",
     "@types/lru-cache": "^5.1.0",

@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 4.0.9
+
+### Patch Changes
+
+- @pnpm/package-is-installable@4.0.15
+
 ## 4.0.8
 
 ### Patch Changes

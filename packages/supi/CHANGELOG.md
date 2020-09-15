@@ -1,5 +1,28 @@
 # supi
 
+## 0.41.29
+
+### Patch Changes
+
+- 86cd72de3: After a package is linked, copied, or cloned to the virtual store, a progress log is logged with the `imported` status.
+- Updated dependencies [86cd72de3]
+- Updated dependencies [86cd72de3]
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+  - @pnpm/headless@14.1.0
+  - @pnpm/store-controller-types@9.0.0
+  - @pnpm/build-modules@5.0.15
+  - @pnpm/get-context@3.2.6
+  - @pnpm/lifecycle@9.2.5
+  - @pnpm/manifest-utils@1.1.1
+  - @pnpm/modules-cleaner@10.0.10
+  - @pnpm/package-requester@12.0.13
+  - @pnpm/remove-bins@1.0.6
+  - @pnpm/resolve-dependencies@18.0.2
+  - @pnpm/symlink-dependency@3.0.10
+  - @pnpm/filter-lockfile@4.0.9
+  - @pnpm/hoist@4.0.12
+
 ## 0.41.28
 
 ### Patch Changes

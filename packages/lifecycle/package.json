@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "9.2.4",
+  "version": "9.2.5",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:4.2.0",
+    "@pnpm/core-loggers": "workspace:5.0.0",
     "@pnpm/read-package-json": "workspace:3.1.5",
     "@pnpm/types": "workspace:6.2.0",
     "@zkochan/npm-lifecycle": "4.0.0",

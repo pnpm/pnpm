@@ -1,5 +1,12 @@
 # @pnpm/get-context
 
+## 3.2.6
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+
 ## 3.2.5
 
 ### Patch Changes

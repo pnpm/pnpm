@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 3.0.7
+
+### Patch Changes
+
+- 634dfd13b: tempy updated to v0.7.0.
+
 ## 3.0.6
 
 ### Patch Changes

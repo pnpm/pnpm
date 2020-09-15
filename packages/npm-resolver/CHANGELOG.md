@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 10.0.2
+
+### Patch Changes
+
+- 3633f5e46: When no matching version is found, report the actually specified version spec in the error message (not the normalized one).
+
 ## 10.0.1
 
 ### Patch Changes

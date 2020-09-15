@@ -1,5 +1,12 @@
 # @pnpm/remove-bins
 
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+
 ## 1.0.5
 
 ### Patch Changes

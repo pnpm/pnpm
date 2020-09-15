@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 9.2.5
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+
 ## 9.2.4
 
 ### Patch Changes
