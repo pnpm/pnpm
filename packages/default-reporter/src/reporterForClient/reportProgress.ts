@@ -53,18 +53,17 @@ function throttledProgressOutput (
   importingDone$: Rx.Observable<boolean>,
   progress$: Rx.Observable<ProgressStats>
 ) {
-  // Reporting is done every `throttleProgress` milliseconds
-  // and once all packages are fetched.
-  return Rx.combineLatest(
-    throttle ? progress$.pipe(throttle) : progress$,
+  let combinedProgress = Rx.combineLatest(
+    progress$,
     importingDone$
   )
-    .pipe(
-      map(createStatusMessage),
-      // Avoid logs after all resolved packages were downloaded.
-      // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
-      takeWhile((msg) => msg['done'] !== true, true)
-    )
+    // Avoid logs after all resolved packages were downloaded.
+    // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
+    .pipe(takeWhile(([, importingDone]) => !importingDone, true))
+  if (throttle) {
+    combinedProgress = combinedProgress.pipe(throttle)
+  }
+  return combinedProgress.pipe(map(createStatusMessage))
 }
 
 function getModulesInstallProgress$ (

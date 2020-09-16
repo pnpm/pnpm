@@ -54,7 +54,7 @@ export default function (
   const width = opts.width ?? process.stdout.columns ?? 80
   const cwd = opts.pnpmConfig?.dir ?? process.cwd()
   const throttle = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
-    ? throttleTime(opts.throttleProgress)
+    ? throttleTime(opts.throttleProgress, undefined, { leading: true, trailing: true })
     : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
