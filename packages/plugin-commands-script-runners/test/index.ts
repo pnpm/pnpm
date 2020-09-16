@@ -298,9 +298,11 @@ Commands available via "pnpm run":
   foo
     echo hi
 
-Commands of the root workspace project (to run them, go to the root of the workspace):
+Commands of the root workspace project (to run them, use "pnpm -w run"):
   build
-    echo root`)
+    echo root
+  test
+    test-all`)
   t.end()
 })
 

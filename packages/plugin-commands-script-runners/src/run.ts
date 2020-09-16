@@ -138,7 +138,7 @@ export async function handler (
       if (rootManifest?.scripts?.[scriptName]) {
         throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
           hint: `But ${scriptName} is present in the root of the workspace,
-so you may run this command in: ${opts.workspaceDir}`,
+so you may run "pnpm -w ${scriptName}"`,
         })
       }
     }
@@ -225,15 +225,16 @@ function printProjectCommands (
     if (output !== '') output += '\n\n'
     output += `Commands available via "pnpm run":\n${renderCommands(otherScripts)}`
   }
-  if (rootManifest?.scripts) {
-    const rootScripts = Object.entries(rootManifest.scripts)
-      .filter(([scriptName]) => !manifest.scripts?.[scriptName])
-    if (rootScripts.length) {
-      if (output !== '') output += '\n\n'
-      output += `Commands of the root workspace project (to run them, go to the root of the workspace):
-${renderCommands(rootScripts)}`
-    }
+  if (!rootManifest?.scripts) {
+    return output
   }
+  const rootScripts = Object.entries(rootManifest.scripts)
+  if (!rootScripts.length) {
+    return output
+  }
+  if (output !== '') output += '\n\n'
+  output += `Commands of the root workspace project (to run them, use "pnpm -w run"):
+${renderCommands(rootScripts)}`
   return output
 }
 
