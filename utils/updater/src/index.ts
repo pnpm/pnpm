@@ -92,7 +92,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
   }
   default:
     if (await exists(path.join(dir, 'test'))) {
-      if (manifest.scripts?._test === 'jest') {
+      if (manifest.scripts?._test?.includes('jest')) {
         scripts = manifest.scripts
         break
       }
