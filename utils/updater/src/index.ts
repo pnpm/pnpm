@@ -92,6 +92,10 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
   }
   default:
     if (await exists(path.join(dir, 'test'))) {
+      if (manifest.scripts?._test?.includes('jest')) {
+        scripts = manifest.scripts
+        break
+      }
       scripts = {
         ...manifest.scripts,
         _test: `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,

@@ -7,8 +7,14 @@ module.exports = {
       if (pkg.dependencies['istanbul-reports']) {
         pkg.dependencies['istanbul-reports'] = 'npm:@zkochan/istanbul-reports'
       }
-      if (pkg.name === 'verdaccio') {
+      switch (pkg.name) {
+      case 'verdaccio': {
         pkg.dependencies['http-errors'] = '^1.7.3'
+        break
+      }
+      case '@babel/parser':
+        pkg.peerDependencies['@babel/types'] = '*'
+        break
       }
       return pkg
     }
