@@ -1447,18 +1447,22 @@ importers:
       write-json-file: 4.0.0
   packages/parse-cli-args:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       didyoumean2: 4.1.0
       nopt: 5.0.0
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
+      tempy: 0.7.0
     specifiers:
+      '@pnpm/error': 'workspace:^1.3.1'
       '@pnpm/find-workspace-dir': 'workspace:1.0.1'
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': ^3.0.29
       didyoumean2: ^4.1.0
       nopt: ^5.0.0
+      tempy: ^0.7.0
   packages/parse-wanted-dependency:
     dependencies:
       validate-npm-package-name: 3.0.0
