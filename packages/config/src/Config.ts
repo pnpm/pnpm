@@ -115,6 +115,7 @@ export interface Config {
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean
+  workspaceRoot: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

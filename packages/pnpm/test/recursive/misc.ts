@@ -364,7 +364,7 @@ test('non-recursive install ignores filter from config', async (t: tape.Test) =>
   await projects['project-3'].hasNot('minimatch')
 })
 
-test('adding new dependency in the root should fail if --ignore-workspace-root-check is not used', async (t: tape.Test) => {
+test('adding new dependency in the root should fail if neither --workspace-root nor --ignore-workspace-root-check are used', async (t: tape.Test) => {
   const project = prepare(t)
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
@@ -377,8 +377,7 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
     t.ok(
       stdout.toString().includes( // eslint-disable-line
         'Running this command will add the dependency to the workspace root, ' +
-        'which might not be what you want - if you really meant it, ' +
-        'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).'
+        'which might not be what you want - if you really meant it, '
       )
     )
   }
@@ -395,6 +394,20 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
 
     t.equal(status, 0)
     await project.has('is-negative')
+  }
+
+  {
+    const { status } = execPnpmSync(['add', 'is-odd', '--workspace-root'])
+
+    t.equal(status, 0)
+    await project.has('is-odd')
+  }
+
+  {
+    const { status } = execPnpmSync(['add', 'is-even', '-w'])
+
+    t.equal(status, 0)
+    await project.has('is-even')
   }
 })
 
