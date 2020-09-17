@@ -148,7 +148,12 @@ export default async (
     'link-workspace-packages': true,
     'package-lock': npmDefaults['package-lock'],
     pending: false,
-    'public-hoist-pattern': ['@types/*', '*eslint*'],
+    'public-hoist-pattern': [
+      // Packages like @types/node, @babel/types
+      // should be publicly hoisted because TypeScript only searches in the root of node_modules
+      '*types*',
+      '*eslint*',
+    ],
     'recursive-install': true,
     registry: npmDefaults.registry,
     'save-peer': false,
