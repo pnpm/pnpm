@@ -1,26 +1,22 @@
 import fs = require('fs')
 import path = require('path')
-import proxyquire = require('proxyquire')
-import sinon = require('sinon')
-import test = require('tape')
 
 const fsMock = {} as any // eslint-disable-line
-const makeDirMock = sinon.spy()
-const createImportPackage = proxyquire('@pnpm/package-store/lib/storeController/createImportPackage', {
-  '../fs/importIndexedDir': proxyquire('@pnpm/package-store/lib/fs/importIndexedDir', {
-    'make-dir': makeDirMock,
-    'mz/fs': fsMock,
-    'path-temp': (dir: string) => path.join(dir, '_tmp'),
-    'rename-overwrite': sinon.spy(),
-  }),
-  'make-dir': makeDirMock,
-  'mz/fs': fsMock,
-}).default
+jest.mock('mz/fs', () => {
+  const { constants } = jest.requireActual('mz/fs')
+  fsMock.constants = constants
+  return fsMock
+})
+jest.mock('path-temp', () => (dir: string) => path.join(dir, '_tmp'))
+jest.mock('rename-overwrite', () => jest.fn())
 
-test('packageImportMethod=auto: clone files by default', async (t) => {
+// eslint-disable-next-line
+import createImportPackage from '@pnpm/package-store/lib/storeController/createImportPackage'
+
+test('packageImportMethod=auto: clone files by default', async () => {
   const importPackage = createImportPackage('auto')
-  fsMock.copyFile = sinon.spy()
-  fsMock.rename = sinon.spy()
+  fsMock.copyFile = jest.fn()
+  fsMock.rename = jest.fn()
   await importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
@@ -29,18 +25,25 @@ test('packageImportMethod=auto: clone files by default', async (t) => {
     force: false,
     fromStore: false,
   })
-  t.ok(fsMock.copyFile.calledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'), fs.constants.COPYFILE_FICLONE_FORCE))
-  t.ok(fsMock.copyFile.calledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'), fs.constants.COPYFILE_FICLONE_FORCE))
-  t.end()
+  expect(fsMock.copyFile).toBeCalledWith(
+    path.join('hash1'),
+    path.join('project', '_tmp', 'package.json'),
+    fs.constants.COPYFILE_FICLONE_FORCE
+  )
+  expect(fsMock.copyFile).toBeCalledWith(
+    path.join('hash2'),
+    path.join('project', '_tmp', 'index.js'),
+    fs.constants.COPYFILE_FICLONE_FORCE
+  )
 })
 
-test('packageImportMethod=auto: link files if cloning fails', async (t) => {
+test('packageImportMethod=auto: link files if cloning fails', async () => {
   const importPackage = createImportPackage('auto')
-  fsMock.copyFile = sinon.spy(() => {
+  fsMock.copyFile = jest.fn(() => {
     throw new Error('This file system does not support cloning')
   })
-  fsMock.link = sinon.spy()
-  fsMock.rename = sinon.spy()
+  fsMock.link = jest.fn()
+  fsMock.rename = jest.fn()
   await importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
@@ -49,10 +52,10 @@ test('packageImportMethod=auto: link files if cloning fails', async (t) => {
     force: false,
     fromStore: false,
   })
-  t.ok(fsMock.link.calledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json')))
-  t.ok(fsMock.link.calledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js')))
-  t.ok(fsMock.copyFile.called, 'the copy function is called the first time importing happens')
-  fsMock.copyFile.resetHistory()
+  expect(fsMock.link).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
+  expect(fsMock.link).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(fsMock.copyFile).toBeCalled()
+  fsMock.copyFile.mockClear()
 
   // The copy function will not be called again
   await importPackage('project2/package', {
@@ -63,18 +66,17 @@ test('packageImportMethod=auto: link files if cloning fails', async (t) => {
     force: false,
     fromStore: false,
   })
-  t.notOk(fsMock.copyFile.called, 'the copy function is not called again')
-  t.ok(fsMock.link.calledWith(path.join('hash1'), path.join('project2', '_tmp', 'package.json')))
-  t.ok(fsMock.link.calledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js')))
-  t.end()
+  expect(fsMock.copyFile).not.toBeCalled()
+  expect(fsMock.link).toBeCalledWith(path.join('hash1'), path.join('project2', '_tmp', 'package.json'))
+  expect(fsMock.link).toBeCalledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js'))
 })
 
-test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', async (t) => {
+test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', async () => {
   const importPackage = createImportPackage('hardlink')
-  fsMock.link = sinon.spy(() => {
+  fsMock.link = jest.fn(() => {
     throw new Error('This file system does not support hard linking')
   })
-  fsMock.copyFile = sinon.spy()
+  fsMock.copyFile = jest.fn()
   await importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
@@ -83,9 +85,7 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
     force: false,
     fromStore: false,
   })
-  t.ok(fsMock.link.called)
-  t.ok(fsMock.copyFile.calledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json')))
-  t.ok(fsMock.copyFile.calledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js')))
-  fsMock.copyFile.resetHistory()
-  t.end()
+  expect(fsMock.link).toBeCalled()
+  expect(fsMock.copyFile).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
+  expect(fsMock.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
 })

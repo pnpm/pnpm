@@ -40,12 +40,8 @@
     "@pnpm/logger": "^3.2.2",
     "@pnpm/package-store": "link:",
     "@types/mz": "^2.7.1",
-    "@types/proxyquire": "^1.3.28",
     "@types/ramda": "^0.27.15",
-    "@types/sinon": "^9.0.5",
     "@types/ssri": "^6.0.3",
-    "proxyquire": "^2.1.3",
-    "sinon": "^9.0.3",
     "tempy": "^0.7.0"
   },
   "directories": {
@@ -71,7 +67,7 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "pretest": "rimraf .tmp",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-store/coverage ts-node packages/package-store/test --type-check",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
