@@ -17,14 +17,14 @@ test('packageImportMethod=auto: clone files by default', async () => {
   const importPackage = createImportPackage('auto')
   fsMock.copyFile = jest.fn()
   fsMock.rename = jest.fn()
-  await importPackage('project/package', {
+  expect(await importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
       'package.json': 'hash1',
     },
     force: false,
     fromStore: false,
-  })
+  })).toBe('clone')
   expect(fsMock.copyFile).toBeCalledWith(
     path.join('hash1'),
     path.join('project', '_tmp', 'package.json'),
@@ -44,31 +44,80 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
   })
   fsMock.link = jest.fn()
   fsMock.rename = jest.fn()
-  await importPackage('project/package', {
+  expect(await importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
       'package.json': 'hash1',
     },
     force: false,
     fromStore: false,
-  })
+  })).toBe('hardlink')
   expect(fsMock.link).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
   expect(fsMock.link).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
   expect(fsMock.copyFile).toBeCalled()
   fsMock.copyFile.mockClear()
 
   // The copy function will not be called again
-  await importPackage('project2/package', {
+  expect(await importPackage('project2/package', {
     filesMap: {
       'index.js': 'hash2',
       'package.json': 'hash1',
     },
     force: false,
     fromStore: false,
-  })
+  })).toBe('hardlink')
   expect(fsMock.copyFile).not.toBeCalled()
   expect(fsMock.link).toBeCalledWith(path.join('hash1'), path.join('project2', '_tmp', 'package.json'))
   expect(fsMock.link).toBeCalledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js'))
+})
+
+test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but with an EINVAL error', async () => {
+  const importPackage = createImportPackage('auto')
+  fsMock.copyFile = jest.fn(() => {
+    throw new Error('This file system does not support cloning')
+  })
+  let linkFirstCall = true
+  fsMock.link = jest.fn(() => {
+    if (linkFirstCall) {
+      linkFirstCall = false
+      const err = new Error('')
+      err['code'] = 'EINVAL'
+      throw err
+    }
+  })
+  fsMock.rename = jest.fn()
+  expect(await importPackage('project/package', {
+    filesMap: {
+      'index.js': 'hash2',
+    },
+    force: false,
+    fromStore: false,
+  })).toBe('hardlink')
+  expect(fsMock.link).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(fsMock.link).toBeCalledTimes(2)
+  expect(fsMock.copyFile).toBeCalledTimes(1)
+})
+
+test('packageImportMethod=auto: chooses copying if cloning and hard linking is not possible', async () => {
+  const importPackage = createImportPackage('auto')
+  fsMock.copyFile = jest.fn((src: string, dest: string, flags?: number) => {
+    if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
+      throw new Error('This file system does not support cloning')
+    }
+  })
+  fsMock.link = jest.fn(() => {
+    throw new Error('EXDEV: cross-device link not permitted')
+  })
+  fsMock.rename = jest.fn()
+  expect(await importPackage('project/package', {
+    filesMap: {
+      'index.js': 'hash2',
+    },
+    force: false,
+    fromStore: false,
+  })).toBe('copy')
+  expect(fsMock.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(fsMock.copyFile).toBeCalledTimes(2)
 })
 
 test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', async () => {
@@ -77,14 +126,14 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
     throw new Error('This file system does not support hard linking')
   })
   fsMock.copyFile = jest.fn()
-  await importPackage('project/package', {
+  expect(await importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
       'package.json': 'hash1',
     },
     force: false,
     fromStore: false,
-  })
+  })).toBe('hardlink')
   expect(fsMock.link).toBeCalled()
   expect(fsMock.copyFile).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
   expect(fsMock.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))

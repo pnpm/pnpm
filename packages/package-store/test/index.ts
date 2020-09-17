@@ -28,10 +28,11 @@ describe('store.importPackage()', () => {
       },
     })
     const importTo = tempy.directory()
-    await storeController.importPackage(importTo, {
+    const { importMethod } = await storeController.importPackage(importTo, {
       filesResponse: await fetchResponse.files(),
       force: false,
     })
+    expect(typeof importMethod).toBe('string')
     expect(typeof require(importTo)).toBe('function')
   })
 
@@ -60,10 +61,11 @@ describe('store.importPackage()', () => {
       },
     })
     const importTo = tempy.directory()
-    await storeController.importPackage(importTo, {
+    const { importMethod } = await storeController.importPackage(importTo, {
       filesResponse: await fetchResponse.files(),
       force: false,
     })
+    expect(importMethod).toBe('copy')
     expect(typeof require(importTo)).toBe('function')
   })
 })
