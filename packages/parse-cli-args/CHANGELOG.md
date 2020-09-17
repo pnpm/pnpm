@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 3.2.0
+
+### Minor Changes
+
+- 092f8dd83: When --workspace-root is used, the working directory is changed to the root of the workspace.
+
 ## 3.1.2
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.2.0
+
+### Minor Changes
+
+- 092f8dd83: When a script is not found but is present in the workspace root, suggest to use `pnpm -w run`.
+- 092f8dd83: `pnpm run` prints all scripts from the root of the workspace. They may be executed using `pnpm -w run`.
+
+### Patch Changes
+
+- Updated dependencies [767212f4e]
+- Updated dependencies [092f8dd83]
+- Updated dependencies [092f8dd83]
+  - @pnpm/config@11.3.0
+  - @pnpm/common-cli-options-help@0.2.0
+  - @pnpm/cli-utils@0.4.28
+
 ## 2.1.0
 
 ### Minor Changes

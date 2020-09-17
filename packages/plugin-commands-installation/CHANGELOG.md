@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 3.2.0
+
+### Minor Changes
+
+- 092f8dd83: When the --workspace-root option is used, it is allowed to add a new dependency to the root workspace project. Because this way the intention is clear.
+
+### Patch Changes
+
+- Updated dependencies [7f74cd173]
+- Updated dependencies [767212f4e]
+- Updated dependencies [092f8dd83]
+- Updated dependencies [092f8dd83]
+  - @pnpm/package-store@10.0.1
+  - @pnpm/config@11.3.0
+  - @pnpm/common-cli-options-help@0.2.0
+  - @pnpm/store-connection-manager@0.3.33
+  - supi@0.41.30
+  - @pnpm/cli-utils@0.4.28
+  - @pnpm/plugin-commands-rebuild@2.0.39
+  - @pnpm/find-workspace-packages@2.3.14
+  - @pnpm/filter-workspace-packages@2.1.21
+
 ## 3.1.21
 
 ### Patch Changes

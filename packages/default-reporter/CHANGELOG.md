@@ -1,5 +1,14 @@
 # @pnpm/default-reporter
 
+## 7.9.1
+
+### Patch Changes
+
+- 3b8e3b6b1: Always print the final progress stats.
+- Updated dependencies [767212f4e]
+- Updated dependencies [092f8dd83]
+  - @pnpm/config@11.3.0
+
 ## 7.9.0
 
 ### Minor Changes

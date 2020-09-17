@@ -1,5 +1,11 @@
 # supi
 
+## 0.41.30
+
+### Patch Changes
+
+- @pnpm/headless@14.1.0
+
 ## 0.41.29
 
 ### Patch Changes

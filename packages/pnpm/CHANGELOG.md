@@ -1,12 +1,26 @@
 # pnpm
 
-## 5.6.0-0
+## 5.6.0
 
 ### Minor Changes
 
+- `--workspace-root`, `-w`: a new option that allows to focus on the root workspace project.
+
+  E.g., the following command runs the `lint` script of the root `package.json` from anywhere in the monorepo:
+
+  ```
+  pnpm -w lint
+  ```
+
+  PR #2866
+
 - The progress indicator also shows the number of dependencies that are being added to the modules direcotory (#2832).
+
 - Don't report scope, when only one workspace package is selected (#2855).
+
 - If a script is not found in the current project but is present in the root project of the workspace, notify the user about it in the hint of the error (#2859).
+
+- Publicly hoist anything that has "types" in the name. Packages like `@babel/types` are publicly hoisted by default (#2865).
 
 ### Patch Changes
 

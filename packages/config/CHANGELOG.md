@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 11.3.0
+
+### Minor Changes
+
+- 092f8dd83: New setting added: workspace-root.
+
+### Patch Changes
+
+- 767212f4e: Packages like @babel/types should be publicly hoisted by default.
+
 ## 11.2.7
 
 ### Patch Changes

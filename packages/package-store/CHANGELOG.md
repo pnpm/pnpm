@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 10.0.1
+
+### Patch Changes
+
+- 7f74cd173: Fixing a regression. Package should be imported when import method is being identified.
+
 ## 10.0.0
 
 ### Major Changes
