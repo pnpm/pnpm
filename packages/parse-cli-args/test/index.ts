@@ -1,6 +1,8 @@
+import PnpmError from '@pnpm/error'
 import parseCliArgs from '@pnpm/parse-cli-args'
 import os = require('os')
 import test = require('tape')
+import tempy = require('tempy')
 
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
@@ -211,5 +213,37 @@ test("don't use the fallback command if no command is present", async (t) => {
   }, [])
   t.equal(cmd, null)
   t.deepEqual(params, [])
+  t.end()
+})
+
+test('--workspace-root changes the directory to the workspace root', async (t) => {
+  const { options, workspaceDir } = await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])
+  t.ok(workspaceDir)
+  t.equal(options.dir, workspaceDir)
+  t.end()
+})
+
+test('--workspace-root fails if used with --global', async (t) => {
+  let err!: PnpmError
+  try {
+    await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root', '--global'])
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_OPTIONS_CONFLICT')
+  t.end()
+})
+
+test('--workspace-root fails if used outside of a workspace', async (t) => {
+  process.chdir(tempy.directory())
+  let err!: PnpmError
+  try {
+    await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_NOT_IN_WORKSPACE')
   t.end()
 })

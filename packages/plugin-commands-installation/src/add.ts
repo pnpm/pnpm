@@ -160,6 +160,7 @@ export function handler (
     save?: boolean
     update?: boolean
     useBetaCli?: boolean
+    workspaceRoot?: boolean
   },
   params: string[]
 ) {
@@ -172,12 +173,14 @@ export function handler (
   if (
     !opts.recursive &&
     opts.workspaceDir === opts.dir &&
-    !opts.ignoreWorkspaceRootCheck
+    !opts.ignoreWorkspaceRootCheck &&
+    !opts.workspaceRoot
   ) {
     throw new PnpmError('ADDING_TO_ROOT',
       'Running this command will add the dependency to the workspace root, ' +
       'which might not be what you want - if you really meant it, ' +
-      'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).'
+      'make it explicit by running this command again with the -w flag (or --workspace-root). ' +
+      'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to false.'
     )
   }
 

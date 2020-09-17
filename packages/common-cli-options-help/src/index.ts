@@ -41,6 +41,11 @@ export const UNIVERSAL_OPTIONS = [
     shortAlias: '-C',
   },
   {
+    description: 'Run the command on the root workspace project',
+    name: '--workspace-root',
+    shortAlias: '-w',
+  },
+  {
     description: 'What level of logs to report. Any logs at or higher than the given level will be shown. Levels (lowest to highest): debug, info, warn, error. Or use "--silent" to turn off all logging.',
     name: '--loglevel <level>',
   },

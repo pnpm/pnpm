@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 import nopt = require('nopt')
@@ -117,6 +118,15 @@ export default async function parseCliArgs (
   const workspaceDir = options['global'] // eslint-disable-line
     ? undefined
     : await findWorkspaceDir(dir)
+  if (options['workspace-root']) {
+    if (options['global']) {
+      throw new PnpmError('OPTIONS_CONFLICT', '--workspace-root may not be used with --global')
+    }
+    if (!workspaceDir) {
+      throw new PnpmError('NOT_IN_WORKSPACE', '--workspace-root may only be used inside a workspace')
+    }
+    options['dir'] = workspaceDir
+  }
 
   if (cmd === 'install' && params.length > 0) {
     cmd = 'add'
