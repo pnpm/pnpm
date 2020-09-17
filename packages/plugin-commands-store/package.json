@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "2.0.38",
+  "version": "2.0.39",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -61,7 +61,7 @@
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",
     "@pnpm/pick-registry-for-package": "workspace:1.0.3",
     "@pnpm/pkgid-to-filename": "^3.0.0",
-    "@pnpm/store-connection-manager": "workspace:0.3.33",
+    "@pnpm/store-connection-manager": "workspace:0.3.34",
     "@pnpm/store-controller-types": "workspace:9.0.0",
     "@pnpm/store-path": "^4.0.2",
     "@pnpm/types": "workspace:6.2.0",

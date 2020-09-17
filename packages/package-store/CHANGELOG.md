@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 10.0.2
+
+### Patch Changes
+
+- d94b19b39: Unless an EXDEV error is thrown during hard linking, always choose hard linking for importing packages from the store.
+
 ## 10.0.1
 
 ### Patch Changes

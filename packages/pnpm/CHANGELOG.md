@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.6.1
+
+### Patch Changes
+
+- Fixing a regression introduced in v5.5.13. Installation should never fail during automatic importing method selection (#2869).
+
 ## 5.6.0
 
 ### Minor Changes
