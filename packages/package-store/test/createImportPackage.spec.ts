@@ -71,7 +71,7 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
   expect(fsMock.link).toBeCalledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js'))
 })
 
-test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but with an EINVAL error', async () => {
+test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', async () => {
   const importPackage = createImportPackage('auto')
   fsMock.copyFile = jest.fn(() => {
     throw new Error('This file system does not support cloning')
@@ -80,9 +80,7 @@ test('packageImportMethod=auto: link files if cloning fails and even hard linkin
   fsMock.link = jest.fn(() => {
     if (linkFirstCall) {
       linkFirstCall = false
-      const err = new Error('')
-      err['code'] = 'EINVAL'
-      throw err
+      throw new Error()
     }
   })
   fsMock.rename = jest.fn()
