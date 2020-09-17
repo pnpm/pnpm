@@ -75,7 +75,7 @@ function createAutoImporter (): ImportFunction {
         // We still choose hard linking that will fall back to copying in edge cases.
         packageImportMethodLogger.debug({ method: 'hardlink' })
         auto = hardlinkPkg.bind(null, linkOrCopy)
-        return 'hardlink'
+        return auto(to, opts)
       }
       if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
       globalWarn(err.message)
