@@ -307,6 +307,7 @@ async function linkNewPackages (
 
   const newPkgs = R.props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
+  await Promise.all(newPkgs.map((depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
     linkAllModules(newPkgs, depGraph, {
       lockfileDir: opts.lockfileDir,

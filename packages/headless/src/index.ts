@@ -217,6 +217,7 @@ export default async (opts: HeadlessOptions) => {
     prefix: lockfileDir,
   })
 
+  await Promise.all(depNodes.map((depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
     linkAllModules(depNodes, {
       lockfileDir,
