@@ -49,6 +49,15 @@ async function verifyFile (
   fstat: { size: number, integrity: string },
   deferredManifest?: DeferredManifestPromise
 ) {
+  const { birthtimeMs, mtimeMs } = await fs.stat(filename)
+  // Sometimes modification time is a few milliseconds bigger than birthtime,
+  // even if the files was never edited, so we round it up a bit.
+  const modified = (mtimeMs - birthtimeMs) > 100
+  if (!deferredManifest && !modified) {
+    // If a file was not edited, we are skipping integrity check.
+    // We assume that nobody will manually remove a file in the store and create a new one.
+    return true
+  }
   if (fstat.size > MAX_BULK_SIZE && !deferredManifest) {
     try {
       const ok = Boolean(await ssri.checkStream(fs.createReadStream(filename), fstat.integrity))
@@ -71,7 +80,7 @@ async function verifyFile (
 
   try {
     const data = await fs.readFile(filename)
-    const ok = Boolean(ssri.checkData(data, fstat.integrity))
+    const ok = !modified || Boolean(ssri.checkData(data, fstat.integrity))
     if (!ok) {
       await rimraf(filename)
     } else if (deferredManifest) {
