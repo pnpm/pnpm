@@ -19,8 +19,8 @@ export default async function (
   },
   dirname: string,
   manifest?: DeferredManifestPromise
-) {
-  const index = {}
+): Promise<FilesIndex> {
+  const index: FilesIndex = {}
   await _retrieveFileIntegrities(cafs, dirname, dirname, index, manifest)
   return index
 }
