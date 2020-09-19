@@ -1,5 +1,22 @@
 # @pnpm/cafs
 
+## 2.0.0
+
+### Major Changes
+
+- 0a6544043: `generatingIntegrity` replaced with `writeResult`. When files are added to the store, the store returns not only the file's integrity as a result, but also the exact time when the file's content was verified with its integrity.
+
+### Minor Changes
+
+- 0a6544043: If a file in the store was never modified, we can skip checking its integrity.
+
+### Patch Changes
+
+- Updated dependencies [0a6544043]
+- Updated dependencies [0a6544043]
+  - @pnpm/store-controller-types@9.1.0
+  - @pnpm/fetcher-base@9.0.0
+
 ## 1.0.8
 
 ### Patch Changes

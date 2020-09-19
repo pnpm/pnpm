@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.7.0-0
+
+### Minor Changes
+
+* Performance improvements:
+  * If a file in the store was never modified, we are not checking its integrity ([#2876](https://github.com/pnpm/pnpm/pull/2876)).
+  * All directories in the virtual store are created before symlinking and importing packages starts ([#2875](https://github.com/pnpm/pnpm/pull/2875)).
+
 ## 5.6.1
 
 ### Patch Changes

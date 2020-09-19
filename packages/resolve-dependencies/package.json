@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "18.0.2",
+  "version": "18.0.3",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
@@ -41,7 +41,7 @@
     "@pnpm/prune-lockfile": "workspace:^2.0.14",
     "@pnpm/read-package-json": "workspace:^3.1.5",
     "@pnpm/resolver-base": "workspace:7.0.3",
-    "@pnpm/store-controller-types": "workspace:9.0.0",
+    "@pnpm/store-controller-types": "workspace:9.1.0",
     "@pnpm/types": "workspace:6.2.0",
     "dependency-path": "workspace:5.0.3",
     "encode-registry": "^2.0.2",

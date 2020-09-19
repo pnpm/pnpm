@@ -1,5 +1,12 @@
 # @pnpm/modules-cleaner
 
+## 10.0.11
+
+### Patch Changes
+
+- Updated dependencies [0a6544043]
+  - @pnpm/store-controller-types@9.1.0
+
 ## 10.0.10
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 8.2.2
+
+### Patch Changes
+
+- Updated dependencies [0a6544043]
+  - @pnpm/fetcher-base@9.0.0
+
 ## 8.2.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 18.0.3
+
+### Patch Changes
+
+- Updated dependencies [0a6544043]
+  - @pnpm/store-controller-types@9.1.0
+
 ## 18.0.2
 
 ### Patch Changes

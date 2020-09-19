@@ -1,5 +1,22 @@
 # supi
 
+## 0.42.0
+
+### Minor Changes
+
+- 40a9e1f3f: Create the module dirs of dependencies before importing them and linking their dependencies.
+
+### Patch Changes
+
+- Updated dependencies [40a9e1f3f]
+- Updated dependencies [0a6544043]
+  - @pnpm/headless@14.2.0
+  - @pnpm/package-requester@12.1.0
+  - @pnpm/store-controller-types@9.1.0
+  - @pnpm/build-modules@5.0.16
+  - @pnpm/modules-cleaner@10.0.11
+  - @pnpm/resolve-dependencies@18.0.3
+
 ## 0.41.31
 
 ### Patch Changes

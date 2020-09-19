@@ -1,5 +1,11 @@
 # @pnpm/store-controller-types
 
+## 9.1.0
+
+### Minor Changes
+
+- 0a6544043: A new field added to the package files index: `checkedAt`. `checkedAt` is the timestamp (number of milliseconds), when the file's content was verified the last time.
+
 ## 9.0.0
 
 ### Major Changes

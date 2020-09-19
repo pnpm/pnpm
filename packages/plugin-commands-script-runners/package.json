@@ -36,7 +36,7 @@
     "@pnpm/filter-workspace-packages": "workspace:2.1.21",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/plugin-commands-script-runners": "link:",
-    "@pnpm/prepare": "workspace:0.0.10",
+    "@pnpm/prepare": "workspace:0.0.11",
     "@types/mz": "^2.7.1",
     "@types/ramda": "^0.27.15",
     "@zkochan/rimraf": "^1.0.0",
