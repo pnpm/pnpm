@@ -1,12 +1,18 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import createClient from '@pnpm/client'
-import test = require('tape')
+import createClient, { createResolver } from '@pnpm/client'
 
-test('createClient()', t => {
+test('createClient()', () => {
   const client = createClient({
     authConfig: { registry: 'https://registry.npmjs.org/' },
     storeDir: '',
   })
-  t.equal(typeof client, 'object')
-  t.end()
+  expect(typeof client === 'object').toBeTruthy()
+})
+
+test('createResolver()', () => {
+  const resolver = createResolver({
+    authConfig: { registry: 'https://registry.npmjs.org/' },
+    storeDir: '',
+  })
+  expect(typeof resolver === 'function').toBeTruthy()
 })
