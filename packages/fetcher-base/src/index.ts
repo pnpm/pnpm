@@ -30,7 +30,7 @@ export interface FetchResult {
 }
 
 export interface FileWriteResult {
-  birthtimeMs: number
+  checkedAt: number
   integrity: IntegrityLike
 }
 

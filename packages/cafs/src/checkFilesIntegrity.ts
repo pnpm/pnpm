@@ -44,7 +44,7 @@ export default async function (
   return verified
 }
 
-type FileInfo = Pick<PackageFileInfo, 'size' | 'birthtimeMs'> & {
+type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
   integrity: string | ssri.IntegrityLike
 }
 
@@ -53,7 +53,7 @@ async function verifyFile (
   fstat: FileInfo,
   deferredManifest?: DeferredManifestPromise
 ) {
-  const currentFile = await checkFile(filename, fstat.birthtimeMs)
+  const currentFile = await checkFile(filename, fstat.checkedAt)
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
       await rimraf(filename)
@@ -103,10 +103,10 @@ export async function verifyFileIntegrity (
   }
 }
 
-async function checkFile (filename: string, birthtimeMs?: number) {
+async function checkFile (filename: string, checkedAt?: number) {
   const { mtimeMs, size } = await fs.stat(filename)
   return {
-    isModified: (mtimeMs - (birthtimeMs ?? 0)) > 100,
+    isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
     size,
   }
 }

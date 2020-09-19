@@ -11,6 +11,12 @@ describe('cafs', () => {
       fs.createReadStream(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
     )
     expect(Object.keys(filesIndex)).toHaveLength(121)
+    const pkgFile = filesIndex['package.json']
+    expect(pkgFile.size).toBe(1121)
+    expect(pkgFile.mode).toBe(420)
+    const { checkedAt, integrity } = await pkgFile.writeResult
+    expect(typeof checkedAt).toBe('number')
+    expect(integrity.toString()).toBe('sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==')
   })
 
   it('replaces an already existing file, if the integrity of it was broken', async () => {

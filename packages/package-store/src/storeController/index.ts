@@ -69,13 +69,16 @@ export default async function (
     const sideEffectsIndex = await packageRequester.cafs.addFilesFromDir(builtPkgLocation)
     // TODO: move this to a function
     // This is duplicated in @pnpm/package-requester
-    const integrity = {}
+    const integrity: Record<string, PackageFileInfo> = {}
     await Promise.all(
       Object.keys(sideEffectsIndex)
         .map(async (filename) => {
-          const { birthtimeMs, integrity: fileIntegrity } = await sideEffectsIndex[filename].writeResult
+          const {
+            checkedAt,
+            integrity: fileIntegrity,
+          } = await sideEffectsIndex[filename].writeResult
           integrity[filename] = {
-            birthtimeMs,
+            checkedAt,
             integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
             mode: sideEffectsIndex[filename].mode,
             size: sideEffectsIndex[filename].size,

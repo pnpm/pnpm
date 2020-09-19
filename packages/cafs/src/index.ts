@@ -59,13 +59,13 @@ async function addBufferToCafs (
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
   const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
-  const birthtimeMs = await writeBufferToCafs(
+  const checkedAt = await writeBufferToCafs(
     buffer,
     fileDest,
     isExecutable ? 0o755 : undefined,
     integrity
   )
-  return { birthtimeMs, integrity }
+  return { checkedAt, integrity }
 }
 
 async function writeBufferToCafs (
