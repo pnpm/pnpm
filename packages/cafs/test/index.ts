@@ -1,4 +1,7 @@
-import createCafs, { getFilePathInCafs } from '../src'
+import createCafs, {
+  checkFilesIntegrity,
+  getFilePathInCafs,
+} from '../src'
 import fs = require('mz/fs')
 import path = require('path')
 import tempy = require('tempy')
@@ -34,5 +37,18 @@ describe('cafs', () => {
     filesIndex = await addFiles()
     await filesIndex['foo.txt'].writeResult
     expect(await fs.readFile(filePath, 'utf8')).toBe('foo\n')
+  })
+})
+
+describe('checkFilesIntegrity()', () => {
+  it("doesn't fail if file was removed from the store", async () => {
+    const storeDir = tempy.directory()
+    expect(await checkFilesIntegrity(storeDir, {
+      foo: {
+        integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
+        mode: 420,
+        size: 10,
+      },
+    })).toBeFalsy()
   })
 })
