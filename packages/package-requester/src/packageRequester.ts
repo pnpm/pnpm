@@ -460,8 +460,9 @@ function fetchToStore (
       await Promise.all(
         Object.keys(filesIndex)
           .map(async (filename) => {
-            const fileIntegrity = await filesIndex[filename].generatingIntegrity
+            const { birthtimeMs, integrity: fileIntegrity } = await filesIndex[filename].writeResult
             integrity[filename] = {
+              birthtimeMs,
               integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
               mode: filesIndex[filename].mode,
               size: filesIndex[filename].size,

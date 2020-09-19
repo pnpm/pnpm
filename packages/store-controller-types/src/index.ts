@@ -64,6 +64,7 @@ export type ImportPackageFunction = (
 ) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
 
 export interface PackageFileInfo {
+  birthtimeMs: number
   integrity: string
   mode: number
   size: number

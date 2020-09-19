@@ -650,6 +650,7 @@ test('refetch package to store if it has been modified', async (t) => {
     indexJsFile = getFilePathInCafs(cafsDir, filesIndex['index.js'].integrity, 'nonexec')
   }
 
+  await delay(200)
   // Adding some content to the file to change its integrity
   await fs.appendFile(indexJsFile, '// foobar')
 

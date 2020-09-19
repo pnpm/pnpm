@@ -46,10 +46,10 @@ export default async function (
 
 async function verifyFile (
   filename: string,
-  fstat: { size: number, integrity: string },
+  fstat: PackageFileInfo,
   deferredManifest?: DeferredManifestPromise
 ) {
-  const modified = await isModified(filename)
+  const modified = await isModified(filename, fstat.birthtimeMs)
   if (!deferredManifest && !modified) {
     // If a file was not edited, we are skipping integrity check.
     // We assume that nobody will manually remove a file in the store and create a new one.
@@ -97,9 +97,7 @@ async function verifyFile (
   }
 }
 
-async function isModified (filename: string) {
-  const { birthtimeMs, mtimeMs } = await fs.stat(filename)
-  // Sometimes modification time is a few milliseconds bigger than birthtime,
-  // even if the files was never edited, so we round it up a bit.
-  return (mtimeMs - birthtimeMs) > 50
+async function isModified (filename: string, birthtimeMs?: number) {
+  const { mtimeMs } = await fs.stat(filename)
+  return (mtimeMs - (birthtimeMs ?? 0)) > 100
 }

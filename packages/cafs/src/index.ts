@@ -1,4 +1,5 @@
 import { PackageFileInfo } from '@pnpm/store-controller-types'
+import { FileWriteResult } from '@pnpm/fetcher-base'
 import addFilesFromDir from './addFilesFromDir'
 import addFilesFromTarball from './addFilesFromTarball'
 import checkFilesIntegrity, {
@@ -42,40 +43,39 @@ async function addStreamToCafs (
   writeBufferToCafs: WriteBufferToCafs,
   fileStream: NodeJS.ReadableStream,
   mode: number
-): Promise<ssri.Integrity> {
+): Promise<FileWriteResult> {
   const buffer = await getStream.buffer(fileStream)
   return addBufferToCafs(writeBufferToCafs, buffer, mode)
 }
 
-type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined) => Promise<void>
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined) => Promise<number>
 
 async function addBufferToCafs (
   writeBufferToCafs: WriteBufferToCafs,
   buffer: Buffer,
   mode: number
-): Promise<ssri.Integrity> {
+): Promise<FileWriteResult> {
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
   const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
-  await writeBufferToCafs(buffer, fileDest, isExecutable ? 0o755 : undefined)
-  return integrity
+  const birthtimeMs = await writeBufferToCafs(buffer, fileDest, isExecutable ? 0o755 : undefined)
+  return { birthtimeMs, integrity }
 }
 
 async function writeBufferToCafs (
-  locker: Map<string, Promise<void>>,
+  locker: Map<string, Promise<number>>,
   cafsDir: string,
   buffer: Buffer,
   fileDest: string,
   mode: number | undefined
-) {
+): Promise<number> {
   fileDest = path.join(cafsDir, fileDest)
   if (locker.has(fileDest)) {
-    await locker.get(fileDest)
-    return
+    return locker.get(fileDest)!
   }
   const p = (async () => {
     // This is a slow operation. Should be rewritten
-    if (await exists(fileDest)) return
+    if (await exists(fileDest)) return 0
 
     // This might be too cautious.
     // The write is atomic, so in case pnpm crashes, no broken file
@@ -87,8 +87,10 @@ async function writeBufferToCafs (
     // to the final file directly.
     const temp = pathTemp(path.dirname(fileDest))
     await writeFile(temp, buffer, mode)
+    const birthtimeMs = Date.now()
     await renameOverwrite(temp, fileDest)
+    return birthtimeMs
   })()
   locker.set(fileDest, p)
-  await p
+  return p
 }

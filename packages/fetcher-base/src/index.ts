@@ -29,10 +29,15 @@ export interface FetchResult {
   filesIndex: FilesIndex
 }
 
+export interface FileWriteResult {
+  birthtimeMs: number
+  integrity: Integrity
+}
+
 export interface FilesIndex {
   [filename: string]: {
     mode: number
     size: number
-    generatingIntegrity: Promise<Integrity>
+    writeResult: Promise<FileWriteResult>
   }
 }

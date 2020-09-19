@@ -73,8 +73,9 @@ export default async function (
     await Promise.all(
       Object.keys(sideEffectsIndex)
         .map(async (filename) => {
-          const fileIntegrity = await sideEffectsIndex[filename].generatingIntegrity
+          const { birthtimeMs, integrity: fileIntegrity } = await sideEffectsIndex[filename].writeResult
           integrity[filename] = {
+            birthtimeMs,
             integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
             mode: sideEffectsIndex[filename].mode,
             size: sideEffectsIndex[filename].size,

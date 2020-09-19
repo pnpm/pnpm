@@ -23,7 +23,7 @@ test('fetch', async t => {
     }
   )
   t.ok(filesIndex['package.json'])
-  t.ok(await filesIndex['package.json'].generatingIntegrity)
+  t.ok(await filesIndex['package.json'].writeResult)
   t.equal((await manifest.promise).name, 'is-positive')
   t.end()
 })
