@@ -3,4 +3,5 @@ module.exports = {
   testMatch: ["**/test/**/*.[jt]s?(x)"],
   testEnvironment: 'node',
   collectCoverage: true,
+  coveragePathIgnorePatterns: ['node_modules'],
 };
