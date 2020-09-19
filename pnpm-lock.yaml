@@ -114,7 +114,6 @@ importers:
       get-stream: 6.0.0
       mz: 2.7.0
       p-limit: 3.0.2
-      path-exists: 4.0.0
       path-temp: 2.0.0
       rename-overwrite: 3.0.0
       ssri: 6.0.1
@@ -141,7 +140,6 @@ importers:
       get-stream: ^6.0.0
       mz: ^2.7.0
       p-limit: ^3.0.2
-      path-exists: ^4.0.0
       path-temp: ^2.0.0
       rename-overwrite: ^3.0.0
       ssri: 6.0.1

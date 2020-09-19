@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts" />
 import { promisify } from 'util'
-import { getFilePathInCafs } from '@pnpm/cafs'
+import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import createClient from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@pnpm/package-requester'
@@ -8,6 +8,7 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import path = require('path')
+import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import nock = require('nock')
@@ -358,6 +359,10 @@ test('fetchPackageToStore()', async (t) => {
     'returned info about files after fetch completed')
   t.notOk(files.fromStore)
 
+  const indexFile = await loadJsonFile<PackageFilesIndex>(fetchResult.filesIndexFile)
+  t.ok(indexFile, 'index file is written')
+  t.ok(typeof indexFile.files['package.json'].checkedAt, 'number')
+
   t.ok(fetchResult.finishing())
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
@@ -650,6 +655,7 @@ test('refetch package to store if it has been modified', async (t) => {
     indexJsFile = getFilePathInCafs(cafsDir, filesIndex['index.js'].integrity, 'nonexec')
   }
 
+  await delay(200)
   // Adding some content to the file to change its integrity
   await fs.appendFile(indexJsFile, '// foobar')
 

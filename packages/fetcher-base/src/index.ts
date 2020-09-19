@@ -1,6 +1,6 @@
 import { Resolution } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
-import { Integrity } from 'ssri'
+import { IntegrityLike } from 'ssri'
 
 export interface Cafs {
   addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
@@ -29,10 +29,15 @@ export interface FetchResult {
   filesIndex: FilesIndex
 }
 
+export interface FileWriteResult {
+  checkedAt: number
+  integrity: IntegrityLike
+}
+
 export interface FilesIndex {
   [filename: string]: {
     mode: number
     size: number
-    generatingIntegrity: Promise<Integrity>
+    writeResult: Promise<FileWriteResult>
   }
 }

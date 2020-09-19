@@ -44,34 +44,47 @@ export default async function (
   return verified
 }
 
+type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
+  integrity: string | ssri.IntegrityLike
+}
+
 async function verifyFile (
   filename: string,
-  fstat: { size: number, integrity: string },
+  fstat: FileInfo,
   deferredManifest?: DeferredManifestPromise
 ) {
-  if (fstat.size > MAX_BULK_SIZE && !deferredManifest) {
-    try {
-      const ok = Boolean(await ssri.checkStream(fs.createReadStream(filename), fstat.integrity))
+  const currentFile = await checkFile(filename, fstat.checkedAt)
+  if (!currentFile) return false
+  if (currentFile.isModified) {
+    if (currentFile.size !== fstat.size) {
+      await rimraf(filename)
+      return false
+    }
+    return verifyFileIntegrity(filename, fstat, deferredManifest)
+  }
+  if (deferredManifest) {
+    parseJsonBuffer(await fs.readFile(filename), deferredManifest)
+  }
+  // If a file was not edited, we are skipping integrity check.
+  // We assume that nobody will manually remove a file in the store and create a new one.
+  return true
+}
+
+export async function verifyFileIntegrity (
+  filename: string,
+  expectedFile: FileInfo,
+  deferredManifest?: DeferredManifestPromise
+) {
+  try {
+    if (expectedFile.size > MAX_BULK_SIZE && !deferredManifest) {
+      const ok = Boolean(await ssri.checkStream(fs.createReadStream(filename), expectedFile.integrity))
       if (!ok) {
         await rimraf(filename)
       }
       return ok
-    } catch (err) {
-      switch (err.code) {
-      case 'ENOENT': return false
-      case 'EINTEGRITY': {
-        // Broken files are removed from the store
-        await rimraf(filename)
-        return false
-      }
-      }
-      throw err
     }
-  }
-
-  try {
     const data = await fs.readFile(filename)
-    const ok = Boolean(ssri.checkData(data, fstat.integrity))
+    const ok = Boolean(ssri.checkData(data, expectedFile.integrity))
     if (!ok) {
       await rimraf(filename)
     } else if (deferredManifest) {
@@ -87,6 +100,19 @@ async function verifyFile (
       return false
     }
     }
+    throw err
+  }
+}
+
+async function checkFile (filename: string, checkedAt?: number) {
+  try {
+    const { mtimeMs, size } = await fs.stat(filename)
+    return {
+      isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
+      size,
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') return null
     throw err
   }
 }

@@ -1,4 +1,4 @@
-import { Hash } from 'ssri'
+import { IntegrityLike } from 'ssri'
 import path = require('path')
 import ssri = require('ssri')
 
@@ -8,7 +8,7 @@ export type FileType = 'exec' | 'nonexec' | 'index'
 
 export function getFilePathByModeInCafs (
   cafsDir: string,
-  integrity: string | Hash,
+  integrity: string | IntegrityLike,
   mode: number
 ) {
   const fileType = modeIsExecutable(mode) ? 'exec' : 'nonexec'
@@ -17,14 +17,14 @@ export function getFilePathByModeInCafs (
 
 export default function getFilePathInCafs (
   cafsDir: string,
-  integrity: string | Hash,
+  integrity: string | IntegrityLike,
   fileType: FileType
 ) {
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
 }
 
 function contentPathFromIntegrity (
-  integrity: string | Hash,
+  integrity: string | IntegrityLike,
   fileType: FileType
 ) {
   const sri = ssri.parse(integrity, { single: true })

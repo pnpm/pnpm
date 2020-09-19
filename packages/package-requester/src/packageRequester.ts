@@ -456,12 +456,16 @@ function fetchToStore (
       // Ideally, files wouldn't care about when integrity is calculated.
       // However, we can only rename the temp folder once we know the package name.
       // And we cannot rename the temp folder till we're calculating integrities.
-      const integrity = {}
+      const integrity: Record<string, PackageFileInfo> = {}
       await Promise.all(
         Object.keys(filesIndex)
           .map(async (filename) => {
-            const fileIntegrity = await filesIndex[filename].generatingIntegrity
+            const {
+              checkedAt,
+              integrity: fileIntegrity,
+            } = await filesIndex[filename].writeResult
             integrity[filename] = {
+              checkedAt,
               integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
               mode: filesIndex[filename].mode,
               size: filesIndex[filename].size,

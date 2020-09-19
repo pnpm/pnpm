@@ -1,9 +1,12 @@
-import { DeferredManifestPromise, FilesIndex } from '@pnpm/fetcher-base'
+import {
+  DeferredManifestPromise,
+  FilesIndex,
+  FileWriteResult,
+} from '@pnpm/fetcher-base'
 import { parseJsonBuffer } from './parseJson'
 import path = require('path')
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
-import ssri = require('ssri')
 
 const limit = pLimit(20)
 
@@ -11,21 +14,21 @@ const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
 export default async function (
   cafs: {
-    addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<ssri.Integrity>
-    addBuffer: (buffer: Buffer, mode: number) => Promise<ssri.Integrity>
+    addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<FileWriteResult>
+    addBuffer: (buffer: Buffer, mode: number) => Promise<FileWriteResult>
   },
   dirname: string,
   manifest?: DeferredManifestPromise
-) {
-  const index = {}
+): Promise<FilesIndex> {
+  const index: FilesIndex = {}
   await _retrieveFileIntegrities(cafs, dirname, dirname, index, manifest)
   return index
 }
 
 async function _retrieveFileIntegrities (
   cafs: {
-    addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<ssri.Integrity>
-    addBuffer: (buffer: Buffer, mode: number) => Promise<ssri.Integrity>
+    addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<FileWriteResult>
+    addBuffer: (buffer: Buffer, mode: number) => Promise<FileWriteResult>
   },
   rootDir: string,
   currDir: string,
@@ -43,7 +46,7 @@ async function _retrieveFileIntegrities (
       }
       if (stat.isFile()) {
         const relativePath = path.relative(rootDir, fullPath)
-        const generatingIntegrity = limit(async () => {
+        const writeResult = limit(async () => {
           if (deferredManifest && rootDir === currDir && file === 'package.json') {
             const buffer = await fs.readFile(fullPath)
             parseJsonBuffer(buffer, deferredManifest)
@@ -56,9 +59,9 @@ async function _retrieveFileIntegrities (
           return cafs.addStream(fs.createReadStream(fullPath), stat.mode)
         })
         index[relativePath] = {
-          generatingIntegrity,
           mode: stat.mode,
           size: stat.size,
+          writeResult,
         }
       }
     }))
