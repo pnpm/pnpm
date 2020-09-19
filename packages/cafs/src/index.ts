@@ -4,6 +4,7 @@ import addFilesFromDir from './addFilesFromDir'
 import addFilesFromTarball from './addFilesFromTarball'
 import checkFilesIntegrity, {
   PackageFilesIndex,
+  verifyFileIntegrity,
 } from './checkFilesIntegrity'
 import getFilePathInCafs, {
   contentPathFromHex,
@@ -12,9 +13,9 @@ import getFilePathInCafs, {
   modeIsExecutable,
 } from './getFilePathInCafs'
 import writeFile from './writeFile'
+import fs = require('mz/fs')
 import path = require('path')
 import getStream = require('get-stream')
-import exists = require('path-exists')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
@@ -48,7 +49,7 @@ async function addStreamToCafs (
   return addBufferToCafs(writeBufferToCafs, buffer, mode)
 }
 
-type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined) => Promise<number>
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: ssri.IntegrityLike) => Promise<number>
 
 async function addBufferToCafs (
   writeBufferToCafs: WriteBufferToCafs,
@@ -58,7 +59,12 @@ async function addBufferToCafs (
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
   const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
-  const birthtimeMs = await writeBufferToCafs(buffer, fileDest, isExecutable ? 0o755 : undefined)
+  const birthtimeMs = await writeBufferToCafs(
+    buffer,
+    fileDest,
+    isExecutable ? 0o755 : undefined,
+    integrity
+  )
   return { birthtimeMs, integrity }
 }
 
@@ -67,15 +73,22 @@ async function writeBufferToCafs (
   cafsDir: string,
   buffer: Buffer,
   fileDest: string,
-  mode: number | undefined
+  mode: number | undefined,
+  integrity: ssri.IntegrityLike
 ): Promise<number> {
   fileDest = path.join(cafsDir, fileDest)
   if (locker.has(fileDest)) {
     return locker.get(fileDest)!
   }
   const p = (async () => {
-    // This is a slow operation. Should be rewritten
-    if (await exists(fileDest)) return 0
+    // This part is a bit redundant.
+    // When a file is already used by another package,
+    // we probably have validated its content already.
+    // However, there is no way to find which package index file references
+    // the given file. So we should revalidate the content of the file again.
+    if (await existsSame(fileDest, integrity)) {
+      return Date.now()
+    }
 
     // This might be too cautious.
     // The write is atomic, so in case pnpm crashes, no broken file
@@ -93,4 +106,17 @@ async function writeBufferToCafs (
   })()
   locker.set(fileDest, p)
   return p
+}
+
+async function existsSame (filename: string, integrity: ssri.IntegrityLike) {
+  let existingFile: fs.Stats | undefined
+  try {
+    existingFile = await fs.stat(filename)
+  } catch (err) {
+    return false
+  }
+  return verifyFileIntegrity(filename, {
+    size: existingFile.size,
+    integrity,
+  })
 }

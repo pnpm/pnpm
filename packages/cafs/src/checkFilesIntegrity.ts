@@ -44,40 +44,46 @@ export default async function (
   return verified
 }
 
+type FileInfo = Pick<PackageFileInfo, 'size' | 'birthtimeMs'> & {
+  integrity: string | ssri.IntegrityLike
+}
+
 async function verifyFile (
   filename: string,
-  fstat: PackageFileInfo,
+  fstat: FileInfo,
   deferredManifest?: DeferredManifestPromise
 ) {
-  const modified = await isModified(filename, fstat.birthtimeMs)
-  if (!deferredManifest && !modified) {
-    // If a file was not edited, we are skipping integrity check.
-    // We assume that nobody will manually remove a file in the store and create a new one.
-    return true
+  const currentFile = await checkFile(filename, fstat.birthtimeMs)
+  if (currentFile.isModified) {
+    if (currentFile.size !== fstat.size) {
+      await rimraf(filename)
+      return false
+    }
+    return verifyFileIntegrity(filename, fstat, deferredManifest)
   }
-  if (fstat.size > MAX_BULK_SIZE && !deferredManifest) {
-    try {
-      const ok = Boolean(await ssri.checkStream(fs.createReadStream(filename), fstat.integrity))
+  if (deferredManifest) {
+    parseJsonBuffer(await fs.readFile(filename), deferredManifest)
+  }
+  // If a file was not edited, we are skipping integrity check.
+  // We assume that nobody will manually remove a file in the store and create a new one.
+  return true
+}
+
+export async function verifyFileIntegrity (
+  filename: string,
+  expectedFile: FileInfo,
+  deferredManifest?: DeferredManifestPromise
+) {
+  try {
+    if (expectedFile.size > MAX_BULK_SIZE && !deferredManifest) {
+      const ok = Boolean(await ssri.checkStream(fs.createReadStream(filename), expectedFile.integrity))
       if (!ok) {
         await rimraf(filename)
       }
       return ok
-    } catch (err) {
-      switch (err.code) {
-      case 'ENOENT': return false
-      case 'EINTEGRITY': {
-        // Broken files are removed from the store
-        await rimraf(filename)
-        return false
-      }
-      }
-      throw err
     }
-  }
-
-  try {
     const data = await fs.readFile(filename)
-    const ok = !modified || Boolean(ssri.checkData(data, fstat.integrity))
+    const ok = Boolean(ssri.checkData(data, expectedFile.integrity))
     if (!ok) {
       await rimraf(filename)
     } else if (deferredManifest) {
@@ -97,7 +103,10 @@ async function verifyFile (
   }
 }
 
-async function isModified (filename: string, birthtimeMs?: number) {
-  const { mtimeMs } = await fs.stat(filename)
-  return (mtimeMs - (birthtimeMs ?? 0)) > 100
+async function checkFile (filename: string, birthtimeMs?: number) {
+  const { mtimeMs, size } = await fs.stat(filename)
+  return {
+    isModified: (mtimeMs - (birthtimeMs ?? 0)) > 100,
+    size,
+  }
 }
