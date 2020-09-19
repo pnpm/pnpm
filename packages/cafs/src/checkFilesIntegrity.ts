@@ -54,6 +54,7 @@ async function verifyFile (
   deferredManifest?: DeferredManifestPromise
 ) {
   const currentFile = await checkFile(filename, fstat.checkedAt)
+  if (!currentFile) return false
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
       await rimraf(filename)
@@ -104,9 +105,14 @@ export async function verifyFileIntegrity (
 }
 
 async function checkFile (filename: string, checkedAt?: number) {
-  const { mtimeMs, size } = await fs.stat(filename)
-  return {
-    isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
-    size,
+  try {
+    const { mtimeMs, size } = await fs.stat(filename)
+    return {
+      isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
+      size,
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') return null
+    throw err
   }
 }
