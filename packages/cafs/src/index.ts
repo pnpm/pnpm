@@ -100,6 +100,9 @@ async function writeBufferToCafs (
     // to the final file directly.
     const temp = pathTemp(path.dirname(fileDest))
     await writeFile(temp, buffer, mode)
+    // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
+    // We log the creation time ourselves and save it in the package index file.
+    // Having this information allows us to skip content checks for files that were not modified since "birth time".
     const birthtimeMs = Date.now()
     await renameOverwrite(temp, fileDest)
     return birthtimeMs
