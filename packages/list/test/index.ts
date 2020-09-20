@@ -1,11 +1,9 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import renderTree from '@pnpm/list/lib/renderTree'
-import './createPackagesSearcher.spec.ts'
 import chalk = require('chalk')
 import cliColumns = require('cli-columns')
 import path = require('path')
-import test = require('tape')
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color
@@ -30,26 +28,24 @@ const workspaceWith2Pkgs = path.join(fixtures, 'workspace-with-2-pkgs')
 const emptyFixture = path.join(fixtures, 'empty')
 const fixtureWithAliasedDep = path.join(fixtures, 'with-aliased-dep')
 
-test('list all deps of a package that has an external lockfile', async (t) => {
-  t.equal(await list([fixtureWithExternalLockfile], {
+test('list all deps of a package that has an external lockfile', async () => {
+  expect(await list([fixtureWithExternalLockfile], {
     lockfileDir: path.join(fixtureWithExternalLockfile, '..'),
-  }), `${LEGEND}
+  })).toBe(`${LEGEND}
 
 pkg@1.0.0 ${fixtureWithExternalLockfile}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}`)
-
-  t.end()
 })
 
-test('print legend only once', async (t) => {
-  t.equal(await list([
+test('print legend only once', async () => {
+  expect(await list([
     path.join(workspaceWith2Pkgs, 'packages/bar'),
     path.join(workspaceWith2Pkgs, 'packages/foo'),
   ], {
     lockfileDir: workspaceWith2Pkgs,
-  }), `${LEGEND}
+  })).toBe(`${LEGEND}
 
 bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}
 
@@ -60,12 +56,10 @@ foo@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/foo')}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}`)
-
-  t.end()
 })
 
-test('list with default parameters', async t => {
-  t.equal(await list([fixture], { lockfileDir: fixture }), `${LEGEND}
+test('list with default parameters', async () => {
+  expect(await list([fixture], { lockfileDir: fixture })).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
@@ -77,12 +71,10 @@ ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
 
 ${OPTIONAL_DEPENDENCIES}
 ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
-
-  t.end()
 })
 
-test('list with default parameters in pkg that has no name and version', async t => {
-  t.equal(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDir: fixtureWithNoPkgNameAndNoVersion }), `${LEGEND}
+test('list with default parameters in pkg that has no name and version', async () => {
+  expect(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDir: fixtureWithNoPkgNameAndNoVersion })).toBe(`${LEGEND}
 
 ${fixtureWithNoPkgNameAndNoVersion}
 
@@ -94,12 +86,10 @@ ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
 
 ${OPTIONAL_DEPENDENCIES}
 ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
-
-  t.end()
 })
 
-test('list with default parameters in pkg that has no version', async t => {
-  t.equal(await list([fixtureWithNoPkgVersion], { lockfileDir: fixtureWithNoPkgVersion }), `${LEGEND}
+test('list with default parameters in pkg that has no version', async () => {
+  expect(await list([fixtureWithNoPkgVersion], { lockfileDir: fixtureWithNoPkgVersion })).toBe(`${LEGEND}
 
 fixture ${fixtureWithNoPkgVersion}
 
@@ -111,52 +101,46 @@ ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
 
 ${OPTIONAL_DEPENDENCIES}
 ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
-
-  t.end()
 })
 
-test('list dev only', async t => {
-  t.equal(
+test('list dev only', async () => {
+  expect(
     await list([fixture], {
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
       lockfileDir: fixture,
-    }),
-    `${LEGEND}
+    })
+  ).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
 ${DEV_DEPENDENCIES}
 ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}`
   )
-
-  t.end()
 })
 
-test('list prod only', async t => {
-  t.equal(
+test('list prod only', async () => {
+  expect(
     await list([fixture], {
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
       lockfileDir: fixture,
-    }),
-    `${LEGEND}
+    })
+  ).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}`
   )
-
-  t.end()
 })
 
-test('list prod only with depth 2', async t => {
-  t.equal(
+test('list prod only with depth 2', async () => {
+  expect(
     await list([fixture], {
       depth: 2,
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
       lockfileDir: fixture,
-    }),
-    `${LEGEND}
+    })
+  ).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
@@ -174,12 +158,10 @@ write-json-file ${VERSION_CLR('2.3.0')}
   ├── imurmurhash ${VERSION_CLR('0.1.4')}
   └── signal-exit ${VERSION_CLR('3.0.2')}`
   )
-
-  t.end()
 })
 
-test('list with depth 1', async t => {
-  t.equal(await list([fixture], { depth: 1, lockfileDir: fixture }), `${LEGEND}
+test('list with depth 1', async () => {
+  expect(await list([fixture], { depth: 1, lockfileDir: fixture })).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
@@ -197,20 +179,16 @@ ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
 
 ${OPTIONAL_DEPENDENCIES}
 ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
-
-  t.end()
 })
 
-test('list with depth -1', async t => {
-  t.equal(await list([fixture], { depth: -1, lockfileDir: fixture }), `fixture@1.0.0 ${fixture}`)
-
-  t.end()
+test('list with depth -1', async () => {
+  expect(await list([fixture], { depth: -1, lockfileDir: fixture })).toBe(`fixture@1.0.0 ${fixture}`)
 })
 
-test('list with depth 1 and selected packages', async t => {
-  t.equal(
-    await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], [fixture], { depth: 1, lockfileDir: fixture }),
-    `${LEGEND}
+test('list with depth 1 and selected packages', async () => {
+  expect(
+    await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], [fixture], { depth: 1, lockfileDir: fixture })
+  ).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
@@ -222,22 +200,10 @@ write-json-file ${VERSION_CLR('2.3.0')}
 ${OPTIONAL_DEPENDENCIES}
 ${highlighted(OPTIONAL_DEP_CLR('is-negative') + ' ' + VERSION_CLR('2.1.0'))}`
   )
-
-  t.end()
 })
 
-function compareOutputs (t: test.Test, actual: string, expected: string) {
-  if (actual !== expected) {
-    console.log('Actual:')
-    console.log(actual)
-    console.log('Expected:')
-    console.log(expected)
-  }
-  t.equal(actual, expected)
-}
-
-test('list in long format', async t => {
-  compareOutputs(t, await list([fixture], { long: true, lockfileDir: fixture }), `${LEGEND}
+test('list in long format', async () => {
+  expect(await list([fixture], { long: true, lockfileDir: fixture })).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
@@ -258,12 +224,10 @@ ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
   Check if something is a negative number
   git+https://github.com/kevva/is-negative.git
   https://github.com/kevva/is-negative#readme`)
-
-  t.end()
 })
 
-test('parseable list with depth 1', async t => {
-  t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture }), `${fixture}
+test('parseable list with depth 1', async () => {
+  expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture })).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0')}
 ${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2')}
 ${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0')}
@@ -273,12 +237,10 @@ ${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0')}
 ${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0')}
 ${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3')}
 ${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0')}`)
-
-  t.end()
 })
 
-test('JSON list with depth 1', async t => {
-  t.equal(await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture }), JSON.stringify([{
+test('JSON list with depth 1', async () => {
+  expect(await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture })).toBe(JSON.stringify([{
     name: 'fixture',
     version: '1.0.0',
 
@@ -346,12 +308,12 @@ test('JSON list with depth 1', async t => {
       },
     },
   }], null, 2))
-  t.end()
 })
 
-test('JSON list with aliased dep', async t => {
-  t.equal(
-    await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDir: fixtureWithAliasedDep }),
+test('JSON list with aliased dep', async () => {
+  expect(
+    await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDir: fixtureWithAliasedDep })
+  ).toBe(
     JSON.stringify([
       {
         name: 'with-aliased-dep',
@@ -368,8 +330,9 @@ test('JSON list with aliased dep', async t => {
       },
     ], null, 2)
   )
-  t.equal(
-    await list([fixtureWithAliasedDep], { lockfileDir: fixtureWithAliasedDep, long: true, reportAs: 'json' }),
+  expect(
+    await list([fixtureWithAliasedDep], { lockfileDir: fixtureWithAliasedDep, long: true, reportAs: 'json' })
+  ).toBe(
     JSON.stringify([{
       name: 'with-aliased-dep',
       version: '1.0.0',
@@ -386,29 +349,25 @@ test('JSON list with aliased dep', async t => {
           repository: 'git+https://github.com/kevva/is-positive.git',
         },
       },
-    }], null, 2),
-    'with long info'
+    }], null, 2)
   )
-  t.end()
 })
 
-test('parseable list with depth 1 and dev only', async t => {
-  t.equal(
+test('parseable list with depth 1 and dev only', async () => {
+  expect(
     await list([fixture], {
       depth: 1,
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
       lockfileDir: fixture,
       reportAs: 'parseable',
-    }),
-    `${fixture}
+    })
+  ).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0')}`
   )
-
-  t.end()
 })
 
-test('long parseable list with depth 1', async t => {
-  t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true }), `${fixture}:fixture@1.0.0
+test('long parseable list with depth 1', async () => {
+  expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true })).toBe(`${fixture}:fixture@1.0.0
 ${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
 ${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
 ${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0')}:is-negative@2.1.0
@@ -418,12 +377,10 @@ ${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0')}:pify@3.0.0
 ${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0')}:sort-keys@2.0.0
 ${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
 ${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`)
-
-  t.end()
 })
 
-test('long parseable list with depth 1 when package has no version', async t => {
-  t.equal(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true }), `\
+test('long parseable list with depth 1 when package has no version', async () => {
+  expect(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true })).toBe(`\
 ${fixtureWithNoPkgVersion}:fixture
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
@@ -434,17 +391,15 @@ ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/pify@3.0.0')}:pify@3.0.
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/sort-keys@2.0.0')}:sort-keys@2.0.0
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`)
-
-  t.end()
 })
 
-test('long parseable list with depth 1 when package has no name and no version', async t => {
-  t.equal(
+test('long parseable list with depth 1 when package has no name and no version', async () => {
+  expect(
     await list(
       [fixtureWithNoPkgNameAndNoVersion],
       { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true }
-    ),
-    `${fixtureWithNoPkgNameAndNoVersion}
+    )
+  ).toBe(`${fixtureWithNoPkgNameAndNoVersion}
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/is-negative@2.1.0')}:is-negative@2.1.0
@@ -455,22 +410,18 @@ ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/sort-keys@2.0.
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`
   )
-
-  t.end()
 })
 
-test('print empty', async t => {
-  t.equal(await list([emptyFixture], { lockfileDir: emptyFixture }), `${LEGEND}\n\nempty@1.0.0 ${emptyFixture}`)
-  t.end()
+test('print empty', async () => {
+  expect(await list([emptyFixture], { lockfileDir: emptyFixture })).toBe(`${LEGEND}\n\nempty@1.0.0 ${emptyFixture}`)
 })
 
-test("don't print empty", async t => {
-  t.equal(await list([emptyFixture], { alwaysPrintRootPackage: false, lockfileDir: emptyFixture }), '')
-  t.end()
+test("don't print empty", async () => {
+  expect(await list([emptyFixture], { alwaysPrintRootPackage: false, lockfileDir: emptyFixture })).toBe('')
 })
 
-test('unsaved dependencies are marked', async (t) => {
-  t.equal(await renderTree(
+test('unsaved dependencies are marked', async () => {
+  expect(await renderTree(
     [
       {
         name: 'fixture',
@@ -496,17 +447,16 @@ test('unsaved dependencies are marked', async (t) => {
       long: false,
       search: true,
     }
-  ), `${LEGEND}
+  )).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
 ${UNSAVED_DEPENDENCIES}
 ${NOT_SAVED_DEP_CLR('foo')} ${VERSION_CLR('1.0.0')}`)
-  t.end()
 })
 
-test('write long lists in columns', async (t) => {
-  compareOutputs(t, await renderTree(
+test('write long lists in columns', async () => {
+  expect(await renderTree(
     [
       {
         name: 'fixture',
@@ -622,7 +572,7 @@ test('write long lists in columns', async (t) => {
       long: false,
       search: false,
     }
-  ), `${LEGEND}
+  )).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
@@ -640,11 +590,10 @@ ${DEPENDENCIES}` + '\n' +
       `k ${VERSION_CLR('1.0.0')}`,
       `l ${VERSION_CLR('1.0.0')}`,
     ]))
-  t.end()
 })
 
-test('sort list items', async (t) => {
-  compareOutputs(t, await renderTree(
+test('sort list items', async () => {
+  expect(await renderTree(
     [
       {
         name: 'fixture',
@@ -691,7 +640,7 @@ test('sort list items', async (t) => {
       long: false,
       search: false,
     }
-  ), `${LEGEND}
+  )).toBe(`${LEGEND}
 
 fixture@1.0.0 ${fixture}
 
@@ -699,13 +648,12 @@ ${DEPENDENCIES}
 foo ${VERSION_CLR('1.0.0')}
 ├── bar ${VERSION_CLR('1.0.0')}
 └── qar ${VERSION_CLR('1.0.0')}`)
-  t.end()
 })
 
-test('peer dependencies are marked', async (t) => {
+test('peer dependencies are marked', async () => {
   const fixture = path.join(fixtures, 'with-peer')
   const output = await list([fixture], { depth: 1, lockfileDir: fixture })
-  compareOutputs(t, output, `${LEGEND}
+  expect(output).toBe(`${LEGEND}
 
 with-peer@1.0.0 ${fixture}
 
@@ -717,13 +665,12 @@ ajv ${VERSION_CLR('6.10.2')}
 └── uri-js ${VERSION_CLR('4.2.2')}
 ajv-keywords ${VERSION_CLR('3.4.1')}
 └── ajv ${VERSION_CLR('6.10.2')} peer`)
-  t.end()
 })
 
-test('peer dependencies are marked when searching', async (t) => {
+test('peer dependencies are marked when searching', async () => {
   const fixture = path.join(fixtures, 'with-peer')
   const output = await listForPackages(['ajv'], [fixture], { depth: 1, lockfileDir: fixture })
-  compareOutputs(t, output, `${LEGEND}
+  expect(output).toBe(`${LEGEND}
 
 with-peer@1.0.0 ${fixture}
 
@@ -731,5 +678,4 @@ ${DEPENDENCIES}
 ${highlighted(`ajv ${VERSION_CLR('6.10.2')}`)}
 ajv-keywords ${VERSION_CLR('3.4.1')}
 └── ${highlighted(`ajv ${VERSION_CLR('6.10.2')} peer`)}`)
-  t.end()
 })

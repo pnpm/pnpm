@@ -14,7 +14,7 @@
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm run pretest --filter dependencies-hierarchy",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/list/coverage ts-node packages/list/test --type-check",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },

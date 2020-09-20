@@ -2,7 +2,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import dh, { PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
-import test = require('tape')
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const generalFixture = path.join(fixtures, 'general')
@@ -14,11 +13,11 @@ const withUnsavedDepsFixture = path.join(fixtures, 'with-unsaved-deps')
 const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
 const withAliasedDepFixture = path.join(fixtures, 'with-aliased-dep')
 
-test('one package depth 0', async t => {
+test('one package depth 0', async () => {
   const tree = await dh([generalFixture], { depth: 0, lockfileDir: generalFixture })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [generalFixture]: {
       dependencies: [
         {
@@ -73,15 +72,13 @@ test('one package depth 0', async t => {
       ],
     },
   })
-
-  t.end()
 })
 
-test('one package depth 1', async t => {
+test('one package depth 1', async () => {
   const tree = await dh([generalFixture], { depth: 1, lockfileDir: generalFixture })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [generalFixture]: {
       dependencies: [
         {
@@ -164,11 +161,9 @@ test('one package depth 1', async t => {
       ],
     },
   })
-
-  t.end()
 })
 
-test('only prod depth 0', async t => {
+test('only prod depth 0', async () => {
   const tree = await dh(
     [generalFixture],
     {
@@ -183,7 +178,7 @@ test('only prod depth 0', async t => {
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [generalFixture]: {
       dependencies: [
         {
@@ -211,11 +206,9 @@ test('only prod depth 0', async t => {
       ],
     },
   })
-
-  t.end()
 })
 
-test('only dev depth 0', async t => {
+test('only dev depth 0', async () => {
   const tree = await dh(
     [generalFixture],
     {
@@ -230,7 +223,7 @@ test('only dev depth 0', async t => {
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [generalFixture]: {
       devDependencies: [
         {
@@ -247,29 +240,25 @@ test('only dev depth 0', async t => {
       ],
     },
   })
-
-  t.end()
 })
 
-test('hierarchy for no packages', async t => {
+test('hierarchy for no packages', async () => {
   const tree = await dh([generalFixture], {
     depth: 100,
     lockfileDir: generalFixture,
     search: () => false,
   })
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [generalFixture]: {
       dependencies: [],
       devDependencies: [],
       optionalDependencies: [],
     },
   })
-
-  t.end()
 })
 
-test('filter 1 package with depth 0', async t => {
+test('filter 1 package with depth 0', async () => {
   const tree = await dh(
     [generalFixture],
     {
@@ -280,7 +269,7 @@ test('filter 1 package with depth 0', async t => {
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [generalFixture]: {
       dependencies: [
         {
@@ -300,15 +289,13 @@ test('filter 1 package with depth 0', async t => {
       optionalDependencies: [],
     },
   })
-
-  t.end()
 })
 
-test('circular dependency', async t => {
+test('circular dependency', async () => {
   const tree = await dh([circularFixture], { depth: 1000, lockfileDir: circularFixture })
   const modulesDir = path.join(circularFixture, 'node_modules')
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [circularFixture]: {
       dependencies: require('./circularTree.json') // eslint-disable-line
         .dependencies
@@ -317,8 +304,6 @@ test('circular dependency', async t => {
       optionalDependencies: [],
     },
   })
-
-  t.end()
 })
 
 function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
@@ -338,11 +323,11 @@ function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
   }
 }
 
-test('local package depth 0', async t => {
+test('local package depth 0', async () => {
   const tree = await dh([withFileDepFixture], { depth: 1, lockfileDir: withFileDepFixture })
   const modulesDir = path.join(withFileDepFixture, 'node_modules')
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [withFileDepFixture]: {
       dependencies: [
         {
@@ -370,14 +355,12 @@ test('local package depth 0', async t => {
       optionalDependencies: [],
     },
   })
-
-  t.end()
 })
 
-test('on a package that has only links', async t => {
+test('on a package that has only links', async () => {
   const tree = await dh([withLinksOnlyFixture], { depth: 1000, lockfileDir: withLinksOnlyFixture })
 
-  t.deepEqual(tree, {
+  expect(tree).toStrictEqual({
     [withLinksOnlyFixture]: {
       dependencies: [
         {
@@ -394,15 +377,12 @@ test('on a package that has only links', async t => {
       optionalDependencies: [],
     },
   })
-
-  t.end()
 })
 
-test('unsaved dependencies are listed', async t => {
+test('unsaved dependencies are listed', async () => {
   const modulesDir = path.join(withUnsavedDepsFixture, 'node_modules')
-  t.deepEqual(
-    await dh([withUnsavedDepsFixture], { depth: 0, lockfileDir: withUnsavedDepsFixture }),
-    {
+  expect(await dh([withUnsavedDepsFixture], { depth: 0, lockfileDir: withUnsavedDepsFixture }))
+    .toStrictEqual({
       [withUnsavedDepsFixture]: {
         dependencies: [
           {
@@ -431,14 +411,12 @@ test('unsaved dependencies are listed', async t => {
           },
         ],
       },
-    }
-  )
-  t.end()
+    })
 })
 
-test('unsaved dependencies are listed and filtered', async t => {
+test('unsaved dependencies are listed and filtered', async () => {
   const modulesDir = path.join(withUnsavedDepsFixture, 'node_modules')
-  t.deepEqual(
+  expect(
     await dh(
       [withUnsavedDepsFixture],
       {
@@ -446,67 +424,61 @@ test('unsaved dependencies are listed and filtered', async t => {
         lockfileDir: withUnsavedDepsFixture,
         search: ({ name }) => name === 'symlink-dir',
       }
-    ),
-    {
-      [withUnsavedDepsFixture]: {
-        dependencies: [
-          {
-            alias: 'symlink-dir',
-            dev: false,
-            isMissing: false,
-            isPeer: false,
-            isSkipped: false,
-            name: 'symlink-dir',
-            path: path.join(modulesDir, '.pnpm/symlink-dir@2.0.2'),
-            resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
-            searched: true,
-            version: '2.0.2',
-          },
-        ],
-        devDependencies: [],
-        optionalDependencies: [],
-      },
-    }
-  )
-  t.end()
+    )
+  ).toStrictEqual({
+    [withUnsavedDepsFixture]: {
+      dependencies: [
+        {
+          alias: 'symlink-dir',
+          dev: false,
+          isMissing: false,
+          isPeer: false,
+          isSkipped: false,
+          name: 'symlink-dir',
+          path: path.join(modulesDir, '.pnpm/symlink-dir@2.0.2'),
+          resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
+          searched: true,
+          version: '2.0.2',
+        },
+      ],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+  })
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1549
-test(`do not fail on importers that are not in current ${WANTED_LOCKFILE}`, async t => {
-  t.deepEqual(await dh([fixtureMonorepo], { depth: 0, lockfileDir: fixtureMonorepo }), { [fixtureMonorepo]: {} })
-  t.end()
+test(`do not fail on importers that are not in current ${WANTED_LOCKFILE}`, async () => {
+  expect(await dh([fixtureMonorepo], { depth: 0, lockfileDir: fixtureMonorepo })).toStrictEqual({ [fixtureMonorepo]: {} })
 })
 
-test('dependency with an alias', async t => {
+test('dependency with an alias', async () => {
   const modulesDir = path.join(withAliasedDepFixture, 'node_modules')
-  t.deepEqual(
-    await dh([withAliasedDepFixture], { depth: 0, lockfileDir: withAliasedDepFixture }),
-    {
-      [withAliasedDepFixture]: {
-        dependencies: [
-          {
-            alias: 'positive',
-            dev: false,
-            isMissing: false,
-            isPeer: false,
-            isSkipped: false,
-            name: 'is-positive',
-            path: path.join(modulesDir, '.pnpm/is-positive@1.0.0'),
-            resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-            version: '1.0.0',
-          },
-        ],
-        devDependencies: [],
-        optionalDependencies: [],
-      },
-    }
-  )
-  t.end()
+  expect(
+    await dh([withAliasedDepFixture], { depth: 0, lockfileDir: withAliasedDepFixture })
+  ).toStrictEqual({
+    [withAliasedDepFixture]: {
+      dependencies: [
+        {
+          alias: 'positive',
+          dev: false,
+          isMissing: false,
+          isPeer: false,
+          isSkipped: false,
+          name: 'is-positive',
+          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0'),
+          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          version: '1.0.0',
+        },
+      ],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+  })
 })
 
-test('peer dependencies', async t => {
+test('peer dependencies', async () => {
   const hierarchy = await dh([withPeerFixture], { depth: 1, lockfileDir: withPeerFixture })
-  t.equal(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name, 'ajv')
-  t.equal(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer, true)
-  t.end()
+  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name).toEqual('ajv')
+  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer).toEqual(true)
 })
