@@ -13,6 +13,7 @@ export interface RunLifecycleHookOptions {
   rawConfig: object
   rootModulesDir: string
   silent?: boolean
+  shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
 }
@@ -64,6 +65,7 @@ export default async function runLifecycleHook (
       warn: noop,
     },
     runConcurrently: true,
+    shellEmulator: opts.shellEmulator,
     stdio: opts.stdio ?? 'pipe',
     unsafePerm: opts.unsafePerm,
   })

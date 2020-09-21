@@ -23,6 +23,7 @@ export interface StrictInstallOptions {
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean
   preserveWorkspaceProtocol: boolean
+  shellEmulator: boolean
   storeController: StoreController
   storeDir: string
   reporter: ReporterFunction
@@ -117,6 +118,7 @@ const defaults = async (opts: InstallOptions) => {
     registries: DEFAULT_REGISTRIES,
     saveWorkspaceProtocol: true,
     shamefullyHoist: false,
+    shellEmulator: false,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
     storeController: opts.storeController,

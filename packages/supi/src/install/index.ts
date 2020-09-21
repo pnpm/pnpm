@@ -233,6 +233,7 @@ export async function mutateModules (
     const scriptsOpts = {
       extraBinPaths: opts.extraBinPaths,
       rawConfig: opts.rawConfig,
+      shellEmulator: opts.shellEmulator,
       stdio: opts.ownLifecycleHooksStdio,
       unsafePerm: opts.unsafePerm || false,
     }

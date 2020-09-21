@@ -74,6 +74,7 @@ export async function handler (
   | 'selectedProjectsGraph'
   | 'sideEffectsCache'
   | 'sideEffectsCacheReadonly'
+  | 'shellEmulator'
   | 'workspaceDir'
   > &
   CreateStoreControllerOptions &

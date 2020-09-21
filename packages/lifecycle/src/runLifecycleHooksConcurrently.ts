@@ -9,6 +9,7 @@ export default async function runLifecycleHooksConcurrently (
   opts: {
     extraBinPaths?: string[]
     rawConfig: object
+    shellEmulator?: boolean
     stdio?: string
     unsafePerm: boolean
   }
@@ -32,6 +33,7 @@ export default async function runLifecycleHooksConcurrently (
           pkgRoot: rootDir,
           rawConfig: opts.rawConfig,
           rootModulesDir: modulesDir,
+          shellEmulator: opts.shellEmulator,
           stdio: opts.stdio,
           unsafePerm: opts.unsafePerm,
         }

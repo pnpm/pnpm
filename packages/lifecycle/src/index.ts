@@ -16,6 +16,7 @@ export async function runPostinstallHooks (
     prepare?: boolean
     rawConfig: object
     rootModulesDir: string
+    shellEmulator?: boolean
     unsafePerm: boolean
   }
 ): Promise<boolean> {
