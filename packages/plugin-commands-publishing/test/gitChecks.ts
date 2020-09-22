@@ -30,6 +30,10 @@ test('publish: fails git check if branch is not on master', async (t) => {
 
   await execa('git', ['init'])
   await execa('git', ['checkout', '-b', 'test'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
+  await execa('git', ['add', '*'])
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
 
   prompt.returns({
     confirm: false,
@@ -60,6 +64,10 @@ test('publish: fails git check if branch is not on specified branch', async (t) 
 
   await execa('git', ['init'])
   await execa('git', ['checkout', '-b', 'master'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
+  await execa('git', ['add', '*'])
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
 
   prompt.returns({
     confirm: false,

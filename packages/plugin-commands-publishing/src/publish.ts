@@ -97,6 +97,11 @@ export async function handler (
   params: string[]
 ) {
   if (opts.gitChecks !== false && await isGitRepo()) {
+    if (!(await isWorkingTreeClean())) {
+      throw new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
+        hint: GIT_CHECKS_HINT,
+      })
+    }
     const branch = opts.publishBranch ?? 'master'
     const currentBranch = await getCurrentBranch()
     if (currentBranch !== branch) {
@@ -112,11 +117,6 @@ Do you want to continue?`,
           hint: GIT_CHECKS_HINT,
         })
       }
-    }
-    if (!(await isWorkingTreeClean())) {
-      throw new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
-        hint: GIT_CHECKS_HINT,
-      })
     }
     if (!(await isRemoteHistoryClean())) {
       throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.', {
