@@ -11,7 +11,7 @@
     "bin"
   ],
   "engines": {
-    "node": ">=10.13"
+    "node": ">=10.14"
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",

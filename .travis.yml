@@ -1,6 +1,6 @@
 language: node_js
 node_js:
-  - 10.13
+  - 10.14
   - 12.18.2
 git:
   depth: 5

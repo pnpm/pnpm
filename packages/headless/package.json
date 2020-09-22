@@ -52,7 +52,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=10.13"
+    "node": ">=10.14"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/headless",
   "scripts": {

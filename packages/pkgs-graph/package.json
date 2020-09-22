@@ -19,7 +19,7 @@
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "engines": {
-    "node": ">=10.13"
+    "node": ">=10.14"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
