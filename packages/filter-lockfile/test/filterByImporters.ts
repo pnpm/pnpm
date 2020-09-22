@@ -155,7 +155,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
   } catch (_) {
     err = _
   }
-  expect(err).not.toBeNull();
+  expect(err).not.toBeNull()
   expect(err.message).toEqual(`Broken lockfile: no entry for '/prod-dep-dep/1.0.0' in ${WANTED_LOCKFILE}`)
 })
 

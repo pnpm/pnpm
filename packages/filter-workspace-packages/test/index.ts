@@ -7,7 +7,6 @@ import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import path = require('path')
-import test = require('tape')
 import tempy = require('tempy')
 import touchCB = require('touch')
 
@@ -90,7 +89,7 @@ const PKGS_GRAPH: PackageGraph<{}> = {
   },
 }
 
-test('select only package dependencies (excluding the package itself)', async (t) => {
+test('select only package dependencies (excluding the package itself)', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
@@ -99,12 +98,10 @@ test('select only package dependencies (excluding the package itself)', async (t
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(Object.keys(selectedProjectsGraph), ['/project-2', '/project-4'])
-
-  t.end()
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2', '/project-4'])
 })
 
-test('select package with dependencies', async (t) => {
+test('select package with dependencies', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: false,
@@ -113,12 +110,10 @@ test('select package with dependencies', async (t) => {
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(Object.keys(selectedProjectsGraph), ['/packages/project-1', '/project-2', '/project-4'])
-
-  t.end()
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-1', '/project-2', '/project-4'])
 })
 
-test('select package with dependencies and dependents', async (t) => {
+test('select package with dependencies and dependents', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
@@ -128,12 +123,10 @@ test('select package with dependencies and dependents', async (t) => {
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(Object.keys(selectedProjectsGraph), ['/project-2', '/project-4', '/packages/project-0'])
-
-  t.end()
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2', '/project-4', '/packages/project-0'])
 })
 
-test('select package with dependents', async (t) => {
+test('select package with dependents', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: false,
@@ -142,12 +135,10 @@ test('select package with dependents', async (t) => {
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(Object.keys(selectedProjectsGraph), ['/project-2', '/packages/project-1', '/packages/project-0'])
-
-  t.end()
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2', '/packages/project-1', '/packages/project-0'])
 })
 
-test('select dependents excluding package itself', async (t) => {
+test('select dependents excluding package itself', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
@@ -156,12 +147,10 @@ test('select dependents excluding package itself', async (t) => {
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(Object.keys(selectedProjectsGraph), ['/packages/project-1', '/packages/project-0'])
-
-  t.end()
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-1', '/packages/project-0'])
 })
 
-test('filter using two selectors: one selects dependencies another selects dependents', async (t) => {
+test('filter using two selectors: one selects dependencies another selects dependents', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
@@ -175,12 +164,10 @@ test('filter using two selectors: one selects dependencies another selects depen
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(Object.keys(selectedProjectsGraph), ['/project-2', '/project-4', '/packages/project-1', '/packages/project-0'])
-
-  t.end()
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2', '/project-4', '/packages/project-1', '/packages/project-0'])
 })
 
-test('select just a package by name', async (t) => {
+test('select just a package by name', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: false,
@@ -188,12 +175,10 @@ test('select just a package by name', async (t) => {
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(Object.keys(selectedProjectsGraph), ['/project-2'])
-
-  t.end()
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2'])
 })
 
-test('select by parentDir', async (t) => {
+test('select by parentDir', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: false,
@@ -201,17 +186,15 @@ test('select by parentDir', async (t) => {
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(Object.keys(selectedProjectsGraph), ['/packages/project-0', '/packages/project-1'])
-
-  t.end()
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0', '/packages/project-1'])
 })
 
-test('select changed packages', async (t) => {
+test('select changed packages', async () => {
   // This test fails on Appveyor due to environmental issues
   if (isCI && isWindows()) {
-    t.end()
     return
   }
+
   const workspaceDir = tempy.directory()
   await execa('git', ['init'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
@@ -281,7 +264,7 @@ test('select changed packages', async (t) => {
       diff: 'HEAD~1',
     }], { workspaceDir })
 
-    t.deepEqual(Object.keys(selectedProjectsGraph), [pkg1Dir, pkg2Dir])
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir])
   }
   {
     const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
@@ -289,7 +272,7 @@ test('select changed packages', async (t) => {
       parentDir: pkg2Dir,
     }], { workspaceDir })
 
-    t.deepEqual(Object.keys(selectedProjectsGraph), [pkg2Dir])
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg2Dir])
   }
   {
     const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
@@ -297,26 +280,23 @@ test('select changed packages', async (t) => {
       namePattern: 'package-2*',
     }], { workspaceDir })
 
-    t.deepEqual(Object.keys(selectedProjectsGraph), [pkg2Dir])
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg2Dir])
   }
-
-  t.end()
 })
 
-test('selection should fail when diffing to a branch that does not exist', async (t) => {
+test('selection should fail when diffing to a branch that does not exist', async () => {
   let err!: PnpmError
   try {
     await filterWorkspacePackages(PKGS_GRAPH, [{ diff: 'branch-does-no-exist' }], { workspaceDir: process.cwd() })
   } catch (_err) {
     err = _err
   }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_FILTER_CHANGED')
-  t.equal(err.message, "Filtering by changed packages failed. fatal: bad revision 'branch-does-no-exist'")
-  t.end()
+  expect(err).toBeDefined()
+  expect(err.code).toEqual('ERR_PNPM_FILTER_CHANGED')
+  expect(err.message).toEqual("Filtering by changed packages failed. fatal: bad revision 'branch-does-no-exist'")
 })
 
-test('should return unmatched filters', async (t) => {
+test('should return unmatched filters', async () => {
   const { unmatchedFilters } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
@@ -325,7 +305,5 @@ test('should return unmatched filters', async (t) => {
     },
   ], { workspaceDir: process.cwd() })
 
-  t.deepEqual(unmatchedFilters, ['project-5'])
-
-  t.end()
+  expect(unmatchedFilters).toStrictEqual(['project-5'])
 })

@@ -169,5 +169,5 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
       },
     },
   })
-  expect(Array.from(skippedPackages)).toStrictEqual(['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0']);
+  expect(Array.from(skippedPackages)).toStrictEqual(['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
 })
