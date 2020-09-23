@@ -11,15 +11,15 @@ const makePath =
     : (...paths: string[]) => `/${path.join(...paths)}`
 
 let canWriteToDir!: typeof _canWriteToDir
-let readdirSync = (dir: string) => [] as Array<{ name: string, isFile: () => boolean }>
+let readdirSync = (dir: string) => [] as Array<{ name: string, isDirectory: () => boolean }>
 const FAKE_PATH = 'FAKE_PATH'
 
 function makeFileEntry (name: string) {
-  return { name, isFile: () => true }
+  return { name, isDirectory: () => false }
 }
 
 function makeDirEntry (name: string) {
-  return { name, isFile: () => false }
+  return { name, isDirectory: () => true }
 }
 
 const globalBinDir = proxiquire('../lib/index.js', {

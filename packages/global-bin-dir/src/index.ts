@@ -62,7 +62,8 @@ const NODE_RELATED_COMMANDS = new Set(['pnpm', 'npm', 'node'])
 function dirHasNodeRelatedCommand (dir: string) {
   try {
     return fs.readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isFile())
+      // We are searching for files or symlinks, not directories
+      .filter((entry) => !entry.isDirectory())
       .map(({ name }) => name.toLowerCase())
       .some((file) => NODE_RELATED_COMMANDS.has(file.split('.')[0]))
   } catch (err) {
