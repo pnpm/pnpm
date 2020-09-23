@@ -40,6 +40,7 @@ export interface Config {
   fetchRetryMaxtimeout?: number
   saveExact?: boolean
   savePrefix?: string
+  shellEmulator?: boolean
   force?: boolean
   depth?: number
   engineStrict?: boolean

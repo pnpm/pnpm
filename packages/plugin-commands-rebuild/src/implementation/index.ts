@@ -155,6 +155,7 @@ export async function rebuild (
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
     rawConfig: opts.rawConfig,
+    shellEmulator: opts.shellEmulator,
     unsafePerm: opts.unsafePerm || false,
   }
   await runLifecycleHooksConcurrently(
@@ -277,6 +278,7 @@ async function _rebuild (
           prepare: pkgSnapshot.prepare,
           rawConfig: opts.rawConfig,
           rootModulesDir: ctx.rootModulesDir,
+          shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })
         pkgsThatWereRebuilt.add(depPath)

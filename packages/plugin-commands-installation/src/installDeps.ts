@@ -59,6 +59,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sideEffectsCacheReadonly'
 | 'sort'
 | 'sharedWorkspaceLockfile'
+| 'shellEmulator'
 | 'tag'
 | 'optional'
 | 'workspaceConcurrency'

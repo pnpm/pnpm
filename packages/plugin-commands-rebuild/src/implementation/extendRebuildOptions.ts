@@ -10,6 +10,7 @@ export interface StrictRebuildOptions {
   extraBinPaths: string[]
   lockfileDir: string
   sideEffectsCacheRead: boolean
+  shellEmulator: boolean
   storeDir: string // TODO: remove this property
   storeController: StoreController
   force: boolean
@@ -55,6 +56,7 @@ const defaults = async (opts: RebuildOptions) => {
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
+    shellEmulator: false,
     sideEffectsCacheRead: false,
     storeDir: opts.storeDir,
     unsafePerm: process.platform === 'win32' ||
