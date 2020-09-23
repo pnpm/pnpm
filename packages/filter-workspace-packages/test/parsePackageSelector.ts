@@ -180,8 +180,6 @@ test('parsePackageSelector()', () => {
   for (const fixture of fixtures) {
     expect(
       parsePackageSelector(fixture[0], process.cwd())).toStrictEqual(fixture[1])
-    // @zkochan there is no expect message here, this return warnings
-    // console.log(`parsing ${fixture[0]}`);
   }
   if (isWindows()) {
     expect(
