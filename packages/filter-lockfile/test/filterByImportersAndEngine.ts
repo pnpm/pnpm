@@ -1,8 +1,7 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { filterLockfileByImportersAndEngine } from '@pnpm/filter-lockfile'
-import test = require('tape')
 
-test('filterByImportersAndEngine(): skip packages that are not installable', (t) => {
+test('filterByImportersAndEngine(): skip packages that are not installable', () => {
   const skippedPackages = new Set<string>(['/preserve-existing-skipped/1.0.0'])
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
@@ -98,7 +97,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
     }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -170,6 +169,5 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
       },
     },
   })
-  t.deepEqual(Array.from(skippedPackages), ['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
-  t.end()
+  expect(Array.from(skippedPackages)).toStrictEqual(['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
 })

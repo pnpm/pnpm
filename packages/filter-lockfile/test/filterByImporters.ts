@@ -1,8 +1,7 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
-import test = require('tape')
 
-test('filterByImporters(): only prod dependencies of one importer', (t) => {
+test('filterByImporters(): only prod dependencies of one importer', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
@@ -70,7 +69,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
     }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -109,11 +108,10 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
       },
     },
   })
-  t.end()
 })
 
 // TODO: also fail when filterLockfile() is used
-test('filterByImporters(): fail on missing packages when failOnMissingDependencies is true', (t) => {
+test('filterByImporters(): fail on missing packages when failOnMissingDependencies is true', () => {
   let err!: Error
   try {
     filterLockfileByImporters(
@@ -157,12 +155,11 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
   } catch (_) {
     err = _
   }
-  t.ok(err)
-  t.equal(err.message, `Broken lockfile: no entry for '/prod-dep-dep/1.0.0' in ${WANTED_LOCKFILE}`)
-  t.end()
+  expect(err).not.toBeNull()
+  expect(err.message).toEqual(`Broken lockfile: no entry for '/prod-dep-dep/1.0.0' in ${WANTED_LOCKFILE}`)
 })
 
-test('filterByImporters(): do not fail on missing packages when failOnMissingDependencies is false', (t) => {
+test('filterByImporters(): do not fail on missing packages when failOnMissingDependencies is false', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
@@ -202,7 +199,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
     }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -228,11 +225,9 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
       },
     },
   })
-
-  t.end()
 })
 
-test('filterByImporters(): do not include skipped packages', (t) => {
+test('filterByImporters(): do not include skipped packages', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
@@ -300,7 +295,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
     }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -347,10 +342,9 @@ test('filterByImporters(): do not include skipped packages', (t) => {
       },
     },
   })
-  t.end()
 })
 
-test('filterByImporters(): exclude orphan packages', (t) => {
+test('filterByImporters(): exclude orphan packages', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
@@ -402,7 +396,7 @@ test('filterByImporters(): exclude orphan packages', (t) => {
     }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -441,5 +435,4 @@ test('filterByImporters(): exclude orphan packages', (t) => {
       },
     },
   })
-  t.end()
 })
