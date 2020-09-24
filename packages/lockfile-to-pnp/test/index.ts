@@ -63,22 +63,22 @@ test('lockfileToPackageRegistry', (t) => {
   })
 
   const actual = Array
-  .from(packageRegistry.entries())
-  .map(([packageName, packageStoreMap]) => {
-    return [
-      packageName,
-      Array.from(packageStoreMap.entries())
-        .map(([pkgRef, packageInfo]) => {
-          return [
-            pkgRef,
-            {
-              packageDependencies: Array.from(packageInfo.packageDependencies || new Map()),
-              packageLocation: packageInfo.packageLocation,
-            },
-          ]
-        })
-    ]
-  })
+    .from(packageRegistry.entries())
+    .map(([packageName, packageStoreMap]) => {
+      return [
+        packageName,
+        Array.from(packageStoreMap.entries())
+          .map(([pkgRef, packageInfo]) => {
+            return [
+              pkgRef,
+              {
+                packageDependencies: Array.from(packageInfo.packageDependencies || new Map()),
+                packageLocation: packageInfo.packageLocation,
+              },
+            ]
+          }),
+      ]
+    })
   t.deepEqual(actual, [
     [
       'importer1',
@@ -161,9 +161,9 @@ test('lockfileToPackageRegistry', (t) => {
               ['qar', '3.0.0'],
             ],
             packageLocation: '../../.pnpm-store/2/registry.npmjs.org/qar/3.0.0/node_modules/qar',
-          }
-        ]
-      ]
+          },
+        ],
+      ],
     ],
   ])
 
@@ -212,22 +212,22 @@ test('lockfileToPackageRegistry packages that have peer deps', (t) => {
   })
 
   const actual = Array
-  .from(packageRegistry.entries())
-  .map(([packageName, packageStoreMap]) => {
-    return [
-      packageName,
-      Array.from(packageStoreMap.entries())
-        .map(([pkgRef, packageInfo]) => {
-          return [
-            pkgRef,
-            {
-              packageDependencies: Array.from(packageInfo.packageDependencies || new Map()),
-              packageLocation: packageInfo.packageLocation,
-            },
-          ]
-        })
-    ]
-  })
+    .from(packageRegistry.entries())
+    .map(([packageName, packageStoreMap]) => {
+      return [
+        packageName,
+        Array.from(packageStoreMap.entries())
+          .map(([pkgRef, packageInfo]) => {
+            return [
+              pkgRef,
+              {
+                packageDependencies: Array.from(packageInfo.packageDependencies || new Map()),
+                packageLocation: packageInfo.packageLocation,
+              },
+            ]
+          }),
+      ]
+    })
 
   t.deepEqual(actual, [
     [
@@ -254,12 +254,12 @@ test('lockfileToPackageRegistry packages that have peer deps', (t) => {
           {
             packageDependencies: [
               ['haspeer', 'virtual:2.0.0_peer@1.0.0#2.0.0'],
-              ['peer', '1.0.0']
+              ['peer', '1.0.0'],
             ],
             packageLocation: '../../.pnpm-store/2/virtual/haspeer-virtual-2.0.0_peer@1.0.0',
           },
         ],
-      ]
+      ],
     ],
     [
       'peer',

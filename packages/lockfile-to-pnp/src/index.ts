@@ -8,8 +8,8 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readImporterManifest from '@pnpm/read-importer-manifest'
 import resolveStoreDir from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
-import pnp = require('@yarnpkg/pnp')
 import { refToRelative } from 'dependency-path'
+import pnp = require('@yarnpkg/pnp')
 import fs = require('mz/fs')
 import path = require('path')
 import R = require('ramda')
@@ -24,7 +24,7 @@ export async function lockfileToPnp (lockfileDirectory: string) {
         const importerDirectory = path.join(lockfileDirectory, importerId)
         const { manifest } = await readImporterManifest(importerDirectory)
         importerNames[importerId] = manifest.name as string
-      }),
+      })
   )
   const { registries, store } = await getConfigs({ cliArgs: {}, packageManager: { name: 'pnpm', version: '*' } })
   const storeDirectory = await resolveStoreDir(lockfileDirectory, store)
@@ -47,11 +47,11 @@ export async function lockfileToPnp (lockfileDirectory: string) {
 export function lockfileToPackageRegistry (
   lockfile: Lockfile,
   opts: {
-    importerNames: { [importerId: string]: string },
-    lockfileDirectory: string,
-    storeDirectory: string,
-    registries: Registries,
-  },
+    importerNames: { [importerId: string]: string }
+    lockfileDirectory: string
+    storeDirectory: string
+    registries: Registries
+  }
 ) {
   const packageRegistry = new Map()
   for (const importerId of Object.keys(lockfile.importers)) {
@@ -62,9 +62,9 @@ export function lockfileToPackageRegistry (
           null,
           {
             packageDependencies: new Map([
-              ...(importer.dependencies && toPackageDependenciesMap(lockfile, importer.dependencies) || []),
-              ...(importer.optionalDependencies && toPackageDependenciesMap(lockfile, importer.optionalDependencies) || []),
-              ...(importer.devDependencies && toPackageDependenciesMap(lockfile, importer.devDependencies) || []),
+              ...((importer.dependencies && toPackageDependenciesMap(lockfile, importer.dependencies)) ?? []),
+              ...((importer.optionalDependencies && toPackageDependenciesMap(lockfile, importer.optionalDependencies)) ?? []),
+              ...((importer.devDependencies && toPackageDependenciesMap(lockfile, importer.devDependencies)) ?? []),
             ]),
             packageLocation: './',
           },
@@ -79,9 +79,9 @@ export function lockfileToPackageRegistry (
           {
             packageDependencies: new Map([
               [name, importerId],
-              ...(importer.dependencies && toPackageDependenciesMap(lockfile, importer.dependencies, importerId) || []),
-              ...(importer.optionalDependencies && toPackageDependenciesMap(lockfile, importer.optionalDependencies, importerId) || []),
-              ...(importer.devDependencies && toPackageDependenciesMap(lockfile, importer.devDependencies, importerId) || []),
+              ...((importer.dependencies && toPackageDependenciesMap(lockfile, importer.dependencies, importerId)) ?? []),
+              ...((importer.optionalDependencies && toPackageDependenciesMap(lockfile, importer.optionalDependencies, importerId)) ?? []),
+              ...((importer.devDependencies && toPackageDependenciesMap(lockfile, importer.devDependencies, importerId)) ?? []),
             ]),
             packageLocation: importerId,
           },
@@ -90,7 +90,7 @@ export function lockfileToPackageRegistry (
       packageRegistry.set(name, packageStore)
     }
   }
-  for (const [relDepPath, pkgSnapshot] of R.toPairs(lockfile.packages || {})) {
+  for (const [relDepPath, pkgSnapshot] of R.toPairs(lockfile.packages ?? {})) {
     const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
     const pnpVersion = toPnPVersion(version, peersSuffix)
     let packageStore = packageRegistry.get(name)
@@ -107,21 +107,21 @@ export function lockfileToPackageRegistry (
       packageLocation = path.relative(opts.lockfileDirectory, path.join(
         opts.storeDirectory,
         'virtual',
-        `${name}-virtual-${version}_${peersSuffix}`,
+        `${name}-virtual-${version}_${peersSuffix}`
       ))
     } else {
       packageLocation = path.relative(opts.lockfileDirectory, path.join(
         opts.storeDirectory,
         pkgIdToFilename(packageId, opts.lockfileDirectory),
         'node_modules',
-        name,
+        name
       ))
     }
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
-        ...(pkgSnapshot.dependencies && toPackageDependenciesMap(lockfile, pkgSnapshot.dependencies) || []),
-        ...(pkgSnapshot.optionalDependencies && toPackageDependenciesMap(lockfile, pkgSnapshot.optionalDependencies) || []),
+        ...((pkgSnapshot.dependencies && toPackageDependenciesMap(lockfile, pkgSnapshot.dependencies)) ?? []),
+        ...((pkgSnapshot.optionalDependencies && toPackageDependenciesMap(lockfile, pkgSnapshot.optionalDependencies)) ?? []),
       ]),
       packageLocation,
     })
@@ -133,7 +133,7 @@ export function lockfileToPackageRegistry (
 function toPackageDependenciesMap (
   lockfile: Lockfile,
   deps: {
-    [depAlias: string]: string,
+    [depAlias: string]: string
   },
   importerId?: string
 ): Array<[string, string | [string, string]]> {
