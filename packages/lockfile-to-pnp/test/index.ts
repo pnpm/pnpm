@@ -1,7 +1,6 @@
 import { lockfileToPackageRegistry } from '@pnpm/lockfile-to-pnp'
-import test = require('tape')
 
-test('lockfileToPackageRegistry', (t) => {
+test('lockfileToPackageRegistry', () => {
   const packageRegistry = lockfileToPackageRegistry({
     importers: {
       importer1: {
@@ -68,7 +67,7 @@ test('lockfileToPackageRegistry', (t) => {
       return [
         packageName,
         Array.from(packageStoreMap.entries())
-          .map(([pkgRef, packageInfo]) => {
+          .map(([pkgRef, packageInfo]: any) => { // eslint-disable-line
             return [
               pkgRef,
               {
@@ -79,7 +78,7 @@ test('lockfileToPackageRegistry', (t) => {
           }),
       ]
     })
-  t.deepEqual(actual, [
+  expect(actual).toStrictEqual([
     [
       'importer1',
       [
@@ -122,7 +121,7 @@ test('lockfileToPackageRegistry', (t) => {
               ['dep1', '1.0.0'],
               ['dep2', ['foo', '2.0.0']],
             ],
-            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/dep1/1.0.0/node_modules/dep1',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/dep1@1.0.0/node_modules/dep1',
           },
         ],
       ],
@@ -137,7 +136,7 @@ test('lockfileToPackageRegistry', (t) => {
               ['foo', '2.0.0'],
               ['qar', '3.0.0'],
             ],
-            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/foo/2.0.0/node_modules/foo',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/foo@2.0.0/node_modules/foo',
           },
         ],
       ],
@@ -151,7 +150,7 @@ test('lockfileToPackageRegistry', (t) => {
             packageDependencies: [
               ['qar', '2.0.0'],
             ],
-            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/qar/2.0.0/node_modules/qar',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/qar@2.0.0/node_modules/qar',
           },
         ],
         [
@@ -160,17 +159,15 @@ test('lockfileToPackageRegistry', (t) => {
             packageDependencies: [
               ['qar', '3.0.0'],
             ],
-            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/qar/3.0.0/node_modules/qar',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/qar@3.0.0/node_modules/qar',
           },
         ],
       ],
     ],
   ])
-
-  t.end()
 })
 
-test('lockfileToPackageRegistry packages that have peer deps', (t) => {
+test('lockfileToPackageRegistry packages that have peer deps', () => {
   const packageRegistry = lockfileToPackageRegistry({
     importers: {
       importer: {
@@ -217,7 +214,7 @@ test('lockfileToPackageRegistry packages that have peer deps', (t) => {
       return [
         packageName,
         Array.from(packageStoreMap.entries())
-          .map(([pkgRef, packageInfo]) => {
+          .map(([pkgRef, packageInfo]: any) => { // eslint-disable-line
             return [
               pkgRef,
               {
@@ -229,7 +226,7 @@ test('lockfileToPackageRegistry packages that have peer deps', (t) => {
       ]
     })
 
-  t.deepEqual(actual, [
+  expect(actual).toStrictEqual([
     [
       'importer',
       [
@@ -270,12 +267,10 @@ test('lockfileToPackageRegistry packages that have peer deps', (t) => {
             packageDependencies: [
               ['peer', '1.0.0'],
             ],
-            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/peer/1.0.0/node_modules/peer',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/peer@1.0.0/node_modules/peer',
           },
         ],
       ],
     ],
   ])
-
-  t.end()
 })
