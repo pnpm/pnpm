@@ -985,6 +985,40 @@ importers:
       write-file-atomic: ^2.4.3
       write-yaml-file: ^4.1.0
       yaml-tag: 1.1.0
+  packages/lockfile-to-pnp:
+    dependencies:
+      '@pnpm/config': 'link:../config'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/pkgid-to-filename': 3.0.0
+      '@pnpm/read-project-manifest': 'link:../read-project-manifest'
+      '@yarnpkg/pnp': 2.2.1
+      dependency-path: 'link:../dependency-path'
+      mz: 2.7.0
+      ramda: 0.27.1
+    devDependencies:
+      '@pnpm/logger': 3.2.2
+      '@pnpm/types': 'link:../types'
+      '@types/mz': 0.0.32
+      '@types/ramda': 0.27.19
+      rimraf: 3.0.2
+      tape: 4.13.3
+    specifiers:
+      '@pnpm/config': 'workspace:11.3.0'
+      '@pnpm/lockfile-file': 'workspace:3.0.14'
+      '@pnpm/lockfile-utils': 'workspace:2.0.16'
+      '@pnpm/logger': ^3.2.2
+      '@pnpm/pkgid-to-filename': ^3.0.0
+      '@pnpm/read-project-manifest': 'workspace:1.0.13'
+      '@pnpm/types': 'workspace:6.2.0'
+      '@types/mz': 0.0.32
+      '@types/ramda': ^0.27.19
+      '@yarnpkg/pnp': ^2.2.1
+      dependency-path: 'workspace:5.0.3'
+      mz: ^2.7.0
+      ramda: ^0.27.1
+      rimraf: ^3.0.2
+      tape: ^4.11.0
   packages/lockfile-types:
     specifiers: {}
   packages/lockfile-utils:
@@ -4264,6 +4298,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-aaI6OtKcrwCX8G7aWbNh7i8GOfY=
+  /@types/mz/0.0.32:
+    dependencies:
+      '@types/node': 14.11.2
+    dev: true
+    resolution:
+      integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/mz/2.7.1:
     dependencies:
       '@types/node': 14.11.2
@@ -4289,6 +4329,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-qAfo81CsD7yQIM9mVyh6B/U47li5g7cfpVQEDMfQeF8pSZVwzbhwU3crc0qG4DmpsebpJPR49AKOExQyJ05Cpg==
+  /@types/node/13.13.21:
+    dev: false
+    resolution:
+      integrity: sha512-tlFWakSzBITITJSxHV4hg4KvrhR/7h3xbJdSFbYJBVzKubrASbnnIFuSgolUh7qKGo/ZeJPKUfbZ0WS6Jp14DQ==
   /@types/node/14.11.2:
     resolution:
       integrity: sha512-jiE3QIxJ8JLNcb1Ps6rDbysDhN4xa8DJJvuC9prr6w+1tIh+QAbYyNF3tyiZNLDBIuBCf4KEcV2UvQm/V60xfA==
@@ -4324,6 +4368,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-cHyQn79ePFP1UMLyCg6hnGMcwrVJrkMnxkPTqxHmkwiv32uexijx1pAvbztDIGCttK6VPcm14PXULL+p9k+o9g==
+  /@types/ramda/0.27.19:
+    dependencies:
+      ts-toolbelt: 6.15.5
+    dev: true
+    resolution:
+      integrity: sha512-BAeH07a6pRfFyoTuwhWJeNNHucbMlwh+imkO2BKOTZ6wpAElOAPyhBdyP1hx4W4sCPDnV/5UetcjZ/RT5lcMTA==
   /@types/retry/0.12.0:
     dev: true
     resolution:
@@ -4610,6 +4660,16 @@ packages:
       node: '>=10.19.0'
     resolution:
       integrity: sha512-k1XZaWYRHl7wCj04hcbtzKfPAZbKbsEi7xsB1Ka8obdS6DRnAw7n0gZPvvGjOoqkH95IqWf+Vi7vV5RhlGz63Q==
+  /@yarnpkg/pnp/2.2.1:
+    dependencies:
+      '@types/node': 13.13.21
+      '@yarnpkg/fslib': 2.2.1
+      tslib: 1.13.0
+    dev: false
+    engines:
+      node: '>=10.19.0'
+    resolution:
+      integrity: sha512-jrwJ3Q6M+nMs4n0O/GgxayU1Bq9mpLoZW2Mb8Nt2fs5whB0CeCr1/pGl9+yiCSjirv9jjp51TVFqF7OPvXy+gA==
   /@yarnpkg/shell/2.2.0:
     dependencies:
       '@yarnpkg/fslib': 2.2.1
@@ -6616,7 +6676,7 @@ packages:
     dependencies:
       is-arguments: 1.0.4
       is-date-object: 1.0.2
-      is-regex: 1.0.5
+      is-regex: 1.1.1
       object-is: 1.1.2
       object-keys: 1.1.1
       regexp.prototype.flags: 1.3.0
