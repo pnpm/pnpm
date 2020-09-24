@@ -104,7 +104,7 @@ export function lockfileToPackageRegistry (
       opts.virtualStoreDir,
       pkgIdToFilename(relDepPath, opts.lockfileDirectory),
       'node_modules',
-      name,
+      name
     )
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
