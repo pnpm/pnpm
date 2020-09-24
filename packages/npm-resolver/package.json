@@ -1,20 +1,22 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "3.1.1",
+  "version": "10.0.2",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
-    "test": "rimraf .store && pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "prepublishOnly": "pnpm run tsc"
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/npm-resolver/coverage ts-node packages/npm-resolver/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/npm-resolver",
   "keywords": [
@@ -29,35 +31,40 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/npm-resolver#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0 || ^2.0.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/resolver-base": "workspace:3.1.2",
-    "@pnpm/types": "workspace:3.2.0",
-    "credentials-by-uri": "1.0.0",
-    "encode-registry": "2.0.1",
-    "fetch-from-npm-registry": "workspace:2.0.7",
-    "load-json-file": "6.2.0",
-    "mem": "5.1.1",
-    "normalize-path": "3.0.0",
-    "p-limit": "2.2.1",
+    "@pnpm/error": "workspace:1.3.1",
+    "@pnpm/fetching-types": "workspace:^1.0.0",
+    "@pnpm/resolve-workspace-range": "workspace:1.0.1",
+    "@pnpm/resolver-base": "workspace:7.0.3",
+    "@pnpm/types": "workspace:6.2.0",
+    "encode-registry": "^2.0.2",
+    "load-json-file": "^6.2.0",
+    "lru-cache": "^6.0.0",
+    "mz": "^2.7.0",
+    "normalize-path": "^3.0.0",
+    "p-limit": "^3.0.2",
+    "p-memoize": "4.0.0",
     "parse-npm-tarball-url": "3.0.0",
-    "semver": "6.3.0",
+    "path-temp": "^2.0.0",
+    "rename-overwrite": "^3.0.0",
+    "semver": "^7.3.2",
     "ssri": "6.0.1",
-    "version-selector-type": "2.0.1",
-    "write-json-file": "4.0.0"
+    "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/fetch": "workspace:^2.1.5",
+    "@pnpm/logger": "^3.2.2",
     "@pnpm/npm-resolver": "link:",
+    "@types/lru-cache": "^5.1.0",
+    "@types/mz": "^2.7.1",
     "@types/normalize-path": "^3.0.0",
-    "@types/semver": "6",
-    "@types/ssri": "^6.0.0",
-    "nock": "11.3.5",
-    "path-exists": "4.0.0",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0",
-    "tempy": "^0.3.0"
-  }
+    "@types/semver": "^7.3.3",
+    "@types/ssri": "^6.0.3",
+    "nock": "12.0.3",
+    "path-exists": "^4.0.0",
+    "tempy": "^0.7.0"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

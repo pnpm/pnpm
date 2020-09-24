@@ -1,19 +1,20 @@
 {
   "name": "@pnpm/constants",
-  "version": "2.0.0-1",
+  "version": "4.0.0",
   "description": "pnpm constants",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run tsc && tslint -c tslint.json -p .",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc"
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/constants",
   "keywords": [
@@ -26,7 +27,5 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/constants#readme",
-  "devDependencies": {
-    "rimraf": "3.0.0"
-  }
+  "funding": "https://opencollective.com/pnpm"
 }

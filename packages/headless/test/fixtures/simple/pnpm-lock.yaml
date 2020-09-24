@@ -33,7 +33,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
-  /glob/7.1.4:
+  /glob/7.1.6:
     dependencies:
       fs.realpath: 1.0.0
       inflight: 1.0.6
@@ -43,7 +43,7 @@ packages:
       path-is-absolute: 1.0.1
     dev: false
     resolution:
-      integrity: sha512-hkLPepehmnKk41pUGm3sYxoFs/umurYfYJCerbXEyFIWcAzvpipAgVkBqqT9RBKMGjnq6kMuyYwha6csxbiM1A==
+      integrity: sha512-LwaxwyZ72Lk7vZINtNNrywX0ZuLyStrdDtabefZKAY5ZGJhVtgdznluResxNmPitE0SAO+O26sWTHeKSI2wMBA==
   /inflight/1.0.6:
     dependencies:
       once: 1.4.0
@@ -87,7 +87,7 @@ packages:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
   /rimraf/2.7.1:
     dependencies:
-      glob: 7.1.4
+      glob: 7.1.6
     dev: false
     hasBin: true
     resolution:

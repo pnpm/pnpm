@@ -1,13 +1,13 @@
-import isSubdir = require('is-subdir')
 import path = require('path')
+import isSubdir = require('is-subdir')
 
 export default function findBestGlobalPrefixOnWindows (
   defaultNpmGlobalPrefix: string,
-  env: { [key: string]: string | undefined },
+  env: { [key: string]: string | undefined }
 ) {
   if (
-    env.LOCALAPPDATA && isSubdir(env.LOCALAPPDATA, defaultNpmGlobalPrefix) ||
-    env.APPDATA && isSubdir(env.APPDATA, defaultNpmGlobalPrefix)
+    (env.LOCALAPPDATA && isSubdir(env.LOCALAPPDATA, defaultNpmGlobalPrefix)) ??
+    (env.APPDATA && isSubdir(env.APPDATA, defaultNpmGlobalPrefix))
   ) {
     return defaultNpmGlobalPrefix
   }

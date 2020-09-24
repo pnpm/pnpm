@@ -1,21 +1,23 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "8.0.0-0",
+  "version": "12.1.0",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc --pretty",
-    "test": "pnpm run lint && pnpm run tsc && rimraf .store && ts-node test --type-check",
-    "prepublishOnly": "pnpm run tsc"
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-requester/coverage ts-node packages/package-requester/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/package-requester",
   "keywords": [
@@ -30,49 +32,44 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-requester#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/check-package": "3.0.1",
-    "@pnpm/core-loggers": "workspace:3.0.3",
-    "@pnpm/fetcher-base": "workspace:3.0.4",
-    "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/read-package-json": "workspace:2.0.3",
-    "@pnpm/resolver-base": "workspace:3.1.2",
-    "@pnpm/store-controller-types": "workspace:4.0.0-0",
-    "@pnpm/types": "workspace:3.2.0",
-    "@zkochan/rimraf": "1.0.0",
-    "load-json-file": "6.2.0",
-    "make-dir": "3.0.0",
-    "mz": "2.7.0",
-    "p-limit": "2.2.1",
-    "p-queue": "6.1.1",
-    "path-exists": "4.0.0",
-    "promise-share": "1.0.0",
-    "ramda": "0.26.1",
-    "rename-overwrite": "2.0.2",
-    "ssri": "6.0.1",
-    "symlink-dir": "3.1.1",
-    "write-json-file": "4.0.0"
+    "@pnpm/cafs": "workspace:2.0.0",
+    "@pnpm/core-loggers": "workspace:5.0.0",
+    "@pnpm/fetcher-base": "workspace:9.0.0",
+    "@pnpm/pkgid-to-filename": "^3.0.0",
+    "@pnpm/read-package-json": "workspace:3.1.5",
+    "@pnpm/resolver-base": "workspace:7.0.3",
+    "@pnpm/store-controller-types": "workspace:9.1.0",
+    "@pnpm/types": "workspace:6.2.0",
+    "load-json-file": "^6.2.0",
+    "mz": "^2.7.0",
+    "p-defer": "^3.0.0",
+    "p-limit": "^3.0.2",
+    "p-queue": "^6.6.1",
+    "path-temp": "^2.0.0",
+    "promise-share": "^1.0.0",
+    "ramda": "^0.27.1",
+    "rename-overwrite": "^3.0.0",
+    "ssri": "6.0.1"
   },
   "devDependencies": {
-    "@pnpm/local-resolver": "file:../local-resolver",
-    "@pnpm/logger": "2.1.1",
-    "@pnpm/npm-resolver": "file:../npm-resolver",
+    "@pnpm/client": "workspace:*",
+    "@pnpm/logger": "^3.2.2",
     "@pnpm/package-requester": "link:",
-    "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
-    "@types/mz": "0.0.32",
-    "@types/ncp": "2.0.1",
-    "@types/ramda": "0.26.21",
-    "@types/sinon": "^7.0.10",
-    "@types/ssri": "6.0.1",
-    "delay": "4.3.0",
-    "ncp": "2.0.0",
-    "nock": "11.3.5",
-    "normalize-path": "3.0.0",
-    "rimraf": "3.0.0",
-    "sinon": "7.4.2",
-    "tape": "4.11.0",
-    "tempy": "0.3.0"
-  }
+    "@types/mz": "^2.7.1",
+    "@types/ncp": "^2.0.4",
+    "@types/normalize-path": "^3.0.0",
+    "@types/ramda": "^0.27.15",
+    "@types/sinon": "^9.0.5",
+    "@types/ssri": "^6.0.3",
+    "delay": "^4.4.0",
+    "ncp": "^2.0.0",
+    "nock": "12.0.3",
+    "normalize-path": "^3.0.0",
+    "sinon": "^9.0.3",
+    "tempy": "^0.7.0"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

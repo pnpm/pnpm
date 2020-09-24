@@ -1,2 +1,2 @@
 /// <reference path="local.d.ts" />
-/// <reference path="tape-promise.d.ts" />
+/// <reference path="typed.d.ts" />

@@ -1,29 +1,33 @@
 language: node_js
 node_js:
-  - 8.15
-  - 10
-  - 12
+  - 10.14
+  - 12.18.2
 git:
   depth: 5
 sudo: false
 before_install:
   - npm set verify-store-integrity false
   - git fetch --unshallow
-  - curl -L https://unpkg.com/@pnpm/self-installer | PNPM_VERSION=1.33.2 node
+  - curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | PNPM_VERSION=1.33.2 node
   # Testing whether pnpm can upgrade itself
+  - npm install --global npm@latest
   - pnpm i -g pnpm@next
   - pnpm -v
 install:
-  - pnpm install --no-lock --force
+  - pnpm install --force
 script:
   - set -e # Fail on first error
   # TODO: fix commitlint
   # - /bin/bash lint-commits.sh
   # - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
-  - pnpm t
+  - if [ "$TRAVIS_BRANCH" = "master" ]; then pnpm run test-master; fi
+  - if [ "$TRAVIS_BRANCH" != "master" ]; then pnpm run test-branch; fi
   - set +e
+after_success:
+  - if [ "$TRAVIS_NODE_VERSION" = "12" ]; then pnpm run coveralls; fi;
 cache:
-  npm: false
+  directories:
+    - storage
 env:
   global:
     - CC=clang CXX=clang++ npm_config_clang=1

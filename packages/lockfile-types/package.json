@@ -1,16 +1,16 @@
 {
   "name": "@pnpm/lockfile-types",
-  "version": "1.1.0",
+  "version": "2.0.1",
   "description": "Types for the pnpm-lock.yaml lockfile",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "files": [
-    "index.d.ts"
+    "lib",
+    "!*.map"
   ],
-  "scripts": {
-    "test": "tslint -c tslint.json -p ."
-  },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types",
   "keywords": [
     "pnpm",
@@ -21,5 +21,10 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme"
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme",
+  "scripts": {
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "prepublishOnly": "pnpm run compile"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

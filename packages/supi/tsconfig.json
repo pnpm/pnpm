@@ -1,10 +1,124 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../build-modules"
+    },
+    {
+      "path": "../constants"
+    },
+    {
+      "path": "../core-loggers"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../filter-lockfile"
+    },
+    {
+      "path": "../get-context"
+    },
+    {
+      "path": "../headless"
+    },
+    {
+      "path": "../hoist"
+    },
+    {
+      "path": "../lifecycle"
+    },
+    {
+      "path": "../link-bins"
+    },
+    {
+      "path": "../lockfile-file"
+    },
+    {
+      "path": "../lockfile-utils"
+    },
+    {
+      "path": "../lockfile-walker"
+    },
+    {
+      "path": "../manifest-utils"
+    },
+    {
+      "path": "../modules-cleaner"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
+      "path": "../normalize-registries"
+    },
+    {
+      "path": "../package-requester"
+    },
+    {
+      "path": "../parse-wanted-dependency"
+    },
+    {
+      "path": "../prune-lockfile"
+    },
+    {
+      "path": "../read-modules-dir"
+    },
+    {
+      "path": "../read-package-json"
+    },
+    {
+      "path": "../read-project-manifest"
+    },
+    {
+      "path": "../remove-bins"
+    },
+    {
+      "path": "../resolve-dependencies"
+    },
+    {
+      "path": "../resolver-base"
+    },
+    {
+      "path": "../store-controller-types"
+    },
+    {
+      "path": "../symlink-dependency"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../dependency-path"
+    },
+    {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
+      "path": "../../privatePackages/assert-store"
+    },
+    {
+      "path": "../cafs"
+    },
+    {
+      "path": "../client"
+    },
+    {
+      "path": "../package-store"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    }
   ]
 }

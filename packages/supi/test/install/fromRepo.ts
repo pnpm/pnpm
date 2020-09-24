@@ -1,29 +1,36 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import isCI = require('is-ci')
-import path = require('path')
-import exists = require('path-exists')
-import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import isCI = require('is-ci')
+import exists = require('path-exists')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('from a github repo', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['kevva/is-negative'], await testDefaults())
 
-  const m = project.requireModule('is-negative')
+  await project.has('is-negative')
 
-  t.ok(m, 'isNegative() is available')
+  t.deepEqual(manifest.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
+})
+
+test('from a github repo through URL', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['https://github.com/kevva/is-negative'], await testDefaults())
+
+  await project.has('is-negative')
 
   t.deepEqual(manifest.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
 })
@@ -33,7 +40,11 @@ test('from a github repo with different name via named installation', async (t: 
 
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], await testDefaults({ reporter }))
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'],
+    await testDefaults({ fastUnpack: false, reporter })
+  )
 
   const m = project.requireModule('say-hi')
 
@@ -71,7 +82,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
     dependencies: {
       'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
     },
-  }, await testDefaults({ reporter }))
+  }, await testDefaults({ fastUnpack: false, reporter }))
 
   const m = project.requireModule('say-hi')
 
@@ -102,7 +113,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
 test('a subdependency is from a github repo with different name', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['has-aliased-git-dependency'], await testDefaults())
+  await addDependenciesToPackage({}, ['has-aliased-git-dependency'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('has-aliased-git-dependency')
 
@@ -117,7 +128,7 @@ test('a subdependency is from a github repo with different name', async (t: tape
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/hi')
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/szia')
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/has-say-hi-peer/1.0.0_say-hi@1.0.0/node_modules/has-say-hi-peer')),
+  t.ok(await exists(path.resolve('node_modules/.pnpm/has-say-hi-peer@1.0.0_say-hi@1.0.0/node_modules/has-say-hi-peer')),
     'aliased name used to resolve a peer dependency')
 })
 
@@ -129,14 +140,12 @@ test('from a git repo', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['git+ssh://git@github.com/kevva/is-negative.git'], await testDefaults())
 
-  const m = project.requireModule('is-negative')
-
-  t.ok(m, 'isNegative() is available')
+  await project.has('is-negative')
 })
 
 // This test is unstable due to dependency on third party registry
-// tslint:disable-next-line:no-string-literal
-test['skip']('from a non-github git repo', async (t: tape.Test) => {
+// eslint-disable-next-line @typescript-eslint/dot-notation
+test.skip('from a non-github git repo', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], await testDefaults())

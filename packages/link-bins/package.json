@@ -1,0 +1,66 @@
+{
+  "name": "@pnpm/link-bins",
+  "version": "5.3.13",
+  "description": "Link bins to node_modules/.bin",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=10.14"
+  },
+  "scripts": {
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "pre_test": "ncp test/fixtures test/fixtures_for_testing",
+    "post_test": "rimraf test/fixtures_for_testing",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/link-bins/coverage ts-node packages/link-bins/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "fix": "tslint -c tslint.json --project . --fix",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/link-bins",
+  "keywords": [
+    "pnpm",
+    "bin"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/link-bins#readme",
+  "dependencies": {
+    "@pnpm/error": "workspace:1.3.1",
+    "@pnpm/package-bins": "workspace:4.0.7",
+    "@pnpm/read-modules-dir": "workspace:2.0.3",
+    "@pnpm/read-package-json": "workspace:3.1.5",
+    "@pnpm/read-project-manifest": "workspace:1.0.13",
+    "@pnpm/types": "workspace:6.2.0",
+    "@zkochan/cmd-shim": "^5.0.0",
+    "is-subdir": "^1.1.1",
+    "is-windows": "^1.0.2",
+    "mz": "^2.7.0",
+    "normalize-path": "^3.0.0",
+    "p-settle": "^4.1.1",
+    "ramda": "^0.27.1"
+  },
+  "devDependencies": {
+    "@pnpm/link-bins": "link:",
+    "@types/is-windows": "^1.0.0",
+    "@types/mz": "^2.7.1",
+    "@types/ncp": "^2.0.4",
+    "@types/node": "^12.12.56",
+    "@types/normalize-path": "^3.0.0",
+    "@types/ramda": "^0.27.15",
+    "@types/sinon": "^9.0.5",
+    "@types/tape": "^4.13.0",
+    "ncp": "^2.0.0",
+    "path-exists": "^4.0.0",
+    "sinon": "^9.0.3",
+    "tempy": "^0.7.0"
+  },
+  "funding": "https://opencollective.com/pnpm"
+}

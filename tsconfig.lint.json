@@ -1,0 +1,12 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "**/src/**/*.ts",
+    "**/test/**/*.ts",
+    "typings/**/*.d.ts"
+  ]
+}

@@ -17,6 +17,7 @@ import createPkgsGraph from 'pkgs-graph'
 
 const {graph} = createPkgsGraph([
   {
+    dir: '/home/zkochan/src/foo',
     manifest: {
       name: 'foo',
       version: '1.0.0',
@@ -24,14 +25,13 @@ const {graph} = createPkgsGraph([
         bar: '^1.0.0',
       },
     },
-    path: '/home/zkochan/src/foo',
   },
   {
+    dir: '/home/zkochan/src/bar',
     manifest: {
       name: 'bar',
       version: '1.1.0',
     },
-    path: '/home/zkochan/src/bar',
   }
 ])
 

@@ -1,237 +1,121 @@
 // Map SIGINT & SIGTERM to process exit
 // so that lockfiles are removed automatically
+import loudRejection from 'loud-rejection'
+import packageManager from '@pnpm/cli-meta'
+import { getConfig } from '@pnpm/cli-utils'
+import {
+  Config,
+} from '@pnpm/config'
+import { scopeLogger } from '@pnpm/core-loggers'
+import { filterPackages } from '@pnpm/filter-workspace-packages'
+import findWorkspacePackages from '@pnpm/find-workspace-packages'
+import logger from '@pnpm/logger'
+import checkForUpdates from './checkForUpdates'
+import pnpmCmds, { getRCOptionsTypes } from './cmd'
+import { formatUnknownOptionsError } from './formatError'
+import './logging/fileLogger'
+import parseCliArgs from './parseCliArgs'
+import initReporter, { ReporterType } from './reporter'
+import chalk = require('chalk')
+
 process
   .once('SIGINT', () => process.exit(0))
   .once('SIGTERM', () => process.exit(0))
 
 // Patch the global fs module here at the app level
-import chalk from 'chalk'
 import fs = require('fs')
 import gfs = require('graceful-fs')
 
 gfs.gracefulify(fs)
-
-import loudRejection from 'loud-rejection'
 loudRejection()
-import {
-  PnpmConfigs,
-  types,
-} from '@pnpm/config'
-import logger from '@pnpm/logger'
 import isCI = require('is-ci')
-import nopt = require('nopt')
-import checkForUpdates from './checkForUpdates'
-import pnpmCmds from './cmd'
-import getCommandFullName from './getCommandFullName'
-import getConfigs from './getConfigs'
-import { scopeLogger } from './loggers'
-import './logging/fileLogger'
-import packageManager from './pnpmPkgJson'
-import initReporter, { ReporterType } from './reporter'
+import path = require('path')
+import R = require('ramda')
+import stripAnsi = require('strip-ansi')
+import which = require('which')
 
-pnpmCmds['install-test'] = pnpmCmds.installTest
-
-type CANONICAL_COMMAND_NAMES = 'help'
-  | 'add'
-  | 'import'
-  | 'install-test'
-  | 'install'
-  | 'link'
-  | 'list'
-  | 'outdated'
-  | 'pack'
-  | 'prune'
-  | 'publish'
-  | 'rebuild'
-  | 'recursive'
-  | 'restart'
-  | 'root'
-  | 'run'
-  | 'server'
-  | 'start'
-  | 'stop'
-  | 'store'
-  | 'test'
-  | 'uninstall'
-  | 'unlink'
-  | 'update'
-  | 'why'
-
-const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
-
-const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
-  'add',
-  'install',
-  'uninstall',
-  'update',
-  'link',
-  'pack',
-  'prune',
-  'publish',
-  'install-test',
-  'restart',
-  'server',
-  'start',
-  'stop',
-  'store',
-  'list',
-  'unlink',
-  'help',
-  'root',
-  'outdated',
-  'rebuild',
-  'recursive',
-  'import',
-  'test',
-  'run',
-  'why',
-  // These might have to be implemented:
-  // 'cache',
-  // 'completion',
-  // 'explore',
-  // 'dedupe',
-  // 'doctor',
-  // 'shrinkwrap',
-  // 'help-search',
+const DEPRECATED_OPTIONS = new Set([
+  'independent-leaves',
+  'lock',
+  'resolution-strategy',
 ])
 
 export default async function run (inputArgv: string[]) {
-  // tslint:disable
-  const shortHands = {
-    's': ['--loglevel', 'silent'],
-    'd': ['--loglevel', 'info'],
-    'dd': ['--loglevel', 'verbose'],
-    'ddd': ['--loglevel', 'silly'],
-    'L': ['--latest'],
-    'noreg': ['--no-registry'],
-    'N': ['--no-registry'],
-    'r': ['--recursive'],
-    'no-reg': ['--no-registry'],
-    'silent': ['--loglevel', 'silent'],
-    'verbose': ['--loglevel', 'verbose'],
-    'quiet': ['--loglevel', 'warn'],
-    'q': ['--loglevel', 'warn'],
-    'h': ['--usage'],
-    'H': ['--usage'],
-    '?': ['--usage'],
-    'help': ['--usage'],
-    'v': ['--version'],
-    'f': ['--force'],
-    'desc': ['--description'],
-    'no-desc': ['--no-description'],
-    'local': ['--no-global'],
-    'l': ['--long'],
-    'm': ['--message'],
-    'p': ['--parseable'],
-    'porcelain': ['--parseable'],
-    'prod': ['--production'],
-    'g': ['--global'],
-    'S': ['--save'],
-    'D': ['--save-dev'],
-    'P': ['--save-prod'],
-    'E': ['--save-exact'],
-    'O': ['--save-optional'],
-    'y': ['--yes'],
-    'n': ['--no-yes'],
-    'B': ['--save-bundle'],
-    'C': ['--prefix'],
-    'lockfile-directory': ['--shrinkwrap-directory'],
-    'lockfile-only': ['--shrinkwrap-only'],
-    'shared-workspace-lockfile': ['--shared-workspace-shrinkwrap'],
-    'frozen-lockfile': ['--frozen-shrinkwrap'],
-    'prefer-frozen-lockfile': ['--prefer-frozen-shrinkwrap'],
-    'W': ['--ignore-workspace-root-check'],
-  }
-  // tslint:enable
-  const { argv, ...cliConf } = nopt(types, shortHands, inputArgv, 0)
-  process.env['npm_config_argv'] = JSON.stringify(argv)
-
-  let cmd = getCommandFullName(argv.remain[0]) as CANONICAL_COMMAND_NAMES
-    || 'help'
-  if (!supportedCmds.has(cmd)) {
-    cmd = 'help'
-  }
-
-  if (cliConf['dry-run']) {
-    console.error(`Error: 'dry-run' is not supported yet, sorry!`)
+  const {
+    argv,
+    params: cliParams,
+    options: cliOptions,
+    cmd,
+    unknownOptions,
+    workspaceDir,
+  } = await parseCliArgs(inputArgv)
+  if (cmd !== null && !pnpmCmds[cmd]) {
+    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown command '${cmd}'`)}`)
+    console.log('For help, run: pnpm help')
     process.exit(1)
   }
 
-  let subCmd: string | null = argv.remain[1] && getCommandFullName(argv.remain[1])
-
-  const dashDashFilterUsed = (
-    (
-      cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd)
-      || cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
-    )
-    && argv.cooked.includes('--')
-  )
-
-  const filterArgs = [] as string[]
-
-  if (dashDashFilterUsed) {
-    const dashDashIndex = argv.cooked.indexOf('--')
-    Array.prototype.push.apply(filterArgs, argv.cooked.slice(dashDashIndex + 1))
-    const afterDashDash = argv.cooked.length - dashDashIndex - 1
-    argv.remain = argv.remain.slice(0, argv.remain.length - afterDashDash)
-  }
-
-  // `pnpm install ""` is going to be just `pnpm install`
-  const cliArgs = argv.remain.slice(1).filter(Boolean)
-
-  if (cmd !== 'recursive' && (dashDashFilterUsed || inputArgv.includes('--filter') || cliConf['recursive'] === true)) {
-    subCmd = cmd
-    cmd = 'recursive'
-    cliArgs.unshift(subCmd)
-  } else if (subCmd && !supportedCmds.has(subCmd as CANONICAL_COMMAND_NAMES)) {
-    subCmd = null
-  }
-
-  let opts!: PnpmConfigs
-  try {
-    opts = await getConfigs(cliConf, {
-      command: subCmd ? [cmd, subCmd] : [cmd],
-      excludeReporter: false,
-    })
-    opts.forceSharedLockfile = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
-    opts.argv = argv
-    if (opts.filter) {
-      Array.prototype.push.apply(opts.filter, filterArgs)
+  if (unknownOptions.size > 0) {
+    const unknownOptionsArray = Array.from(unknownOptions.keys())
+    if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
+      let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
+      if (unknownOptionsArray.length === 1) {
+        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${unknownOptionsArray[0]}'`)}`
+      } else {
+        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+      }
+      console.log(deprecationMsg)
     } else {
-      opts.filter = filterArgs
+      console.error(formatUnknownOptionsError(unknownOptions))
+      console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+      process.exit(1)
     }
+  }
+  process.env['npm_config_argv'] = JSON.stringify(argv)
+
+  let config: Config & {
+    forceSharedLockfile: boolean
+    argv: { remain: string[], cooked: string[], original: string[] }
+  }
+  try {
+    // When we just want to print the location of the global bin directory,
+    // we don't need the write permission to it. Related issue: #2700
+    const globalDirShouldAllowWrite = cmd !== 'root'
+    config = await getConfig(cliOptions, {
+      excludeReporter: false,
+      globalDirShouldAllowWrite,
+      rcOptionsTypes: getRCOptionsTypes(cmd),
+      workspaceDir,
+    }) as typeof config
+    config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
+    config.argv = argv
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
     console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(err.message)}`)
-    console.log(`For help, run: pnpm help ${cmd}`)
-    process.exit(1)
-    return
-  }
-
-  if (
-    (cmd === 'add' || cmd === 'install') &&
-    typeof opts.workspacePrefix === 'string'
-  ) {
-    if (cliArgs.length === 0) {
-      subCmd = cmd
-      cmd = 'recursive'
-      cliArgs.unshift(subCmd)
-    } else if (
-      opts.workspacePrefix === opts.prefix &&
-      !opts.ignoreWorkspaceRootCheck
-    ) {
-      // Reporting is not initialized at this point, so just printing the error
-      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
-        chalk.red('Running this command will add the dependency to the workspace root, ' +
-          'which might not be what you want - if you really meant it, ' +
-          'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).')}`)
-      console.log(`For help, run: pnpm help ${cmd}`)
-      process.exit(1)
-      return
+    if (err['hint']) {
+      console.log(err['hint'])
+    } else {
+      console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
     }
+    process.exit(1)
   }
 
-  const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && argv.remain.includes(packageManager.name)
+  let write: (text: string) => void = process.stdout.write.bind(process.stdout)
+  // chalk reads the FORCE_COLOR env variable
+  if (config.color === 'always') {
+    process.env['FORCE_COLOR'] = '1'
+  } else if (config.color === 'never') {
+    process.env['FORCE_COLOR'] = '0'
+
+    // In some cases, it is already late to set the FORCE_COLOR env variable.
+    // Some text might be already generated.
+    //
+    // A better solution might be to dynamically load all the code after the settings are read
+    // and the env variable set.
+    write = (text) => process.stdout.write(stripAnsi(text))
+  }
+
+  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
 
   // Don't check for updates
   //   1. on CI environments
@@ -241,66 +125,124 @@ export default async function run (inputArgv: string[]) {
   }
 
   const reporterType: ReporterType = (() => {
-    if (opts.loglevel === 'silent') return 'silent'
-    if (opts.reporter) return opts.reporter as ReporterType
+    if (config.loglevel === 'silent') return 'silent'
+    if (config.reporter) return config.reporter as ReporterType
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
   })()
 
   initReporter(reporterType, {
     cmd,
-    pnpmConfigs: opts,
-    subCmd,
+    config,
   })
-  delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
+  global['reporterInitialized'] = reporterType
 
   if (selfUpdate) {
-    await pnpmCmds.server(['stop'], opts as any) // tslint:disable-line:no-any
+    await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    try {
+      config.bin = path.dirname(which.sync('pnpm'))
+    } catch (err) {
+      // if pnpm not found, then ignore
+    }
+  }
+
+  if (
+    cmd === 'install' &&
+    typeof workspaceDir === 'string'
+  ) {
+    cliOptions['recursive'] = true
+    config.recursive = true
+
+    if (!config.recursiveInstall && !config.filter) {
+      config.filter = ['{.}...']
+    }
+  }
+
+  if (cliOptions['recursive']) {
+    const wsDir = workspaceDir ?? process.cwd()
+    const allProjects = await findWorkspacePackages(wsDir, {
+      engineStrict: config.engineStrict,
+      patterns: cliOptions['workspace-packages'],
+    })
+
+    if (!allProjects.length) {
+      if (!config['parseable']) {
+        console.log(`No projects found in "${wsDir}"`)
+      }
+      process.exit(0)
+    }
+    const filterResults = await filterPackages(allProjects, config.filter ?? [], {
+      linkWorkspacePackages: !!config.linkWorkspacePackages,
+      prefix: process.cwd(),
+      workspaceDir: wsDir,
+    })
+    config.selectedProjectsGraph = filterResults.selectedProjectsGraph
+    if (R.isEmpty(config.selectedProjectsGraph)) {
+      if (!config['parseable']) {
+        console.log(`No projects matched the filters in "${wsDir}"`)
+      }
+      process.exit(0)
+    }
+    if (filterResults.unmatchedFilters.length !== 0 && !config['parseable']) {
+      console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
+    }
+    config.allProjects = allProjects
+    config.workspaceDir = wsDir
   }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
-  await new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (cliConf['shamefully-flatten'] === true) {
-        logger.info({
-          message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
-          prefix: opts.prefix,
-        })
-      }
-      if (opts.force === true) {
+  const [output, exitCode] = await new Promise((resolve, reject) => {
+    setTimeout(async () => {
+      if (config.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',
-          prefix: opts.prefix,
+          prefix: config.dir,
         })
       }
 
-      if (cmd !== 'recursive') {
-        scopeLogger.debug({
-          selected: 1,
-          workspacePrefix: opts.workspacePrefix,
-        })
-      }
+      scopeLogger.debug({
+        ...(
+          !cliOptions['recursive']
+            ? { selected: 1 }
+            : {
+              selected: Object.keys(config.selectedProjectsGraph!).length,
+              total: config.allProjects!.length,
+            }
+        ),
+        ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
+      })
 
       try {
-        const result = pnpmCmds[cmd](cliArgs, opts, argv.remain[0])
+        let result = pnpmCmds[cmd ?? 'help'](
+          // TypeScript doesn't currently infer that the type of config
+          // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
+          config as Omit<typeof config, 'reporter'>,
+          cliParams
+        )
         if (result instanceof Promise) {
-          result
-            .then((output) => {
-              if (typeof output === 'string') {
-                process.stdout.write(output)
-              }
-              resolve()
-            })
-            .catch(reject)
-        } else {
-          if (typeof result === 'string') {
-            process.stdout.write(result)
-          }
-          resolve()
+          result = await result
         }
+        if (!result) {
+          resolve([null, 0])
+          return
+        }
+        if (typeof result === 'string') {
+          resolve([result, 0])
+          return
+        }
+        resolve([result['output'], result['exitCode']])
       } catch (err) {
         reject(err)
       }
     }, 0)
   })
+  if (output) {
+    write(output)
+  }
+  if (!cmd) {
+    process.exit(1)
+  }
+  if (exitCode) {
+    process.exit(exitCode)
+  }
 }

@@ -1,25 +1,26 @@
 import { HookLog } from '@pnpm/core-loggers'
-import chalk from 'chalk'
-import most = require('most')
+import * as Rx from 'rxjs'
+import { map } from 'rxjs/operators'
 import { autozoom } from './utils/zooming'
+import chalk = require('chalk')
 
 export default (
-  hook$: most.Stream<HookLog>,
+  hook$: Rx.Observable<HookLog>,
   opts: {
-    cwd: string,
-    isRecursive: boolean,
+    cwd: string
+    isRecursive: boolean
   }
 ) => {
-  return hook$
-    .map((log) => ({
+  return hook$.pipe(
+    map((log) => Rx.of({
       msg: autozoom(
         opts.cwd,
         log.prefix,
         `${chalk.magentaBright(log.hook)}: ${log.message}`,
         {
           zoomOutCurrent: opts.isRecursive,
-        },
+        }
       ),
     }))
-    .map(most.of)
+  )
 }

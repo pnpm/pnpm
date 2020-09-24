@@ -1,5 +1,5 @@
-import test = require('tape')
 import findBestGlobalPrefixOnWindows from '../src/findBestGlobalPrefixOnWindows'
+import test = require('tape')
 
 test('findBestGlobalPrefixOnWindows()', t => {
   if (process.platform !== 'win32') {
@@ -16,24 +16,24 @@ test('findBestGlobalPrefixOnWindows()', t => {
   t.equal(
     findBestGlobalPrefixOnWindows('C:\\Users\\Imre\\AppData\\Local\\nvs\\default', env),
     'C:\\Users\\Imre\\AppData\\Local\\nvs\\default',
-    'keep npm global prefix if is inside AppData\\Local',
+    'keep npm global prefix if is inside AppData\\Local'
   )
 
   t.equal(
     findBestGlobalPrefixOnWindows('C:\\Users\\Imre\\AppData\\Roaming\\nvs\\default', env),
     'C:\\Users\\Imre\\AppData\\Roaming\\nvs\\default',
-    'keep npm global prefix if is inside AppData\\Roaming',
+    'keep npm global prefix if is inside AppData\\Roaming'
   )
 
   t.equal(
     findBestGlobalPrefixOnWindows('C:\\foo', env),
     'C:\\Users\\Imre\\AppData\\Roaming\\npm',
-    'prefer location in AppData\\Roaming',
+    'prefer location in AppData\\Roaming'
   )
 
   t.equal(
     findBestGlobalPrefixOnWindows('C:\\foo', {}),
-    'C:\\foo',
+    'C:\\foo'
   )
 
   t.end()

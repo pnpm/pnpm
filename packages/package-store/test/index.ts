@@ -1,90 +1,71 @@
-///<reference path="../../../typings/index.d.ts"/>
-import createResolver from '@pnpm/npm-resolver'
-import createStore, * as packageStore from '@pnpm/package-store'
-import { ResolveFunction } from '@pnpm/resolver-base'
-import createFetcher from '@pnpm/tarball-fetcher'
-import path = require('path')
-import test = require('tape')
+/// <reference path="../../../typings/index.d.ts"/>
+import createClient from '@pnpm/client'
+import createStore from '@pnpm/package-store'
 import tempy = require('tempy')
 
-test('public API', t => {
-  t.equal(typeof packageStore.read, 'function')
-  t.end()
-})
+describe('store.importPackage()', () => {
+  it('selects import method automatically', async () => {
+    const storeDir = tempy.directory()
+    const registry = 'https://registry.npmjs.org/'
+    const authConfig = { registry }
+    const { resolve, fetchers } = createClient({
+      authConfig,
+      storeDir,
+    })
+    const storeController = await createStore(resolve, fetchers, {
+      storeDir,
+      verifyStoreIntegrity: true,
+    })
+    const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+    const fetchResponse = storeController.fetchPackage({
+      force: false,
+      lockfileDir: tempy.directory(),
+      pkgId,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
+    })
+    const importTo = tempy.directory()
+    const { importMethod } = await storeController.importPackage(importTo, {
+      filesResponse: await fetchResponse.files(),
+      force: false,
+    })
+    expect(typeof importMethod).toBe('string')
+    expect(typeof require(importTo)).toBe('function')
+  })
 
-test('store.importPackage()', async (t) => {
-  const store = tempy.directory()
-  const registry = 'https://registry.npmjs.org/'
-  const rawNpmConfig = { registry }
-  const resolver = createResolver({
-    metaCache: new Map(),
-    rawNpmConfig,
-    store,
-  }) as ResolveFunction
-  const fetcher = createFetcher({
-    rawNpmConfig,
-    registry,
+  it('uses copying', async () => {
+    const storeDir = tempy.directory()
+    const registry = 'https://registry.npmjs.org/'
+    const authConfig = { registry }
+    const { resolve, fetchers } = createClient({
+      authConfig,
+      storeDir,
+    })
+    const storeController = await createStore(resolve, fetchers, {
+      packageImportMethod: 'copy',
+      storeDir,
+      verifyStoreIntegrity: true,
+    })
+    const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+    const fetchResponse = storeController.fetchPackage({
+      force: false,
+      lockfileDir: tempy.directory(),
+      pkgId,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
+    })
+    const importTo = tempy.directory()
+    const { importMethod } = await storeController.importPackage(importTo, {
+      filesResponse: await fetchResponse.files(),
+      force: false,
+    })
+    expect(importMethod).toBe('copy')
+    expect(typeof require(importTo)).toBe('function')
   })
-  const storeController = await createStore(resolver, fetcher, {
-    store,
-    verifyStoreIntegrity: true,
-  })
-  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-  const fetchResponse = await storeController.fetchPackage({
-    force: false,
-    pkgId,
-    prefix: tempy.directory(),
-    resolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-    },
-  })
-  const importTo = tempy.directory()
-  const importFrom = path.join(fetchResponse.inStoreLocation, 'node_modules', 'is-positive')
-  await storeController.importPackage(importFrom, importTo, {
-    filesResponse: await fetchResponse.files(),
-    force: false,
-  })
-  t.equal(typeof require(importTo), 'function', `sucessfully imported to ${importTo}`)
-  t.end()
-})
-
-test('store.importPackage() by copying', async (t) => {
-  const store = tempy.directory()
-  const registry = 'https://registry.npmjs.org/'
-  const rawNpmConfig = { registry }
-  const resolver = createResolver({
-    metaCache: new Map(),
-    rawNpmConfig,
-    store,
-  }) as ResolveFunction
-  const fetcher = createFetcher({
-    rawNpmConfig,
-    registry,
-  })
-  const storeController = await createStore(resolver, fetcher, {
-    packageImportMethod: 'copy',
-    store,
-    verifyStoreIntegrity: true,
-  })
-  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-  const fetchResponse = await storeController.fetchPackage({
-    force: false,
-    pkgId,
-    prefix: tempy.directory(),
-    resolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-    },
-  })
-  const importTo = tempy.directory()
-  const importFrom = path.join(fetchResponse.inStoreLocation, 'node_modules', 'is-positive')
-  await storeController.importPackage(importFrom, importTo, {
-    filesResponse: await fetchResponse.files(),
-    force: false,
-  })
-  t.equal(typeof require(importTo), 'function', `sucessfully imported to ${importTo}`)
-  t.end()
 })

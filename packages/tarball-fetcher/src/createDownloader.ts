@@ -1,31 +1,39 @@
-import PnpmError from '@pnpm/error'
-import { FetchResult } from '@pnpm/fetcher-base'
-import logger from '@pnpm/logger'
-import createFetcher from 'fetch-from-npm-registry'
-import fs = require('graceful-fs')
 import { IncomingMessage } from 'http'
-import makeDir = require('make-dir')
-import path = require('path')
-import pathTemp = require('path-temp')
-import retry = require('retry')
-import rimraf = require('rimraf')
-import ssri = require('ssri')
-import unpackStream = require('unpack-stream')
-import urlLib = require('url')
+import { requestRetryLogger } from '@pnpm/core-loggers'
+import PnpmError, { FetchError } from '@pnpm/error'
+import {
+  Cafs,
+  DeferredManifestPromise,
+  FetchResult,
+} from '@pnpm/fetcher-base'
+import { FetchFromRegistry } from '@pnpm/fetching-types'
+import * as retry from '@zkochan/retry'
 import { BadTarballError } from './errorTypes'
+import urlLib = require('url')
+import ssri = require('ssri')
 
-const ignorePackageFileLogger = logger('_ignore-package-file')
+const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
-class TarballFetchError extends PnpmError {
-  public readonly httpStatusCode: number
-  public readonly uri: string
-  public readonly response: unknown & { status: number, statusText: string }
+class TarballIntegrityError extends PnpmError {
+  public readonly found: string
+  public readonly expected: string
+  public readonly algorithm: string
+  public readonly sri: string
+  public readonly url: string
 
-  constructor (uri: string, response: { status: number, statusText: string }) {
-    super('TARBALL_FETCH', `${response.status} ${response.statusText}: ${uri}`)
-    this.httpStatusCode = response.status
-    this.uri = uri
-    this.response = response
+  constructor (opts: {
+    found: string
+    expected: string
+    algorithm: string
+    sri: string
+    url: string
+  }) {
+    super('TARBALL_INTEGRITY', `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`)
+    this.found = opts.found
+    this.expected = opts.expected
+    this.algorithm = opts.algorithm
+    this.sri = opts.sri
+    this.url = opts.url
   }
 }
 
@@ -33,89 +41,61 @@ export interface HttpResponse {
   body: string
 }
 
-export type DownloadFunction = (url: string, saveto: string, opts: {
+export type DownloadFunction = (url: string, opts: {
   auth?: {
-    scope: string,
-    token: string | undefined,
-    password: string | undefined,
-    username: string | undefined,
-    email: string | undefined,
-    auth: string | undefined,
-    alwaysAuth: string | undefined,
-  },
-  unpackTo: string,
-  registry?: string,
-  onStart?: (totalSize: number | null, attempt: number) => void,
-  onProgress?: (downloaded: number) => void,
-  ignore?: (filename: string) => boolean,
+    authHeaderValue: string | undefined
+    alwaysAuth: boolean | undefined
+  }
+  cafs: Cafs
+  manifest?: DeferredManifestPromise
+  registry?: string
+  onStart?: (totalSize: number | null, attempt: number) => void
+  onProgress?: (downloaded: number) => void
   integrity?: string
-  generatePackageIntegrity?: boolean,
 }) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
-  get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void,
-  fetch: (url: string, opts: {auth?: object}, cb: (err: Error, res: IncomingMessage) => void) => void,
+  get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
+  fetch: (url: string, opts: {auth?: object}, cb: (err: Error, res: IncomingMessage) => void) => void
 }
 
 export default (
+  fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
-    alwaysAuth: boolean,
-    fsIsCaseSensitive: boolean,
-    registry: string,
-    // proxy
-    proxy?: string,
-    localAddress?: string,
-    // ssl
-    ca?: string,
-    cert?: string,
-    key?: string,
-    strictSSL?: boolean,
     // retry
     retry?: {
-      retries?: number,
-      factor?: number,
-      minTimeout?: number,
-      maxTimeout?: number,
-      randomize?: boolean,
-    },
-    userAgent?: string,
-  },
+      retries?: number
+      factor?: number
+      minTimeout?: number
+      maxTimeout?: number
+      randomize?: boolean
+    }
+  }
 ): DownloadFunction => {
-  const fetchFromNpmRegistry = createFetcher(gotOpts)
-
   const retryOpts = {
     factor: 10,
     maxTimeout: 6e4, // 1 minute
     minTimeout: 1e4, // 10 seconds
     retries: 2,
-    ...gotOpts.retry
+    ...gotOpts.retry,
   }
 
-  return async function download (url: string, saveto: string, opts: {
+  return function download (url: string, opts: {
     auth?: {
-      scope: string,
-      token: string | undefined,
-      password: string | undefined,
-      username: string | undefined,
-      email: string | undefined,
-      auth: string | undefined,
-      alwaysAuth: string | undefined,
-    },
-    unpackTo: string,
-    registry?: string,
-    onStart?: (totalSize: number | null, attempt: number) => void,
-    onProgress?: (downloaded: number) => void,
-    ignore?: (filename: string) => boolean,
-    integrity?: string,
-    generatePackageIntegrity?: boolean,
+      authHeaderValue: string | undefined
+      alwaysAuth: boolean | undefined
+    }
+    cafs: Cafs
+    manifest?: DeferredManifestPromise
+    registry?: string
+    onStart?: (totalSize: number | null, attempt: number) => void
+    onProgress?: (downloaded: number) => void
+    integrity?: string
   }): Promise<FetchResult> {
-    const saveToDir = path.dirname(saveto)
-    await makeDir(saveToDir)
-
     // If a tarball is hosted on a different place than the manifest, only send
     // credentials on `alwaysAuth`
     const shouldAuth = opts.auth && (
-      opts.auth.alwaysAuth ||
+      opts.auth.alwaysAuth === true ||
       !opts.registry ||
       urlLib.parse(url).host === urlLib.parse(opts.registry).host
     )
@@ -123,28 +103,45 @@ export default (
     const op = retry.operation(retryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
-      op.attempt((currentAttempt) => {
-        fetch(currentAttempt)
-          .then(resolve)
-          .catch((err) => {
-            if (err.httpStatusCode === 403) {
-              reject(err)
-              return
-            }
-            if (op.retry(err)) {
-              return
-            }
+      op.attempt(async (attempt) => {
+        try {
+          resolve(await fetch(attempt))
+        } catch (error) {
+          if (error.response?.status === 401 || error.response?.status === 403) {
+            reject(error)
+          }
+          const timeout = op.retry(error)
+          if (timeout === false) {
             reject(op.mainError())
+            return
+          }
+          requestRetryLogger.debug({
+            attempt,
+            error,
+            maxRetries: retryOpts.retries,
+            method: 'GET',
+            timeout,
+            url,
           })
+        }
       })
     })
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       try {
-        const res = await fetchFromNpmRegistry(url, {auth: shouldAuth && opts.auth as any || undefined}) // tslint:disable-line
+        const authHeaderValue = shouldAuth ? opts.auth?.authHeaderValue : undefined
+        const res = await fetchFromRegistry(url, {
+          authHeaderValue,
+          // The fetch library can retry requests on bad HTTP responses.
+          // However, it is not enough to retry on bad HTTP responses only.
+          // Requests should also be retried when the tarball's integrity check fails.
+          // Hence, we tell fetch to not retry,
+          // and we perform the retries from this function instead.
+          retry: { retries: 0 },
+        })
 
         if (res.status !== 200) {
-          throw new TarballFetchError(url, res)
+          throw new FetchError({ url, authHeaderValue }, res)
         }
 
         const contentLength = res.headers.has('content-length') && res.headers.get('content-length')
@@ -154,51 +151,33 @@ export default (
         if (opts.onStart) {
           opts.onStart(size, currentAttempt)
         }
-        const onProgress = opts.onProgress
+        // In order to reduce the amount of logs, we only report the download progress of big tarballs
+        const onProgress = size != null && size >= BIG_TARBALL_SIZE
+          ? opts.onProgress : undefined
         let downloaded = 0
         res.body.on('data', (chunk: Buffer) => {
           downloaded += chunk.length
           if (onProgress) onProgress(downloaded)
         })
 
-        const tempTarballLocation = pathTemp(saveToDir)
-        const writeStream = fs.createWriteStream(tempTarballLocation)
-
-        return await new Promise<FetchResult>((resolve, reject) => {
+        // eslint-disable-next-line no-async-promise-executor
+        return await new Promise<FetchResult>(async (resolve, reject) => {
           const stream = res.body
             .on('error', reject)
-            .pipe(writeStream)
-            .on('error', reject)
 
-          const tempLocation = pathTemp(opts.unpackTo)
-          const ignore = gotOpts.fsIsCaseSensitive ? opts.ignore : createIgnorer(url, opts.ignore)
-          Promise.all([
-            opts.integrity && safeCheckStream(res.body, opts.integrity) || true,
-            unpackStream.local(res.body, tempLocation, {
-              generateIntegrity: opts.generatePackageIntegrity,
-              ignore,
-            }),
-            waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
-          ])
-          .then(([integrityCheckResult, filesIndex]) => {
+          try {
+            const [integrityCheckResult, filesIndex] = await Promise.all([
+              opts.integrity ? safeCheckStream(res.body, opts.integrity, url) : true,
+              opts.cafs.addFilesFromTarball(res.body, opts.manifest),
+              waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
+            ])
             if (integrityCheckResult !== true) {
               throw integrityCheckResult
             }
-            fs.rename(tempTarballLocation, saveto, () => {
-              // ignore errors
-            })
-            resolve({ tempLocation, filesIndex })
-          })
-          .catch((err) => {
-            rimraf(tempTarballLocation, () => {
-              // ignore errors
-            })
-            rimraf(tempLocation, () => {
-              // Just ignoring this error
-              // A redundant stage folder won't break anything
-            })
+            resolve({ filesIndex: filesIndex })
+          } catch (err) {
             reject(err)
-          })
+          }
         })
       } catch (err) {
         err.attempts = currentAttempt
@@ -209,57 +188,31 @@ export default (
   }
 }
 
-function createIgnorer (tarballUrl: string, ignore?: (filename: string) => boolean) {
-  const lowercaseFiles = new Set<string>()
-  if (ignore) {
-    return (filename: string) => {
-      const lowercaseFilename = filename.toLowerCase()
-      if (lowercaseFiles.has(lowercaseFilename)) {
-        ignorePackageFileLogger.debug({
-          reason: 'case-insensitive-duplicate',
-          skippedFilename: filename,
-          tarballUrl,
-        })
-        return true
-      }
-      lowercaseFiles.add(lowercaseFilename)
-      return ignore(filename)
-    }
-  }
-  return (filename: string) => {
-    const lowercaseFilename = filename.toLowerCase()
-    if (lowercaseFiles.has(lowercaseFilename)) {
-      ignorePackageFileLogger.debug({
-        reason: 'case-insensitive-duplicate',
-        skippedFilename: filename,
-        tarballUrl,
-      })
-      return true
-    }
-    lowercaseFiles.add(lowercaseFilename)
-    return false
-  }
-}
-
-async function safeCheckStream (stream: any, integrity: string): Promise<true | Error> { // tslint:disable-line:no-any
+async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // eslint-disable-line @typescript-eslint/no-explicit-any
   try {
     await ssri.checkStream(stream, integrity)
     return true
   } catch (err) {
-    return err
+    return new TarballIntegrityError({
+      algorithm: err['algorithm'],
+      expected: err['expected'],
+      found: err['found'],
+      sri: err['sri'],
+      url,
+    })
   }
 }
 
 function waitTillClosed (
   opts: {
-    stream: NodeJS.ReadableStream,
-    size: null | number,
-    getDownloaded: () => number,
-    url: string,
-  },
+    stream: NodeJS.EventEmitter
+    size: null | number
+    getDownloaded: () => number
+    url: string
+  }
 ) {
   return new Promise((resolve, reject) => {
-    opts.stream.on('close', () => {
+    opts.stream.on('end', () => {
       const downloaded = opts.getDownloaded()
       if (opts.size !== null && opts.size !== downloaded) {
         const err = new BadTarballError({

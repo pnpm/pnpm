@@ -1,12 +1,15 @@
+import { Config } from '@pnpm/config'
 import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
+import delay from 'delay'
+import { take } from 'rxjs/operators'
 import test = require('tape')
 
 const scopeLogger = logger<object>('scope')
 
-test('prints scope of non-recursive install in a workspace', (t) => {
+test('does not print scope of non-recursive install in a workspace', async (t) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -21,36 +24,41 @@ test('prints scope of non-recursive install in a workspace', (t) => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  const subscription = output$.subscribe({
     complete: () => t.end(),
     error: t.end,
-    next: output => {
-      t.equal(output, `Scope: current workspace package`)
+    next: () => {
+      t.fail('should not log anything')
     },
   })
+
+  await delay(10)
+  t.ok('output$ has no event')
+  subscription.unsubscribe()
 })
 
 test('prints scope of recursive install in a workspace when not all packages are selected', (t) => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'install'],
+      argv: ['install'],
+      config: { recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
 
   scopeLogger.debug({
-    selected: 1,
+    selected: 2,
     total: 10,
     workspacePrefix: '/home/src',
   })
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Scope: 1 of 10 workspace packages`)
+      t.equal(output, 'Scope: 2 of 10 workspace projects')
     },
   })
 })
@@ -58,7 +66,8 @@ test('prints scope of recursive install in a workspace when not all packages are
 test('prints scope of recursive install in a workspace when all packages are selected', (t) => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'install'],
+      argv: ['install'],
+      config: { recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -71,11 +80,11 @@ test('prints scope of recursive install in a workspace when all packages are sel
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Scope: all 10 workspace packages`)
+      t.equal(output, 'Scope: all 10 workspace projects')
     },
   })
 })
@@ -83,23 +92,24 @@ test('prints scope of recursive install in a workspace when all packages are sel
 test('prints scope of recursive install not in a workspace when not all packages are selected', (t) => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'install'],
+      argv: ['install'],
+      config: { recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
 
   scopeLogger.debug({
-    selected: 1,
+    selected: 2,
     total: 10,
   })
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Scope: 1 of 10 packages`)
+      t.equal(output, 'Scope: 2 of 10 projects')
     },
   })
 })
@@ -107,7 +117,8 @@ test('prints scope of recursive install not in a workspace when not all packages
 test('prints scope of recursive install not in a workspace when all packages are selected', (t) => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'install'],
+      argv: ['install'],
+      config: { recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -119,11 +130,11 @@ test('prints scope of recursive install not in a workspace when all packages are
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Scope: all 10 packages`)
+      t.equal(output, 'Scope: all 10 projects')
     },
   })
 })

@@ -1,18 +1,17 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import path = require('path')
-import sinon = require('sinon')
 import {
   install,
-  MutatedImporter,
+  MutatedProject,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async (t) => {
   prepareEmpty(t)
@@ -23,7 +22,7 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
         'is-positive': '^3.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   try {
@@ -62,7 +61,7 @@ test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json 
 test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy one of the package.json files`, async (t) => {
   prepareEmpty(t)
 
-  const importers: MutatedImporter[] = [
+  const projects: MutatedProject[] = [
     {
       buildIndex: 0,
       manifest: {
@@ -73,7 +72,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
         },
       },
       mutation: 'install',
-      prefix: path.resolve('p1'),
+      rootDir: path.resolve('p1'),
     },
     {
       buildIndex: 0,
@@ -85,19 +84,19 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
         },
       },
       mutation: 'install',
-      prefix: path.resolve('p2'),
+      rootDir: path.resolve('p2'),
     },
   ]
-  await mutateModules(importers, await testDefaults())
+  await mutateModules(projects, await testDefaults())
 
-  importers[0].manifest = {
+  projects[0].manifest = {
     dependencies: {
       'is-positive': '^3.1.0',
     },
   }
 
   try {
-    await mutateModules(importers, await testDefaults({ frozenLockfile: true }))
+    await mutateModules(projects, await testDefaults({ frozenLockfile: true }))
     t.fail()
   } catch (err) {
     t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with p1${path.sep}package.json`)
@@ -243,7 +242,7 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
     },
   ])
 
-  const importers: MutatedImporter[] = [
+  const mutatedProjects: MutatedProject[] = [
     {
       buildIndex: 0,
       manifest: {
@@ -254,7 +253,7 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
         },
       },
       mutation: 'install',
-      prefix: path.resolve('p1'),
+      rootDir: path.resolve('p1'),
     },
     {
       buildIndex: 0,
@@ -266,13 +265,13 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
         },
       },
       mutation: 'install',
-      prefix: path.resolve('p2'),
+      rootDir: path.resolve('p2'),
     },
   ]
-  await mutateModules(importers, await testDefaults())
+  await mutateModules(mutatedProjects, await testDefaults())
 
   const reporter = sinon.spy()
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(mutatedProjects, await testDefaults({
     preferFrozenLockfile: true,
     reporter,
   }))

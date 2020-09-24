@@ -1,0 +1,77 @@
+{
+  "extends": ["standard-with-typescript"],
+  "parserOptions": {
+    "project": "./tsconfig.lint.json",
+    "sourceType": "module"
+  },
+  "rules": {
+    "@typescript-eslint/indent": [
+        "error",
+        2,
+        {
+            "FunctionDeclaration": {
+                "parameters": "first"
+            },
+            "FunctionExpression": {
+                "parameters": "first"
+            }
+        }
+    ],
+    "@typescript-eslint/naming-convention": "error",
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/no-explicit-any": "error",
+    "no-return-await": "error",
+    "@typescript-eslint/return-await": "off",
+    "@typescript-eslint/no-require-imports": "off",
+    "@typescript-eslint/no-unused-expressions": "error",
+    "@typescript-eslint/no-use-before-define": "error",
+    "@typescript-eslint/no-var-requires": "error",
+    "@typescript-eslint/quotes": [
+        "error",
+        "single",
+        {
+            "avoidEscape": true
+        }
+    ],
+    "@typescript-eslint/triple-slash-reference": "off",
+    "@typescript-eslint/require-array-sort-compare": "off",
+    "@typescript-eslint/no-non-null-assertion": "warn",
+    "@typescript-eslint/consistent-type-assertions": "warn",
+    "@typescript-eslint/strict-boolean-expressions": "warn",
+    "@typescript-eslint/no-base-to-string": "off",
+    "@typescript-eslint/no-dynamic-delete": "warn",
+    "@typescript-eslint/promise-function-async": "warn",
+    "@typescript-eslint/no-misused-promises": "warn",
+    "no-multi-str": "off",
+    "no-mixed-operators": "warn",
+    "@typescript-eslint/dot-notation": "off",
+    "@typescript-eslint/no-unnecessary-type-assertion": "warn",
+    "@typescript-eslint/type-annotation-spacing": "error",
+    "brace-style": [
+        "error",
+        "1tbs"
+    ],
+    "comma-dangle": [
+        "error",
+        {
+            "arrays": "always-multiline",
+            "exports": "always-multiline",
+            "functions": "never",
+            "imports": "always-multiline",
+            "objects": "always-multiline"
+        }
+    ],
+    "curly": "off",
+    "eol-last": "off",
+    "import/order": "warn",
+    "max-len": "off",
+    "no-multiple-empty-lines": "error",
+    "no-redeclare": "error",
+    "no-trailing-spaces": "error",
+    "no-var": "error",
+    "space-before-function-paren": [
+        "error",
+        "always"
+    ]
+  }
+}

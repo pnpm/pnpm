@@ -20,10 +20,9 @@
 const createResolveFromNpm = require('@pnpm/npm-resolver').default
 
 const resolveFromNpm = createResolveFromNpm({
-  metaCache: new Map(),
   store: '.store',
   offline: false,
-  rawNpmConfig: {
+  rawConfig: {
     registry: 'https://registry.npmjs.org/',
   },
 })

@@ -1,6 +1,6 @@
 import * as pnpm from 'supi'
-import test = require('tape')
 import { testDefaults } from './utils'
+import test = require('tape')
 
 test('API', (t) => {
   t.equal(typeof pnpm.install, 'function', 'exports install()')
@@ -14,8 +14,8 @@ test('API', (t) => {
 // maybe a new property should be introduced
 // this seems illogical as even though all save types are false,
 // the dependency will be saved
-// tslint:disable-next-line:no-string-literal
-test['skip']('install fails when all saving types are false', async (t: test.Test) => {
+// eslint-disable-next-line @typescript-eslint/dot-notation
+test.skip('install fails when all saving types are false', async (t: test.Test) => {
   try {
     await pnpm.install({}, await testDefaults({ save: false, saveDev: false, saveOptional: false }))
     t.fail('installation should have failed')

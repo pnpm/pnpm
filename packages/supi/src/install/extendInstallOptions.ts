@@ -2,74 +2,85 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
-import { LocalPackages } from '@pnpm/resolver-base'
+import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import { WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
-import path = require('path')
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface StrictInstallOptions {
-  forceSharedLockfile: boolean,
-  frozenLockfile: boolean,
-  extraBinPaths: string[],
-  useLockfile: boolean,
-  lockfileOnly: boolean,
-  preferFrozenLockfile: boolean,
-  hoistPattern: string | undefined,
-  storeController: StoreController,
-  store: string,
-  reporter: ReporterFunction,
-  force: boolean,
-  update: boolean,
-  depth: number,
-  resolutionStrategy: 'fast' | 'fewer-dependencies',
-  lockfileDirectory: string,
-  rawNpmConfig: object,
-  verifyStoreIntegrity: boolean,
-  engineStrict: boolean,
-  nodeVersion: string,
+  forceSharedLockfile: boolean
+  frozenLockfile: boolean
+  frozenLockfileIfExists: boolean
+  extraBinPaths: string[]
+  useLockfile: boolean
+  linkWorkspacePackagesDepth: number
+  lockfileOnly: boolean
+  preferFrozenLockfile: boolean
+  saveWorkspaceProtocol: boolean
+  preserveWorkspaceProtocol: boolean
+  shellEmulator: boolean
+  storeController: StoreController
+  storeDir: string
+  reporter: ReporterFunction
+  force: boolean
+  update: boolean
+  updateMatching?: (pkgName: string) => boolean
+  updatePackageManifest?: boolean
+  depth: number
+  lockfileDir: string
+  modulesDir: string
+  rawConfig: object
+  verifyStoreIntegrity: boolean
+  engineStrict: boolean
+  nodeVersion: string
   packageManager: {
-    name: string,
-    version: string,
-  },
-  pruneLockfileImporters: boolean,
+    name: string
+    version: string
+  }
+  pruneLockfileImporters: boolean
   hooks: {
-    readPackage?: ReadPackageHook,
-    afterAllResolved?: (lockfile: Lockfile) => Lockfile,
-  },
-  sideEffectsCacheRead: boolean,
-  sideEffectsCacheWrite: boolean,
-  strictPeerDependencies: boolean,
-  include: IncludedDependencies,
-  independentLeaves: boolean,
-  ignoreCurrentPrefs: boolean,
-  ignoreScripts: boolean,
-  childConcurrency: number,
-  userAgent: string,
-  unsafePerm: boolean,
-  registries: Registries,
-  lock: boolean,
-  lockStaleDuration: number,
-  tag: string,
-  locks: string,
-  ownLifecycleHooksStdio: 'inherit' | 'pipe',
-  localPackages: LocalPackages,
-  pruneStore: boolean,
-  bin: string,
-  prefix: string,
-  shamefullyHoist: boolean,
+    readPackage?: ReadPackageHook
+    afterAllResolved?: (lockfile: Lockfile) => Lockfile
+  }
+  sideEffectsCacheRead: boolean
+  sideEffectsCacheWrite: boolean
+  strictPeerDependencies: boolean
+  include: IncludedDependencies
+  includeDirect: IncludedDependencies
+  ignoreCurrentPrefs: boolean
+  ignoreScripts: boolean
+  childConcurrency: number
+  userAgent: string
+  unsafePerm: boolean
+  registries: Registries
+  tag: string
+  ownLifecycleHooksStdio: 'inherit' | 'pipe'
+  workspacePackages: WorkspacePackages
+  pruneStore: boolean
+  virtualStoreDir?: string
+  dir: string
+
+  hoistPattern: string[] | undefined
+  forceHoistPattern: boolean
+
+  shamefullyHoist: boolean
+  forceShamefullyHoist: boolean
+
+  global: boolean
+  globalBin?: string
 }
 
-export type InstallOptions = Partial<StrictInstallOptions> &
-  Pick<StrictInstallOptions, 'store' | 'storeController'>
+export type InstallOptions =
+  & Partial<StrictInstallOptions>
+  & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
 const defaults = async (opts: InstallOptions) => {
-  const packageManager = opts.packageManager || {
+  const packageManager = opts.packageManager ?? {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
@@ -89,27 +100,29 @@ const defaults = async (opts: InstallOptions) => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    independentLeaves: false,
-    localPackages: {},
-    lock: true,
-    lockfileDirectory: opts.lockfileDirectory || opts.prefix || process.cwd(),
+    includeDirect: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
-    locks: path.join(opts.store, '_locks'),
-    lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     nodeVersion: process.version,
     ownLifecycleHooksStdio: 'inherit',
     packageManager,
     preferFrozenLockfile: true,
+    preserveWorkspaceProtocol: true,
     pruneLockfileImporters: false,
     pruneStore: false,
-    rawNpmConfig: {},
+    rawConfig: {},
     registries: DEFAULT_REGISTRIES,
-    resolutionStrategy: 'fast',
+    saveWorkspaceProtocol: true,
     shamefullyHoist: false,
+    shellEmulator: false,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
-    store: opts.store,
     storeController: opts.storeController,
+    storeDir: opts.storeDir,
     strictPeerDependencies: false,
     tag: 'latest',
     unsafePerm: process.platform === 'win32' ||
@@ -121,11 +134,12 @@ const defaults = async (opts: InstallOptions) => {
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
+    workspacePackages: {},
   } as StrictInstallOptions
 }
 
 export default async (
-  opts: InstallOptions,
+  opts: InstallOptions
 ): Promise<StrictInstallOptions> => {
   if (opts) {
     for (const key in opts) {
@@ -138,7 +152,7 @@ export default async (
   const extendedOpts = {
     ...defaultOpts,
     ...opts,
-    store: defaultOpts.store,
+    storeDir: defaultOpts.storeDir,
   }
   if (!extendedOpts.useLockfile && extendedOpts.lockfileOnly) {
     throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
@@ -148,6 +162,6 @@ export default async (
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
-  extendedOpts.rawNpmConfig['registry'] = extendedOpts.registries.default // tslint:disable-line:no-string-literal
+  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default // eslint-disable-line @typescript-eslint/dot-notation
   return extendedOpts
 }

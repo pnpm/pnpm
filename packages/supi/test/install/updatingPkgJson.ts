@@ -3,25 +3,24 @@ import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
-test('save to package.json (rimraf@2.5.1)', async (t) => {
+test('save to package.json (is-positive@^1.0.0)', async (t) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['rimraf@^2.5.1'], await testDefaults({ save: true }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive@^1.0.0'], await testDefaults({ save: true }))
 
-  const m = project.requireModule('rimraf')
-  t.ok(typeof m === 'function', 'rimraf() is available')
+  await project.has('is-positive')
 
-  t.deepEqual(manifest.dependencies, { rimraf: '^2.5.1' }, 'rimraf has been added to dependencies')
+  t.deepEqual(manifest.dependencies, { 'is-positive': '^1.0.0' }, 'is-positive has been added to dependencies')
 })
 
 // NOTE: this works differently for global installations. See similar tests in global.ts
@@ -31,7 +30,7 @@ test("don't override existing spec in package.json on named installation", async
     dependencies: {
       'is-negative': '^1.0.0', // this will be updated
       'is-positive': '^2.0.0', // this will be kept as no newer version is available from the range
-      'sec': 'sindresorhus/sec',
+      sec: 'sindresorhus/sec',
     },
   }, ['is-positive'], await testDefaults())
   manifest = await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults())
@@ -43,13 +42,13 @@ test("don't override existing spec in package.json on named installation", async
   t.deepEqual(manifest.dependencies, {
     'is-negative': '^1.0.1',
     'is-positive': '^2.0.0',
-    'sec': 'github:sindresorhus/sec',
+    sec: 'github:sindresorhus/sec',
   })
 })
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async (t) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['@rstacruz/tap-spec'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  const manifest = await addDependenciesToPackage({}, ['@rstacruz/tap-spec'], await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
   const m = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m === 'function', 'tapSpec() is available')
@@ -178,20 +177,17 @@ test('dependency should be removed from the old field when installing it as a di
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0', '@zkochan/foo@latest'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
-  const m1 = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof m1 === 'function', 'tapSpec() is available')
-
-  const m2 = project.requireModule('rimraf')
-  t.ok(typeof m2 === 'function', 'rimraf() is available')
+  await project.has('@zkochan/foo')
+  await project.has('is-positive')
 
   const expectedDeps = {
-    '@rstacruz/tap-spec': '4.1.1',
-    'rimraf': '2.5.1',
+    '@zkochan/foo': '1.0.0',
+    'is-positive': '1.0.0',
   }
-  t.deepEqual(manifest.dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
-  t.deepEqual(Object.keys(manifest.dependencies!).sort(), Object.keys(expectedDeps).sort(), 'tap-spec and rimraf have been added to dependencies in sorted order')
+  t.deepEqual(manifest.dependencies, expectedDeps, 'new packages added to dependencies')
+  t.deepEqual(Object.keys(manifest.dependencies!).sort(), Object.keys(expectedDeps).sort(), 'new packages added to dependencies in sorted order')
 })
 
 test('save to package.json with save prefix ~', async (t: tape.Test) => {
@@ -199,4 +195,46 @@ test('save to package.json with save prefix ~', async (t: tape.Test) => {
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 
   t.deepEqual(manifest.dependencies, { 'pkg-with-1-dep': '~100.0.0' }, 'rimraf have been added to dependencies')
+})
+
+test('an update bumps the versions in the manifest', async (t: tape.Test) => {
+  await addDistTag('peer-a', '1.0.1', 'latest')
+  await addDistTag('foo', '100.1.0', 'latest')
+  await addDistTag('peer-c', '2.0.0', 'latest')
+
+  prepareEmpty(t)
+
+  const [{ manifest }] = await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'peer-a': '~1.0.0',
+        },
+        devDependencies: {
+          foo: '^100.0.0',
+        },
+        optionalDependencies: {
+          'peer-c': '^1.0.1',
+        },
+      },
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ],
+  await testDefaults({
+    update: true,
+  }))
+
+  t.deepEqual(manifest, {
+    dependencies: {
+      'peer-a': '~1.0.1',
+    },
+    devDependencies: {
+      foo: '^100.1.0',
+    },
+    optionalDependencies: {
+      'peer-c': '^1.0.1',
+    },
+  })
 })

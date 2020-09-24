@@ -1,61 +1,53 @@
-import createFetcher from '@pnpm/default-fetcher'
-import createResolver from '@pnpm/default-resolver'
+import createClient from '@pnpm/client'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
-import readImportersContext from '@pnpm/read-importers-context'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import readProjectsContext from '@pnpm/read-projects-context'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import storePath from '@pnpm/store-path'
-import path = require('path')
 import tempy = require('tempy')
 
-const registry = 'http://localhost:4873/'
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 const retryOpts = {
-  fetchRetries: 2,
-  fetchRetryFactor: 10,
-  fetchRetryMaxtimeout: 60_000,
-  fetchRetryMintimeout: 10_000,
+  factor: 10,
+  retries: 2,
+  retryMaxtimeout: 60_000,
+  retryMintimeout: 10_000,
 }
 
 export default async function testDefaults (
-  opts?: any, // tslint:disable-line
-  resolveOpts?: any, // tslint:disable-line
-  fetchOpts?: any, // tslint:disable-line
-  storeOpts?: any, // tslint:disable-line
+  opts?: any, // eslint-disable-line
+  resolveOpts?: any, // eslint-disable-line
+  fetchOpts?: any, // eslint-disable-line
+  storeOpts?: any, // eslint-disable-line
 ): Promise<HeadlessOptions> {
-  let store = opts && opts.store || tempy.directory()
-  const lockfileDirectory = opts && opts.lockfileDirectory || process.cwd()
-  const { importers, include, pendingBuilds, registries } = await readImportersContext(
+  let storeDir = opts?.storeDir ?? tempy.directory()
+  const lockfileDir = opts?.lockfileDir ?? process.cwd()
+  const { include, pendingBuilds, projects, registries } = await readProjectsContext(
     [
       {
-        prefix: lockfileDirectory,
+        rootDir: lockfileDir,
       },
     ],
-    lockfileDirectory,
+    { lockfileDir }
   )
-  store = await storePath(lockfileDirectory, store)
-  const rawNpmConfig = { registry }
+  storeDir = await storePath(lockfileDir, storeDir)
+  const authConfig = { registry }
+  const { resolve, fetchers } = createClient({
+    authConfig,
+    retry: retryOpts,
+    storeDir,
+    ...resolveOpts,
+    ...fetchOpts,
+  })
   const storeController = await createStore(
-    createResolver({
-      metaCache: new Map(),
-      rawNpmConfig,
-      store,
-      strictSsl: true,
-      ...retryOpts,
-      ...resolveOpts,
-    }),
-    createFetcher({
-      alwaysAuth: true,
-      rawNpmConfig,
-      registry,
-      ...retryOpts,
-      ...fetchOpts,
-    }) as {},
+    resolve,
+    fetchers,
     {
-      locks: path.join(store, '_locks'),
-      store,
+      storeDir,
       ...storeOpts,
-    },
+    }
   )
   return {
     currentEngine: {
@@ -64,25 +56,24 @@ export default async function testDefaults (
     },
     engineStrict: false,
     force: false,
-    importers: opts.importers ? opts.importers : await Promise.all(
-      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix) }))
-    ),
     include,
-    independentLeaves: false,
-    lockfileDirectory,
+    lockfileDir,
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
     },
     pendingBuilds,
-    rawNpmConfig: {},
-    registries: registries || {
+    projects: opts.projects ? opts.projects : await Promise.all(
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
+    ),
+    rawConfig: {},
+    registries: registries ?? {
       default: registry,
     },
     sideEffectsCache: true,
     skipped: new Set<string>(),
-    store,
     storeController,
+    storeDir,
     unsafePerm: true,
     verifyStoreIntegrity: true,
     ...opts,

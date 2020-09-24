@@ -1,12 +1,12 @@
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import archy = require('archy')
-import chalk from 'chalk'
-import cliColumns = require('cli-columns')
-import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
-import path = require('path')
-import R = require('ramda')
-import getPkgInfo from './getPkgInfo'
 import { PackageDependencyHierarchy } from './types'
+import getPkgInfo from './getPkgInfo'
+import { PackageNode } from 'dependencies-hierarchy'
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import path = require('path')
+import archy = require('archy')
+import chalk = require('chalk')
+import cliColumns = require('cli-columns')
+import R = require('ramda')
 
 const sortPackages = R.sortBy(R.path(['name']) as (pkg: object) => R.Ord)
 
@@ -18,32 +18,37 @@ const NOT_SAVED_DEP_CLR = chalk.red
 const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP_CLR('optional only')}, ${DEV_DEP_ONLY_CLR('dev only')}\n\n`
 
 export default async function (
-  packages: Array<PackageDependencyHierarchy>,
+  packages: PackageDependencyHierarchy[],
   opts: {
-    alwaysPrintRootPackage: boolean,
-    depth: number,
-    long: boolean,
-    search: boolean,
-  },
+    alwaysPrintRootPackage: boolean
+    depth: number
+    long: boolean
+    search: boolean
+  }
 ) {
-  return (await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))).filter(Boolean).join('\n\n')
+  const output = (
+    await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))
+  )
+    .filter(Boolean)
+    .join('\n\n')
+  return `${(opts.depth > -1 && output ? LEGEND : '')}${output}`
 }
 
 async function renderTreeForPackage (
   pkg: PackageDependencyHierarchy,
   opts: {
-    alwaysPrintRootPackage: boolean,
-    depth: number,
-    long: boolean,
-    search: boolean,
-  },
+    alwaysPrintRootPackage: boolean
+    depth: number
+    long: boolean
+    search: boolean
+  }
 ) {
   if (
     !opts.alwaysPrintRootPackage &&
-    (!pkg.dependencies || !pkg.dependencies.length) &&
-    (!pkg.devDependencies || !pkg.devDependencies.length) &&
-    (!pkg.optionalDependencies || !pkg.optionalDependencies.length) &&
-    (!pkg.unsavedDependencies || !pkg.unsavedDependencies.length)
+    !pkg.dependencies?.length &&
+    !pkg.devDependencies?.length &&
+    !pkg.optionalDependencies?.length &&
+    !pkg.unsavedDependencies?.length
   ) return ''
 
   let label = ''
@@ -55,10 +60,10 @@ async function renderTreeForPackage (
     label += ' '
   }
   label += pkg.path
-  let output = (opts.depth > -1 ? LEGEND : '') + label + '\n'
-  const useColumns = opts.depth === 0 && opts.long === false && !opts.search
-  for (let dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
-    if (pkg[dependenciesField] && pkg[dependenciesField]!.length) {
+  let output = `${label}\n`
+  const useColumns = opts.depth === 0 && !opts.long && !opts.search
+  for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
+    if (pkg[dependenciesField]?.length) {
       const depsLabel = chalk.cyanBright(
         dependenciesField !== 'unsavedDependencies'
           ? `${dependenciesField}:`
@@ -85,17 +90,17 @@ async function renderTreeForPackage (
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string
 
-export async function toArchyTree (
+export function toArchyTree (
   getPkgColor: GetPkgColor,
   entryNodes: PackageNode[],
   opts: {
-    long: boolean,
-    modules: string,
-  },
+    long: boolean
+    modules: string
+  }
 ): Promise<archy.Data[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
-      const nodes = await toArchyTree(getPkgColor, node.dependencies || [], opts)
+      const nodes = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
       if (opts.long) {
         const pkg = await getPkgInfo(node)
         const labelLines = [
@@ -117,12 +122,12 @@ export async function toArchyTree (
         label: printLabel(getPkgColor, node),
         nodes,
       }
-    }),
+    })
   )
 }
 
 function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
-  let color = getPkgColor(node)
+  const color = getPkgColor(node)
   let txt = `${color(node.name)} ${chalk.gray(node.version)}`
   if (node.isPeer) {
     txt += ' peer'
@@ -130,7 +135,7 @@ function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
   if (node.isSkipped) {
     txt += ' skipped'
   }
-  return node.searched ? chalk.bold.bgBlack(txt) : txt
+  return node.searched ? chalk.bold(txt) : txt
 }
 
 function getPkgColor (node: PackageNode) {

@@ -7,23 +7,23 @@ export const skippedOptionalDependencyLogger = baseLogger<SkippedOptionalDepende
 export type SkippedOptionalDependencyLog = {name: 'pnpm:skipped-optional-dependency'} & LogBase & SkippedOptionalDependencyMessage
 
 export type SkippedOptionalDependencyMessage = {
-  details?: string,
-  parents?: Array<{id: string, name: string, version: string}>,
-  prefix: string,
+  details?: string
+  parents?: Array<{id: string, name: string, version: string}>
+  prefix: string
 } & ({
   package: {
-    id: string,
-    name: string,
-    version: string,
-  },
+    id: string
+    name: string
+    version: string
+  }
   reason: 'unsupported_engine'
-    | 'unsupported_platform'
-    | 'build_failure',
+  | 'unsupported_platform'
+  | 'build_failure'
 } | {
   package: {
-    name: string | undefined,
-    version: string | undefined,
-    pref: string,
-  },
-  reason: 'resolution_failure',
+    name: string | undefined
+    version: string | undefined
+    pref: string
+  }
+  reason: 'resolution_failure'
 })

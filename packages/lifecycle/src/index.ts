@@ -1,26 +1,27 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
+import runLifecycleHooksConcurrently from './runLifecycleHooksConcurrently'
 import path = require('path')
 import exists = require('path-exists')
-import runLifecycleHook from './runLifecycleHook'
-import runLifecycleHooksConcurrently from './runLifecycleHooksConcurrently'
 
 export default runLifecycleHook
-export { runLifecycleHooksConcurrently }
+export { runLifecycleHooksConcurrently, RunLifecycleHookOptions }
 
 export async function runPostinstallHooks (
   opts: {
-    depPath: string,
-    extraBinPaths?: string[],
-    optional?: boolean,
-    pkgRoot: string,
-    prepare?: boolean,
-    rawNpmConfig: object,
-    rootNodeModulesDir: string,
-    unsafePerm: boolean,
-  },
+    depPath: string
+    extraBinPaths?: string[]
+    optional?: boolean
+    pkgRoot: string
+    prepare?: boolean
+    rawConfig: object
+    rootModulesDir: string
+    shellEmulator?: boolean
+    unsafePerm: boolean
+  }
 ): Promise<boolean> {
   const pkg = await readPackageJsonFromDir(opts.pkgRoot)
-  const scripts = pkg && pkg.scripts || {}
+  const scripts = pkg?.scripts ?? {}
 
   if (!scripts.install) {
     await checkBindingGyp(opts.pkgRoot, scripts)
@@ -49,9 +50,9 @@ export async function runPostinstallHooks (
  */
 async function checkBindingGyp (
   root: string,
-  scripts: {},
+  scripts: {}
 ) {
   if (await exists(path.join(root, 'binding.gyp'))) {
-    scripts['install'] = 'node-gyp rebuild' // tslint:disable-line:no-string-literal
+    scripts['install'] = 'node-gyp rebuild' // eslint-disable-line @typescript-eslint/dot-notation
   }
 }

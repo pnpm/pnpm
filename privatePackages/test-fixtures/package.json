@@ -1,0 +1,40 @@
+{
+  "name": "@pnpm/test-fixtures",
+  "description": "Test fixtures",
+  "version": "0.0.0",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "private": true,
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "devDependencies": {
+    "@types/ncp": "^2.0.4"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/test-fixtures#readme",
+  "keywords": [],
+  "license": "MIT",
+  "engines": {
+    "node": ">=10"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/test-fixtures",
+  "scripts": {
+    "lint": "tslint -c ../../tslint.json --project .",
+    "compile": "rimraf lib && tsc",
+    "test": "pnpm run tsc"
+  },
+  "dependencies": {
+    "ncp": "^2.0.0"
+  }
+}

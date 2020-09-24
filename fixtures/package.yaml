@@ -1,0 +1,5 @@
+scripts:
+  prepareFixtures: >
+    pnpm install -rf --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages &&
+    pnpm install -rf -C fixtureWithLinks --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile &&
+    cd ./fixture-with-external-shrinkwrap/pkg && pnpm install -f --frozen-lockfile

@@ -1,11 +1,11 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import assertProject from '@pnpm/assert-project'
-import { CURRENT_LOCKFILE, WANTED_LOCKFILE } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import path = require('path')
 import test = require('tape')
 
 test('assertProject()', async (t) => {
-  const project = assertProject(t, path.join(__dirname, '..'))
+  const project = assertProject(t, path.join(__dirname, '../../..'))
 
   await project.has('tape')
   await project.hasNot('sfdsff3g34')
@@ -23,7 +23,7 @@ test('assertProject() store functions', async (t) => {
   t.equal(typeof await project.resolve('is-positive', '3.1.0'), 'string')
   await project.storeHasNot('is-positive', '3.100.0')
   t.ok(await project.readLockfile(), `loads wanted ${WANTED_LOCKFILE}`)
-  t.ok(await project.readCurrentLockfile(), `loads current ${CURRENT_LOCKFILE}`)
+  t.ok(await project.readCurrentLockfile(), 'loads current lockfile')
   t.ok(await project.readModulesManifest(), 'loads .modules.yaml')
 
   t.end()

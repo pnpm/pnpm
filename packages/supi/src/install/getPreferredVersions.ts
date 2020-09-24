@@ -1,14 +1,13 @@
-import { Dependencies, PackageJson } from '@pnpm/types'
-import { getAllDependenciesFromPackage } from '@pnpm/utils'
+import { nameVerFromPkgSnapshot, PackageSnapshots } from '@pnpm/lockfile-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import { PreferredVersions } from '@pnpm/resolver-base'
+import { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType = require('version-selector-type')
 
-export default function getPreferredVersionsFromPackage (pkg: PackageJson): {
-  [packageName: string]: {
-    selector: string,
-    type: 'version' | 'range' | 'tag',
-  },
-} {
-  return getVersionSpecsByRealNames(getAllDependenciesFromPackage(pkg))
+export default function getPreferredVersionsFromPackage (
+  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>
+): PreferredVersions {
+  return getVersionSpecsByRealNames(getAllDependenciesFromManifest(pkg))
 }
 
 function getVersionSpecsByRealNames (deps: Dependencies) {
@@ -20,20 +19,30 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
         const spec = pref.substr(index + 1)
         const selector = getVerSelType(spec)
         if (selector) {
-          acc[pref.substr(0, index)] = {
-            selector: selector.normalized,
-            type: selector.type,
-          }
+          const pkgName = pref.substr(0, index)
+          acc[pkgName] = acc[pkgName] || {}
+          acc[pkgName][selector.normalized] = selector.type
         }
       } else if (!deps[depName].includes(':')) { // we really care only about semver specs
         const selector = getVerSelType(deps[depName])
         if (selector) {
-          acc[depName] = {
-            selector: selector.normalized,
-            type: selector.type,
-          }
+          acc[depName] = acc[depName] || {}
+          acc[depName][selector.normalized] = selector.type
         }
       }
       return acc
     }, {})
+}
+
+export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots): PreferredVersions {
+  const preferredVersions: PreferredVersions = {}
+  for (const [depPath, snapshot] of Object.entries(snapshots)) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (!preferredVersions[name]) {
+      preferredVersions[name] = { [version]: 'version' }
+    } else {
+      preferredVersions[name][version] = 'version'
+    }
+  }
+  return preferredVersions
 }

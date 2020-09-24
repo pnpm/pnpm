@@ -1,0 +1,61 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cafs"
+    },
+    {
+      "path": "../cli-utils"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../get-context"
+    },
+    {
+      "path": "../lockfile-utils"
+    },
+    {
+      "path": "../normalize-registries"
+    },
+    {
+      "path": "../parse-wanted-dependency"
+    },
+    {
+      "path": "../pick-registry-for-package"
+    },
+    {
+      "path": "../store-connection-manager"
+    },
+    {
+      "path": "../store-controller-types"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../dependency-path"
+    },
+    {
+      "path": "../../privatePackages/assert-store"
+    },
+    {
+      "path": "../lockfile-file"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    }
+  ]
+}

@@ -3,76 +3,50 @@ import {
   FetchPackageToStoreOptions,
   PackageFilesResponse,
   PackageResponse,
-  PackageUsagesBySearchQueries,
   RequestPackageOptions,
   StoreController,
   WantedDependency,
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import pShare = require('promise-share')
 import uuid = require('uuid')
 
 export type StoreServerController = StoreController & {
-  stop (): Promise<void>,
+  stop: () => Promise<void>
 }
 
 export default function (
   initOpts: {
-    remotePrefix: string,
-    concurrency?: number,
-  },
+    remotePrefix: string
+    concurrency?: number
+  }
 ): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
-  const limitedFetch = limitFetch.bind(null, pLimit(initOpts.concurrency || 100))
+  const limitedFetch = limitFetch.bind(null, pLimit(initOpts.concurrency ?? 100))
 
   return new Promise((resolve, reject) => {
     resolve({
-      close: async () => { return },
+      close: async () => { },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
-      findPackageUsages: async (searchQueries: string[]): Promise<PackageUsagesBySearchQueries> => {
-        return await limitedFetch(`${remotePrefix}/findPackageUsages`, { searchQueries }) as PackageUsagesBySearchQueries
-      },
-      getPackageLocation: async (
-        packageId: string,
-        packageName: string,
-        opts: {
-          lockfileDirectory: string,
-          targetEngine?: string,
-        },
-      ): Promise<{ directory: string, isBuilt: boolean }> => {
-        return await limitedFetch(`${remotePrefix}/getPackageLocation`, {
-          opts,
-          packageId,
-          packageName,
-        }) as { directory: string, isBuilt: boolean }
-      },
-      importPackage: async (from: string, to: string, opts: {
-        filesResponse: PackageFilesResponse,
-        force: boolean,
+      importPackage: (to: string, opts: {
+        filesResponse: PackageFilesResponse
+        force: boolean
       }) => {
-        await limitedFetch(`${remotePrefix}/importPackage`, {
-          from,
+        return limitedFetch(`${remotePrefix}/importPackage`, {
           opts,
           to,
-        })
+        }) as Promise<{ importMethod: string | undefined, isBuilt: boolean }>
       },
       prune: async () => {
         await limitedFetch(`${remotePrefix}/prune`, {})
       },
       requestPackage: requestPackage.bind(null, remotePrefix, limitedFetch),
-      saveState: async () => {
-        await limitedFetch(`${remotePrefix}/saveState`, {})
+      stop: async () => {
+        await limitedFetch(`${remotePrefix}/stop`, {})
       },
-      stop: async () => { await limitedFetch(`${remotePrefix}/stop`, {}) },
-      updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
-        await limitedFetch(`${remotePrefix}/updateConnections`, {
-          opts,
-          prefix,
-        })
-      },
-      upload: async (builtPkgLocation: string, opts: {packageId: string, engine: string}) => {
+      upload: async (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,
           opts,
@@ -82,7 +56,7 @@ export default function (
   })
 }
 
-function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: string, body: object): Promise<T> { // tslint:disable-line
+function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: string, body: object): Promise<T> { // eslint-disable-line
   return limit(async () => {
     // TODO: the http://unix: should be also supported by the fetcher
     // but it fails with node-fetch-unix as of v2.3.0
@@ -110,9 +84,9 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
 
 function requestPackage (
   remotePrefix: string,
-  limitedFetch: (url: string, body: object) => any, // tslint:disable-line
+  limitedFetch: (url: string, body: object) => any, // eslint-disable-line
   wantedDependency: WantedDependency,
-  options: RequestPackageOptions,
+  options: RequestPackageOptions
 ): Promise<PackageResponse> {
   const msgId = uuid.v4()
 
@@ -121,62 +95,64 @@ function requestPackage (
     options,
     wantedDependency,
   })
-  .then((packageResponseBody: object) => {
-    const fetchingBundledManifest = !packageResponseBody['fetchingBundledManifestInProgress'] // tslint:disable-line
-      ? undefined
-      : limitedFetch(`${remotePrefix}/rawManifestResponse`, {
+    .then((packageResponseBody: object) => {
+    const fetchingBundledManifest = !packageResponseBody['fetchingBundledManifestInProgress'] // eslint-disable-line
+        ? undefined
+        : limitedFetch(`${remotePrefix}/rawManifestResponse`, {
+          msgId,
+        })
+    delete packageResponseBody['fetchingBundledManifestInProgress'] // eslint-disable-line
+
+      if (options.skipFetch) {
+        return {
+          body: packageResponseBody,
+          bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
+        }
+      }
+
+      const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
         msgId,
       })
-    delete packageResponseBody['fetchingBundledManifestInProgress'] // tslint:disable-line
-
-    if (options.skipFetch) {
       return {
         body: packageResponseBody,
         bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
+        files: pShare(fetchingFiles),
+        finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
       }
-    }
-
-    const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
-      msgId,
     })
-    return {
-      body: packageResponseBody,
-      bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
-      files: pShare(fetchingFiles),
-      finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
-    }
-  })
 }
 
 function fetchPackage (
   remotePrefix: string,
-  limitedFetch: (url: string, body: object) => any, // tslint:disable-line
-  options: FetchPackageToStoreOptions,
+  limitedFetch: (url: string, body: object) => any, // eslint-disable-line
+  options: FetchPackageToStoreOptions
 ): {
-  files: () => Promise<PackageFilesResponse>,
-  bundledManifest?: () => Promise<DependencyManifest>,
-  finishing: () => Promise<void>,
-  inStoreLocation: string,
-} {
+    bundledManifest?: () => Promise<DependencyManifest>
+    files: () => Promise<PackageFilesResponse>
+    filesIndexFile: string
+    finishing: () => Promise<void>
+    inStoreLocation: string
+  } {
   const msgId = uuid.v4()
 
   return limitedFetch(`${remotePrefix}/fetchPackage`, {
     msgId,
     options,
   })
-  .then((fetchResponseBody: object & {inStoreLocation: string}) => {
-    const fetchingBundledManifest = options.fetchRawManifest
-      ? limitedFetch(`${remotePrefix}/rawManifestResponse`, { msgId })
-      : undefined
+    .then((fetchResponseBody: object & {filesIndexFile: string, inStoreLocation: string}) => {
+      const fetchingBundledManifest = options.fetchRawManifest
+        ? limitedFetch(`${remotePrefix}/rawManifestResponse`, { msgId })
+        : undefined
 
-    const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
-      msgId,
+      const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
+        msgId,
+      })
+      return {
+        bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
+        files: pShare(fetchingFiles),
+        filesIndexFile: fetchResponseBody.filesIndexFile,
+        finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
+        inStoreLocation: fetchResponseBody.inStoreLocation,
+      }
     })
-    return {
-      bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
-      files: pShare(fetchingFiles),
-      finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
-      inStoreLocation: fetchResponseBody.inStoreLocation,
-    }
-  })
 }

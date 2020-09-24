@@ -1,30 +1,28 @@
 {
   "name": "find-packages",
-  "version": "5.1.0",
+  "version": "7.0.16",
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "typings": "lib/index.d.ts",
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "tsc": "tsc",
-    "prepublishOnly": "pnpm run tsc"
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages",
   "keywords": [
     "find",
     "package"
   ],
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "license": "MIT",
   "bugs": {
@@ -32,12 +30,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages#readme",
   "devDependencies": {
-    "find-packages": "link:",
-    "tape": "4.11.0"
+    "find-packages": "link:"
   },
   "dependencies": {
-    "@pnpm/read-importer-manifest": "workspace:1.0.9",
-    "fast-glob": "^3.0.0",
-    "p-filter": "^2.0.0"
-  }
+    "@pnpm/read-project-manifest": "workspace:1.0.13",
+    "@pnpm/types": "workspace:6.2.0",
+    "fast-glob": "^3.2.4",
+    "p-filter": "^2.1.0"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

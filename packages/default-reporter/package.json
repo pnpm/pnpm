@@ -1,69 +1,65 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "4.0.0-2",
+  "version": "7.9.1",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "pretty-test": "ts-node test | tap-diff",
-    "test": "pnpm run lint && pnpm run just-test",
     "just-test-preview": "ts-node test --type-check",
-    "just-test": "pnpm run tsc && ts-node test --type-check",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc"
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/default-reporter/coverage ts-node packages/default-reporter/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/default-reporter",
   "keywords": [
     "pnpm-reporter"
   ],
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/",
-    "twitter": "ZoltanKochan"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:4.0.0-2",
-    "@pnpm/core-loggers": "workspace:3.0.3",
-    "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/types": "workspace:3.2.0",
-    "@zkochan/zen-push": "1.0.0",
-    "ansi-diff": "1.1.1",
-    "chalk": "2.4.2",
-    "common-tags": "1.8.0",
-    "most": "1.7.3",
-    "normalize-path": "3.0.0",
-    "pretty-bytes": "5.3.0",
-    "pretty-time": "1.1.0",
-    "ramda": "0.26.1",
-    "right-pad": "1.0.1",
-    "semver": "6.3.0",
-    "stacktracey": "1.2.117",
-    "string-length": "3.1.0",
-    "strip-ansi": "5.2.0"
+    "@pnpm/config": "workspace:11.3.0",
+    "@pnpm/core-loggers": "workspace:5.0.0",
+    "@pnpm/error": "workspace:1.3.1",
+    "@pnpm/types": "workspace:6.2.0",
+    "ansi-diff": "^1.1.1",
+    "chalk": "^4.1.0",
+    "normalize-path": "^3.0.0",
+    "pretty-bytes": "^5.4.1",
+    "pretty-ms": "^7.0.0",
+    "pretty-time": "^1.1.0",
+    "ramda": "^0.27.1",
+    "right-pad": "^1.0.1",
+    "rxjs": "^6.6.3",
+    "semver": "^7.3.2",
+    "stacktracey": "^1.2.127",
+    "string-length": "^4.0.1",
+    "strip-ansi": "^6.0.0"
   },
   "devDependencies": {
     "@pnpm/default-reporter": "link:",
-    "@pnpm/logger": "2.1.1",
-    "@types/common-tags": "1.8.0",
-    "@types/ramda": "0.26.21",
-    "@types/semver": "6",
-    "delay": "4.3.0",
+    "@pnpm/logger": "^3.2.2",
+    "@types/normalize-path": "^3.0.0",
+    "@types/pretty-time": "^1.1.0",
+    "@types/ramda": "^0.27.15",
+    "@types/semver": "^7.3.3",
+    "delay": "^4.4.0",
     "ghooks": "2.0.4",
-    "load-json-file": "6.2.0",
-    "normalize-newline": "3.0.0",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0"
-  }
+    "load-json-file": "^6.2.0",
+    "normalize-newline": "3.0.0"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/default-reporter#readme",
+  "funding": "https://opencollective.com/pnpm"
 }

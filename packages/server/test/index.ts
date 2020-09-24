@@ -1,38 +1,30 @@
-///<reference path="../../../typings/index.d.ts"/>
-import createResolver, { PackageMetaCache } from '@pnpm/npm-resolver'
+/// <reference path="../../../typings/index.d.ts"/>
+import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
-import { connectStoreController, createServer, } from '@pnpm/server'
-import { PackageFilesResponse, ResolveFunction } from '@pnpm/store-controller-types'
-import createFetcher from '@pnpm/tarball-fetcher'
-import rimraf = require('@zkochan/rimraf')
-import isPortReachable = require('is-port-reachable')
-import fs = require('mz/fs')
+import { connectStoreController, createServer } from '@pnpm/server'
 import fetch from 'node-fetch'
 import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import isPortReachable = require('is-port-reachable')
+import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
 import test = require('tape')
+import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
 
-const store = '.store'
-
-async function createStoreController () {
-  const rawNpmConfig = { registry }
-  const resolve = createResolver({
-    metaCache: new Map<string, object>() as PackageMetaCache,
-    rawNpmConfig,
-    store,
-  }) as ResolveFunction
-  const fetchers = createFetcher({
-    alwaysAuth: true,
-    rawNpmConfig,
-    registry,
-    strictSsl: true,
+function createStoreController (storeDir?: string) {
+  if (!storeDir) {
+    storeDir = tempy.directory()
+  }
+  const authConfig = { registry }
+  const { resolve, fetchers } = createClient({
+    authConfig,
+    storeDir,
   })
   return createStore(resolve, fetchers, {
-    locks: undefined,
-    lockStaleDuration: 100,
     networkConcurrency: 1,
-    store: store,
+    storeDir,
     verifyStoreIntegrity: true,
   })
 }
@@ -47,14 +39,14 @@ test('server', async t => {
     port,
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
-  const prefix = process.cwd()
+  const projectDir = process.cwd()
   const response = await storeCtrl.requestPackage(
     { alias: 'is-positive', pref: '1.0.0' },
     {
       downloadPriority: 0,
-      lockfileDirectory: prefix,
+      lockfileDir: projectDir,
       preferredVersions: {},
-      prefix,
+      projectDir,
       registry,
       sideEffectsCache: false,
     }
@@ -68,7 +60,7 @@ test('server', async t => {
 
   const files = await response.files!()
   t.notOk(files.fromStore)
-  t.ok(files.filenames.includes('package.json'))
+  t.ok(files.filesIndex['package.json'])
   t.ok(response.finishing)
 
   await response.finishing!()
@@ -82,7 +74,8 @@ test('fetchPackage', async t => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
-  const storeCtrlForServer = await createStoreController()
+  const storeDir = tempy.directory()
+  const storeCtrlForServer = await createStoreController(storeDir)
   const server = createServer(storeCtrlForServer, {
     hostname,
     port,
@@ -92,8 +85,8 @@ test('fetchPackage', async t => {
   const response = await storeCtrl.fetchPackage({
     fetchRawManifest: true,
     force: false,
+    lockfileDir: process.cwd(),
     pkgId,
-    prefix: process.cwd(),
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -101,28 +94,18 @@ test('fetchPackage', async t => {
     },
   })
 
-  t.equal(typeof response.inStoreLocation, 'string', 'location in store returned')
+  t.equal(typeof response.filesIndexFile, 'string', 'index file location in store returned')
 
   t.ok(await response.bundledManifest!())
 
-  const files = await response['files']() as PackageFilesResponse
+  const files = await response['files']()
   t.notOk(files.fromStore)
-  t.ok(files.filenames.includes('package.json'))
+  t.ok(files.filesIndex['package.json'])
   t.ok(response['finishing'])
 
   await response['finishing']()
 
   t.comment('getPackageLocation()')
-
-  t.deepEqual(
-    await storeCtrl.getPackageLocation(pkgId, 'is-positive', {
-      lockfileDirectory: process.cwd(),
-    }),
-    {
-      directory: path.join(store, pkgId, 'node_modules', 'is-positive'),
-      isBuilt: false,
-    },
-  )
 
   await server.close()
   await storeCtrl.close()
@@ -141,25 +124,27 @@ test('server errors should arrive to the client', async t => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   let caught = false
   try {
-    const prefix = process.cwd()
+    const projectDir = process.cwd()
     await storeCtrl.requestPackage(
       { alias: 'not-an-existing-package', pref: '1.0.0' },
       {
         downloadPriority: 0,
-        lockfileDirectory: prefix,
+        lockfileDir: projectDir,
         preferredVersions: {},
-        prefix,
+        projectDir,
         registry,
         sideEffectsCache: false,
       }
     )
   } catch (e) {
     caught = true
-    t.equal(e.message, '404 Not Found: not-an-existing-package (via https://registry.npmjs.org/not-an-existing-package)', 'error message delivered correctly')
-    t.equal(e.code, 'ERR_PNPM_REGISTRY_META_RESPONSE_404', 'error code delivered correctly')
-    t.ok(e.uri, 'error uri field delivered')
+    t.equal(e.message, 'GET https://registry.npmjs.org/not-an-existing-package: Not Found - 404', 'error message delivered correctly')
+    t.equal(e.hint, `not-an-existing-package is not in the npm registry, or you have no permission to fetch it.
+
+No authorization header was set for the request.`)
+    t.equal(e.code, 'ERR_PNPM_FETCH_404', 'error code delivered correctly')
     t.ok(e.response, 'error response field delivered')
-    t.ok(e.package, 'error package field delivered')
+    t.ok(e.pkgName, 'error package field delivered')
   }
   t.ok(caught, 'exception raised correctly')
 
@@ -172,7 +157,8 @@ test('server upload', async t => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
-  const storeCtrlForServer = await createStoreController()
+  const storeDir = tempy.directory()
+  const storeCtrlForServer = await createStoreController(storeDir)
   const server = createServer(storeCtrlForServer, {
     hostname,
     port,
@@ -180,16 +166,15 @@ test('server upload', async t => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
-  const fakePkgId = 'test.example.com/fake-pkg/1.0.0'
+  const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
 
   await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
     engine: fakeEngine,
-    packageId: fakePkgId,
+    filesIndexFile,
   })
 
-  const cachePath = path.join('.store', fakePkgId, 'side_effects', fakeEngine, 'package')
-  t.ok(await fs.exists(cachePath), 'cache directory created')
-  t.deepEqual(await fs.readdir(cachePath), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
+  const cacheIntegrity = await loadJsonFile(filesIndexFile)
+  t.deepEqual(Object.keys(cacheIntegrity['sideEffects'][fakeEngine]).sort(), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
 
   await server.close()
   await storeCtrl.close()
@@ -211,21 +196,21 @@ test('disable server upload', async t => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
-  const fakePkgId = 'test.example.com/fake-pkg/1.0.0'
+  const storeDir = tempy.directory()
+  const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
 
   let thrown = false
   try {
     await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
       engine: fakeEngine,
-      packageId: fakePkgId,
+      filesIndexFile,
     })
   } catch (e) {
     thrown = true
   }
   t.ok(thrown, 'error is thrown when trying to upload')
 
-  const cachePath = path.join('.store', fakePkgId, 'side_effects', fakeEngine, 'package')
-  t.notOk(await fs.exists(cachePath), 'cache directory not created')
+  t.notOk(await fs.exists(filesIndexFile), 'cache directory not created')
 
   await server.close()
   await storeCtrl.close()
@@ -237,7 +222,7 @@ test('stop server with remote call', async t => {
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
-  const server = createServer(storeCtrlForServer, {
+  createServer(storeCtrlForServer, {
     hostname,
     ignoreStopRequests: false,
     port,
@@ -296,58 +281,6 @@ test('disallow store prune', async t => {
   t.end()
 })
 
-test('find package usages', async t => {
-  const port = 5813
-  const hostname = '127.0.0.1'
-  const remotePrefix = `http://${hostname}:${port}`
-  const storeCtrlForServer = await createStoreController()
-  const server = createServer(storeCtrlForServer, {
-    hostname,
-    port,
-  })
-  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
-
-  const dependency = { alias: 'is-positive', pref: '1.0.0' }
-
-  const prefix = process.cwd()
-  // First install a dependency
-  const requestResponse = await storeCtrl.requestPackage(
-    dependency,
-    {
-      downloadPriority: 0,
-      lockfileDirectory: prefix,
-      preferredVersions: {},
-      prefix,
-      registry,
-      sideEffectsCache: false,
-    }
-  )
-  await requestResponse.bundledManifest!()
-  await requestResponse.finishing!()
-
-  // For debugging purposes
-  await storeCtrl.saveState()
-
-  // Now check if usages shows up
-  const packageUsagesByPackageSelectors = await storeCtrl.findPackageUsages(['/is-positive/1.0.0'])
-
-  t.deepEqual(
-    packageUsagesByPackageSelectors,
-    {
-      '/is-positive/1.0.0': [
-        {
-          packageId: 'registry.npmjs.org/is-positive/1.0.0',
-          usages: [],
-        },
-      ],
-    },
-  )
-
-  await server.close()
-  await storeCtrl.close()
-  t.end()
-})
-
 test('server should only allow POST', async (t) => {
   const port = 5813
   const hostname = '127.0.0.1'
@@ -363,7 +296,7 @@ test('server should only allow POST', async (t) => {
   // Try various methods (not including POST)
   const methods = ['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 
-  for (let method of methods) {
+  for (const method of methods) {
     t.comment(`Testing HTTP ${method}`)
     // Ensure 405 error is received
     const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: method })

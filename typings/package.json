@@ -1,3 +1,5 @@
 {
+  "name": "@pnpm-private/typings",
+  "version": "0.0.0",
   "private": true
 }

@@ -1,46 +1,53 @@
-import semver = require('semver')
+import { VersionSelectors } from '@pnpm/resolver-base'
 import { RegistryPackageSpec } from './parsePref'
 import { PackageInRegistry, PackageMeta } from './pickPackage'
+import semver = require('semver')
 
 export default function (
   spec: RegistryPackageSpec,
-  preferredVersionSelector: {
-    selector: string,
-    type: 'version' | 'range' | 'tag',
-  } | undefined,
-  meta: PackageMeta,
+  preferredVersionSelectors: VersionSelectors | undefined,
+  meta: PackageMeta
 ): PackageInRegistry {
   let version!: string
   switch (spec.type) {
-    case 'version':
-      version = spec.fetchSpec
-      break
-    case 'tag':
-      version = meta['dist-tags'][spec.fetchSpec]
-      break
-    case 'range':
-      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelector)
-      break
+  case 'version':
+    version = spec.fetchSpec
+    break
+  case 'tag':
+    version = meta['dist-tags'][spec.fetchSpec]
+    break
+  case 'range':
+    version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
+    break
   }
-  return meta.versions[version]
+  const manifest = meta.versions[version]
+  if (manifest && meta['name']) {
+    // Packages that are published to the GitHub registry are always published with a scope.
+    // However, the name in the package.json for some reason may omit the scope.
+    // So the package published to the GitHub registry will be published under @foo/bar
+    // but the name in package.json will be just bar.
+    // In order to avoid issues, we consider that the real name of the package is the one with the scope.
+    manifest.name = meta['name']
+  }
+  return manifest
 }
 
 function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSel?: {
-    type: 'version' | 'range' | 'tag',
-    selector: string,
-  },
+  preferredVerSels?: VersionSelectors
 ) {
   let versions: string[] | undefined
   const latest = meta['dist-tags'].latest
 
-  if (preferredVerSel && preferredVerSel.selector !== versionRange) {
+  const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
+  if (preferredVerSelsArr.length) {
     const preferredVersions: string[] = []
-    switch (preferredVerSel.type) {
+    for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
+      if (preferredSelector === versionRange) continue
+      switch (preferredSelectorType) {
       case 'tag': {
-        preferredVersions.push(meta['dist-tags'][preferredVerSel.selector])
+        preferredVersions.push(meta['dist-tags'][preferredSelector])
         break
       }
       case 'range': {
@@ -49,17 +56,18 @@ function pickVersionByVersionRange (
         // If it will create noticable slowdown, then might be a good idea to add some caching
         versions = Object.keys(meta.versions)
         for (const version of versions) {
-          if (semver.satisfies(version, preferredVerSel.selector, true)) {
+          if (semver.satisfies(version, preferredSelector, true)) {
             preferredVersions.push(version)
           }
         }
         break
       }
       case 'version': {
-        if (meta.versions[preferredVerSel.selector]) {
-          preferredVersions.push(preferredVerSel.selector)
+        if (meta.versions[preferredSelector]) {
+          preferredVersions.push(preferredSelector)
         }
         break
+      }
       }
     }
 
@@ -77,7 +85,7 @@ function pickVersionByVersionRange (
   if (versionRange === '*' || semver.satisfies(latest, versionRange, true)) {
     return latest
   }
-  versions = versions || Object.keys(meta.versions)
+  versions = versions ?? Object.keys(meta.versions)
 
   const maxVersion = semver.maxSatisfying(versions, versionRange, true)
 

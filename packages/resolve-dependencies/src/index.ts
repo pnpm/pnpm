@@ -1,225 +1,320 @@
-import { Lockfile } from '@pnpm/lockfile-types'
-import { LocalPackages, Resolution } from '@pnpm/resolver-base'
-import { StoreController } from '@pnpm/store-controller-types'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  ReadPackageHook,
+  packageManifestLogger,
+} from '@pnpm/core-loggers'
+import {
+  Lockfile,
+  ProjectSnapshot,
+} from '@pnpm/lockfile-types'
+import {
+  getAllDependenciesFromManifest,
+  getSpecFromPackageManifest,
+  PinnedVersion,
+} from '@pnpm/manifest-utils'
+import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
+import {
+  DEPENDENCIES_FIELDS,
+  DependencyManifest,
+  ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import {
-  createNodeId,
-  nodeIdContainsSequence,
-  WantedDependency,
-} from '@pnpm/utils'
-import resolveDependencies, {
-  ChildrenByParentId,
-  DependenciesTree,
+import depPathToRef from './depPathToRef'
+import resolveDependencyTree, {
+  Importer,
   LinkedDependency,
-  PendingNode,
-  PkgAddress,
-  ResolvedPackagesByPackageId,
-} from './resolveDependencies'
+  ResolveDependenciesOptions,
+  ResolvedDirectDependency,
+  ResolvedPackage,
+} from './resolveDependencyTree'
+import resolvePeers, {
+  GenericDependenciesGraph,
+  GenericDependenciesGraphNode,
+} from './resolvePeers'
+import updateLockfile from './updateLockfile'
+import updateProjectManifest from './updateProjectManifest'
+import path = require('path')
+import R = require('ramda')
 
-export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
+export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 
-export interface Importer {
-  id: string,
-  modulesDir: string,
-  preferredVersions?: {
-    [packageName: string]: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
-    },
-  },
-  prefix: string,
-  wantedDependencies: Array<WantedDependency & { updateDepth: number }>,
+export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
+
+export {
+  LinkedDependency,
+  ResolvedPackage,
+}
+
+interface ProjectToLink {
+  binsDir: string
+  directNodeIdsByAlias: {[alias: string]: string}
+  id: string
+  linkedDependencies: LinkedDependency[]
+  manifest: ProjectManifest
+  modulesDir: string
+  rootDir: string
+  topParents: Array<{name: string, version: string}>
+}
+
+export type ImporterToResolve = Importer<{
+  isNew?: boolean
+  pinnedVersion?: PinnedVersion
+  raw: string
+  updateSpec?: boolean
+}>
+& {
+  binsDir: string
+  manifest: ProjectManifest
+  originalManifest?: ProjectManifest
+  updatePackageManifest: boolean
 }
 
 export default async function (
-  importers: Importer[],
-  opts: {
-    currentLockfile: Lockfile,
-    dryRun: boolean,
-    engineStrict: boolean,
-    force: boolean,
-    hooks: {
-      readPackage?: ReadPackageHook,
-    },
-    nodeVersion: string,
-    registries: Registries,
-    resolutionStrategy?: 'fast' | 'fewer-dependencies',
-    pnpmVersion: string,
-    sideEffectsCache: boolean,
-    lockfileDirectory: string,
-    storeController: StoreController,
-    tag: string,
-    virtualStoreDir: string,
-    wantedLockfile: Lockfile,
-    localPackages: LocalPackages,
-    updateLockfile: boolean,
-  },
-) {
-  const directNonLinkedDepsByImporterId = {} as {[id: string]: PkgAddress[]}
-  const linkedDependenciesByImporterId = {}
-
-  const wantedToBeSkippedPackageIds = new Set<string>()
-  const ctx = {
-    childrenByParentId: {} as ChildrenByParentId,
-    currentLockfile: opts.currentLockfile,
-    defaultTag: opts.tag,
-    dependenciesTree: {} as DependenciesTree,
-    dryRun: opts.dryRun,
-    engineStrict: opts.engineStrict,
-    force: opts.force,
-    lockfileDirectory: opts.lockfileDirectory,
-    nodeVersion: opts.nodeVersion,
-    outdatedDependencies: {} as {[pkgId: string]: string},
-    pendingNodes: [] as PendingNode[],
-    pnpmVersion: opts.pnpmVersion,
-    readPackageHook: opts.hooks.readPackage,
-    registries: opts.registries,
-    resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
-    sideEffectsCache: opts.sideEffectsCache,
-    skipped: wantedToBeSkippedPackageIds,
-    storeController: opts.storeController,
-    updateLockfile: opts.updateLockfile,
-    virtualStoreDir: opts.virtualStoreDir,
-    wantedLockfile: opts.wantedLockfile,
+  importers: ImporterToResolve[],
+  opts: ResolveDependenciesOptions & {
+    preserveWorkspaceProtocol: boolean
+    saveWorkspaceProtocol: boolean
+    strictPeerDependencies: boolean
   }
+) {
+  const {
+    dependenciesTree,
+    outdatedDependencies,
+    resolvedImporters,
+    resolvedPackagesByDepPath,
+    wantedToBeSkippedPackageIds,
+  } = await resolveDependencyTree(importers, opts)
 
-  await Promise.all(importers.map(async (importer) => {
-    const lockfileImporter = opts.wantedLockfile.importers[importer.id]
-    // This array will only contain the dependencies that should be linked in.
-    // The already linked-in dependencies will not be added.
-    const linkedDependencies = [] as LinkedDependency[]
-    const resolveCtx = {
-      ...ctx,
-      linkedDependencies,
-      modulesDir: importer.modulesDir,
-      prefix: importer.prefix,
-      resolutionStrategy: opts.resolutionStrategy || 'fast',
+  const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
+  const projectsToLink = await Promise.all<ProjectToLink>(importers.map(async (project, index) => {
+    const resolvedImporter = resolvedImporters[project.id]
+    linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
+    let updatedManifest: ProjectManifest | undefined = project.manifest
+    let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
+    if (project.updatePackageManifest) {
+      const manifests = await updateProjectManifest(importers[index], {
+        directDependencies: resolvedImporter.directDependencies,
+        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
+        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+      })
+      updatedManifest = manifests[0]
+      updatedOriginalManifest = manifests[1]
+    } else {
+      packageManifestLogger.debug({
+        prefix: project.rootDir,
+        updated: project.manifest,
+      })
     }
-    const resolveOpts = {
-      currentDepth: 0,
-      localPackages: opts.localPackages,
-      parentDependsOnPeers: true,
-      parentNodeId: `>${importer.id}>`,
-      preferredVersions: importer.preferredVersions || {},
-      proceed: true,
-      resolvedDependencies: {
-        ...lockfileImporter.dependencies,
-        ...lockfileImporter.devDependencies,
-        ...lockfileImporter.optionalDependencies,
-      },
-      updateDepth: -1,
+
+    if (updatedManifest) {
+      const projectSnapshot = opts.wantedLockfile.importers[project.id]
+      opts.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
+        updatedManifest,
+        projectSnapshot,
+        resolvedImporter.linkedDependencies,
+        resolvedImporter.directDependencies,
+        opts.registries
+      )
     }
-    directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
-      resolveCtx,
-      importer.wantedDependencies,
-      resolveOpts,
-    )
-    linkedDependenciesByImporterId[importer.id] = linkedDependencies
+
+    const topParents = project.manifest
+      ? await getTopParents(
+        R.difference(
+          Object.keys(getAllDependenciesFromManifest(project.manifest)),
+          resolvedImporter.directDependencies
+            .filter((dep, index) => project.wantedDependencies[index].isNew === true)
+            .map(({ alias }) => alias) || []
+        ),
+        project.modulesDir
+      )
+      : []
+
+    project.manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
+    return {
+      binsDir: project.binsDir,
+      directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
+      id: project.id,
+      linkedDependencies: resolvedImporter.linkedDependencies,
+      manifest: project.manifest,
+      modulesDir: project.modulesDir,
+      rootDir: project.rootDir,
+      topParents,
+    }
   }))
 
-  ctx.pendingNodes.forEach((pendingNode) => {
-    ctx.dependenciesTree[pendingNode.nodeId] = {
-      children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
-        ctx.childrenByParentId[pendingNode.resolvedPackage.id], pendingNode.depth + 1, pendingNode.installable),
-      depth: pendingNode.depth,
-      installable: pendingNode.installable,
-      resolvedPackage: pendingNode.resolvedPackage,
-    }
+  const {
+    dependenciesGraph,
+    dependenciesByProjectId,
+  } = resolvePeers({
+    dependenciesTree,
+    lockfileDir: opts.lockfileDir,
+    projects: projectsToLink,
+    strictPeerDependencies: opts.strictPeerDependencies,
+    virtualStoreDir: opts.virtualStoreDir,
   })
 
-  const resolvedImporters = {} as {
-    [id: string]: {
-      directDependencies: Array<{
-        alias: string,
-        optional: boolean,
-        dev: boolean,
-        resolution: Resolution,
-        id: string,
-        version: string,
-        name: string,
-        specRaw: string,
-        normalizedPref?: string,
-      }>,
-      directNodeIdsByAlias: {
-        [alias: string]: string,
-      },
-      linkedDependencies: LinkedDependency[],
-    },
-  }
+  for (const { id } of projectsToLink) {
+    for (const [alias, depPath] of R.toPairs(dependenciesByProjectId[id])) {
+      const depNode = dependenciesGraph[depPath]
+      if (depNode.isPure) continue
 
-  for (const { id } of importers) {
-    const directNonLinkedDeps = directNonLinkedDepsByImporterId[id]
-    const linkedDependencies = linkedDependenciesByImporterId[id]
-
-    resolvedImporters[id] = {
-      directDependencies: [
-        ...directNonLinkedDeps
-          .map(({ alias, nodeId, normalizedPref, specRaw }) => ({
-            ...ctx.dependenciesTree[nodeId].resolvedPackage,
-            alias,
-            normalizedPref,
-            specRaw,
-          })) as Array<{
-            alias: string,
-            optional: boolean,
-            dev: boolean,
-            resolution: Resolution,
-            id: string,
-            version: string,
-            name: string,
-            specRaw: string,
-            normalizedPref?: string,
-          }>,
-        ...linkedDependencies,
-      ],
-      directNodeIdsByAlias: directNonLinkedDeps
-        .reduce((acc, dependency) => {
-          acc[dependency.alias] = dependency.nodeId
-          return acc
-        }, {}),
-      linkedDependencies,
+      const projectSnapshot = opts.wantedLockfile.importers[id]
+      const ref = depPathToRef(depPath, {
+        alias,
+        realName: depNode.name,
+        registries: opts.registries,
+        resolution: depNode.resolution,
+      })
+      if (projectSnapshot.dependencies?.[alias]) {
+        projectSnapshot.dependencies[alias] = ref
+      } else if (projectSnapshot.devDependencies?.[alias]) {
+        projectSnapshot.devDependencies[alias] = ref
+      } else if (projectSnapshot.optionalDependencies?.[alias]) {
+        projectSnapshot.optionalDependencies[alias] = ref
+      }
     }
   }
+  const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
+
+  // waiting till package requests are finished
+  const waitTillAllFetchingsFinish = () => Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
 
   return {
-    dependenciesTree: ctx.dependenciesTree,
-    outdatedDependencies: ctx.outdatedDependencies,
-    resolvedImporters,
-    resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
+    dependenciesByProjectId,
+    dependenciesGraph,
+    finishLockfileUpdates: finishLockfileUpdates.bind(null, dependenciesGraph, pendingRequiresBuilds, newLockfile),
+    outdatedDependencies,
+    linkedDependenciesByProjectId,
+    newLockfile,
+    waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
   }
 }
 
-function buildTree (
-  ctx: {
-    childrenByParentId: ChildrenByParentId,
-    dependenciesTree: DependenciesTree,
-    resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
-    skipped: Set<string>,
-  },
-  parentNodeId: string,
-  parentId: string,
-  children: Array<{alias: string, pkgId: string}>,
-  depth: number,
-  installable: boolean,
+function finishLockfileUpdates (
+  dependenciesGraph: DependenciesGraph,
+  pendingRequiresBuilds: string[],
+  newLockfile: Lockfile
 ) {
-  const childrenNodeIds = {}
-  for (const child of children) {
-    if (nodeIdContainsSequence(parentNodeId, parentId, child.pkgId)) {
-      continue
+  return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
+    const depNode = dependenciesGraph[depPath]
+    if (!depNode.fetchingBundledManifest) {
+      // This should never ever happen
+      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
     }
-    const childNodeId = createNodeId(parentNodeId, child.pkgId)
-    childrenNodeIds[child.alias] = childNodeId
-    installable = installable && !ctx.skipped.has(child.pkgId)
-    ctx.dependenciesTree[childNodeId] = {
-      children: () => buildTree(ctx, childNodeId, child.pkgId, ctx.childrenByParentId[child.pkgId], depth + 1, installable),
-      depth,
-      installable,
-      resolvedPackage: ctx.resolvedPackagesByPackageId[child.pkgId],
+    const filesResponse = await depNode.fetchingFiles()
+    // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+    const pkgJson = await depNode.fetchingBundledManifest()
+    depNode.requiresBuild = Boolean(
+      pkgJson.scripts != null && (
+        Boolean(pkgJson.scripts.preinstall) ||
+        Boolean(pkgJson.scripts.install) ||
+        Boolean(pkgJson.scripts.postinstall)
+      ) ||
+      filesResponse.filesIndex['binding.gyp'] ||
+        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
+    )
+
+    // TODO: try to cover with unit test the case when entry is no longer available in lockfile
+    // It is an edge that probably happens if the entry is removed during lockfile prune
+    if (depNode.requiresBuild && newLockfile.packages![depPath]) {
+      newLockfile.packages![depPath].requiresBuild = true
+    }
+  }))
+}
+
+function addDirectDependenciesToLockfile (
+  newManifest: ProjectManifest,
+  projectSnapshot: ProjectSnapshot,
+  linkedPackages: Array<{alias: string}>,
+  directDependencies: ResolvedDirectDependency[],
+  registries: Registries
+): ProjectSnapshot {
+  const newProjectSnapshot = {
+    dependencies: {},
+    devDependencies: {},
+    optionalDependencies: {},
+    specifiers: {},
+  }
+
+  linkedPackages.forEach((linkedPkg) => {
+    newProjectSnapshot.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
+  })
+
+  const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
+    acc[directDependency.alias] = directDependency
+    return acc
+  }, {})
+
+  const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
+
+  for (const alias of allDeps) {
+    if (directDependenciesByAlias[alias]) {
+      const dep = directDependenciesByAlias[alias]
+      const ref = depPathToRef(dep.pkgId, {
+        alias: dep.alias,
+        realName: dep.name,
+        registries,
+        resolution: dep.resolution,
+      })
+      if (dep.dev) {
+        newProjectSnapshot.devDependencies[dep.alias] = ref
+      } else if (dep.optional) {
+        newProjectSnapshot.optionalDependencies[dep.alias] = ref
+      } else {
+        newProjectSnapshot.dependencies[dep.alias] = ref
+      }
+      newProjectSnapshot.specifiers[dep.alias] = getSpecFromPackageManifest(newManifest, dep.alias)
+    } else if (projectSnapshot.specifiers[alias]) {
+      newProjectSnapshot.specifiers[alias] = projectSnapshot.specifiers[alias]
+      if (projectSnapshot.dependencies?.[alias]) {
+        newProjectSnapshot.dependencies[alias] = projectSnapshot.dependencies[alias]
+      } else if (projectSnapshot.optionalDependencies?.[alias]) {
+        newProjectSnapshot.optionalDependencies[alias] = projectSnapshot.optionalDependencies[alias]
+      } else if (projectSnapshot.devDependencies?.[alias]) {
+        newProjectSnapshot.devDependencies[alias] = projectSnapshot.devDependencies[alias]
+      }
     }
   }
-  return childrenNodeIds
+
+  alignDependencyTypes(newManifest, newProjectSnapshot)
+
+  return newProjectSnapshot
+}
+
+function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: ProjectSnapshot) {
+  const depTypesOfAliases = getAliasToDependencyTypeMap(manifest)
+
+  // Aligning the dependency types in pnpm-lock.yaml
+  for (const depType of DEPENDENCIES_FIELDS) {
+    if (!projectSnapshot[depType]) continue
+    for (const alias of Object.keys(projectSnapshot[depType] ?? {})) {
+      if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
+      projectSnapshot[depTypesOfAliases[alias]][alias] = projectSnapshot[depType]![alias]
+      delete projectSnapshot[depType]![alias]
+    }
+  }
+}
+
+function getAliasToDependencyTypeMap (manifest: ProjectManifest) {
+  const depTypesOfAliases = {}
+  for (const depType of DEPENDENCIES_FIELDS) {
+    if (!manifest[depType]) continue
+    for (const alias of Object.keys(manifest[depType] ?? {})) {
+      if (!depTypesOfAliases[alias]) {
+        depTypesOfAliases[alias] = depType
+      }
+    }
+  }
+  return depTypesOfAliases
+}
+
+async function getTopParents (pkgNames: string[], modules: string) {
+  const pkgs = await Promise.all(
+    pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir)
+  )
+  return (
+    pkgs
+      .filter(Boolean) as DependencyManifest[]
+  )
+    .map(({ name, version }: DependencyManifest) => ({ name, version }))
 }

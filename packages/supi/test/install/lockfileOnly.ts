@@ -1,27 +1,31 @@
+import assertStore from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import path = require('path')
-import sinon = require('sinon')
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   install,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import exists = require('path-exists')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('install with lockfileOnly = true', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' })
+  const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
+  const { cafsHas } = assertStore(t, opts.storeDir)
 
-  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
-  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
+  await cafsHas('pkg-with-1-dep', '100.0.0')
+  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`)))
+  await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
+  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`)))
   await project.hasNot('pkg-with-1-dep')
 
   t.ok(manifest.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
@@ -37,8 +41,10 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   t.comment(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
   await install(manifest, opts)
 
-  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
-  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
+  await cafsHas('pkg-with-1-dep', '100.0.0')
+  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`)))
+  await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
+  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`)))
   await project.hasNot('pkg-with-1-dep')
 
   t.notOk(await project.readCurrentLockfile(), 'current lockfile not created')

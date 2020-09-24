@@ -1,21 +1,21 @@
 import { ResolveResult } from '@pnpm/resolver-base'
+import parsePref, { HostedPackageSpec } from './parsePref'
 import git = require('graceful-git')
 import semver = require('semver')
-import parsePref, { HostedPackageSpec } from './parsePref'
 
 export { HostedPackageSpec }
 
 export default function (
-  opts: {},
+  opts: {}
 ) {
   return async function resolveGit (
-    wantedDependency: {pref: string},
+    wantedDependency: {pref: string}
   ): Promise<ResolveResult | null> {
     const parsedSpec = await parsePref(wantedDependency.pref)
 
     if (!parsedSpec) return null
 
-    const commit = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish || 'master', parsedSpec.gitRange)
+    const commit = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish ?? 'master', parsedSpec.gitRange)
     let resolution
 
     if (parsedSpec.hosted && !isSsh(parsedSpec.fetchSpec)) {
@@ -23,7 +23,7 @@ export default function (
       const hosted = parsedSpec.hosted
       // use resolved committish
       hosted.committish = commit
-      const tarball = hosted.tarball()
+      const tarball = hosted.tarball?.()
 
       if (tarball) {
         resolution = { tarball }
@@ -96,13 +96,13 @@ function resolveRefFromRefs (refs: {[ref: string]: string}, repo: string, ref: s
     const vTags =
       Object.keys(refs)
         // using the same semantics of version tags as https://github.com/zkat/pacote
-      .filter((key: string) => /^refs\/tags\/v?(\d+\.\d+\.\d+(?:[-+].+)?)(\^{})?$/.test(key))
-      .map((key: string) => {
-        return key
-          .replace(/^refs\/tags\//, '')
-          .replace(/\^{}$/, '') // accept annotated tags
-      })
-      .filter((key: string) => semver.valid(key, true))
+        .filter((key: string) => /^refs\/tags\/v?(\d+\.\d+\.\d+(?:[-+].+)?)(\^{})?$/.test(key))
+        .map((key: string) => {
+          return key
+            .replace(/^refs\/tags\//, '')
+            .replace(/\^{}$/, '') // accept annotated tags
+        })
+        .filter((key: string) => semver.valid(key, true))
     const refVTag = resolveVTags(vTags, range)
     const commitId = refVTag &&
       (refs[`refs/tags/${refVTag}^{}`] || // prefer annotated tags
@@ -117,6 +117,6 @@ function resolveRefFromRefs (refs: {[ref: string]: string}, repo: string, ref: s
 }
 
 function isSsh (gitSpec: string): boolean {
-  return gitSpec.substr(0, 10) === 'git+ssh://'
-    || gitSpec.substr(0, 4) === 'git@'
+  return gitSpec.substr(0, 10) === 'git+ssh://' ||
+    gitSpec.substr(0, 4) === 'git@'
 }

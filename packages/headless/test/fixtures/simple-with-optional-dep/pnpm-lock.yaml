@@ -7,7 +7,7 @@ packages:
   /dep-of-pkg-with-1-dep/100.0.0:
     dev: false
     resolution:
-      integrity: sha512-JWH4RcjI/VmrhmpAzu0McfUiBX0C9PRcYmVTpPl0LXGnFnMtSlsoYskQRy1nz1+3FrlVXb7lON6sJUGgzvgexA==
+      integrity: sha512-lKXGmfrRNYKcd0+oWS8lZb08dbTm3WRbB5Lq3O35WigqJHNSsYIQB/lLrdTyJDBil9tS8SACdXp64zJXGk72jA==
   /is-positive/1.0.0:
     dev: false
     engines:
@@ -22,7 +22,7 @@ packages:
     optionalDependencies:
       is-positive: 1.0.0
     resolution:
-      integrity: sha512-8R+sVXJbtWl0aNu6HwqtMg36mOkwGgHcE5YECx53WylyvnO+SKSVsofRJpbCov/Gl01bqQyzmaSfqmg0IXWeSQ==
+      integrity: sha512-gos9k175h8q97LuQKrjZrdUiYsbWeCfG8g6jKDX4UU/D3IhpaEqbEoSlXC/W5NiojUNo/pZXikGrdnJl8miusw==
 specifiers:
   is-positive: 1.0.0
   pkg-with-good-optional: '*'

@@ -1,0 +1,10 @@
+{
+  "name": "wanted-shrinkwrap",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-negative": "^1.0.0"
+  },
+  "devDependencies": {
+    "is-positive": "2.0.0"
+  }
+}

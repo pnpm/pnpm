@@ -1,12 +1,11 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('fail if installed package does not support the current engine and engine-strict = true', async (t) => {
   const project = prepareEmpty(t)
@@ -61,7 +60,7 @@ test(`save cpu field to ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   t.deepEqual(
     lockfile.packages['/has-cpu-specified/1.0.0'].cpu,
     ['x64', 'ia32'],
-    `cpu field added to ${WANTED_LOCKFILE}`,
+    `cpu field added to ${WANTED_LOCKFILE}`
   )
 })
 
@@ -74,6 +73,6 @@ test(`engines field is not added to ${WANTED_LOCKFILE} when "node": "*" is in "e
 
   t.notOk(
     lockfile.packages['/jsonify/0.0.0'].engines,
-    `engines field is not added to ${WANTED_LOCKFILE}`,
+    `engines field is not added to ${WANTED_LOCKFILE}`
   )
 })

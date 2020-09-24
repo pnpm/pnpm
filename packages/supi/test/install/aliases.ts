@@ -1,20 +1,19 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('installing aliased dependency', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults())
+  await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('negative')
   t.ok(typeof m === 'function', 'negative() is available')
@@ -25,7 +24,7 @@ test('installing aliased dependency', async (t: tape.Test) => {
       negative: '/is-negative/1.0.0',
       positive: '/is-positive/3.1.0',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -67,9 +66,11 @@ test('aliased dependency w/o version spec, with custom tag config', async (t) =>
 })
 
 test('a dependency has an aliased subdependency', async (t: tape.Test) => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults())
+  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ fastUnpack: false }))
 
   t.equal(project.requireModule('pkg-with-1-aliased-dep')().name, 'dep-of-pkg-with-1-dep', 'can require aliased subdep')
 
@@ -77,7 +78,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
     dependencies: {
       'pkg-with-1-aliased-dep': '100.0.0',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/dep-of-pkg-with-1-dep/100.1.0': {
         dev: false,
@@ -103,7 +104,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
 
 test('installing the same package via an alias and directly', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], await testDefaults({ fastUnpack: false }))
 
   t.deepEqual(manifest.dependencies, { negative: 'npm:is-negative@^1.0.1', 'is-negative': '^1.0.1' })
 

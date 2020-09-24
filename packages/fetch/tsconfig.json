@@ -1,14 +1,22 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
-    "declaration": false,
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.js",
+    "src/**/*",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../core-loggers"
+    },
+    {
+      "path": "../fetching-types"
+    },
+    {
+      "path": "../npm-registry-agent"
+    }
   ]
 }

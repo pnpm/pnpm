@@ -1,36 +1,38 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
+import { VersionSelectors } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
-import getRegistryName = require('encode-registry')
-import loadJsonFile = require('load-json-file')
-import pLimit, { Limit } from 'p-limit'
-import path = require('path')
-import url = require('url')
-import writeJsonFile = require('write-json-file')
 import { RegistryPackageSpec } from './parsePref'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
+import path = require('path')
+import getRegistryName = require('encode-registry')
+import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
+import pLimit = require('p-limit')
+import pathTemp = require('path-temp')
+import renameOverwrite = require('rename-overwrite')
 
 export interface PackageMeta {
-  'dist-tag': { [name: string]: string },
+  'dist-tag': { [name: string]: string }
   versions: {
-    [name: string]: PackageInRegistry,
+    [name: string]: PackageInRegistry
   }
-  cachedAt?: number,
+  cachedAt?: number
 }
 
 export interface PackageMetaCache {
-  get (key: string): PackageMeta | undefined
-  set (key: string, meta: PackageMeta): void
-  has (key: string): boolean
+  get: (key: string) => PackageMeta | undefined
+  set: (key: string, meta: PackageMeta) => void
+  has: (key: string) => boolean
 }
 
 export type PackageInRegistry = PackageManifest & {
   dist: {
-    integrity?: string,
-    shasum: string,
-    tarball: string,
-  },
+    integrity?: string
+    shasum: string
+    tarball: string
+  }
 }
 
 /**
@@ -38,60 +40,59 @@ export type PackageInRegistry = PackageManifest & {
  * otherwise it would cause EPERM exceptions
  */
 const metafileOperationLimits = {} as {
-  [pkgMirror: string]: Limit
+  [pkgMirror: string]: pLimit.Limit
 }
 
-export type PickPackageOptions = {
-  auth: object,
-  preferredVersionSelector: {
-    selector: string,
-    type: 'version' | 'range' | 'tag',
-  } | undefined,
-  registry: string,
-  dryRun: boolean,
+export interface PickPackageOptions {
+  authHeaderValue?: string
+  preferredVersionSelectors: VersionSelectors | undefined
+  registry: string
+  dryRun: boolean
 }
 
 export default async (
   ctx: {
-    fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
-    metaFileName: string,
-    metaCache: PackageMetaCache,
-    storePath: string,
-    offline?: boolean,
-    preferOffline?: boolean,
+    fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>
+    metaDir: string
+    metaCache: PackageMetaCache
+    storeDir: string
+    offline?: boolean
+    preferOffline?: boolean
   },
   spec: RegistryPackageSpec,
-  opts: PickPackageOptions,
+  opts: PickPackageOptions
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
+
+  validatePackageName(spec.name)
 
   const cachedMeta = ctx.metaCache.get(spec.name)
   if (cachedMeta) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, cachedMeta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta),
     }
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.storePath, registryName, spec.name)
+  const pkgMirror = path.join(ctx.storeDir, ctx.metaDir, registryName, `${spec.name}.json`)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   let metaCachedInStore: PackageMeta | null | undefined
-  if (ctx.offline || ctx.preferOffline) {
-    metaCachedInStore = await limit(() => loadMeta(pkgMirror, ctx.metaFileName))
+  if (ctx.offline === true || ctx.preferOffline) {
+    metaCachedInStore = await limit(() => loadMeta(pkgMirror))
 
     if (ctx.offline) {
       if (metaCachedInStore) return {
         meta: metaCachedInStore,
-        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, metaCachedInStore),
+        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore),
       }
 
       throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
     }
 
     if (metaCachedInStore) {
-      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelector, metaCachedInStore)
+      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore)
       if (pickedPackage) {
         return {
           meta: metaCachedInStore,
@@ -102,10 +103,10 @@ export default async (
   }
 
   if (spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore || await limit(() => loadMeta(pkgMirror, ctx.metaFileName))
+    metaCachedInStore = metaCachedInStore ?? await limit(() => loadMeta(pkgMirror))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
-    if (metaCachedInStore && metaCachedInStore.versions && metaCachedInStore.versions[spec.fetchSpec]) {
+    if (metaCachedInStore?.versions?.[spec.fetchSpec]) {
       return {
         meta: metaCachedInStore,
         pickedPackage: metaCachedInStore.versions[spec.fetchSpec],
@@ -114,93 +115,59 @@ export default async (
   }
 
   try {
-    const meta = await fromRegistry(ctx.fetch, spec.name, opts.registry, opts.auth)
+    const meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue)
     meta.cachedAt = Date.now()
     // only save meta to cache, when it is fresh
     ctx.metaCache.set(spec.name, meta)
     if (!opts.dryRun) {
-      // tslint:disable-next-line:no-floating-promises
-      limit(() => saveMeta(pkgMirror, meta, ctx.metaFileName))
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      limit(async () => {
+        try {
+          await saveMeta(pkgMirror, meta)
+        } catch (err) {
+          // We don't care if this file was not written to the cache
+        }
+      })
     }
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
     }
   } catch (err) {
-    const meta = await loadMeta(pkgMirror, ctx.metaFileName) // TODO: add test for this usecase
+    const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
     if (!meta) throw err
-    logger.error(err)
+    logger.error(err, err)
     logger.debug({ message: `Using cached meta from ${pkgMirror}` })
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
     }
   }
 }
 
-type RegistryResponse = {
-  status: number,
-  statusText: string,
-  json: () => Promise<PackageMeta>,
-}
-
-class RegistryResponseError extends PnpmError {
-  public readonly package: string
-  public readonly response: RegistryResponse
-  public readonly uri: string
-
-  constructor (opts: {
-    package: string,
-    response: RegistryResponse,
-    uri: string,
-  }) {
-    super(
-      `REGISTRY_META_RESPONSE_${opts.response.status}`,
-      `${opts.response.status} ${opts.response.statusText}: ${opts.package} (via ${opts.uri})`)
-    this.package = opts.package
-    this.response = opts.response
-    this.uri = opts.uri
-  }
-}
-
-async function fromRegistry (
-  fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
-  pkgName: string,
-  registry: string,
-  auth?: object,
-) {
-  const uri = toUri(pkgName, registry)
-  const response = await fetch(uri, { auth }) as RegistryResponse
-  if (response.status > 400) {
-    throw new RegistryResponseError({
-      package: pkgName,
-      response,
-      uri,
-    })
-  }
-  return response.json()
-}
-
-async function loadMeta (pkgMirror: string, metaFileName: string): Promise<PackageMeta | null> {
+async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
-    return await loadJsonFile<PackageMeta>(path.join(pkgMirror, metaFileName))
+    return await loadJsonFile<PackageMeta>(pkgMirror)
   } catch (err) {
     return null
   }
 }
 
-function saveMeta (pkgMirror: string, meta: PackageMeta, metaFileName: string): Promise<void> {
-  return writeJsonFile(path.join(pkgMirror, metaFileName), meta)
+const createdDirs = new Set<string>()
+
+async function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
+  const dir = path.dirname(pkgMirror)
+  if (!createdDirs.has(dir)) {
+    await fs.mkdir(dir, { recursive: true })
+    createdDirs.add(dir)
+  }
+  const temp = pathTemp(dir)
+  await fs.writeFile(temp, JSON.stringify(meta))
+  await renameOverwrite(temp, pkgMirror)
 }
 
-function toUri (pkgName: string, registry: string) {
-  let encodedName: string
-
-  if (pkgName[0] === '@') {
-    encodedName = `@${encodeURIComponent(pkgName.substr(1))}`
-  } else {
-    encodedName = encodeURIComponent(pkgName)
+function validatePackageName (pkgName: string) {
+  if (pkgName.includes('/') && pkgName[0] !== '@') {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Package name ${pkgName} is invalid, it should have a @scope`)
   }
-
-  return url.resolve(registry, encodedName)
 }

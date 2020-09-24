@@ -1,17 +1,7 @@
-import prepare from '@pnpm/prepare'
-import byline = require('byline')
 import { ChildProcess } from 'child_process'
-import delay from 'delay'
-import isWindows = require('is-windows')
-import pAny = require('p-any')
-import path = require('path')
-import pathExists = require('path-exists')
 import { Readable } from 'stream'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import killcb = require('tree-kill')
 import { promisify } from 'util'
-import writeJsonFile = require('write-json-file')
+import promisifyTape from 'tape-promise'
 import {
   createDeferred,
   Deferred,
@@ -20,37 +10,45 @@ import {
   retryLoadJsonFile,
   spawnPnpm,
 } from './utils'
+import prepare from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import delay from 'delay'
+import path = require('path')
+import byline = require('byline')
+import pAny = require('p-any')
+import pathExists = require('path-exists')
+import tape = require('tape')
+import killcb = require('tree-kill')
+import writeJsonFile = require('write-json-file')
 
 // Third element is true if and only if we attempted to kill the process via a signal.
 interface ServerProcess {
-  childProcess: ChildProcess,
-  running: Deferred<void>,
-  attemptedToKill: boolean,
+  childProcess: ChildProcess
+  running: Deferred<void>
+  attemptedToKill: boolean
 }
-const IS_WINDOWS = isWindows()
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-test['only'] = promisifyTape(tape.only)
+
 const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
 test('installation using pnpm server', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawnPnpm(['server', 'start'])
+  spawnPnpm(['server', 'start'])
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object, pnpmVersion: string }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
   t.equal(typeof serverJson.pnpmVersion, 'string', 'pnpm version added added to server.json')
 
-  await execPnpm('install', 'is-positive@1.0.0')
+  await execPnpm(['install', 'is-positive@1.0.0'])
 
   t.ok(project.requireModule('is-positive'))
 
-  await execPnpm('uninstall', 'is-positive')
+  await execPnpm(['uninstall', 'is-positive'])
 
-  await execPnpm('server', 'stop')
+  await execPnpm(['server', 'stop'])
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
@@ -58,20 +56,20 @@ test('installation using pnpm server', async (t: tape.Test) => {
 test('store server: headless installation', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawnPnpm(['server', 'start'])
+  spawnPnpm(['server', 'start'])
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
-  await execPnpm('install', 'is-positive@1.0.0', '--lockfile-only')
+  await execPnpm(['install', 'is-positive@1.0.0', '--lockfile-only'])
 
-  await execPnpm('install', '--frozen-lockfile')
+  await execPnpm(['install', '--frozen-lockfile'])
 
   t.ok(project.requireModule('is-positive'))
 
-  await execPnpm('server', 'stop')
+  await execPnpm(['server', 'stop'])
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
@@ -79,20 +77,20 @@ test('store server: headless installation', async (t: tape.Test) => {
 test('installation using pnpm server that runs in the background', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('server', 'start', '--background')
+  await execPnpm(['server', 'start', '--background'])
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
-  await execPnpm('install', 'is-positive@1.0.0')
+  await execPnpm(['install', 'is-positive@1.0.0'])
 
   t.ok(project.requireModule('is-positive'))
 
-  await execPnpm('uninstall', 'is-positive')
+  await execPnpm(['uninstall', 'is-positive'])
 
-  await execPnpm('server', 'stop')
+  await execPnpm(['server', 'stop'])
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
@@ -100,53 +98,53 @@ test('installation using pnpm server that runs in the background', async (t: tap
 test('installation using pnpm server via TCP', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawnPnpm(['server', 'start', '--protocol', 'tcp'])
+  spawnPnpm(['server', 'start', '--protocol', 'tcp'])
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions.remotePrefix.indexOf('http://localhost:') === 0, 'TCP is used for communication')
 
-  await execPnpm('install', 'is-positive@1.0.0')
+  await execPnpm(['install', 'is-positive@1.0.0'])
 
   t.ok(project.requireModule('is-positive'))
 
-  await execPnpm('uninstall', 'is-positive')
+  await execPnpm(['uninstall', 'is-positive'])
 
-  await execPnpm('server', 'stop')
+  await execPnpm(['server', 'stop'])
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
 
 test('pnpm server uses TCP when port specified', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
-  const server = spawnPnpm(['server', 'start', '--port', '7856'])
+  spawnPnpm(['server', 'start', '--port', '7856'])
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
   t.ok(serverJson)
   t.equal(serverJson.connectionOptions.remotePrefix, 'http://localhost:7856', 'TCP with specified port is used for communication')
 
-  await execPnpm('server', 'stop')
+  await execPnpm(['server', 'stop'])
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
 
 test('pnpm server fails when trying to set --port for IPC protocol', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
-  t.equal(execPnpmSync('server', 'start', '--protocol', 'ipc', '--port', '7856').status, 1, 'process failed')
+  t.equal(execPnpmSync(['server', 'start', '--protocol', 'ipc', '--port', '7856']).status, 1, 'process failed')
 })
 
 test('stopping server fails when the server disallows stopping via remote call', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
   const server = spawnPnpm(['server', 'start', '--ignore-stop-requests'])
 
   await delay(2000) // lets' wait till the server starts
 
-  t.equal(execPnpmSync('server', 'stop').status, 1, 'process failed')
+  t.equal(execPnpmSync(['server', 'stop']).status, 1, 'process failed')
 
   await kill(server.pid, 'SIGINT')
 })
@@ -154,40 +152,40 @@ test('stopping server fails when the server disallows stopping via remote call',
 test('uploading cache can be disabled without breaking install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawnPnpm(['server', 'start', '--ignore-upload-requests'])
+  spawnPnpm(['server', 'start', '--ignore-upload-requests'])
 
   // TODO: remove the delay and run install by connecting it to the store server
   // Can be done once this gets implemented: https://github.com/pnpm/pnpm/issues/1018
   await delay(2000)
 
   // install a package that has side effects
-  await execPnpm('add', '--side-effects-cache', 'diskusage@1.1.3')
+  await execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])
 
   // make sure the installation is successful, but the cache has not been written
   await project.has('diskusage')
   const storePath = await project.getStorePath()
   const engine = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
-  const cacheDir = path.join(storePath, `localhost+4873/diskusage/1.1.3/side_effects/${engine}/package`)
+  const cacheDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${engine}/package`)
   t.notOk(await pathExists(cacheDir), 'side effects cache not uploaded')
 
-  await execPnpm('server', 'stop')
+  await execPnpm(['server', 'stop'])
 })
 
 test('installation using store server started in the background', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive@1.0.0', '--use-store-server')
+  await execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
   t.ok(project.requireModule('is-positive'))
 
-  await execPnpm('uninstall', 'is-positive')
+  await execPnpm(['uninstall', 'is-positive'])
 
-  await execPnpm('server', 'stop')
+  await execPnpm(['server', 'stop'])
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
@@ -195,29 +193,29 @@ test('installation using store server started in the background', async (t: tape
 test('store server started in the background should use store location wanted by install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive@1.0.0', '--use-store-server', '--store', '../store2')
+  await execPnpm(['add', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])
 
-  const serverJsonPath = path.resolve('..', 'store2', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store2/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
   t.ok(project.requireModule('is-positive'))
 
-  await execPnpm('uninstall', 'is-positive', '--store', '../store2')
+  await execPnpm(['remove', 'is-positive', '--store-dir', '../store2'])
 
-  await execPnpm('server', 'stop', '--store', '../store2')
+  await execPnpm(['server', 'stop', '--store-dir', '../store2'])
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
 
 async function testParallelServerStart (
   options: {
-    test: tape.Test,
-    timeoutMillis?: number,
-    onProcessClosed: (serverProcess: ChildProcess, weAttemptedKill: boolean) => void,
-    n: number,
-  },
+    test: tape.Test
+    timeoutMillis?: number
+    onProcessClosed: (serverProcess: ChildProcess, weAttemptedKill: boolean) => void
+    n: number
+  }
 ) {
   let stopped = false
   const serverProcessList: ServerProcess[] = []
@@ -228,13 +226,13 @@ async function testParallelServerStart (
     const item: ServerProcess = {
       attemptedToKill: false,
       childProcess: spawnPnpm(['server', 'start']),
-      running: createDeferred<void>(),
+      running: createDeferred<undefined>(),
       // This is true if and only if we attempted to kill the process via a signal.
     }
     serverProcessList.push(item)
 
-    byline(item.childProcess.stderr as Readable).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line}`))
-    byline(item.childProcess.stdout as Readable).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line}`))
+    byline(item.childProcess.stderr as Readable).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line.toString()}`))
+    byline(item.childProcess.stdout as Readable).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line.toString()}`))
 
     item.childProcess.on('exit', async (code: number | null, signal: string | null) => {
       options.onProcessClosed(item.childProcess, item.attemptedToKill)
@@ -253,7 +251,7 @@ async function testParallelServerStart (
     completedPromise = completedPromise.then(() => item.running.promise)
   }
 
-  const timeoutMillis = options.timeoutMillis || 10000
+  const timeoutMillis = options.timeoutMillis ?? 10000
   let timeoutPromise: { clear: Function } | null = delay(timeoutMillis)
   await pAny([
     (async () => {
@@ -269,14 +267,14 @@ async function testParallelServerStart (
       for (const item of serverProcessList) {
         item.attemptedToKill = true
       }
-      stopRemainingServers()
+      await stopRemainingServers()
     })(),
   ])
 
   async function stopRemainingServers () {
     if (stopped) return
     stopped = true
-    await execPnpm('server', 'stop')
+    await execPnpm(['server', 'stop'])
     await Promise.all(serverProcessList.map(async (item) => {
       // Use SIGINT so that the process can delete server.json for the next test.
       // Windows does not support signals: the server process will be killed without
@@ -308,16 +306,16 @@ test('parallel server starts against the same store should result in only one se
     test: t,
     timeoutMillis: 60000,
   })
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
 
 test('installation without store server running in the background', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive@1.0.0', '--no-use-store-server')
+  await execPnpm(['install', 'is-positive@1.0.0', '--no-use-store-server'])
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   t.notOk(await pathExists(serverJsonPath), 'store server not running')
 
   t.ok(project.requireModule('is-positive'))
@@ -327,38 +325,38 @@ test('installation without store server running in the background', async (t: ta
 // per @etamponi:
 // > I update it on the host, which triggers a restart of the pnpm server,
 //   and then I update it on the container images, but that doesn't restart the running containers
-test['skip']('fail if the store server is run by a different version of pnpm', async (t: tape.Test) => {
-  const project = prepare(t)
+test.skip('fail if the store server is run by a different version of pnpm', async (t: tape.Test) => {
+  prepare(t)
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   await writeJsonFile(serverJsonPath, { pnpmVersion: '2.0.0' })
 
-  const result = execPnpmSync('install', 'is-positive@1.0.0')
+  const result = execPnpmSync(['install', 'is-positive@1.0.0'])
 
   t.equal(result.status, 1)
   t.ok(result.stdout.toString().includes('The store server runs on pnpm v2.0.0. The same pnpm version should be used to connect (current is'))
 })
 
 test('print server status', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
-  const server = spawnPnpm(['server', 'start'])
+  spawnPnpm(['server', 'start'])
 
   await delay(2000)
 
-  const result = execPnpmSync('server', 'status', '--store', path.resolve('..', 'store'))
+  const result = execPnpmSync(['server', 'status', '--store-dir', path.resolve('..', 'store')])
 
   t.equal(result.status, 0)
   const output = result.stdout.toString()
   t.ok(output.includes('process id: '), 'process ID of the store server printed')
 
-  await execPnpm('server', 'stop')
+  await execPnpm(['server', 'stop'])
 })
 
 test('fail if no store server is running and --use-running-store-server flag is used', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepare(t)
 
-  const result = execPnpmSync('install', 'is-positive', '--use-running-store-server', '--store', path.resolve('..', 'store'))
+  const result = execPnpmSync(['install', 'is-positive', '--use-running-store-server', '--store-dir', path.resolve('..', 'store')])
 
   t.equal(result.status, 1)
   const output = result.stdout.toString()

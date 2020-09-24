@@ -1,21 +1,23 @@
 {
   "name": "@pnpm/git-fetcher",
-  "version": "2.0.5",
+  "version": "3.0.8",
   "description": "A fetcher for git-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc"
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/git-fetcher/coverage ts-node packages/git-fetcher/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/git-fetcher",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "keywords": [
     "pnpm",
@@ -28,15 +30,16 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/git-fetcher#readme",
   "dependencies": {
-    "@zkochan/rimraf": "1.0.0",
-    "dint": "4.0.0",
-    "execa": "2.0.4",
-    "path-temp": "2.0.0"
+    "@pnpm/fetcher-base": "workspace:9.0.0",
+    "@zkochan/rimraf": "^1.0.0",
+    "execa": "^4.0.3",
+    "tempy": "^0.7.0"
   },
   "devDependencies": {
+    "@pnpm/cafs": "workspace:2.0.0",
     "@pnpm/git-fetcher": "link:",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0",
-    "tempy": "0.3.0"
-  }
+    "@pnpm/types": "workspace:6.2.0",
+    "p-defer": "^3.0.0"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

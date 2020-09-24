@@ -1,0 +1,34 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cli-meta"
+    },
+    {
+      "path": "../cli-utils"
+    },
+    {
+      "path": "../common-cli-options-help"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../server"
+    },
+    {
+      "path": "../store-connection-manager"
+    }
+  ]
+}

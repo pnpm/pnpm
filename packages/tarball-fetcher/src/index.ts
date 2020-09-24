@@ -1,210 +1,106 @@
 import PnpmError from '@pnpm/error'
 import {
+  Cafs,
+  DeferredManifestPromise,
   FetchFunction,
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import { storeLogger } from '@pnpm/logger'
-import getCredentialsByURI = require('credentials-by-uri')
-import mem = require('mem')
-import fs = require('mz/fs')
-import path = require('path')
-import pathTemp = require('path-temp')
-import rimraf = require('rimraf')
-import ssri = require('ssri')
-import * as unpackStream from 'unpack-stream'
+import {
+  FetchFromRegistry,
+  GetCredentials,
+  RetryTimeoutOptions,
+} from '@pnpm/fetching-types'
 import createDownloader, { DownloadFunction } from './createDownloader'
-
-export type IgnoreFunction = (filename: string) => boolean
+import path = require('path')
+import fs = require('mz/fs')
+import ssri = require('ssri')
 
 export default function (
+  fetchFromRegistry: FetchFromRegistry,
+  getCredentials: GetCredentials,
   opts: {
-    registry: string,
-    rawNpmConfig: object,
-    alwaysAuth?: boolean,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    cert?: string,
-    key?: string,
-    ca?: string,
-    strictSsl?: boolean,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMintimeout?: number,
-    fetchRetryMaxtimeout?: number,
-    userAgent?: string,
-    ignoreFile?: IgnoreFunction,
-    offline?: boolean,
-    fsIsCaseSensitive?: boolean,
-  },
+    retry?: RetryTimeoutOptions
+    offline?: boolean
+  }
 ): { tarball: FetchFunction } {
-  const download = createDownloader({
-    alwaysAuth: opts.alwaysAuth || false,
-    ca: opts.ca,
-    cert: opts.cert,
-    fsIsCaseSensitive: typeof opts.fsIsCaseSensitive === 'boolean'
-      ? opts.fsIsCaseSensitive
-      : true, // TODO: change the default value to false
-    key: opts.key,
-    localAddress: opts.localAddress,
-    proxy: opts.httpsProxy || opts.proxy,
-    registry: opts.registry,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    // TODO: cover with tests this option
-    // https://github.com/pnpm/pnpm/issues/1062
-    strictSSL: typeof opts.strictSsl === 'boolean'
-      ? opts.strictSsl
-      : true,
-    userAgent: opts.userAgent,
+  const download = createDownloader(fetchFromRegistry, {
+    retry: opts.retry,
   })
   return {
     tarball: fetchFromTarball.bind(null, {
-      fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
-        download,
-        getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
-        ignoreFile: opts.ignoreFile,
-        offline: opts.offline,
-      }),
-      ignore: opts.ignoreFile,
+      download,
+      getCredentialsByURI: getCredentials,
+      offline: opts.offline,
     }) as FetchFunction,
   }
 }
 
 function fetchFromTarball (
   ctx: {
-    fetchFromRemoteTarball: (
-      dir: string,
-      dist: {
-        integrity?: string,
-        registry?: string,
-        tarball: string,
-      },
-      opts: FetchOptions
-    ) => Promise<FetchResult>,
-    ignore?: IgnoreFunction,
+    download: DownloadFunction
+    getCredentialsByURI: (registry: string) => {
+      authHeaderValue: string | undefined
+      alwaysAuth: boolean | undefined
+    }
+    offline?: boolean
   },
+  cafs: Cafs,
   resolution: {
-    integrity?: string,
-    registry?: string,
-    tarball: string,
+    integrity?: string
+    registry?: string
+    tarball: string
   },
-  target: string,
-  opts: FetchOptions,
+  opts: FetchOptions
 ) {
   if (resolution.tarball.startsWith('file:')) {
-    const tarball = path.join(opts.prefix, resolution.tarball.slice(5))
-    return fetchFromLocalTarball(tarball, target, {
-      ignore: ctx.ignore,
+    const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
+    return fetchFromLocalTarball(cafs, tarball, {
       integrity: resolution.integrity,
+      manifest: opts.manifest,
     })
   }
-  return ctx.fetchFromRemoteTarball(target, resolution, opts)
+  if (ctx.offline) {
+    throw new PnpmError('NO_OFFLINE_TARBALL',
+      `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`)
+  }
+  const auth = resolution.registry ? ctx.getCredentialsByURI(resolution.registry) : undefined
+  return ctx.download(resolution.tarball, {
+    auth,
+    cafs,
+    integrity: resolution.integrity,
+    manifest: opts.manifest,
+    onProgress: opts.onProgress,
+    onStart: opts.onStart,
+    registry: resolution.registry,
+  })
 }
 
-async function fetchFromRemoteTarball (
-  ctx: {
-    offline?: boolean,
-    download: DownloadFunction,
-    ignoreFile?: IgnoreFunction,
-    getCredentialsByURI: (registry: string) => {
-      scope: string,
-      token: string | undefined,
-      password: string | undefined,
-      username: string | undefined,
-      email: string | undefined,
-      auth: string | undefined,
-      alwaysAuth: string | undefined,
-    },
-  },
-  unpackTo: string,
-  dist: {
-    integrity?: string,
-    registry?: string,
-    tarball: string,
-  },
-  opts: FetchOptions,
-) {
-  try {
-    return await fetchFromLocalTarball(opts.cachedTarballLocation, unpackTo, {
-      integrity: dist.integrity,
-    })
-  } catch (err) {
-    // ignore errors for missing files or broken/partial archives
-    switch (err.code) {
-      case 'Z_BUF_ERROR':
-        if (ctx.offline) {
-          throw new PnpmError(
-            'CORRUPTED_TARBALL',
-            `The cached tarball at "${opts.cachedTarballLocation}" is corrupted. Cannot redownload it as offline mode was requested.`,
-          )
-        }
-        storeLogger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`)
-        break
-      case 'EINTEGRITY':
-        if (ctx.offline) {
-          throw new PnpmError(
-            'BAD_TARBALL_CHECKSUM',
-            `The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Cannot redownload it as offline mode was requested.`,
-          )
-        }
-        storeLogger.warn(`The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Redownloading.`)
-        break
-      case 'ENOENT':
-        if (ctx.offline) {
-          throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
-        }
-        break
-      default:
-        throw err
-    }
+const isAbsolutePath = /^[/]|^[A-Za-z]:/
 
-    const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
-    return ctx.download(dist.tarball, opts.cachedTarballLocation, {
-      auth,
-      ignore: ctx.ignoreFile,
-      integrity: dist.integrity,
-      onProgress: opts.onProgress,
-      onStart: opts.onStart,
-      registry: dist.registry,
-      unpackTo,
-    })
-  }
+function resolvePath (where: string, spec: string) {
+  if (isAbsolutePath.test(spec)) return spec
+  return path.resolve(where, spec)
 }
 
 async function fetchFromLocalTarball (
+  cafs: Cafs,
   tarball: string,
-  dir: string,
   opts: {
-    ignore?: IgnoreFunction,
-    integrity?: string,
+    integrity?: string
+    manifest?: DeferredManifestPromise
   }
 ): Promise<FetchResult> {
-  const tarballStream = fs.createReadStream(tarball)
-  const tempLocation = pathTemp(dir)
   try {
-    const filesIndex = (
+    const tarballStream = fs.createReadStream(tarball)
+    const [fetchResult] = (
       await Promise.all([
-        unpackStream.local(
-          tarballStream,
-          tempLocation,
-          {
-            ignore: opts.ignore,
-          },
-        ),
-        opts.integrity && (ssri.checkStream(tarballStream, opts.integrity) as any), // tslint:disable-line
+        cafs.addFilesFromTarball(tarballStream, opts.manifest),
+        opts.integrity && (ssri.checkStream(tarballStream, opts.integrity) as any), // eslint-disable-line
       ])
-    )[0]
-    return { filesIndex, tempLocation }
+    )
+    return { filesIndex: fetchResult }
   } catch (err) {
-    rimraf(tempLocation, () => {
-      // ignore errors
-    })
     err.attempts = 1
     err.resource = tarball
     throw err

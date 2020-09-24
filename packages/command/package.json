@@ -1,0 +1,31 @@
+{
+  "name": "@pnpm/command",
+  "version": "1.0.0",
+  "description": "Types and utils for pnpm commands",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=10.14"
+  },
+  "scripts": {
+    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/command",
+  "keywords": [
+    "pnpm"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/command#readme",
+  "funding": "https://opencollective.com/pnpm"
+}

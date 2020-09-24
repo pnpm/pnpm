@@ -1,15 +1,12 @@
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
-import npa = require('@zkochan/npm-package-arg')
-import dh, {
-  forPackages as dhForPackages,
-  PackageSelector,
-} from 'dependencies-hierarchy'
-import R = require('ramda')
+import dh from 'dependencies-hierarchy'
+import createPackagesSearcher from './createPackagesSearcher'
 import renderJson from './renderJson'
 import renderParseable from './renderParseable'
 import renderTree from './renderTree'
 import { PackageDependencyHierarchy } from './types'
+import R = require('ramda')
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
@@ -23,48 +20,37 @@ export async function forPackages (
   packages: string[],
   projectPaths: string[],
   maybeOpts: {
-    alwaysPrintRootPackage?: boolean,
-    depth?: number,
-    lockfileDirectory: string,
-    long?: boolean,
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    reportAs?: 'parseable' | 'tree' | 'json',
-    registries?: Registries,
-  },
+    alwaysPrintRootPackage?: boolean
+    depth?: number
+    lockfileDir: string
+    long?: boolean
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    reportAs?: 'parseable' | 'tree' | 'json'
+    registries?: Registries
+  }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
-  const searched: PackageSelector[] = packages.map((arg) => {
-    const parsed = npa(arg)
-    if (parsed.raw === parsed.name) {
-      return parsed.name
-    }
-    if (parsed.type !== 'version' && parsed.type !== 'range') {
-      throw new Error(`Invalid argument - ${arg}. List can search only by version or range`)
-    }
-    return {
-      name: parsed.name,
-      range: parsed.fetchSpec,
-    }
-  })
+  const search = createPackagesSearcher(packages)
 
   const pkgs = await Promise.all(
-    R.toPairs(await dhForPackages(searched, projectPaths, {
+    R.toPairs(await dh(projectPaths, {
       depth: opts.depth,
-      include: maybeOpts && maybeOpts.include,
-      lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
+      include: maybeOpts?.include,
+      lockfileDir: maybeOpts?.lockfileDir,
       registries: opts.registries,
+      search,
     }))
-    .map(async ([projectPath, dependenciesHierarchy]) => {
-      const entryPkg = await readImporterManifestOnly(projectPath)
-      return {
-        name: entryPkg.name,
-        version: entryPkg.version,
+      .map(async ([projectPath, dependenciesHierarchy]) => {
+        const entryPkg = await readProjectManifestOnly(projectPath)
+        return {
+          name: entryPkg.name,
+          version: entryPkg.version,
 
-        path: projectPath,
-        ...dependenciesHierarchy,
-      } as PackageDependencyHierarchy
-    })
+          path: projectPath,
+          ...dependenciesHierarchy,
+        } as PackageDependencyHierarchy
+      })
   )
 
   const print = getPrinter(opts.reportAs)
@@ -79,41 +65,41 @@ export async function forPackages (
 export default async function (
   projectPaths: string[],
   maybeOpts: {
-    alwaysPrintRootPackage?: boolean,
-    depth?: number,
-    lockfileDirectory: string,
-    long?: boolean,
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    reportAs?: 'parseable' | 'tree' | 'json',
-    registries?: Registries,
-  },
+    alwaysPrintRootPackage?: boolean
+    depth?: number
+    lockfileDir: string
+    long?: boolean
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    reportAs?: 'parseable' | 'tree' | 'json'
+    registries?: Registries
+  }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
   const pkgs = await Promise.all(
     R.toPairs(
       opts.depth === -1
-      ? projectPaths.reduce((acc, projectPath) => {
-        acc[projectPath] = {}
-        return acc
-      }, {})
-      : await dh(projectPaths, {
-        depth: opts.depth,
-        include: maybeOpts && maybeOpts.include,
-        lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
-        registries: opts.registries,
-      })
+        ? projectPaths.reduce((acc, projectPath) => {
+          acc[projectPath] = {}
+          return acc
+        }, {})
+        : await dh(projectPaths, {
+          depth: opts.depth,
+          include: maybeOpts?.include,
+          lockfileDir: maybeOpts?.lockfileDir,
+          registries: opts.registries,
+        })
     )
-    .map(async ([projectPath, dependenciesHierarchy]) => {
-      const entryPkg = await readImporterManifestOnly(projectPath)
-      return {
-        name: entryPkg.name,
-        version: entryPkg.version,
+      .map(async ([projectPath, dependenciesHierarchy]) => {
+        const entryPkg = await readProjectManifestOnly(projectPath)
+        return {
+          name: entryPkg.name,
+          version: entryPkg.version,
 
-        path: projectPath,
-        ...dependenciesHierarchy,
-      } as PackageDependencyHierarchy
-    })
+          path: projectPath,
+          ...dependenciesHierarchy,
+        } as PackageDependencyHierarchy
+      })
   )
 
   const print = getPrinter(opts.reportAs)
@@ -127,8 +113,8 @@ export default async function (
 
 function getPrinter (reportAs: 'parseable' | 'tree' | 'json') {
   switch (reportAs) {
-    case 'parseable': return renderParseable
-    case 'json': return renderJson
-    case 'tree': return renderTree
+  case 'parseable': return renderParseable
+  case 'json': return renderJson
+  case 'tree': return renderTree
   }
 }

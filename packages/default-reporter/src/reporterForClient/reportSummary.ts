@@ -1,73 +1,74 @@
-import { PnpmConfigs } from '@pnpm/config'
 import {
   DeprecationLog,
-  PackageJsonLog,
+  PackageManifestLog,
   RootLog,
   SummaryLog,
 } from '@pnpm/core-loggers'
-import chalk from 'chalk'
-import most = require('most')
-import path = require('path')
-import R = require('ramda')
-import semver = require('semver')
+import { Config } from '@pnpm/config'
+import * as Rx from 'rxjs'
+import { map, take } from 'rxjs/operators'
 import { EOL } from '../constants'
-import {
-  ADDED_CHAR,
-  REMOVED_CHAR,
-} from './outputConstants'
 import getPkgsDiff, {
   PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff'
+import {
+  ADDED_CHAR,
+  REMOVED_CHAR,
+} from './outputConstants'
+import chalk = require('chalk')
+import path = require('path')
+import R = require('ramda')
+import semver = require('semver')
 
 export default (
   log$: {
-    deprecation: most.Stream<DeprecationLog>,
-    summary: most.Stream<SummaryLog>,
-    root: most.Stream<RootLog>,
-    packageJson: most.Stream<PackageJsonLog>,
+    deprecation: Rx.Observable<DeprecationLog>
+    summary: Rx.Observable<SummaryLog>
+    root: Rx.Observable<RootLog>
+    packageManifest: Rx.Observable<PackageManifestLog>
   },
   opts: {
-    cwd: string,
-    pnpmConfigs?: PnpmConfigs,
-  },
+    cwd: string
+    pnpmConfig?: Config
+  }
 ) => {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
-  const summaryLog$ = log$.summary
-    .take(1)
+  const summaryLog$ = log$.summary.pipe(take(1))
 
-  return most.combine(
-    (pkgsDiff) => {
-      let msg = ''
-      for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly']) {
-        const diffs = R.values(pkgsDiff[depType])
-        if (diffs.length) {
-          msg += EOL
-          if (opts.pnpmConfigs && opts.pnpmConfigs.global) {
-            msg += chalk.cyanBright(`${opts.cwd}:`)
-          } else {
-            msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
-          }
-          msg += EOL
-          msg += printDiffs(diffs, { prefix: opts.cwd })
-          msg += EOL
-        }
-      }
-      return { msg }
-    },
+  return Rx.combineLatest(
     pkgsDiff$,
-    summaryLog$,
+    summaryLog$
   )
-  .take(1)
-  .map(most.of)
+    .pipe(
+      take(1),
+      map(([pkgsDiff]) => {
+        let msg = ''
+        for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly']) {
+          const diffs = R.values(pkgsDiff[depType])
+          if (diffs.length) {
+            msg += EOL
+            if (opts.pnpmConfig?.global) {
+              msg += chalk.cyanBright(`${opts.cwd}:`)
+            } else {
+              msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
+            }
+            msg += EOL
+            msg += printDiffs(diffs, { prefix: opts.cwd })
+            msg += EOL
+          }
+        }
+        return Rx.of({ msg })
+      })
+    )
 }
 
 function printDiffs (
   pkgsDiff: PackageDiff[],
   opts: {
-    prefix: string,
-  },
+    prefix: string
+  }
 ) {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0

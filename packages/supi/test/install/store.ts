@@ -1,11 +1,11 @@
 import { prepareEmpty } from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
-import path = require('path')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeJsonFile = require('write-json-file')
 import { testDefaults } from '../utils'
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import tape = require('tape')
+import writeJsonFile = require('write-json-file')
 
 const test = promisifyTape(tape)
 
@@ -21,10 +21,9 @@ test('repeat install with corrupted `store.json` should work', async (t: tape.Te
   // we assume that it is not in the store.
   // The package is downloaded and in case there is a folder
   // in the store, it is overwritten.
-  await writeJsonFile(path.join(opts.store, '2', 'store.json'), {})
+  await writeJsonFile(path.join(opts.storeDir, 'v3/store.json'), {})
 
   await install(manifest, opts)
 
-  const m = project.requireModule('is-negative')
-  t.ok(m)
+  await project.has('is-negative')
 })

@@ -1,19 +1,19 @@
-export * from '@pnpm/lockfile-types'
-
+import { refToRelative } from 'dependency-path'
 import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 import packageIdFromSnapshot from './packageIdFromSnapshot'
 import packageIsIndependent from './packageIsIndependent'
 import pkgSnapshotToResolution from './pkgSnapshotToResolution'
-import satisfiesPackageJson from './satisfiesPackageJson'
+import satisfiesPackageManifest from './satisfiesPackageManifest'
+
+export * from '@pnpm/lockfile-types'
 
 export {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   packageIsIndependent,
   pkgSnapshotToResolution,
-  satisfiesPackageJson,
+  satisfiesPackageManifest,
 }
 
 // for backward compatibility
-import { refToRelative } from 'dependency-path'
 export const getPkgShortId = refToRelative

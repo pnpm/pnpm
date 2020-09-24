@@ -1,9 +1,9 @@
 import { prepareEmpty } from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
+import rimraf = require('@zkochan/rimraf')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -42,6 +42,5 @@ test('successful offline installation', async (t) => {
 
   await install(manifest, await testDefaults({}, { offline: true }, { offline: true }))
 
-  const m = project.requireModule('is-positive')
-  t.ok(typeof m === 'function', 'module is available')
+  await project.has('is-positive')
 })

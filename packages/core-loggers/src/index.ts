@@ -1,16 +1,16 @@
-export * from './all'
-
 import {
+  ContextLog,
   DeprecationLog,
   FetchingProgressLog,
   HookLog,
-  ImportingLog,
   InstallCheckLog,
   LifecycleLog,
   LinkLog,
-  PackageJsonLog,
+  PackageImportMethodLog,
+  PackageManifestLog,
   ProgressLog,
   RegistryLog,
+  RequestRetryLog,
   RootLog,
   ScopeLog,
   SkippedOptionalDependencyLog,
@@ -19,16 +19,21 @@ import {
   SummaryLog,
 } from './all'
 
-export type Log = DeprecationLog
+export * from './all'
+
+export type Log =
+  | ContextLog
+  | DeprecationLog
   | FetchingProgressLog
   | HookLog
-  | ImportingLog
   | InstallCheckLog
   | LifecycleLog
   | LinkLog
-  | PackageJsonLog
+  | PackageManifestLog
+  | PackageImportMethodLog
   | ProgressLog
   | RegistryLog
+  | RequestRetryLog
   | RootLog
   | ScopeLog
   | SkippedOptionalDependencyLog

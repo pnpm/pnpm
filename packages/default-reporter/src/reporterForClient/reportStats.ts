@@ -1,35 +1,35 @@
 import { StatsLog } from '@pnpm/core-loggers'
-import chalk from 'chalk'
-import most = require('most')
-import R = require('ramda')
-import stringLength from 'string-length'
+import * as Rx from 'rxjs'
+import { filter, take, reduce, map } from 'rxjs/operators'
 import { EOL } from '../constants'
 import {
   ADDED_CHAR,
   REMOVED_CHAR,
 } from './outputConstants'
 import { zoomOut } from './utils/zooming'
+import chalk = require('chalk')
+import R = require('ramda')
+import stringLength = require('string-length')
 
 export default (
   log$: {
-    stats: most.Stream<StatsLog>,
+    stats: Rx.Observable<StatsLog>
   },
   opts: {
-    cmd: string,
-    cwd: string,
-    isRecursive: boolean,
-    subCmd?: string,
-    width: number,
-  },
+    cmd: string
+    cwd: string
+    isRecursive: boolean
+    width: number
+  }
 ) => {
   const stats$ = opts.isRecursive
     ? log$.stats
-    : log$.stats.filter((log) => log.prefix !== opts.cwd)
+    : log$.stats.pipe(filter((log) => log.prefix !== opts.cwd))
 
   const outputs = [
     statsForNotCurrentPackage(stats$, {
+      cmd: opts.cmd,
       currentPrefix: opts.cwd,
-      subCmd: opts.subCmd,
       width: opts.width,
     }),
   ]
@@ -46,96 +46,102 @@ export default (
 }
 
 function statsForCurrentPackage (
-  stats$: most.Stream<StatsLog>,
+  stats$: Rx.Observable<StatsLog>,
   opts: {
-    cmd: string,
-    currentPrefix: string,
-    width: number,
-  },
+    cmd: string
+    currentPrefix: string
+    width: number
+  }
 ) {
-  return most.fromPromise(
-    stats$
-      .filter((log) => log.prefix === opts.currentPrefix)
-      .take((opts.cmd === 'install' || opts.cmd === 'update') ? 2 : 1)
-      .reduce((acc, log) => {
-        if (typeof log['added'] === 'number') {
-          acc['added'] = log['added']
-        } else if (typeof log['removed'] === 'number') {
-          acc['removed'] = log['removed']
-        }
-        return acc
-      }, {}),
-  )
-  .map((stats) => {
-    if (!stats['removed'] && !stats['added']) {
-      if (opts.cmd === 'link') {
-        return most.never()
+  return stats$.pipe(
+    filter((log) => log.prefix === opts.currentPrefix),
+    take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update') ? 2 : 1),
+    reduce((acc, log) => {
+      if (typeof log['added'] === 'number') {
+        acc['added'] = log['added']
+      } else if (typeof log['removed'] === 'number') {
+        acc['removed'] = log['removed']
       }
-      return most.of({ msg: 'Already up-to-date' })
-    }
+      return acc
+    }, {}),
+    map((stats) => {
+      if (!stats['removed'] && !stats['added']) {
+        if (opts.cmd === 'link') {
+          return Rx.NEVER
+        }
+        return Rx.of({ msg: 'Already up-to-date' })
+      }
 
-    let msg = 'Packages:'
-    if (stats['added']) {
-      msg += ' ' + chalk.green(`+${stats['added']}`)
-    }
-    if (stats['removed']) {
-      msg += ' ' + chalk.red(`-${stats['removed']}`)
-    }
-    msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
-    return most.of({ msg })
-  })
+      let msg = 'Packages:'
+      if (stats['added']) {
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        msg += ' ' + chalk.green(`+${stats['added'].toString()}`)
+      }
+      if (stats['removed']) {
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        msg += ' ' + chalk.red(`-${stats['removed'].toString()}`)
+      }
+      msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
+      return Rx.of({ msg })
+    })
+  )
 }
 
 function statsForNotCurrentPackage (
-  stats$: most.Stream<StatsLog>,
+  stats$: Rx.Observable<StatsLog>,
   opts: {
-    currentPrefix: string,
-    subCmd?: string,
-    width: number,
-  },
+    cmd: string
+    currentPrefix: string
+    width: number
+  }
 ) {
+  const stats = {}
   const cookedStats$ = (
-    opts.subCmd !== 'uninstall'
-      ? stats$
-          .loop((stats, log) => {
-            // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
-            //  1. during linking
-            //  2. during installing
-            // Hence, the stats are added before reported
-            if (!stats[log.prefix]) {
-              stats[log.prefix] = log
-              return { seed: stats, value: null }
-            } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
-              stats[log.prefix].added += log['added']
-              return { seed: stats, value: null }
-            } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
-              stats[log.prefix].removed += log['removed']
-              return { seed: stats, value: null }
-            } else {
-              const value = { ...stats[log.prefix], ...log }
-              delete stats[log.prefix]
-              return { seed: stats, value }
-            }
-          }, {})
+    opts.cmd !== 'remove'
+      ? stats$.pipe(
+        map((log) => {
+          // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
+          //  1. during linking
+          //  2. during installing
+          // Hence, the stats are added before reported
+          if (!stats[log.prefix]) {
+            stats[log.prefix] = log
+            return { seed: stats, value: null }
+          } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
+            stats[log.prefix].added += log['added'] // eslint-disable-line
+            return { seed: stats, value: null }
+          } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
+            stats[log.prefix].removed += log['removed'] // eslint-disable-line
+            return { seed: stats, value: null }
+          } else {
+            const value = { ...stats[log.prefix], ...log }
+            delete stats[log.prefix]
+            return value
+          }
+        }, {})
+      )
       : stats$
   )
-  return cookedStats$
-    .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
-    .map((stats) => {
+  return cookedStats$.pipe(
+    filter((stats) => stats !== null && (stats['removed'] || stats['added'])),
+    map((stats) => {
       const parts = [] as string[]
 
       if (stats['added']) {
-        parts.push(padStep(chalk.green(`+${stats['added']}`), 4))
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        parts.push(padStep(chalk.green(`+${stats['added'].toString()}`), 4))
       }
       if (stats['removed']) {
-        parts.push(padStep(chalk.red(`-${stats['removed']}`), 4))
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        parts.push(padStep(chalk.red(`-${stats['removed'].toString()}`), 4))
       }
 
       let msg = zoomOut(opts.currentPrefix, stats['prefix'], parts.join(' '))
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
       msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
-      return most.of({ msg })
+      return Rx.of({ msg })
     })
+  )
 }
 
 function padStep (s: string, step: number) {

@@ -1,32 +1,38 @@
+import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { StoreController } from '@pnpm/store-controller-types'
-import { ImporterManifest, Registries } from '@pnpm/types'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
-import path = require('path')
+import {
+  DependenciesField,
+  ProjectManifest,
+  Registries,
+} from '@pnpm/types'
 import { ReporterFunction } from '../types'
+import path = require('path')
 
 interface StrictLinkOptions {
-  bin: string,
-  force: boolean,
-  forceSharedLockfile: boolean,
-  useLockfile: boolean,
-  lockfileDirectory: string,
-  pinnedVersion: 'major' | 'minor' | 'patch',
-  saveProd: boolean,
-  saveDev: boolean,
-  saveOptional: boolean,
-  shamefullyHoist: boolean,
-  storeController: StoreController,
-  manifest: ImporterManifest,
-  prefix: string,
-  hoistPattern: string | undefined,
-  independentLeaves: boolean,
-  registries: Registries,
-  store: string,
-  reporter: ReporterFunction,
+  binsDir: string
+  force: boolean
+  forceSharedLockfile: boolean
+  useLockfile: boolean
+  lockfileDir: string
+  pinnedVersion: 'major' | 'minor' | 'patch'
+  storeController: StoreController
+  manifest: ProjectManifest
+  registries: Registries
+  storeDir: string
+  reporter: ReporterFunction
+  targetDependenciesField?: DependenciesField
+  dir: string
+
+  hoistPattern: string[] | undefined
+  forceHoistPattern: boolean
+
+  publicHoistPattern: string[] | undefined
+  forcePublicHoistPattern: boolean
 }
 
-export type LinkOptions = Partial<StrictLinkOptions> &
-  Pick<StrictLinkOptions, 'storeController' | 'manifest'>
+export type LinkOptions =
+  & Partial<StrictLinkOptions>
+  & Pick<StrictLinkOptions, 'storeController' | 'manifest'>
 
 export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptions> {
   if (opts) {
@@ -37,25 +43,23 @@ export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptio
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
+  const extendedOpts = { ...defaultOpts, ...opts, storeDir: defaultOpts.storeDir }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }
 
 async function defaults (opts: LinkOptions) {
-  const prefix = opts.prefix || process.cwd()
+  const dir = opts.dir ?? process.cwd()
   return {
-    bin: path.join(prefix, 'node_modules', '.bin'),
+    binsDir: path.join(dir, 'node_modules', '.bin'),
+    dir,
     force: false,
     forceSharedLockfile: false,
     hoistPattern: undefined,
-    independentLeaves: false,
-    lockfileDirectory: opts.lockfileDirectory || prefix,
-    prefix,
+    lockfileDir: opts.lockfileDir ?? dir,
     registries: DEFAULT_REGISTRIES,
-    shamefullyHoist: false,
-    store: opts.store,
     storeController: opts.storeController,
+    storeDir: opts.storeDir,
     useLockfile: true,
   } as StrictLinkOptions
 }

@@ -1,25 +1,25 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import isInnerLink = require('is-inner-link')
-import path = require('path')
-import exists = require('path-exists')
-import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
   link,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeJsonFile = require('write-json-file')
 import {
   addDistTag,
   testDefaults,
 } from './utils'
+import fs = require('fs')
+import isInnerLink = require('is-inner-link')
+import path = require('path')
+import exists = require('path-exists')
+import sinon = require('sinon')
+import tape = require('tape')
+import writeJsonFile = require('write-json-file')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
   const project = prepareEmpty(t)
@@ -39,21 +39,21 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
     }),
   ])
 
-  const opts = await testDefaults({ store: path.resolve('.store') })
+  const opts = await testDefaults({ fastUnpack: false, store: path.resolve('.store') })
 
   let manifest = await link(
     ['is-subdir', 'is-positive'],
     path.join('project', 'node_modules'),
     {
       ...opts,
+      dir: path.resolve('project'),
       manifest: {
         dependencies: {
           'is-positive': '^1.0.0',
           'is-subdir': '^1.0.0',
         },
       },
-      prefix: path.resolve('project'),
-    },
+    }
   )
 
   process.chdir('project')
@@ -66,10 +66,10 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
         dependencyNames: ['is-subdir'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    opts,
+    opts
   )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
@@ -80,7 +80,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   await addDistTag('foo', '100.0.0', 'latest')
-  const opts = await testDefaults({ prefix: process.cwd() })
+  const opts = await testDefaults({ dir: process.cwd() })
   let manifest = await addDependenciesToPackage({}, ['foo'], opts)
 
   process.chdir('..')
@@ -100,10 +100,10 @@ test("don't update package when unlinking", async (t: tape.Test) => {
         dependencyNames: ['foo'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    opts,
+    opts
   )
 
   t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
@@ -112,7 +112,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
 test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const opts = await testDefaults({ prefix: process.cwd() })
+  const opts = await testDefaults({ dir: process.cwd() })
   process.chdir('..')
 
   await writeJsonFile('foo/package.json', {
@@ -137,10 +137,10 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
         dependencyNames: ['foo'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    opts,
+    opts
   )
 
   t.equal(project.requireModule('foo/package.json').version, '100.1.0', 'latest foo is installed')
@@ -149,7 +149,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
 
 test('unlink 2 packages. One of them exists in package.json', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const opts = await testDefaults({ prefix: process.cwd() })
+  const opts = await testDefaults({ fastUnpack: false, dir: process.cwd() })
   process.chdir('..')
 
   await Promise.all([
@@ -172,7 +172,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
       dependencies: {
         'is-subdir': '^1.0.0',
       },
-    }
+    },
   })
 
   process.chdir('project')
@@ -182,10 +182,10 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
         dependencyNames: ['is-subdir', 'is-positive'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    opts,
+    opts
   )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
@@ -194,7 +194,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
 
 test('unlink all packages', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const opts = await testDefaults({ prefix: process.cwd() })
+  const opts = await testDefaults({ fastUnpack: false, dir: process.cwd() })
   process.chdir('..')
 
   await Promise.all([
@@ -226,10 +226,10 @@ test('unlink all packages', async (t: tape.Test) => {
       {
         manifest,
         mutation: 'unlink',
-        prefix: path.resolve('project'),
-      }
+        rootDir: path.resolve('project'),
+      },
     ],
-    opts,
+    opts
   )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
@@ -247,10 +247,10 @@ test("don't warn about scoped packages when running unlink w/o params", async (t
       {
         manifest,
         mutation: 'unlink',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    await testDefaults({ reporter }),
+    await testDefaults({ reporter })
   )
 
   t.notOk(reporter.calledWithMatch({
@@ -272,10 +272,10 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
         dependencyNames: ['is-positive'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    await testDefaults({ reporter }),
+    await testDefaults({ reporter })
   )
 
   t.ok(reporter.calledWithMatch({
@@ -284,27 +284,58 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
   }), 'reported warning')
 })
 
-test("don't unlink package that is not a link when independent-leaves = true", async (t: tape.Test) => {
+test('unlink would remove global bin', async (t: tape.Test) => {
   prepareEmpty(t)
+  process.chdir('..')
+  fs.mkdirSync('bin')
+  fs.mkdirSync('is-subdir')
+  fs.writeFileSync('is-subdir/index.js', ' ')
 
-  const reporter = sinon.spy()
+  await Promise.all([
+    writeJsonFile('is-subdir/package.json', {
+      bin: 'index.js',
+      dependencies: {
+        'is-windows': '^1.0.0',
+      },
+      name: 'is-subdir',
+      version: '1.0.0',
+    }),
+  ])
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: true }))
+  const opts = await testDefaults({
+    fastUnpack: false,
+    globalBin: path.resolve('bin'),
+    linkToBin: path.resolve('bin'),
+    store: path.resolve('.store'),
+  })
+
+  const manifest = await link(
+    ['is-subdir'],
+    path.join('project', 'node_modules'),
+    {
+      ...opts,
+      dir: path.resolve('project'),
+      manifest: {
+        dependencies: {
+          'is-subdir': '^1.0.0',
+        },
+        name: 'is-subdir',
+      },
+    }
+  )
+  t.ok(fs.existsSync(path.resolve('bin/is-subdir')), 'bin is installed in global bin directory')
 
   await mutateModules(
     [
       {
-        dependencyNames: ['is-positive'],
+        dependencyNames: ['is-subdir'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    await testDefaults({ independentLeaves: true, reporter }),
+    opts
   )
 
-  t.ok(reporter.calledWithMatch({
-    level: 'warn',
-    message: 'is-positive is not an external link',
-  }), 'reported warning')
+  t.notOk(fs.existsSync(path.resolve('bin/is-subdir')), 'bin is removed in global bin directory')
 })

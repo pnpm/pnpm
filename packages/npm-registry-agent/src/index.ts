@@ -1,44 +1,45 @@
+import { URL } from 'url'
 import HttpAgent = require('agentkeepalive')
-import HttpProxyAgent = require('http-proxy-agent')
+import createHttpProxyAgent = require('http-proxy-agent')
 import HttpsProxyAgent = require('https-proxy-agent')
 import LRU = require('lru-cache')
 import SocksProxyAgent = require('socks-proxy-agent')
-import { URL } from 'url'
-import getProcessEnv from './getProcessEnv'
 
 const HttpsAgent = HttpAgent.HttpsAgent
 
 const AGENT_CACHE = new LRU({ max: 50 })
 
-export default function getAgent (
-  uri: string,
-  opts: {
-    localAddress?: string,
-    strictSSL?: boolean,
-    ca?: string,
-    cert?: string,
-    key?: string,
-    maxSockets?: number,
-    timeout?: number,
-    proxy: string,
-    noProxy: boolean,
-  },
-) {
+export interface AgentOptions {
+  ca?: string
+  cert?: string
+  httpProxy?: string
+  httpsProxy?: string
+  key?: string
+  localAddress?: string
+  maxSockets?: number
+  noProxy?: boolean | string
+  strictSSL?: boolean
+  timeout?: number
+}
+
+export default function getAgent (uri: string, opts: AgentOptions) {
   const parsedUri = new URL(uri)
   const isHttps = parsedUri.protocol === 'https:'
   const pxuri = getProxyUri(uri, opts)
 
+  /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
   const key = [
-    `https:${isHttps}`,
+    `https:${isHttps.toString()}`,
     pxuri
       ? `proxy:${pxuri.protocol}//${pxuri.host}:${pxuri.port}`
       : '>no-proxy<',
-    `local-address:${opts.localAddress || '>no-local-address<'}`,
-    `strict-ssl:${isHttps ? !!opts.strictSSL : '>no-strict-ssl<'}`,
+    `local-address:${opts.localAddress ?? '>no-local-address<'}`,
+    `strict-ssl:${isHttps ? Boolean(opts.strictSSL).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && opts.ca) || '>no-ca<'}`,
     `cert:${(isHttps && opts.cert) || '>no-cert<'}`,
-    `key:${(isHttps && opts.key) || '>no-key<'}`
+    `key:${(isHttps && opts.key) || '>no-key<'}`,
   ].join(':')
+  /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
 
   if (AGENT_CACHE.peek(key)) {
     return AGENT_CACHE.get(key)
@@ -63,27 +64,28 @@ export default function getAgent (
       cert: opts.cert,
       key: opts.key,
       localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets || 15,
+      maxSockets: opts.maxSockets ?? 15,
       rejectUnauthorized: opts.strictSSL,
-      timeout: agentTimeout
-    } as any) // tslint:disable-line:no-any
+      timeout: agentTimeout,
+    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     : new HttpAgent({
       localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets || 15,
-      timeout: agentTimeout
-    } as any) // tslint:disable-line:no-any
+      maxSockets: opts.maxSockets ?? 15,
+      timeout: agentTimeout,
+    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   AGENT_CACHE.set(key, agent)
   return agent
 }
 
-function checkNoProxy (uri: string, opts: { noProxy?: boolean }) {
-  const host = new URL(uri).hostname!.split('.').filter(x => x).reverse()
-  let noproxy = (opts.noProxy || getProcessEnv('no_proxy'))
-  if (typeof noproxy === 'string') {
-    const noproxyArr = noproxy.split(/\s*,\s*/g)
+function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }) {
+  const host = new URL(uri).hostname.split('.').filter(x => x).reverse()
+  if (typeof opts.noProxy === 'string') {
+    const noproxyArr = opts.noProxy.split(/\s*,\s*/g)
     return noproxyArr.some(no => {
       const noParts = no.split('.').filter(x => x).reverse()
-      if (!noParts.length) { return false }
+      if (!noParts.length) {
+        return false
+      }
       for (let i = 0; i < noParts.length; i++) {
         if (host[i] !== noParts[i]) {
           return false
@@ -92,24 +94,34 @@ function checkNoProxy (uri: string, opts: { noProxy?: boolean }) {
       return true
     })
   }
-  return noproxy
+  return opts.noProxy
 }
 
 function getProxyUri (
   uri: string,
   opts: {
-    proxy?: string,
-    noProxy?: boolean,
-  },
+    httpProxy?: string
+    httpsProxy?: string
+    noProxy?: boolean | string
+  }
 ) {
   const { protocol } = new URL(uri)
 
-  let proxy = opts.proxy || (
-    protocol === 'https:' && getProcessEnv('https_proxy')
-  ) || (
-      protocol === 'http:' && getProcessEnv(['https_proxy', 'http_proxy', 'proxy'])
-    )
-  if (!proxy) { return null }
+  let proxy: string | undefined
+  switch (protocol) {
+  case 'http:': {
+    proxy = opts.httpProxy
+    break
+  }
+  case 'https:': {
+    proxy = opts.httpsProxy
+    break
+  }
+  }
+
+  if (!proxy) {
+    return null
+  }
 
   if (!proxy.startsWith('http')) {
     proxy = protocol + '//' + proxy
@@ -123,24 +135,24 @@ function getProxyUri (
 function getProxy (
   proxyUrl: URL,
   opts: {
-    ca?: string,
-    cert?: string,
-    key?: string,
-    timeout?: number,
-    localAddress?: string,
-    maxSockets?: number,
-    strictSSL?: boolean,
+    ca?: string
+    cert?: string
+    key?: string
+    timeout?: number
+    localAddress?: string
+    maxSockets?: number
+    strictSSL?: boolean
   },
-  isHttps: boolean,
+  isHttps: boolean
 ) {
-  let popts = {
+  const popts = {
     auth: (proxyUrl.username ? (proxyUrl.password ? `${proxyUrl.username}:${proxyUrl.password}` : proxyUrl.username) : undefined),
     ca: opts.ca,
     cert: opts.cert,
     host: proxyUrl.hostname,
     key: opts.key,
     localAddress: opts.localAddress,
-    maxSockets: opts.maxSockets || 15,
+    maxSockets: opts.maxSockets ?? 15,
     path: proxyUrl.pathname,
     port: proxyUrl.port,
     protocol: proxyUrl.protocol,
@@ -150,12 +162,12 @@ function getProxy (
 
   if (proxyUrl.protocol === 'http:' || proxyUrl.protocol === 'https:') {
     if (!isHttps) {
-      return new HttpProxyAgent(popts)
+      return createHttpProxyAgent(popts)
     } else {
       return new HttpsProxyAgent(popts)
     }
   }
-  if (proxyUrl.protocol && proxyUrl.protocol.startsWith('socks')) {
+  if (proxyUrl.protocol?.startsWith('socks')) {
     return new SocksProxyAgent(popts)
   }
 }

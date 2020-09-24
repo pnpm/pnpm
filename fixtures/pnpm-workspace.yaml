@@ -1,0 +1,10 @@
+packages:
+  - '*'
+  - '!fixtureWithLinks'
+  - '!has-major-outdated-deps'
+  - '!has-no-lockfile'
+  - '!has-not-outdated-deps'
+  - '!has-npm-shrinkwrap-json'
+  - '!has-outdated-deps'
+  - '!has-package-lock-json'
+  - '!hello-world-js-bin'

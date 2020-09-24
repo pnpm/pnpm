@@ -1,5 +1,5 @@
-import fs = require('mz/fs')
 import path = require('path')
+import fs = require('mz/fs')
 
 export default async function readModulesDir (modulesDir: string) {
   try {
@@ -12,22 +12,22 @@ export default async function readModulesDir (modulesDir: string) {
 
 async function _readModulesDir (
   modulesDir: string,
-  scope?: string,
+  scope?: string
 ) {
   let pkgNames: string[] = []
   const parentDir = scope ? path.join(modulesDir, scope) : modulesDir
-  for (const dir of await fs.readdir(parentDir)) {
-    if (dir[0] === '.') continue
+  for (const dir of await fs.readdir(parentDir, { withFileTypes: true })) {
+    if (dir.isFile() || dir.name[0] === '.') continue
 
-    if (!scope && dir[0] === '@') {
+    if (!scope && dir.name[0] === '@') {
       pkgNames = [
         ...pkgNames,
-        ...await _readModulesDir(modulesDir, dir),
+        ...await _readModulesDir(modulesDir, dir.name),
       ]
       continue
     }
 
-    const pkgName = scope ? `${scope}/${dir}` : dir
+    const pkgName = scope ? `${scope}/${dir.name}` : dir.name
     pkgNames.push(pkgName)
   }
   return pkgNames

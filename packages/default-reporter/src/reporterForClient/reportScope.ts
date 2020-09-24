@@ -1,12 +1,13 @@
 import { ScopeLog } from '@pnpm/core-loggers'
-import most = require('most')
+import * as Rx from 'rxjs'
+import { map, take } from 'rxjs/operators'
 
 const COMMANDS_THAT_REPORT_SCOPE = new Set([
   'install',
   'link',
   'prune',
   'rebuild',
-  'uninstall',
+  'remove',
   'unlink',
   'update',
   'run',
@@ -14,27 +15,22 @@ const COMMANDS_THAT_REPORT_SCOPE = new Set([
 ])
 
 export default (
-  scope$: most.Stream<ScopeLog>,
+  scope$: Rx.Observable<ScopeLog>,
   opts: {
-    isRecursive: boolean,
-    cmd: string,
-    subCmd?: string,
-  },
-) => {
-  if (
-    !opts.isRecursive && !COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd) ||
-    opts.isRecursive && (!opts.subCmd || !COMMANDS_THAT_REPORT_SCOPE.has(opts.subCmd))
-  ) {
-    return most.never()
+    isRecursive: boolean
+    cmd: string
   }
-  return scope$
-    .take(1)
-    .map((log) => {
-      if (log.selected === 1 && typeof log.total !== 'number') {
-        if (!log.workspacePrefix) return most.never()
-        if (!opts.isRecursive) return most.of({ msg: 'Scope: current workspace package' })
+) => {
+  if (!COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd)) {
+    return Rx.NEVER
+  }
+  return scope$.pipe(
+    take(1),
+    map((log) => {
+      if (log.selected === 1) {
+        return Rx.NEVER
       }
-      let msg = `Scope: `
+      let msg = 'Scope: '
 
       if (log.selected === log.total) {
         msg += `all ${log.total}`
@@ -46,11 +42,12 @@ export default (
       }
 
       if (log.workspacePrefix) {
-        msg += ' workspace packages'
+        msg += ' workspace projects'
       } else {
-        msg += ' packages'
+        msg += ' projects'
       }
 
-      return most.of({ msg })
+      return Rx.of({ msg })
     })
+  )
 }

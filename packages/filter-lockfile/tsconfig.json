@@ -1,10 +1,37 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../constants"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../lockfile-types"
+    },
+    {
+      "path": "../lockfile-utils"
+    },
+    {
+      "path": "../lockfile-walker"
+    },
+    {
+      "path": "../package-is-installable"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../dependency-path"
+    }
   ]
 }

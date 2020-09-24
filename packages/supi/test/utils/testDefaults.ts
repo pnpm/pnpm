@@ -1,79 +1,74 @@
-import createFetcher from '@pnpm/default-fetcher'
-import createResolver from '@pnpm/default-resolver'
+import * as path from 'path'
+import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreController } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
-import path = require('path')
 import { InstallOptions } from 'supi'
 
-const registry = 'http://localhost:4873/'
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 const retryOpts = {
-  fetchRetries: 4,
-  fetchRetryFactor: 10,
-  fetchRetryMaxtimeout: 60_000,
-  fetchRetryMintimeout: 10_000,
+  retries: 4,
+  retryFactor: 10,
+  retryMaxtimeout: 60_000,
+  retryMintimeout: 10_000,
 }
 
 export default async function testDefaults<T> (
   opts?: T & {
-    store?: string,
-    prefix?: string,
-  }, // tslint:disable-line
-  resolveOpts?: any, // tslint:disable-line
-  fetchOpts?: any, // tslint:disable-line
-  storeOpts?: any, // tslint:disable-line
+    fastUnpack?: boolean
+    storeDir?: string
+    prefix?: string
+  }, // eslint-disable-line
+  resolveOpts?: any, // eslint-disable-line
+  fetchOpts?: any, // eslint-disable-line
+  storeOpts?: any // eslint-disable-line
 ): Promise<
   InstallOptions &
   {
-    registries: Registries,
-    store: string,
-    storeController: StoreController,
+    registries: Registries
+    storeController: StoreController
+    storeDir: string
   } &
   T
-> {
-  let store = opts && opts.store || path.resolve('.store')
-  store = await storePath(opts && opts.prefix || process.cwd(), store)
-  const rawNpmConfig = { registry }
+  > {
+  let storeDir = opts?.storeDir ?? path.resolve('.store')
+  storeDir = await storePath(opts?.prefix ?? process.cwd(), storeDir)
+  const authConfig = { registry }
+  const { resolve, fetchers } = createClient({
+    authConfig,
+    retry: retryOpts,
+    storeDir,
+    ...resolveOpts,
+    ...fetchOpts,
+  })
   const storeController = await createStore(
-    createResolver({
-      fullMetadata: false,
-      metaCache: new Map(),
-      rawNpmConfig,
-      store,
-      strictSsl: true,
-      ...retryOpts,
-      ...resolveOpts,
-    }),
-    createFetcher({
-      alwaysAuth: true,
-      rawNpmConfig,
-      registry,
-      ...retryOpts,
-      ...fetchOpts,
-    }) as {},
+    resolve,
+    fetchers,
     {
-      locks: path.join(store, '_locks'),
-      store,
+      ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
+      storeDir,
       verifyStoreIntegrity: true,
       ...storeOpts,
-    },
+    }
   )
-  return {
+  const result: (
+    InstallOptions &
+    {
+      registries: Registries
+      storeController: StoreController
+      storeDir: string
+    } &
+    T
+  ) = {
     registries: {
       default: registry,
     },
-    store,
     storeController,
+    storeDir,
     ...opts,
-  } as (
-    InstallOptions &
-    {
-      registries: Registries,
-      store: string,
-      storeController: StoreController,
-    } &
-    T
-  )
+  }
+  return result
 }

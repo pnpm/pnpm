@@ -1,13 +1,42 @@
+import { types as allTypes } from '@pnpm/config'
 import path = require('path')
+import R = require('ramda')
+import renderHelp = require('render-help')
 
-const LAYOUT_VERSION = '1'
+export const rcOptionsTypes = cliOptionsTypes
 
-export default async function (
-  args: string[],
+export function cliOptionsTypes () {
+  return R.pick([
+    'global',
+  ], allTypes)
+}
+
+export const commandNames = ['root']
+
+export function help () {
+  return renderHelp({
+    description: 'Print the effective `node_modules` directory.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Print the global `node_modules` directory',
+            name: '--global',
+            shortAlias: '-g',
+          },
+        ],
+      },
+    ],
+    usages: ['pnpm root [-g]'],
+  })
+}
+
+export async function handler (
   opts: {
-    prefix: string,
-  },
-  command: string,
+    dir: string
+  }
 ) {
-  console.log(path.join(opts.prefix, 'node_modules'))
+  return `${path.join(opts.dir, 'node_modules')}\n`
 }

@@ -1,11 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import path = require('path')
-import { install } from 'supi'
-import tape = require('tape')
+import { addDependenciesToPackage, install } from 'supi'
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import path = require('path')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -14,11 +13,11 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 
   await install({
     dependencies: {
-      rimraf: '2.6.2',
+      'pkg-with-1-dep': '100.0.0',
     },
     devDependencies: {
-      '@rstacruz/tap-spec': '4.1.1',
-      'once': '^1.4.0', // once is also a transitive dependency of rimraf
+      '@zkochan/foo': '1.0.0',
+      once: '^1.4.0', // once is also a transitive dependency of rimraf
     },
   }, await testDefaults({
     include: {
@@ -28,17 +27,8 @@ test('production install (with --production flag)', async (t: tape.Test) => {
     },
   }))
 
-  const rimraf = project.requireModule('rimraf')
-
-  let tapStatErrCode: number = 0
-  try {
-    fs.statSync(path.resolve('node_modules', '@rstacruz'))
-  } catch (err) {
-    tapStatErrCode = err.code
-  }
-
-  t.ok(rimraf, 'rimraf exists')
-  t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
+  await project.has('pkg-with-1-dep')
+  await project.hasNot('@zkochan/foo')
 })
 
 test('install dev dependencies only', async (t: tape.Test) => {
@@ -47,7 +37,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
   const manifest = await install({
     dependencies: {
       'is-positive': '1.0.0',
-      'once': '^1.4.0',
+      once: '^1.4.0',
     },
     devDependencies: {
       inflight: '1.0.6',
@@ -60,9 +50,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
     },
   }))
 
-  const inflight = project.requireModule('inflight')
-  t.equal(typeof inflight, 'function', 'dev dependency is available')
-
+  await project.has('inflight')
   await project.hasNot('once')
 
   {
@@ -89,12 +77,12 @@ test('install dev dependencies only', async (t: tape.Test) => {
 test('fail if installing different types of dependencies in a project that uses an external lockfile', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const lockfileDirectory = path.resolve('..')
+  const lockfileDir = path.resolve('..')
 
   const manifest = await install({
     dependencies: {
       'is-positive': '1.0.0',
-      'once': '^1.4.0',
+      once: '^1.4.0',
     },
     devDependencies: {
       inflight: '1.0.6',
@@ -105,25 +93,24 @@ test('fail if installing different types of dependencies in a project that uses 
       devDependencies: true,
       optionalDependencies: false,
     },
-    lockfileDirectory,
+    lockfileDir,
   }))
 
-  const inflight = project.requireModule('inflight')
-  t.equal(typeof inflight, 'function', 'dev dependency is available')
-
+  await project.has('inflight')
   await project.hasNot('once')
 
   let err!: Error & { code: string }
+  const newOpts = await testDefaults({
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    lockfileDir,
+  })
 
   try {
-    await install(manifest, await testDefaults({
-      include: {
-        dependencies: true,
-        devDependencies: true,
-        optionalDependencies: true,
-      },
-      lockfileDirectory,
-    }))
+    await addDependenciesToPackage(manifest, ['is-negative'], newOpts)
   } catch (_) {
     err = _
   }
@@ -131,4 +118,6 @@ test('fail if installing different types of dependencies in a project that uses 
   t.ok(err, 'installation failed')
   t.equal(err.code, 'ERR_PNPM_INCLUDED_DEPS_CONFLICT', 'error has correct error code')
   t.ok(err.message.includes('was installed with devDependencies. Current install wants optionalDependencies, dependencies, devDependencies.'), 'correct error message')
+
+  await install(manifest, newOpts)
 })

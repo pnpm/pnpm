@@ -32,9 +32,10 @@
     "@pnpm/package-is-installable",
     "@pnpm/package-requester",
     "@pnpm/package-store",
+    "@pnpm/pkgid-to-filename",
     "@pnpm/prune-lockfile",
-    "@pnpm/read-importers-context",
-    "@pnpm/read-importer-manifest",
+    "@pnpm/read-projects-context",
+    "@pnpm/read-project-manifest",
     "@pnpm/read-modules-dir",
     "@pnpm/read-package-json",
     "@pnpm/registry-mock",
@@ -49,18 +50,21 @@
     "@pnpm/tarball-resolver",
     "@pnpm/types",
     "@pnpm/utils",
-    "@pnpm/write-importer-manifest",
+    "@pnpm/write-project-manifest",
     "dependencies-hierarchy",
     "dependency-path",
     "fetch-from-npm-registry",
     "find-packages",
-    "pnpm-file-reporter",
+    "npm",
     "pkgs-graph",
+    "pnpm-file-reporter",
+    "publish-packed",
     "remove-all-except-outer-links",
     "supi",
     "ts-node"
   ],
   "ignorePaths": [
+    "fixtures",
     "test/",
     "packages/dependencies-hierarchy/fixtures",
     "packages/dependencies-hierarchy/fixtureWithLinks",
@@ -86,12 +90,28 @@
       "allowedVersions": "2.2.1"
     },
     {
+      "packageNames": ["ssri"],
+      "allowedVersions": "6.0.1"
+    },
+    {
       "packageNames": ["write-json-file"],
       "allowedVersions": "4.0.0"
     },
     {
       "packageNames": ["write-file-atomic"],
       "allowedVersions": "2.4.3"
+    },
+    {
+      "packageNames": ["uuid"],
+      "allowedVersions": "^3.4.0"
+    },
+    {
+      "packageNames": ["tape"],
+      "allowedVersions": "^4.13.3"
+    },
+    {
+      "packageNames": ["nock"],
+      "allowedVersions": "12.0.3"
     }
   ],
   "pinVersions": false,

@@ -1,10 +1,9 @@
 packages:
-  - '.'
-  - packages/**
-  - privatePackages/**
-  - typings/**
-  - tools/**
-  - utils/**
+  - packages/*
+  - privatePackages/*
+  - typings
+  - tools
+  - utils/*
   - "!**/__package_previews__/**"
   - "!**/example/**"
   - "!**/test/**"
@@ -12,3 +11,4 @@ packages:
   - "!packages/dependencies-hierarchy/fixtures/**"
   - "!packages/dependencies-hierarchy/fixtureMonorepo/**"
   - "!packages/dependencies-hierarchy/fixtureWithLinks/**"
+  - "!privatePackages/test-fixtures/fixtures/**"

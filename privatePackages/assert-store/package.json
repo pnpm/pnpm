@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.0",
+  "version": "1.0.10",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -20,12 +20,7 @@
   "private": true,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "files": [
-    "lib/"
-  ],
-  "devDependencies": {
-    "rimraf": "3.0.0"
-  },
+  "files": ["lib/"],
   "directories": {
     "test": "test"
   },
@@ -33,21 +28,21 @@
   "keywords": [],
   "license": "MIT",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store",
   "scripts": {
-    "commit": "commit",
-    "commitmsg": "commitlint -e",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc",
-    "pretest": "cd test/fixture/project && pnpm i --force --no-shared-workspace-lockfile && cd ../../..",
-    "test": "pnpm run lint && pnpm run tsc && ts-node test"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
+    "test": "pnpm run compile && ts-node test"
   },
   "dependencies": {
-    "@pnpm/assert-store": "link:",
-    "path-exists": "4.0.0",
-    "tape": "4.11.0"
+    "@pnpm/cafs": "workspace:^2.0.0",
+    "path-exists": "^4.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/assert-store": "link:"
   }
 }

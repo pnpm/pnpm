@@ -1,9 +1,21 @@
-///<reference path="../../../typings/index.d.ts"/>
-import createResolveFromGit from '@pnpm/git-resolver'
+/// <reference path="../../../typings/index.d.ts"/>
+import path = require('path')
 import git = require('graceful-git')
 import isWindows = require('is-windows')
-import path = require('path')
+import proxyquire = require('proxyquire')
 import test = require('tape')
+
+let gracefulGit = git
+const gracefulGitMock = function () {
+  return gracefulGit.call(this, ...Array.from(arguments))
+}
+
+const createResolveFromGit = proxyquire('@pnpm/git-resolver', {
+  './parsePref': proxyquire('@pnpm/git-resolver/lib/parsePref', {
+    'graceful-git': gracefulGitMock,
+  }),
+  'graceful-git': gracefulGitMock,
+}).default
 
 const resolveFromGit = createResolveFromGit({})
 
@@ -132,7 +144,7 @@ test('resolveFromGit() with range semver (v-prefixed tag)', async (t) => {
 
 test('resolveFromGit() fails when ref not found', async (t) => {
   try {
-    const r = await resolveFromGit({ pref: 'zkochan/is-negative#bad-ref' })
+    await resolveFromGit({ pref: 'zkochan/is-negative#bad-ref' })
     t.fail()
   } catch (err) {
     t.equal(err.message, 'Could not resolve bad-ref to a commit of git://github.com/zkochan/is-negative.git.', 'throws the expected error message')
@@ -142,7 +154,7 @@ test('resolveFromGit() fails when ref not found', async (t) => {
 
 test('resolveFromGit() fails when semver ref not found', async (t) => {
   try {
-    const r = await resolveFromGit({ pref: 'zkochan/is-negative#semver:^100.0.0' })
+    await resolveFromGit({ pref: 'zkochan/is-negative#semver:^100.0.0' })
     t.fail()
   } catch (err) {
     t.equal(err.message, 'Could not resolve ^100.0.0 to a commit of git://github.com/zkochan/is-negative.git. Available versions are: 1.0.0, 1.0.1, 2.0.0, 2.0.1, 2.0.2, 2.1.0', 'throws the expected error message')
@@ -175,7 +187,7 @@ test('resolveFromGit() with commit from non-github repo', async (t) => {
 test.skip('resolveFromGit() with commit from non-github repo with no commit', async (t) => {
   const localPath = path.resolve('..', '..')
   const result = await git(['rev-parse', 'origin/master'], { retries: 0 })
-  const hash = result.stdout.trim()
+  const hash: string = result.stdout.trim()
   const resolveResult = await resolveFromGit({ pref: `git+file://${localPath}` })
   t.deepEqual(resolveResult, {
     id: `${localPath}/${hash}`,
@@ -213,7 +225,7 @@ test.skip('resolveFromGit() bitbucket with commit', async (t) => {
 test.skip('resolveFromGit() bitbucket with no commit', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver' })
   const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
-  const hash = result.stdout.trim().split('\t')[0]
+  const hash: string = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `bitbucket.org/pnpmjs/git-resolver/${hash}`,
     normalizedPref: 'bitbucket:pnpmjs/git-resolver',
@@ -229,7 +241,7 @@ test.skip('resolveFromGit() bitbucket with no commit', async (t) => {
 test.skip('resolveFromGit() bitbucket with branch', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver#master' })
   const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
-  const hash = result.stdout.trim().split('\t')[0]
+  const hash: string = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `bitbucket.org/pnpmjs/git-resolver/${hash}`,
     normalizedPref: 'bitbucket:pnpmjs/git-resolver#master',
@@ -271,7 +283,7 @@ test('resolveFromGit() gitlab with commit', async (t) => {
 test('resolveFromGit() gitlab with no commit', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver' })
   const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
-  const hash = result.stdout.trim().split('\t')[0]
+  const hash: string = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `gitlab.com/pnpm/git-resolver/${hash}`,
     normalizedPref: 'gitlab:pnpm/git-resolver',
@@ -286,7 +298,7 @@ test('resolveFromGit() gitlab with no commit', async (t) => {
 test('resolveFromGit() gitlab with branch', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#master' })
   const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
-  const hash = result.stdout.trim().split('\t')[0]
+  const hash: string = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `gitlab.com/pnpm/git-resolver/${hash}`,
     normalizedPref: 'gitlab:pnpm/git-resolver#master',
@@ -360,7 +372,33 @@ test('resolveFromGit() private repo with commit hash', async (t) => {
     resolution: {
       commit: '2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
       repo: 'git+ssh://git@github.com/fake/private-repo.git',
-      type: 'git'
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+  t.end()
+})
+
+test('resolve a private repository using the HTTPS protocol and an auth token', async (t) => {
+  gracefulGit = async (args: string[]) => {
+    if (!args.includes('https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git')) throw new Error('')
+    if (args.includes('--refs')) {
+      return {
+        stdout: '\
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
+',
+      }
+    }
+    return { stdout: '0000000000000000000000000000000000000000\tHEAD' }
+  }
+  const resolveResult = await resolveFromGit({ pref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git' })
+  t.deepEqual(resolveResult, {
+    id: '0000000000000000000000000000000000000000+x-oauth-basic@github.com/foo/bar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    normalizedPref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
+    resolution: {
+      commit: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      repo: 'https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
+      type: 'git',
     },
     resolvedVia: 'git-repository',
   })

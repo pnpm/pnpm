@@ -38,7 +38,7 @@ export function tryGetPackageId (registries: Registries, relDepPath: string) {
 export function refToAbsolute (
   reference: string,
   pkgName: string,
-  registries: Registries,
+  registries: Registries
 ) {
   if (reference.startsWith('link:')) {
     return null
@@ -65,7 +65,7 @@ export function relative (
 ) {
   const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
 
-  if (absoluteResolutionLoc.startsWith(`${registryName}/`) && !absoluteResolutionLoc.includes('/-/')) {
+  if (absoluteResolutionLoc.startsWith(`${registryName}/`)) {
     return absoluteResolutionLoc.substr(absoluteResolutionLoc.indexOf('/'))
   }
   return absoluteResolutionLoc
@@ -88,10 +88,10 @@ export function refToRelative (
 }
 
 export function parse (dependencyPath: string) {
-  // tslint:disable-next-line: strict-type-predicates
+  // eslint-disable-next-line: strict-type-predicates
   if (typeof dependencyPath !== 'string') {
     throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${
-      // tslint:disable-next-line: strict-type-predicates
+      // eslint-disable-next-line: strict-type-predicates
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
@@ -100,7 +100,7 @@ export function parse (dependencyPath: string) {
   if (!_isAbsolute) parts.shift()
   const host = _isAbsolute ? parts.shift() : undefined
   const name = parts[0].startsWith('@')
-    ? `${parts.shift()}/${parts.shift()}`
+    ? `${parts.shift()}/${parts.shift()}` // eslint-disable-line @typescript-eslint/restrict-template-expressions
     : parts.shift()
   let version = parts.shift()
   if (version) {

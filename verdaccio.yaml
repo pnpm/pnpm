@@ -1,0 +1,18 @@
+storage: ./verdaccio/node_modules/storage-cache
+middlewares:
+  audit:
+    enabled: true
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+packages:
+  '@*/*':
+    access: $all
+    publish: $all
+    proxy: npmjs
+  '**':
+    access: $all
+    publish: $all
+    proxy: npmjs
+logs:
+  - {type: stdout, format: pretty, level: error}

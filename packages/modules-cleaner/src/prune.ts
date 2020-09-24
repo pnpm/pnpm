@@ -5,68 +5,66 @@ import {
 import filterLockfile, { filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import {
   Lockfile,
-  LockfileImporter,
   PackageSnapshots,
+  ProjectSnapshot,
 } from '@pnpm/lockfile-types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
-  DEPENDENCIES_FIELDS,
   DependenciesField,
+  DEPENDENCIES_FIELDS,
+  HoistedDependencies,
   Registries,
 } from '@pnpm/types'
-import * as dp from 'dependency-path'
-import vacuumCB = require('fs-vacuum')
-import path = require('path')
-import R = require('ramda')
-import { promisify } from 'util'
 import removeDirectDependency from './removeDirectDependency'
-
-const vacuum = promisify(vacuumCB)
+import path = require('path')
+import rimraf = require('@zkochan/rimraf')
+import R = require('ramda')
 
 export default async function prune (
   importers: Array<{
-    bin: string,
-    id: string,
-    modulesDir: string,
-    prefix: string,
-    pruneDirectDependencies?: boolean,
-    removePackages?: string[],
+    binsDir: string
+    id: string
+    modulesDir: string
+    pruneDirectDependencies?: boolean
+    removePackages?: string[]
+    rootDir: string
   }>,
   opts: {
-    dryRun?: boolean,
-    include: { [dependenciesField in DependenciesField]: boolean },
-    hoistedAliases: {[depPath: string]: string[]},
-    hoistedModulesDir?: string,
-    wantedLockfile: Lockfile,
-    currentLockfile: Lockfile,
-    pruneStore?: boolean,
-    registries: Registries,
-    skipped: Set<string>,
-    virtualStoreDir: string,
-    lockfileDirectory: string,
-    storeController: StoreController,
-  },
+    dryRun?: boolean
+    include: { [dependenciesField in DependenciesField]: boolean }
+    hoistedDependencies: HoistedDependencies
+    hoistedModulesDir?: string
+    publicHoistedModulesDir?: string
+    wantedLockfile: Lockfile
+    currentLockfile: Lockfile
+    pruneStore?: boolean
+    registries: Registries
+    skipped: Set<string>
+    virtualStoreDir: string
+    lockfileDir: string
+    storeController: StoreController
+  }
 ): Promise<Set<string>> {
   const wantedLockfile = filterLockfile(opts.wantedLockfile, {
     include: opts.include,
-    registries: opts.registries,
     skipped: opts.skipped,
   })
-  await Promise.all(importers.map(async ({ bin, id, modulesDir, prefix, pruneDirectDependencies, removePackages }) => {
-    const currentImporter = opts.currentLockfile.importers[id] || {} as LockfileImporter
+  await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
+    const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
     const currentPkgs = R.toPairs(mergeDependencies(currentImporter))
     const wantedPkgs = R.toPairs(mergeDependencies(wantedLockfile.importers[id]))
 
     const allCurrentPackages = new Set(
-      (pruneDirectDependencies || removePackages && removePackages.length)
-        ? (await readModulesDir(modulesDir) || [])
-        : [],
+      (pruneDirectDependencies === true || removePackages?.length)
+        ? (await readModulesDir(modulesDir) ?? [])
+        : []
     )
     const depsToRemove = new Set([
-      ...(removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
+      ...(removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage)),
       ...R.difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
     ])
     if (pruneDirectDependencies) {
@@ -82,16 +80,16 @@ export default async function prune (
 
     return Promise.all(Array.from(depsToRemove).map((depName) => {
       return removeDirectDependency({
-        dependenciesField: currentImporter.devDependencies && currentImporter.devDependencies[depName] && 'devDependencies' ||
-          currentImporter.optionalDependencies && currentImporter.optionalDependencies[depName] && 'optionalDependencies' ||
-          currentImporter.dependencies && currentImporter.dependencies[depName] && 'dependencies' ||
+        dependenciesField: currentImporter.devDependencies?.[depName] != null && 'devDependencies' ||
+          currentImporter.optionalDependencies?.[depName] != null && 'optionalDependencies' ||
+          currentImporter.dependencies?.[depName] != null && 'dependencies' ||
           undefined,
         name: depName,
       }, {
-        bin,
+        binsDir,
         dryRun: opts.dryRun,
         modulesDir,
-        prefix,
+        rootDir,
       })
     }))
   }))
@@ -100,10 +98,10 @@ export default async function prune (
   // In case installation is done on a subset of importers,
   // we may only prune dependencies that are used only by that subset of importers.
   // Otherwise, we would break the node_modules.
-  const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.currentLockfile.importers))
-    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages || {})
+  const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
+    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages ?? {}, opts.skipped)
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
-  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages || {})
+  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages ?? {}, opts.skipped)
 
   const oldDepPaths = Object.keys(currentPkgIdsByDepPaths)
   const newDepPaths = Object.keys(wantedPkgIdsByDepPaths)
@@ -112,80 +110,72 @@ export default async function prune (
   const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, currentPkgIdsByDepPaths))
 
   statsLogger.debug({
-    prefix: opts.lockfileDirectory,
+    prefix: opts.lockfileDir,
     removed: orphanPkgIds.size,
   })
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-      if (opts.currentLockfile.packages && opts.hoistedModulesDir) {
-        const modulesDir = opts.hoistedModulesDir
-        const bin = path.join(opts.hoistedModulesDir, '.bin')
+      if (
+        opts.currentLockfile.packages &&
+        opts.hoistedModulesDir &&
+        opts.publicHoistedModulesDir
+      ) {
+        const binsDir = path.join(opts.hoistedModulesDir, '.bin')
         const prefix = path.join(opts.virtualStoreDir, '../..')
         await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-          if (opts.hoistedAliases[orphanDepPath]) {
-            await Promise.all(opts.hoistedAliases[orphanDepPath].map((alias) => {
+          if (opts.hoistedDependencies[orphanDepPath]) {
+            await Promise.all(Object.entries(opts.hoistedDependencies[orphanDepPath]).map(([alias, hoistType]) => {
+              const modulesDir = hoistType === 'public'
+                ? opts.publicHoistedModulesDir! : opts.hoistedModulesDir!
               return removeDirectDependency({
                 name: alias,
               }, {
-                bin,
+                binsDir,
                 modulesDir,
                 muteLogs: true,
-                prefix,
+                rootDir: prefix,
               })
             }))
           }
-          delete opts.hoistedAliases[orphanDepPath]
+          delete opts.hoistedDependencies[orphanDepPath]
         }))
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        const pathToRemove = path.join(opts.virtualStoreDir, orphanDepPath, 'node_modules')
+        const pathToRemove = path.join(opts.virtualStoreDir, pkgIdToFilename(orphanDepPath, opts.lockfileDir))
         removalLogger.debug(pathToRemove)
         try {
-          await vacuum(pathToRemove, {
-            base: opts.virtualStoreDir,
-            purge: true,
-          })
+          await rimraf(pathToRemove)
         } catch (err) {
           logger.warn({
             error: err,
             message: `Failed to remove "${pathToRemove}"`,
-            prefix: opts.lockfileDirectory,
+            prefix: opts.lockfileDir,
           })
         }
       }))
     }
-
-    const addedDepPaths = R.difference(newDepPaths, oldDepPaths)
-    const addedPkgIds = new Set(R.props<string, string>(addedDepPaths, wantedPkgIdsByDepPaths))
-
-    await opts.storeController.updateConnections(path.dirname(opts.virtualStoreDir), {
-      addDependencies: Array.from(addedPkgIds),
-      prune: opts.pruneStore || false,
-      removeDependencies: Array.from(orphanPkgIds),
-    })
-
-    await opts.storeController.saveState()
   }
 
   return new Set(orphanDepPaths)
 }
 
-function mergeDependencies (lockfileImporter: LockfileImporter): { [depName: string]: string } {
+function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: string]: string } {
   return R.mergeAll(
-    DEPENDENCIES_FIELDS.map((depType) => lockfileImporter[depType] || {}),
+    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] ?? {})
   )
 }
 
 function getPkgsDepPaths (
   registries: Registries,
   packages: PackageSnapshots,
+  skipped: Set<string>
 ): {[depPath: string]: string} {
   const pkgIdsByDepPath = {}
-  for (const relDepPath of Object.keys(packages)) {
-    const depPath = dp.resolve(registries, relDepPath)
-    pkgIdsByDepPath[depPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
+  for (const depPath of Object.keys(packages)) {
+    if (skipped.has(depPath)) continue
+    pkgIdsByDepPath[depPath] = packageIdFromSnapshot(depPath, packages[depPath], registries)
   }
   return pkgIdsByDepPath
 }
@@ -195,14 +185,13 @@ function getPkgsDepPathsOwnedOnlyByImporters (
   registries: Registries,
   lockfile: Lockfile,
   include: { [dependenciesField in DependenciesField]: boolean },
-  skipped: Set<string>,
+  skipped: Set<string>
 ) {
   const selected = filterLockfileByImporters(lockfile,
     importerIds,
     {
       failOnMissingDependencies: false,
       include,
-      registries,
       skipped,
     })
   const other = filterLockfileByImporters(lockfile,
@@ -210,9 +199,9 @@ function getPkgsDepPathsOwnedOnlyByImporters (
     {
       failOnMissingDependencies: false,
       include,
-      registries,
       skipped,
     })
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   const packagesOfSelectedOnly = R.pickAll(R.difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
-  return getPkgsDepPaths(registries, packagesOfSelectedOnly)
+  return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
 }

@@ -1,13 +1,17 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
-import most = require('most')
+import { LogLevel } from '@pnpm/logger'
+import * as Rx from 'rxjs'
+import { throttleTime } from 'rxjs/operators'
 import reportBigTarballsProgress from './reportBigTarballsProgress'
+import reportContext from './reportContext'
 import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
 import reportInstallChecks from './reportInstallChecks'
 import reportLifecycleScripts from './reportLifecycleScripts'
 import reportMisc from './reportMisc'
 import reportProgress from './reportProgress'
+import reportRequestRetry from './reportRequestRetry'
 import reportScope from './reportScope'
 import reportSkippedOptionalDependencies from './reportSkippedOptionalDependencies'
 import reportStats from './reportStats'
@@ -15,43 +19,51 @@ import reportSummary from './reportSummary'
 
 export default function (
   log$: {
-    fetchingProgress: most.Stream<logs.FetchingProgressLog>,
-    progress: most.Stream<logs.ProgressLog>,
-    stage: most.Stream<logs.StageLog>,
-    deprecation: most.Stream<logs.DeprecationLog>,
-    summary: most.Stream<logs.SummaryLog>,
-    lifecycle: most.Stream<logs.LifecycleLog>,
-    stats: most.Stream<logs.StatsLog>,
-    installCheck: most.Stream<logs.InstallCheckLog>,
-    registry: most.Stream<logs.RegistryLog>,
-    root: most.Stream<logs.RootLog>,
-    packageJson: most.Stream<logs.PackageJsonLog>,
-    link: most.Stream<logs.LinkLog>,
-    other: most.Stream<logs.Log>,
-    hook: most.Stream<logs.HookLog>,
-    scope: most.Stream<logs.ScopeLog>,
-    skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,
+    context: Rx.Observable<logs.ContextLog>
+    fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
+    progress: Rx.Observable<logs.ProgressLog>
+    stage: Rx.Observable<logs.StageLog>
+    deprecation: Rx.Observable<logs.DeprecationLog>
+    summary: Rx.Observable<logs.SummaryLog>
+    lifecycle: Rx.Observable<logs.LifecycleLog>
+    stats: Rx.Observable<logs.StatsLog>
+    installCheck: Rx.Observable<logs.InstallCheckLog>
+    registry: Rx.Observable<logs.RegistryLog>
+    root: Rx.Observable<logs.RootLog>
+    packageManifest: Rx.Observable<logs.PackageManifestLog>
+    requestRetry: Rx.Observable<logs.RequestRetryLog>
+    link: Rx.Observable<logs.LinkLog>
+    other: Rx.Observable<logs.Log>
+    hook: Rx.Observable<logs.HookLog>
+    scope: Rx.Observable<logs.ScopeLog>
+    skippedOptionalDependency: Rx.Observable<logs.SkippedOptionalDependencyLog>
+    packageImportMethod: Rx.Observable<logs.PackageImportMethodLog>
   },
   opts: {
-    isRecursive: boolean,
-    cmd: string,
-    subCmd?: string,
-    width?: number,
-    appendOnly?: boolean,
-    throttleProgress?: number,
-    pnpmConfigs?: PnpmConfigs,
-  },
-): Array<most.Stream<most.Stream<{msg: string}>>> {
-  const width = opts.width || process.stdout.columns || 80
-  const cwd = opts.pnpmConfigs && opts.pnpmConfigs.prefix || process.cwd()
+    appendOnly?: boolean
+    cmd: string
+    config?: Config
+    isRecursive: boolean
+    logLevel?: LogLevel
+    pnpmConfig?: Config
+    streamLifecycleOutput?: boolean
+    throttleProgress?: number
+    width?: number
+  }
+): Array<Rx.Observable<Rx.Observable<{msg: string}>>> {
+  const width = opts.width ?? process.stdout.columns ?? 80
+  const cwd = opts.pnpmConfig?.dir ?? process.cwd()
+  const throttle = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
+    ? throttleTime(opts.throttleProgress, undefined, { leading: true, trailing: true })
+    : undefined
 
-  const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = [
+  const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
     reportProgress(log$, {
       cwd,
-      throttleProgress: opts.throttleProgress,
+      throttle,
     }),
     reportLifecycleScripts(log$, {
-      appendOnly: opts.appendOnly,
+      appendOnly: opts.appendOnly === true || opts.streamLifecycleOutput,
       cwd,
       width,
     }),
@@ -59,21 +71,24 @@ export default function (
     reportMisc(
       log$,
       {
+        config: opts.config,
         cwd,
+        logLevel: opts.logLevel,
         zoomOutCurrent: opts.isRecursive,
-      },
+      }
     ),
     ...reportStats(log$, {
       cmd: opts.cmd,
       cwd,
       isRecursive: opts.isRecursive,
-      subCmd: opts.subCmd,
       width,
     }),
     reportInstallChecks(log$.installCheck, { cwd }),
-    reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd, subCmd: opts.subCmd }),
+    reportRequestRetry(log$.requestRetry),
+    reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
+    reportContext(log$, { cwd }),
   ]
 
   if (!opts.appendOnly) {
@@ -83,7 +98,7 @@ export default function (
   if (!opts.isRecursive) {
     outputs.push(reportSummary(log$, {
       cwd,
-      pnpmConfigs: opts.pnpmConfigs,
+      pnpmConfig: opts.pnpmConfig,
     }))
   }
 

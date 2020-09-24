@@ -23,7 +23,7 @@ findPkgs(path.join(__dirname, 'test', 'fixture'))
   .catch(err => console.error(err))
   //> [ { path: '/home/zkochan/src/find-packages/test/fixture/pkg',
   //      manifest: { name: 'foo', version: '1.0.0' },
-  //      writeImporterManifest: [AsyncFunction] } ]
+  //      writeProjectManifest: [AsyncFunction] } ]
 ```
 
 ## API

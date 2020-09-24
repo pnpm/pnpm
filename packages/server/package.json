@@ -1,20 +1,22 @@
 {
   "name": "@pnpm/server",
-  "version": "4.0.0-0",
+  "version": "9.0.1",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
-    "test": "rimraf .store && pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "prepublishOnly": "pnpm run tsc"
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/server/coverage ts-node packages/server/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/server",
   "keywords": [
@@ -28,31 +30,31 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/server#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.1",
-    "@pnpm/npm-resolver": "file:../npm-resolver",
-    "@pnpm/package-requester": "file:../package-requester",
-    "@pnpm/package-store": "file:../package-store",
+    "@pnpm/client": "workspace:^2.0.4",
+    "@pnpm/logger": "^3.2.2",
+    "@pnpm/package-requester": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "link:",
-    "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
-    "@types/mz": "0.0.32",
-    "@types/node-fetch": "2",
-    "@types/uuid": "3",
-    "@zkochan/rimraf": "1.0.0",
-    "is-port-reachable": "2.0.1",
-    "mz": "2.7.0",
-    "node-fetch": "2.6.0",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0"
+    "@types/mz": "^2.7.1",
+    "@types/node-fetch": "^2.5.7",
+    "@types/uuid": "^8.3.0",
+    "@zkochan/rimraf": "^1.0.0",
+    "is-port-reachable": "3.0.0",
+    "load-json-file": "^6.2.0",
+    "mz": "^2.7.0",
+    "node-fetch": "^2.6.1",
+    "tempy": "^0.7.0"
   },
   "dependencies": {
-    "@pnpm/fetch": "workspace:1.0.1",
-    "@pnpm/store-controller-types": "workspace:4.0.0-0",
-    "@pnpm/types": "workspace:3.2.0",
-    "p-limit": "2.2.1",
-    "promise-share": "1.0.0",
-    "uuid": "3.3.3"
-  }
+    "@pnpm/fetch": "workspace:2.1.5",
+    "@pnpm/store-controller-types": "workspace:9.1.0",
+    "@pnpm/types": "workspace:6.2.0",
+    "p-limit": "^3.0.2",
+    "promise-share": "^1.0.0",
+    "uuid": "^3.4.0"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

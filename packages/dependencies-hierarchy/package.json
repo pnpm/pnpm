@@ -1,22 +1,22 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "7.0.0-2",
+  "version": "9.0.5",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "scripts": {
-    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "pretest": "cd fixtures && node ../../pnpm recursive install --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages -f && cd ../fixtureWithLinks && node ../../pnpm/bin/pnpm.js recursive install --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "prepublishOnly": "pnpm run tsc",
-    "tsc": "tsc"
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy",
   "keywords": [
@@ -25,35 +25,31 @@
     "dependencies",
     "node_modules"
   ],
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:2.0.0-0",
-    "@pnpm/lockfile-utils": "workspace:1.0.10",
-    "@pnpm/modules-yaml": "workspace:4.0.0-0",
-    "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/types": "workspace:3.2.0",
-    "@pnpm/utils": "workspace:0.10.6",
-    "dependency-path": "workspace:3.0.8",
-    "micromatch": "4.0.2",
-    "normalize-path": "3.0.0",
-    "resolve-link-target": "1.0.1",
-    "semver": "6.3.0"
+    "@pnpm/lockfile-file": "workspace:3.0.14",
+    "@pnpm/lockfile-utils": "workspace:2.0.16",
+    "@pnpm/modules-yaml": "workspace:8.0.2",
+    "@pnpm/normalize-registries": "workspace:1.0.3",
+    "@pnpm/pkgid-to-filename": "^3.0.0",
+    "@pnpm/read-modules-dir": "workspace:2.0.3",
+    "@pnpm/read-package-json": "workspace:3.1.5",
+    "@pnpm/types": "workspace:6.2.0",
+    "dependency-path": "workspace:5.0.3",
+    "normalize-path": "^3.0.0",
+    "realpath-missing": "^1.0.0",
+    "resolve-link-target": "^1.0.1"
   },
   "devDependencies": {
-    "@pnpm/constants": "link:../constants",
-    "@pnpm/logger": "2.1.1",
-    "@types/micromatch": "3.1.0",
-    "@types/semver": "6",
-    "dependencies-hierarchy": "link:",
-    "tape": "4.11.0"
-  }
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/logger": "^3.2.2",
+    "@types/normalize-path": "^3.0.0",
+    "dependencies-hierarchy": "link:"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

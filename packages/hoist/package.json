@@ -1,58 +1,55 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "1.0.0-1",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "version": "4.0.12",
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib/"
+    "lib",
+    "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.1",
-    "@types/micromatch": "3.1.0",
-    "@types/ramda": "0.26.21",
-    "rimraf": "3.0.0"
+    "@pnpm/logger": "^3.2.2",
+    "@types/ramda": "^0.27.15"
   },
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/hoist#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/hoist#readme",
   "keywords": [
     "pnpm"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/hoist",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run tsc && pnpm run lint",
-    "lint": "tslint -c tslint.json --project .",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc"
+    "test": "pnpm run compile",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:2.0.0-1",
-    "@pnpm/link-bins": "4.4.0",
-    "@pnpm/lockfile-types": "workspace:1.1.0",
-    "@pnpm/lockfile-utils": "workspace:1.0.10",
-    "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/symlink-dependency": "workspace:2.0.6",
-    "@pnpm/types": "workspace:3.2.0",
-    "dependency-path": "workspace:3.0.8",
-    "micromatch": "4.0.2",
-    "ramda": "0.26.1"
-  }
+    "@pnpm/constants": "workspace:4.0.0",
+    "@pnpm/link-bins": "workspace:5.3.13",
+    "@pnpm/lockfile-types": "workspace:2.0.1",
+    "@pnpm/lockfile-utils": "workspace:2.0.16",
+    "@pnpm/lockfile-walker": "workspace:3.0.4",
+    "@pnpm/matcher": "workspace:^1.0.3",
+    "@pnpm/pkgid-to-filename": "^3.0.0",
+    "@pnpm/symlink-dependency": "workspace:3.0.10",
+    "@pnpm/types": "workspace:6.2.0",
+    "dependency-path": "workspace:5.0.3",
+    "ramda": "^0.27.1"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

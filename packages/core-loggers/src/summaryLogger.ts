@@ -5,7 +5,7 @@ import baseLogger, {
 export const summaryLogger = baseLogger<SummaryMessage>('summary')
 
 export interface SummaryMessage {
-  prefix: string,
+  prefix: string
 }
 
 export type SummaryLog = {name: 'pnpm:summary'} & LogBase & SummaryMessage

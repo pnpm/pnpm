@@ -11,7 +11,7 @@ packages:
     dependencies:
       buffer-from: 1.1.1
       inherits: 2.0.4
-      readable-stream: 2.3.6
+      readable-stream: 2.3.7
       typedarray: 0.0.6
     dev: false
     engines:
@@ -26,7 +26,7 @@ packages:
     dev: false
     hasBin: true
     resolution:
-      integrity: sha512-EnV7u31UVbqSFf4+acCPPRoEjjhH1OTR5e8XCxsrsuXxuhvnFRqGNR04eeAKO7LvGQkzwFXH7Cu0mZgKUjQNZQ==
+      integrity: sha512-/ENgcDSnEOz7y99zf3U9IrvQ0WQL+Ddr5Z3nqrrBkr6jaFFu7ujJye0Ne1/4lziovy6UiXMbjVp6vv6P7etKSA==
   /inherits/2.0.4:
     dev: false
     resolution:
@@ -48,12 +48,12 @@ packages:
     dev: false
     requiresBuild: true
     resolution:
-      integrity: sha512-DSuEEr/VAZWTJ5f5aDDL2WaFRxXi7tk4PXfTDJG6ThP0PG63f0pNT3I3BREwgGkaKti5ikE6vsmBOM8bXLHZSg==
+      integrity: sha512-QMYnPbJobj8I5pAfGqEM+ziAh/z0XognGIesBFQUrGADlyOWF19UfIFLrRP8Ty7vNRzvD8Z5iLxOcda9HleVVQ==
   /process-nextick-args/2.0.1:
     dev: false
     resolution:
       integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==
-  /readable-stream/2.3.6:
+  /readable-stream/2.3.7:
     dependencies:
       core-util-is: 1.0.2
       inherits: 2.0.4
@@ -64,7 +64,7 @@ packages:
       util-deprecate: 1.0.2
     dev: false
     resolution:
-      integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+      integrity: sha512-Ebho8K4jIbHAxnuxi7o42OrZgF/ZTNcsZj6nRKyUmkhLFq8CHItp/fy6hQZuZmP/n3yZ9VBUbp4zz/mX8hmYPw==
   /safe-buffer/5.1.2:
     dev: false
     resolution:

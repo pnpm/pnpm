@@ -1,7 +1,7 @@
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { filterLockfileByImportersAndEngine } from '@pnpm/filter-lockfile'
-import test = require('tape')
 
-test('filterByImportersAndEngine(): skip packages that are not installable', (t) => {
+test('filterByImportersAndEngine(): skip packages that are not installable', () => {
   const skippedPackages = new Set<string>(['/preserve-existing-skipped/1.0.0'])
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
@@ -30,10 +30,10 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
           },
           specifiers: {
             'project-2-prod-dep': '^1.0.0',
-          }
-        }
+          },
+        },
       },
-      lockfileVersion: 5.1,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         '/bar/1.0.0': {
           resolution: { integrity: '' },
@@ -52,8 +52,8 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         '/optional-dep/1.0.0': {
           dependencies: {
-            'bar': '1.0.0',
-            'foo': '1.0.0',
+            bar: '1.0.0',
+            foo: '1.0.0',
           },
           engines: {
             node: '1000',
@@ -66,7 +66,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         '/prod-dep/1.0.0': {
           dependencies: {
-            'bar': '1.0.0',
+            bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
           },
           optionalDependencies: {
@@ -92,15 +92,12 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         devDependencies: true,
         optionalDependencies: true,
       },
-      prefix: process.cwd(),
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
+      lockfileDir: process.cwd(),
       skipped: skippedPackages,
-    },
+    }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -111,6 +108,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         optionalDependencies: {
           'not-skipped-optional': '1.0.0',
+          'optional-dep': '1.0.0',
         },
         specifiers: {
           'dev-dep': '^1.0.0',
@@ -125,10 +123,10 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
-        }
-      }
+        },
+      },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/bar/1.0.0': {
         resolution: { integrity: '' },
@@ -137,7 +135,22 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         dev: true,
         resolution: { integrity: '' },
       },
+      '/foo/1.0.0': {
+        optional: true,
+        resolution: { integrity: '' },
+      },
       '/not-skipped-optional/1.0.0': {
+        optional: true,
+        resolution: { integrity: '' },
+      },
+      '/optional-dep/1.0.0': {
+        dependencies: {
+          bar: '1.0.0',
+          foo: '1.0.0',
+        },
+        engines: {
+          node: '1000',
+        },
         optional: true,
         resolution: { integrity: '' },
       },
@@ -146,7 +159,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
       },
       '/prod-dep/1.0.0': {
         dependencies: {
-          'bar': '1.0.0',
+          bar: '1.0.0',
           'prod-dep-dep': '1.0.0',
         },
         optionalDependencies: {
@@ -156,6 +169,5 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
       },
     },
   })
-  t.deepEqual(Array.from(skippedPackages), ['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
-  t.end()
+  expect(Array.from(skippedPackages)).toStrictEqual(['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
 })

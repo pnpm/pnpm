@@ -1,11 +1,10 @@
 import prepare from '@pnpm/prepare'
-import deepRequireCwd = require('deep-require-cwd')
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
+import deepRequireCwd = require('deep-require-cwd')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('installing optional dependencies when --no-optional is not used', async (t: tape.Test) => {
   const project = prepare(t, {
@@ -17,7 +16,7 @@ test('installing optional dependencies when --no-optional is not used', async (t
     },
   })
 
-  await execPnpm('install')
+  await execPnpm(['install'])
 
   await project.has('is-positive')
   await project.has('pkg-with-good-optional')
@@ -36,7 +35,7 @@ test('not installing optional dependencies when --no-optional is used', async (t
     },
   })
 
-  await execPnpm('install', '--no-optional')
+  await execPnpm(['install', '--no-optional'])
 
   await project.hasNot('is-positive')
   await project.has('pkg-with-good-optional')

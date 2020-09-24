@@ -1,26 +1,29 @@
-import rimraf = require('@zkochan/rimraf')
-import dint = require('dint')
-import execa = require('execa')
+import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
 import path = require('path')
-import pathTemp = require('path-temp')
+import rimraf = require('@zkochan/rimraf')
+import execa = require('execa')
+import tempy = require('tempy')
 
 export default () => {
   return {
     git: async function fetchFromGit (
+      cafs: Cafs,
       resolution: {
-        repo: string,
-        commit: string,
+        commit: string
+        repo: string
+        type: 'git'
       },
-      targetFolder: string,
+      opts: {
+        manifest?: DeferredManifestPromise
+      }
     ) {
-      const tempLocation = pathTemp(targetFolder)
+      const tempLocation = tempy.directory()
       await execGit(['clone', resolution.repo, tempLocation])
       await execGit(['checkout', resolution.commit], { cwd: tempLocation })
       // removing /.git to make directory integrity calculation faster
       await rimraf(path.join(tempLocation, '.git'))
       return {
-        filesIndex: await dint.from(tempLocation),
-        tempLocation,
+        filesIndex: await cafs.addFilesFromDir(tempLocation, opts.manifest),
       }
     },
   }

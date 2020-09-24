@@ -24,8 +24,8 @@ const pkg = require(path.join(targetPkgRoot, 'package.json'))
 await runLifecycleHook('preinstall', pkg, {
   pkgId: 'target-pkg/1.0.0',
   pkgRoot: targetPkgRoot,
-  rawNpmConfig: {},
-  rootNodeModulesDir: path.resolve('node_modules'),
+  rawConfig: {},
+  rootModulesDir: path.resolve('node_modules'),
   unsafePerm: true,
 })
 
@@ -33,15 +33,15 @@ await runLifecycleHook('preinstall', pkg, {
 await runPostinstallHooks({
   pkgId: 'target-pkg/1.0.0',
   pkgRoot: targetPkgRoot,
-  rawNpmConfig: {},
-  rootNodeModulesDir: path.resolve('node_modules'),
+  rawConfig: {},
+  rootModulesDir: path.resolve('node_modules'),
   unsafePerm: true,
 })
 ```
 
 ## API
 
-### `runLifecycleHook(stage, packageJson, opts): Promise<void>`
+### `runLifecycleHook(stage, packageManifest, opts): Promise<void>`
 
 ### `runPostinstallHooks(opts): Promise<void>`
 

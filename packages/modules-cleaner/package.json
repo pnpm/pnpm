@@ -1,53 +1,52 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "5.0.0-2",
+  "version": "10.0.11",
   "description": "Exports util functions to clean up node_modules",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "keywords": [],
   "license": "MIT",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/modules-cleaner",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/modules-cleaner#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run tsc && pnpm run lint",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc"
+    "test": "pnpm run compile",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:3.0.3",
-    "@pnpm/filter-lockfile": "workspace:1.0.14",
-    "@pnpm/lockfile-types": "workspace:1.1.0",
-    "@pnpm/lockfile-utils": "workspace:1.0.10",
-    "@pnpm/package-bins": "3.1.1",
-    "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/store-controller-types": "workspace:4.0.0-0",
-    "@pnpm/types": "workspace:3.2.0",
-    "@pnpm/utils": "workspace:0.10.6",
-    "@zkochan/rimraf": "1.0.0",
-    "dependency-path": "workspace:3.0.8",
-    "fs-vacuum": "1.2.10",
-    "ramda": "0.26.1"
+    "@pnpm/core-loggers": "workspace:5.0.0",
+    "@pnpm/filter-lockfile": "workspace:4.0.9",
+    "@pnpm/lockfile-types": "workspace:2.0.1",
+    "@pnpm/lockfile-utils": "workspace:2.0.16",
+    "@pnpm/pkgid-to-filename": "^3.0.0",
+    "@pnpm/read-modules-dir": "workspace:2.0.3",
+    "@pnpm/remove-bins": "workspace:1.0.6",
+    "@pnpm/store-controller-types": "workspace:9.1.0",
+    "@pnpm/types": "workspace:6.2.0",
+    "@zkochan/rimraf": "^1.0.0",
+    "dependency-path": "workspace:5.0.3",
+    "ramda": "^0.27.1"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "^3.2.2",
     "@pnpm/modules-cleaner": "link:",
-    "@types/ramda": "0.26.21",
-    "rimraf": "3.0.0"
-  }
+    "@types/ramda": "^0.27.15"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

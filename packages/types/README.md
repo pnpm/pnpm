@@ -15,9 +15,9 @@
 ## Usage
 
 ```ts
-import {PackageJson} from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 
-const pkg: PackageJson = {
+const pkg: PackageManifest = {
   name: 'foo',
   version: '1.0.0',
 }

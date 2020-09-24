@@ -1,20 +1,22 @@
 {
   "name": "@pnpm/fetch",
-  "version": "1.0.1",
+  "version": "2.1.5",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc && cpy src/**/*.d.ts lib",
-    "test": "pnpm run tsc && pnpm run lint",
-    "prepublishOnly": "pnpm run tsc"
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/fetch",
   "keywords": [
@@ -26,15 +28,24 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "^3.1.0"
+  },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch#readme",
   "dependencies": {
-    "@zeit/fetch-retry": "4.0.1",
-    "node-fetch": "2.6.0",
+    "@pnpm/core-loggers": "workspace:^5.0.0",
+    "@pnpm/fetching-types": "workspace:^1.0.0",
+    "@pnpm/npm-registry-agent": "workspace:^3.1.0",
+    "@zkochan/retry": "^0.2.0",
+    "node-fetch": "^2.6.1",
     "node-fetch-unix": "2.3.0"
   },
   "devDependencies": {
-    "@types/node-fetch": "^2.5.0",
-    "cpy-cli": "2.0.0",
-    "rimraf": "3.0.0"
-  }
+    "@pnpm/fetch": "link:",
+    "@pnpm/logger": "^3.2.2",
+    "@types/node-fetch": "^2.5.7",
+    "cpy-cli": "^3.1.1",
+    "nock": "12.0.3"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

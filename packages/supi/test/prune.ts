@@ -1,19 +1,19 @@
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import path = require('path')
-import sinon = require('sinon')
+import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import {
   addDependenciesToPackage,
   install,
   link,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { pathToLocalPkg, testDefaults } from './utils'
+import { testDefaults } from './utils'
+import path = require('path')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('prune removes extraneous packages', async (t: tape.Test) => {
   const project = prepareEmpty(t)
@@ -23,7 +23,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
   manifest = await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
-  manifest = await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), { ...opts, manifest, prefix: process.cwd() })
+  manifest = await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), { ...opts, manifest, dir: process.cwd() })
 
   await project.has('hello-world-js-bin') // external link added
 
@@ -38,15 +38,15 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
         pruneDirectDependencies: true,
+        rootDir: process.cwd(),
       },
     ],
     {
       ...opts,
       pruneStore: true,
       reporter,
-    },
+    }
   )
 
   t.ok(reporter.calledWithMatch({

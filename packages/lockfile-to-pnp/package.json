@@ -5,7 +5,6 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "bin": {
-    "create-pnp": "lib/createPnpBin.js"
   },
   "engines": {
     "node": ">=8.15"
@@ -41,21 +40,21 @@
   "devDependencies": {
     "@pnpm/lockfile-to-pnp": "link:",
     "@pnpm/logger": "2.1.1",
-    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/types": "workspace:6.2.0",
     "@types/mz": "0.0.32",
     "@types/ramda": "0.26.21",
     "rimraf": "3.0.0",
     "tape": "4.11.0"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:4.0.0-2",
-    "@pnpm/lockfile-file": "workspace:2.0.0-0",
-    "@pnpm/lockfile-utils": "workspace:1.0.10",
+    "@pnpm/config": "workspace:11.3.0",
+    "@pnpm/lockfile-file": "workspace:3.0.14",
+    "@pnpm/lockfile-utils": "workspace:2.0.16",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/read-importer-manifest": "workspace:1.0.9",
+    "@pnpm/read-project-manifest": "workspace:1.0.13",
     "@pnpm/store-path": "2.1.0",
     "@yarnpkg/pnp": "2.0.0-rc.3",
-    "dependency-path": "workspace:3.0.8",
+    "dependency-path": "workspace:5.0.3",
     "mz": "2.7.0",
     "ramda": "0.26.1"
   }

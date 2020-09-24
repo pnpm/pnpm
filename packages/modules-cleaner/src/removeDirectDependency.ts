@@ -1,74 +1,41 @@
 import {
-  removalLogger,
   rootLogger,
 } from '@pnpm/core-loggers'
-import binify from '@pnpm/package-bins'
-import { DependenciesField, DependencyManifest } from '@pnpm/types'
-import { safeReadPackageFromDir } from '@pnpm/utils'
-import rimraf = require('@zkochan/rimraf')
+import { removeBin, removeBinsOfDependency } from '@pnpm/remove-bins'
+import { DependenciesField } from '@pnpm/types'
 import path = require('path')
 
 export default async function removeDirectDependency (
   dependency: {
-    dependenciesField?: DependenciesField | undefined,
-    name: string,
+    dependenciesField?: DependenciesField | undefined
+    name: string
   },
   opts: {
-    bin: string,
-    dryRun?: boolean,
-    modulesDir: string,
-    muteLogs?: boolean,
-    prefix: string,
-  },
+    binsDir: string
+    dryRun?: boolean
+    modulesDir: string
+    muteLogs?: boolean
+    rootDir: string
+  }
 ) {
+  const dependencyDir = path.join(opts.modulesDir, dependency.name)
   const results = await Promise.all([
-    removeBins(dependency.name, opts),
-    !opts.dryRun && remove(path.join(opts.modulesDir, dependency.name)) as any, // tslint:disable-line:no-any
+    removeBinsOfDependency(dependencyDir, opts),
+    !opts.dryRun && removeBin(dependencyDir) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
   ])
 
   const uninstalledPkg = results[0]
   if (!opts.muteLogs) {
     rootLogger.debug({
-      prefix: opts.prefix,
+      prefix: opts.rootDir,
       removed: {
         dependencyType: dependency.dependenciesField === 'devDependencies' && 'dev' ||
           dependency.dependenciesField === 'optionalDependencies' && 'optional' ||
           dependency.dependenciesField === 'dependencies' && 'prod' ||
           undefined,
         name: dependency.name,
-        version: uninstalledPkg && uninstalledPkg.version,
+        version: uninstalledPkg?.version,
       },
     })
   }
-}
-
-async function removeBins (
-  uninstalledPkg: string,
-  opts: {
-    dryRun?: boolean,
-    modulesDir: string,
-    bin: string,
-  },
-) {
-  const uninstalledPkgPath = path.join(opts.modulesDir, uninstalledPkg)
-  const uninstalledPkgJson = await safeReadPackageFromDir(uninstalledPkgPath) as DependencyManifest
-
-  if (!uninstalledPkgJson) return
-  const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)
-
-  if (!opts.dryRun) {
-    // TODO: what about the .cmd bin files on Windows?
-    await Promise.all(
-      cmds
-        .map((cmd) => path.join(opts.bin, cmd.name))
-        .map(remove),
-    )
-  }
-
-  return uninstalledPkgJson
-}
-
-function remove (p: string) {
-  removalLogger.debug(p)
-  return rimraf(p)
 }

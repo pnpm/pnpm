@@ -1,7 +1,8 @@
-import { readExactImporterManifest } from '@pnpm/read-importer-manifest'
+import { readExactProjectManifest } from '@pnpm/read-project-manifest'
+import { ProjectManifest } from '@pnpm/types'
+import path = require('path')
 import fastGlob = require('fast-glob')
 import pFilter = require('p-filter')
-import path = require('path')
 
 const DEFAULT_IGNORE = [
   '**/node_modules/**',
@@ -10,18 +11,23 @@ const DEFAULT_IGNORE = [
   '**/tests/**',
 ]
 
-declare namespace findPkgs {
-  interface Options {
-    ignore?: string[]
-    includeRoot?: boolean
-    patterns?: string[]
-  }
+export interface Options {
+  ignore?: string[]
+  includeRoot?: boolean
+  patterns?: string[]
 }
 
-async function findPkgs (root: string, opts?: findPkgs.Options) {
-  opts = opts || {}
+export interface Project {
+  dir: string
+  manifest: ProjectManifest
+
+  writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>
+}
+
+export default async function findPkgs (root: string, opts?: Options): Promise<Project[]> {
+  opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
-  globOpts.ignore = opts.ignore || DEFAULT_IGNORE
+  globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
   const patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
   const paths: string[] = await fastGlob(patterns, globOpts)
 
@@ -48,22 +54,22 @@ async function findPkgs (root: string, opts?: findPkgs.Options) {
       async manifestPath => {
         try {
           return {
-            path: path.dirname(manifestPath),
-            ...await readExactImporterManifest(manifestPath),
-          }
+            dir: path.dirname(manifestPath),
+            ...await readExactProjectManifest(manifestPath),
+          } as Project
         } catch (err) {
           if (err.code === 'ENOENT') {
-            return null
+            return null!
           }
           throw err
         }
       }),
-    Boolean,
+    Boolean
   )
 }
 
-function normalizePatterns (patterns: string[]) {
-  const normalizedPatterns = []
+function normalizePatterns (patterns: readonly string[]) {
+  const normalizedPatterns: string[] = []
   for (const pattern of patterns) {
     // We should add separate pattern for each extension
     // for some reason, fast-glob is buggy with /package.{json,yaml,json5} pattern
@@ -79,8 +85,3 @@ function normalizePatterns (patterns: string[]) {
   }
   return normalizedPatterns
 }
-
-// for backward compatibility
-findPkgs['default'] = findPkgs // tslint:disable-line
-
-export = findPkgs

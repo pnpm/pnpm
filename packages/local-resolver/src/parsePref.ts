@@ -1,47 +1,47 @@
 import PnpmError from '@pnpm/error'
-import normalize = require('normalize-path')
 import os = require('os')
+import normalize = require('normalize-path')
 import path = require('path')
 
-// tslint:disable-next-line
+// eslint-disable-next-line
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const isFilename = /[.](?:tgz|tar.gz|tar)$/i
 const isAbsolutePath = /^[/]|^[A-Za-z]:/
 
 export interface LocalPackageSpec {
-  dependencyPath: string,
-  fetchSpec: string,
-  id: string,
-  type: 'directory' | 'file',
-  normalizedPref: string,
+  dependencyPath: string
+  fetchSpec: string
+  id: string
+  type: 'directory' | 'file'
+  normalizedPref: string
 }
 
 export default function parsePref (
   pref: string,
-  importerPrefix: string,
-  lockfileDirectory: string,
+  projectDir: string,
+  lockfileDir: string
 ): LocalPackageSpec | null {
   if (pref.startsWith('link:')) {
-    return fromLocal(pref, importerPrefix, lockfileDirectory, 'directory')
+    return fromLocal(pref, projectDir, lockfileDir, 'directory')
   }
-  if (pref.endsWith('.tgz')
-    || pref.endsWith('.tar.gz')
-    || pref.endsWith('.tar')
-    || pref.includes(path.sep)
-    || pref.startsWith('file:')
-    || isFilespec.test(pref)
+  if (pref.endsWith('.tgz') ||
+    pref.endsWith('.tar.gz') ||
+    pref.endsWith('.tar') ||
+    pref.includes(path.sep) ||
+    pref.startsWith('file:') ||
+    isFilespec.test(pref)
   ) {
     const type = isFilename.test(pref) ? 'file' : 'directory'
-    return fromLocal(pref, importerPrefix, lockfileDirectory, type)
+    return fromLocal(pref, projectDir, lockfileDir, type)
   }
   if (pref.startsWith('path:')) {
     const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
       'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
-    // tslint:disable:no-string-literal
+    /* eslint-disable @typescript-eslint/dot-notation */
     err['pref'] = pref
     err['protocol'] = 'path:'
-    // tslint:enable:no-string-literal
+    /* eslint-enable @typescript-eslint/dot-notation */
     throw err
   }
   return null
@@ -49,12 +49,10 @@ export default function parsePref (
 
 function fromLocal (
   pref: string,
-  importerPrefix: string,
-  lockfileDirectory: string,
-  type: 'file' | 'directory',
+  projectDir: string,
+  lockfileDir: string,
+  type: 'file' | 'directory'
 ): LocalPackageSpec {
-  if (!importerPrefix) importerPrefix = process.cwd()
-
   const spec = pref.replace(/\\/g, '/')
     .replace(/^(file|link):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows
     .replace(/^(file|link):(?:[/]*([~./]))?/, '$2')
@@ -67,18 +65,18 @@ function fromLocal (
     fetchSpec = resolvePath(os.homedir(), spec.slice(2))
     normalizedPref = `${protocol}${spec}`
   } else {
-    fetchSpec = resolvePath(importerPrefix, spec)
+    fetchSpec = resolvePath(projectDir, spec)
     if (isAbsolute(spec)) {
       normalizedPref = `${protocol}${spec}`
     } else {
-      normalizedPref = `${protocol}${path.relative(importerPrefix, fetchSpec)}`
+      normalizedPref = `${protocol}${path.relative(projectDir, fetchSpec)}`
     }
   }
 
-  const dependencyPath = normalize(path.relative(importerPrefix, fetchSpec))
-  const id = type === 'directory' || importerPrefix === lockfileDirectory
+  const dependencyPath = normalize(path.relative(projectDir, fetchSpec))
+  const id = type === 'directory' || projectDir === lockfileDir
     ? `${protocol}${dependencyPath}`
-    : `${protocol}${normalize(path.relative(lockfileDirectory, fetchSpec))}`
+    : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
 
   return {
     dependencyPath,

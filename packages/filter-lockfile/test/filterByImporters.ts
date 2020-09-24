@@ -1,8 +1,7 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
-import test = require('tape')
 
-test('filterByImporters(): only prod dependencies of one importer', (t) => {
+test('filterByImporters(): only prod dependencies of one importer', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
@@ -28,10 +27,10 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
           },
           specifiers: {
             'project-2-prod-dep': '^1.0.0',
-          }
-        }
+          },
+        },
       },
-      lockfileVersion: 5.1,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         '/dev-dep/1.0.0': {
           dev: true,
@@ -66,14 +65,11 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         devDependencies: false,
         optionalDependencies: false,
       },
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
       skipped: new Set<string>(),
-    },
+    }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -93,10 +89,10 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         },
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
-        }
-      }
+        },
+      },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/prod-dep-dep/1.0.0': {
         resolution: { integrity: '' },
@@ -112,11 +108,10 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
       },
     },
   })
-  t.end()
 })
 
 // TODO: also fail when filterLockfile() is used
-test('filterByImporters(): fail on missing packages when failOnMissingDependencies is true', (t) => {
+test('filterByImporters(): fail on missing packages when failOnMissingDependencies is true', () => {
   let err!: Error
   try {
     filterLockfileByImporters(
@@ -134,7 +129,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
             specifiers: {},
           },
         },
-        lockfileVersion: 5.1,
+        lockfileVersion: LOCKFILE_VERSION,
         packages: {
           '/prod-dep/1.0.0': {
             dependencies: {
@@ -154,21 +149,17 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
           devDependencies: false,
           optionalDependencies: false,
         },
-        registries: {
-          default: 'https://registry.npmjs.org/',
-        },
         skipped: new Set<string>(),
-      },
+      }
     )
   } catch (_) {
     err = _
   }
-  t.ok(err)
-  t.equal(err.message, `No entry for "/prod-dep-dep/1.0.0" in ${WANTED_LOCKFILE}`)
-  t.end()
+  expect(err).not.toBeNull()
+  expect(err.message).toEqual(`Broken lockfile: no entry for '/prod-dep-dep/1.0.0' in ${WANTED_LOCKFILE}`)
 })
 
-test('filterByImporters(): do not fail on missing packages when failOnMissingDependencies is false', (t) => {
+test('filterByImporters(): do not fail on missing packages when failOnMissingDependencies is false', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
@@ -184,7 +175,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
           specifiers: {},
         },
       },
-      lockfileVersion: 5.1,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         '/prod-dep/1.0.0': {
           dependencies: {
@@ -204,14 +195,11 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         devDependencies: false,
         optionalDependencies: false,
       },
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
       skipped: new Set<string>(),
-    },
+    }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -227,7 +215,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         specifiers: {},
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/prod-dep/1.0.0': {
         dependencies: {
@@ -237,11 +225,9 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
       },
     },
   })
-
-  t.end()
 })
 
-test('filterByImporters(): do not include skipped packages', (t) => {
+test('filterByImporters(): do not include skipped packages', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
@@ -267,10 +253,10 @@ test('filterByImporters(): do not include skipped packages', (t) => {
           },
           specifiers: {
             'project-2-prod-dep': '^1.0.0',
-          }
-        }
+          },
+        },
       },
-      lockfileVersion: 5.1,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         '/dev-dep/1.0.0': {
           dev: true,
@@ -305,14 +291,11 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         devDependencies: true,
         optionalDependencies: true,
       },
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
       skipped: new Set<string>(['/optional-dep/1.0.0']),
-    },
+    }
   )
 
-  t.deepEqual(filteredLockfile, {
+  expect(filteredLockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -336,10 +319,10 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         },
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
-        }
-      }
+        },
+      },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/dev-dep/1.0.0': {
         dev: true,
@@ -359,5 +342,97 @@ test('filterByImporters(): do not include skipped packages', (t) => {
       },
     },
   })
-  t.end()
+})
+
+test('filterByImporters(): exclude orphan packages', () => {
+  const filteredLockfile = filterLockfileByImporters(
+    {
+      importers: {
+        'project-1': {
+          dependencies: {
+            'prod-dep': '1.0.0',
+          },
+          specifiers: {
+            'prod-dep': '^1.0.0',
+          },
+        },
+        'project-2': {
+          dependencies: {
+            'project-2-prod-dep': '1.0.0',
+          },
+          specifiers: {
+            'project-2-prod-dep': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        '/orphan/1.0.0': {
+          resolution: { integrity: '' },
+        },
+        '/prod-dep-dep/1.0.0': {
+          resolution: { integrity: '' },
+        },
+        '/prod-dep/1.0.0': {
+          dependencies: {
+            'prod-dep-dep': '1.0.0',
+          },
+          resolution: { integrity: '' },
+        },
+        '/project-2-prod-dep/1.0.0': {
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['project-1', 'project-2'],
+    {
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      skipped: new Set<string>(),
+    }
+  )
+
+  expect(filteredLockfile).toStrictEqual({
+    importers: {
+      'project-1': {
+        dependencies: {
+          'prod-dep': '1.0.0',
+        },
+        devDependencies: {},
+        optionalDependencies: {},
+        specifiers: {
+          'prod-dep': '^1.0.0',
+        },
+      },
+      'project-2': {
+        dependencies: {
+          'project-2-prod-dep': '1.0.0',
+        },
+        devDependencies: {},
+        optionalDependencies: {},
+        specifiers: {
+          'project-2-prod-dep': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/prod-dep-dep/1.0.0': {
+        resolution: { integrity: '' },
+      },
+      '/prod-dep/1.0.0': {
+        dependencies: {
+          'prod-dep-dep': '1.0.0',
+        },
+        resolution: { integrity: '' },
+      },
+      '/project-2-prod-dep/1.0.0': {
+        resolution: { integrity: '' },
+      },
+    },
+  })
 })

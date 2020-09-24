@@ -1,4 +1,4 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   existsWantedLockfile,
   readCurrentLockfile,
@@ -24,7 +24,7 @@ test('readWantedLockfile()', async t => {
   }
 
   try {
-    const lockfile = await readWantedLockfile(path.join('fixtures', '3'), {
+    await readWantedLockfile(path.join('fixtures', '3'), {
       ignoreIncompatible: false,
       wantedVersion: 3,
     })
@@ -37,7 +37,7 @@ test('readWantedLockfile()', async t => {
 
 test('readCurrentLockfile()', async t => {
   {
-    const lockfile = await readCurrentLockfile(path.join('fixtures', '2'), {
+    const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
       ignoreIncompatible: false,
     })
     t.equal(lockfile!.lockfileVersion, 3)
@@ -67,17 +67,17 @@ test('writeWantedLockfile()', async t => {
           'is-positive': '2.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -111,17 +111,17 @@ test('writeCurrentLockfile()', async t => {
           'is-positive': '2.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -156,17 +156,17 @@ test('existsWantedLockfile()', async t => {
           'is-positive': '2.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -190,29 +190,34 @@ test('writeLockfiles()', async t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
   }
-  await writeLockfiles(projectPath, wantedLockfile, wantedLockfile)
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
   t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
   t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
   t.end()
@@ -229,9 +234,14 @@ test('writeLockfiles() when no specifiers but dependencies present', async t => 
         specifiers: {},
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
   }
-  await writeLockfiles(projectPath, wantedLockfile, wantedLockfile)
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
   t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
   t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
   t.end()
@@ -252,7 +262,7 @@ test('write does not use yaml anchors/aliases', async t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: yaml`
       /react-dnd/2.5.4/react@15.6.1:
         dependencies:
@@ -285,7 +295,12 @@ test('write does not use yaml anchors/aliases', async t => {
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
     `,
   }
-  await writeLockfiles(projectPath, wantedLockfile, wantedLockfile)
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
 
   const lockfileContent = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
   t.ok(!lockfileContent.includes('&'), 'lockfile contains no anchors')

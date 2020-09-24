@@ -5,7 +5,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
-  packageJsonLogger,
+  packageManifestLogger,
   progressLogger,
   rootLogger,
   stageLogger,
@@ -30,9 +30,8 @@ import {
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
-  packageIsIndependent,
   pkgSnapshotToResolution,
-  satisfiesPackageJson,
+  satisfiesPackageManifest,
 } from '@pnpm/lockfile-utils'
 import logger, {
   LogBase,
@@ -44,142 +43,146 @@ import {
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { DependencyManifest, ImporterManifest, Registries } from '@pnpm/types'
-import { realNodeModulesDir } from '@pnpm/utils'
+import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
+import path = require('path')
 import dp = require('dependency-path')
 import fs = require('mz/fs')
-import pLimit from 'p-limit'
-import path = require('path')
+import pLimit = require('p-limit')
+import pathAbsolute = require('path-absolute')
 import R = require('ramda')
+import realpathMissing = require('realpath-missing')
 
-const brokenNodeModulesLogger = logger('_broken_node_modules')
+const brokenModulesLogger = logger('_broken_node_modules')
 
 export type ReporterFunction = (logObj: LogBase) => void
 
 export interface HeadlessOptions {
-  childConcurrency?: number,
-  currentLockfile?: Lockfile,
+  childConcurrency?: number
+  currentLockfile?: Lockfile
   currentEngine: {
-    nodeVersion: string,
-    pnpmVersion: string,
-  },
-  engineStrict: boolean,
-  extraBinPaths?: string[],
-  ignoreScripts: boolean,
-  include: IncludedDependencies,
-  independentLeaves: boolean,
-  importers: Array<{
-    bin: string,
-    buildIndex: number,
-    manifest: ImporterManifest,
-    modulesDir: string,
-    id: string,
-    prefix: string,
-    pruneDirectDependencies?: boolean,
-  }>,
-  hoistedAliases: {[depPath: string]: string[]}
-  hoistPattern?: string,
-  lockfileDirectory: string,
-  shamefullyHoist: boolean,
-  storeController: StoreController,
-  sideEffectsCacheRead: boolean,
-  sideEffectsCacheWrite: boolean,
-  force: boolean,
-  store: string,
-  rawNpmConfig: object,
-  unsafePerm: boolean,
-  userAgent: string,
-  registries: Registries,
-  reporter?: ReporterFunction,
+    nodeVersion: string
+    pnpmVersion: string
+  }
+  engineStrict: boolean
+  extraBinPaths?: string[]
+  ignoreScripts: boolean
+  include: IncludedDependencies
+  projects: Array<{
+    binsDir: string
+    buildIndex: number
+    manifest: ProjectManifest
+    modulesDir: string
+    id: string
+    pruneDirectDependencies?: boolean
+    rootDir: string
+  }>
+  hoistedDependencies: HoistedDependencies
+  hoistPattern?: string[]
+  publicHoistPattern?: string[]
+  lockfileDir: string
+  modulesDir?: string
+  virtualStoreDir?: string
+  storeController: StoreController
+  sideEffectsCacheRead: boolean
+  sideEffectsCacheWrite: boolean
+  force: boolean
+  storeDir: string
+  rawConfig: object
+  unsafePerm: boolean
+  userAgent: string
+  registries: Registries
+  reporter?: ReporterFunction
   packageManager: {
-    name: string,
-    version: string,
-  },
-  pruneStore: boolean,
-  wantedLockfile?: Lockfile,
-  ownLifecycleHooksStdio?: 'inherit' | 'pipe',
-  pendingBuilds: string[],
-  skipped: Set<string>,
+    name: string
+    version: string
+  }
+  pruneStore: boolean
+  wantedLockfile?: Lockfile
+  ownLifecycleHooksStdio?: 'inherit' | 'pipe'
+  pendingBuilds: string[]
+  skipped: Set<string>
 }
 
 export default async (opts: HeadlessOptions) => {
   const reporter = opts.reporter
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
 
-  const lockfileDirectory = opts.lockfileDirectory
-  const wantedLockfile = opts.wantedLockfile || await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const lockfileDir = opts.lockfileDir
+  const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
 
   if (!wantedLockfile) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
-  const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
-  const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
-  const virtualStoreDir = path.join(rootModulesDir, '.pnpm')
-  const hoistedModulesDir = opts.shamefullyHoist
-    ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
+  const relativeModulesDir = opts.modulesDir ?? 'node_modules'
+  const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
+  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const publicHoistedModulesDir = rootModulesDir
 
-  for (const { id, manifest, prefix } of opts.importers) {
-    if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
+  for (const { id, manifest, rootDir } of opts.projects) {
+    if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
       throw new PnpmError('OUTDATED_LOCKFILE',
         `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
-        path.relative(opts.lockfileDirectory, path.join(prefix, 'package.json')))
+        path.relative(lockfileDir, path.join(rootDir, 'package.json')))
     }
   }
 
   const scriptsOpts = {
     optional: false,
-    rawNpmConfig: opts.rawNpmConfig,
-    stdio: opts.ownLifecycleHooksStdio || 'inherit',
+    rawConfig: opts.rawConfig,
+    stdio: opts.ownLifecycleHooksStdio ?? 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
 
   if (!opts.ignoreScripts) {
     await runLifecycleHooksConcurrently(
       ['preinstall'],
-      opts.importers,
-      opts.childConcurrency || 5,
-      scriptsOpts,
+      opts.projects,
+      opts.childConcurrency ?? 5,
+      scriptsOpts
     )
   }
 
   const skipped = opts.skipped || new Set<string>()
   if (currentLockfile) {
     await prune(
-      opts.importers,
+      opts.projects,
       {
         currentLockfile,
         dryRun: false,
-        hoistedAliases: opts.hoistedAliases,
-        hoistedModulesDir: opts.hoistPattern && hoistedModulesDir || undefined,
+        hoistedDependencies: opts.hoistedDependencies,
+        hoistedModulesDir: (opts.hoistPattern && hoistedModulesDir) ?? undefined,
         include: opts.include,
-        lockfileDirectory,
+        lockfileDir,
         pruneStore: opts.pruneStore,
+        publicHoistedModulesDir: (opts.publicHoistPattern && publicHoistedModulesDir) ?? undefined,
         registries: opts.registries,
         skipped,
         storeController: opts.storeController,
         virtualStoreDir,
         wantedLockfile,
-      },
+      }
     )
   } else {
     statsLogger.debug({
-      prefix: lockfileDirectory,
+      prefix: lockfileDir,
       removed: 0,
     })
   }
 
   stageLogger.debug({
-    prefix: opts.lockfileDirectory,
+    prefix: lockfileDir,
     stage: 'importing_started',
   })
 
@@ -188,100 +191,97 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     skipped,
   }
-  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.importers.map(({ id }) => id), {
+  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.projects.map(({ id }) => id), {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
-    includeIncompatiblePackages: opts.force === true,
-    prefix: lockfileDirectory,
+    includeIncompatiblePackages: opts.force,
+    lockfileDir,
   })
   const { directDependenciesByImporterId, graph } = await lockfileToDepGraph(
     filteredLockfile,
     opts.force ? null : currentLockfile,
     {
       ...opts,
-      importerIds: opts.importers.map(({ id }) => id),
-      prefix: lockfileDirectory,
+      importerIds: opts.projects.map(({ id }) => id),
+      lockfileDir,
       skipped,
       virtualStoreDir,
-    } as LockfileToDepGraphOptions,
+    } as LockfileToDepGraphOptions
   )
   const depNodes = R.values(graph)
 
   statsLogger.debug({
     added: depNodes.length,
-    prefix: lockfileDirectory,
+    prefix: lockfileDir,
   })
 
+  await Promise.all(depNodes.map((depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
     linkAllModules(depNodes, {
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir,
       optional: opts.include.optionalDependencies,
     }),
-    linkAllPkgs(opts.storeController, depNodes, opts),
+    linkAllPkgs(opts.storeController, depNodes, {
+      force: opts.force,
+      lockfileDir: opts.lockfileDir,
+      targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+    }),
   ])
 
   stageLogger.debug({
-    prefix: opts.lockfileDirectory,
+    prefix: lockfileDir,
     stage: 'importing_done',
   })
 
   function warn (message: string) {
-    logger.warn({
+    logger.info({
       message,
-      prefix: lockfileDirectory,
+      prefix: lockfileDir,
     })
   }
 
-  const rootImporterWithFlatModules = opts.hoistPattern && opts.importers.find((importer) => importer.id === '.')
-  let newHoistedAliases!: {[depPath: string]: string[]}
-  if (rootImporterWithFlatModules) {
-    newHoistedAliases = await hoist(opts.hoistPattern!, {
-      getIndependentPackageLocation: opts.independentLeaves
-        ? async (packageId: string, packageName: string) => {
-          const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-            lockfileDirectory: opts.lockfileDirectory,
-            targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
-          })
-          return directory
-        }
-        : undefined,
+  let newHoistedDependencies!: HoistedDependencies
+  if (opts.hoistPattern != null || opts.publicHoistPattern != null) {
+    newHoistedDependencies = await hoist({
       lockfile: filteredLockfile,
-      lockfileDirectory: opts.lockfileDirectory,
-      modulesDir: hoistedModulesDir,
-      registries: opts.registries,
+      lockfileDir,
+      privateHoistedModulesDir: hoistedModulesDir,
+      privateHoistPattern: opts.hoistPattern ?? [],
+      publicHoistedModulesDir,
+      publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir,
     })
   } else {
-    newHoistedAliases = {}
+    newHoistedDependencies = {}
   }
 
-  await Promise.all(opts.importers.map(async ({ id, manifest, modulesDir, prefix }) => {
+  await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
     await linkRootPackages(filteredLockfile, {
       importerId: id,
       importerModulesDir: modulesDir,
-      importers: opts.importers,
-      lockfileDirectory: opts.lockfileDirectory,
-      prefix,
+      lockfileDir,
+      projectDir: rootDir,
+      projects: opts.projects,
       registries: opts.registries,
       rootDependencies: directDependenciesByImporterId[id],
     })
 
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
-    packageJsonLogger.debug({
-      prefix,
+    packageManifestLogger.debug({
+      prefix: rootDir,
       updated: manifest,
     })
   }))
 
   if (opts.ignoreScripts) {
-    for (const { id, manifest } of opts.importers) {
-      if (opts.ignoreScripts && manifest && manifest.scripts &&
-        (manifest.scripts.preinstall || manifest.scripts.prepublish ||
-          manifest.scripts.install ||
-          manifest.scripts.postinstall ||
+    for (const { id, manifest } of opts.projects) {
+      if (opts.ignoreScripts && manifest?.scripts &&
+        (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
+          manifest.scripts.install ??
+          manifest.scripts.postinstall ??
           manifest.scripts.prepare)
       ) {
         opts.pendingBuilds.push(id)
@@ -292,11 +292,11 @@ export default async (opts: HeadlessOptions) => {
       .concat(
         depNodes
           .filter(({ requiresBuild }) => requiresBuild)
-          .map(({ relDepPath }) => relDepPath),
+          .map(({ depPath }) => depPath)
       )
   } else {
     const directNodes = new Set<string>()
-    for (const { id } of opts.importers) {
+    for (const { id } of opts.projects) {
       R
         .values(directDependenciesByImporterId[id])
         .filter((loc) => graph[loc])
@@ -304,17 +304,17 @@ export default async (opts: HeadlessOptions) => {
           directNodes.add(loc)
         })
     }
-    const extraBinPaths = [...opts.extraBinPaths || []]
-    if (opts.hoistPattern && !opts.shamefullyHoist) {
+    const extraBinPaths = [...opts.extraBinPaths ?? []]
+    if (opts.hoistPattern) {
       extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
     }
     await buildModules(graph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
+      lockfileDir,
       optional: opts.include.optionalDependencies,
-      prefix: opts.lockfileDirectory,
-      rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: virtualStoreDir,
+      rawConfig: opts.rawConfig,
+      rootModulesDir: virtualStoreDir,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm,
@@ -323,124 +323,124 @@ export default async (opts: HeadlessOptions) => {
   }
 
   await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
-  await Promise.all(opts.importers.map(linkBinsOfImporter))
+  await Promise.all(opts.projects.map(linkBinsOfImporter))
 
-  if (currentLockfile && !R.equals(opts.importers.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
+  if (currentLockfile && !R.equals(opts.projects.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
-  await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
+  await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
   await writeModulesYaml(rootModulesDir, {
-    hoistedAliases: newHoistedAliases,
+    hoistedDependencies: newHoistedDependencies,
     hoistPattern: opts.hoistPattern,
     included: opts.include,
-    independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
+    publicHoistPattern: opts.publicHoistPattern,
     registries: opts.registries,
     skipped: Array.from(skipped),
-    store: opts.store,
+    storeDir: opts.storeDir,
+    virtualStoreDir,
   })
 
   // waiting till package requests are finished
   await Promise.all(depNodes.map(({ finishing }) => finishing))
 
-  summaryLogger.debug({ prefix: opts.lockfileDirectory })
+  summaryLogger.debug({ prefix: lockfileDir })
 
   await opts.storeController.close()
 
   if (!opts.ignoreScripts) {
     await runLifecycleHooksConcurrently(
       ['install', 'postinstall', 'prepublish', 'prepare'],
-      opts.importers,
-      opts.childConcurrency || 5,
-      scriptsOpts,
+      opts.projects,
+      opts.childConcurrency ?? 5,
+      scriptsOpts
     )
   }
 
-  if (reporter) {
+  if (reporter && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 }
 
 function linkBinsOfImporter (
-  { modulesDir, bin, prefix }: {
-    bin: string,
-    modulesDir: string,
-    prefix: string,
-  },
+  { modulesDir, binsDir, rootDir }: {
+    binsDir: string
+    modulesDir: string
+    rootDir: string
+  }
 ) {
-  const warn = (message: string) => logger.warn({ message, prefix })
-  return linkBins(modulesDir, bin, {
+  const warn = (message: string) => logger.info({ message, prefix: rootDir })
+  return linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
     warn,
   })
 }
 
-async function linkRootPackages (
+function linkRootPackages (
   lockfile: Lockfile,
   opts: {
-    registries: Registries,
-    importerId: string,
-    importerModulesDir: string,
-    importers: Array<{ id: string, manifest: ImporterManifest }>,
-    lockfileDirectory: string,
-    prefix: string,
-    rootDependencies: {[alias: string]: string},
-  },
+    registries: Registries
+    projectDir: string
+    importerId: string
+    importerModulesDir: string
+    projects: Array<{ id: string, manifest: ProjectManifest }>
+    lockfileDir: string
+    rootDependencies: {[alias: string]: string}
+  }
 ) {
-  const importerManifestsByImporterId = {} as { [id: string]: ImporterManifest }
-  for (const { id, manifest } of opts.importers) {
+  const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
+  for (const { id, manifest } of opts.projects) {
     importerManifestsByImporterId[id] = manifest
   }
-  const lockfileImporter = lockfile.importers[opts.importerId]
+  const projectSnapshot = lockfile.importers[opts.importerId]
   const allDeps = {
-    ...lockfileImporter.devDependencies,
-    ...lockfileImporter.dependencies,
-    ...lockfileImporter.optionalDependencies,
+    ...projectSnapshot.devDependencies,
+    ...projectSnapshot.dependencies,
+    ...projectSnapshot.optionalDependencies,
   }
   return Promise.all(
     Object.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
-          const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
-          const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
-          const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
+          const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
+          const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
+          const packageDir = path.join(opts.projectDir, allDeps[alias].substr(5))
           const linkedPackage = await (async () => {
-            const importerId = getLockfileImporterId(opts.lockfileDirectory, packageDir)
+            const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (importerManifestsByImporterId[importerId]) {
               return importerManifestsByImporterId[importerId]
             }
             // TODO: cover this case with a test
-            return await readImporterManifestOnly(packageDir) as DependencyManifest
+            return await readProjectManifestOnly(packageDir) as DependencyManifest
           })() as DependencyManifest
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
             fromDependenciesField: isDev && 'devDependencies' ||
               isOptional && 'optionalDependencies' ||
               'dependencies',
             linkedPackage,
-            prefix: opts.prefix,
+            prefix: opts.projectDir,
           })
           return
         }
-        const depPath = dp.refToAbsolute(allDeps[alias], alias, opts.registries)
-        const peripheralLocation = opts.rootDependencies[alias]
+        const dir = opts.rootDependencies[alias]
         // Skipping linked packages
-        if (!peripheralLocation) {
+        if (!dir) {
           return
         }
-        if ((await symlinkDependency(peripheralLocation, opts.importerModulesDir, alias)).reused) {
+        if ((await symlinkDependency(dir, opts.importerModulesDir, alias)).reused) {
           return
         }
-        const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
-        const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
+        const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
+        const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
 
-        const relDepPath = dp.refToRelative(allDeps[alias], alias)
-        if (relDepPath === null) return
-        const pkgSnapshot = lockfile.packages && lockfile.packages[relDepPath]
+        const depPath = dp.refToRelative(allDeps[alias], alias)
+        if (depPath === null) return
+        const pkgSnapshot = lockfile.packages?.[depPath]
         if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
-        const pkgId = pkgSnapshot.id || depPath || undefined
-        const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(allDeps[alias], alias, opts.registries) ?? undefined
+        const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         rootLogger.debug({
           added: {
             dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
@@ -450,84 +450,75 @@ async function linkRootPackages (
             realName: pkgInfo.name,
             version: pkgInfo.version,
           },
-          prefix: opts.prefix,
+          prefix: opts.projectDir,
         })
-      }),
+      })
   )
 }
 
 interface LockfileToDepGraphOptions {
-  force: boolean,
-  include: IncludedDependencies,
-  independentLeaves: boolean,
-  importerIds: string[],
-  lockfileDirectory: string,
-  skipped: Set<string>,
-  storeController: StoreController,
-  store: string,
-  prefix: string,
-  registries: Registries,
-  sideEffectsCacheRead: boolean,
-  virtualStoreDir: string,
+  force: boolean
+  include: IncludedDependencies
+  importerIds: string[]
+  lockfileDir: string
+  skipped: Set<string>
+  storeController: StoreController
+  storeDir: string
+  registries: Registries
+  sideEffectsCacheRead: boolean
+  virtualStoreDir: string
 }
 
 async function lockfileToDepGraph (
   lockfile: Lockfile,
   currentLockfile: Lockfile | null,
-  opts: LockfileToDepGraphOptions,
+  opts: LockfileToDepGraphOptions
 ) {
-  const currentPackages = currentLockfile && currentLockfile.packages || {}
+  const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
-  let directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
+  const directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
   if (lockfile.packages) {
     const pkgSnapshotByLocation = {}
     await Promise.all(
-      Object.keys(lockfile.packages).map(async (relDepPath) => {
-        const depPath = dp.resolve(opts.registries, relDepPath)
-        const pkgSnapshot = lockfile.packages![relDepPath]
+      Object.keys(lockfile.packages).map(async (depPath) => {
+        if (opts.skipped.has(depPath)) return
+        const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
-        const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules')
-        const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
-        const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
-          lockfileDirectory: opts.lockfileDirectory,
-          targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
-        })
+        const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
+        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
 
-        const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
-        const peripheralLocation = !independent
-          ? path.join(modules, pkgName)
-          : pkgLocation.directory
+        const dir = path.join(modules, pkgName)
         if (
-          currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, lockfile.packages![relDepPath].dependencies) &&
-          R.equals(currentPackages[relDepPath].optionalDependencies, lockfile.packages![relDepPath].optionalDependencies)
+          currentPackages[depPath] && R.equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
+          R.equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
         ) {
-          if (await fs.exists(peripheralLocation)) {
+          if (await fs.exists(dir)) {
             return
           }
 
-          brokenNodeModulesLogger.debug({
-            missing: peripheralLocation,
+          brokenModulesLogger.debug({
+            missing: dir,
           })
         }
-        const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)
+        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
         progressLogger.debug({
           packageId,
-          requester: opts.lockfileDirectory,
+          requester: opts.lockfileDir,
           status: 'resolved',
         })
         let fetchResponse = opts.storeController.fetchPackage({
           force: false,
+          lockfileDir: opts.lockfileDir,
           pkgId: packageId,
-          prefix: opts.prefix,
           resolution,
         })
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        fetchResponse.files() // tslint:disable-line
+        fetchResponse.files() // eslint-disable-line
           .then(({ fromStore }) => {
             progressLogger.debug({
               packageId,
-              requester: opts.lockfileDirectory,
+              requester: opts.lockfileDir,
               status: fromStore
                 ? 'found_in_store' : 'fetched',
             })
@@ -535,59 +526,55 @@ async function lockfileToDepGraph (
           .catch(() => {
             // ignore
           })
-        graph[peripheralLocation] = {
-          centralLocation: pkgLocation.directory,
+        graph[dir] = {
           children: {},
+          depPath,
+          dir,
           fetchingFiles: fetchResponse.files,
+          filesIndexFile: fetchResponse.filesIndexFile,
           finishing: fetchResponse.finishing,
           hasBin: pkgSnapshot.hasBin === true,
           hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
-          independent,
-          isBuilt: pkgLocation.isBuilt,
           modules,
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
-          packageId,
-          peripheralLocation,
           prepare: pkgSnapshot.prepare === true,
-          relDepPath,
           requiresBuild: pkgSnapshot.requiresBuild === true,
         }
-        pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot
+        pkgSnapshotByLocation[dir] = pkgSnapshot
       })
     )
     const ctx = {
       force: opts.force,
       graph,
-      independentLeaves: opts.independentLeaves,
-      lockfileDirectory: opts.lockfileDirectory,
-      pkgSnapshotsByRelDepPaths: lockfile.packages,
-      prefix: opts.prefix,
+      lockfileDir: opts.lockfileDir,
+      pkgSnapshotsByDepPaths: lockfile.packages,
       registries: opts.registries,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       skipped: opts.skipped,
-      store: opts.store,
       storeController: opts.storeController,
+      storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     }
-    for (const peripheralLocation of R.keys(graph)) {
-      const pkgSnapshot = pkgSnapshotByLocation[peripheralLocation]
+    for (const dir of R.keys(graph)) {
+      const pkgSnapshot = pkgSnapshotByLocation[dir]
       const allDeps = {
         ...pkgSnapshot.dependencies,
         ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
       }
 
-      graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
+      const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
+      graph[dir].children = await getChildrenPaths(ctx, allDeps, peerDeps)
     }
     for (const importerId of opts.importerIds) {
-      const lockfileImporter = lockfile.importers[importerId]
+      const projectSnapshot = lockfile.importers[importerId]
       const rootDeps = {
-        ...(opts.include.devDependencies ? lockfileImporter.devDependencies : {}),
-        ...(opts.include.dependencies ? lockfileImporter.dependencies : {}),
-        ...(opts.include.optionalDependencies ? lockfileImporter.optionalDependencies : {}),
+        ...(opts.include.devDependencies ? projectSnapshot.devDependencies : {}),
+        ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
+        ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
       }
-      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps)
+      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps, null)
     }
   }
   return { graph, directDependenciesByImporterId }
@@ -595,48 +582,37 @@ async function lockfileToDepGraph (
 
 async function getChildrenPaths (
   ctx: {
-    graph: DependenciesGraph,
-    force: boolean,
-    registries: Registries,
-    virtualStoreDir: string,
-    independentLeaves: boolean,
-    store: string,
-    skipped: Set<string>,
-    pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
-    prefix: string,
-    lockfileDirectory: string,
-    sideEffectsCacheRead: boolean,
-    storeController: StoreController,
+    graph: DependenciesGraph
+    force: boolean
+    registries: Registries
+    virtualStoreDir: string
+    storeDir: string
+    skipped: Set<string>
+    pkgSnapshotsByDepPaths: Record<string, PackageSnapshot>
+    lockfileDir: string
+    sideEffectsCacheRead: boolean
+    storeController: StoreController
   },
   allDeps: {[alias: string]: string},
+  peerDeps: Set<string> | null
 ) {
   const children: {[alias: string]: string} = {}
   for (const alias of Object.keys(allDeps)) {
     const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
+      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
       continue
     }
     const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
-    const childPkgSnapshot = ctx.pkgSnapshotsByRelDepPaths[childRelDepPath]
-    if (ctx.graph[childDepPath]) {
-      children[alias] = ctx.graph[childDepPath].peripheralLocation
+    const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths[childRelDepPath]
+    if (ctx.graph[childRelDepPath]) {
+      children[alias] = ctx.graph[childRelDepPath].dir
     } else if (childPkgSnapshot) {
-      if (ctx.independentLeaves && packageIsIndependent(childPkgSnapshot)) {
-        const pkgId = childPkgSnapshot.id || childDepPath
-        const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-        const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
-          lockfileDirectory: ctx.lockfileDirectory,
-          targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
-        })
-        children[alias] = pkgLocation.directory
-      } else {
-        const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-        children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childDepPath, ctx.lockfileDirectory), 'node_modules', pkgName)
-      }
+      const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
+      children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
-      children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
-    } else if (!ctx.skipped.has(childRelDepPath)) {
+      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
+    } else if (!ctx.skipped.has(childRelDepPath) && (!peerDeps || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }
   }
@@ -644,25 +620,21 @@ async function getChildrenPaths (
 }
 
 export interface DependenciesGraphNode {
-  hasBundledDependencies: boolean,
-  centralLocation: string,
-  modules: string,
-  name: string,
-  fetchingFiles: () => Promise<PackageFilesResponse>,
-  finishing: () => Promise<void>,
-  peripheralLocation: string,
-  children: {[alias: string]: string},
-  // an independent package is a package that
-  // has neither regular nor peer dependencies
-  independent: boolean,
-  optionalDependencies: Set<string>,
-  optional: boolean,
-  relDepPath: string, // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
-  packageId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
-  isBuilt: boolean,
-  requiresBuild: boolean,
-  prepare: boolean,
-  hasBin: boolean,
+  hasBundledDependencies: boolean
+  modules: string
+  name: string
+  fetchingFiles: () => Promise<PackageFilesResponse>
+  finishing: () => Promise<void>
+  dir: string
+  children: {[alias: string]: string}
+  optionalDependencies: Set<string>
+  optional: boolean
+  depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
+  isBuilt?: boolean
+  requiresBuild: boolean
+  prepare: boolean
+  hasBin: boolean
+  filesIndexFile: string
 }
 
 export interface DependenciesGraph {
@@ -671,32 +643,43 @@ export interface DependenciesGraph {
 
 const limitLinking = pLimit(16)
 
-async function linkAllPkgs (
+function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
-    force: boolean,
-  },
+    force: boolean
+    lockfileDir: string
+    targetEngine?: string
+  }
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
-      if (depNode.independent) return
-      return storeController.importPackage(depNode.centralLocation, depNode.peripheralLocation, {
+      const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
+        targetEngine: opts.targetEngine,
       })
-    }),
+      if (importMethod) {
+        progressLogger.debug({
+          method: importMethod,
+          requester: opts.lockfileDir,
+          status: 'imported',
+          to: depNode.dir,
+        })
+      }
+      depNode.isBuilt = isBuilt
+    })
   )
 }
 
-async function linkAllBins (
+function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
-    optional: boolean,
-    warn: (message: string) => void,
-  },
+    optional: boolean
+    warn: (message: string) => void
+  }
 ) {
   return Promise.all(
     R.values(depGraph)
@@ -711,19 +694,19 @@ async function linkAllBins (
               return nonOptionalChildren
             }, {})
 
-        const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+        const binPath = path.join(depNode.dir, 'node_modules/.bin')
         const pkgSnapshots = R.props<string, DependenciesGraphNode>(R.values(childrenToLink), depGraph)
 
-        if (pkgSnapshots.includes(undefined as any)) { // tslint:disable-line
+        if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
           await linkBins(depNode.modules, binPath, { warn: opts.warn })
         } else {
           const pkgs = await Promise.all(
             pkgSnapshots
               .filter(({ hasBin }) => hasBin)
-              .map(async ({ peripheralLocation }) => ({
-                location: peripheralLocation,
-                manifest: await readPackageFromDir(peripheralLocation) as DependencyManifest,
-              })),
+              .map(async ({ dir }) => ({
+                location: dir,
+                manifest: await readPackageFromDir(dir) as DependencyManifest,
+              }))
           )
 
           await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
@@ -731,23 +714,22 @@ async function linkAllBins (
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
-          const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
+          const bundledModules = path.join(depNode.dir, 'node_modules')
           await linkBins(bundledModules, binPath, { warn: opts.warn })
         }
-      })),
+      }))
   )
 }
 
-async function linkAllModules (
+function linkAllModules (
   depNodes: DependenciesGraphNode[],
   opts: {
-    optional: boolean,
-    lockfileDirectory: string,
-  },
+    optional: boolean
+    lockfileDir: string
+  }
 ) {
   return Promise.all(
     depNodes
-      .filter(({ independent }) => !independent)
       .map(async (depNode) => {
         const childrenToLink = opts.optional
           ? depNode.children
@@ -766,13 +748,13 @@ async function linkAllModules (
               if (alias === depNode.name) {
                 logger.warn({
                   message: `Cannot link dependency with name ${alias} to ${depNode.modules}. Dependency's name should differ from the parent's name.`,
-                  prefix: opts.lockfileDirectory,
+                  prefix: opts.lockfileDir,
                 })
                 return
               }
               await limitLinking(() => symlinkDependency(childrenToLink[alias], depNode.modules, alias))
-            }),
+            })
         )
-      }),
+      })
   )
 }

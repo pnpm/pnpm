@@ -1,18 +1,19 @@
 {
   "name": "@pnpm/resolver-base",
-  "version": "3.1.2",
+  "version": "7.0.3",
   "description": "Types for pnpm-compatible resolvers",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "lint": "tslint -c tslint.json --project .",
-    "tsc": "rimraf lib && tsc --pretty",
-    "test": "pnpm run tsc && pnpm run lint",
-    "prepublishOnly": "pnpm run tsc"
+    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/resolver-base",
   "keywords": [
@@ -20,15 +21,16 @@
     "resolver"
   ],
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10.14"
   },
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolver-base#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:3.2.0"
+    "@pnpm/types": "workspace:6.2.0"
   },
-  "devDependencies": {
-    "rimraf": "3.0.0"
-  }
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

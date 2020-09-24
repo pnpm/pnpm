@@ -1,0 +1,22 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../read-project-manifest"
+    },
+    {
+      "path": "../types"
+    }
+  ]
+}

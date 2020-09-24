@@ -16,8 +16,6 @@ the `package-lock.json` of npm or the `yarn.lock` of Yarn.
 
 ### `readWantedLockfile(pkgPath, opts) => Promise<Lockfile>`
 
-Alias: `read`
-
 Reads the `pnpm-lock.yaml` file from the root of the package.
 
 #### Arguments
@@ -26,28 +24,34 @@ Reads the `pnpm-lock.yaml` file from the root of the package.
 * `opts.ignoreIncompatible` - *Boolean* - `false` by default. If `true`, throws an error
 if the lockfile file format is not compatible with the current library.
 
-### `readCurrentLockfile(pkgPath, opts) => Promise<Lockfile>`
+### `readCurrentLockfile(virtualStoreDir, opts) => Promise<Lockfile>`
 
-Alias: `readPrivate`
-
-Reads the lockfile file from `node_modules/.pnpm-lock.yaml`.
+Reads the lockfile file from `<virtualStoreDir>/lock.yaml`.
 
 ### `existsWantedLockfile(pkgPath) => Promise<Boolean>`
 
 Returns `true` if a `pnpm-lock.yaml` exists in the root of the package.
 
-### `writeLockfiles(pkgPath, wantedLockfile, currentLockfile) => Promise<void>`
+### `writeLockfiles(opts) => Promise<void>`
 
 Writes the wanted/current lockfile files. When they are empty, removes them.
+
+#### Arguments
+
+* `opts.wantedLockfile`
+* `opts.wantedLockfileDir`
+* `opts.currentLockfile`
+* `opts.currentLockfileDir`
+* `[opts.forceSharedFormat]`
 
 ### `writeWantedLockfile(pkgPath, wantedLockfile) => Promise<void>`
 
 Writes the wanted lockfile file only. Sometimes it is needed just to update the wanted lockfile
 without touching `node_modules`.
 
-### `writeCurrentLockfile(pkgPath, currentLockfile) => Promise<void>`
+### `writeCurrentLockfile(virtualStoreDir, currentLockfile) => Promise<void>`
 
-Writes the current lockfile file only. Fails if there is no `node_modules` directory in the `pkgPath`.
+Writes the current lockfile file only.
 
 ## License
 

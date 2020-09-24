@@ -1,13 +1,14 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { DeprecationLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import sinon = require('sinon')
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import * as sinon from 'sinon'
 import { testDefaults } from '../utils'
+import tape = require('tape')
 
 const test = promisifyTape(tape)
 
@@ -19,13 +20,13 @@ test('reports warning when installing deprecated packages', async (t: tape.Test)
   {
     const reporter = sinon.spy()
 
-    manifest = await addDependenciesToPackage({}, ['express@0.14.1'], await testDefaults({ reporter }))
+    manifest = await addDependenciesToPackage({}, ['express@0.14.1'], await testDefaults({ fastUnpack: false, reporter }))
 
     t.ok(reporter.calledWithMatch({
       deprecated: 'express 0.x series is deprecated',
       level: 'debug',
       name: 'pnpm:deprecation',
-      pkgId: 'localhost+4873/express/0.14.1',
+      pkgId: `localhost+${REGISTRY_MOCK_PORT}/express/0.14.1`,
     } as DeprecationLog), 'deprecation warning reported')
   }
 
@@ -33,18 +34,18 @@ test('reports warning when installing deprecated packages', async (t: tape.Test)
   t.equal(
     lockfile.packages['/express/0.14.1'].deprecated,
     'express 0.x series is deprecated',
-    `deprecated field added to ${WANTED_LOCKFILE}`,
+    `deprecated field added to ${WANTED_LOCKFILE}`
   )
 
   {
     const reporter = sinon.spy()
 
-    await addDependenciesToPackage(manifest, ['express@4.16.3'], await testDefaults({ reporter }))
+    await addDependenciesToPackage(manifest, ['express@4.16.3'], await testDefaults({ fastUnpack: false, reporter }))
 
     t.notOk(reporter.calledWithMatch({
       level: 'debug',
       name: 'pnpm:deprecation',
-      pkgId: 'localhost+4873/express/4.16.3',
+      pkgId: `localhost+${REGISTRY_MOCK_PORT}/express/4.16.3`,
     } as DeprecationLog), 'deprecation warning reported')
   }
 })

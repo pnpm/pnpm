@@ -1,4 +1,5 @@
-///<reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../typings/index.d.ts" />
+import './allProjectsAreUpToDate.test'
 import './api'
 import './breakingChanges'
 import './cache'
@@ -8,10 +9,5 @@ import './lockfile'
 import './offline'
 import './packageImportMethods'
 import './prune'
-import './rebuild'
-import './storeAdd'
-import './storePrune'
-import './storeStatus'
-import './storeUsages'
 import './uninstall'
 import './unlink'

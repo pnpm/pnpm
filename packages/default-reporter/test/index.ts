@@ -1,9 +1,9 @@
-///<reference path="../../../typings/index.d.ts"/>
-import { PnpmConfigs } from '@pnpm/config'
+/// <reference path="../../../typings/index.d.ts"/>
+import { Config } from '@pnpm/config'
 import {
   deprecationLogger,
   hookLogger,
-  packageJsonLogger,
+  packageManifestLogger,
   rootLogger,
   skippedOptionalDependencyLogger,
   statsLogger,
@@ -14,16 +14,18 @@ import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import chalk from 'chalk'
-import { stripIndent, stripIndents } from 'common-tags'
+import './reportingContext'
+import './reportingErrors'
+import './reportingLifecycleScripts'
+import './reportingProgress'
+import './reportingRequestRetry'
+import './reportingScope'
+import { map, skip, take } from 'rxjs/operators'
+import chalk = require('chalk')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import R = require('ramda')
 import test = require('tape')
-import './reportingErrors'
-import './reportingLifecycleScripts'
-import './reportingProgress'
-import './reportingScope'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
@@ -40,14 +42,14 @@ test('prints summary (of current package only)', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix } as PnpmConfigs,
+      config: { dir: prefix } as Config,
     },
     streamParser: createStreamParser(),
   })
 
   statsLogger.debug({ added: 5, prefix: `${prefix}/packages/foo` })
   statsLogger.debug({ removed: 1, prefix: `${prefix}/packages/foo` })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     initial: {
       name: 'foo',
       version: '1.0.0',
@@ -157,7 +159,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
     updated: {
       dependencies: {
@@ -180,35 +182,35 @@ test('prints summary (of current package only)', t => {
 
   t.plan(1)
 
-  output$.skip(2).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(2), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
       t.equal(output,
         `packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
         `${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla${EOL}${EOL}` +
-        stripIndents`
-        ${h1('dependencies:')}
-        ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
-        ${SUB} foo ${versionColor('0.1.0')}
-        ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
-        ${SUB} is-13 ${versionColor('^1.0.0')}
-        ${ADD} is-negative ${versionColor('^1.0.0')}
-        ${ADD} winston <- winst0n ${versionColor('1.0.0')}
+        `\
+${h1('dependencies:')}
+${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
+${SUB} foo ${versionColor('0.1.0')}
+${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+${SUB} is-13 ${versionColor('^1.0.0')}
+${ADD} is-negative ${versionColor('^1.0.0')}
+${ADD} winston <- winst0n ${versionColor('1.0.0')}
 
-        ${h1('optionalDependencies:')}
-        ${ADD} is-linked ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked')}`)}
-        ${SUB} is-positive
-        ${ADD} lala ${versionColor('1.1.0')}
+${h1('optionalDependencies:')}
+${ADD} is-linked ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked')}`)}
+${SUB} is-positive
+${ADD} lala ${versionColor('1.1.0')}
 
-        ${h1('devDependencies:')}
-        ${ADD} is-13 ${versionColor('^1.0.0')}
-        ${SUB} is-negative ${versionColor('^1.0.0')}
-        ${ADD} qar ${versionColor('2.0.0')}
+${h1('devDependencies:')}
+${ADD} is-13 ${versionColor('^1.0.0')}
+${SUB} is-negative ${versionColor('^1.0.0')}
+${ADD} qar ${versionColor('2.0.0')}
 
-        ${h1('node_modules:')}
-        ${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
-        ` + '\n')
+${h1('node_modules:')}
+${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
+`)
     },
   })
 })
@@ -218,10 +220,10 @@ test('prints summary for global installation', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: {
+      config: {
+        dir: prefix,
         global: true,
-        prefix,
-      } as PnpmConfigs,
+      } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -248,7 +250,7 @@ test('prints summary for global installation', t => {
     },
     prefix,
   })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
     updated: {
       dependencies: {
@@ -263,15 +265,15 @@ test('prints summary for global installation', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, EOL + stripIndents`
-        ${h1(`${prefix}:`)}
-        ${ADD} bar ${versionColor('2.0.0')}
-        ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
-        ` + '\n')
+      t.equal(output, EOL + `\
+${h1(`${prefix}:`)}
+${ADD} bar ${versionColor('2.0.0')}
+${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+`)
     },
   })
 })
@@ -281,18 +283,18 @@ test('prints added peer dependency', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: {
-        prefix,
-      } as PnpmConfigs,
+      config: {
+        dir: prefix,
+      } as Config,
     },
     streamParser: createStreamParser(),
   })
 
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     initial: {},
     prefix,
   })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
     updated: {
       devDependencies: {
@@ -307,17 +309,17 @@ test('prints added peer dependency', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, EOL + stripIndents`
-        ${h1('peerDependencies:')}
-        ${ADD} is-negative ${versionColor('^1.0.0')}
+      t.equal(output, EOL + `\
+${h1('peerDependencies:')}
+${ADD} is-negative ${versionColor('^1.0.0')}
 
-        ${h1('devDependencies:')}
-        ${ADD} is-negative ${versionColor('^1.0.0')}
-        ` + '\n')
+${h1('devDependencies:')}
+${ADD} is-negative ${versionColor('^1.0.0')}
+`)
     },
   })
 })
@@ -327,14 +329,14 @@ test('prints summary correctly when the same package is specified both in option
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: {
-        prefix,
-      } as PnpmConfigs,
+      config: {
+        dir: prefix,
+      } as Config,
     },
     streamParser: createStreamParser(),
   })
 
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     initial: {
       name: 'foo',
       version: '1.0.0',
@@ -359,7 +361,7 @@ test('prints summary correctly when the same package is specified both in option
     },
     prefix,
   })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
     updated: {
       dependencies: {
@@ -374,51 +376,49 @@ test('prints summary correctly when the same package is specified both in option
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, EOL + stripIndents`
-        ${h1('dependencies:')}
-        ${ADD} bar ${versionColor('2.0.0')}
-        ` + '\n')
+      t.equal(output, EOL + `\
+${h1('dependencies:')}
+${ADD} bar ${versionColor('2.0.0')}
+`)
     },
   })
 })
 
 test('prints summary when some packages fail', async (t) => {
   const output$ = toOutput$({
-    context: { argv: ['recursive'] },
+    context: { argv: ['run'], config: { recursive: true } as Config },
     streamParser: createStreamParser(),
   })
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, EOL + stripIndent`
-        Summary: ${chalk.red('6 fails')}, 7 passes
+      t.equal(output, EOL + `Summary: ${chalk.red('6 fails')}, 7 passes
 
-        /a:
-        ${ERROR} ${chalk.red('a failed')}
+/a:
+${ERROR} ${chalk.red('a failed')}
 
-        /b:
-        ${ERROR} ${chalk.red('b failed')}
+/b:
+${ERROR} ${chalk.red('b failed')}
 
-        /c:
-        ${ERROR} ${chalk.red('c failed')}
+/c:
+${ERROR} ${chalk.red('c failed')}
 
-        /d:
-        ${ERROR} ${chalk.red('d failed')}
+/d:
+${ERROR} ${chalk.red('d failed')}
 
-        /e:
-        ${ERROR} ${chalk.red('e failed')}
+/e:
+${ERROR} ${chalk.red('e failed')}
 
-        /f:
-        ${ERROR} ${chalk.red('f failed')}
-      `)
+/f:
+${ERROR} ${chalk.red('f failed')}`)
     },
   })
 
@@ -463,7 +463,7 @@ test('prints info', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
@@ -484,13 +484,12 @@ test('prints added/removed stats during installation', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+5')} ${chalk.red('-1')}
-        ${ADD + ADD + ADD + ADD + ADD + SUB}`
+      t.equal(output, `Packages: ${chalk.green('+5')} ${chalk.red('-1')}
+${ADD + ADD + ADD + ADD + ADD + SUB}`
       )
     },
   })
@@ -508,13 +507,12 @@ test('prints added/removed stats during installation when 0 removed', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+2')}
-        ${ADD + ADD}`
+      t.equal(output, `Packages: ${chalk.green('+2')}
+${ADD + ADD}`
       )
     },
   })
@@ -532,14 +530,12 @@ test('prints only the added stats if nothing was removed', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+1')}
-        ${ADD}`
-      )
+      t.equal(output, `Packages: ${chalk.green('+1')}
+${ADD}`)
     },
   })
 })
@@ -556,14 +552,12 @@ test('prints only the removed stats if nothing was added', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.red('-1')}
-        ${SUB}`
-      )
+      t.equal(output, `Packages: ${chalk.red('-1')}
+${SUB}`)
     },
   })
 })
@@ -581,14 +575,12 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+100')}
-        ${R.repeat(ADD, 20).join('')}`
-      )
+      t.equal(output, `Packages: ${chalk.green('+100')}
+${R.repeat(ADD, 20).join('')}`)
     },
   })
 })
@@ -606,14 +598,12 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.red('-100')}
-        ${R.repeat(SUB, 20).join('')}`
-      )
+      t.equal(output, `Packages: ${chalk.red('-100')}
+${R.repeat(SUB, 20).join('')}`)
     },
   })
 })
@@ -631,13 +621,12 @@ test('prints at least one remove sign when removed !== 0', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+100')} ${chalk.red('-1')}
-        ${R.repeat(ADD, 19).join('') + SUB}`
+      t.equal(output, `Packages: ${chalk.green('+100')} ${chalk.red('-1')}
+${R.repeat(ADD, 19).join('') + SUB}`
       )
     },
   })
@@ -656,21 +645,19 @@ test('prints at least one add sign when added !== 0', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.green('+1')} ${chalk.red('-100')}
-        ${ADD + R.repeat(SUB, 19).join('')}`
-      )
+      t.equal(output, `Packages: ${chalk.green('+1')} ${chalk.red('-100')}
+${ADD + R.repeat(SUB, 19).join('')}`)
     },
   })
 })
 
 test('prints just removed during uninstallation', t => {
   const output$ = toOutput$({
-    context: { argv: ['uninstall'] },
+    context: { argv: ['remove'] },
     streamParser: createStreamParser(),
   })
   const prefix = process.cwd()
@@ -679,14 +666,12 @@ test('prints just removed during uninstallation', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Packages: ${chalk.red('-4')}
-        ${SUB + SUB + SUB + SUB}`
-      )
+      t.equal(output, `Packages: ${chalk.red('-4')}
+${SUB + SUB + SUB + SUB}`)
     },
   })
 })
@@ -695,8 +680,8 @@ test('prints added/removed stats and warnings during recursive installation', t 
   const rootPrefix = '/home/jane/repo'
   const output$ = toOutput$({
     context: {
-      argv: ['recursive'],
-      configs: { prefix: rootPrefix } as PnpmConfigs,
+      argv: ['install'],
+      config: { dir: rootPrefix, recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -734,21 +719,20 @@ test('prints added/removed stats and warnings during recursive installation', t 
 
   t.plan(1)
 
-  output$.skip(8).take(1).map(normalizeNewline).subscribe({
+  output$.pipe(skip(8), take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-5                                    | ${WARN} Some issue
-        .                                        | ${WARN} Some other issue
-        .                                        |   ${chalk.red('-1')} ${SUB}
-        pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
-        dir/pkg-2                                | ${WARN} ${DEPRECATED} bar@2.0.0
-        dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
-        .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
-        ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
-        .                                        | ${WARN} ${DEPRECATED} foo@1.0.0`
-      )
+      t.equal(output, `\
+pkg-5                                    | ${WARN} Some issue
+.                                        | ${WARN} Some other issue
+.                                        |   ${chalk.red('-1')} ${SUB}
+pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
+dir/pkg-2                                | ${WARN} ${DEPRECATED} bar@2.0.0
+dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
+.../pkg-3                                |   ${chalk.green('+1')} ${ADD}
+...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
+.                                        | ${WARN} ${DEPRECATED} foo@1.0.0`)
     },
   })
 })
@@ -757,7 +741,7 @@ test('recursive installation: prints only the added stats if nothing was removed
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { dir: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 60 },
     streamParser: createStreamParser(),
@@ -768,13 +752,11 @@ test('recursive installation: prints only the added stats if nothing was removed
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.green('+190')} ${R.repeat(ADD, 12).join('')}`
-      )
+      t.equal(output, `pkg-1                                    | ${chalk.green('+190')} ${R.repeat(ADD, 12).join('')}`)
     },
   })
 })
@@ -783,7 +765,7 @@ test('recursive installation: prints only the removed stats if nothing was added
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { dir: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 60 },
     streamParser: createStreamParser(),
@@ -794,13 +776,11 @@ test('recursive installation: prints only the removed stats if nothing was added
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.red('-190')} ${R.repeat(SUB, 12).join('')}`
-      )
+      t.equal(output, `pkg-1                                    | ${chalk.red('-190')} ${R.repeat(SUB, 12).join('')}`)
     },
   })
 })
@@ -809,7 +789,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { dir: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -820,13 +800,11 @@ test('recursive installation: prints at least one remove sign when removed !== 0
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${R.repeat(ADD, 8).join('') + SUB}`
-      )
+      t.equal(output, `pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${R.repeat(ADD, 8).join('') + SUB}`)
     },
   })
 })
@@ -835,7 +813,7 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { dir: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -846,13 +824,11 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + R.repeat(SUB, 8).join('')}`
-      )
+      t.equal(output, `pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + R.repeat(SUB, 8).join('')}`)
     },
   })
 })
@@ -860,8 +836,8 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
 test('recursive uninstall: prints removed packages number', t => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'uninstall'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      argv: ['remove'],
+      config: { dir: '/home/jane/repo', recursive: true } as Config,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -871,13 +847,11 @@ test('recursive uninstall: prints removed packages number', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    |   ${chalk.red('-1')} ${SUB}`
-      )
+      t.equal(output, `pkg-1                                    |   ${chalk.red('-1')} ${SUB}`)
     },
   })
 })
@@ -886,7 +860,7 @@ test('install: print hook message', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { dir: '/home/jane/repo' } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -900,13 +874,11 @@ test('install: print hook message', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        ${chalk.magentaBright('readPackage')}: foo`
-      )
+      t.equal(output, `${chalk.magentaBright('readPackage')}: foo`)
     },
   })
 })
@@ -915,7 +887,7 @@ test('recursive: print hook message', t => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { dir: '/home/jane/repo' } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -929,13 +901,11 @@ test('recursive: print hook message', t => {
 
   t.plan(1)
 
-  output$.take(1).map(normalizeNewline).subscribe({
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`
-      )
+      t.equal(output, `pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`)
     },
   })
 })
@@ -945,7 +915,7 @@ test('prints skipped optional dependency info message', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix } as PnpmConfigs,
+      config: { dir: prefix } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -965,11 +935,135 @@ test('prints skipped optional dependency info message', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.pipe(take(1)).subscribe({
     complete: () => t.end(),
     error: t.end,
     next: output => {
       t.equal(output, `info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
+    },
+  })
+})
+
+test('logLevel=default', t => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new PnpmError('SOME_CODE', 'some error')
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.pipe(skip(2), take(1)).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `Info message
+${WARN} Some issue
+${ERROR} ${chalk.red('some error')}`)
+    },
+  })
+})
+
+test('logLevel=warn', t => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    reportingOptions: {
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new PnpmError('SOME_CODE', 'some error')
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.pipe(skip(1), take(1)).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `${WARN} Some issue
+${ERROR} ${chalk.red('some error')}`)
+    },
+  })
+})
+
+test('logLevel=error', t => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    reportingOptions: {
+      logLevel: 'error',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new PnpmError('SOME_CODE', 'some error')
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.pipe(take(1)).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `${ERROR} ${chalk.red('some error')}`)
+    },
+  })
+})
+
+test('warnings are collapsed', t => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    reportingOptions: {
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.warn({ message: 'Some issue 1', prefix })
+  logger.warn({ message: 'Some issue 2', prefix })
+  logger.warn({ message: 'Some issue 3', prefix })
+  logger.warn({ message: 'Some issue 4', prefix })
+  logger.warn({ message: 'Some issue 5', prefix })
+  logger.warn({ message: 'Some issue 6', prefix })
+  logger.warn({ message: 'Some issue 7', prefix })
+
+  t.plan(1)
+
+  output$.pipe(skip(6), take(1)).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `${WARN} Some issue 1
+${WARN} Some issue 2
+${WARN} Some issue 3
+${WARN} Some issue 4
+${WARN} Some issue 5
+${WARN} 2 other warnings`)
     },
   })
 })

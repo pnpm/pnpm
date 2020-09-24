@@ -2,17 +2,17 @@ import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType = require('version-selector-type')
 
 export interface RegistryPackageSpec {
-  type: 'tag' | 'version' | 'range',
-  name: string,
-  fetchSpec: string,
-  normalizedPref?: string,
+  type: 'tag' | 'version' | 'range'
+  name: string
+  fetchSpec: string
+  normalizedPref?: string
 }
 
 export default function parsePref (
   pref: string,
   alias: string | undefined,
   defaultTag: string,
-  registry: string,
+  registry: string
 ): RegistryPackageSpec | null {
   let name = alias
   if (pref.startsWith('npm:')) {

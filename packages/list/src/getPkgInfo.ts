@@ -1,24 +1,22 @@
-import path = require('path')
 import readPkg from './readPkg'
+import path = require('path')
 
 export default async function getPkgInfo (
   pkg: {
-    alias: string,
-    name: string,
-    version: string,
-    path: string,
-    resolved?: string,
-  },
+    alias: string
+    name: string
+    version: string
+    path: string
+    resolved?: string
+  }
 ) {
   let manifest
   try {
     manifest = await readPkg(path.join(pkg.path, 'node_modules', pkg.name, 'package.json'))
   } catch (err) {
-    // This is a temporary workaround.
-    // If the package.json is not found inside node_modules, it should be read from the store.
-    // This frequently happens when the independent-leaves config is true.
+    // This will probably never happen
     manifest = {
-      description: '[Could not find additional info about this dependency]'
+      description: '[Could not find additional info about this dependency]',
     }
   }
   return {
@@ -32,8 +30,8 @@ export default async function getPkgInfo (
     description: manifest.description,
 
     homepage: manifest.homepage,
-    repository: manifest.repository && (
+    repository: (manifest.repository && (
       typeof manifest.repository === 'string' ? manifest.repository : manifest.repository.url
-    ) || undefined,
+    )) ?? undefined,
   }
 }

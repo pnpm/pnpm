@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "2.0.0",
+  "version": "2.1.9",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -13,12 +13,12 @@
   "private": true,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "files": [
-    "lib/"
-  ],
+  "files": ["lib/"],
   "devDependencies": {
     "@pnpm/assert-project": "link:",
-    "rimraf": "3.0.0"
+    "@types/is-windows": "^1.0.0",
+    "@types/isexe": "2.0.0",
+    "@types/node": "^12.12.56"
   },
   "directories": {
     "test": "test"
@@ -27,32 +27,31 @@
   "keywords": [],
   "license": "MIT",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-project",
   "scripts": {
     "commit": "commit",
     "commitmsg": "commitlint -e",
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c ../../tslint.json --project .",
     "lint-test": "tslint -c tslint.json --project test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc",
-    "pretest": "cd test/fixture/project && node ../../../../../packages/pnpm/bin/pnpm.js i --force --no-shared-workspace-lockfile && cd ../../..",
-    "test": "pnpm run lint && pnpm run lint-test && pnpm run tsc && ts-node test"
+    "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
+    "test": "pnpm run tsc && ts-node test"
   },
   "dependencies": {
-    "@pnpm/assert-store": "1.0.0",
-    "@pnpm/constants": "file:../../packages/constants",
-    "@pnpm/lockfile-types": "1.1.0",
-    "@pnpm/modules-yaml": "file:../../packages/modules-yaml",
-    "@pnpm/types": "3.2.0",
-    "@types/mz": "0.0.32",
-    "is-windows": "1.0.2",
+    "@pnpm/assert-store": "workspace:1.0.10",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:2.0.1",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@types/mz": "^2.7.1",
+    "is-windows": "^1.0.2",
     "isexe": "2.0.0",
-    "mz": "2.7.0",
-    "path-exists": "4.0.0",
-    "read-yaml-file": "1.1.0",
-    "tape": "4.11.0",
+    "mz": "^2.7.0",
+    "path-exists": "^4.0.0",
+    "read-yaml-file": "^2.0.0",
     "write-pkg": "4.0.0"
   }
 }

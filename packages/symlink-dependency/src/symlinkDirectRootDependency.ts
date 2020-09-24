@@ -3,9 +3,8 @@ import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import { DependenciesField } from '@pnpm/types'
-import makeDir = require('make-dir')
-import fs = require('mz/fs')
 import path = require('path')
+import fs = require('mz/fs')
 import symlinkDir = require('symlink-dir')
 
 const DEP_TYPE_BY_DEPS_FIELD_NAME = {
@@ -19,13 +18,13 @@ export default async function symlinkDirectRootDependency (
   destModulesDir: string,
   importAs: string,
   opts: {
-    fromDependenciesField?: DependenciesField,
+    fromDependenciesField?: DependenciesField
     linkedPackage: {
-      name: string,
-      version: string,
-    },
-    prefix: string,
-  },
+      name: string
+      version: string
+    }
+    prefix: string
+  }
 ) {
   // `opts.destModulesDir` may be a non-existent `node_modules` dir
   // so `fs.realpath` would throw.
@@ -37,7 +36,7 @@ export default async function symlinkDirectRootDependency (
     destModulesDirReal = await fs.realpath(destModulesDir)
   } catch (err) {
     if (err.code === 'ENOENT') {
-      await makeDir(destModulesDir)
+      await fs.mkdir(destModulesDir, { recursive: true })
       destModulesDirReal = await fs.realpath(destModulesDir)
     } else {
       throw err

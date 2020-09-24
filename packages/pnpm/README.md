@@ -1,117 +1,86 @@
 ![](https://i.imgur.com/qlW1eEG.png)
 
-# pnpm
+Fast, disk space efficient package manager:
 
-> Fast, disk space efficient package manager
+* **Fast.** Up to 2x faster than the alternatives (see [benchmark](#benchmark)).
+* **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
+* **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
+* **Strict.** A package can access only dependencies that are specified in its `package.json`.
+* **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
+* **Works everywhere.** Supports Windows, Linux, and macOS.
+* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.js.org/en/users.html) since 2016.
+  
+To quote the [Rush](https://rushjs.io/) team:
+
+> Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
-[![Status](https://travis-ci.org/pnpm/pnpm.svg?branch=master)](https://travis-ci.org/pnpm/pnpm "See test builds")
-[![Windows build status](https://ci.appveyor.com/api/projects/status/f7437jbcml04x750/branch/master?svg=true)](https://ci.appveyor.com/project/zkochan/pnpm-17nv8/branch/master)
-[![Join the chat at https://gitter.im/pnpm/pnpm](https://badges.gitter.im/pnpm/pnpm.svg)](https://gitter.im/pnpm/pnpm?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Status](https://travis-ci.com/pnpm/pnpm.svg?branch=master)](https://travis-ci.com/pnpm/pnpm "See test builds")
+[![Coverage Status](https://coveralls.io/repos/github/pnpm/pnpm/badge.svg?branch=master)](https://coveralls.io/github/pnpm/pnpm?branch=master)
+[![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://discord.gg/mThkzAT)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](#backers)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/pnpmjs)
 
-Features:
-
-* **Fast.** As fast as npm and Yarn.
-* **Efficient.** One version of a package is saved only ever once on a disk.
-* **Great for multi-package repositories (a.k.a. monorepos).** See the [recursive](https://pnpm.js.org/en/cli/recursive) commands.
-* **Strict.** A package can access only dependencies that are specified in its `package.json`.
-* **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
-* **Works everywhere.** Works on Windows, Linux and OS X.
-* **Aliases.** Install different versions of the same package or import it using a different name.
-
-Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
-
-## Table of Contents
-
-* [Background](#background)
-* [Install](#install)
-* [Usage](#usage)
-* [Benchmark](#benchmark)
-* [Support](#support)
-* [Contributors](#contributors)
-
 ## Background
 
-pnpm uses hard links and symlinks to save one version of a module only ever once on a disk.
-When using npm or Yarn for example, if you have 100 projects using the same version
-of lodash, you will have 100 copies of lodash on disk. With pnpm, lodash will be saved in a
-single place on the disk and a hard link will put it into the `node_modules` where it should
-be installed.
+pnpm uses a content-addressable filesystem to store all files from all module directories on a disk.
+When using npm or Yarn, if you have 100 projects using lodash, you will have 100 copies of lodash on disk.
+With pnpm, lodash will be stored in a content-addressable storage, so:
+
+1. If you depend on different versions of lodash, only the files that differ are added to the store.
+  If lodash has 100 files, and a new version has a change only in one of those files,
+  `pnpm update` will only add 1 new file to the storage.
+1. All the files are saved in a single place on the disk. When packages are installed, their files are hard-linked
+  from that single place consuming no additional disk space.
 
 As a result, you save gigabytes of space on your disk and you have a lot faster installations!
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
-why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://medium.com/pnpm/flat-node-modules-is-not-the-only-way-d2e40f7296a3).
+why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://pnpm.js.org/blog/2020/05/27/flat-node-modules-is-not-the-only-way).
 
-## Install
-
-Using a [standalone script](https://github.com/pnpm/self-installer#readme):
+## Installation
 
 ```
-curl -L https://unpkg.com/@pnpm/self-installer | node
+npm install -g pnpm
 ```
 
-Via npm:
-
-```
-npm add -g pnpm
-```
-
-Once you first installed pnpm, you can upgrade it using pnpm:
-
-```
-pnpm add -g pnpm
-```
-
-> Do you wanna use pnpm on CI servers? See: [Continuous Integration](https://pnpm.js.org/en/continuous-integration).
+For other installation options [visit our website](https://pnpm.js.org/en/installation).
 
 ## Usage
 
-### pnpm CLI
-
-Just use pnpm in place of npm. For instance, to install run:
+Just use pnpm in place of npm/Yarn. E.g., install dependencies via:
 
 ```
 pnpm install
 ```
 
-For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website.
-
-For using the programmatic API, use pnpm's engine: [supi](packages/supi).
-
-### pnpx CLI
-
-npm has a great package runner called [npx](https://medium.com/@maybekatz/introducing-npx-an-npm-package-runner-55f7d4bd282b).
-pnpm offers the same tool via the `pnpx` command. The only difference is that `pnpx` uses pnpm for installing packages.
-
-The following command installs a temporary create-react-app and calls it,
-without polluting global installs or requiring more than one step!
+Also, pnpx instead of npx:
 
 ```
 pnpx create-react-app my-cool-new-app
 ```
 
+For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website, or run `pnpm help`.
+
 ## Benchmark
 
-pnpm is as fast as npm and Yarn. See all benchmarks [here](https://github.com/pnpm/benchmarks-of-javascript-package-managers).
+pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](https://github.com/pnpm/benchmarks-of-javascript-package-managers).
 
-Benchmarks on a React app:
+Benchmarks on an app with lots of dependencies:
 
-![](https://cdn.rawgit.com/pnpm/benchmarks-of-javascript-package-managers/b14c3e8/results/imgs/react-app.svg)
+![](https://cdn.rawgit.com/pnpm/benchmarks-of-javascript-package-managers/4329296/results/imgs/alotta-files.svg)
 
 ## Support
 
 - [Frequently Asked Questions](https://pnpm.js.org/en/faq)
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
-- [Gitter chat](https://gitter.im/pnpm/pnpm)
+- [Chat](https://discord.gg/mThkzAT)
 - [Twitter](https://twitter.com/pnpmjs)
 - [Awesome list](https://github.com/pnpm/awesome-pnpm)
 
 ## Contributors
 
-This project exists thanks to all the people who contribute. [[Contribute](../../CONTRIBUTING.md)].
+This project exists thanks to all the people who contribute. [[Contribute](../../blob/master/CONTRIBUTING.md)].
 <a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" /></a>
 
 ### Backers
@@ -138,3 +107,7 @@ Support this project by becoming a sponsor. Your logo will show up here with a l
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE)
+
+***
+
+Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).

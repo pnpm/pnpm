@@ -1,0 +1,25 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cli-utils"
+    },
+    {
+      "path": "../constants"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../find-packages"
+    }
+  ]
+}

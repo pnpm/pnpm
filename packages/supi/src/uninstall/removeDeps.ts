@@ -1,44 +1,42 @@
-import { packageJsonLogger } from '@pnpm/core-loggers'
+import { packageManifestLogger } from '@pnpm/core-loggers'
 import {
-  DEPENDENCIES_FIELDS,
   DependenciesField,
-  PackageJson,
+  DEPENDENCIES_FIELDS,
+  ProjectManifest,
 } from '@pnpm/types'
 
 export default async function (
-  packageJson: PackageJson,
+  packageManifest: ProjectManifest,
   removedPackages: string[],
   opts: {
-    saveType?: DependenciesField,
-    prefix: string,
-  },
-): Promise<PackageJson> {
+    saveType?: DependenciesField
+    prefix: string
+  }
+): Promise<ProjectManifest> {
   if (opts.saveType) {
-    packageJson[opts.saveType] = packageJson[opts.saveType]
-
-    if (!packageJson[opts.saveType]) return packageJson
+    if (!packageManifest[opts.saveType]) return packageManifest
 
     removedPackages.forEach((dependency) => {
-      delete packageJson[opts.saveType as DependenciesField]![dependency]
+      delete packageManifest[opts.saveType as DependenciesField]![dependency]
     })
   } else {
     DEPENDENCIES_FIELDS
-      .filter((depField) => packageJson[depField])
+      .filter((depField) => packageManifest[depField])
       .forEach((depField) => {
         removedPackages.forEach((dependency) => {
-          delete packageJson[depField]![dependency]
+          delete packageManifest[depField]![dependency]
         })
       })
   }
-  if (packageJson.peerDependencies) {
+  if (packageManifest.peerDependencies) {
     for (const removedDependency of removedPackages) {
-      delete packageJson.peerDependencies[removedDependency]
+      delete packageManifest.peerDependencies[removedDependency]
     }
   }
 
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix: opts.prefix,
-    updated: packageJson,
+    updated: packageManifest,
   })
-  return packageJson
+  return packageManifest
 }

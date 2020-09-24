@@ -6,29 +6,29 @@ import logger from '@pnpm/logger'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest, PackageManifest } from '@pnpm/types'
-import graphSequencer = require('graph-sequencer')
-import path = require('path')
-import R = require('ramda')
 import runGroups from 'run-groups'
+import path = require('path')
+import graphSequencer = require('graph-sequencer')
+import R = require('ramda')
 
 export default async (
   depGraph: DependenciesGraph,
   rootDepPaths: string[],
   opts: {
-    childConcurrency?: number,
-    depsToBuild?: Set<string>,
-    extraBinPaths?: string[],
-    optional: boolean,
-    prefix: string,
-    rawNpmConfig: object,
-    unsafePerm: boolean,
-    userAgent: string,
-    sideEffectsCacheWrite: boolean,
-    storeController: StoreController,
-    rootNodeModulesDir: string,
-  },
+    childConcurrency?: number
+    depsToBuild?: Set<string>
+    extraBinPaths?: string[]
+    lockfileDir: string
+    optional: boolean
+    rawConfig: object
+    unsafePerm: boolean
+    userAgent: string
+    sideEffectsCacheWrite: boolean
+    storeController: StoreController
+    rootModulesDir: string
+  }
 ) => {
-  const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
+  const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
   // postinstall hooks
   const nodesToBuild = new Set<string>()
   getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
@@ -37,7 +37,7 @@ export default async (
   const nodesToBuildArray = Array.from(nodesToBuild)
   const graph = new Map(
     nodesToBuildArray
-      .map((depPath) => [depPath, onlyFromBuildGraph(R.values(depGraph[depPath].children))]) as Array<[string, string[]]>,
+      .map((depPath) => [depPath, onlyFromBuildGraph(R.values(depGraph[depPath].children))])
   )
   const graphSequencerResult = graphSequencer({
     graph,
@@ -52,25 +52,25 @@ export default async (
     }
 
     return chunk.map((depPath: string) =>
-      async () => buildDependency(depPath, depGraph, buildDepOpts)
+      () => buildDependency(depPath, depGraph, buildDepOpts)
     )
   })
-  await runGroups(opts.childConcurrency || 4, groups)
+  await runGroups(opts.childConcurrency ?? 4, groups)
 }
 
 async function buildDependency (
   depPath: string,
   depGraph: DependenciesGraph,
   opts: {
-    extraBinPaths?: string[],
-    optional: boolean,
-    prefix: string,
-    rawNpmConfig: object,
-    rootNodeModulesDir: string,
-    sideEffectsCacheWrite: boolean,
-    storeController: StoreController,
-    unsafePerm: boolean,
-    warn: (message: string) => void,
+    extraBinPaths?: string[]
+    lockfileDir: string
+    optional: boolean
+    rawConfig: object
+    rootModulesDir: string
+    sideEffectsCacheWrite: boolean
+    storeController: StoreController
+    unsafePerm: boolean
+    warn: (message: string) => void
   }
 ) {
   const depNode = depGraph[depPath]
@@ -80,29 +80,29 @@ async function buildDependency (
       depPath,
       extraBinPaths: opts.extraBinPaths,
       optional: depNode.optional,
-      pkgRoot: depNode.peripheralLocation,
+      pkgRoot: depNode.dir,
       prepare: depNode.prepare,
-      rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: opts.rootNodeModulesDir,
+      rawConfig: opts.rawConfig,
+      rootModulesDir: opts.rootModulesDir,
       unsafePerm: opts.unsafePerm || false,
     })
     if (hasSideEffects && opts.sideEffectsCacheWrite) {
       try {
-        await opts.storeController.upload(depNode.peripheralLocation, {
+        await opts.storeController.upload(depNode.dir, {
           engine: ENGINE_NAME,
-          packageId: depNode.packageId,
+          filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err) {
-        if (err && err.statusCode === 403) {
+        if (err.statusCode === 403) {
           logger.warn({
-            message: `The store server disabled upload requests, could not upload ${depNode.packageId}`,
-            prefix: opts.prefix,
+            message: `The store server disabled upload requests, could not upload ${depNode.dir}`,
+            prefix: opts.lockfileDir,
           })
         } else {
           logger.warn({
             error: err,
-            message: `An error occurred while uploading ${depNode.packageId}`,
-            prefix: opts.prefix,
+            message: `An error occurred while uploading ${depNode.dir}`,
+            prefix: opts.lockfileDir,
           })
         }
       }
@@ -110,15 +110,15 @@ async function buildDependency (
   } catch (err) {
     if (depNode.optional) {
       // TODO: add parents field to the log
-      const pkg = await readPackageFromDir(path.join(depNode.peripheralLocation)) as DependencyManifest
+      const pkg = await readPackageFromDir(path.join(depNode.dir)) as DependencyManifest
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
-          id: depNode.packageId,
+          id: depNode.dir,
           name: pkg.name,
           version: pkg.version,
         },
-        prefix: opts.prefix,
+        prefix: opts.lockfileDir,
         reason: 'build_failure',
       })
       return
@@ -131,7 +131,7 @@ function getSubgraphToBuild (
   graph: DependenciesGraph,
   entryNodes: string[],
   nodesToBuild: Set<string>,
-  walked: Set<string>,
+  walked: Set<string>
 ) {
   let currentShouldBeBuilt = false
   for (const depPath of entryNodes) {
@@ -141,8 +141,8 @@ function getSubgraphToBuild (
     }
     if (walked.has(depPath)) continue
     walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked)
-      || graph[depPath].requiresBuild
+    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked) === true ||
+      graph[depPath].requiresBuild
     if (childShouldBeBuilt) {
       nodesToBuild.add(depPath)
       currentShouldBeBuilt = true
@@ -152,18 +152,18 @@ function getSubgraphToBuild (
 }
 
 export interface DependenciesGraphNode {
-  fetchingBundledManifest?: () => Promise<PackageManifest>,
-  hasBundledDependencies: boolean,
-  peripheralLocation: string,
-  children: {[alias: string]: string},
-  optional: boolean,
-  optionalDependencies: Set<string>,
-  packageId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
-  installable?: boolean,
-  isBuilt?: boolean,
-  requiresBuild?: boolean,
-  prepare: boolean,
-  hasBin: boolean,
+  children: {[alias: string]: string}
+  dir: string
+  fetchingBundledManifest?: () => Promise<PackageManifest>
+  filesIndexFile: string
+  hasBin: boolean
+  hasBundledDependencies: boolean
+  installable?: boolean
+  isBuilt?: boolean
+  optional: boolean
+  optionalDependencies: Set<string>
+  prepare: boolean
+  requiresBuild?: boolean
 }
 
 export interface DependenciesGraph {
@@ -174,9 +174,9 @@ export async function linkBinsOfDependencies (
   depNode: DependenciesGraphNode,
   depGraph: DependenciesGraph,
   opts: {
-    optional: boolean,
-    warn: (message: string) => void,
-  },
+    optional: boolean
+    warn: (message: string) => void
+  }
 ) {
   const childrenToLink = opts.optional
     ? depNode.children
@@ -188,7 +188,7 @@ export async function linkBinsOfDependencies (
         return nonOptionalChildren
       }, {})
 
-  const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+  const binPath = path.join(depNode.dir, 'node_modules/.bin')
 
   const pkgs = await Promise.all(
     Object.keys(childrenToLink)
@@ -204,17 +204,17 @@ export async function linkBinsOfDependencies (
       .map(async (alias) => {
         const dep = depGraph[childrenToLink[alias]]
         return {
-          location: dep.peripheralLocation,
-          manifest: dep.fetchingBundledManifest && (await dep.fetchingBundledManifest()) || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
+          location: dep.dir,
+          manifest: await dep.fetchingBundledManifest?.() ?? (await readPackageFromDir(dep.dir) as DependencyManifest),
         }
-      }),
+      })
   )
 
   await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
 
   // link also the bundled dependencies` bins
   if (depNode.hasBundledDependencies) {
-    const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
+    const bundledModules = path.join(depNode.dir, 'node_modules')
     await linkBins(bundledModules, binPath, { warn: opts.warn })
   }
 }

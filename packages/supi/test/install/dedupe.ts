@@ -1,12 +1,11 @@
 import { prepareEmpty } from '@pnpm/prepare'
-import pnpmRegistryMock = require('@pnpm/registry-mock')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import pnpmRegistryMock = require('@pnpm/registry-mock')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const addDistTag = pnpmRegistryMock.addDistTag
 
 test('prefer version ranges specified for top dependencies', async (t: tape.Test) => {
@@ -21,7 +20,7 @@ test('prefer version ranges specified for top dependencies', async (t: tape.Test
         'pkg-with-1-dep': '*',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -40,7 +39,7 @@ test('prefer version ranges specified for top dependencies, when doing named ins
         'dep-of-pkg-with-1-dep': '100.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
   await addDependenciesToPackage(manifest, ['pkg-with-1-dep'], await testDefaults())
 
@@ -57,11 +56,11 @@ test('prefer version ranges specified for top dependencies, even if they are ali
   await install(
     {
       dependencies: {
-        'foo': 'npm:dep-of-pkg-with-1-dep@100.0.0',
+        foo: 'npm:dep-of-pkg-with-1-dep@100.0.0',
         'pkg-with-1-dep': '*',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -81,7 +80,7 @@ test('prefer version ranges specified for top dependencies, even if the subdepen
         'pkg-with-1-aliased-dep': '100.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -101,7 +100,7 @@ test('ignore version of root dependency when it is incompatible with the indirec
         'pkg-with-1-dep': '100.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -122,7 +121,7 @@ test('prefer dist-tag specified for top dependency', async (t: tape.Test) => {
         'pkg-with-1-dep': '100.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -146,12 +145,11 @@ test('prefer version ranges passed in via opts.preferredVersions', async (t: tap
       {
         preferredVersions: {
           'dep-of-pkg-with-1-dep': {
-            selector: '100.0.0',
-            type: 'version',
+            '100.0.0': 'version',
           },
         },
-      },
-    ),
+      }
+    )
   )
 
   const lockfile = await project.readLockfile()
@@ -160,14 +158,14 @@ test('prefer version ranges passed in via opts.preferredVersions', async (t: tap
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1187
-test('resolution-strategy=fewer-dependencies: prefer version of package that also satisfies the range of the same package higher in the dependency graph', async (t: tape.Test) => {
+test('prefer version of package that also satisfies the range of the same package higher in the dependency graph', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
   await addDependenciesToPackage(
     {},
     ['has-foo-as-dep-and-subdep'],
-    await testDefaults({ resolutionStrategy: 'fewer-dependencies' }),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -178,29 +176,6 @@ test('resolution-strategy=fewer-dependencies: prefer version of package that als
       '/foo/100.0.0',
       '/has-foo-as-dep-and-subdep/1.0.0',
       '/requires-any-foo/1.0.0',
-    ],
-  )
-})
-
-test('resolution-strategy=fast: always prefer the latest version', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
-
-  await addDependenciesToPackage(
-    {},
-    ['has-foo-as-dep-and-subdep'],
-    await testDefaults({ resolutionStrategy: 'fast' }),
-  )
-
-  const lockfile = await project.readLockfile()
-
-  t.deepEqual(
-    Object.keys(lockfile.packages),
-    [
-      '/foo/100.0.0',
-      '/foo/100.1.0',
-      '/has-foo-as-dep-and-subdep/1.0.0',
-      '/requires-any-foo/1.0.0',
-    ],
+    ]
   )
 })

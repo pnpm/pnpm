@@ -1,21 +1,21 @@
+import { URL } from 'url'
 import fetch from '@pnpm/fetch'
+import url = require('url')
 import git = require('graceful-git')
 import HostedGit = require('hosted-git-info')
-import url = require('url')
-import { URL } from 'url'
 
 export type HostedPackageSpec = ({
-  fetchSpec: string,
+  fetchSpec: string
   hosted?: {
-    type: string,
-    user: string,
-    project: string,
-    committish: string,
-    tarball (): string | void,
-  },
-  normalizedPref: string,
-  gitCommittish: string | null,
-  gitRange?: string,
+    type: string
+    user: string
+    project: string
+    committish: string
+    tarball: () => string | undefined
+  }
+  normalizedPref: string
+  gitCommittish: string | null
+  gitRange?: string
 })
 
 const gitProtocols = new Set([
@@ -48,7 +48,7 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
       }
     }
 
-    const committish = (urlparse.hash && urlparse.hash.length > 1) ? decodeURIComponent(urlparse.hash.slice(1)) : null
+    const committish = (urlparse.hash?.length > 1) ? decodeURIComponent(urlparse.hash.slice(1)) : null
     return {
       fetchSpec: urlToFetchSpec(urlparse),
       normalizedPref: pref,
@@ -67,36 +67,44 @@ function urlToFetchSpec (urlparse: URL) {
   return fetchSpec
 }
 
-async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // tslint:disable-line
+async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // eslint-disable-line
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
 
   const gitUrl = hosted.git({ noCommittish: true })
-  if (gitUrl) {
-    try {
-      await git(['ls-remote', '--exit-code', gitUrl, 'HEAD'], { retries: 0 })
-      fetchSpec = gitUrl
-    } catch (e) {
-      // ignore
-    }
+  if (gitUrl && await accessRepository(gitUrl)) {
+    fetchSpec = gitUrl
   }
 
   if (!fetchSpec) {
-    const httpsUrl = hosted.https({ noGitPlus: true, noCommittish: true })
+    const httpsUrl: string | null = hosted.https({ noGitPlus: true, noCommittish: true })
     if (httpsUrl) {
-      try {
-        // when git ls-remote private repo, it asks for login credentials.
-        // use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
-        // this is very similar to yarn's behaviour.
-        // npm instead tries git ls-remote directly which prompts user for login credentials.
-
-        // HTTP HEAD on https://domain/user/repo, strip out ".git"
-        const response = await fetch(httpsUrl.substr(0, httpsUrl.length - 4), { method: 'HEAD', follow: 0 })
-        if (response.ok) {
-          fetchSpec = httpsUrl
+      if (hosted.auth && await accessRepository(httpsUrl)) {
+        return {
+          fetchSpec: httpsUrl,
+          hosted: {
+            ...hosted,
+            _fill: hosted._fill,
+            tarball: undefined,
+          },
+          normalizedPref: `git+${httpsUrl}`,
+          ...setGitCommittish(hosted.committish),
         }
-      } catch (e) {
-        // ignore
+      } else {
+        try {
+          // when git ls-remote private repo, it asks for login credentials.
+          // use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
+          // this is very similar to yarn's behaviour.
+          // npm instead tries git ls-remote directly which prompts user for login credentials.
+
+          // HTTP HEAD on https://domain/user/repo, strip out ".git"
+          const response = await fetch(httpsUrl.substr(0, httpsUrl.length - 4), { method: 'HEAD', follow: 0 })
+          if (response.ok) {
+            fetchSpec = httpsUrl
+          }
+        } catch (e) {
+          // ignore
+        }
       }
     }
   }
@@ -115,6 +123,15 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // tsli
     },
     normalizedPref: hosted.shortcut(),
     ...setGitCommittish(hosted.committish),
+  }
+}
+
+async function accessRepository (repository: string) {
+  try {
+    await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
+    return true
+  } catch (err) {
+    return false
   }
 }
 

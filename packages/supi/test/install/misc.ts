@@ -1,55 +1,43 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import * as path from 'path'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { prepareEmpty } from '@pnpm/prepare'
+import UnexpectedVirtualStoreDirError from '@pnpm/get-context/lib/checkCompatibility/UnexpectedVirtualStoreDirError'
+import PnpmError from '@pnpm/error'
 import {
-  PackageJsonLog,
+  PackageManifestLog,
   ProgressLog,
   RootLog,
   StageLog,
   StatsLog,
 } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/registry-mock'
-import rimraf = require('@zkochan/rimraf')
-import deepRequireCwd = require('deep-require-cwd')
-import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import execa = require('execa')
-import isCI = require('is-ci')
-import isWindows = require('is-windows')
-import fs = require('mz/fs')
-import path = require('path')
-import exists = require('path-exists')
-import semver = require('semver')
-import sinon = require('sinon')
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import { ProjectManifest } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeJsonFile = require('write-json-file')
-import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
-  local,
   testDefaults,
 } from '../utils'
+import rimraf = require('@zkochan/rimraf')
+import deepRequireCwd = require('deep-require-cwd')
+import execa = require('execa')
+import isCI = require('is-ci')
+import isWindows = require('is-windows')
+import fs = require('mz/fs')
+import exists = require('path-exists')
+import semver = require('semver')
+import sinon = require('sinon')
+import tape = require('tape')
+import writeYamlFile = require('write-yaml-file')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 const IS_WINDOWS = isWindows()
-
-test('small with dependencies (rimraf)', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults())
-
-  const m = project.requireModule('rimraf')
-  t.ok(typeof m === 'function', 'rimraf() is available')
-  await project.isExecutable('.bin/rimraf')
-
-  const lockfile = await project.readLockfile()
-  t.ok(lockfile.packages['/rimraf/2.5.1'].hasBin, `package marked with "hasBin: true" in ${WANTED_LOCKFILE}`)
-})
 
 test('spec not specified in package.json.dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
@@ -86,14 +74,14 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
       version: '0.0.0',
     },
     ['lodash@4.0.0'],
-    await testDefaults({ reporter }),
+    await testDefaults({ fastUnpack: false, reporter })
   )
 
   t.equal(reporter.withArgs(sinon.match({
     initial: { name: 'project', version: '0.0.0' },
     level: 'debug',
-    name: 'pnpm:package-json',
-  } as PackageJsonLog)).callCount, 1, 'initial package.json logged')
+    name: 'pnpm:package-manifest',
+  } as PackageManifestLog)).callCount, 1, 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:stage',
@@ -149,27 +137,26 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
   } as RootLog), 'added to root')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: {
       dependencies: {
         lodash: '4.0.0',
       },
       name: 'project',
       version: '0.0.0',
-    },
-  } as PackageJsonLog), 'updated package.json logged')
+    } as ProjectManifest,
+  } as PackageManifestLog), 'updated package.json logged')
 
   const m = project.requireModule('lodash')
   t.ok(typeof m === 'function', '_ is available')
   t.ok(typeof m.clone === 'function', '_.clone is available')
 })
 
-test('scoped modules without version spec (@rstacruz/tap-spec)', async (t) => {
+test('scoped modules without version spec', async (t) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['@rstacruz/tap-spec'], await testDefaults())
+  await addDependenciesToPackage({}, ['@zkochan/foo'], await testDefaults())
 
-  const m = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof m === 'function', 'tap-spec is available')
+  await project.has('@zkochan/foo')
 })
 
 test('scoped package with custom registry', async (t) => {
@@ -177,8 +164,8 @@ test('scoped package with custom registry', async (t) => {
 
   await addDependenciesToPackage({}, ['@scoped/peer'], await testDefaults({
     // setting an incorrect default registry URL
-    rawNpmConfig: {
-      '@scoped:registry': 'http://localhost:4873/',
+    rawConfig: {
+      '@scoped:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
     registry: 'http://localhost:9999/',
   }))
@@ -198,6 +185,22 @@ test('modules without version spec, with custom tag config', async (t) => {
   await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
+test('modules without version spec but with a trailing @', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep@'], await testDefaults())
+
+  await project.has('dep-of-pkg-with-1-dep')
+})
+
+test('aliased modules without version spec but with a trailing @', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['foo@npm:dep-of-pkg-with-1-dep@'], await testDefaults())
+
+  await project.has('foo')
 })
 
 test('installing a package by specifying a specific dist-tag', async (t) => {
@@ -249,25 +252,16 @@ test('update a package when installing with a dist-tag', async (t: tape.Test) =>
   t.equal(manifest.devDependencies!['dep-of-pkg-with-1-dep'], '^100.1.0')
 })
 
-test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async (t) => {
+test('scoped modules with versions', async (t) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@4.1.1'], await testDefaults())
+  await addDependenciesToPackage({}, ['@zkochan/foo@1.0.0'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof m === 'function', 'tap-spec is available')
-})
-
-test('scoped modules (@rstacruz/tap-spec@*)', async (t) => {
-  const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@*'], await testDefaults())
-
-  const m = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof m === 'function', 'tap-spec is available')
+  await project.has('@zkochan/foo')
 })
 
 test('multiple scoped modules (@rstacruz/...)', async (t) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], await testDefaults())
+  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], await testDefaults({ fastUnpack: false }))
 
   t.equal(typeof project.requireModule('@rstacruz/tap-spec'), 'function', 'tap-spec is available')
   t.equal(typeof project.requireModule('@rstacruz/travis-encrypt'), 'function', 'travis-encrypt is available')
@@ -275,45 +269,44 @@ test('multiple scoped modules (@rstacruz/...)', async (t) => {
 
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async (t) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['test-pnpm-issue219@1.0.2'], await testDefaults())
+  await addDependenciesToPackage({}, ['test-pnpm-issue219@1.0.2'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('test-pnpm-issue219')
   t.ok(m === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
 })
 
-test('idempotency (rimraf)', async (t: tape.Test) => {
+test('idempotency', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
   const opts = await testDefaults({ reporter })
 
-  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1'], opts)
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
 
   t.ok(reporter.calledWithMatch({
     added: {
       dependencyType: 'prod',
-      name: 'rimraf',
-      version: '2.5.1',
+      name: 'pkg-with-1-dep',
+      version: '100.0.0',
     },
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog), 'reported that rimraf added to the root')
+  } as RootLog), 'reported that pkg-with-1-dep added to the root')
 
   reporter.resetHistory()
 
-  await addDependenciesToPackage(manifest, ['rimraf@2.5.1'], opts)
+  await addDependenciesToPackage(manifest, ['pkg-with-1-dep@100.0.0'], opts)
 
   t.notOk(reporter.calledWithMatch({
     added: {
       dependencyType: 'prod',
-      name: 'rimraf',
-      version: '2.5.1',
+      name: 'pkg-with-1-dep',
+      version: '100.0.0',
     },
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog), 'did not reported that rimraf was added because it was already there')
+  } as RootLog), 'did not reported that pkg-with-1-dep was added because it was already there')
 
-  const m = project.requireModule('rimraf')
-  t.ok(typeof m === 'function', 'rimraf is available')
+  await project.has('pkg-with-1-dep')
 })
 
 test('reporting adding root package', async (t: tape.Test) => {
@@ -359,19 +352,31 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async (t) => {
 
   await project.storeHas('is-positive', '3.0.0')
 
-  await addDependenciesToPackage(manifest, ['is-positive@latest'], await testDefaults({ save: true }))
+  const updatedManifest = await addDependenciesToPackage(manifest, ['is-positive@latest'], await testDefaults({ save: true }))
 
   await project.storeHas('is-positive', '3.1.0')
+  t.equal(updatedManifest.dependencies?.['is-positive'], '3.1.0')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/2188
+test('keeping existing specs untouched when adding new dependency', async (t) => {
+  prepareEmpty(t)
+
+  await addDistTag('bar', '100.1.0', 'latest')
+
+  const manifest = await addDependenciesToPackage({ dependencies: { bar: '^100.0.0' } }, ['foo@100.1.0'], await testDefaults())
+
+  t.deepEqual(manifest.dependencies, { bar: '^100.0.0', foo: '100.1.0' })
 })
 
 test('forcing', async (t) => {
   prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
-  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ force: true }))
+  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false, force: true }))
 
   const distPathExists = await exists(distPath)
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
@@ -379,12 +384,12 @@ test('forcing', async (t) => {
 
 test('argumentless forcing', async (t: tape.Test) => {
   prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
-  await install(manifest, await testDefaults({ force: true }))
+  await install(manifest, await testDefaults({ fastUnpack: false, force: true }))
 
   const distPathExists = await exists(distPath)
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
@@ -405,36 +410,22 @@ test('no forcing', async (t) => {
 
 test('refetch package to store if it has been modified', async (t) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const distPathInStore = await project.resolve('magic-hook', '2.0.0', 'dist')
   await rimraf(distPathInStore)
   await rimraf('node_modules')
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
 
-  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const distPathExists = await exists(distPath)
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
 })
 
-test("don't refetch package to store if it has been modified and verify-store-integrity = false", async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-  const opts = await testDefaults({ verifyStoreIntegrity: false })
-  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], opts)
-
-  await writeJsonFile(path.join(await project.getStorePath(), 'localhost+4873', 'magic-hook', '2.0.0', 'node_modules', 'magic-hook', 'package.json'), {})
-
-  await rimraf('node_modules')
-
-  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], opts)
-
-  t.deepEqual(project.requireModule('magic-hook/package.json'), {}, 'package.json not refetched even though it was mutated')
-})
-
 // TODO: decide what to do with this case
-// tslint:disable-next-line:no-string-literal
-test['skip']('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {
+// eslint-disable-next-line @typescript-eslint/dot-notation
+test.skip('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
@@ -460,7 +451,7 @@ test['skip']('relink package to project if the dependency is not linked from sto
 
 test('circular deps', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['circular-deps-1-of-2'], await testDefaults())
+  await addDependenciesToPackage({}, ['circular-deps-1-of-2'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('circular-deps-1-of-2/mirror')
 
@@ -476,15 +467,15 @@ test('concurrent circular deps', async (t: tape.Test) => {
   await addDistTag('es6-iterator', '2.0.1', 'latest')
 
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['es6-iterator@2.0.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['es6-iterator@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('es6-iterator')
 
   t.ok(m, 'es6-iterator is installed')
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/es6-iterator/2.0.0/node_modules/es5-ext')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/es6-iterator/2.0.1/node_modules/es5-ext')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/es5-ext/0.10.31/node_modules/es6-iterator')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/es5-ext/0.10.31/node_modules/es6-symbol')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/es6-iterator@2.0.0/node_modules/es5-ext')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/es6-iterator@2.0.1/node_modules/es5-ext')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-iterator')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-symbol')))
 })
 
 test('concurrent installation of the same packages', async (t) => {
@@ -492,7 +483,7 @@ test('concurrent installation of the same packages', async (t) => {
 
   // the same version of core-js is required by two different dependencies
   // of babek-core
-  await addDependenciesToPackage({}, ['babel-core@6.21.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['babel-core@6.21.0'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('babel-core')
 
@@ -501,7 +492,7 @@ test('concurrent installation of the same packages', async (t) => {
 
 test('big with dependencies and circular deps (babel-preset-2015)', async (t) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['babel-preset-es2015@6.3.13'], await testDefaults())
+  await addDependenciesToPackage({}, ['babel-preset-es2015@6.3.13'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('babel-preset-es2015')
   t.ok(typeof m === 'object', 'babel-preset-es2015 is available')
@@ -510,7 +501,7 @@ test('big with dependencies and circular deps (babel-preset-2015)', async (t) =>
 test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['pkg-with-bundled-dependencies@1.0.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['pkg-with-bundled-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
 
   await project.isExecutable('pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
 
@@ -518,14 +509,14 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async (t: tape
   t.deepEqual(
     lockfile.packages['/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
-    `bundledDependencies added to ${WANTED_LOCKFILE}`,
+    `bundledDependencies added to ${WANTED_LOCKFILE}`
   )
 })
 
 test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['pkg-with-bundle-dependencies@1.0.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['pkg-with-bundle-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
 
   await project.isExecutable('pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
 
@@ -533,7 +524,19 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async (t: tape.T
   t.deepEqual(
     lockfile.packages['/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
-    `bundledDependencies added to ${WANTED_LOCKFILE}`,
+    `bundledDependencies added to ${WANTED_LOCKFILE}`
+  )
+})
+
+test('installing a package with bundleDependencies set to false (pkg-with-bundle-dependencies-false)', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['pkg-with-bundle-dependencies-false'], await testDefaults({ fastUnpack: false }))
+
+  const lockfile = await project.readLockfile()
+  t.equal(
+    typeof lockfile.packages['/pkg-with-bundle-dependencies-false/1.0.0'].bundledDependencies,
+    'undefined'
   )
 })
 
@@ -551,29 +554,10 @@ test('compiled modules (ursa@0.9.1)', async (t) => {
   t.ok(typeof m === 'object', 'ursa() is available')
 })
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-test('support installing into the same store simultaneously', async (t) => {
-  const project = prepareEmpty(t)
-  await Promise.all([
-    addDependenciesToPackage({}, ['pkg-that-installs-slowly'], await testDefaults()),
-    wait(500) // to be sure that lock was created
-      .then(async () => {
-        await project.storeHasNot('pkg-that-installs-slowly')
-        await addDependenciesToPackage({ dependencies: { 'pkg-that-installs-slowly': '*' } }, ['rimraf@2.5.1'], await testDefaults())
-      })
-      .then(async () => {
-        await project.has('pkg-that-installs-slowly')
-        await project.has('rimraf')
-      })
-      .catch((err) => t.notOk(err)),
-  ])
-})
-
 test('bin specified in the directories property linked to .bin folder', async (t) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['pkg-with-directories-bin'], await testDefaults())
+  await addDependenciesToPackage({}, ['pkg-with-directories-bin'], await testDefaults({ fastUnpack: false }))
 
   await project.isExecutable('.bin/pkg-with-directories-bin')
 })
@@ -581,7 +565,7 @@ test('bin specified in the directories property linked to .bin folder', async (t
 test('building native addons', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['diskusage@1.1.3'], await testDefaults())
+  await addDependenciesToPackage({}, ['diskusage@1.1.3'], await testDefaults({ fastUnpack: false }))
 
   t.ok(await exists('node_modules/diskusage/build'), 'build folder created')
 
@@ -655,12 +639,12 @@ test('should not update subdep when depth is smaller than depth of package', asy
 test('should install dependency in second project', async (t) => {
   const project1 = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true, store: '../store' }))
+  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
   t.equal(project1.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 1st pkg')
 
   const project2 = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true, store: '../store' }))
+  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
 
   t.equal(project2.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 2nd pkg')
 })
@@ -668,10 +652,10 @@ test('should install dependency in second project', async (t) => {
 test('should throw error when trying to install using a different store then the previous one', async (t) => {
   prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({ store: 'node_modules/.store1' }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ storeDir: 'node_modules/.store1' }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ store: 'node_modules/.store2' }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ storeDir: 'node_modules/.store2' }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'ERR_PNPM_UNEXPECTED_STORE', 'failed with correct error code')
@@ -687,13 +671,34 @@ test('ignores drive case in store path', async (t: tape.Test) => {
   const storePathUpper: string = path.resolve('node_modules/.store1').toUpperCase()
   const storePathLower: string = storePathUpper.toLowerCase()
 
-  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({ store: storePathUpper }))
-  await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ store: storePathLower }))
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['rimraf@2.5.1'],
+    await testDefaults({ storeDir: storePathUpper }, null, null, { ignoreFile: () => {} }) // eslint-disable-line:no-empty
+  )
+  await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ storeDir: storePathLower }))
   t.pass('Install did not fail')
 })
 
 test('should not throw error if using a different store after all the packages were uninstalled', async (t) => {
   // TODO: implement
+})
+
+test('should throw error when trying to install using a different virtual store directory then the previous one', async (t) => {
+  prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ virtualStoreDir: 'pkgs' }))
+
+  let err: UnexpectedVirtualStoreDirError | null = null
+  try {
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ virtualStoreDir: 'pnpm' }))
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE', 'failed with correct error code')
+  t.equal(err.expected, path.resolve('pkgs'))
+  t.equal(err.actual, path.resolve('pnpm'))
 })
 
 test('lockfile locks npm dependencies', async (t: tape.Test) => {
@@ -707,13 +712,13 @@ test('lockfile locks npm dependencies', async (t: tape.Test) => {
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:progress',
-    packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`,
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog), 'logs that package is being resolved')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`,
     requester: process.cwd(),
     status: 'fetched',
   } as ProgressLog), 'logged that package was fetched from registry')
@@ -729,18 +734,18 @@ test('lockfile locks npm dependencies', async (t: tape.Test) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`,
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog), 'logs that package is being resolved')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`,
     requester: process.cwd(),
     status: 'found_in_store',
   } as ProgressLog), 'logged that package was found in store')
 
-  const m = project.requireModule('.pnpm/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
+  const m = project.requireModule('.pnpm/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 
   t.equal(m.version, '100.0.0', `dependency specified in ${WANTED_LOCKFILE} is installed`)
 })
@@ -748,7 +753,7 @@ test('lockfile locks npm dependencies', async (t: tape.Test) => {
 test('self-require should work', async (t) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['uses-pkg-with-self-usage'], await testDefaults())
+  await addDependenciesToPackage({}, ['uses-pkg-with-self-usage'], await testDefaults({ fastUnpack: false }))
 
   t.ok(project.requireModule('uses-pkg-with-self-usage'))
 })
@@ -762,7 +767,7 @@ test('install on project with lockfile and no node_modules', async (t: tape.Test
 
   await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults())
 
-  t.ok(project.requireModule('is-positive'), 'installed new dependency')
+  await project.has('is-positive') // installed new dependency
 
   // We have to install all other direct dependencies in case they resolve some peers
   await project.has('is-negative')
@@ -782,25 +787,25 @@ test('install a dependency with * range', async (t: tape.Test) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: {
       dependencies: {
         'has-beta-only': '*',
       },
-    },
-  } as PackageJsonLog), 'should log package-json updated even when package.json was not changed')
+    } as ProjectManifest,
+  } as PackageManifestLog), 'should log package-json updated even when package.json was not changed')
 })
 
 test('should throw error when trying to install a package without name', async (t: tape.Test) => {
   prepareEmpty(t)
   try {
-    await addDependenciesToPackage({}, [local('missing-pkg-name.tgz')], await testDefaults())
+    await addDependenciesToPackage({}, [`file:${pathToLocalPkg('missing-pkg-name.tgz')}`], await testDefaults())
     t.fail('installation should have failed')
   } catch (err) {
     if (err.message.match(/^Can't install .*: Missing package name$/)) {
       t.pass('correct error message')
     } else {
-      t.fail(`incorrect error message "${err.message}"`)
+      t.fail(`incorrect error message "${err.message as string}"`)
     }
     t.equal(err.code, 'ERR_PNPM_MISSING_PACKAGE_NAME', 'failed with correct error code')
   }
@@ -824,6 +829,7 @@ test('rewrites node_modules created by npm', async (t) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1685
+// also, there's a better version of this test (with the same name) in the pnpm package
 // TODO: move this test to @pnpm/package-store
 test("don't fail on case insensitive filesystems when package has 2 files with same name", async (t) => {
   const project = prepareEmpty(t)
@@ -833,33 +839,20 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   await addDependenciesToPackage({}, ['with-same-file-in-different-cases'], opts)
 
   await project.has('with-same-file-in-different-cases')
-
-  const hardlinkAlreadyExistsReported = reporter.calledWithMatch({
-    level: 'debug',
-    name: 'pnpm:_hardlink-already-exists',
-  })
-
-  if (await dirIsCaseSensitive(opts.store)) {
-    t.comment('store is not case sensitive')
-    t.notOk(hardlinkAlreadyExistsReported, 'hard link already exists not reported')
-  } else {
-    t.comment('store is not case sensitive')
-    t.ok(hardlinkAlreadyExistsReported, 'hard link already exists reported')
-  }
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1134
 test('reinstalls missing packages to node_modules', async (t) => {
   prepareEmpty(t)
   const reporter = sinon.spy()
-  const depLocation = path.resolve('node_modules/.pnpm/localhost+4873/is-positive/1.0.0/node_modules/is-positive')
+  const depLocation = path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')
   const missingDepLog = {
     level: 'debug',
     missing: depLocation,
     name: 'pnpm:_broken_node_modules',
   }
 
-  const opts = await testDefaults({ reporter })
+  const opts = await testDefaults({ fastUnpack: false, reporter })
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], opts)
 
   t.notOk(reporter.calledWithMatch(missingDepLog))
@@ -888,14 +881,14 @@ test('reinstalls missing packages to node_modules', async (t) => {
 test('reinstalls missing packages to node_modules during headless install', async (t) => {
   prepareEmpty(t)
   const reporter = sinon.spy()
-  const depLocation = path.resolve('node_modules/.pnpm/localhost+4873/is-positive/1.0.0/node_modules/is-positive')
+  const depLocation = path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')
   const missingDepLog = {
     level: 'debug',
     missing: depLocation,
     name: 'pnpm:_broken_node_modules',
   }
 
-  const opts = await testDefaults({ reporter })
+  const opts = await testDefaults({ fastUnpack: false, reporter })
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], opts)
 
   t.notOk(reporter.calledWithMatch(missingDepLog))
@@ -934,8 +927,8 @@ test('do not update deps when lockfile is present', async (t) => {
       buildIndex: 0,
       manifest,
       mutation: 'install',
-      prefix: process.cwd(),
-    }
+      rootDir: process.cwd(),
+    },
   ], await testDefaults({ preferFrozenLockfile: false }))
 
   const latestLockfile = await project.readLockfile()
@@ -951,11 +944,11 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       buildIndex: 0,
       manifest: {
         dependencies: {
-          'foobarqar': '1.0.0',
+          foobarqar: '1.0.0',
         },
       },
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults())
 
@@ -963,7 +956,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     dependencies: {
       foobarqar: '1.0.1',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/bar/100.0.0': {
         dev: false,
@@ -979,8 +972,8 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       },
       '/foobarqar/1.0.1': {
         dependencies: {
-          'bar': '100.0.0',
-          'foo': '100.1.0',
+          bar: '100.0.0',
+          foo: '100.1.0',
           'is-positive': '3.1.0',
         },
         dev: false,
@@ -999,7 +992,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       },
     },
     specifiers: {
-      foobarqar: '1.0.1'
+      foobarqar: '1.0.1',
     },
   })
 
@@ -1008,22 +1001,22 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       buildIndex: 0,
       manifest: {
         dependencies: {
-          'foobarqar': '1.0.1',
+          foobarqar: '1.0.1',
         },
       },
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ preferFrozenLockfile: false }))
 
   t.deepEqual(
-    await fs.readdir(path.resolve('node_modules/.pnpm/localhost+4873/foobarqar/1.0.1/node_modules')),
+    await fs.readdir(path.resolve('node_modules/.pnpm/foobarqar@1.0.1/node_modules')),
     [
       'bar',
       'foo',
       'foobarqar',
-      'is-positive',
-    ],
+      'qar',
+    ]
   )
 })
 
@@ -1040,7 +1033,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
         },
       },
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults())
 
@@ -1052,14 +1045,14 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
       '/dep-of-pkg-with-1-dep/100.0.0',
       '/parent-of-pkg-with-1-dep/1.0.0',
       '/pkg-with-1-dep/100.0.0',
-    ],
+    ]
   )
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
       'parent-of-pkg-with-1-dep': '1.0.0',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/dep-of-pkg-with-1-dep/100.1.0': {
         dev: false,
@@ -1100,9 +1093,137 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
         },
       },
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ preferFrozenLockfile: false }))
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')))
+})
+
+test('fail if none of the available resolvers support a version spec', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  let err!: PnpmError
+  try {
+    await mutateModules([
+      {
+        buildIndex: 0,
+        manifest: {
+          dependencies: {
+            '@types/plotly.js': '1.44.29',
+          },
+        },
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ], await testDefaults())
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
+  t.deepEqual(
+    err.pkgsStack,
+    [
+      {
+        id: `localhost+${REGISTRY_MOCK_PORT}/@types/plotly.js/1.44.29`,
+        name: '@types/plotly.js',
+        version: '1.44.29',
+      },
+    ]
+  )
+})
+
+test('globally installed package which don\'t have bins should log warning message', async (t: tape.Test) => {
+  prepareEmpty(t)
+  const reporter = sinon.spy()
+
+  const opts = await testDefaults({ global: true, reporter })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], opts)
+
+  t.ok(reporter.calledWithMatch({
+    message: 'is-positive has no binaries',
+    prefix: process.cwd(),
+  }))
+
+  t.end()
+})
+
+// Covers issue: https://github.com/pnpm/pnpm/issues/2629
+test('installing a package that has a manifest with byte order mark (BOM)', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await install({
+    dependencies: {
+      paralleljs: '0.2.1',
+    },
+  }, await testDefaults())
+
+  await project.has('paralleljs')
+})
+
+test('ignore files in node_modules', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  const reporter = sinon.spy()
+
+  await fs.mkdir('node_modules')
+  await fs.writeFile('node_modules/foo', 'x', 'utf8')
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['lodash@4.0.0'],
+    await testDefaults({ fastUnpack: false, reporter })
+  )
+
+  const m = project.requireModule('lodash')
+  t.ok(typeof m === 'function', '_ is available')
+  t.ok(typeof m.clone === 'function', '_.clone is available')
+  t.equal(await fs.readFile('node_modules/foo', 'utf8'), 'x')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/2339
+test('memory consumption is under control on huge package with many peer dependencies. Sample 1', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['@teambit/bit@0.0.30'],
+    await testDefaults({ fastUnpack: true, lockfileOnly: true })
+  )
+
+  t.ok(await exists('pnpm-lock.yaml'), 'lockfile created')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/2339
+test('memory consumption is under control on huge package with many peer dependencies. Sample 2', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['@teambit/react@0.0.30'],
+    await testDefaults({ fastUnpack: true, lockfileOnly: true })
+  )
+
+  t.ok(await exists('pnpm-lock.yaml'), 'lockfile created')
 })

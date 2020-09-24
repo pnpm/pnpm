@@ -3,10 +3,10 @@ import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 
 export default (
-  relDepPath: string,
+  depPath: string,
   pkgSnapshot: PackageSnapshot,
-  registries: Registries,
+  registries: Registries
 ) => {
   if (pkgSnapshot.id) return pkgSnapshot.id
-  return dp.tryGetPackageId(registries, relDepPath) || relDepPath
+  return dp.tryGetPackageId(registries, depPath) ?? depPath
 }

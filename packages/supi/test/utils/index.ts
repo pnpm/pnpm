@@ -5,5 +5,3 @@ export {
   testDefaults,
   addDistTag,
 }
-
-export * from './localPkg'

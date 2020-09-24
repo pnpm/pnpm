@@ -1,44 +1,42 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
-import PushStream from '@zkochan/zen-push'
-import createDiffer = require('ansi-diff')
-import most = require('most')
+import { LogLevel } from '@pnpm/logger'
+import * as Rx from 'rxjs'
+import { map, mergeAll } from 'rxjs/operators'
 import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
 import reporterForServer from './reporterForServer'
-
-let lastChar: string = ''
-
-process.on('exit', () => {
-  if (lastChar && lastChar !== EOL) process.stdout.write(EOL)
-})
+import createDiffer = require('ansi-diff')
 
 export default function (
   opts: {
-    streamParser: object,
+    streamParser: object
     reportingOptions?: {
-      appendOnly?: boolean,
-      throttleProgress?: number,
-      outputMaxWidth?: number,
-    },
+      appendOnly?: boolean
+      logLevel?: LogLevel
+      streamLifecycleOutput?: boolean
+      throttleProgress?: number
+      outputMaxWidth?: number
+    }
     context: {
-      argv: string[],
-      configs?: PnpmConfigs,
-    },
-  },
+      argv: string[]
+      config?: Config
+    }
+  }
 ) {
   if (opts.context.argv[0] === 'server') {
-    const log$ = most.fromEvent<logs.Log>('data', opts.streamParser)
-    reporterForServer(log$)
+    // eslint-disable-next-line
+    const log$ = Rx.fromEvent<logs.Log>(opts.streamParser as any, 'data')
+    reporterForServer(log$, opts.context.config)
     return
   }
-  const outputMaxWidth = opts.reportingOptions && opts.reportingOptions.outputMaxWidth || process.stdout.columns && process.stdout.columns - 2 || 80
+  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
   const output$ = toOutput$({ ...opts, reportingOptions: { ...opts.reportingOptions, outputMaxWidth } })
-  if (opts.reportingOptions && opts.reportingOptions.appendOnly) {
+  if (opts.reportingOptions?.appendOnly) {
     output$
       .subscribe({
-        complete () {}, // tslint:disable-line:no-empty
+        complete () {}, // eslint-disable-line:no-empty
         error: (err) => console.error(err.message),
         next: (line) => console.log(line),
       })
@@ -50,139 +48,163 @@ export default function (
   })
   output$
     .subscribe({
-      complete () {}, // tslint:disable-line:no-empty
+      complete () {}, // eslint-disable-line:no-empty
       error: (err) => logUpdate(err.message),
       next: logUpdate,
     })
   function logUpdate (view: string) {
-    lastChar = view[view.length - 1]
+    // A new line should always be appended in case a prompt needs to appear.
+    // Without a new line the prompt will be joined with the previous output.
+    // An example of such prompt may be seen by running: pnpm update --interactive
+    if (!view.endsWith(EOL)) view += EOL
     process.stdout.write(diff.update(view))
   }
 }
 
 export function toOutput$ (
   opts: {
-    streamParser: object,
+    streamParser: object
     reportingOptions?: {
-      appendOnly?: boolean,
-      throttleProgress?: number,
-      outputMaxWidth?: number,
-    },
+      appendOnly?: boolean
+      logLevel?: LogLevel
+      outputMaxWidth?: number
+      streamLifecycleOutput?: boolean
+      throttleProgress?: number
+    }
     context: {
-      argv: string[],
-      configs?: PnpmConfigs,
-    },
-  },
-): most.Stream<string> {
+      argv: string[]
+      config?: Config
+    }
+  }
+): Rx.Observable<string> {
   opts = opts || {}
-  const fetchingProgressPushStream = new PushStream()
-  const progressPushStream = new PushStream()
-  const stagePushStream = new PushStream()
-  const deprecationPushStream = new PushStream()
-  const summaryPushStream = new PushStream()
-  const lifecyclePushStream = new PushStream()
-  const statsPushStream = new PushStream()
-  const installCheckPushStream = new PushStream()
-  const registryPushStream = new PushStream()
-  const rootPushStream = new PushStream()
-  const packageJsonPushStream = new PushStream()
-  const linkPushStream = new PushStream()
-  const otherPushStream = new PushStream()
-  const hookPushStream = new PushStream()
-  const skippedOptionalDependencyPushStream = new PushStream()
-  const scopePushStream = new PushStream()
-  setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
+  const contextPushStream = new Rx.Subject<logs.ContextLog>()
+  const fetchingProgressPushStream = new Rx.Subject<logs.FetchingProgressLog>()
+  const progressPushStream = new Rx.Subject<logs.ProgressLog>()
+  const stagePushStream = new Rx.Subject<logs.StageLog>()
+  const deprecationPushStream = new Rx.Subject<logs.DeprecationLog>()
+  const summaryPushStream = new Rx.Subject<logs.SummaryLog>()
+  const lifecyclePushStream = new Rx.Subject<logs.LifecycleLog>()
+  const statsPushStream = new Rx.Subject<logs.StatsLog>()
+  const packageImportMethodPushStream = new Rx.Subject<logs.PackageImportMethodLog>()
+  const installCheckPushStream = new Rx.Subject<logs.InstallCheckLog>()
+  const registryPushStream = new Rx.Subject<logs.RegistryLog>()
+  const rootPushStream = new Rx.Subject<logs.RootLog>()
+  const packageManifestPushStream = new Rx.Subject<logs.PackageManifestLog>()
+  const linkPushStream = new Rx.Subject<logs.LinkLog>()
+  const otherPushStream = new Rx.Subject<logs.Log>()
+  const hookPushStream = new Rx.Subject<logs.HookLog>()
+  const skippedOptionalDependencyPushStream = new Rx.Subject<logs.SkippedOptionalDependencyLog>()
+  const scopePushStream = new Rx.Subject<logs.ScopeLog>()
+  const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
+  setTimeout(() => {
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
-        case 'pnpm:fetching-progress':
-          fetchingProgressPushStream.next(log)
-          break
-        case 'pnpm:progress':
-          progressPushStream.next(log)
-          break
-        case 'pnpm:stage':
-          stagePushStream.next(log)
-          break
-        case 'pnpm:deprecation':
-          deprecationPushStream.next(log)
-          break
-        case 'pnpm:summary':
-          summaryPushStream.next(log)
-          break
-        case 'pnpm:lifecycle':
-          lifecyclePushStream.next(log)
-          break
-        case 'pnpm:stats':
-          statsPushStream.next(log)
-          break
-        case 'pnpm:install-check':
-          installCheckPushStream.next(log)
-          break
-        case 'pnpm:registry':
-          registryPushStream.next(log)
-          break
-        case 'pnpm:root':
-          rootPushStream.next(log)
-          break
-        case 'pnpm:package-json':
-          packageJsonPushStream.next(log)
-          break
-        case 'pnpm:link':
-          linkPushStream.next(log)
-          break
-        case 'pnpm:hook':
-          hookPushStream.next(log)
-          break
-        case 'pnpm:skipped-optional-dependency':
-          skippedOptionalDependencyPushStream.next(log)
-          break
-        case 'pnpm:scope':
-          scopePushStream.next(log)
-          break
-        case 'pnpm' as any: // tslint:disable-line
-        case 'pnpm:store' as any: // tslint:disable-line
-        case 'pnpm:lockfile' as any: // tslint:disable-line
-          otherPushStream.next(log)
-          break
+      case 'pnpm:context':
+        contextPushStream.next(log)
+        break
+      case 'pnpm:fetching-progress':
+        fetchingProgressPushStream.next(log)
+        break
+      case 'pnpm:progress':
+        progressPushStream.next(log)
+        break
+      case 'pnpm:stage':
+        stagePushStream.next(log)
+        break
+      case 'pnpm:deprecation':
+        deprecationPushStream.next(log)
+        break
+      case 'pnpm:summary':
+        summaryPushStream.next(log)
+        break
+      case 'pnpm:lifecycle':
+        lifecyclePushStream.next(log)
+        break
+      case 'pnpm:stats':
+        statsPushStream.next(log)
+        break
+      case 'pnpm:package-import-method':
+        packageImportMethodPushStream.next(log)
+        break
+      case 'pnpm:install-check':
+        installCheckPushStream.next(log)
+        break
+      case 'pnpm:registry':
+        registryPushStream.next(log)
+        break
+      case 'pnpm:root':
+        rootPushStream.next(log)
+        break
+      case 'pnpm:package-manifest':
+        packageManifestPushStream.next(log)
+        break
+      case 'pnpm:link':
+        linkPushStream.next(log)
+        break
+      case 'pnpm:hook':
+        hookPushStream.next(log)
+        break
+      case 'pnpm:skipped-optional-dependency':
+        skippedOptionalDependencyPushStream.next(log)
+        break
+      case 'pnpm:scope':
+        scopePushStream.next(log)
+        break
+      case 'pnpm:request-retry':
+        requestRetryPushStream.next(log)
+        break
+      case 'pnpm' as any: // eslint-disable-line
+      case 'pnpm:global' as any: // eslint-disable-line
+      case 'pnpm:store' as any: // eslint-disable-line
+      case 'pnpm:lockfile' as any: // eslint-disable-line
+        otherPushStream.next(log)
+        break
       }
     })
   }, 0)
   const log$ = {
-    deprecation: most.from<logs.DeprecationLog>(deprecationPushStream.observable),
-    fetchingProgress: most.from<logs.FetchingProgressLog>(fetchingProgressPushStream.observable),
-    hook: most.from<logs.HookLog>(hookPushStream.observable),
-    installCheck: most.from<logs.InstallCheckLog>(installCheckPushStream.observable),
-    lifecycle: most.from<logs.LifecycleLog>(lifecyclePushStream.observable),
-    link: most.from<logs.LinkLog>(linkPushStream.observable),
-    other: most.from<logs.Log>(otherPushStream.observable),
-    packageJson: most.from<logs.PackageJsonLog>(packageJsonPushStream.observable),
-    progress: most.from<logs.ProgressLog>(progressPushStream.observable),
-    registry: most.from<logs.RegistryLog>(registryPushStream.observable),
-    root: most.from<logs.RootLog>(rootPushStream.observable),
-    scope: most.from<logs.ScopeLog>(scopePushStream.observable),
-    skippedOptionalDependency: most.from<logs.SkippedOptionalDependencyLog>(skippedOptionalDependencyPushStream.observable),
-    stage: most.from<logs.StageLog>(stagePushStream.observable),
-    stats: most.from<logs.StatsLog>(statsPushStream.observable),
-    summary: most.from<logs.SummaryLog>(summaryPushStream.observable),
+    context: Rx.from(contextPushStream),
+    deprecation: Rx.from(deprecationPushStream),
+    fetchingProgress: Rx.from(fetchingProgressPushStream),
+    hook: Rx.from(hookPushStream),
+    installCheck: Rx.from(installCheckPushStream),
+    lifecycle: Rx.from(lifecyclePushStream),
+    link: Rx.from(linkPushStream),
+    other: Rx.from(otherPushStream),
+    packageImportMethod: Rx.from(packageImportMethodPushStream),
+    packageManifest: Rx.from(packageManifestPushStream),
+    progress: Rx.from(progressPushStream),
+    registry: Rx.from(registryPushStream),
+    requestRetry: Rx.from(requestRetryPushStream),
+    root: Rx.from(rootPushStream),
+    scope: Rx.from(scopePushStream),
+    skippedOptionalDependency: Rx.from(skippedOptionalDependencyPushStream),
+    stage: Rx.from(stagePushStream),
+    stats: Rx.from(statsPushStream),
+    summary: Rx.from(summaryPushStream),
   }
-  const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(
+  const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = reporterForClient(
     log$,
     {
-      appendOnly: opts.reportingOptions && opts.reportingOptions.appendOnly,
+      appendOnly: opts.reportingOptions?.appendOnly,
       cmd: opts.context.argv[0],
-      isRecursive: opts.context.argv[0] === 'recursive',
-      pnpmConfigs: opts.context.configs,
-      subCmd: opts.context.argv[1],
-      throttleProgress: opts.reportingOptions && opts.reportingOptions.throttleProgress,
-      width: opts.reportingOptions && opts.reportingOptions.outputMaxWidth,
-    },
+      config: opts.context.config,
+      isRecursive: opts.context.config?.['recursive'] === true,
+      logLevel: opts.reportingOptions?.logLevel,
+      pnpmConfig: opts.context.config,
+      streamLifecycleOutput: opts.reportingOptions?.streamLifecycleOutput,
+      throttleProgress: opts.reportingOptions?.throttleProgress,
+      width: opts.reportingOptions?.outputMaxWidth,
+    }
   )
 
-  if (opts.reportingOptions && opts.reportingOptions.appendOnly) {
-    return most.join(
-      most.mergeArray(outputs)
-      .map((log: most.Stream<{msg: string}>) => log.map((msg) => msg.msg)),
-    )
+  if (opts.reportingOptions?.appendOnly) {
+    return Rx.merge(...outputs)
+      .pipe(
+        map((log: Rx.Observable<{msg: string}>) => log.pipe(map((msg) => msg.msg))),
+        mergeAll()
+      )
   }
-  return mergeOutputs(outputs).multicast()
+  return mergeOutputs(outputs)
 }

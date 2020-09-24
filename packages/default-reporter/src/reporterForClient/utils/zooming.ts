@@ -1,14 +1,14 @@
-import rightPad = require('right-pad')
 import { PREFIX_MAX_LENGTH } from '../outputConstants'
 import formatPrefix from './formatPrefix'
+import rightPad = require('right-pad')
 
 export function autozoom (
   currentPrefix: string,
   logPrefix: string | undefined,
   line: string,
   opts: {
-    zoomOutCurrent: boolean,
-  },
+    zoomOutCurrent: boolean
+  }
 ) {
   if (!logPrefix || !opts.zoomOutCurrent && currentPrefix === logPrefix) {
     return line

@@ -1,7 +1,7 @@
 {
   "dependencies": [
     {
-      "path": "registry.npmjs.org/es6-iterator/2.0.1",
+      "path": "es6-iterator@2.0.1",
       "dev": false,
       "isMissing": false,
       "isPeer": false,
@@ -11,7 +11,7 @@
       "version": "2.0.1",
       "dependencies": [
         {
-          "path": "registry.npmjs.org/d/1.0.0",
+          "path": "d@1.0.0",
           "dev": false,
           "isMissing": false,
           "isPeer": false,
@@ -21,7 +21,7 @@
           "version": "1.0.0",
           "dependencies": [
             {
-              "path": "registry.npmjs.org/es5-ext/0.10.24",
+              "path": "es5-ext@0.10.24",
               "dev": false,
               "isMissing": false,
               "isPeer": false,
@@ -31,7 +31,7 @@
               "version": "0.10.24",
               "dependencies": [
                 {
-                  "path": "registry.npmjs.org/es6-iterator/2.0.1",
+                  "path": "es6-iterator@2.0.1",
                   "dev": false,
                   "isMissing": false,
                   "isPeer": false,
@@ -42,7 +42,7 @@
                   "circular": true
                 },
                 {
-                  "path": "registry.npmjs.org/es6-symbol/3.1.1",
+                  "path": "es6-symbol@3.1.1",
                   "dev": false,
                   "isMissing": false,
                   "isPeer": false,
@@ -52,7 +52,7 @@
                   "version": "3.1.1",
                   "dependencies": [
                     {
-                      "path": "registry.npmjs.org/d/1.0.0",
+                      "path": "d@1.0.0",
                       "dev": false,
                       "isMissing": false,
                       "isPeer": false,
@@ -63,7 +63,7 @@
                       "circular": true
                     },
                     {
-                      "path": "registry.npmjs.org/es5-ext/0.10.24",
+                      "path": "es5-ext@0.10.24",
                       "dev": false,
                       "isMissing": false,
                       "isPeer": false,
@@ -80,7 +80,7 @@
           ]
         },
         {
-          "path": "registry.npmjs.org/es5-ext/0.10.24",
+          "path": "es5-ext@0.10.24",
           "dev": false,
           "isMissing": false,
           "isPeer": false,
@@ -90,7 +90,7 @@
           "version": "0.10.24",
           "dependencies": [
             {
-              "path": "registry.npmjs.org/es6-iterator/2.0.1",
+              "path": "es6-iterator@2.0.1",
               "dev": false,
               "isMissing": false,
               "isPeer": false,
@@ -101,7 +101,7 @@
               "circular": true
             },
             {
-              "path": "registry.npmjs.org/es6-symbol/3.1.1",
+              "path": "es6-symbol@3.1.1",
               "dev": false,
               "isMissing": false,
               "isPeer": false,
@@ -111,7 +111,7 @@
               "version": "3.1.1",
               "dependencies": [
                 {
-                  "path": "registry.npmjs.org/d/1.0.0",
+                  "path": "d@1.0.0",
                   "dev": false,
                   "isMissing": false,
                   "isPeer": false,
@@ -121,7 +121,7 @@
                   "version": "1.0.0",
                   "dependencies": [
                     {
-                      "path": "registry.npmjs.org/es5-ext/0.10.24",
+                      "path": "es5-ext@0.10.24",
                       "dev": false,
                       "isMissing": false,
                       "isPeer": false,
@@ -134,7 +134,7 @@
                   ]
                 },
                 {
-                  "path": "registry.npmjs.org/es5-ext/0.10.24",
+                  "path": "es5-ext@0.10.24",
                   "dev": false,
                   "isMissing": false,
                   "isPeer": false,
@@ -149,7 +149,7 @@
           ]
         },
         {
-          "path": "registry.npmjs.org/es6-symbol/3.1.1",
+          "path": "es6-symbol@3.1.1",
           "dev": false,
           "isMissing": false,
           "isPeer": false,
@@ -159,7 +159,7 @@
           "version": "3.1.1",
           "dependencies": [
             {
-              "path": "registry.npmjs.org/d/1.0.0",
+              "path": "d@1.0.0",
               "dev": false,
               "isMissing": false,
               "isPeer": false,
@@ -169,7 +169,7 @@
               "version": "1.0.0",
               "dependencies": [
                 {
-                  "path": "registry.npmjs.org/es5-ext/0.10.24",
+                  "path": "es5-ext@0.10.24",
                   "dev": false,
                   "isMissing": false,
                   "isPeer": false,
@@ -179,7 +179,7 @@
                   "version": "0.10.24",
                   "dependencies": [
                     {
-                      "path": "registry.npmjs.org/es6-iterator/2.0.1",
+                      "path": "es6-iterator@2.0.1",
                       "dev": false,
                       "isMissing": false,
                       "isPeer": false,
@@ -190,7 +190,7 @@
                       "circular": true
                     },
                     {
-                      "path": "registry.npmjs.org/es6-symbol/3.1.1",
+                      "path": "es6-symbol@3.1.1",
                       "dev": false,
                       "isMissing": false,
                       "isPeer": false,
@@ -205,7 +205,7 @@
               ]
             },
             {
-              "path": "registry.npmjs.org/es5-ext/0.10.24",
+              "path": "es5-ext@0.10.24",
               "dev": false,
               "isMissing": false,
               "isPeer": false,
@@ -215,7 +215,7 @@
               "version": "0.10.24",
               "dependencies": [
                 {
-                  "path": "registry.npmjs.org/es6-iterator/2.0.1",
+                  "path": "es6-iterator@2.0.1",
                   "dev": false,
                   "isMissing": false,
                   "isPeer": false,
@@ -226,7 +226,7 @@
                   "circular": true
                 },
                 {
-                  "path": "registry.npmjs.org/es6-symbol/3.1.1",
+                  "path": "es6-symbol@3.1.1",
                   "dev": false,
                   "isMissing": false,
                   "isPeer": false,

@@ -1,11 +1,9 @@
 <!--
 **Please only file bugs/feature requests for pnpm here.**
 
-If you have a question that is not answered in the FAQ section of the README
-then it is best to post your question on StackOverflow under the pnpm tag:
-https://stackoverflow.com/questions/tagged/pnpm
-or ask it in our Gitter chatroom:
-https://gitter.im/pnpm/pnpm
+If you have a question that is not answered in our FAQ: https://pnpm.js.org/en/faq
+then it is best to ask it in our Discord chatroom:
+https://discord.gg/mThkzAT
 
 If your issue is a bug, please follow the format below:
 -->
@@ -15,7 +13,7 @@ If your issue is a bug, please follow the format below:
 ### Code to reproduce the issue:
 
 <!--
-If there was a fatal error also include a gist of your pnpm-debug.log file.
+If there was a fatal error also include a gist of your node_modules/.pnpm-debug.log file.
 -->
 
 ### Expected behavior:

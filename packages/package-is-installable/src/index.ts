@@ -2,33 +2,34 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import checkEngine, { UnsupportedEngineError } from './checkEngine'
+import checkEngine, { UnsupportedEngineError, WantedEngine } from './checkEngine'
 import checkPlatform, { UnsupportedPlatformError } from './checkPlatform'
+
+export { Engine } from './checkEngine'
+export { Platform, WantedPlatform } from './checkPlatform'
 
 export {
   UnsupportedEngineError,
   UnsupportedPlatformError,
+  WantedEngine,
 }
 
 export default function packageIsInstallable (
   pkgId: string,
   pkg: {
-    name: string,
-    version: string,
-    engines?: {
-      node?: string,
-      npm?: string,
-    },
-    cpu?: string[],
-    os?: string[],
+    name: string
+    version: string
+    engines?: WantedEngine
+    cpu?: string[]
+    os?: string[]
   },
   options: {
-    engineStrict?: boolean,
-    nodeVersion?: string,
-    optional: boolean,
-    pnpmVersion: string,
-    prefix: string,
-  },
+    engineStrict?: boolean
+    nodeVersion?: string
+    optional: boolean
+    pnpmVersion?: string
+    lockfileDir: string
+  }
 ): boolean | null {
   const warn = checkPackage(pkgId, pkg, options)
 
@@ -36,7 +37,7 @@ export default function packageIsInstallable (
 
   installCheckLogger.warn({
     message: warn.message,
-    prefix: options.prefix,
+    prefix: options.lockfileDir,
   })
 
   if (options.optional) {
@@ -47,7 +48,7 @@ export default function packageIsInstallable (
         name: pkg.name,
         version: pkg.version,
       },
-      prefix: options.prefix,
+      prefix: options.lockfileDir,
       reason: warn.code === 'ERR_PNPM_UNSUPPORTED_ENGINE' ? 'unsupported_engine' : 'unsupported_platform',
     })
 
@@ -62,26 +63,23 @@ export default function packageIsInstallable (
 export function checkPackage (
   pkgId: string,
   manifest: {
-    engines?: {
-      node?: string,
-      npm?: string,
-    },
-    cpu?: string[],
-    os?: string[],
+    engines?: WantedEngine
+    cpu?: string[]
+    os?: string[]
   },
   options: {
-    nodeVersion?: string,
-    pnpmVersion: string,
-  },
+    nodeVersion?: string
+    pnpmVersion?: string
+  }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
   return checkPlatform(pkgId, {
-    cpu: manifest.cpu || ['any'],
-    os: manifest.os || ['any'],
-  }) || (
+    cpu: manifest.cpu ?? ['any'],
+    os: manifest.os ?? ['any'],
+  }) ?? (
     manifest.engines &&
     checkEngine(pkgId, manifest.engines, {
-      node: options.nodeVersion || process.version,
+      node: options.nodeVersion ?? process.version,
       pnpm: options.pnpmVersion,
     })
-  ) || null
+  ) ?? null
 }

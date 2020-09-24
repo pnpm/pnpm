@@ -1,0 +1,38 @@
+{
+  "name": "@pnpm/manifest-utils",
+  "description": "Utils for dealing with package manifest",
+  "version": "1.1.1",
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "devDependencies": {
+    "@pnpm/manifest-utils": "link:"
+  },
+  "keywords": [],
+  "license": "MIT",
+  "engines": {
+    "node": ">=10.14"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils",
+  "scripts": {
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/manifest-utils/coverage ts-node packages/manifest-utils/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+  },
+  "dependencies": {
+    "@pnpm/core-loggers": "workspace:^5.0.0",
+    "@pnpm/error": "workspace:^1.3.1",
+    "@pnpm/types": "workspace:6.2.0"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils#readme",
+  "funding": "https://opencollective.com/pnpm"
+}

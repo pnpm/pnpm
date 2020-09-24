@@ -17,14 +17,14 @@ export class UnsupportedEngineError extends PnpmError {
 export default function checkEngine (
   packageId: string,
   wantedEngine: WantedEngine,
-  currentEngine: Engine,
+  currentEngine: Engine
 ) {
   if (!wantedEngine) return null
   const unsatisfiedWanted: WantedEngine = {}
   if (wantedEngine.node && !semver.satisfies(currentEngine.node, wantedEngine.node)) {
     unsatisfiedWanted.node = wantedEngine.node
   }
-  if (wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm)) {
+  if (currentEngine.pnpm && wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm)) {
     unsatisfiedWanted.pnpm = wantedEngine.pnpm
   }
   if (Object.keys(unsatisfiedWanted).length) {
@@ -33,12 +33,9 @@ export default function checkEngine (
   return null
 }
 
-export type Engine = {
-  node: string,
-  pnpm: string,
+export interface Engine {
+  node: string
+  pnpm?: string
 }
 
-export type WantedEngine = {
-  node?: string,
-  pnpm?: string,
-}
+export type WantedEngine = Partial<Engine>

@@ -8,6 +8,8 @@ export const DEPENDENCIES_FIELDS: DependenciesField[] = [
 ]
 
 export interface Registries {
-  default: string,
-  [scope: string]: string,
+  default: string
+  [scope: string]: string
 }
+
+export type HoistedDependencies = Record<string, Record<string, 'public' | 'private'>>
