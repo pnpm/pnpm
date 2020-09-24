@@ -992,7 +992,6 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
-      '@pnpm/store-path': 4.0.2
       '@yarnpkg/pnp': 2.2.1
       dependency-path: 'link:../dependency-path'
       mz: 2.7.0
@@ -1011,7 +1010,6 @@ importers:
       '@pnpm/logger': ^3.2.2
       '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/read-project-manifest': 'workspace:1.0.13'
-      '@pnpm/store-path': ^4.0.2
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': 0.0.32
       '@types/ramda': ^0.27.19

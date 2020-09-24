@@ -2,11 +2,9 @@ import getConfigs from '@pnpm/config'
 import { Lockfile, readWantedLockfile } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
-  packageIdFromSnapshot,
 } from '@pnpm/lockfile-utils'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readImporterManifest from '@pnpm/read-project-manifest'
-import resolveStoreDir from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
 import pnp = require('@yarnpkg/pnp')
@@ -26,16 +24,15 @@ export async function lockfileToPnp (lockfileDirectory: string) {
         importerNames[importerId] = manifest.name as string
       })
   )
-  const { config: { registries, storeDir } } = await getConfigs({
+  const { config: { registries, virtualStoreDir } } = await getConfigs({
     cliOptions: {},
     packageManager: { name: 'pnpm', version: '*' },
   })
-  const storeDirectory = await resolveStoreDir(lockfileDirectory, storeDir)
   const packageRegistry = lockfileToPackageRegistry(lockfile, {
     importerNames,
     lockfileDirectory,
     registries,
-    storeDirectory,
+    virtualStoreDir: virtualStoreDir ?? path.join(lockfileDirectory, 'node_modules/.pnpm'),
   })
 
   const loaderFile = pnp.generateInlinedScript({
@@ -53,7 +50,7 @@ export function lockfileToPackageRegistry (
   opts: {
     importerNames: { [importerId: string]: string }
     lockfileDirectory: string
-    storeDirectory: string
+    virtualStoreDir: string
     registries: Registries
   }
 ) {
@@ -103,24 +100,12 @@ export function lockfileToPackageRegistry (
       packageRegistry.set(name, packageStore)
     }
 
-    const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
-    // TODO: what about packages that are built?
-    // Also, storeController has .getPackageLocation()
-    let packageLocation
-    if (peersSuffix) {
-      packageLocation = path.relative(opts.lockfileDirectory, path.join(
-        opts.storeDirectory,
-        'virtual',
-        `${name}-virtual-${version}_${peersSuffix}`
-      ))
-    } else {
-      packageLocation = path.relative(opts.lockfileDirectory, path.join(
-        opts.storeDirectory,
-        pkgIdToFilename(packageId, opts.lockfileDirectory),
-        'node_modules',
-        name
-      ))
-    }
+    const packageLocation = path.join(
+      opts.virtualStoreDir,
+      pkgIdToFilename(relDepPath, opts.lockfileDirectory),
+      'node_modules',
+      name,
+    )
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
