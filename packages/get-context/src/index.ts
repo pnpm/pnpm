@@ -205,7 +205,7 @@ async function validateModules (
     !R.equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
   ) {
     if (opts.forceNewModules && rootProject) {
-      await purgeModulesDirsOfImporter(rootProject)
+      await purgeModulesDirsOfImporter(opts.virtualStoreDir, rootProject)
       return { purged: true }
     }
     throw new PnpmError(
@@ -227,7 +227,7 @@ async function validateModules (
       }
     } catch (err) {
       if (!opts.forceNewModules) throw err
-      await purgeModulesDirsOfImporter(rootProject)
+      await purgeModulesDirsOfImporter(opts.virtualStoreDir, rootProject)
       purged = true
     }
   }
@@ -250,19 +250,19 @@ async function validateModules (
       }
     } catch (err) {
       if (!opts.forceNewModules) throw err
-      await purgeModulesDirsOfImporter(project)
+      await purgeModulesDirsOfImporter(opts.virtualStoreDir, project)
       purged = true
     }
   }))
   if (modules.registries && !R.equals(opts.registries, modules.registries)) {
     if (opts.forceNewModules) {
-      await Promise.all(projects.map(purgeModulesDirsOfImporter))
+      await Promise.all(projects.map(purgeModulesDirsOfImporter.bind(null, opts.virtualStoreDir)))
       return { purged: true }
     }
     throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate the modules directory using the new settings, run "pnpm install".`)
   }
   if (purged && !rootProject) {
-    await purgeModulesDirsOfImporter({
+    await purgeModulesDirsOfImporter(opts.virtualStoreDir, {
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
       rootDir: opts.lockfileDir,
     })
@@ -271,6 +271,7 @@ async function validateModules (
 }
 
 async function purgeModulesDirsOfImporter (
+  virtualStoreDir: string,
   importer: {
     modulesDir: string
     rootDir: string
@@ -284,17 +285,31 @@ async function purgeModulesDirsOfImporter (
     // We don't remove the actual modules directory, just the contents of it.
     // 1. we will need the directory anyway.
     // 2. in some setups, pnpm won't even have permission to remove the modules directory.
-    await removeContentsOfDir(importer.modulesDir)
+    await removeContentsOfDir(importer.modulesDir, virtualStoreDir)
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
 }
 
-async function removeContentsOfDir (dir: string) {
+async function removeContentsOfDir (dir: string, virtualStoreDir: string) {
   const items = await fs.readdir(dir)
   for (const item of items) {
+    // The non-pnpm related hidden files are kept
+    if (
+      item.startsWith('.') &&
+      item !== '.bin' &&
+      item !== '.modules.yaml' &&
+      !dirsAreEqual(path.join(dir, item), virtualStoreDir)
+    ) {
+      continue
+    }
+
     await rimraf(path.join(dir, item))
   }
+}
+
+function dirsAreEqual (dir1: string, dir2: string) {
+  return path.relative(dir1, dir2) === ''
 }
 
 function stringifyIncludedDeps (included: IncludedDependencies) {
