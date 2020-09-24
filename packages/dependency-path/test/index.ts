@@ -9,8 +9,8 @@ import {
 } from 'dependency-path'
 
 test('isAbsolute()', () => {
-  expect(isAbsolute('/foo/1.0.0')).toBeFalsy();
-  expect(isAbsolute('registry.npmjs.org/foo/1.0.0')).toBeTruthy();
+  expect(isAbsolute('/foo/1.0.0')).toBeFalsy()
+  expect(isAbsolute('registry.npmjs.org/foo/1.0.0')).toBeTruthy()
 })
 
 test('parse()', () => {
@@ -26,7 +26,6 @@ test('parse()', () => {
     peersSuffix: undefined,
     version: '1.0.0',
   })
-
 
   expect(parse('/@foo/bar/1.0.0')).toStrictEqual({
     host: undefined,
@@ -87,13 +86,13 @@ test('refToAbsolute()', () => {
   expect(refToAbsolute('/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
   expect(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
   // linked dependencies don't have an absolute path
-  expect(refToAbsolute('link:../foo', 'foo', registries)).toBeNull();
+  expect(refToAbsolute('link:../foo', 'foo', registries)).toBeNull()
 })
 
 test('refToRelative()', () => {
-  expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3', '@most/multicast')).toEqual( '/@most/multicast/1.3.0/most@1.7.3')
+  expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3')
   // linked dependencies don't have a relative path
-  expect(refToRelative('link:../foo', 'foo')).toBeNull();
+  expect(refToRelative('link:../foo', 'foo')).toBeNull()
   expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('file:../tarball.tgz')
 })
 
