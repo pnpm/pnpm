@@ -4,7 +4,7 @@
   "description": "Creates a Plug'n'Play file from a pnpm-lock.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "bin": {},
+  "bin": "lib/createPnpBin.js",
   "engines": {
     "node": ">=10.14"
   },
@@ -36,7 +36,6 @@
     "@pnpm/logger": ">=3.2.2 <4.0.0"
   },
   "devDependencies": {
-    "@pnpm/lockfile-to-pnp": "link:",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/types": "workspace:6.2.0",
     "@types/mz": "0.0.32",

@@ -998,7 +998,6 @@ importers:
       mz: 2.7.0
       ramda: 0.27.1
     devDependencies:
-      '@pnpm/lockfile-to-pnp': 'link:'
       '@pnpm/logger': 3.2.2
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
@@ -1008,7 +1007,6 @@ importers:
     specifiers:
       '@pnpm/config': 'workspace:11.3.0'
       '@pnpm/lockfile-file': 'workspace:3.0.14'
-      '@pnpm/lockfile-to-pnp': 'link:'
       '@pnpm/lockfile-utils': 'workspace:2.0.16'
       '@pnpm/logger': ^3.2.2
       '@pnpm/pkgid-to-filename': ^3.0.0
