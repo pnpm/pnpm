@@ -5,7 +5,7 @@ import {
   packageIdFromSnapshot,
 } from '@pnpm/lockfile-utils'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import readImporterManifest from '@pnpm/read-importer-manifest'
+import readImporterManifest from '@pnpm/read-project-manifest'
 import resolveStoreDir from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
@@ -26,8 +26,11 @@ export async function lockfileToPnp (lockfileDirectory: string) {
         importerNames[importerId] = manifest.name as string
       })
   )
-  const { registries, store } = await getConfigs({ cliArgs: {}, packageManager: { name: 'pnpm', version: '*' } })
-  const storeDirectory = await resolveStoreDir(lockfileDirectory, store)
+  const { config: { registries, storeDir } } = await getConfigs({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '*' },
+  })
+  const storeDirectory = await resolveStoreDir(lockfileDirectory, storeDir)
   const packageRegistry = lockfileToPackageRegistry(lockfile, {
     importerNames,
     lockfileDirectory,
@@ -37,6 +40,7 @@ export async function lockfileToPnp (lockfileDirectory: string) {
 
   const loaderFile = pnp.generateInlinedScript({
     blacklistedLocations: undefined,
+    dependencyTreeRoots: [],
     ignorePattern: undefined,
     packageRegistry,
     shebang: undefined,
