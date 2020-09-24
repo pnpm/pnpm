@@ -7,6 +7,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     'foo',
     {
       diff: undefined,
+      exclude: false,
       excludeSelf: false,
       includeDependencies: false,
       includeDependents: false,
@@ -18,6 +19,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     'foo...',
     {
       diff: undefined,
+      exclude: false,
       excludeSelf: false,
       includeDependencies: true,
       includeDependents: false,
@@ -29,6 +31,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '...foo',
     {
       diff: undefined,
+      exclude: false,
       excludeSelf: false,
       includeDependencies: false,
       includeDependents: true,
@@ -40,6 +43,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '...foo...',
     {
       diff: undefined,
+      exclude: false,
       excludeSelf: false,
       includeDependencies: true,
       includeDependents: true,
@@ -51,6 +55,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     'foo^...',
     {
       diff: undefined,
+      exclude: false,
       excludeSelf: true,
       includeDependencies: true,
       includeDependents: false,
@@ -62,6 +67,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '...^foo',
     {
       diff: undefined,
+      exclude: false,
       excludeSelf: true,
       includeDependencies: false,
       includeDependents: true,
@@ -72,6 +78,7 @@ const fixtures: Array<[string, PackageSelector]> = [
   [
     './foo',
     {
+      exclude: false,
       excludeSelf: false,
       parentDir: path.resolve('foo'),
     },
@@ -79,6 +86,7 @@ const fixtures: Array<[string, PackageSelector]> = [
   [
     '../foo',
     {
+      exclude: false,
       excludeSelf: false,
       parentDir: path.resolve('../foo'),
     },
@@ -87,6 +95,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '...{./foo}',
     {
       diff: undefined,
+      exclude: false,
       excludeSelf: false,
       includeDependencies: false,
       includeDependents: true,
@@ -97,6 +106,7 @@ const fixtures: Array<[string, PackageSelector]> = [
   [
     '.',
     {
+      exclude: false,
       excludeSelf: false,
       parentDir: process.cwd(),
     },
@@ -104,6 +114,7 @@ const fixtures: Array<[string, PackageSelector]> = [
   [
     '..',
     {
+      exclude: false,
       excludeSelf: false,
       parentDir: path.resolve('..'),
     },
@@ -112,6 +123,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '[master]',
     {
       diff: 'master',
+      exclude: false,
       excludeSelf: false,
       includeDependencies: false,
       includeDependents: false,
@@ -123,6 +135,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '{foo}[master]',
     {
       diff: 'master',
+      exclude: false,
       excludeSelf: false,
       includeDependencies: false,
       includeDependents: false,
@@ -134,6 +147,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     'pattern{foo}[master]',
     {
       diff: 'master',
+      exclude: false,
       excludeSelf: false,
       includeDependencies: false,
       includeDependents: false,
@@ -145,6 +159,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '[master]...',
     {
       diff: 'master',
+      exclude: false,
       excludeSelf: false,
       includeDependencies: true,
       includeDependents: false,
@@ -156,6 +171,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '...[master]',
     {
       diff: 'master',
+      exclude: false,
       excludeSelf: false,
       includeDependencies: false,
       includeDependents: true,
@@ -167,6 +183,7 @@ const fixtures: Array<[string, PackageSelector]> = [
     '...[master]...',
     {
       diff: 'master',
+      exclude: false,
       excludeSelf: false,
       includeDependencies: true,
       includeDependents: true,

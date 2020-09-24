@@ -92,6 +92,10 @@ export const FILTERING = {
       description: 'Includes all packages changed since the specified commit/branch. E.g.: [master], [HEAD~2]. It may be used together with "...". So, for instance, ...[HEAD~1] selects all packages changed in the last commit and their dependents',
       name: '--filter [<since>]',
     },
+    {
+      description: 'If a selector starts with !, it means the packages matching the selector must be excluded. E.g., "pnpm --filter !foo" selects all packages except "foo"',
+      name: '--filter !<selector>',
+    },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }

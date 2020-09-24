@@ -2,6 +2,7 @@ import path = require('path')
 
 export interface PackageSelector {
   diff?: string
+  exclude?: boolean
   excludeSelf?: boolean
   includeDependencies?: boolean
   includeDependents?: boolean
@@ -10,6 +11,11 @@ export interface PackageSelector {
 }
 
 export default (rawSelector: string, prefix: string): PackageSelector => {
+  let exclude = false
+  if (rawSelector[0] === '!') {
+    exclude = true
+    rawSelector = rawSelector.substring(1)
+  }
   let excludeSelf = false
   const includeDependencies = rawSelector.endsWith('...')
   if (includeDependencies) {
@@ -31,6 +37,7 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
   if (matches === null) {
     if (isSelectorByLocation(rawSelector)) {
       return {
+        exclude,
         excludeSelf: false,
         parentDir: path.join(prefix, rawSelector),
       }
@@ -43,6 +50,7 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
 
   return {
     diff: matches[3]?.substr(1, matches[3].length - 2),
+    exclude,
     excludeSelf,
     includeDependencies,
     includeDependents,

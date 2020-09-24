@@ -7,6 +7,7 @@ import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import path = require('path')
+import R = require('ramda')
 import tempy = require('tempy')
 import touchCB = require('touch')
 
@@ -306,4 +307,35 @@ test('should return unmatched filters', async () => {
   ], { workspaceDir: process.cwd() })
 
   expect(unmatchedFilters).toStrictEqual(['project-5'])
+})
+
+test('select all packages except one', async () => {
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      exclude: true,
+      excludeSelf: false,
+      includeDependencies: false,
+      namePattern: 'project-1',
+    },
+  ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(selectedProjectsGraph))
+    .toStrictEqual(Object.keys(R.omit(['/packages/project-1'], PKGS_GRAPH)))
+})
+
+test('select by parentDir and exclude one package by pattern', async () => {
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: false,
+      parentDir: '/packages',
+    },
+    {
+      exclude: true,
+      excludeSelf: false,
+      includeDependents: false,
+      namePattern: '*-1',
+    },
+  ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0'])
 })
