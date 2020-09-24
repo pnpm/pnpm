@@ -186,8 +186,8 @@ test('registries of scoped packages are read', async () => {
     },
     packageManager: {
       name: 'pnpm',
-      version: '1.0.0'
-    }
+      version: '1.0.0',
+    },
   })
 
   expect(config.registries).toStrictEqual({
