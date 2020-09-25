@@ -45,7 +45,7 @@
     "mz": "^2.7.0",
     "normalize-path": "^3.0.0",
     "p-limit": "^3.0.2",
-    "p-memoize": "4.0.0",
+    "p-memoize": "4.0.1",
     "parse-npm-tarball-url": "3.0.0",
     "path-temp": "^2.0.0",
     "rename-overwrite": "^3.0.0",
