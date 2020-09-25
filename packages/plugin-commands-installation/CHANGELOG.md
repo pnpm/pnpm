@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 3.3.0
+
+### Minor Changes
+
+- 23cf3c88b: New option added: `shellEmulator`.
+
+### Patch Changes
+
+- Updated dependencies [23cf3c88b]
+- Updated dependencies [846887de3]
+  - @pnpm/config@11.4.0
+  - @pnpm/plugin-commands-rebuild@2.1.0
+  - supi@0.43.0
+  - @pnpm/global-bin-dir@1.2.4
+  - @pnpm/cli-utils@0.4.29
+  - @pnpm/store-connection-manager@0.3.36
+  - @pnpm/find-workspace-packages@2.3.15
+  - @pnpm/filter-workspace-packages@2.1.22
+
 ## 3.2.2
 
 ### Patch Changes

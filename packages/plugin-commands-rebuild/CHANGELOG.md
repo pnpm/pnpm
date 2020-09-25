@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.1.0
+
+### Minor Changes
+
+- 23cf3c88b: New option added: `shellEmulator`.
+
+### Patch Changes
+
+- Updated dependencies [23cf3c88b]
+- Updated dependencies [ac3042858]
+  - @pnpm/config@11.4.0
+  - @pnpm/lifecycle@9.3.0
+  - @pnpm/get-context@3.2.7
+  - @pnpm/cli-utils@0.4.29
+  - @pnpm/store-connection-manager@0.3.36
+  - @pnpm/find-workspace-packages@2.3.15
+
 ## 2.0.41
 
 ### Patch Changes

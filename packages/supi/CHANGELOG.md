@@ -1,5 +1,20 @@
 # supi
 
+## 0.43.0
+
+### Minor Changes
+
+- 23cf3c88b: New option added: `shellEmulator`.
+
+### Patch Changes
+
+- Updated dependencies [23cf3c88b]
+- Updated dependencies [ac3042858]
+  - @pnpm/lifecycle@9.3.0
+  - @pnpm/get-context@3.2.7
+  - @pnpm/build-modules@5.0.17
+  - @pnpm/headless@14.2.1
+
 ## 0.42.0
 
 ### Minor Changes

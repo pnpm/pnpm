@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.2.4
+
+### Patch Changes
+
+- 892e2b155: The order of Git checks is changed. The branch is checked after the cleannes check.
+- Updated dependencies [23cf3c88b]
+  - @pnpm/config@11.4.0
+  - @pnpm/lifecycle@9.3.0
+  - @pnpm/cli-utils@0.4.29
+
 ## 2.2.3
 
 ### Patch Changes

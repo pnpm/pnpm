@@ -1,5 +1,11 @@
 # @pnpm/global-bin-dir
 
+## 1.2.4
+
+### Patch Changes
+
+- 846887de3: When searching for a suitable global bin directory, search for symlinked node, npm, pnpm commands, not only command files.
+
 ## 1.2.3
 
 ### Patch Changes

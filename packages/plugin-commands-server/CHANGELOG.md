@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-server
 
+## 2.0.37
+
+### Patch Changes
+
+- Updated dependencies [23cf3c88b]
+  - @pnpm/config@11.4.0
+  - @pnpm/cli-utils@0.4.29
+  - @pnpm/store-connection-manager@0.3.36
+
 ## 2.0.36
 
 ### Patch Changes

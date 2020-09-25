@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 11.4.0
+
+### Minor Changes
+
+- 23cf3c88b: New option added: `shellEmulator`.
+
+### Patch Changes
+
+- Updated dependencies [846887de3]
+  - @pnpm/global-bin-dir@1.2.4
+
 ## 11.3.0
 
 ### Minor Changes

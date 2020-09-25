@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.41
+
+### Patch Changes
+
+- Updated dependencies [23cf3c88b]
+- Updated dependencies [ac3042858]
+  - @pnpm/config@11.4.0
+  - @pnpm/get-context@3.2.7
+  - @pnpm/cli-utils@0.4.29
+  - @pnpm/store-connection-manager@0.3.36
+
 ## 2.0.40
 
 ### Patch Changes

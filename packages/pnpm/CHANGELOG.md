@@ -1,12 +1,24 @@
 # pnpm
 
+## 5.8.0-0
+
+### Minor Changes
+
+- A new setting added: `shell-emulator`. When `shell-emulator` is set to `true`, a shell emulator is used to run scripts [#2621](https://github.com/pnpm/pnpm/issues/2621).
+
+### Patch Changes
+
+- When searching for a global bin directory, also look for symlinked commands [#2888](https://github.com/pnpm/pnpm/issues/2888).
+- Don’t remove non‑pnpm `.dot_files` from `node_modules` [#2833](https://github.com/pnpm/pnpm/pull/2833).
+- During publish, check the active branch name after checking if the branch is clean.
+
 ## 5.7.0
 
 ### Minor Changes
 
-* Performance improvements:
-  * If a file in the store was never modified, we are not checking its integrity ([#2876](https://github.com/pnpm/pnpm/pull/2876)).
-  * All directories in the virtual store are created before symlinking and importing packages starts ([#2875](https://github.com/pnpm/pnpm/pull/2875)).
+- Performance improvements:
+  - If a file in the store was never modified, we are not checking its integrity ([#2876](https://github.com/pnpm/pnpm/pull/2876)).
+  - All directories in the virtual store are created before symlinking and importing packages starts ([#2875](https://github.com/pnpm/pnpm/pull/2875)).
 
 ## 5.6.1
 

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-import
 
+## 1.0.65
+
+### Patch Changes
+
+- Updated dependencies [23cf3c88b]
+  - supi@0.43.0
+  - @pnpm/cli-utils@0.4.29
+  - @pnpm/store-connection-manager@0.3.36
+
 ## 1.0.64
 
 ### Patch Changes

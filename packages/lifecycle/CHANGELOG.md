@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 9.3.0
+
+### Minor Changes
+
+- 23cf3c88b: New option added: `shellEmulator`.
+
 ## 9.2.5
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.3.0
+
+### Minor Changes
+
+- 23cf3c88b: New option added: `shellEmulator`.
+
+### Patch Changes
+
+- Updated dependencies [23cf3c88b]
+  - @pnpm/config@11.4.0
+  - @pnpm/lifecycle@9.3.0
+  - @pnpm/cli-utils@0.4.29
+
 ## 2.2.0
 
 ### Minor Changes
