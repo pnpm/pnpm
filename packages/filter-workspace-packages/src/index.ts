@@ -84,6 +84,34 @@ export default async function filterGraph<T> (
     selectedProjectsGraph: PackageGraph<T>
     unmatchedFilters: string[]
   }> {
+  const [excludeSelectors, includeSelectors] = R.partition<PackageSelector>(
+    (selector: PackageSelector) => selector.exclude === true,
+    packageSelectors
+  )
+  const fg = _filterGraph.bind(null, pkgGraph, opts)
+  const include = includeSelectors.length === 0
+    ? { selected: Object.keys(pkgGraph), unmatchedFilters: [] }
+    : await fg(includeSelectors)
+  const exclude = await fg(excludeSelectors)
+  return {
+    selectedProjectsGraph: R.pick(
+      R.difference(include.selected, exclude.selected),
+      pkgGraph
+    ),
+    unmatchedFilters: [...include.unmatchedFilters, ...exclude.unmatchedFilters],
+  }
+}
+
+async function _filterGraph<T> (
+  pkgGraph: PackageGraph<T>,
+  opts: {
+    workspaceDir: string
+  },
+  packageSelectors: PackageSelector[]
+): Promise<{
+    selected: string[]
+    unmatchedFilters: string[]
+  }> {
   const cherryPickedPackages = [] as string[]
   const walkedDependencies = new Set<string>()
   const walkedDependents = new Set<string>()
@@ -135,7 +163,7 @@ export default async function filterGraph<T> (
   const walked = new Set([...walkedDependencies, ...walkedDependents])
   cherryPickedPackages.forEach((cherryPickedPackage) => walked.add(cherryPickedPackage))
   return {
-    selectedProjectsGraph: R.pick(Array.from(walked), pkgGraph),
+    selected: Array.from(walked),
     unmatchedFilters,
   }
 }
