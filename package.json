@@ -1,6 +1,8 @@
 {
   "private": true,
   "scripts": {
+    "bump": "changeset version",
+    "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
     "prepare": "pnpm --dir=verdaccio install && pnpm --dir=fixtures run prepareFixtures",
     "lint": "eslint --config=eslint.json **/src/**/*.ts **/test/**/*.ts",
