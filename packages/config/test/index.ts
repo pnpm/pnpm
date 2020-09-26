@@ -437,7 +437,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
   }
 })
 
-test('rawLocalConfig in a workspace', async () => {
+test.skip('rawLocalConfig in a workspace', async () => {
   const tmp = tempy.directory()
 
   process.chdir(tmp)
@@ -487,7 +487,7 @@ test('rawLocalConfig in a workspace', async () => {
   }
 })
 
-test('rawLocalConfig', async () => {
+test.skip('rawLocalConfig', async () => {
   const tmp = tempy.directory()
 
   process.chdir(tmp)
