@@ -1222,7 +1222,7 @@ importers:
       mz: 2.7.0
       normalize-path: 3.0.0
       p-limit: 3.0.2
-      p-memoize: 4.0.0
+      p-memoize: 4.0.1
       parse-npm-tarball-url: 3.0.0
       path-temp: 2.0.0
       rename-overwrite: 3.0.0
@@ -1262,8 +1262,8 @@ importers:
       nock: 12.0.3
       normalize-path: ^3.0.0
       p-limit: ^3.0.2
-      p-memoize: 4.0.0
-      parse-npm-tarball-url: 3.0.0
+      p-memoize: ^4.0.1
+      parse-npm-tarball-url: ^3.0.0
       path-exists: ^4.0.0
       path-temp: ^2.0.0
       rename-overwrite: ^3.0.0
@@ -11333,7 +11333,7 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-d3qXVTF/s+W+CdJ5A29wywV2n8CQQYahlgz2bFiA+4eVNJbHJodPZ+/gXwPGh0bOqA+j8S+6+ckmvLGPk1QpxQ==
-  /p-memoize/4.0.0:
+  /p-memoize/4.0.1:
     dependencies:
       mem: 6.1.1
       mimic-fn: 3.1.0
@@ -11341,7 +11341,7 @@ packages:
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-oMxCJKVS75Bf2RWtXJNQNaX2K1G0FYpllOh2iTsPXZqnf9dWMcis3BL+pRdLeQY8lIdwwL01k/UV5LBdcVhZzg==
+      integrity: sha512-km0sP12uE0dOZ5qP+s7kGVf07QngxyG0gS8sYFvFWhqlgzOsSy+m71aUejf/0akxj5W7gE//2G74qTv6b4iMog==
   /p-queue/6.6.1:
     dependencies:
       eventemitter3: 4.0.7
