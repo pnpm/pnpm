@@ -79,6 +79,7 @@ async function buildDependency (
     const hasSideEffects = await runPostinstallHooks({
       depPath,
       extraBinPaths: opts.extraBinPaths,
+      initCwd: opts.lockfileDir,
       optional: depNode.optional,
       pkgRoot: depNode.dir,
       prepare: depNode.prepare,

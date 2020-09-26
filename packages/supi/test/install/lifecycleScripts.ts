@@ -11,6 +11,7 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
 import exists = require('path-exists')
 import PATH = require('path-name')
 import sinon = require('sinon')
@@ -142,30 +143,36 @@ test('installation fails if lifecycle script fails', async (t: tape.Test) => {
   }
 })
 
-// TODO: unskip
-// For some reason this fails on CI environments
-// eslint-disable-next-line @typescript-eslint/dot-notation
-test.skip('creates env for scripts', async (t: tape.Test) => {
+test('INIT_CWD is always set to lockfile directory', async (t: tape.Test) => {
   prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({
-    scripts: {
-      install: 'node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json',
+  const rootDir = process.cwd()
+  await fs.mkdir('subd')
+  process.chdir('subd')
+  await mutateModules([
+    {
+      buildIndex: 0,
+      mutation: 'install',
+      manifest: {
+        dependencies: {
+          'json-append': '1.1.1',
+          'write-lifecycle-env': '1.0.0',
+        },
+        scripts: {
+          install: 'node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json',
+        },
+      },
+      rootDir,
     },
-  }, ['json-append@1.1.1'], await testDefaults())
-  await install(manifest, await testDefaults())
+  ], await testDefaults({
+    fastUnpack: false,
+    lockfileDir: rootDir,
+  }))
 
-  const output = await loadJsonFile('output.json')
+  const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.join(rootDir, 'node_modules/write-lifecycle-env/env.json'))
+  t.equal(childEnv.INIT_CWD, rootDir)
 
+  const output = await loadJsonFile(path.join(rootDir, 'output.json'))
   t.deepEqual(output, [process.cwd()])
-})
-
-test('INIT_CWD is set correctly', async (t: tape.Test) => {
-  prepareEmpty(t)
-  await addDependenciesToPackage({}, ['write-lifecycle-env'], await testDefaults({ fastUnpack: false }))
-
-  const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.resolve('node_modules', 'write-lifecycle-env', 'env.json'))
-
-  t.equal(childEnv.INIT_CWD, process.cwd())
 })
 
 // TODO: duplicate this test to @pnpm/lifecycle
