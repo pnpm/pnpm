@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 9.4.0
+
+### Minor Changes
+
+- 203e65ac8: A new option added to set the INIT_CWD env variable for scripts: opts.initCwd.
+
 ## 9.3.0
 
 ### Minor Changes

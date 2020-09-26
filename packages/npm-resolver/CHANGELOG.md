@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 10.0.3
+
+### Patch Changes
+
+- d7b727795: Update p-memoize to v4.0.1.
+
 ## 10.0.2
 
 ### Patch Changes

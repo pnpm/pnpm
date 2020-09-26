@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "18.0.3",
+  "version": "18.0.4",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
@@ -34,7 +34,7 @@
     "@pnpm/lockfile-types": "workspace:2.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.16",
     "@pnpm/manifest-utils": "workspace:^1.1.1",
-    "@pnpm/npm-resolver": "workspace:10.0.2",
+    "@pnpm/npm-resolver": "workspace:10.0.3",
     "@pnpm/package-is-installable": "workspace:4.0.15",
     "@pnpm/pick-registry-for-package": "workspace:1.0.3",
     "@pnpm/pkgid-to-filename": "^3.0.0",

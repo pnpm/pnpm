@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 5.0.18
+
+### Patch Changes
+
+- 203e65ac8: The INIT_CWD env variable is always set to the lockfile directory, for scripts of dependencies.
+- Updated dependencies [203e65ac8]
+  - @pnpm/lifecycle@9.4.0
+
 ## 5.0.17
 
 ### Patch Changes

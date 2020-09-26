@@ -1,16 +1,38 @@
 # pnpm
 
-## 5.8.0-0
+## 5.8.0
 
 ### Minor Changes
 
-- A new setting added: `shell-emulator`. When `shell-emulator` is set to `true`, a shell emulator is used to run scripts [#2621](https://github.com/pnpm/pnpm/issues/2621).
+- New setting: `shell-emulator` [#2621](https://github.com/pnpm/pnpm/issues/2621)
+
+  When `shell-emulator` is `true`, pnpm will use a shell emulator to execute scripts. So things like `FOO=1 pnpm run foo` and other simple bash syntax will work on Windows.
+
+  pnpm uses the shell emulator that was developed for Yarn v2: [@yarnpkg/shell](https://www.npmjs.com/package/@yarnpkg/shell).
+
+- Exluding projects using `--filter=!<selector>` [#2804](https://github.com/pnpm/pnpm/issues/2804)
+
+  Packages may be excluded from a command's scope, using "!" at the beginning of the selector.
+
+  For instance, this will run tests in all projects except `foo`:
+
+  ```
+  pnpm --filter=!foo test
+  ```
+
+  And this one will run tests in all projects that are not under the `lib` directory:
+
+  ```
+  pnpm --filter=!./lib test
+  ```
 
 ### Patch Changes
 
 - When searching for a global bin directory, also look for symlinked commands [#2888](https://github.com/pnpm/pnpm/issues/2888).
 - Don’t remove non‑pnpm `.dot_files` from `node_modules` [#2833](https://github.com/pnpm/pnpm/pull/2833).
 - During publish, check the active branch name after checking if the branch is clean.
+- The `INIT_CWD` env variable is always set to the lockfile directory for scripts of dependencies [#2897](https://github.com/pnpm/pnpm/pull/2897).
+- When a package is both a dev dependency and a prod dependency, the package should be linked when installing prod dependencies only. This was an issue only when a lockfile was not present during installation [#2882](https://github.com/pnpm/pnpm/issues/2882).
 
 ## 5.7.0
 

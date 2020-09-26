@@ -1,5 +1,18 @@
 # supi
 
+## 0.43.1
+
+### Patch Changes
+
+- 9e774ae20: When a package is both a dev dependency and a prod dependency, the package should be linked when installing prod dependencies only. This was an issue only when a lockfile was not present during installation.
+- Updated dependencies [203e65ac8]
+- Updated dependencies [203e65ac8]
+  - @pnpm/build-modules@5.0.18
+  - @pnpm/lifecycle@9.4.0
+  - @pnpm/resolve-dependencies@18.0.4
+  - @pnpm/headless@14.2.2
+  - @pnpm/package-requester@12.1.0
+
 ## 0.43.0
 
 ### Minor Changes

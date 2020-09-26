@@ -1,5 +1,11 @@
 # @pnpm/filter-workspace-packages
 
+## 2.2.0
+
+### Minor Changes
+
+- a11aff299: If a package selector starts with "!", it will be excluded from the selection.
+
 ## 2.1.22
 
 ### Patch Changes

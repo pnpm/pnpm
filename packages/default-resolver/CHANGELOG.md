@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 11.0.4
+
+### Patch Changes
+
+- Updated dependencies [d7b727795]
+  - @pnpm/npm-resolver@10.0.3
+
 ## 11.0.3
 
 ### Patch Changes
