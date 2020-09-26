@@ -4,6 +4,7 @@ import { addDependenciesToPackage, install } from 'supi'
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import path = require('path')
+import exists = require('path-exists')
 import tape = require('tape')
 
 const test = promisifyTape(tape)
@@ -14,12 +15,17 @@ test('production install (with --production flag)', async (t: tape.Test) => {
   await install({
     dependencies: {
       'pkg-with-1-dep': '100.0.0',
+      'write-yaml': '1.0.0',
     },
     devDependencies: {
       '@zkochan/foo': '1.0.0',
-      once: '^1.4.0', // once is also a transitive dependency of rimraf
+      // js-yaml is also a dependency of write-yaml
+      // covers issue https://github.com/pnpm/pnpm/issues/2882
+      'js-yaml': '3.14.0',
+      once: '^1.4.0',
     },
   }, await testDefaults({
+    fastUnpack: false,
     include: {
       dependencies: true,
       devDependencies: false,
@@ -27,8 +33,44 @@ test('production install (with --production flag)', async (t: tape.Test) => {
     },
   }))
 
+  t.notOk(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0')))
   await project.has('pkg-with-1-dep')
+  await project.has('write-yaml')
   await project.hasNot('@zkochan/foo')
+  await project.hasNot('js-yaml')
+})
+
+test('production install with --no-optional', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await install({
+    dependencies: {
+      'pkg-with-1-dep': '100.0.0',
+      'write-yaml': '1.0.0',
+    },
+    optionalDependencies: {
+      '@zkochan/foo': '1.0.0',
+      // js-yaml is also a dependency of write-yaml
+      // covers issue https://github.com/pnpm/pnpm/issues/2882
+      'js-yaml': '3.14.0',
+      once: '^1.4.0',
+    },
+  }, await testDefaults({
+    fastUnpack: false,
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: false,
+    },
+  }))
+
+  t.notOk(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0')))
+  await project.has('pkg-with-1-dep')
+  await project.has('write-yaml')
+  await project.hasNot('@zkochan/foo')
+  await project.hasNot('js-yaml')
 })
 
 test('install dev dependencies only', async (t: tape.Test) => {

@@ -83,7 +83,7 @@ export default async function linkPackages (
     depNodes = depNodes.filter(({ dev, optional }) => dev || optional)
   }
   if (!opts.include.devDependencies) {
-    depNodes = depNodes.filter(({ dev }) => !dev)
+    depNodes = depNodes.filter(({ optional, prod }) => prod || optional)
   }
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)
@@ -150,12 +150,17 @@ export default async function linkPackages (
         .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
         .filter(({ depGraphNode }) => depGraphNode)
         .map(async ({ rootAlias, depGraphNode }) => {
+          const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
+          const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
+          if (
+            isDev && !opts.include.devDependencies ||
+            isOptional && !opts.include.optionalDependencies ||
+            !isDev && !isOptional && !opts.include.dependencies
+          ) return
           if (
             (await symlinkDependency(depGraphNode.dir, modulesDir, rootAlias)).reused
           ) return
 
-          const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
-          const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
           rootLogger.debug({
             added: {
               dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
