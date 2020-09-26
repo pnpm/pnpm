@@ -14,12 +14,17 @@ test('production install (with --production flag)', async (t: tape.Test) => {
   await install({
     dependencies: {
       'pkg-with-1-dep': '100.0.0',
+      'write-yaml': '1.0.0',
     },
     devDependencies: {
       '@zkochan/foo': '1.0.0',
-      once: '^1.4.0', // once is also a transitive dependency of rimraf
+      // js-yaml is also a dependency of write-yaml
+      // covers issue https://github.com/pnpm/pnpm/issues/2882
+      'js-yaml': '^3.14.0',
+      once: '^1.4.0',
     },
   }, await testDefaults({
+    fastUnpack: false,
     include: {
       dependencies: true,
       devDependencies: false,
@@ -28,7 +33,9 @@ test('production install (with --production flag)', async (t: tape.Test) => {
   }))
 
   await project.has('pkg-with-1-dep')
+  await project.has('write-yaml')
   await project.hasNot('@zkochan/foo')
+  await project.hasNot('js-yaml')
 })
 
 test('install dev dependencies only', async (t: tape.Test) => {
