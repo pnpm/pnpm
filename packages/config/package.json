@@ -12,7 +12,7 @@
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "test-with-preview": "ts-node test",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/config/coverage ts-node packages/config/test --type-check",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },

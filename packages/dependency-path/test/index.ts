@@ -7,23 +7,19 @@ import {
   relative,
   resolve,
 } from 'dependency-path'
-import test = require('tape')
 
-test('isAbsolute()', t => {
-  t.notOk(isAbsolute('/foo/1.0.0'))
-  t.ok(isAbsolute('registry.npmjs.org/foo/1.0.0'))
-  t.end()
+test('isAbsolute()', () => {
+  expect(isAbsolute('/foo/1.0.0')).toBeFalsy()
+  expect(isAbsolute('registry.npmjs.org/foo/1.0.0')).toBeTruthy()
 })
 
-test('parse()', t => {
+test('parse()', () => {
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  t.throws(() => parse(undefined as any), /got `undefined`/)
-  t.throws(() => parse(null as any), /got `null`/)
-  t.throws(() => parse({} as any), /got `object`/)
-  t.throws(() => parse(1 as any), /got `number`/)
+  expect(() => parse(undefined as any)).toThrow(/got `undefined`/)
+  expect(() => parse({} as any)).toThrow(/got `object`/)
+  expect(() => parse(1 as any)).toThrow(/got `number`/)
   /* eslint-enable @typescript-eslint/no-explicit-any */
-
-  t.deepEqual(parse('/foo/1.0.0'), {
+  expect(parse('/foo/1.0.0')).toStrictEqual({
     host: undefined,
     isAbsolute: false,
     name: 'foo',
@@ -31,7 +27,7 @@ test('parse()', t => {
     version: '1.0.0',
   })
 
-  t.deepEqual(parse('/@foo/bar/1.0.0'), {
+  expect(parse('/@foo/bar/1.0.0')).toStrictEqual({
     host: undefined,
     isAbsolute: false,
     name: '@foo/bar',
@@ -39,7 +35,7 @@ test('parse()', t => {
     version: '1.0.0',
   })
 
-  t.deepEqual(parse('registry.npmjs.org/foo/1.0.0'), {
+  expect(parse('registry.npmjs.org/foo/1.0.0')).toStrictEqual({
     host: 'registry.npmjs.org',
     isAbsolute: true,
     name: 'foo',
@@ -47,7 +43,7 @@ test('parse()', t => {
     version: '1.0.0',
   })
 
-  t.deepEqual(parse('registry.npmjs.org/@foo/bar/1.0.0'), {
+  expect(parse('registry.npmjs.org/@foo/bar/1.0.0')).toStrictEqual({
     host: 'registry.npmjs.org',
     isAbsolute: true,
     name: '@foo/bar',
@@ -55,12 +51,12 @@ test('parse()', t => {
     version: '1.0.0',
   })
 
-  t.deepEqual(parse('github.com/kevva/is-positive'), {
+  expect(parse('github.com/kevva/is-positive')).toStrictEqual({
     host: 'github.com',
     isAbsolute: true,
   })
 
-  t.deepEqual(parse('example.com/foo/1.0.0'), {
+  expect(parse('example.com/foo/1.0.0')).toStrictEqual({
     host: 'example.com',
     isAbsolute: true,
     name: 'foo',
@@ -68,7 +64,7 @@ test('parse()', t => {
     version: '1.0.0',
   })
 
-  t.deepEqual(parse('example.com/foo/1.0.0_bar@2.0.0'), {
+  expect(parse('example.com/foo/1.0.0_bar@2.0.0')).toStrictEqual({
     host: 'example.com',
     isAbsolute: true,
     name: 'foo',
@@ -76,51 +72,47 @@ test('parse()', t => {
     version: '1.0.0',
   })
 
-  t.throws(() => parse('/foo/bar'), /\/foo\/bar is an invalid relative dependency path/)
-
-  t.end()
+  expect(() => parse('/foo/bar')).toThrow(/\/foo\/bar is an invalid relative dependency path/)
 })
 
-test('refToAbsolute()', t => {
+test('refToAbsolute()', () => {
   const registries = {
     '@foo': 'http://foo.com/',
     default: 'https://registry.npmjs.org/',
   }
-  t.equal(refToAbsolute('1.0.0', 'foo', registries), 'registry.npmjs.org/foo/1.0.0')
-  t.equal(refToAbsolute('1.0.0', '@foo/foo', registries), 'foo.com/@foo/foo/1.0.0')
-  t.equal(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', registries), 'registry.npmjs.org/foo/1.0.0')
-  t.equal(refToAbsolute('/foo/1.0.0', 'foo', registries), 'registry.npmjs.org/foo/1.0.0')
-  t.equal(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries), 'foo.com/@foo/foo/1.0.0')
-  t.equal(refToAbsolute('link:../foo', 'foo', registries), null, "linked dependencies don't have an absolute path")
-  t.end()
+  expect(refToAbsolute('1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
+  expect(refToAbsolute('1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
+  expect(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
+  expect(refToAbsolute('/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
+  expect(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
+  // linked dependencies don't have an absolute path
+  expect(refToAbsolute('link:../foo', 'foo', registries)).toBeNull()
 })
 
-test('refToRelative()', t => {
-  t.equal(refToRelative('/@most/multicast/1.3.0/most@1.7.3', '@most/multicast'), '/@most/multicast/1.3.0/most@1.7.3')
-  t.equal(refToRelative('link:../foo', 'foo'), null, "linked dependencies don't have a relative path")
-  t.equal(refToRelative('file:../tarball.tgz', 'foo'), 'file:../tarball.tgz')
-  t.end()
+test('refToRelative()', () => {
+  expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3')
+  // linked dependencies don't have a relative path
+  expect(refToRelative('link:../foo', 'foo')).toBeNull()
+  expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('file:../tarball.tgz')
 })
 
-test('relative()', t => {
+test('relative()', () => {
   const registries = {
     '@foo': 'http://localhost:4873/',
     default: 'https://registry.npmjs.org/',
   }
-  t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0'), '/foo/1.0.0')
-  t.equal(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0'), '/@foo/foo/1.0.0')
-  t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw'), '/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
-  t.end()
+  expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0')).toEqual('/foo/1.0.0')
+  expect(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0')).toEqual('/@foo/foo/1.0.0')
+  expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')).toEqual('/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
 })
 
-test('resolve()', (t) => {
+test('resolve()', () => {
   const registries = {
     '@bar': 'https://bar.com/',
     default: 'https://foo.com/',
   }
-  t.equal(resolve(registries, '/foo/1.0.0'), 'foo.com/foo/1.0.0')
-  t.equal(resolve(registries, '/@bar/bar/1.0.0'), 'bar.com/@bar/bar/1.0.0')
-  t.equal(resolve(registries, '/@qar/qar/1.0.0'), 'foo.com/@qar/qar/1.0.0')
-  t.equal(resolve(registries, 'qar.com/foo/1.0.0'), 'qar.com/foo/1.0.0')
-  t.end()
+  expect(resolve(registries, '/foo/1.0.0')).toEqual('foo.com/foo/1.0.0')
+  expect(resolve(registries, '/@bar/bar/1.0.0')).toEqual('bar.com/@bar/bar/1.0.0')
+  expect(resolve(registries, '/@qar/qar/1.0.0')).toEqual('foo.com/@qar/qar/1.0.0')
+  expect(resolve(registries, 'qar.com/foo/1.0.0')).toEqual('qar.com/foo/1.0.0')
 })
