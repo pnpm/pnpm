@@ -64,6 +64,7 @@ export interface StrictInstallOptions {
   pruneStore: boolean
   virtualStoreDir?: string
   dir: string
+  symlink: boolean
 
   hoistPattern: string[] | undefined
   forceHoistPattern: boolean
@@ -121,6 +122,7 @@ const defaults = async (opts: InstallOptions) => {
     shellEmulator: false,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
+    symlink: true,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
     strictPeerDependencies: false,

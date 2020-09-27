@@ -113,6 +113,7 @@ export interface Config {
   gitChecks?: boolean
   publishBranch?: string
   recursiveInstall?: boolean
+  symlink: boolean
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean

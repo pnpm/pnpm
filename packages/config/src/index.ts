@@ -74,6 +74,7 @@ export const types = Object.assign({
   'shrinkwrap-only': Boolean,
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
+  symlink: Boolean,
   sort: Boolean,
   store: String, // TODO: deprecate
   'store-dir': String,
@@ -160,6 +161,7 @@ export default async (
     registry: npmDefaults.registry,
     'save-peer': false,
     'save-workspace-protocol': true,
+    symlink: true,
     'shared-workspace-lockfile': true,
     'shared-workspace-shrinkwrap': true,
     'shell-emulator': false,
@@ -347,6 +349,10 @@ export default async (
       delete pnpmConfig.publicHoistPattern
     }
     break
+  }
+  if (!pnpmConfig.symlink) {
+    delete pnpmConfig.hoistPattern
+    delete pnpmConfig.publicHoistPattern
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
