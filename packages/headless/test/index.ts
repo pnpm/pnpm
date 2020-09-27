@@ -751,3 +751,22 @@ test('installing in a workspace', async (t) => {
 
   t.end()
 })
+
+test('installing with no symlinks', async (t) => {
+  const prefix = path.join(fixtures, 'simple')
+  await rimraf(path.join(prefix, 'node_modules'))
+
+  await headless(await testDefaults({
+    lockfileDir: prefix,
+    symlink: false,
+  }))
+
+  t.deepEqual(await fs.readdir(path.join(prefix, 'node_modules')), ['.modules.yaml', '.pnpm'])
+  t.deepEqual(await fs.readdir(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules')), ['rimraf'])
+
+  const project = assertProject(t, prefix)
+  t.ok(await project.readCurrentLockfile())
+  t.ok(await project.readModulesManifest())
+
+  t.end()
+})
