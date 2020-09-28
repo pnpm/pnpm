@@ -9,6 +9,7 @@ import { Registries } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
 import pnp = require('@yarnpkg/pnp')
 import fs = require('mz/fs')
+import normalizePath = require('normalize-path')
 import path = require('path')
 import R = require('ramda')
 
@@ -101,12 +102,12 @@ export function lockfileToPackageRegistry (
     }
 
     // Seems like this field should always contain a relative path
-    const packageLocation = `./${path.join(
+    const packageLocation = `./${normalizePath(path.join(
       opts.virtualStoreDir,
       pkgIdToFilename(relDepPath, opts.lockfileDirectory),
       'node_modules',
       name
-    )}`
+    ))}`
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
