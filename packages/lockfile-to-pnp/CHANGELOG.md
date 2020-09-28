@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.1.3
+
+### Patch Changes
+
+- 646c7868b: `@pnpm/logger` should be a prod dependency as lockfile-to-pnp is a standalone CLI app.
+
 ## 0.1.2
 
 ### Patch Changes
