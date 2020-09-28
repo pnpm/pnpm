@@ -36,7 +36,6 @@
     "@pnpm/logger": ">=3.2.2 <4.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.2",
     "@pnpm/types": "workspace:6.2.0",
     "@types/mz": "0.0.32",
     "@types/normalize-path": "^3.0.0",
@@ -48,6 +47,7 @@
     "@pnpm/config": "workspace:11.5.0",
     "@pnpm/lockfile-file": "workspace:3.0.14",
     "@pnpm/lockfile-utils": "workspace:2.0.16",
+    "@pnpm/logger": "^3.2.2",
     "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/read-project-manifest": "workspace:1.0.13",
     "@yarnpkg/pnp": "^2.2.1",
