@@ -58,7 +58,7 @@ test('lockfileToPackageRegistry', () => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-    virtualStoreDir: '/home/zoli/.pnpm-store/2',
+    virtualStoreDir: 'node_modules/.pnpm',
   })
 
   const actual = Array
@@ -121,7 +121,7 @@ test('lockfileToPackageRegistry', () => {
               ['dep1', '1.0.0'],
               ['dep2', ['foo', '2.0.0']],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/dep1@1.0.0/node_modules/dep1',
+            packageLocation: './node_modules/.pnpm/dep1@1.0.0/node_modules/dep1',
           },
         ],
       ],
@@ -136,7 +136,7 @@ test('lockfileToPackageRegistry', () => {
               ['foo', '2.0.0'],
               ['qar', '3.0.0'],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/foo@2.0.0/node_modules/foo',
+            packageLocation: './node_modules/.pnpm/foo@2.0.0/node_modules/foo',
           },
         ],
       ],
@@ -150,7 +150,7 @@ test('lockfileToPackageRegistry', () => {
             packageDependencies: [
               ['qar', '2.0.0'],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/qar@2.0.0/node_modules/qar',
+            packageLocation: './node_modules/.pnpm/qar@2.0.0/node_modules/qar',
           },
         ],
         [
@@ -159,7 +159,7 @@ test('lockfileToPackageRegistry', () => {
             packageDependencies: [
               ['qar', '3.0.0'],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/qar@3.0.0/node_modules/qar',
+            packageLocation: './node_modules/.pnpm/qar@3.0.0/node_modules/qar',
           },
         ],
       ],
@@ -205,7 +205,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-    virtualStoreDir: '/home/zoli/.pnpm-store/2',
+    virtualStoreDir: 'node_modules/.pnpm',
   })
 
   const actual = Array
@@ -253,7 +253,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
               ['haspeer', 'virtual:2.0.0_peer@1.0.0#2.0.0'],
               ['peer', '1.0.0'],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/haspeer@2.0.0_peer@1.0.0/node_modules/haspeer',
+            packageLocation: './node_modules/.pnpm/haspeer@2.0.0_peer@1.0.0/node_modules/haspeer',
           },
         ],
       ],
@@ -267,7 +267,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
             packageDependencies: [
               ['peer', '1.0.0'],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/peer@1.0.0/node_modules/peer',
+            packageLocation: './node_modules/.pnpm/peer@1.0.0/node_modules/peer',
           },
         ],
       ],

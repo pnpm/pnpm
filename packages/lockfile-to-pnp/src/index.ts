@@ -100,12 +100,13 @@ export function lockfileToPackageRegistry (
       packageRegistry.set(name, packageStore)
     }
 
-    const packageLocation = path.join(
+    // Seems like this field should always contain a relative path
+    const packageLocation = `./${path.join(
       opts.virtualStoreDir,
       pkgIdToFilename(relDepPath, opts.lockfileDirectory),
       'node_modules',
       name
-    )
+    )}`
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
