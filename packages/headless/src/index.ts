@@ -92,6 +92,7 @@ export interface HeadlessOptions {
   storeController: StoreController
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
+  symlink?: boolean
   force: boolean
   storeDir: string
   rawConfig: object
@@ -219,10 +220,12 @@ export default async (opts: HeadlessOptions) => {
 
   await Promise.all(depNodes.map((depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
-    linkAllModules(depNodes, {
-      lockfileDir,
-      optional: opts.include.optionalDependencies,
-    }),
+    opts.symlink === false
+      ? Promise.resolve()
+      : linkAllModules(depNodes, {
+        lockfileDir,
+        optional: opts.include.optionalDependencies,
+      }),
     linkAllPkgs(opts.storeController, depNodes, {
       force: opts.force,
       lockfileDir: opts.lockfileDir,
@@ -258,15 +261,17 @@ export default async (opts: HeadlessOptions) => {
   }
 
   await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
-    await linkRootPackages(filteredLockfile, {
-      importerId: id,
-      importerModulesDir: modulesDir,
-      lockfileDir,
-      projectDir: rootDir,
-      projects: opts.projects,
-      registries: opts.registries,
-      rootDependencies: directDependenciesByImporterId[id],
-    })
+    if (opts.symlink !== false) {
+      await linkRootPackages(filteredLockfile, {
+        importerId: id,
+        importerModulesDir: modulesDir,
+        lockfileDir,
+        projectDir: rootDir,
+        projects: opts.projects,
+        registries: opts.registries,
+        rootDependencies: directDependenciesByImporterId[id],
+      })
+    }
 
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
@@ -721,14 +726,14 @@ function linkAllBins (
   )
 }
 
-function linkAllModules (
+async function linkAllModules (
   depNodes: DependenciesGraphNode[],
   opts: {
     optional: boolean
     lockfileDir: string
   }
 ) {
-  return Promise.all(
+  await Promise.all(
     depNodes
       .map(async (depNode) => {
         const childrenToLink = opts.optional

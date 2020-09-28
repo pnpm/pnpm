@@ -54,6 +54,7 @@ export default async function linkPackages (
     registries: Registries
     rootModulesDir: string
     sideEffectsCacheRead: boolean
+    symlink: boolean
     skipped: Set<string>
     storeController: StoreController
     strictPeerDependencies: boolean
@@ -132,6 +133,7 @@ export default async function linkPackages (
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      symlink: opts.symlink,
       skipped: opts.skipped,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
@@ -143,46 +145,48 @@ export default async function linkPackages (
     stage: 'importing_done',
   })
 
-  await Promise.all(projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
-    const deps = opts.dependenciesByProjectId[id]
-    await Promise.all([
-      ...Object.entries(deps)
-        .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
-        .filter(({ depGraphNode }) => depGraphNode)
-        .map(async ({ rootAlias, depGraphNode }) => {
-          const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
-          const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
-          if (
-            isDev && !opts.include.devDependencies ||
-            isOptional && !opts.include.optionalDependencies ||
-            !isDev && !isOptional && !opts.include.dependencies
-          ) return
-          if (
-            (await symlinkDependency(depGraphNode.dir, modulesDir, rootAlias)).reused
-          ) return
+  if (opts.symlink) {
+    await Promise.all(projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
+      const deps = opts.dependenciesByProjectId[id]
+      await Promise.all([
+        ...Object.entries(deps)
+          .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
+          .filter(({ depGraphNode }) => depGraphNode)
+          .map(async ({ rootAlias, depGraphNode }) => {
+            const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
+            const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
+            if (
+              isDev && !opts.include.devDependencies ||
+              isOptional && !opts.include.optionalDependencies ||
+              !isDev && !isOptional && !opts.include.dependencies
+            ) return
+            if (
+              (await symlinkDependency(depGraphNode.dir, modulesDir, rootAlias)).reused
+            ) return
 
-          rootLogger.debug({
-            added: {
-              dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-              id: depGraphNode.id,
-              latest: opts.outdatedDependencies[depGraphNode.id],
-              name: rootAlias,
-              realName: depGraphNode.name,
-              version: depGraphNode.version,
-            },
+            rootLogger.debug({
+              added: {
+                dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
+                id: depGraphNode.id,
+                latest: opts.outdatedDependencies[depGraphNode.id],
+                name: rootAlias,
+                realName: depGraphNode.name,
+                version: depGraphNode.version,
+              },
+              prefix: rootDir,
+            })
+          }),
+        ...opts.linkedDependenciesByProjectId[id].map((linkedDependency) => {
+          const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
+          return symlinkDirectRootDependency(depLocation, modulesDir, linkedDependency.alias, {
+            fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
+            linkedPackage: linkedDependency,
             prefix: rootDir,
           })
         }),
-      ...opts.linkedDependenciesByProjectId[id].map((linkedDependency) => {
-        const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
-        return symlinkDirectRootDependency(depLocation, modulesDir, linkedDependency.alias, {
-          fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
-          linkedPackage: linkedDependency,
-          prefix: rootDir,
-        })
-      }),
-    ])
-  }))
+      ])
+    }))
+  }
 
   let currentLockfile: Lockfile
   const allImportersIncluded = R.equals(projectIds.sort(), Object.keys(opts.wantedLockfile.importers).sort())
@@ -265,6 +269,7 @@ async function linkNewPackages (
     optional: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
+    symlink: boolean
     skipped: Set<string>
     storeController: StoreController
     virtualStoreDir: string
@@ -314,14 +319,12 @@ async function linkNewPackages (
 
   await Promise.all(newPkgs.map((depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
-    linkAllModules(newPkgs, depGraph, {
-      lockfileDir: opts.lockfileDir,
-      optional: opts.optional,
-    }),
-    linkAllModules(existingWithUpdatedDeps, depGraph, {
-      lockfileDir: opts.lockfileDir,
-      optional: opts.optional,
-    }),
+    !opts.symlink
+      ? Promise.resolve()
+      : linkAllModules([...newPkgs, ...existingWithUpdatedDeps], depGraph, {
+        lockfileDir: opts.lockfileDir,
+        optional: opts.optional,
+      }),
     linkAllPkgs(opts.storeController, newPkgs, {
       force: opts.force,
       lockfileDir: opts.lockfileDir,
@@ -396,7 +399,7 @@ function linkAllPkgs (
   )
 }
 
-function linkAllModules (
+async function linkAllModules (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
@@ -404,7 +407,7 @@ function linkAllModules (
     optional: boolean
   }
 ) {
-  return Promise.all(
+  await Promise.all(
     depNodes
       .map(async ({ children, optionalDependencies, name, modules }) => {
         const childrenToLink = opts.optional
