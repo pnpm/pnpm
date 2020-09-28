@@ -1,5 +1,14 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.1.2
+
+### Patch Changes
+
+- c3d34232c: Normalize `packageLocation` path.
+- c3d34232c: Use correct return type for `lockfileToPackageRegistry`.
+- Updated dependencies [74914c178]
+  - @pnpm/config@11.5.0
+
 ## 0.1.1
 
 ### Patch Changes

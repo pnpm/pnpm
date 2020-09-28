@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.5.0
+
+### Minor Changes
+
+- 74914c178: New experimental option added for installing node_modules w/o symlinks.
+
 ## 11.4.0
 
 ### Minor Changes

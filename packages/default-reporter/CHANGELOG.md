@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 7.9.3
+
+### Patch Changes
+
+- Updated dependencies [74914c178]
+  - @pnpm/config@11.5.0
+
 ## 7.9.2
 
 ### Patch Changes

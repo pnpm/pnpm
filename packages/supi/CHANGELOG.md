@@ -1,5 +1,13 @@
 # supi
 
+## 0.43.2
+
+### Patch Changes
+
+- 74914c178: New experimental option added for installing node_modules w/o symlinks.
+- Updated dependencies [74914c178]
+  - @pnpm/headless@14.3.0
+
 ## 0.43.1
 
 ### Patch Changes

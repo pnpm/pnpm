@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 14.3.0
+
+### Minor Changes
+
+- 74914c178: New experimental option added for installing node_modules w/o symlinks.
+
 ## 14.2.2
 
 ### Patch Changes
