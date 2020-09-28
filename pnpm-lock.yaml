@@ -995,11 +995,13 @@ importers:
       '@yarnpkg/pnp': 2.2.1
       dependency-path: 'link:../dependency-path'
       mz: 2.7.0
+      normalize-path: 3.0.0
       ramda: 0.27.1
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
+      '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.19
       rimraf: 3.0.2
       tape: 4.13.3
@@ -1012,10 +1014,12 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:1.0.13'
       '@pnpm/types': 'workspace:6.2.0'
       '@types/mz': 0.0.32
+      '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.19
       '@yarnpkg/pnp': ^2.2.1
       dependency-path: 'workspace:5.0.3'
       mz: ^2.7.0
+      normalize-path: ^3.0.0
       ramda: ^0.27.1
       rimraf: ^3.0.2
       tape: ^4.11.0

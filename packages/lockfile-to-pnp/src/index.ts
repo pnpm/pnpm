@@ -7,15 +7,16 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readImporterManifest from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
-import pnp = require('@yarnpkg/pnp')
+import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
 import fs = require('mz/fs')
+import normalizePath = require('normalize-path')
 import path = require('path')
 import R = require('ramda')
 
 export async function lockfileToPnp (lockfileDirectory: string) {
   const lockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: true })
   if (!lockfile) throw new Error('Cannot generate a .pnp.js without a lockfile')
-  const importerNames = {} as { [importerId: string]: string }
+  const importerNames: { [importerId: string]: string } = {}
   await Promise.all(
     Object.keys(lockfile.importers)
       .map(async (importerId) => {
@@ -35,7 +36,7 @@ export async function lockfileToPnp (lockfileDirectory: string) {
     virtualStoreDir: virtualStoreDir ?? path.join(lockfileDirectory, 'node_modules/.pnpm'),
   })
 
-  const loaderFile = pnp.generateInlinedScript({
+  const loaderFile = generateInlinedScript({
     blacklistedLocations: undefined,
     dependencyTreeRoots: [],
     ignorePattern: undefined,
@@ -53,7 +54,7 @@ export function lockfileToPackageRegistry (
     virtualStoreDir: string
     registries: Registries
   }
-) {
+): PackageRegistry {
   const packageRegistry = new Map()
   for (const importerId of Object.keys(lockfile.importers)) {
     const importer = lockfile.importers[importerId]
@@ -101,12 +102,12 @@ export function lockfileToPackageRegistry (
     }
 
     // Seems like this field should always contain a relative path
-    const packageLocation = `./${path.join(
+    const packageLocation = `./${normalizePath(path.join(
       opts.virtualStoreDir,
       pkgIdToFilename(relDepPath, opts.lockfileDirectory),
       'node_modules',
       name
-    )}`
+    ))}`
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],

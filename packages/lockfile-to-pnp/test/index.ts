@@ -61,23 +61,27 @@ test('lockfileToPackageRegistry', () => {
     virtualStoreDir: 'node_modules/.pnpm',
   })
 
-  const actual = Array
-    .from(packageRegistry.entries())
-    .map(([packageName, packageStoreMap]) => {
+  const actual = Array.from(
+    packageRegistry,
+    ([packageName, packageStoreMap]) => {
       return [
         packageName,
-        Array.from(packageStoreMap.entries())
-          .map(([pkgRef, packageInfo]: any) => { // eslint-disable-line
+        Array.from(
+          packageStoreMap,
+          ([pkgRef, packageInfo]) => {
             return [
               pkgRef,
               {
-                packageDependencies: Array.from(packageInfo.packageDependencies || new Map()),
+                packageDependencies: Array.from(packageInfo.packageDependencies),
                 packageLocation: packageInfo.packageLocation,
               },
             ]
-          }),
+          }
+        ),
       ]
-    })
+    }
+  )
+
   expect(actual).toStrictEqual([
     [
       'importer1',
@@ -208,23 +212,26 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
     virtualStoreDir: 'node_modules/.pnpm',
   })
 
-  const actual = Array
-    .from(packageRegistry.entries())
-    .map(([packageName, packageStoreMap]) => {
+  const actual = Array.from(
+    packageRegistry,
+    ([packageName, packageStoreMap]) => {
       return [
         packageName,
-        Array.from(packageStoreMap.entries())
-          .map(([pkgRef, packageInfo]: any) => { // eslint-disable-line
+        Array.from(
+          packageStoreMap,
+          ([pkgRef, packageInfo]) => {
             return [
               pkgRef,
               {
-                packageDependencies: Array.from(packageInfo.packageDependencies || new Map()),
+                packageDependencies: Array.from(packageInfo.packageDependencies),
                 packageLocation: packageInfo.packageLocation,
               },
             ]
-          }),
+          }
+        ),
       ]
-    })
+    }
+  )
 
   expect(actual).toStrictEqual([
     [
