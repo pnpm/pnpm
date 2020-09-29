@@ -85,7 +85,7 @@ export function lockfileToPackageRegistry (
               ...((importer.optionalDependencies && toPackageDependenciesMap(lockfile, importer.optionalDependencies, importerId)) ?? []),
               ...((importer.devDependencies && toPackageDependenciesMap(lockfile, importer.devDependencies, importerId)) ?? []),
             ]),
-            packageLocation: importerId,
+            packageLocation: `./${importerId}`,
           },
         ],
       ])
