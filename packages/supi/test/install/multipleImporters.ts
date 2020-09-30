@@ -1,5 +1,6 @@
 import assertProject from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
@@ -12,6 +13,7 @@ import { addDistTag, testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import exists = require('path-exists')
+import R = require('ramda')
 import sinon = require('sinon')
 import tape = require('tape')
 import writeYamlFile = require('write-yaml-file')
@@ -142,6 +144,74 @@ test('install only the dependencies of the specified importer. The current lockf
   const currentLockfile = await rootModules.readCurrentLockfile()
   t.ok(currentLockfile.importers['project-3'])
   t.ok(currentLockfile.packages['/foobar/100.0.0'])
+})
+
+test('some projects were removed from the workspace and the ones that are left depend on them', async (t) => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'project-2': 'workspace:1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+  }
+  preparePackages(t, [
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: project1Manifest,
+      },
+    },
+    'project-2': {
+      '1.0.0': {
+        dir: path.resolve('project-2'),
+        manifest: project2Manifest,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ workspacePackages }))
+
+  let err!: PnpmError
+  try {
+    await mutateModules([importers[0]], await testDefaults({
+      pruneLockfileImporters: true,
+      workspacePackages: R.pick(['project-1'], workspacePackages),
+    } as any)) // eslint-disable-line
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
 })
 
 test('dependencies of other importers are not pruned when installing for a subset of importers', async (t) => {
