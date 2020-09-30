@@ -83,7 +83,7 @@ export function help () {
   })
 }
 
-const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false".'
+const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
 
 export async function handler (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
