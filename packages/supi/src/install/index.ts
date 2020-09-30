@@ -440,7 +440,11 @@ async function partitionLinkedPackages (
   const nonLinkedDependencies: WantedDependency[] = []
   const linkedAliases = new Set<string>()
   for (const dependency of dependencies) {
-    if (!dependency.alias || opts.workspacePackages?.[dependency.alias]) {
+    if (
+      !dependency.alias ||
+      opts.workspacePackages?.[dependency.alias] != null ||
+      dependency.pref.startsWith('workspace:')
+    ) {
       nonLinkedDependencies.push(dependency)
       continue
     }
