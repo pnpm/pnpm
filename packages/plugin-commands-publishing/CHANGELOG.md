@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.2.7
+
+### Patch Changes
+
+- 5351791f6: Added more info to the Git check error hint.
+
 ## 2.2.6
 
 ### Patch Changes

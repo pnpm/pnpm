@@ -1,12 +1,16 @@
 # pnpm
 
-## 5.9.0-0
+## 5.9.0-1
 
 ### Minor Changes
 
 - New setting: `symlink` [#2900](https://github.com/pnpm/pnpm/pull/2900)
 
   When `symlink` is set to `false`, pnpm creates a virtual store directory (`node_modules/.pnpm`) without any symlinks.
+
+### Patch Changes
+
+- Installation should fail if there are references to a project that has been removed from the workspace [#2905](https://github.com/pnpm/pnpm/pull/2905).
 
 ## 5.8.0
 

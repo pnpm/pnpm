@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.1.4
+
+### Patch Changes
+
+- 119da15e9: pathLocation of workspace project should always start with "./"
+
 ## 0.1.3
 
 ### Patch Changes

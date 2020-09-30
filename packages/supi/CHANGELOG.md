@@ -1,5 +1,11 @@
 # supi
 
+## 0.43.3
+
+### Patch Changes
+
+- 95ad9cafa: Install should fail if there are references to a prunned workspace project.
+
 ## 0.43.2
 
 ### Patch Changes
