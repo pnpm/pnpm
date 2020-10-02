@@ -3,12 +3,11 @@ import runLifecycleHook, { runPostinstallHooks } from '@pnpm/lifecycle'
 import path = require('path')
 import loadJsonFile = require('load-json-file')
 import rimraf = require('rimraf')
-import test = require('tape')
 
 const fixtures = path.join(__dirname, 'fixtures')
 const rootModulesDir = path.join(__dirname, '..', 'node_modules')
 
-test('runLifecycleHook()', async (t) => {
+test('runLifecycleHook()', async () => {
   const pkgRoot = path.join(fixtures, 'simple')
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
@@ -20,12 +19,10 @@ test('runLifecycleHook()', async (t) => {
     unsafePerm: true,
   })
 
-  t.deepEqual(await import(path.join(pkgRoot, 'output.json')), ['install'])
-
-  t.end()
+  expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['install'])
 })
 
-test('runPostinstallHooks()', async (t) => {
+test('runPostinstallHooks()', async () => {
   const pkgRoot = path.join(fixtures, 'with-many-scripts')
   rimraf.sync(path.join(pkgRoot, 'output.json'))
   await runPostinstallHooks({
@@ -37,12 +34,10 @@ test('runPostinstallHooks()', async (t) => {
     unsafePerm: true,
   })
 
-  t.deepEqual(loadJsonFile.sync(path.join(pkgRoot, 'output.json')), ['preinstall', 'install', 'postinstall'])
-
-  t.end()
+  expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall', 'install', 'postinstall'])
 })
 
-test('runPostinstallHooks() with prepare = true', async (t) => {
+test('runPostinstallHooks() with prepare = true', async () => {
   const pkgRoot = path.join(fixtures, 'with-many-scripts')
   rimraf.sync(path.join(pkgRoot, 'output.json'))
   await runPostinstallHooks({
@@ -55,7 +50,5 @@ test('runPostinstallHooks() with prepare = true', async (t) => {
     unsafePerm: true,
   })
 
-  t.deepEqual(loadJsonFile.sync(path.join(pkgRoot, 'output.json')), ['preinstall', 'install', 'postinstall', 'prepare'])
-
-  t.end()
+  expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall', 'install', 'postinstall', 'prepare'])
 })

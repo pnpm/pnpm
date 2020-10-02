@@ -15,7 +15,7 @@
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "pre_test": "ncp test/fixtures test/fixtures_for_testing",
     "post_test": "rimraf test/fixtures_for_testing",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/link-bins/coverage ts-node packages/link-bins/test --type-check",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json --project . --fix",
@@ -55,11 +55,8 @@
     "@types/node": "^12.12.56",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.15",
-    "@types/sinon": "^9.0.5",
-    "@types/tape": "^4.13.0",
     "ncp": "^2.0.0",
     "path-exists": "^4.0.0",
-    "sinon": "^9.0.3",
     "tempy": "^0.7.0"
   },
   "funding": "https://opencollective.com/pnpm"
