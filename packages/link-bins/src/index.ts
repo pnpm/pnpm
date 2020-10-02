@@ -29,10 +29,10 @@ export default async (
     allowExoticManifests?: boolean
     warn: WarnFunction
   }
-) => {
+): Promise<string[]> => {
   const allDeps = await readModulesDir(modulesDir)
   // If the modules dir does not exist, do nothing
-  if (allDeps === null) return
+  if (allDeps === null) return []
   const pkgBinOpts = {
     allowExoticManifests: false,
     ...opts,
@@ -60,8 +60,8 @@ export async function linkBinsOfPackages (
   opts: {
     warn: WarnFunction
   }
-) {
-  if (!pkgs.length) return
+): Promise<string[]> {
+  if (!pkgs.length) return []
 
   const allCmds = R.unnest(
     (await Promise.all(
@@ -83,7 +83,7 @@ async function linkBins (
   opts: {
     warn: WarnFunction
   }
-) {
+): Promise<string[]> {
   if (!allCmds.length) return [] as string[]
 
   await fs.mkdir(binsDir, { recursive: true })
