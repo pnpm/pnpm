@@ -9,8 +9,6 @@ import fs = require('mz/fs')
 import ncpcb = require('ncp')
 import normalizePath = require('normalize-path')
 import exists = require('path-exists')
-import sinon = require('sinon')
-import test = require('tape')
 import tempy = require('tempy')
 
 const ncp = promisify(ncpcb)
@@ -40,105 +38,92 @@ function getExpectedBins (bins: string[]) {
   return expectedBins.sort()
 }
 
-test('linkBins()', async (t) => {
+test('linkBins()', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
-  t.notOk(warn.called)
-  t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['simple']))
+  expect(warn).not.toHaveBeenCalled()
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
-  t.ok(await exists(binLocation))
+  expect(await exists(binLocation)).toBe(true)
   const content = await fs.readFile(binLocation, 'utf8')
-  t.ok(content.includes('node_modules/simple/index.js'))
+  expect(content).toMatch('node_modules/simple/index.js')
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     const binFile = path.join(binTarget, 'simple')
     const stat = await fs.stat(binFile)
-    t.equal(stat.mode, parseInt('100755', 8), `${binFile} is executable`)
-    t.ok(stat.isFile(), `${binFile} refers to a file`)
+    expect(stat.mode).toBe(parseInt('100755', 8))
+    expect(stat.isFile()).toBe(true)
   }
-
-  t.end()
 })
 
-test('linkBins() finds exotic manifests', async (t) => {
+test('linkBins() finds exotic manifests', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   await linkBins(path.join(exoticManifestFixture, 'node_modules'), binTarget, {
     allowExoticManifests: true,
     warn,
   })
 
-  t.notOk(warn.called)
-  t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['simple']))
+  expect(warn).not.toHaveBeenCalled()
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
-  t.ok(await exists(binLocation))
+  expect(await exists(binLocation)).toBe(true)
   const content = await fs.readFile(binLocation, 'utf8')
-  t.ok(content.includes('node_modules/simple/index.js'))
+  expect(content).toMatch('node_modules/simple/index.js')
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     const binFile = path.join(binTarget, 'simple')
     const stat = await fs.stat(binFile)
-    t.equal(stat.mode, parseInt('100755', 8), `${binFile} is executable`)
-    t.ok(stat.isFile(), `${binFile} refers to a file`)
+    expect(stat.mode).toBe(parseInt('100755', 8))
+    expect(stat.isFile()).toBe(true)
   }
-
-  t.end()
 })
 
-test('linkBins() do not fail on directory w/o manifest file', async (t) => {
+test('linkBins() do not fail on directory w/o manifest file', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   await linkBins(path.join(fixtures, 'dir-with-no-manifest/node_modules'), binTarget, {
     allowExoticManifests: false,
     warn,
   })
 
-  t.notOk(warn.called)
-  t.end()
+  expect(warn).not.toHaveBeenCalled()
 })
 
-test('linkBins() with exotic manifests do not fail on directory w/o manifest file', async (t) => {
+test('linkBins() with exotic manifests do not fail on directory w/o manifest file', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   await linkBins(path.join(fixtures, 'dir-with-no-manifest/node_modules'), binTarget, {
     allowExoticManifests: true,
     warn,
   })
 
-  t.notOk(warn.called)
-  t.end()
+  expect(warn).not.toHaveBeenCalled()
 })
 
-test('linkBins() does not link own bins', async (t) => {
+test('linkBins() does not link own bins', async () => {
   const target = tempy.directory()
   await ncp(foobarFixture, target)
 
-  const warn = sinon.spy()
+  const warn = jest.fn()
   const modules = path.join(target, 'node_modules')
   const binTarget = path.join(target, 'node_modules', 'foo', 'node_modules', '.bin')
 
   await linkBins(modules, binTarget, { warn })
 
-  t.notOk(warn.called)
-  t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['bar']))
-
-  t.end()
+  expect(warn).not.toHaveBeenCalled()
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar']))
 })
 
-test('linkBinsOfPackages()', async (t) => {
+test('linkBinsOfPackages()', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   await linkBinsOfPackages(
     [
@@ -151,46 +136,41 @@ test('linkBinsOfPackages()', async (t) => {
     { warn }
   )
 
-  t.notOk(warn.called)
-  t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['simple']))
+  expect(warn).not.toHaveBeenCalled()
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
-  t.ok(await exists(binLocation))
+  expect(await exists(binLocation)).toBe(true)
   const content = await fs.readFile(binLocation, 'utf8')
-  t.ok(content.includes('node_modules/simple/index.js'))
-  t.end()
+  expect(content).toMatch('node_modules/simple/index.js')
 })
 
-test('linkBins() resolves conflicts. Prefer packages that use their name as bin name', async (t) => {
+test('linkBins() resolves conflicts. Prefer packages that use their name as bin name', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
 
-  t.equal(warn.args[0][0], `Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`)
-  t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['bar', 'foofoo']))
+  expect(warn).toHaveBeenCalledWith(`Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`, 'BINARIES_CONFLICT')
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
 
   {
     const binLocation = path.join(binTarget, 'bar')
-    t.ok(await exists(binLocation))
+    expect(await exists(binLocation)).toBe(true)
     const content = await fs.readFile(binLocation, 'utf8')
-    t.ok(content.includes('node_modules/bar/index.js'))
+    expect(content).toMatch('node_modules/bar/index.js')
   }
 
   {
     const binLocation = path.join(binTarget, 'foofoo')
-    t.ok(await exists(binLocation))
+    expect(await exists(binLocation)).toBe(true)
     const content = await fs.readFile(binLocation, 'utf8')
-    t.ok(content.includes('node_modules/foo/index.js'))
+    expect(content).toMatch('node_modules/foo/index.js')
   }
-
-  t.end()
 })
 
-test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their name as bin name', async (t) => {
+test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their name as bin name', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   const modulesPath = path.join(binNameConflictsFixture, 'node_modules')
 
@@ -209,50 +189,45 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
     { warn }
   )
 
-  t.equal(warn.args[0][0], `Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`)
-  t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['bar', 'foofoo']))
+  expect(warn).toHaveBeenCalledWith(`Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`, 'BINARIES_CONFLICT')
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
 
   {
     const binLocation = path.join(binTarget, 'bar')
-    t.ok(await exists(binLocation))
+    expect(await exists(binLocation)).toBe(true)
     const content = await fs.readFile(binLocation, 'utf8')
-    t.ok(content.includes('node_modules/bar/index.js'))
+    expect(content).toMatch('node_modules/bar/index.js')
   }
 
   {
     const binLocation = path.join(binTarget, 'foofoo')
-    t.ok(await exists(binLocation))
+    expect(await exists(binLocation)).toBe(true)
     const content = await fs.readFile(binLocation, 'utf8')
-    t.ok(content.includes('node_modules/foo/index.js'))
+    expect(content).toMatch('node_modules/foo/index.js')
   }
-
-  t.end()
 })
 
-test('linkBins() would throw error if package has no name field', async (t) => {
+test('linkBins() would throw error if package has no name field', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   try {
     await linkBins(path.join(noNameFixture, 'node_modules'), binTarget, {
       allowExoticManifests: true,
       warn,
     })
-    t.fail('linkBins should fail when package has no name')
+    fail('linkBins should fail when package has no name')
   } catch (err) {
     const packagePath = normalizePath(path.join(noNameFixture, 'node_modules/simple'))
-    t.equal(err.message, `Package in ${packagePath} must have a name to get bin linked.`)
-    t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_NAME')
-    t.notOk(warn.called)
-    t.end()
+    expect(err.message).toEqual(`Package in ${packagePath} must have a name to get bin linked.`)
+    expect(err.code).toEqual('ERR_PNPM_INVALID_PACKAGE_NAME')
+    expect(warn).not.toHaveBeenCalled()
   }
 })
 
-test('linkBins() would give warning if package has no bin field', async (t) => {
+test('linkBins() would give warning if package has no bin field', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   await linkBins(path.join(noBinFixture, 'packages'), binTarget, {
     allowExoticManifests: true,
@@ -260,20 +235,17 @@ test('linkBins() would give warning if package has no bin field', async (t) => {
   })
 
   const packagePath = normalizePath(path.join(noBinFixture, 'packages/simple'))
-  t.ok(warn.calledWith(`Package in ${packagePath} must have a non-empty bin field to get bin linked.`))
-  t.end()
+  expect(warn).toHaveBeenCalledWith(`Package in ${packagePath} must have a non-empty bin field to get bin linked.`, 'EMPTY_BIN')
 })
 
-test('linkBins() would not give warning if package has no bin field but inside node_modules', async (t) => {
+test('linkBins() would not give warning if package has no bin field but inside node_modules', async () => {
   const binTarget = tempy.directory()
-  t.comment(`linking bins to ${binTarget}`)
-  const warn = sinon.spy()
+  const warn = jest.fn()
 
   await linkBins(path.join(noBinFixture, 'node_modules'), binTarget, {
     allowExoticManifests: true,
     warn,
   })
 
-  t.notOk(warn.called)
-  t.end()
+  expect(warn).not.toHaveBeenCalled()
 })
