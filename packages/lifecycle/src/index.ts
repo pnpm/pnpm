@@ -8,17 +8,8 @@ export default runLifecycleHook
 export { runLifecycleHooksConcurrently, RunLifecycleHookOptions }
 
 export async function runPostinstallHooks (
-  opts: {
-    depPath: string
-    extraBinPaths?: string[]
-    initCwd?: string
-    optional?: boolean
-    pkgRoot: string
+  opts: RunLifecycleHookOptions & {
     prepare?: boolean
-    rawConfig: object
-    rootModulesDir: string
-    shellEmulator?: boolean
-    unsafePerm: boolean
   }
 ): Promise<boolean> {
   const pkg = await readPackageJsonFromDir(opts.pkgRoot)

@@ -1,18 +1,18 @@
 import { ProjectManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
-import runLifecycleHook from './runLifecycleHook'
+import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
 
 export default async function runLifecycleHooksConcurrently (
   stages: string[],
   importers: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string, modulesDir: string }>,
   childConcurrency: number,
-  opts: {
-    extraBinPaths?: string[]
-    rawConfig: object
-    shellEmulator?: boolean
-    stdio?: string
-    unsafePerm: boolean
-  }
+  opts: Pick<RunLifecycleHookOptions,
+  | 'extraBinPaths'
+  | 'rawConfig'
+  | 'shellEmulator'
+  | 'stdio'
+  | 'unsafePerm'
+  >
 ) {
   const importersByBuildIndex = new Map<number, Array<{ rootDir: string, manifest: ProjectManifest, modulesDir: string }>>()
   for (const importer of importers) {
