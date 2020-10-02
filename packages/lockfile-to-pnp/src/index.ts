@@ -13,14 +13,14 @@ import normalizePath = require('normalize-path')
 import path = require('path')
 import R = require('ramda')
 
-export async function lockfileToPnp (lockfileDirectory: string) {
-  const lockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: true })
+export async function lockfileToPnp (lockfileDir: string) {
+  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (!lockfile) throw new Error('Cannot generate a .pnp.js without a lockfile')
   const importerNames: { [importerId: string]: string } = {}
   await Promise.all(
     Object.keys(lockfile.importers)
       .map(async (importerId) => {
-        const importerDirectory = path.join(lockfileDirectory, importerId)
+        const importerDirectory = path.join(lockfileDir, importerId)
         const { manifest } = await readImporterManifest(importerDirectory)
         importerNames[importerId] = manifest.name as string
       })
@@ -29,12 +29,24 @@ export async function lockfileToPnp (lockfileDirectory: string) {
     cliOptions: {},
     packageManager: { name: 'pnpm', version: '*' },
   })
-  const packageRegistry = lockfileToPackageRegistry(lockfile, {
+  await writePnpFile(lockfile, {
     importerNames,
-    lockfileDirectory,
+    lockfileDir,
     registries,
-    virtualStoreDir: virtualStoreDir ?? path.join(lockfileDirectory, 'node_modules/.pnpm'),
+    virtualStoreDir: virtualStoreDir ?? path.join(lockfileDir, 'node_modules/.pnpm'),
   })
+}
+
+export async function writePnpFile (
+  lockfile: Lockfile,
+  opts: {
+    importerNames: { [importerId: string]: string }
+    lockfileDir: string
+    virtualStoreDir: string
+    registries: Registries
+  }
+) {
+  const packageRegistry = lockfileToPackageRegistry(lockfile, opts)
 
   const loaderFile = generateInlinedScript({
     blacklistedLocations: undefined,
@@ -43,14 +55,14 @@ export async function lockfileToPnp (lockfileDirectory: string) {
     packageRegistry,
     shebang: undefined,
   })
-  await fs.writeFile(path.join(lockfileDirectory, '.pnp.js'), loaderFile, 'utf8')
+  await fs.writeFile(path.join(opts.lockfileDir, '.pnp.js'), loaderFile, 'utf8')
 }
 
 export function lockfileToPackageRegistry (
   lockfile: Lockfile,
   opts: {
     importerNames: { [importerId: string]: string }
-    lockfileDirectory: string
+    lockfileDir: string
     virtualStoreDir: string
     registries: Registries
   }
@@ -102,12 +114,15 @@ export function lockfileToPackageRegistry (
     }
 
     // Seems like this field should always contain a relative path
-    const packageLocation = `./${normalizePath(path.join(
+    let packageLocation = normalizePath(path.relative(opts.lockfileDir, path.join(
       opts.virtualStoreDir,
-      pkgIdToFilename(relDepPath, opts.lockfileDirectory),
+      pkgIdToFilename(relDepPath, opts.lockfileDir),
       'node_modules',
       name
-    ))}`
+    )))
+    if (!packageLocation.startsWith('../')) {
+      packageLocation = `./${packageLocation}`
+    }
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],

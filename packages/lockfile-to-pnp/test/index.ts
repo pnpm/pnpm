@@ -1,4 +1,5 @@
 import { lockfileToPackageRegistry } from '../lib'
+import path = require('path')
 
 test('lockfileToPackageRegistry', () => {
   const packageRegistry = lockfileToPackageRegistry({
@@ -54,11 +55,11 @@ test('lockfileToPackageRegistry', () => {
       importer1: 'importer1',
       importer2: 'importer2',
     },
-    lockfileDirectory: '/home/zoli/src/proj',
+    lockfileDir: process.cwd(),
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-    virtualStoreDir: 'node_modules/.pnpm',
+    virtualStoreDir: path.resolve('node_modules/.pnpm'),
   })
 
   const actual = Array.from(
@@ -205,11 +206,11 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
     importerNames: {
       importer: 'importer',
     },
-    lockfileDirectory: '/home/zoli/src/proj',
+    lockfileDir: process.cwd(),
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-    virtualStoreDir: 'node_modules/.pnpm',
+    virtualStoreDir: path.resolve('node_modules/.pnpm'),
   })
 
   const actual = Array.from(
