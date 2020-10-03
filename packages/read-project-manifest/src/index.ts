@@ -19,6 +19,17 @@ const stat = promisify(fs.stat)
 
 type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
+export async function safeReadProjectManifestOnly (projectDir: string) {
+  try {
+    return await readProjectManifestOnly(projectDir)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
+      return null
+    }
+    throw err
+  }
+}
+
 export default async function readProjectManifest (projectDir: string): Promise<{
   fileName: string
   manifest: ProjectManifest

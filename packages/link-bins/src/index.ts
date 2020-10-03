@@ -2,7 +2,7 @@ import PnpmError from '@pnpm/error'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependencyManifest } from '@pnpm/types'
 import Module = require('module')
 import cmdShim = require('@zkochan/cmd-shim')
@@ -125,7 +125,7 @@ async function getPackageBins (
   target: string
 ) {
   const manifest = opts.allowExoticManifests
-    ? await safeReadProjectManifestOnly(target) : await safeReadPkgJson(target)
+    ? (await safeReadProjectManifestOnly(target) as DependencyManifest) : await safeReadPkgJson(target)
 
   if (!manifest) {
     // There's a directory in node_modules without package.json: ${target}.
@@ -180,17 +180,6 @@ async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | nu
     return await readPackageJsonFromDir(pkgDir) as DependencyManifest
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return null
-    }
-    throw err
-  }
-}
-
-async function safeReadProjectManifestOnly (projectDir: string) {
-  try {
-    return await readProjectManifestOnly(projectDir) as DependencyManifest
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
       return null
     }
     throw err
