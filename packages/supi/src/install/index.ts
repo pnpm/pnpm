@@ -14,7 +14,7 @@ import headless from '@pnpm/headless'
 import {
   runLifecycleHooksConcurrently,
 } from '@pnpm/lifecycle'
-import linkBins from '@pnpm/link-bins'
+import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   ProjectSnapshot,
   writeCurrentLockfile,
@@ -25,11 +25,11 @@ import logger, { streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
   DependenciesGraph,
   DependenciesGraphNode,
-  ImporterToResolve,
 } from '@pnpm/resolve-dependencies'
 import {
   PreferredVersions,
@@ -37,6 +37,7 @@ import {
 } from '@pnpm/resolver-base'
 import {
   DependenciesField,
+  DependencyManifest,
   ProjectManifest,
 } from '@pnpm/types'
 import parseWantedDependencies from '../parseWantedDependencies'
@@ -712,16 +713,47 @@ async function installInContext (
       })
     }
 
+    const binWarn = (prefix: string, message: string) => logger.info({ message, prefix })
     if (result.newDepPaths?.length) {
       const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
         optional: opts.include.optionalDependencies,
-        warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDir }),
+        warn: binWarn.bind(null, opts.lockfileDir),
       })
     }
 
     await Promise.all(projectsToResolve.map(async (project, index) => {
-      const linkedPackages = await linkBinsOfImporter(project)
+      let linkedPackages!: string[]
+      if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
+        linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
+          allowExoticManifests: true,
+          warn: binWarn.bind(null, project.rootDir),
+        })
+      } else {
+        const directPkgs = [
+          ...R.props<string, DependenciesGraphNode>(
+            Object.values(dependenciesByProjectId[project.id]).filter((depPath) => !ctx.skipped.has(depPath)),
+            dependenciesGraph
+          ),
+          ...linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
+            dir: path.join(project.rootDir, pkgId.substring(5)),
+            fetchingBundledManifest: undefined,
+          })),
+        ]
+        linkedPackages = await linkBinsOfPackages(
+          (
+            await Promise.all(
+              directPkgs.map(async (dep) => ({
+                location: dep.dir,
+                manifest: await dep.fetchingBundledManifest?.() ?? await safeReadProjectManifestOnly(dep.dir),
+              }))
+            )
+          )
+            .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+          project.binsDir,
+          { warn: binWarn.bind(null, project.rootDir) }
+        )
+      }
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation.includes('install')) {
         projectToInstall.wantedDependencies.forEach(pkg => {
@@ -846,12 +878,7 @@ function prefIsLocalTarball (pref: string) {
 
 const limitLinking = pLimit(16)
 
-function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ImporterToResolve) {
-  const warn = (message: string) => logger.info({ message, prefix: rootDir })
-  return linkBins(modulesDir, binsDir, { allowExoticManifests: true, warn })
-}
-
-function linkAllBins (
+async function linkAllBins (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
@@ -859,7 +886,7 @@ function linkAllBins (
     warn: (message: string) => void
   }
 ) {
-  return Promise.all(
+  return R.unnest(await Promise.all(
     depNodes.map(depNode => limitLinking(() => linkBinsOfDependencies(depNode, depGraph, opts)))
-  )
+  ))
 }

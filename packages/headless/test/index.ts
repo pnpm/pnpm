@@ -761,7 +761,7 @@ test('installing with no symlinks', async (t) => {
     symlink: false,
   }))
 
-  t.deepEqual(await fs.readdir(path.join(prefix, 'node_modules')), ['.modules.yaml', '.pnpm'])
+  t.deepEqual(await fs.readdir(path.join(prefix, 'node_modules')), ['.bin', '.modules.yaml', '.pnpm'])
   t.deepEqual(await fs.readdir(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules')), ['rimraf'])
 
   const project = assertProject(t, prefix)

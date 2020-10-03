@@ -1237,10 +1237,10 @@ test('installing with no symlinks', async (t) => {
       version: '0.0.0',
     },
     ['rimraf@2.7.1'],
-    await testDefaults({ symlink: false })
+    await testDefaults({ fastUnpack: false, symlink: false })
   )
 
-  t.deepEqual(await fs.readdir(path.resolve('node_modules')), ['.modules.yaml', '.pnpm'])
+  t.deepEqual(await fs.readdir(path.resolve('node_modules')), ['.bin', '.modules.yaml', '.pnpm'])
   t.deepEqual(await fs.readdir(path.resolve('node_modules/.pnpm/rimraf@2.7.1/node_modules')), ['rimraf'])
 
   t.ok(await project.readCurrentLockfile())

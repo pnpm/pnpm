@@ -44,7 +44,7 @@ import {
 } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   PackageFilesResponse,
   StoreController,
@@ -328,7 +328,26 @@ export default async (opts: HeadlessOptions) => {
   }
 
   await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
-  await Promise.all(opts.projects.map(linkBinsOfImporter))
+  await Promise.all(opts.projects.map(async (project) => {
+    if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
+      await linkBinsOfImporter(project)
+    } else {
+      const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+      await linkBinsOfPackages(
+        (
+          await Promise.all(
+            directPkgDirs.map(async (dir) => ({
+              location: dir,
+              manifest: await safeReadProjectManifestOnly(dir),
+            }))
+          )
+        )
+          .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+        project.binsDir,
+        { warn: (message: string) => logger.info({ message, prefix: project.rootDir }) }
+      )
+    }
+  }))
 
   if (currentLockfile && !R.equals(opts.projects.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
@@ -570,7 +589,7 @@ async function lockfileToDepGraph (
       }
 
       const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
-      graph[dir].children = await getChildrenPaths(ctx, allDeps, peerDeps)
+      graph[dir].children = await getChildrenPaths(ctx, allDeps, peerDeps, '.')
     }
     for (const importerId of opts.importerIds) {
       const projectSnapshot = lockfile.importers[importerId]
@@ -579,7 +598,7 @@ async function lockfileToDepGraph (
         ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
         ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
       }
-      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps, null)
+      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps, null, importerId)
     }
   }
   return { graph, directDependenciesByImporterId }
@@ -599,13 +618,14 @@ async function getChildrenPaths (
     storeController: StoreController
   },
   allDeps: {[alias: string]: string},
-  peerDeps: Set<string> | null
+  peerDeps: Set<string> | null,
+  importerId: string
 ) {
   const children: {[alias: string]: string} = {}
   for (const alias of Object.keys(allDeps)) {
     const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
+      children[alias] = path.resolve(ctx.lockfileDir, importerId, allDeps[alias].substr(5))
       continue
     }
     const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
