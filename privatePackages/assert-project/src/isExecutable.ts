@@ -14,6 +14,6 @@ export default async (t: Test, filePath: string) => {
   }
 
   const stat = await fs.stat(filePath)
-  t.equal(stat.mode, parseInt('100755', 8), `${filePath} is executable`)
+  t.ok((stat.mode & 0o111) === 0o111, `${filePath} is executable`)
   t.ok(stat.isFile(), `${filePath} refers to a file`)
 }
