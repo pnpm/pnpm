@@ -2,17 +2,17 @@ import { ProjectManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
 import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
 
+export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
+| 'depPath'
+| 'pkgRoot'
+| 'rootModulesDir'
+>
+
 export default async function runLifecycleHooksConcurrently (
   stages: string[],
   importers: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string, modulesDir: string }>,
   childConcurrency: number,
-  opts: Pick<RunLifecycleHookOptions,
-  | 'extraBinPaths'
-  | 'rawConfig'
-  | 'shellEmulator'
-  | 'stdio'
-  | 'unsafePerm'
-  >
+  opts: RunLifecycleHooksConcurrentlyOptions
 ) {
   const importersByBuildIndex = new Map<number, Array<{ rootDir: string, manifest: ProjectManifest, modulesDir: string }>>()
   for (const importer of importers) {
@@ -28,14 +28,10 @@ export default async function runLifecycleHooksConcurrently (
     return importers.map(({ manifest, modulesDir, rootDir }) =>
       async () => {
         const runLifecycleHookOpts = {
+          ...opts,
           depPath: rootDir,
-          extraBinPaths: opts.extraBinPaths,
           pkgRoot: rootDir,
-          rawConfig: opts.rawConfig,
           rootModulesDir: modulesDir,
-          shellEmulator: opts.shellEmulator,
-          stdio: opts.stdio,
-          unsafePerm: opts.unsafePerm,
         }
         for (const stage of stages) {
           if (!manifest.scripts || !manifest.scripts[stage]) continue
