@@ -1,5 +1,4 @@
 import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
-import test = require('tape')
 
 const DEFAULT_LOCKFILE_FIELDS = {
   lockfileVersion: 3,
@@ -10,8 +9,8 @@ const DEFAULT_PKG_FIELDS = {
   version: '1.0.0',
 }
 
-test('satisfiesPackageManifest()', t => {
-  t.ok(satisfiesPackageManifest({
+test('satisfiesPackageManifest()', () => {
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -22,8 +21,8 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0' },
-  }, '.'))
-  t.ok(satisfiesPackageManifest({
+  }, '.')).toBe(true)
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -35,8 +34,8 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0' },
-  }, '.'))
-  t.ok(satisfiesPackageManifest({
+  }, '.')).toBe(true)
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -47,8 +46,8 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     devDependencies: { foo: '^1.0.0' },
-  }, '.'))
-  t.ok(satisfiesPackageManifest({
+  }, '.')).toBe(true)
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -59,8 +58,8 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     optionalDependencies: { foo: '^1.0.0' },
-  }, '.'))
-  t.notOk(satisfiesPackageManifest({
+  }, '.')).toBe(true)
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -71,8 +70,8 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     optionalDependencies: { foo: '^1.0.0' },
-  }, '.'), 'dep type differs')
-  t.notOk(satisfiesPackageManifest({
+  }, '.')).toBe(false)
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -83,8 +82,8 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.1.0' },
-  }, '.'), 'spec does not match')
-  t.notOk(satisfiesPackageManifest({
+  }, '.')).toBe(false)
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -95,8 +94,9 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0', bar: '2.0.0' },
-  }, '.'), 'dep spec missing')
-  t.notOk(satisfiesPackageManifest({
+  }, '.')).toBe(false)
+
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -107,7 +107,7 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0', bar: '2.0.0' },
-  }, '.'))
+  }, '.')).toBe(false)
 
   {
     const lockfile = {
@@ -137,7 +137,7 @@ test('satisfiesPackageManifest()', t => {
         bar: '2.0.0',
       },
     }
-    t.ok(satisfiesPackageManifest(lockfile, pkg, '.'))
+    expect(satisfiesPackageManifest(lockfile, pkg, '.')).toBe(true)
   }
 
   {
@@ -162,7 +162,7 @@ test('satisfiesPackageManifest()', t => {
         bar: '2.0.0',
       },
     }
-    t.notOk(satisfiesPackageManifest(lockfile, pkg, '.'))
+    expect(satisfiesPackageManifest(lockfile, pkg, '.')).toBe(false)
   }
 
   {
@@ -186,10 +186,10 @@ test('satisfiesPackageManifest()', t => {
         bar: '2.0.0',
       },
     }
-    t.notOk(satisfiesPackageManifest(lockfile, pkg, '.'))
+    expect(satisfiesPackageManifest(lockfile, pkg, '.')).toBe(false)
   }
 
-  t.ok(satisfiesPackageManifest({
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -200,9 +200,9 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0' },
-  }, '.'), 'linked packages that are not in package.json are ignored')
+  }, '.')).toBe(true)
 
-  t.notOk(satisfiesPackageManifest({
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       'packages/foo': {
@@ -213,9 +213,9 @@ test('satisfiesPackageManifest()', t => {
   }, {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0' },
-  }, '.'))
+  }, '.')).toBe(false)
 
-  t.ok(satisfiesPackageManifest({
+  expect(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -235,7 +235,5 @@ test('satisfiesPackageManifest()', t => {
     devDependencies: {
       foo: '1.0.0',
     },
-  }, '.'))
-
-  t.end()
+  }, '.')).toBe(true)
 })
