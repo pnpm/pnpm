@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [2762781cc]
+  - @pnpm/read-project-manifest@1.1.0
+
 ## 5.0.8
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/link-bins
 
+## 5.3.14
+
+### Patch Changes
+
+- 51311d3ba: Always return a result.
+- Updated dependencies [2762781cc]
+  - @pnpm/read-project-manifest@1.1.0
+
 ## 5.3.13
 
 ### Patch Changes

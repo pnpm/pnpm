@@ -1,5 +1,17 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.2.0
+
+### Minor Changes
+
+- faac0745b: Rename lockfileDirectory to lockfileDir.
+
+### Patch Changes
+
+- faac0745b: Always set the packageLocation correctly.
+- Updated dependencies [2762781cc]
+  - @pnpm/read-project-manifest@1.1.0
+
 ## 0.1.4
 
 ### Patch Changes

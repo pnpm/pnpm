@@ -1,6 +1,6 @@
 # pnpm
 
-## 5.9.0-1
+## 5.9.0-2
 
 ### Minor Changes
 
@@ -11,6 +11,7 @@
 ### Patch Changes
 
 - Installation should fail if there are references to a project that has been removed from the workspace [#2905](https://github.com/pnpm/pnpm/pull/2905).
+- pnpm should not suggest to update pnpm to a newer version, when the installed version is bigger than latest.
 
 ## 5.8.0
 

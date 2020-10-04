@@ -1,5 +1,21 @@
 # supi
 
+## 0.43.4
+
+### Patch Changes
+
+- fb92e9f88: Perform less filesystem operations during the creation of bin files of direct dependencies.
+- Updated dependencies [fb92e9f88]
+- Updated dependencies [2762781cc]
+- Updated dependencies [51311d3ba]
+- Updated dependencies [fb92e9f88]
+  - @pnpm/headless@14.3.1
+  - @pnpm/read-project-manifest@1.1.0
+  - @pnpm/link-bins@5.3.14
+  - @pnpm/build-modules@5.0.19
+  - @pnpm/hoist@4.0.13
+  - @pnpm/package-requester@12.1.0
+
 ## 0.43.3
 
 ### Patch Changes

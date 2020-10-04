@@ -1,5 +1,19 @@
 # @pnpm/headless
 
+## 14.3.1
+
+### Patch Changes
+
+- fb92e9f88: bin files of dependencies linked from the workspace, should be created.
+- fb92e9f88: Perform less filesystem operations during the creation of bin files of direct dependencies.
+- Updated dependencies [2762781cc]
+- Updated dependencies [51311d3ba]
+  - @pnpm/read-project-manifest@1.1.0
+  - @pnpm/link-bins@5.3.14
+  - @pnpm/build-modules@5.0.19
+  - @pnpm/hoist@4.0.13
+  - @pnpm/package-requester@12.1.0
+
 ## 14.3.0
 
 ### Minor Changes

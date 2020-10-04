@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-project-manifest",
-  "version": "1.0.13",
+  "version": "1.1.0",
   "description": "Read a project manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

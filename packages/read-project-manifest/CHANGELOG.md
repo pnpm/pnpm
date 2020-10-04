@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 1.1.0
+
+### Minor Changes
+
+- 2762781cc: safeReadProjectManifestOnly() added.
+
 ## 1.0.13
 
 ### Patch Changes
