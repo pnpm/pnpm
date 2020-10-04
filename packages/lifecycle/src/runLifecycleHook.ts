@@ -8,6 +8,7 @@ export interface RunLifecycleHookOptions {
   args?: string[]
   depPath: string
   extraBinPaths?: string[]
+  extraEnv?: Record<string, string>
   initCwd?: string
   optional?: boolean
   pkgRoot: string
@@ -54,6 +55,7 @@ export default async function runLifecycleHook (
     dir: opts.rootModulesDir,
     extraBinPaths: opts.extraBinPaths ?? [],
     extraEnv: {
+      ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),
       PNPM_SCRIPT_SRC_DIR: opts.pkgRoot,
     },

@@ -4,7 +4,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import readImporterManifest from '@pnpm/read-project-manifest'
+import readImporterManifest, { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
 import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
@@ -40,13 +40,24 @@ export async function lockfileToPnp (lockfileDir: string) {
 export async function writePnpFile (
   lockfile: Lockfile,
   opts: {
-    importerNames: { [importerId: string]: string }
+    importerNames?: Record<string, string>
     lockfileDir: string
     virtualStoreDir: string
     registries: Registries
   }
 ) {
-  const packageRegistry = lockfileToPackageRegistry(lockfile, opts)
+  const importerNames = opts.importerNames ?? R.fromPairs(
+    await Promise.all(
+      Object.keys(lockfile.importers)
+        .map(async (importerId) => [
+          importerId,
+          (await readProjectManifestOnly(path.join(opts.lockfileDir, importerId))).name! as string,
+        ])) as Array<[string, string]>
+  )
+  const packageRegistry = lockfileToPackageRegistry(lockfile, {
+    ...opts,
+    importerNames,
+  })
 
   const loaderFile = generateInlinedScript({
     blacklistedLocations: undefined,

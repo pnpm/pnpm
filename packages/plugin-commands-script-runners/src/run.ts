@@ -7,8 +7,12 @@ import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import runLifecycleHooks from '@pnpm/lifecycle'
+import runLifecycleHooks, {
+  makeNodeRequireOption,
+  RunLifecycleHookOptions,
+} from '@pnpm/lifecycle'
 import { ProjectManifest } from '@pnpm/types'
+import existsInDir from './existsInDir'
 import runRecursive, { RecursiveRunOpts } from './runRecursive'
 import path = require('path')
 import R = require('ramda')
@@ -144,7 +148,7 @@ so you may run "pnpm -w ${scriptName}"`,
     }
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
   }
-  const lifecycleOpts = {
+  const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
     pkgRoot: dir,
@@ -154,6 +158,12 @@ so you may run "pnpm -w ${scriptName}"`,
     shellEmulator: opts.shellEmulator,
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+  }
+  const existsPnp = existsInDir.bind(null, '.pnp.js')
+  const pnpPath = (opts.workspaceDir && await existsPnp(opts.workspaceDir)) ??
+    await existsPnp(dir)
+  if (pnpPath) {
+    lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
   }
   if (manifest.scripts?.[`pre${scriptName}`]) {
     await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)

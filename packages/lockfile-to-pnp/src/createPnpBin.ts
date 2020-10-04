@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { lockfileToPnp } from '.'
 
 lockfileToPnp(process.cwd())

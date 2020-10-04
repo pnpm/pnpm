@@ -16,6 +16,7 @@ export interface StrictInstallOptions {
   forceSharedLockfile: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
+  enablePnp: boolean
   extraBinPaths: string[]
   useLockfile: boolean
   linkWorkspacePackagesDepth: number
@@ -88,6 +89,7 @@ const defaults = async (opts: InstallOptions) => {
   return {
     childConcurrency: 5,
     depth: 0,
+    enablePnp: false,
     engineStrict: false,
     force: false,
     forceSharedLockfile: false,

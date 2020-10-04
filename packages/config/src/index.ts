@@ -51,6 +51,7 @@ export const types = Object.assign({
   loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
   'modules-dir': String,
   'network-concurrency': Number,
+  'node-linker': ['pnp'],
   'npm-path': String,
   offline: Boolean,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
@@ -376,6 +377,7 @@ export default async (
   if (!pnpmConfig.noProxy) {
     pnpmConfig.noProxy = getProcessEnv('no_proxy')
   }
+  pnpmConfig.enablePnp = pnpmConfig['nodeLinker'] === 'pnp'
   return { config: pnpmConfig, warnings }
 }
 

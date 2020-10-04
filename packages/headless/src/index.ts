@@ -17,7 +17,10 @@ import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
 import hoist from '@pnpm/hoist'
-import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
+import {
+  runLifecycleHooksConcurrently,
+  makeNodeRequireOption,
+} from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
@@ -27,6 +30,7 @@ import {
   readWantedLockfile,
   writeCurrentLockfile,
 } from '@pnpm/lockfile-file'
+import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
@@ -70,6 +74,7 @@ export interface HeadlessOptions {
     nodeVersion: string
     pnpmVersion: string
   }
+  enablePnp?: boolean
   engineStrict: boolean
   extraBinPaths?: string[]
   ignoreScripts: boolean
@@ -211,6 +216,13 @@ export default async (opts: HeadlessOptions) => {
       virtualStoreDir,
     } as LockfileToDepGraphOptions
   )
+  if (opts.enablePnp) {
+    await writePnpFile(filteredLockfile, {
+      lockfileDir,
+      virtualStoreDir,
+      registries: opts.registries,
+    })
+  }
   const depNodes = R.values(graph)
 
   statsLogger.debug({
@@ -313,9 +325,14 @@ export default async (opts: HeadlessOptions) => {
     if (opts.hoistPattern) {
       extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
     }
+    let extraEnv: Record<string, string> | undefined
+    if (opts.enablePnp) {
+      extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.js'))
+    }
     await buildModules(graph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
+      extraEnv,
       lockfileDir,
       optional: opts.include.optionalDependencies,
       rawConfig: opts.rawConfig,

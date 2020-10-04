@@ -4,6 +4,12 @@ import runLifecycleHooksConcurrently, { RunLifecycleHooksConcurrentlyOptions } f
 import path = require('path')
 import exists = require('path-exists')
 
+export function makeNodeRequireOption (modulePath: string) {
+  return {
+    NODE_OPTIONS: `--require=${JSON.stringify(modulePath)}`,
+  }
+}
+
 export default runLifecycleHook
 export {
   runLifecycleHooksConcurrently,
