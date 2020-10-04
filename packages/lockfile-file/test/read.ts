@@ -9,18 +9,17 @@ import {
 } from '@pnpm/lockfile-file'
 import fs = require('fs')
 import path = require('path')
-import test = require('tape')
 import tempy = require('tempy')
 import yaml = require('yaml-tag')
 
 process.chdir(__dirname)
 
-test('readWantedLockfile()', async t => {
+test('readWantedLockfile()', async () => {
   {
     const lockfile = await readWantedLockfile(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
     })
-    t.equal(lockfile!.lockfileVersion, 3)
+    expect(lockfile!.lockfileVersion).toEqual(3)
   }
 
   try {
@@ -28,24 +27,20 @@ test('readWantedLockfile()', async t => {
       ignoreIncompatible: false,
       wantedVersion: 3,
     })
-    t.fail()
+    fail()
   } catch (err) {
-    t.equal(err.code, 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
+    expect(err.code).toEqual('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
   }
-  t.end()
 })
 
-test('readCurrentLockfile()', async t => {
-  {
-    const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
-      ignoreIncompatible: false,
-    })
-    t.equal(lockfile!.lockfileVersion, 3)
-  }
-  t.end()
+test('readCurrentLockfile()', async () => {
+  const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
+    ignoreIncompatible: false,
+  })
+  expect(lockfile!.lockfileVersion).toEqual(3)
 })
 
-test('writeWantedLockfile()', async t => {
+test('writeWantedLockfile()', async () => {
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {
@@ -84,12 +79,11 @@ test('writeWantedLockfile()', async t => {
     registry: 'https://registry.npmjs.org',
   }
   await writeWantedLockfile(projectPath, wantedLockfile)
-  t.equal(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), null, 'current lockfile read')
-  t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile, 'wanted lockfile read')
-  t.end()
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toBeNull()
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
 })
 
-test('writeCurrentLockfile()', async t => {
+test('writeCurrentLockfile()', async () => {
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {
@@ -128,14 +122,13 @@ test('writeCurrentLockfile()', async t => {
     registry: 'https://registry.npmjs.org',
   }
   await writeCurrentLockfile(projectPath, wantedLockfile)
-  t.equal(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), null)
-  t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
-  t.end()
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toBeNull()
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
 })
 
-test('existsWantedLockfile()', async t => {
+test('existsWantedLockfile()', async () => {
   const projectPath = tempy.directory()
-  t.notOk(await existsWantedLockfile(projectPath))
+  expect(await existsWantedLockfile(projectPath)).toBe(false)
   await writeWantedLockfile(projectPath, {
     importers: {
       '.': {
@@ -171,11 +164,10 @@ test('existsWantedLockfile()', async t => {
       },
     },
   })
-  t.ok(await existsWantedLockfile(projectPath))
-  t.end()
+  expect(await existsWantedLockfile(projectPath)).toBe(true)
 })
 
-test('writeLockfiles()', async t => {
+test('writeLockfiles()', async () => {
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {
@@ -218,12 +210,11 @@ test('writeLockfiles()', async t => {
     wantedLockfile,
     wantedLockfileDir: projectPath,
   })
-  t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
-  t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
-  t.end()
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
 })
 
-test('writeLockfiles() when no specifiers but dependencies present', async t => {
+test('writeLockfiles() when no specifiers but dependencies present', async () => {
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {
@@ -242,12 +233,11 @@ test('writeLockfiles() when no specifiers but dependencies present', async t => 
     wantedLockfile,
     wantedLockfileDir: projectPath,
   })
-  t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
-  t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
-  t.end()
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
 })
 
-test('write does not use yaml anchors/aliases', async t => {
+test('write does not use yaml anchors/aliases', async () => {
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {
@@ -303,8 +293,6 @@ test('write does not use yaml anchors/aliases', async t => {
   })
 
   const lockfileContent = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
-  t.ok(!lockfileContent.includes('&'), 'lockfile contains no anchors')
-  t.ok(!lockfileContent.includes('*'), 'lockfile contains no aliases')
-
-  t.end()
+  expect(lockfileContent).not.toMatch('&')
+  expect(lockfileContent).not.toMatch('*')
 })
