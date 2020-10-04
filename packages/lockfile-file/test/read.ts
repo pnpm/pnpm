@@ -34,12 +34,10 @@ test('readWantedLockfile()', async () => {
 })
 
 test('readCurrentLockfile()', async () => {
-  {
-    const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
-      ignoreIncompatible: false,
-    })
-    expect(lockfile!.lockfileVersion).toEqual(3)
-  }
+  const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
+    ignoreIncompatible: false,
+  })
+  expect(lockfile!.lockfileVersion).toEqual(3)
 })
 
 test('writeWantedLockfile()', async () => {
