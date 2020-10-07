@@ -13,7 +13,7 @@
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/modules-yaml/coverage ts-node packages/modules-yaml/test --type-check",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
