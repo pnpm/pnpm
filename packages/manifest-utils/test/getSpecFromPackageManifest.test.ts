@@ -1,8 +1,7 @@
 import { getSpecFromPackageManifest } from '@pnpm/manifest-utils'
-import test = require('tape')
 
-test('getSpecFromPackageManifest()', (t) => {
-  t.equal(
+test('getSpecFromPackageManifest()', () => {
+  expect(
     getSpecFromPackageManifest({
       dependencies: {
         foo: '3.0.0',
@@ -13,11 +12,9 @@ test('getSpecFromPackageManifest()', (t) => {
       optionalDependencies: {
         foo: '1.0.0',
       },
-    }, 'foo'),
-    '1.0.0',
-    'optionalDependencies is first priority'
-  )
-  t.equal(
+    }, 'foo')).toEqual('1.0.0')
+
+  expect(
     getSpecFromPackageManifest({
       dependencies: {
         foo: '3.0.0',
@@ -25,18 +22,12 @@ test('getSpecFromPackageManifest()', (t) => {
       devDependencies: {
         foo: '2.0.0',
       },
-    }, 'foo'),
-    '3.0.0',
-    'dependencies is second priority'
-  )
-  t.equal(
+    }, 'foo')).toEqual('3.0.0')
+
+  expect(
     getSpecFromPackageManifest({
       devDependencies: {
         foo: '2.0.0',
       },
-    }, 'foo'),
-    '2.0.0',
-    'devDependencies is third priority'
-  )
-  t.end()
+    }, 'foo')).toEqual('2.0.0')
 })
