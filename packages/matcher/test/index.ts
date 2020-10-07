@@ -1,35 +1,33 @@
 import matcher from '@pnpm/matcher'
-import test = require('tape')
 
-test('matcher()', (t) => {
+test('matcher()', () => {
   {
     const match = matcher('*')
-    t.ok(match('@eslint/plugin-foo'))
-    t.ok(match('express'))
+    expect(match('@eslint/plugin-foo')).toBe(true)
+    expect(match('express')).toBe(true)
   }
   {
     const match = matcher(['eslint-*'])
-    t.ok(match('eslint-plugin-foo'))
-    t.notOk(match('express'))
+    expect(match('eslint-plugin-foo')).toBe(true)
+    expect(match('express')).toBe(false)
   }
   {
     const match = matcher(['*plugin*'])
-    t.ok(match('@eslint/plugin-foo'))
-    t.notOk(match('express'))
+    expect(match('@eslint/plugin-foo')).toBe(true)
+    expect(match('express')).toBe(false)
   }
   {
     const match = matcher(['a*c'])
-    t.ok(match('abc'))
+    expect(match('abc')).toBe(true)
   }
   {
     const match = matcher(['*-positive'])
-    t.ok(match('is-positive'))
+    expect(match('is-positive')).toBe(true)
   }
   {
     const match = matcher(['foo', 'bar'])
-    t.ok(match('foo'))
-    t.ok(match('bar'))
-    t.notOk(match('express'))
+    expect(match('foo')).toBe(true)
+    expect(match('bar')).toBe(true)
+    expect(match('express')).toBe(false)
   }
-  t.end()
 })
