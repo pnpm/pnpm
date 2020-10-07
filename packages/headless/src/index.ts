@@ -217,7 +217,11 @@ export default async (opts: HeadlessOptions) => {
     } as LockfileToDepGraphOptions
   )
   if (opts.enablePnp) {
+    const importerNames = R.fromPairs(
+      opts.projects.map(({ manifest, id }) => [id, manifest.name ?? id])
+    )
     await writePnpFile(filteredLockfile, {
+      importerNames,
       lockfileDir,
       virtualStoreDir,
       registries: opts.registries,

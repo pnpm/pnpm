@@ -690,7 +690,11 @@ async function installInContext (
     )
     await finishLockfileUpdates()
     if (opts.enablePnp) {
+      const importerNames = R.fromPairs(
+        projects.map(({ manifest, id }) => [id, manifest.name ?? id])
+      )
       await writePnpFile(result.currentLockfile, {
+        importerNames,
         lockfileDir: ctx.lockfileDir,
         virtualStoreDir: ctx.virtualStoreDir,
         registries: opts.registries,
