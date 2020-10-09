@@ -9,6 +9,8 @@ import execa = require('execa')
 import fs = require('mz/fs')
 import test = require('tape')
 
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
+
 test('pnpm recursive exec', async (t) => {
   preparePackages(t, [
     {
@@ -245,6 +247,76 @@ test('pnpm exec fails without the recursive=true option', async (t) => {
   }
 
   t.equal(err.code, 'ERR_PNPM_EXEC_NOT_RECURSIVE')
+
+  t.end()
+})
+
+test('pnpm recursive exec works with PnP', async (t) => {
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output1.json',
+        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output1.json',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+      },
+    },
+  ])
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ], {
+    env: {
+      NPM_CONFIG_NODE_LINKER: 'pnp',
+      NPM_CONFIG_SYMLINK: 'false',
+    },
+  })
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['npm', 'run', 'build'])
+
+  const outputs1 = await import(path.resolve('output1.json')) as string[]
+  const outputs2 = await import(path.resolve('output2.json')) as string[]
+
+  t.deepEqual(outputs1, ['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  t.deepEqual(outputs2, ['project-1', 'project-3'])
 
   t.end()
 })
