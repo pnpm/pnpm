@@ -41,7 +41,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "engines": {
-    "node": ">=10.14"
+    "node": ">=10.16"
   },
   "files": [
     "lib",

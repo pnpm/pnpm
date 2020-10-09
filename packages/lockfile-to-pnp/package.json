@@ -6,7 +6,7 @@
   "typings": "lib/index.d.ts",
   "bin": "lib/createPnpBin.js",
   "engines": {
-    "node": ">=10.14"
+    "node": ">=10.16"
   },
   "files": [
     "lib",

@@ -21,7 +21,7 @@
     "fetcher"
   ],
   "engines": {
-    "node": ">=10.14"
+    "node": ">=10.16"
   },
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
