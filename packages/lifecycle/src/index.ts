@@ -5,9 +5,9 @@ import path = require('path')
 import exists = require('path-exists')
 
 export function makeNodeRequireOption (modulePath: string) {
-  return {
-    NODE_OPTIONS: `--require=${JSON.stringify(modulePath)}`,
-  }
+  let { NODE_OPTIONS } = process.env
+  NODE_OPTIONS = `${NODE_OPTIONS ?? ''} --require=${modulePath}`.trim()
+  return { NODE_OPTIONS }
 }
 
 export default runLifecycleHook
