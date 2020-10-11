@@ -850,7 +850,7 @@ async function toResolveImporter (
   project: ImporterToUpdate
 ) {
   const allDeps = getWantedDependencies(project.manifest)
-  const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
+  const { nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
     modulesDir: project.modulesDir,
     projectDir: project.rootDir,
@@ -890,8 +890,7 @@ async function toResolveImporter (
     ...project,
     hasRemovedDependencies: Boolean(project.removePackages?.length),
     preferredVersions: opts.preferredVersions ?? (project.manifest && getPreferredVersionsFromPackage(project.manifest)) ?? {},
-    wantedDependencies: wantedDependencies
-      .filter(({ alias, updateDepth }) => updateDepth >= 0 || !linkedAliases.has(alias)),
+    wantedDependencies,
   }
 }
 

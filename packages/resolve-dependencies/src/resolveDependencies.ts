@@ -358,7 +358,7 @@ function getDepsToResolve (
   // The only reason we resolve children in case the package depends on peers
   // is to get information about the existing dependencies, so that they can
   // be merged with the resolved peers.
-  const proceedAll = options.proceed
+  let proceedAll = options.proceed
   const allPeers = new Set<string>()
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
@@ -393,6 +393,15 @@ function getDepsToResolve (
       Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
         allPeers.add(peerName)
       })
+    }
+    if (!infoFromLockfile && !proceedAll) {
+      // In this case we don't know if the package depends on peer dependencies, so we proceed all.
+      proceedAll = true
+      for (const extendedWantedDep of extendedWantedDeps) {
+        if (!extendedWantedDep.proceed) {
+          extendedWantedDep.proceed = true
+        }
+      }
     }
     extendedWantedDeps.push({
       infoFromLockfile,
