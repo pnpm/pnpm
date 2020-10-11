@@ -38,7 +38,7 @@
     "@pnpm/resolver-base": "workspace:7.0.3",
     "@pnpm/tarball-fetcher": "workspace:8.2.2",
     "credentials-by-uri": "^2.0.0",
-    "mem": "^6.1.1"
+    "mem": "^8.0.0"
   },
   "devDependencies": {
     "@pnpm/client": "link:",

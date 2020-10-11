@@ -199,7 +199,7 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       credentials-by-uri: 2.0.0
-      mem: 6.1.1
+      mem: 8.0.0
     devDependencies:
       '@pnpm/client': 'link:'
       '@pnpm/logger': 3.2.2
@@ -213,7 +213,7 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.3'
       '@pnpm/tarball-fetcher': 'workspace:8.2.2'
       credentials-by-uri: ^2.0.0
-      mem: ^6.1.1
+      mem: ^8.0.0
   packages/command:
     specifiers: {}
   packages/common-cli-options-help:
@@ -1620,7 +1620,7 @@ importers:
       enquirer: 2.3.6
       is-ci: 2.0.0
       is-subdir: 1.1.1
-      mem: 6.1.1
+      mem: 8.0.0
       mz: 2.7.0
       p-filter: 2.1.0
       p-limit: 3.0.2
@@ -1693,7 +1693,7 @@ importers:
       is-ci: ^2.0.0
       is-subdir: ^1.1.1
       load-json-file: ^6.2.0
-      mem: ^6.1.1
+      mem: ^8.0.0
       mz: ^2.7.0
       p-filter: ^2.1.0
       p-limit: ^3.0.2
@@ -1926,7 +1926,7 @@ importers:
       dependency-path: 'link:../dependency-path'
       graph-sequencer: 2.0.0
       load-json-file: 6.2.0
-      mem: 6.1.1
+      mem: 8.0.0
       p-limit: 3.0.2
       ramda: 0.27.1
       read-ini-file: 3.0.0
@@ -1979,7 +1979,7 @@ importers:
       execa: ^4.0.3
       graph-sequencer: 2.0.0
       load-json-file: ^6.2.0
-      mem: ^6.1.1
+      mem: ^8.0.0
       p-limit: ^3.0.2
       path-exists: ^4.0.0
       ramda: ^0.27.1
@@ -10405,6 +10405,15 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-Ci6bIfq/UgcxPTYa8dQQ5FY3BzKkT894bwXWXxC/zqs0XgMO2cT20CGkOqda7gZNkmK5VP4x89IGZ6K7hfbn3Q==
+  /mem/8.0.0:
+    dependencies:
+      map-age-cleaner: 0.1.3
+      mimic-fn: 3.1.0
+    dev: false
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-qrcJOe6uD+EW8Wrci1Vdiua/15Xw3n/QnaNXE7varnB6InxSk7nu3/i5jfy3S6kWxr8WYJ6R1o0afMUtvorTsA==
   /memorystream/0.3.1:
     dev: true
     engines:
