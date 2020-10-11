@@ -54,6 +54,9 @@ test('root dependency that has a peer is correctly updated after its version cha
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: true,
+    rawLocalConfig: {
+      'frozen-lockfile': false,
+    },
   })
 
   {
