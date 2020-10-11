@@ -600,7 +600,7 @@ async function installInContext (
     !opts.currentLockfileIsUpToDate ||
     opts.force
   const _toResolveImporter = toResolveImporter.bind(null, {
-    defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,
+    defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : 0,
     lockfileOnly: opts.lockfileOnly,
     preferredVersions,
     storeDir: ctx.storeDir,
