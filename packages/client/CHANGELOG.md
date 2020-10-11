@@ -1,5 +1,11 @@
 # @pnpm/client
 
+## 2.0.7
+
+### Patch Changes
+
+- 3a83db407: Update mem to v8.
+
 ## 2.0.6
 
 ### Patch Changes

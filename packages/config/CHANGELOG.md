@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.6.0
+
+### Minor Changes
+
+- f591fdeeb: New option added: `node-linker`. When `node-linker` is set to `pnp`, pnpm will create a `.pnp.js` file.
+
 ## 11.5.0
 
 ### Minor Changes

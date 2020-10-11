@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 9.5.0
+
+### Minor Changes
+
+- f591fdeeb: New option added: extraEnv. extraEnv allows to pass environment variables that will be set for the child process.
+- f591fdeeb: New function exported: `makeNodeRequireOption()`.
+
 ## 9.4.0
 
 ### Minor Changes

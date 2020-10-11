@@ -1,5 +1,21 @@
 # @pnpm/headless
 
+## 14.4.0
+
+### Minor Changes
+
+- f591fdeeb: New option added: `enablePnp`. When enablePnp is true, a `.pnp.js` file is generated.
+
+### Patch Changes
+
+- Updated dependencies [f591fdeeb]
+- Updated dependencies [f591fdeeb]
+- Updated dependencies [f591fdeeb]
+  - @pnpm/build-modules@5.1.0
+  - @pnpm/lifecycle@9.5.0
+  - @pnpm/lockfile-to-pnp@0.3.0
+  - @pnpm/package-requester@12.1.0
+
 ## 14.3.1
 
 ### Patch Changes

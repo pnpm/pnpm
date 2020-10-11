@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.4.0
+
+### Minor Changes
+
+- f591fdeeb: Scripts support Plug'n'Play.
+
+### Patch Changes
+
+- Updated dependencies [f591fdeeb]
+- Updated dependencies [f591fdeeb]
+- Updated dependencies [f591fdeeb]
+  - @pnpm/config@11.6.0
+  - @pnpm/lifecycle@9.5.0
+  - @pnpm/cli-utils@0.4.32
+
 ## 2.3.3
 
 ### Patch Changes

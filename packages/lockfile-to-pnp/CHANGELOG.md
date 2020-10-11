@@ -1,5 +1,16 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.3.0
+
+### Minor Changes
+
+- f591fdeeb: CLI command removed.
+
+### Patch Changes
+
+- Updated dependencies [f591fdeeb]
+  - @pnpm/config@11.6.0
+
 ## 0.2.0
 
 ### Minor Changes

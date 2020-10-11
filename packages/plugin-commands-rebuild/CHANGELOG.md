@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.1.4
+
+### Patch Changes
+
+- 3a83db407: Update mem to v8.
+- Updated dependencies [f591fdeeb]
+- Updated dependencies [f591fdeeb]
+- Updated dependencies [f591fdeeb]
+  - @pnpm/config@11.6.0
+  - @pnpm/lifecycle@9.5.0
+  - @pnpm/cli-utils@0.4.32
+  - @pnpm/store-connection-manager@0.3.40
+  - @pnpm/find-workspace-packages@2.3.18
+
 ## 2.1.3
 
 ### Patch Changes

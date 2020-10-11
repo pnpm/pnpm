@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "14.3.1",
+  "version": "14.4.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/client": "workspace:^2.0.6",
+    "@pnpm/client": "workspace:^2.0.7",
     "@pnpm/headless": "link:",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/package-store": "workspace:*",
@@ -72,16 +72,16 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:5.0.19",
+    "@pnpm/build-modules": "workspace:5.1.0",
     "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/core-loggers": "workspace:5.0.0",
     "@pnpm/error": "workspace:1.3.1",
     "@pnpm/filter-lockfile": "workspace:4.0.9",
     "@pnpm/hoist": "workspace:4.0.13",
-    "@pnpm/lifecycle": "workspace:9.4.0",
+    "@pnpm/lifecycle": "workspace:9.5.0",
     "@pnpm/link-bins": "workspace:5.3.14",
     "@pnpm/lockfile-file": "workspace:3.0.14",
-    "@pnpm/lockfile-to-pnp": "workspace:^0.2.0",
+    "@pnpm/lockfile-to-pnp": "workspace:^0.3.0",
     "@pnpm/lockfile-utils": "workspace:2.0.16",
     "@pnpm/modules-cleaner": "workspace:10.0.11",
     "@pnpm/modules-yaml": "workspace:8.0.2",

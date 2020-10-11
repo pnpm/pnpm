@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 5.1.0
+
+### Minor Changes
+
+- f591fdeeb: New option added: extraEnv. extraEnv allows to pass environment variables that will be set for the child process.
+
+### Patch Changes
+
+- Updated dependencies [f591fdeeb]
+- Updated dependencies [f591fdeeb]
+  - @pnpm/lifecycle@9.5.0
+
 ## 5.0.19
 
 ### Patch Changes

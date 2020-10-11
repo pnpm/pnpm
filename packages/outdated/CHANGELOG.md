@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 7.2.7
+
+### Patch Changes
+
+- Updated dependencies [3a83db407]
+  - @pnpm/client@2.0.7
+
 ## 7.2.6
 
 ### Patch Changes

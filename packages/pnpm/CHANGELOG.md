@@ -1,8 +1,24 @@
 # pnpm
 
-## 5.9.0-2
+## 5.9.0
 
 ### Minor Changes
+
+- Plug'n'Play support added [#2902](https://github.com/pnpm/pnpm/issues/2902)
+
+  To use Plug'n'Play in a project, create a `.npmrc` file in its root with the following content:
+
+  ```ini
+  node-linker=pnp
+
+  ; Setting symlink to false is optional.
+  symlink=false
+  ```
+
+  All the commands will work, when executed through `pnpm run`.
+  However, directly executing a `.js` file with Node.js will fail. Node's
+  resolver should be patched with `.pnp.js`. So instead of `node index.js`, you should
+  run: `node --require=./.pnp.js index.js`
 
 - New setting: `symlink` [#2900](https://github.com/pnpm/pnpm/pull/2900)
 
@@ -10,6 +26,7 @@
 
 ### Patch Changes
 
+- Fixed some edge cases with resolving peer dependencies [#2919](https://github.com/pnpm/pnpm/issues/2919).
 - Installation should fail if there are references to a project that has been removed from the workspace [#2905](https://github.com/pnpm/pnpm/pull/2905).
 - pnpm should not suggest to update pnpm to a newer version, when the installed version is bigger than latest.
 
