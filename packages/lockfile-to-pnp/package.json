@@ -9,8 +9,7 @@
   },
   "files": [
     "lib",
-    "!*.map",
-    "bin"
+    "!*.map"
   ],
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
