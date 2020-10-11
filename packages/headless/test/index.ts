@@ -752,11 +752,13 @@ test('installing in a workspace', async (t) => {
   t.end()
 })
 
-test('installing with no symlinks', async (t) => {
+test('installing with no symlinks but with PnP', async (t) => {
   const prefix = path.join(fixtures, 'simple')
   await rimraf(path.join(prefix, 'node_modules'))
+  await rimraf(path.join(prefix, '.pnp.js'))
 
   await headless(await testDefaults({
+    enablePnp: true,
     lockfileDir: prefix,
     symlink: false,
   }))
@@ -767,6 +769,7 @@ test('installing with no symlinks', async (t) => {
   const project = assertProject(t, prefix)
   t.ok(await project.readCurrentLockfile())
   t.ok(await project.readModulesManifest())
+  t.ok(await exists(path.join(prefix, '.pnp.js')))
 
   t.end()
 })

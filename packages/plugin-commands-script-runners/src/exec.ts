@@ -1,8 +1,10 @@
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
+import existsInDir from './existsInDir'
 import {
   PARALLEL_OPTION_HELP,
   shorthands as runShorthands,
@@ -55,7 +57,7 @@ export async function handler (
     rawConfig: object
     sort?: boolean
     workspaceConcurrency?: number
-  } & Pick<Config, 'recursive'>,
+  } & Pick<Config, 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
   if (!opts.recursive) {
@@ -71,15 +73,22 @@ export async function handler (
   const chunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
     : [Object.keys(opts.selectedProjectsGraph).sort()]
+  const existsPnp = existsInDir.bind(null, '.pnp.js')
+  const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         try {
+          const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
+          const extraEnv = pnpPath
+            ? makeNodeRequireOption(pnpPath)
+            : {}
           await execa(params[0], params.slice(1), {
             cwd: prefix,
             env: {
               ...process.env,
+              ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix].package.manifest.name,
             },
             stdio: 'inherit',

@@ -366,3 +366,27 @@ test('if a script is not found but is present in the root, print an info message
   t.ok(err.hint.includes('But build is present in the root'))
   t.end()
 })
+
+test('scripts work with PnP', async (t) => {
+  prepare(t, {
+    scripts: {
+      foo: 'node -e "process.stdout.write(\'foo\')" | json-append ./output.json',
+    },
+  })
+
+  await execa(pnpmBin, ['add', 'json-append@1'], {
+    env: {
+      NPM_CONFIG_NODE_LINKER: 'pnp',
+      NPM_CONFIG_SYMLINK: 'false',
+    },
+  })
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    rawConfig: {},
+  }, ['foo'])
+
+  const scriptsRan = await import(path.resolve('output.json'))
+  t.deepEqual(scriptsRan, ['foo'])
+  t.end()
+})

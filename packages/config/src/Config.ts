@@ -114,6 +114,7 @@ export interface Config {
   publishBranch?: string
   recursiveInstall?: boolean
   symlink: boolean
+  enablePnp?: boolean
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean

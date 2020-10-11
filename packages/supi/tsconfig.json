@@ -43,6 +43,9 @@
       "path": "../lockfile-file"
     },
     {
+      "path": "../lockfile-to-pnp"
+    },
+    {
       "path": "../lockfile-utils"
     },
     {

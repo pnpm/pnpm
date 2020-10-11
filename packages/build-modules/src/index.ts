@@ -18,6 +18,7 @@ export default async (
     childConcurrency?: number
     depsToBuild?: Set<string>
     extraBinPaths?: string[]
+    extraEnv?: Record<string, string>
     lockfileDir: string
     optional: boolean
     rawConfig: object
@@ -63,6 +64,7 @@ async function buildDependency (
   depGraph: DependenciesGraph,
   opts: {
     extraBinPaths?: string[]
+    extraEnv?: Record<string, string>
     lockfileDir: string
     optional: boolean
     rawConfig: object
@@ -79,6 +81,7 @@ async function buildDependency (
     const hasSideEffects = await runPostinstallHooks({
       depPath,
       extraBinPaths: opts.extraBinPaths,
+      extraEnv: opts.extraEnv,
       initCwd: opts.lockfileDir,
       optional: depNode.optional,
       pkgRoot: depNode.dir,

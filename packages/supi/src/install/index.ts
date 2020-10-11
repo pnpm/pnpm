@@ -12,7 +12,9 @@ import PnpmError from '@pnpm/error'
 import getContext, { PnpmContext, ProjectOptions } from '@pnpm/get-context'
 import headless from '@pnpm/headless'
 import {
+  makeNodeRequireOption,
   runLifecycleHooksConcurrently,
+  RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
@@ -21,6 +23,7 @@ import {
   writeLockfiles,
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
+import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import logger, { streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
@@ -180,6 +183,7 @@ export async function mutateModules (
               pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
             },
             currentLockfile: ctx.currentLockfile,
+            enablePnp: opts.enablePnp,
             engineStrict: opts.engineStrict,
             extraBinPaths: opts.extraBinPaths,
             force: opts.force,
@@ -232,7 +236,7 @@ export async function mutateModules (
     const projectsToInstall = [] as ImporterToUpdate[]
 
     const projectsToBeInstalled = ctx.projects.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, rootDir: string, manifest: ProjectManifest, modulesDir: string }>
-    const scriptsOpts = {
+    const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       rawConfig: opts.rawConfig,
       shellEmulator: opts.shellEmulator,
@@ -402,6 +406,9 @@ export async function mutateModules (
     })
 
     if (!opts.ignoreScripts) {
+      if (opts.enablePnp) {
+        scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.js'))
+      }
       await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepublish', 'prepare'],
         projectsToBeInstalled,
         opts.childConcurrency,
@@ -682,6 +689,17 @@ async function installInContext (
       }
     )
     await finishLockfileUpdates()
+    if (opts.enablePnp) {
+      const importerNames = R.fromPairs(
+        projects.map(({ manifest, id }) => [id, manifest.name ?? id])
+      )
+      await writePnpFile(result.currentLockfile, {
+        importerNames,
+        lockfileDir: ctx.lockfileDir,
+        virtualStoreDir: ctx.virtualStoreDir,
+        registries: opts.registries,
+      })
+    }
 
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
@@ -698,10 +716,15 @@ async function installInContext (
       const depPaths = Object.keys(dependenciesGraph)
       const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
 
+      let extraEnv: Record<string, string> | undefined
+      if (opts.enablePnp) {
+        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.js'))
+      }
       await buildModules(dependenciesGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
         extraBinPaths: ctx.extraBinPaths,
+        extraEnv,
         lockfileDir: ctx.lockfileDir,
         optional: opts.include.optionalDependencies,
         rawConfig: opts.rawConfig,

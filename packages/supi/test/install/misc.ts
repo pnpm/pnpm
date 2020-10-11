@@ -1228,7 +1228,7 @@ test('memory consumption is under control on huge package with many peer depende
   t.ok(await exists('pnpm-lock.yaml'), 'lockfile created')
 })
 
-test('installing with no symlinks', async (t) => {
+test('installing with no symlinks with PnP', async (t) => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage(
@@ -1237,7 +1237,11 @@ test('installing with no symlinks', async (t) => {
       version: '0.0.0',
     },
     ['rimraf@2.7.1'],
-    await testDefaults({ fastUnpack: false, symlink: false })
+    await testDefaults({
+      enablePnp: true,
+      fastUnpack: false,
+      symlink: false,
+    })
   )
 
   t.deepEqual(await fs.readdir(path.resolve('node_modules')), ['.bin', '.modules.yaml', '.pnpm'])
@@ -1245,6 +1249,7 @@ test('installing with no symlinks', async (t) => {
 
   t.ok(await project.readCurrentLockfile())
   t.ok(await project.readModulesManifest())
+  t.ok(await exists(path.resolve('.pnp.js')))
 
   t.end()
 })

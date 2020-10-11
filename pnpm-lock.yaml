@@ -672,6 +672,7 @@ importers:
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/link-bins': 'link:../link-bins'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/lockfile-to-pnp': 'link:../lockfile-to-pnp'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
@@ -726,6 +727,7 @@ importers:
       '@pnpm/lifecycle': 'workspace:9.4.0'
       '@pnpm/link-bins': 'workspace:5.3.14'
       '@pnpm/lockfile-file': 'workspace:3.0.14'
+      '@pnpm/lockfile-to-pnp': 'workspace:^0.2.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.16'
       '@pnpm/logger': ^3.2.2
       '@pnpm/modules-cleaner': 'workspace:10.0.11'
@@ -2000,6 +2002,7 @@ importers:
       '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/types': 'link:../types'
       p-limit: 3.0.2
+      path-exists: 4.0.0
       ramda: 0.27.1
       realpath-missing: 1.0.0
       render-help: 1.0.0
@@ -2033,6 +2036,7 @@ importers:
       execa: ^4.0.3
       mz: ^2.7.0
       p-limit: ^3.0.2
+      path-exists: ^4.0.0
       ramda: ^0.27.1
       realpath-missing: ^1.0.0
       render-help: ^1.0.0
@@ -2680,6 +2684,7 @@ importers:
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/link-bins': 'link:../link-bins'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/lockfile-to-pnp': 'link:../lockfile-to-pnp'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
       '@pnpm/manifest-utils': 'link:../manifest-utils'
@@ -2776,6 +2781,7 @@ importers:
       '@pnpm/lifecycle': 'workspace:9.4.0'
       '@pnpm/link-bins': 'workspace:5.3.14'
       '@pnpm/lockfile-file': 'workspace:3.0.14'
+      '@pnpm/lockfile-to-pnp': 'workspace:^0.2.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.16'
       '@pnpm/lockfile-walker': 'workspace:3.0.4'
       '@pnpm/logger': ^3.2.2

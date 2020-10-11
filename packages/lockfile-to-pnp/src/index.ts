@@ -40,7 +40,7 @@ export async function lockfileToPnp (lockfileDir: string) {
 export async function writePnpFile (
   lockfile: Lockfile,
   opts: {
-    importerNames: { [importerId: string]: string }
+    importerNames: Record<string, string>
     lockfileDir: string
     virtualStoreDir: string
     registries: Registries

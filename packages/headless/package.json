@@ -81,6 +81,7 @@
     "@pnpm/lifecycle": "workspace:9.4.0",
     "@pnpm/link-bins": "workspace:5.3.14",
     "@pnpm/lockfile-file": "workspace:3.0.14",
+    "@pnpm/lockfile-to-pnp": "workspace:^0.2.0",
     "@pnpm/lockfile-utils": "workspace:2.0.16",
     "@pnpm/modules-cleaner": "workspace:10.0.11",
     "@pnpm/modules-yaml": "workspace:8.0.2",

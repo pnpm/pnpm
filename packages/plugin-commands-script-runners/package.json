@@ -54,6 +54,7 @@
     "@pnpm/sort-packages": "workspace:1.0.13",
     "@pnpm/types": "workspace:6.2.0",
     "p-limit": "^3.0.2",
+    "path-exists": "^4.0.0",
     "ramda": "^0.27.1",
     "realpath-missing": "^1.0.0",
     "render-help": "^1.0.0"

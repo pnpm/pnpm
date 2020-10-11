@@ -1,9 +1,13 @@
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import runLifecycleHooks from '@pnpm/lifecycle'
+import runLifecycleHooks, {
+  makeNodeRequireOption,
+  RunLifecycleHookOptions,
+} from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
+import existsInDir from './existsInDir'
 import path = require('path')
 import pLimit = require('p-limit')
 import realpathMissing = require('realpath-missing')
@@ -41,6 +45,8 @@ export default async (
     opts.workspaceConcurrency === 1 ||
     packageChunks.length === 1 && packageChunks[0].length === 1
   ) ? 'inherit' : 'pipe'
+  const existsPnp = existsInDir.bind(null, '.pnp.js')
+  const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
@@ -55,7 +61,7 @@ export default async (
         }
         hasCommand++
         try {
-          const lifecycleOpts = {
+          const lifecycleOpts: RunLifecycleHookOptions = {
             depPath: prefix,
             extraBinPaths: opts.extraBinPaths,
             pkgRoot: prefix,
@@ -64,6 +70,10 @@ export default async (
             shellEmulator: opts.shellEmulator,
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+          }
+          const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
+          if (pnpPath) {
+            lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
           }
           if (pkg.package.manifest.scripts[`pre${scriptName}`]) {
             await runLifecycleHooks(`pre${scriptName}`, pkg.package.manifest, lifecycleOpts)

@@ -56,6 +56,24 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
   t.ok(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild, 'requiresBuild: true added to lockfile')
 })
 
+test('run pre/postinstall scripts, when PnP is used and no symlinks', async (t: tape.Test) => {
+  prepareEmpty(t)
+  await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example'],
+    await testDefaults({
+      fastUnpack: false,
+      enablePnp: true,
+      symlink: false,
+      targetDependenciesField: 'devDependencies',
+    })
+  )
+
+  const pkgDir = 'node_modules/.pnpm/pre-and-postinstall-scripts-example@1.0.0/node_modules/pre-and-postinstall-scripts-example'
+  t.notOk(await exists(path.resolve(pkgDir, 'generated-by-prepare.js')))
+  t.ok(await exists(path.resolve(pkgDir, 'generated-by-preinstall.js')))
+  t.ok(await exists(path.resolve(pkgDir, 'generated-by-postinstall.js')))
+})
+
 test('testing that the bins are linked when the package with the bins was already in node_modules', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
