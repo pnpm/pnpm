@@ -20,8 +20,8 @@ test('fetch', async () => {
       manifest,
     }
   )
-  expect(filesIndex['package.json']).toBeTruthy();
+  expect(filesIndex['package.json']).toBeTruthy()
   expect(filesIndex['package.json'].writeResult).toBeTruthy()
-  const name = (await manifest.promise).name;
+  const name = (await manifest.promise).name
   expect(name).toEqual('is-positive')
 })
