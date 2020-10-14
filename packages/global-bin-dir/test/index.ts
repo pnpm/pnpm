@@ -1,9 +1,10 @@
+import globalBinDir from '../src/index'
+
 import PnpmError from '@pnpm/error'
 import { sync as _canWriteToDir } from 'can-write-to-dir'
+
 import path = require('path')
 import isWindows = require('is-windows')
-import proxiquire = require('proxyquire')
-import test = require('tape')
 
 const makePath =
   isWindows()
@@ -22,15 +23,19 @@ function makeDirEntry (name: string) {
   return { name, isDirectory: () => true }
 }
 
-const globalBinDir = proxiquire('../lib/index.js', {
-  'can-write-to-dir': {
-    sync: (dir: string) => canWriteToDir(dir),
-  },
-  fs: {
+jest.mock('can-write-to-dir', () => ({
+  sync: (dir: string) => canWriteToDir(dir),
+}))
+
+jest.mock('fs', () => {
+  const originalModule = jest.requireActual('fs')
+  return {
+    ...originalModule,
     readdirSync: (dir: string) => readdirSync(dir),
-  },
-  'path-name': FAKE_PATH,
-}).default
+  }
+})
+
+jest.mock('path-name', () => 'FAKE_PATH')
 
 const userGlobalBin = makePath('usr', 'local', 'bin')
 const nodeGlobalBin = makePath('home', 'z', '.nvs', 'node', '12.0.0', 'x64', 'bin')
@@ -49,26 +54,23 @@ process.env[FAKE_PATH] = [
   dirWithTrailingSlash,
 ].join(path.delimiter)
 
-test('prefer a directory that has "nodejs", "npm", or "pnpm" in the path', (t) => {
+test('prefer a directory that has "nodejs", "npm", or "pnpm" in the path', () => {
   canWriteToDir = () => true
-  t.equal(globalBinDir(), nodeGlobalBin)
+  expect(globalBinDir()).toStrictEqual(nodeGlobalBin)
 
   canWriteToDir = (dir) => dir !== nodeGlobalBin
-  t.equal(globalBinDir(), npmGlobalBin)
+  expect(globalBinDir()).toStrictEqual(npmGlobalBin)
 
   canWriteToDir = (dir) => dir !== nodeGlobalBin && dir !== npmGlobalBin
-  t.equal(globalBinDir(), pnpmGlobalBin)
-
-  t.end()
+  expect(globalBinDir()).toStrictEqual(pnpmGlobalBin)
 })
 
-test('prefer directory that is passed in as a known suitable location', (t) => {
+test('prefer directory that is passed in as a known suitable location', () => {
   canWriteToDir = () => true
-  t.equal(globalBinDir([userGlobalBin]), userGlobalBin)
-  t.end()
+  expect(globalBinDir([userGlobalBin])).toStrictEqual(userGlobalBin)
 })
 
-test("ignore directories that don't exist", (t) => {
+test("ignore directories that don't exist", () => {
   canWriteToDir = (dir) => {
     if (dir === nodeGlobalBin) {
       const err = new Error('Not exists')
@@ -77,24 +79,22 @@ test("ignore directories that don't exist", (t) => {
     }
     return true
   }
-  t.equal(globalBinDir(), npmGlobalBin)
-  t.end()
+  expect(globalBinDir()).toEqual(npmGlobalBin)
 })
 
-test('prefer the directory of the currently executed nodejs command', (t) => {
+test('prefer the directory of the currently executed nodejs command', () => {
   const originalExecPath = process.execPath
   process.execPath = path.join(currentExecDir, 'n')
   canWriteToDir = (dir) => dir !== nodeGlobalBin && dir !== npmGlobalBin && dir !== pnpmGlobalBin
-  t.equal(globalBinDir(), currentExecDir)
+  expect(globalBinDir()).toEqual(currentExecDir)
 
   process.execPath = path.join(dirWithTrailingSlash, 'n')
-  t.equal(globalBinDir(), dirWithTrailingSlash)
+  expect(globalBinDir()).toEqual(dirWithTrailingSlash)
 
   process.execPath = originalExecPath
-  t.end()
 })
 
-test('when the process has no write access to any of the suitable directories, throw an error', (t) => {
+test('when the process has no write access to any of the suitable directories, throw an error', () => {
   canWriteToDir = (dir) => dir === otherDir
   let err!: PnpmError
   try {
@@ -102,18 +102,16 @@ test('when the process has no write access to any of the suitable directories, t
   } catch (_err) {
     err = _err
   }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GLOBAL_BIN_DIR_PERMISSION')
-  t.end()
+  expect(err).toBeDefined()
+  expect(err.code).toEqual('ERR_PNPM_GLOBAL_BIN_DIR_PERMISSION')
 })
 
-test('when the process has no write access to any of the suitable directories, but opts.shouldAllowWrite is false, return the first match', (t) => {
+test('when the process has no write access to any of the suitable directories, but opts.shouldAllowWrite is false, return the first match', () => {
   canWriteToDir = (dir) => dir === otherDir
-  t.equal(globalBinDir([], { shouldAllowWrite: false }), nodeGlobalBin)
-  t.end()
+  expect(globalBinDir([], { shouldAllowWrite: false })).toEqual(nodeGlobalBin)
 })
 
-test('throw an exception if non of the directories in the PATH are suitable', (t) => {
+test('throw an exception if non of the directories in the PATH are suitable', () => {
   const pathEnv = process.env[FAKE_PATH]
   process.env[FAKE_PATH] = [otherDir].join(path.delimiter)
   canWriteToDir = () => true
@@ -123,33 +121,30 @@ test('throw an exception if non of the directories in the PATH are suitable', (t
   } catch (_err) {
     err = _err
   }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_NO_GLOBAL_BIN_DIR')
+  expect(err).toBeDefined()
+  expect(err.code).toEqual('ERR_PNPM_NO_GLOBAL_BIN_DIR')
   process.env[FAKE_PATH] = pathEnv
-  t.end()
 })
 
-test('throw exception if PATH is not set', (t) => {
+test('throw exception if PATH is not set', () => {
   const pathEnv = process.env[FAKE_PATH]
   delete process.env[FAKE_PATH]
-  t.throws(() => globalBinDir(), /Couldn't find a global directory/)
+  expect(() => globalBinDir()).toThrow(/Couldn't find a global directory/)
   process.env[FAKE_PATH] = pathEnv
-  t.end()
 })
 
-test('prefer a directory that has "Node" in the path', (t) => {
+test('prefer a directory that has "Node" in the path', () => {
   const capitalizedNodeGlobalBin = makePath('home', 'z', '.nvs', 'Node', '12.0.0', 'x64', 'bin')
   const pathEnv = process.env[FAKE_PATH]
   process.env[FAKE_PATH] = capitalizedNodeGlobalBin
 
   canWriteToDir = () => true
-  t.equal(globalBinDir(), capitalizedNodeGlobalBin)
+  expect(globalBinDir()).toEqual(capitalizedNodeGlobalBin)
 
   process.env[FAKE_PATH] = pathEnv
-  t.end()
 })
 
-test('select a directory that has a node command in it', (t) => {
+test('select a directory that has a node command in it', () => {
   const dir1 = makePath('foo')
   const dir2 = makePath('bar')
   const pathEnv = process.env[FAKE_PATH]
@@ -160,13 +155,12 @@ test('select a directory that has a node command in it', (t) => {
 
   canWriteToDir = () => true
   readdirSync = (dir) => dir === dir2 ? [makeFileEntry('node')] : []
-  t.equal(globalBinDir(), dir2)
+  expect(globalBinDir()).toEqual(dir2)
 
   process.env[FAKE_PATH] = pathEnv
-  t.end()
 })
 
-test('do not select a directory that has a node directory in it', (t) => {
+test('do not select a directory that has a node directory in it', () => {
   const dir1 = makePath('foo')
   const dir2 = makePath('bar')
   const pathEnv = process.env[FAKE_PATH]
@@ -178,13 +172,12 @@ test('do not select a directory that has a node directory in it', (t) => {
   canWriteToDir = () => true
   readdirSync = (dir) => dir === dir2 ? [makeDirEntry('node')] : []
 
-  t.throws(() => globalBinDir(), /Couldn't find a suitable/)
+  expect(() => globalBinDir()).toThrow(/Couldn't find a suitable/)
 
   process.env[FAKE_PATH] = pathEnv
-  t.end()
 })
 
-test('select a directory that has a node.bat command in it', (t) => {
+test('select a directory that has a node.bat command in it', () => {
   const dir1 = makePath('foo')
   const dir2 = makePath('bar')
   const pathEnv = process.env[FAKE_PATH]
@@ -195,8 +188,7 @@ test('select a directory that has a node.bat command in it', (t) => {
 
   canWriteToDir = () => true
   readdirSync = (dir) => dir === dir2 ? [makeFileEntry('node.bat')] : []
-  t.equal(globalBinDir(), dir2)
+  expect(globalBinDir()).toEqual(dir2)
 
   process.env[FAKE_PATH] = pathEnv
-  t.end()
 })

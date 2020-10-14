@@ -3,12 +3,10 @@ import createCafs from '@pnpm/cafs'
 import createFetcher from '@pnpm/git-fetcher'
 import { DependencyManifest } from '@pnpm/types'
 import pDefer = require('p-defer')
-import test = require('tape')
 import tempy = require('tempy')
 
-test('fetch', async t => {
+test('fetch', async () => {
   const cafsDir = tempy.directory()
-  t.comment(`cafs at ${cafsDir}`)
   const fetch = createFetcher().git
   const manifest = pDefer<DependencyManifest>()
   const { filesIndex } = await fetch(
@@ -22,8 +20,8 @@ test('fetch', async t => {
       manifest,
     }
   )
-  t.ok(filesIndex['package.json'])
-  t.ok(await filesIndex['package.json'].writeResult)
-  t.equal((await manifest.promise).name, 'is-positive')
-  t.end()
+  expect(filesIndex['package.json']).toBeTruthy()
+  expect(filesIndex['package.json'].writeResult).toBeTruthy()
+  const name = (await manifest.promise).name
+  expect(name).toEqual('is-positive')
 })
