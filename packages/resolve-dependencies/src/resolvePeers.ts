@@ -211,11 +211,8 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       strictPeerDependencies: ctx.strictPeerDependencies,
     })
 
-  delete unknownResolvedPeersOfChildren[node.resolvedPackage.name]
-  const allResolvedPeers = {
-    ...unknownResolvedPeersOfChildren,
-    ...resolvedPeers,
-  }
+  const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
+  delete allResolvedPeers[node.resolvedPackage.name]
   const allMissingPeers = Array.from(new Set([...missingPeersOfChildren, ...missingPeers]))
 
   let modules: string
