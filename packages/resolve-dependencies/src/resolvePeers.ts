@@ -360,6 +360,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
     let resolved = ctx.parentPkgs[peerName]
 
     if (!resolved) {
+      missingPeers.push(peerName)
       try {
         const { version } = importFrom(ctx.rootDir, `${peerName}/package.json`) as { version: string }
         resolved = {
@@ -367,7 +368,6 @@ function resolvePeers<T extends PartialResolvedPackage> (
           version,
         }
       } catch (err) {
-        missingPeers.push(peerName)
         if (
           ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
         ) {
