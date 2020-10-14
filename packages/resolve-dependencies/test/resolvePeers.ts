@@ -100,10 +100,10 @@ test('resolve peer dependencies of cyclic dependencies', (t) => {
   t.deepEqual(Object.keys(dependenciesGraph), [
     'foo/1.0.0_qar@1.0.0+zoo@1.0.0',
     'bar/1.0.0_foo@1.0.0+zoo@1.0.0',
-    'zoo/1.0.0_qar@1.0.0',
+    'zoo/1.0.0_qar@1.0.0+zoo@1.0.0',
     'zoo/1.0.0_bar@1.0.0+foo@1.0.0+qar@1.0.0',
-    'bar/1.0.0_foo@1.0.0',
-    'foo/1.0.0',
+    'bar/1.0.0_bar@1.0.0+foo@1.0.0',
+    'foo/1.0.0_foo@1.0.0',
   ])
   t.end()
 })

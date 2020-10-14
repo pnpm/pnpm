@@ -73,10 +73,10 @@ export type DependenciesTreeNode<T> = {
   children: (() => ChildrenMap) | ChildrenMap
   installable: boolean
 } & ({
-  resolvedPackage: T & { name: string, version: string }
+  resolvedPackage: T & { version: string }
   depth: number
 } | {
-  resolvedPackage: { name: string, version: string }
+  resolvedPackage: { version: string }
   depth: -1
 })
 
@@ -262,7 +262,6 @@ export default async function resolveDependencies (
               depth: -1,
               installable: true,
               resolvedPackage: {
-                name: resolveDependencyResult.name,
                 version: resolveDependencyResult.version,
               },
             }

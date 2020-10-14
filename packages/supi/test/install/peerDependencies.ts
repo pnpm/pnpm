@@ -668,7 +668,7 @@ test('peer dependency is resolved from parent package', async (t) => {
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   t.deepEqual(Object.keys(lockfile.packages ?? {}), [
     '/has-tango-as-peer-dep/1.0.0_tango@1.0.0',
-    '/tango/1.0.0',
+    '/tango/1.0.0_tango@1.0.0',
   ])
 })
 
@@ -698,7 +698,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  t.deepEqual(Object.keys(lockfile.packages!['/most/1.7.3'].dependencies!), [
+  t.deepEqual(Object.keys(lockfile.packages!['/most/1.7.3_most@1.7.3'].dependencies!), [
     '@most/multicast',
     '@most/prelude',
     'symbol-observable',

@@ -216,7 +216,6 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     })
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
-  delete allResolvedPeers[node.resolvedPackage.name]
   const allMissingPeers = Array.from(new Set([...missingPeersOfChildren, ...missingPeers]))
 
   let modules: string
