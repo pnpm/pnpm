@@ -404,12 +404,6 @@ requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.versio
       })
     }
 
-    if (resolved.depth === ctx.currentDepth + 1) {
-      // if the resolved package is a regular dependency of the package
-      // then there is no need to link it in
-      continue
-    }
-
     if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
   }
   return { resolvedPeers, missingPeers }

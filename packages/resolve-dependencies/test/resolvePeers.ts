@@ -121,10 +121,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
     name: 'bar',
     depPath: 'bar/1.0.0',
     version: '1.0.0',
-    peerDependencies: {
-      foo: '1.0.0',
-      qar: '1.0.0',
-    } as Record<string, string>,
+    peerDependencies: {} as Record<string, string>,
   }
   const zooPkg = {
     name: 'zoo',
