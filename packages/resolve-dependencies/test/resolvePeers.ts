@@ -107,3 +107,104 @@ test('resolve peer dependencies of cyclic dependencies', (t) => {
   ])
   t.end()
 })
+
+test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurence', (t) => {
+  const fooPkg = {
+    name: 'foo',
+    depPath: 'foo/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {
+      qar: '1.0.0',
+    },
+  }
+  const barPkg = {
+    name: 'bar',
+    depPath: 'bar/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {
+      foo: '1.0.0',
+      qar: '1.0.0',
+    } as Record<string, string>,
+  }
+  const zooPkg = {
+    name: 'zoo',
+    depPath: 'zoo/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {} as Record<string, string>,
+  }
+  const { dependenciesGraph } = resolvePeers({
+    projects: [
+      {
+        directNodeIdsByAlias: {
+          zoo: 'zoo/1.0.0',
+          bar: 'bar/1.0.0',
+        },
+        topParents: [],
+        rootDir: '',
+        id: '',
+      },
+    ],
+    dependenciesTree: {
+      'zoo/1.0.0': {
+        children: {
+          foo: 'zoo/1.0.0>foo/1.0.0',
+        },
+        installable: true,
+        resolvedPackage: zooPkg,
+        depth: 0,
+      },
+      'zoo/1.0.0>foo/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: fooPkg,
+        depth: 1,
+      },
+      'bar/1.0.0': {
+        children: {
+          zoo: 'bar/1.0.0>zoo/1.0.0',
+          qar: 'bar/1.0.0>qar/1.0.0',
+        },
+        installable: true,
+        resolvedPackage: barPkg,
+        depth: 0,
+      },
+      'bar/1.0.0>zoo/1.0.0': {
+        children: {
+          foo: 'bar/1.0.0>zoo/1.0.0>foo/1.0.0',
+        },
+        installable: true,
+        resolvedPackage: zooPkg,
+        depth: 1,
+      },
+      'bar/1.0.0>zoo/1.0.0>foo/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: fooPkg,
+        depth: 2,
+      },
+      'bar/1.0.0>qar/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'qar',
+          depPath: 'qar/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {},
+        },
+        depth: 1,
+      },
+    },
+    virtualStoreDir: '',
+    lockfileDir: '',
+    strictPeerDependencies: false,
+  })
+  t.deepEqual(Object.keys(dependenciesGraph), [
+    'foo/1.0.0',
+    'zoo/1.0.0',
+    'foo/1.0.0_qar@1.0.0',
+    'zoo/1.0.0_qar@1.0.0',
+    'qar/1.0.0',
+    'bar/1.0.0',
+  ])
+  t.end()
+})
