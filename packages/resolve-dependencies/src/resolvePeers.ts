@@ -149,7 +149,11 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const node = ctx.dependenciesTree[nodeId]
   if (node.depth === -1) return { resolvedPeers: {}, missingPeers: [] }
   const resolvedPackage = node.resolvedPackage as T
-  if (ctx.purePkgs.has(resolvedPackage.depPath) && ctx.depGraph[resolvedPackage.depPath].depth <= node.depth) {
+  if (
+    ctx.purePkgs.has(resolvedPackage.depPath) &&
+    ctx.depGraph[resolvedPackage.depPath].depth <= node.depth &&
+    R.isEmpty(resolvedPackage.peerDependencies)
+  ) {
     ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
     return { resolvedPeers: {}, missingPeers: [] }
   }
