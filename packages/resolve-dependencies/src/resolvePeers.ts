@@ -360,7 +360,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
 
     let resolved = ctx.parentPkgs[peerName]
 
-    if (!resolved || resolved.nodeId && !ctx.dependenciesTree[resolved.nodeId].installable) {
+    if (!resolved) {
       try {
         const { version } = importFrom(ctx.rootDir, `${peerName}/package.json`) as { version: string }
         resolved = {
