@@ -218,13 +218,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   let modules: string
   let depPath: string
   const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(resolvedPackage.depPath, ctx.lockfileDir))
-  const isPure = R.isEmpty(allResolvedPeers)
-  if (isPure) {
+  if (R.isEmpty(allResolvedPeers)) {
     modules = path.join(localLocation, 'node_modules')
     depPath = resolvedPackage.depPath
-    if (R.isEmpty(resolvedPackage.peerDependencies)) {
-      ctx.purePkgs.add(resolvedPackage.depPath)
-    }
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
       Object.keys(allResolvedPeers).map((alias) => ({
@@ -234,7 +230,10 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     modules = path.join(`${localLocation}${peersFolderSuffix}`, 'node_modules')
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
-  if (!isPure || !R.isEmpty(resolvedPackage.peerDependencies)) {
+  const isPure = R.isEmpty(allResolvedPeers) && allMissingPeers.length === 0
+  if (isPure) {
+    ctx.purePkgs.add(resolvedPackage.depPath)
+  } else {
     const cache = {
       missingPeers: allMissingPeers,
       depPath,
