@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.9.2
+
+### Patch Changes
+
+- Fixed multiple issues with inconsistent lockfile generation [#2919](https://github.com/pnpm/pnpm/issues/2919)
+
 ## 5.9.0
 
 ### Minor Changes

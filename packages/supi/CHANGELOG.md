@@ -1,5 +1,16 @@
 # supi
 
+## 0.43.6
+
+### Patch Changes
+
+- Updated dependencies [4241bc148]
+- Updated dependencies [bde7cd164]
+- Updated dependencies [9f003e94f]
+- Updated dependencies [e8dcc42d5]
+- Updated dependencies [c6eaf01c9]
+  - @pnpm/resolve-dependencies@18.0.6
+
 ## 0.43.5
 
 ### Patch Changes

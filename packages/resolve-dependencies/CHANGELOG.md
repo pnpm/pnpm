@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 18.0.6
+
+### Patch Changes
+
+- 4241bc148: When a peer dependency is not resolved but is available through `require()`, don't print a warning but still consider it to be missing.
+- bde7cd164: Peer dependencies should get correctly resolved even in optional dependencies that will be skipped on the active system.
+- 9f003e94f: Don't cache the peer resolution of packages that have missing peer dependencies.
+- e8dcc42d5: Do not skip a package's peer resolution if it was previously resolved w/o peer dependencies but in the new node it has peer dependencies.
+- c6eaf01c9: Resolved peer dependencies should always be included.
+
 ## 18.0.5
 
 ### Patch Changes
