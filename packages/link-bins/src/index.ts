@@ -159,7 +159,11 @@ async function linkBin (cmd: Command, binsDir: string) {
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await fs.chmod(cmd.path, 0o755)
   }
-  const nodePath = await getBinNodePaths(cmd.path)
+  let nodePath = await getBinNodePaths(cmd.path)
+  const binsParentDir = path.dirname(binsDir)
+  if (path.relative(cmd.path, binsParentDir) !== '') {
+    nodePath = R.union(nodePath, await getBinNodePaths(binsParentDir))
+  }
   return cmdShim(cmd.path, externalBinPath, {
     createPwshFile: POWER_SHELL_IS_SUPPORTED,
     nodePath,
