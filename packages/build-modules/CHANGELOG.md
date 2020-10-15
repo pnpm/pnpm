@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [fb863fae4]
+  - @pnpm/link-bins@5.3.15
+
 ## 5.1.0
 
 ### Minor Changes

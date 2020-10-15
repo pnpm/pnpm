@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.9.3
+
+### Patch Changes
+
+- Fixes a regression with CLI commands inside a workspace introduced in v5.9.0 [#2925](https://github.com/pnpm/pnpm/issues/2925)
+
 ## 5.9.2
 
 ### Patch Changes

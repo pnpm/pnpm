@@ -1,5 +1,15 @@
 # supi
 
+## 0.43.7
+
+### Patch Changes
+
+- Updated dependencies [fb863fae4]
+  - @pnpm/link-bins@5.3.15
+  - @pnpm/build-modules@5.1.1
+  - @pnpm/headless@14.4.1
+  - @pnpm/hoist@4.0.14
+
 ## 0.43.6
 
 ### Patch Changes

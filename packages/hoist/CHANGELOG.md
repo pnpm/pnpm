@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [fb863fae4]
+  - @pnpm/link-bins@5.3.15
+
 ## 4.0.13
 
 ### Patch Changes

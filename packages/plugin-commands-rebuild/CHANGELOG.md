@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies [fb863fae4]
+  - @pnpm/link-bins@5.3.15
+
 ## 2.1.4
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 3.3.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@2.1.5
+- supi@0.43.7
+
 ## 3.3.6
 
 ### Patch Changes

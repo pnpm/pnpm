@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 5.3.15
+
+### Patch Changes
+
+- fb863fae4: When creating command shims, add the parent node_modules directory of the `.bin` directory to the NODE_PATH.
+
 ## 5.3.14
 
 ### Patch Changes
