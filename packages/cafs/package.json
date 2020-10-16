@@ -35,7 +35,7 @@
     "@types/node": "^12.12.56",
     "@types/ssri": "^6.0.3",
     "@types/tar-stream": "^2.1.0",
-    "tempy": "^0.7.0"
+    "tempy": "^1.0.0"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

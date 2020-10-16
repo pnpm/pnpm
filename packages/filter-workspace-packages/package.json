@@ -46,7 +46,7 @@
     "@types/touch": "^3.1.1",
     "is-ci": "^2.0.0",
     "is-windows": "^1.0.2",
-    "tempy": "^0.7.0",
+    "tempy": "^1.0.0",
     "touch": "3.1.0"
   },
   "funding": "https://opencollective.com/pnpm"

@@ -33,7 +33,7 @@
     "@pnpm/fetcher-base": "workspace:9.0.0",
     "@zkochan/rimraf": "^1.0.0",
     "execa": "^4.0.3",
-    "tempy": "^0.7.0"
+    "tempy": "^1.0.0"
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:2.0.0",

@@ -31,7 +31,7 @@
   "devDependencies": {
     "@pnpm/parse-cli-args": "link:",
     "@types/nopt": "^3.0.29",
-    "tempy": "^0.7.0"
+    "tempy": "^1.0.0"
   },
   "dependencies": {
     "@pnpm/error": "workspace:^1.3.1",

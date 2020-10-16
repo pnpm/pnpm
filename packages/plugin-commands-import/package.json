@@ -39,7 +39,7 @@
     "@pnpm/prepare": "workspace:0.0.11",
     "@types/ncp": "^2.0.4",
     "ncp": "^2.0.0",
-    "tempy": "^0.7.0"
+    "tempy": "^1.0.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.4.32",

@@ -48,7 +48,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/json5": "0.0.30",
     "@types/parse-json": "^4.0.0",
-    "tempy": "^0.7.0"
+    "tempy": "^1.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }
