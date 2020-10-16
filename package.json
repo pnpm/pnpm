@@ -17,7 +17,7 @@
     "update-manifests": "ts-node utils/updater/src/index.ts"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.10.2",
+    "@changesets/cli": "^2.11.1",
     "@commitlint/cli": "^11.0.0",
     "@commitlint/config-conventional": "^11.0.0",
     "@commitlint/prompt-cli": "^11.0.0",
@@ -25,25 +25,25 @@
     "@pnpm/registry-mock": "^2.1.0",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "^26.0.14",
-    "@types/node": "^12.12.56",
+    "@types/node": "^12.12.68",
     "@types/tape": "^4.13.0",
-    "c8": "^7.3.0",
+    "c8": "^7.3.4",
     "coveralls": "^3.1.0",
     "cross-env": "^7.0.2",
-    "eslint": "^7.8.1",
+    "eslint": "^7.11.0",
     "husky": "^4.3.0",
-    "jest": "^26.4.2",
+    "jest": "^26.5.3",
     "lcov-result-merger": "^3.1.0",
     "npm-run-all": "^4.1.5",
     "publish-packed": "^3.0.2",
     "rimraf": "^3.0.2",
     "tape": "^4.13.3",
-    "ts-jest": "^26.3.0",
+    "ts-jest": "^26.4.1",
     "ts-node": "^9.0.0",
-    "typescript": "^4.0.2",
+    "typescript": "^4.0.3",
     "verdaccio": "^4.8.1",
-    "yarn": "^1.22.5",
-    "yarnhook": "^0.4.3"
+    "yarn": "^1.22.10",
+    "yarnhook": "^0.4.5"
   },
   "engines": {
     "pnpm": ">=5 || ^0.0.0-x"

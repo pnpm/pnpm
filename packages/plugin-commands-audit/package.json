@@ -32,7 +32,7 @@
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "link:",
     "@pnpm/types": "workspace:6.2.0",
-    "@types/ramda": "^0.27.15",
+    "@types/ramda": "^0.27.28",
     "@types/table": "^5.0.0",
     "strip-ansi": "^6.0.0"
   },
@@ -45,7 +45,7 @@
     "@pnpm/lockfile-file": "workspace:3.0.14",
     "chalk": "^4.1.0",
     "ramda": "^0.27.1",
-    "render-help": "^1.0.0",
+    "render-help": "^1.0.1",
     "table": "^6.0.3"
   },
   "funding": "https://opencollective.com/pnpm"

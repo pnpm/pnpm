@@ -49,7 +49,7 @@
   "devDependencies": {
     "@types/mz": "^2.7.1",
     "@types/ncp": "^2.0.4",
-    "@types/ramda": "^0.27.15",
+    "@types/ramda": "^0.27.28",
     "ncp": "^2.0.0",
     "tempy": "^1.0.0"
   }

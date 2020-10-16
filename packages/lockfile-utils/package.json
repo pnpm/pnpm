@@ -33,7 +33,7 @@
   "devDependencies": {
     "@pnpm/lockfile-utils": "link:",
     "@types/js-yaml": "^3.12.5",
-    "@types/ramda": "^0.27.15",
+    "@types/ramda": "^0.27.28",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.1.0",
     "yaml-tag": "1.1.0"

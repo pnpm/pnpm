@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@pnpm/resolve-workspace-range": "link:",
-    "@types/semver": "^7.3.3"
+    "@types/semver": "^7.3.4"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

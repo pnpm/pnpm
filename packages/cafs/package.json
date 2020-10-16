@@ -27,12 +27,12 @@
     "rename-overwrite": "^3.0.0",
     "ssri": "6.0.1",
     "strip-bom": "^4.0.0",
-    "tar-stream": "^2.1.3"
+    "tar-stream": "^2.1.4"
   },
   "devDependencies": {
     "@types/concat-stream": "^1.6.0",
     "@types/mz": "^2.7.1",
-    "@types/node": "^12.12.56",
+    "@types/node": "^12.12.68",
     "@types/ssri": "^6.0.3",
     "@types/tar-stream": "^2.1.0",
     "tempy": "^1.0.0"

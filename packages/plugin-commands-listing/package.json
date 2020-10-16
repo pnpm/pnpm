@@ -39,7 +39,7 @@
     "@pnpm/plugin-commands-listing": "link:",
     "@pnpm/prepare": "workspace:0.0.11",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.15",
+    "@types/ramda": "^0.27.28",
     "execa": "^4.0.3",
     "mz": "^2.7.0",
     "strip-ansi": "^6.0.0",
@@ -53,7 +53,7 @@
     "@pnpm/list": "workspace:5.0.9",
     "@pnpm/types": "workspace:6.2.0",
     "ramda": "^0.27.1",
-    "render-help": "^1.0.0"
+    "render-help": "^1.0.1"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"

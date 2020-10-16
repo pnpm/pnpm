@@ -56,8 +56,8 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.2",
     "@pnpm/resolve-dependencies": "link:",
-    "@types/ramda": "^0.27.15",
-    "@types/semver": "^7.3.3"
+    "@types/ramda": "^0.27.28",
+    "@types/semver": "^7.3.4"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -33,7 +33,7 @@
     "@pnpm/plugin-commands-server": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.15",
+    "@types/ramda": "^0.27.28",
     "@types/signal-exit": "^3.0.0"
   },
   "dependencies": {
@@ -52,7 +52,7 @@
     "mz": "^2.7.0",
     "process-exists": "^4.0.0",
     "ramda": "^0.27.1",
-    "render-help": "^1.0.0",
+    "render-help": "^1.0.1",
     "signal-exit": "^3.0.3",
     "tree-kill": "^1.2.2"
   },

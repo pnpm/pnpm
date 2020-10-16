@@ -38,12 +38,12 @@
     "@pnpm/plugin-commands-rebuild": "link:",
     "@pnpm/prepare": "workspace:0.0.11",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "^0.27.15",
-    "@types/semver": "^7.3.3",
-    "@types/sinon": "^9.0.5",
+    "@types/ramda": "^0.27.28",
+    "@types/semver": "^7.3.4",
+    "@types/sinon": "^9.0.8",
     "execa": "^4.0.3",
     "path-exists": "^4.0.0",
-    "sinon": "^9.0.3",
+    "sinon": "^9.2.0",
     "write-yaml-file": "^4.1.0"
   },
   "dependencies": {
@@ -74,7 +74,7 @@
     "p-limit": "^3.0.2",
     "ramda": "^0.27.1",
     "read-ini-file": "^3.0.0",
-    "render-help": "^1.0.0",
+    "render-help": "^1.0.1",
     "run-groups": "^3.0.1",
     "semver": "^7.3.2"
   },
