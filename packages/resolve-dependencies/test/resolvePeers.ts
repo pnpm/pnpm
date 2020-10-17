@@ -1,7 +1,7 @@
+/// <reference path="../../../typings/index.d.ts" />
 import resolvePeers from '@pnpm/resolve-dependencies/lib/resolvePeers'
-import test = require('tape')
 
-test('resolve peer dependencies of cyclic dependencies', (t) => {
+test('resolve peer dependencies of cyclic dependencies', () => {
   const fooPkg = {
     name: 'foo',
     depPath: 'foo/1.0.0',
@@ -97,7 +97,7 @@ test('resolve peer dependencies of cyclic dependencies', (t) => {
     lockfileDir: '',
     strictPeerDependencies: false,
   })
-  t.deepEqual(Object.keys(dependenciesGraph), [
+  expect(Object.keys(dependenciesGraph)).toStrictEqual([
     'foo/1.0.0_qar@1.0.0+zoo@1.0.0',
     'bar/1.0.0_foo@1.0.0+zoo@1.0.0',
     'zoo/1.0.0_qar@1.0.0+zoo@1.0.0',
@@ -105,10 +105,9 @@ test('resolve peer dependencies of cyclic dependencies', (t) => {
     'bar/1.0.0_bar@1.0.0+foo@1.0.0',
     'foo/1.0.0_foo@1.0.0',
   ])
-  t.end()
 })
 
-test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurence', (t) => {
+test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurence', () => {
   const fooPkg = {
     name: 'foo',
     depPath: 'foo/1.0.0',
@@ -195,7 +194,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
     lockfileDir: '',
     strictPeerDependencies: false,
   })
-  t.deepEqual(Object.keys(dependenciesGraph), [
+  expect(Object.keys(dependenciesGraph)).toStrictEqual([
     'foo/1.0.0',
     'zoo/1.0.0',
     'foo/1.0.0_qar@1.0.0',
@@ -203,5 +202,4 @@ test('when a package is referenced twice in the dependencies graph and one of th
     'qar/1.0.0',
     'bar/1.0.0',
   ])
-  t.end()
 })
