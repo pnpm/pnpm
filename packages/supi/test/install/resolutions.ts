@@ -39,7 +39,7 @@ test('versions are replaced with versions specified through resolutions field', 
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    }
+    },
   ], await testDefaults())
 
   {
