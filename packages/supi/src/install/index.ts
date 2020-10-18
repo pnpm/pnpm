@@ -178,6 +178,7 @@ export async function mutateModules (
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(ctx.projects, {
+          resolutions: rootProject?.manifest.resolutions,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: opts.workspacePackages,
@@ -415,6 +416,7 @@ export async function mutateModules (
       ...opts,
       currentLockfileIsUpToDate: !ctx.existsWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
+      resolutions: rootProject?.manifest.resolutions,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
     })
@@ -561,6 +563,7 @@ async function installInContext (
     makePartialCurrentLockfile: boolean
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
+    resolutions?: Record<string, string>
     currentLockfileIsUpToDate: boolean
   }
 ) {
@@ -584,6 +587,12 @@ async function installInContext (
         delete ctx.wantedLockfile.importers[wantedImporter]
       }
     }
+  }
+  const resolutionsChanged = !R.equals(opts.resolutions ?? {}, ctx.wantedLockfile.resolutions ?? {})
+  if (!R.isEmpty(opts.resolutions ?? {})) {
+    ctx.wantedLockfile.resolutions = opts.resolutions
+  } else {
+    delete ctx.wantedLockfile.resolutions
   }
 
   await Promise.all(
@@ -612,7 +621,8 @@ async function installInContext (
   )
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
-    opts.force
+    opts.force ||
+    resolutionsChanged
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,
     lockfileOnly: opts.lockfileOnly,

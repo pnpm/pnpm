@@ -2,6 +2,7 @@ export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
   lockfileVersion: number
   packages?: PackageSnapshots
+  resolutions?: Record<string, string>
 }
 
 export interface ProjectSnapshot {

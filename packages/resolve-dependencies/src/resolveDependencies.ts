@@ -400,7 +400,19 @@ function getDepsToResolve (
   let proceedAll = options.proceed
   const allPeers = new Set<string>()
   for (const wantedDependency of wantedDependencies) {
-    let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
+    let reference = undefined as undefined | string
+    if (wantedDependency.alias && resolvedDependencies[wantedDependency.alias] &&
+      preferedSatisfiesWanted(
+        resolvedDependencies[wantedDependency.alias],
+        wantedDependency as {alias: string, pref: string},
+        wantedLockfile,
+        {
+          prefix: options.prefix,
+        }
+      )
+    ) {
+      reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
+    }
     let proceed = proceedAll
 
     // If dependencies that were used by the previous version of the package
