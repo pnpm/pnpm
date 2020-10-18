@@ -42,11 +42,13 @@ import {
   DependenciesField,
   DependencyManifest,
   ProjectManifest,
+  ReadPackageHook,
 } from '@pnpm/types'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
 import allProjectsAreUpToDate from './allProjectsAreUpToDate'
+import createVersionsReplacer from './createVersionsReplacer'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
@@ -135,6 +137,18 @@ export async function mutateModules (
   const installsOnly = projects.every((project) => project.mutation === 'install')
   opts['forceNewModules'] = installsOnly
   const ctx = await getContext(projects, opts)
+  const rootProject = ctx.projects.find(({ id }) => id === '.')
+  if (!R.isEmpty(rootProject?.manifest.resolutions ?? {})) {
+    const versionsReplacer = createVersionsReplacer(rootProject!.manifest.resolutions!)
+    if (opts.hooks.readPackage) {
+      opts.hooks.readPackage = R.pipe(
+        opts.hooks.readPackage,
+        versionsReplacer
+      ) as ReadPackageHook
+    } else {
+      opts.hooks.readPackage = versionsReplacer
+    }
+  }
 
   for (const { manifest, rootDir } of ctx.projects) {
     if (!manifest) {
