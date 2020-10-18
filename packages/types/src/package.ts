@@ -83,6 +83,7 @@ export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'nam
 
 export type ProjectManifest = BaseManifest & {
   private?: boolean
+  resolutions?: Record<string, string>
 }
 
 export type PackageManifest = DependencyManifest & {

@@ -399,29 +399,34 @@ function getDepsToResolve (
   // be merged with the resolved peers.
   let proceedAll = options.proceed
   const allPeers = new Set<string>()
+  const satisfiesWanted2Args = referenceSatisfiesWantedSpec.bind(null, {
+    lockfile: wantedLockfile,
+    prefix: options.prefix,
+  })
   for (const wantedDependency of wantedDependencies) {
-    let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
+    let reference = undefined as undefined | string
     let proceed = proceedAll
-
-    // If dependencies that were used by the previous version of the package
-    // satisfy the newer version's requirements, then pnpm tries to keep
-    // the previous dependency.
-    // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
-    // and foo was updated to 1.1.0 which depends on bar ^1.0.0
-    // then bar@1.0.0 can be reused for foo@1.1.0
-    if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // eslint-disable-line
-      preferredDependencies[wantedDependency.alias] &&
-      preferedSatisfiesWanted(
-        preferredDependencies[wantedDependency.alias],
-        wantedDependency as {alias: string, pref: string},
-        wantedLockfile,
-        {
-          prefix: options.prefix,
-        }
-      )
-    ) {
-      proceed = true
-      reference = preferredDependencies[wantedDependency.alias]
+    if (wantedDependency.alias) {
+      const satisfiesWanted = satisfiesWanted2Args.bind(null, wantedDependency)
+      if (
+        resolvedDependencies[wantedDependency.alias] &&
+        satisfiesWanted(resolvedDependencies[wantedDependency.alias])
+      ) {
+        reference = resolvedDependencies[wantedDependency.alias]
+      } else if (
+        // If dependencies that were used by the previous version of the package
+        // satisfy the newer version's requirements, then pnpm tries to keep
+        // the previous dependency.
+        // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
+        // and foo was updated to 1.1.0 which depends on bar ^1.0.0
+        // then bar@1.0.0 can be reused for foo@1.1.0
+        semver.validRange(wantedDependency.pref) !== null && // eslint-disable-line
+        preferredDependencies[wantedDependency.alias] &&
+        satisfiesWanted(preferredDependencies[wantedDependency.alias])
+      ) {
+        proceed = true
+        reference = preferredDependencies[wantedDependency.alias]
+      }
     }
     const infoFromLockfile = getInfoFromLockfile(wantedLockfile, options.registries, reference, wantedDependency.alias)
     if (
@@ -458,17 +463,17 @@ function getDepsToResolve (
   return extendedWantedDeps
 }
 
-function preferedSatisfiesWanted (
-  preferredRef: string,
-  wantedDep: {alias: string, pref: string},
-  lockfile: Lockfile,
+function referenceSatisfiesWantedSpec (
   opts: {
+    lockfile: Lockfile
     prefix: string
-  }
+  },
+  wantedDep: {alias: string, pref: string},
+  preferredRef: string
 ) {
   const depPath = dp.refToRelative(preferredRef, wantedDep.alias)
   if (depPath === null) return false
-  const pkgSnapshot = lockfile.packages?.[depPath]
+  const pkgSnapshot = opts.lockfile.packages?.[depPath]
   if (!pkgSnapshot) {
     logger.warn({
       message: `Could not find preferred package ${depPath} in lockfile`,
