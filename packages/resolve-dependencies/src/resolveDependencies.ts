@@ -420,7 +420,6 @@ function getDepsToResolve (
         // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
         // and foo was updated to 1.1.0 which depends on bar ^1.0.0
         // then bar@1.0.0 can be reused for foo@1.1.0
-        !reference &&
         semver.validRange(wantedDependency.pref) !== null && // eslint-disable-line
         preferredDependencies[wantedDependency.alias] &&
         satisfiesWanted(preferredDependencies[wantedDependency.alias])
