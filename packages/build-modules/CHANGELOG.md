@@ -1,5 +1,20 @@
 # @pnpm/build-modules
 
+## 5.1.2
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+- Updated dependencies [fcdad632f]
+- Updated dependencies [212671848]
+  - @pnpm/types@6.3.0
+  - @pnpm/constants@4.1.0
+  - @pnpm/read-package-json@3.1.6
+  - @pnpm/core-loggers@5.0.1
+  - @pnpm/lifecycle@9.5.1
+  - @pnpm/link-bins@5.3.16
+  - @pnpm/store-controller-types@9.1.1
+
 ## 5.1.1
 
 ### Patch Changes

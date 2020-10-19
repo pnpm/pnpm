@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 6.3.0
+
+### Minor Changes
+
+- d54043ee4: A new optional field added to the ProjectManifest type: resolutions.
+
 ## 6.2.0
 
 ### Minor Changes

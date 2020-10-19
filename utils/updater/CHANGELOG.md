@@ -1,5 +1,14 @@
 # @pnpm-private/updater
 
+## 0.0.30
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+  - @pnpm/types@6.3.0
+  - @pnpm/lockfile-file@3.0.15
+  - @pnpm/find-workspace-packages@2.3.19
+
 ## 0.0.29
 
 ### Patch Changes

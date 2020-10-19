@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
-  "version": "3.0.10",
+  "version": "3.0.11",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -39,8 +39,8 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:5.0.0",
-    "@pnpm/types": "workspace:^6.2.0",
+    "@pnpm/core-loggers": "workspace:5.0.1",
+    "@pnpm/types": "workspace:^6.3.0",
     "mz": "^2.7.0",
     "symlink-dir": "^4.1.0"
   },

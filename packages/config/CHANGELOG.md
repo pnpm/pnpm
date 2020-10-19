@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 11.6.1
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+- Updated dependencies [fcdad632f]
+  - @pnpm/types@6.3.0
+  - @pnpm/constants@4.1.0
+
 ## 11.6.0
 
 ### Minor Changes

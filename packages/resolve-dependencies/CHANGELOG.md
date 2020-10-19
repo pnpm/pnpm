@@ -1,5 +1,33 @@
 # @pnpm/resolve-dependencies
 
+## 18.1.0
+
+### Minor Changes
+
+- fcdad632f: When some of the dependencies of a package have the package as a peer depenendency, don't make the dependency a peer depenendency of itself.
+
+### Patch Changes
+
+- d54043ee4: When the version in the lockfile doesn't satisfy the range in the dependency's manifest, re-resolve the dependency.
+- Updated dependencies [d54043ee4]
+- Updated dependencies [d54043ee4]
+- Updated dependencies [fcdad632f]
+- Updated dependencies [212671848]
+  - @pnpm/lockfile-types@2.1.0
+  - @pnpm/types@6.3.0
+  - @pnpm/constants@4.1.0
+  - @pnpm/read-package-json@3.1.6
+  - @pnpm/lockfile-utils@2.0.17
+  - @pnpm/prune-lockfile@2.0.15
+  - @pnpm/core-loggers@5.0.1
+  - dependency-path@5.0.4
+  - @pnpm/manifest-utils@1.1.2
+  - @pnpm/npm-resolver@10.0.4
+  - @pnpm/package-is-installable@4.0.16
+  - @pnpm/pick-registry-for-package@1.0.4
+  - @pnpm/resolver-base@7.0.4
+  - @pnpm/store-controller-types@9.1.1
+
 ## 18.0.6
 
 ### Patch Changes

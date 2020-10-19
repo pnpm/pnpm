@@ -1,5 +1,15 @@
 # @pnpm/lifecycle
 
+## 9.5.1
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+- Updated dependencies [212671848]
+  - @pnpm/types@6.3.0
+  - @pnpm/read-package-json@3.1.6
+  - @pnpm/core-loggers@5.0.1
+
 ## 9.5.0
 
 ### Minor Changes

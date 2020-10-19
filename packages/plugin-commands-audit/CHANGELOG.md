@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.20
+
+### Patch Changes
+
+- Updated dependencies [fcdad632f]
+  - @pnpm/constants@4.1.0
+  - @pnpm/audit@1.1.15
+  - @pnpm/lockfile-file@3.0.15
+  - @pnpm/cli-utils@0.4.33
+  - @pnpm/config@11.6.1
+
 ## 2.0.19
 
 ### Patch Changes

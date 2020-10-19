@@ -1,5 +1,11 @@
 # @pnpm/lockfile-types
 
+## 2.1.0
+
+### Minor Changes
+
+- d54043ee4: A new optional field added to the lockfile type: resolutions.
+
 ## 2.0.1
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/list
 
+## 5.0.10
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+- Updated dependencies [212671848]
+  - @pnpm/types@6.3.0
+  - @pnpm/read-package-json@3.1.6
+  - dependencies-hierarchy@9.0.6
+  - @pnpm/read-project-manifest@1.1.1
+
 ## 5.0.9
 
 ### Patch Changes

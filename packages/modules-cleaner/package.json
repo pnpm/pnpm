@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "10.0.11",
+  "version": "10.0.12",
   "description": "Exports util functions to clean up node_modules",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
@@ -27,17 +27,17 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:5.0.0",
-    "@pnpm/filter-lockfile": "workspace:4.0.9",
-    "@pnpm/lockfile-types": "workspace:2.0.1",
-    "@pnpm/lockfile-utils": "workspace:2.0.16",
+    "@pnpm/core-loggers": "workspace:5.0.1",
+    "@pnpm/filter-lockfile": "workspace:4.0.10",
+    "@pnpm/lockfile-types": "workspace:2.1.0",
+    "@pnpm/lockfile-utils": "workspace:2.0.17",
     "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.3",
-    "@pnpm/remove-bins": "workspace:1.0.6",
-    "@pnpm/store-controller-types": "workspace:9.1.0",
-    "@pnpm/types": "workspace:6.2.0",
+    "@pnpm/remove-bins": "workspace:1.0.7",
+    "@pnpm/store-controller-types": "workspace:9.1.1",
+    "@pnpm/types": "workspace:6.3.0",
     "@zkochan/rimraf": "^1.0.0",
-    "dependency-path": "workspace:5.0.3",
+    "dependency-path": "workspace:5.0.4",
     "ramda": "^0.27.1"
   },
   "devDependencies": {

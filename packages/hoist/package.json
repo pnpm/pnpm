@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "4.0.14",
+  "version": "4.0.15",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -39,16 +39,16 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:4.0.0",
-    "@pnpm/link-bins": "workspace:5.3.15",
-    "@pnpm/lockfile-types": "workspace:2.0.1",
-    "@pnpm/lockfile-utils": "workspace:2.0.16",
-    "@pnpm/lockfile-walker": "workspace:3.0.4",
+    "@pnpm/constants": "workspace:4.1.0",
+    "@pnpm/link-bins": "workspace:5.3.16",
+    "@pnpm/lockfile-types": "workspace:2.1.0",
+    "@pnpm/lockfile-utils": "workspace:2.0.17",
+    "@pnpm/lockfile-walker": "workspace:3.0.5",
     "@pnpm/matcher": "workspace:^1.0.3",
     "@pnpm/pkgid-to-filename": "^3.0.0",
-    "@pnpm/symlink-dependency": "workspace:3.0.10",
-    "@pnpm/types": "workspace:6.2.0",
-    "dependency-path": "workspace:5.0.3",
+    "@pnpm/symlink-dependency": "workspace:3.0.11",
+    "@pnpm/types": "workspace:6.3.0",
+    "dependency-path": "workspace:5.0.4",
     "ramda": "^0.27.1"
   },
   "funding": "https://opencollective.com/pnpm"

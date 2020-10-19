@@ -1,5 +1,12 @@
 # dependency-path
 
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+  - @pnpm/types@6.3.0
+
 ## 5.0.3
 
 ### Patch Changes

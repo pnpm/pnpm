@@ -1,5 +1,13 @@
 # @pnpm/read-package-json
 
+## 3.1.6
+
+### Patch Changes
+
+- 212671848: Update read-package-json to v3.
+- Updated dependencies [d54043ee4]
+  - @pnpm/types@6.3.0
+
 ## 3.1.5
 
 ### Patch Changes

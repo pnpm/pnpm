@@ -1,5 +1,12 @@
 # @pnpm/git-fetcher
 
+## 3.0.9
+
+### Patch Changes
+
+- 212671848: Update tempy to v1.
+  - @pnpm/fetcher-base@9.0.1
+
 ## 3.0.8
 
 ### Patch Changes

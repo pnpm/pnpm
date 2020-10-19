@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-resolver",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "description": "Resolver for tarball dependencies",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/tarball-resolver#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "workspace:7.0.3"
+    "@pnpm/resolver-base": "workspace:7.0.4"
   },
   "devDependencies": {
     "@pnpm/tarball-resolver": "link:"

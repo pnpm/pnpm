@@ -1,5 +1,25 @@
 # pnpm
 
+## 5.10.0-0
+
+### Minor Changes
+
+- A "resolutions" field may be used to override version ranges of dependencies.
+  The resolution field can be specified only in the root project's `package.json`.
+
+  An example of a "resolutions" field:
+
+  ```json
+  {
+    "resolutions": {
+      "foo": "^1.0.0",
+      "bar@^2.1.0": "3.0.0"
+    }
+  }
+  ```
+
+- When some of the dependencies of a package have the package as a peer depenendency, don't make the dependency a peer depenendency of itself.
+
 ## 5.9.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "3.2.7",
+  "version": "3.2.8",
   "description": "Gets context information about a project",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -39,13 +39,13 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:4.0.0",
-    "@pnpm/core-loggers": "workspace:5.0.0",
+    "@pnpm/constants": "workspace:4.1.0",
+    "@pnpm/core-loggers": "workspace:5.0.1",
     "@pnpm/error": "workspace:1.3.1",
-    "@pnpm/lockfile-file": "workspace:3.0.14",
-    "@pnpm/modules-yaml": "workspace:8.0.2",
-    "@pnpm/read-projects-context": "workspace:4.0.5",
-    "@pnpm/types": "workspace:6.2.0",
+    "@pnpm/lockfile-file": "workspace:3.0.15",
+    "@pnpm/modules-yaml": "workspace:8.0.3",
+    "@pnpm/read-projects-context": "workspace:4.0.6",
+    "@pnpm/types": "workspace:6.3.0",
     "@zkochan/rimraf": "^1.0.0",
     "is-ci": "^2.0.0",
     "mz": "^2.7.0",

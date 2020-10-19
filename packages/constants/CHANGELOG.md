@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 4.1.0
+
+### Minor Changes
+
+- fcdad632f: Bump lockfile version to 5.2
+
 ## 4.0.0
 
 ### Major Changes
