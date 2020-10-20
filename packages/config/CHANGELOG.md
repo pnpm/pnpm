@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.7.0
+
+### Minor Changes
+
+- 50b360ec1: A new option added for specifying the shell to use, when running scripts: scriptShell.
+
 ## 11.6.1
 
 ### Patch Changes

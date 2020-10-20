@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 9.6.0
+
+### Minor Changes
+
+- 50b360ec1: A new option added for specifying the shell to use, when running scripts: scriptShell.
+
 ## 9.5.1
 
 ### Patch Changes

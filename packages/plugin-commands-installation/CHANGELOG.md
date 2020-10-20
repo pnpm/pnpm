@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 3.4.0
+
+### Minor Changes
+
+- 50b360ec1: A new option added for specifying the shell to use, when running scripts: scriptShell.
+
+### Patch Changes
+
+- Updated dependencies [50b360ec1]
+  - @pnpm/config@11.7.0
+  - @pnpm/plugin-commands-rebuild@2.2.0
+  - supi@0.43.9
+  - @pnpm/cli-utils@0.4.34
+  - @pnpm/store-connection-manager@0.3.42
+  - @pnpm/find-workspace-packages@2.3.20
+  - @pnpm/filter-workspace-packages@2.2.5
+
 ## 3.3.8
 
 ### Patch Changes

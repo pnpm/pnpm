@@ -1,5 +1,16 @@
 # @pnpm/build-modules
 
+## 5.2.0
+
+### Minor Changes
+
+- 50b360ec1: A new option added for specifying the shell to use, when running scripts: scriptShell.
+
+### Patch Changes
+
+- Updated dependencies [50b360ec1]
+  - @pnpm/lifecycle@9.6.0
+
 ## 5.1.2
 
 ### Patch Changes

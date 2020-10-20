@@ -1,6 +1,6 @@
 # pnpm
 
-## 5.10.0-0
+## 5.10.0
 
 ### Minor Changes
 
@@ -18,7 +18,11 @@
   }
   ```
 
+- A new setting added for specifying the shell to use, when running scripts: script-shell [#2942](https://github.com/pnpm/pnpm/issues/2942)
+
 - When some of the dependencies of a package have the package as a peer depenendency, don't make the dependency a peer depenendency of itself.
+
+- Lockfile version bumped to 5.2
 
 ## 5.9.3
 

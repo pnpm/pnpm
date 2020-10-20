@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-to-pnp",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Creates a Plug'n'Play file from a pnpm-lock.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -42,7 +42,7 @@
     "tape": "^4.13.3"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:11.6.1",
+    "@pnpm/config": "workspace:11.7.0",
     "@pnpm/lockfile-file": "workspace:3.0.15",
     "@pnpm/lockfile-utils": "workspace:2.0.17",
     "@pnpm/logger": "^3.2.2",

@@ -1,5 +1,16 @@
 # supi
 
+## 0.43.9
+
+### Patch Changes
+
+- 50b360ec1: A new option added for specifying the shell to use, when running scripts: scriptShell.
+- Updated dependencies [50b360ec1]
+  - @pnpm/build-modules@5.2.0
+  - @pnpm/headless@14.5.0
+  - @pnpm/lifecycle@9.6.0
+  - @pnpm/lockfile-to-pnp@0.3.2
+
 ## 0.43.8
 
 ### Patch Changes
