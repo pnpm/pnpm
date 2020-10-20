@@ -755,6 +755,7 @@ async function installInContext (
         rawConfig: opts.rawConfig,
         rootModulesDir: ctx.virtualStoreDir,
         scriptShell: opts.scriptShell,
+        shellEmulator: opts.shellEmulator,
         sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
         storeController: opts.storeController,
         unsafePerm: opts.unsafePerm,

@@ -346,6 +346,7 @@ export default async (opts: HeadlessOptions) => {
       rawConfig: opts.rawConfig,
       rootModulesDir: virtualStoreDir,
       scriptShell: opts.scriptShell,
+      shellEmulator: opts.shellEmulator,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm,
