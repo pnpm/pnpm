@@ -71,6 +71,7 @@ export async function handler (
   | 'engineStrict'
   | 'rawLocalConfig'
   | 'registries'
+  | 'scriptShell'
   | 'selectedProjectsGraph'
   | 'sideEffectsCache'
   | 'sideEffectsCacheReadonly'

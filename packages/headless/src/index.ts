@@ -94,6 +94,8 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string
+  scriptShell?: string
+  shellEmulator?: boolean
   storeController: StoreController
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -147,6 +149,8 @@ export default async (opts: HeadlessOptions) => {
   const scriptsOpts = {
     optional: false,
     rawConfig: opts.rawConfig,
+    scriptShell: opts.scriptShell,
+    shellEmulator: opts.shellEmulator,
     stdio: opts.ownLifecycleHooksStdio ?? 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
@@ -341,6 +345,8 @@ export default async (opts: HeadlessOptions) => {
       optional: opts.include.optionalDependencies,
       rawConfig: opts.rawConfig,
       rootModulesDir: virtualStoreDir,
+      scriptShell: opts.scriptShell,
+      shellEmulator: opts.shellEmulator,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm,

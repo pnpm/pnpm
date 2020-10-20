@@ -54,6 +54,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'savePrefix'
 | 'saveProd'
 | 'saveWorkspaceProtocol'
+| 'scriptShell'
 | 'selectedProjectsGraph'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'

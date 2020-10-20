@@ -24,6 +24,7 @@ export interface StrictInstallOptions {
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean
   preserveWorkspaceProtocol: boolean
+  scriptShell?: string
   shellEmulator: boolean
   storeController: StoreController
   storeDir: string

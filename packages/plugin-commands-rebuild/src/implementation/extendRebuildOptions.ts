@@ -9,6 +9,7 @@ export interface StrictRebuildOptions {
   childConcurrency: number
   extraBinPaths: string[]
   lockfileDir: string
+  scriptShell?: string
   sideEffectsCacheRead: boolean
   shellEmulator: boolean
   storeDir: string // TODO: remove this property

@@ -7,6 +7,7 @@ import {
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import prepare, { preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import './exec'
 import './runCompletion'
 import './runRecursive'
@@ -388,5 +389,33 @@ test('scripts work with PnP', async (t) => {
 
   const scriptsRan = await import(path.resolve('output.json'))
   t.deepEqual(scriptsRan, ['foo'])
+  t.end()
+})
+
+test('pnpm run with custom shell', async (t) => {
+  prepare(t, {
+    scripts: {
+      build: 'foo bar',
+    },
+    dependencies: {
+      'shell-mock': '0.0.0',
+    },
+  })
+
+  await execa(pnpmBin, [
+    'install',
+    `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    rawConfig: {},
+    scriptShell: path.resolve('node_modules/.bin/shell-mock'),
+  }, ['build'])
+
+  t.deepEqual(await import(path.resolve('shell-input.json')), ['-c', 'foo bar'])
   t.end()
 })

@@ -24,6 +24,8 @@ export default async (
     rawConfig: object
     unsafePerm: boolean
     userAgent: string
+    scriptShell?: string
+    shellEmulator?: boolean
     sideEffectsCacheWrite: boolean
     storeController: StoreController
     rootModulesDir: string
@@ -69,6 +71,8 @@ async function buildDependency (
     optional: boolean
     rawConfig: object
     rootModulesDir: string
+    scriptShell?: string
+    shellEmulator?: boolean
     sideEffectsCacheWrite: boolean
     storeController: StoreController
     unsafePerm: boolean
@@ -88,6 +92,8 @@ async function buildDependency (
       prepare: depNode.prepare,
       rawConfig: opts.rawConfig,
       rootModulesDir: opts.rootModulesDir,
+      scriptShell: opts.scriptShell,
+      shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,
     })
     if (hasSideEffects && opts.sideEffectsCacheWrite) {
