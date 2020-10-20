@@ -107,7 +107,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'reporter' | 'shellEmulator'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'reporter' | 'scriptShell' | 'shellEmulator'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -154,6 +154,7 @@ so you may run "pnpm -w ${scriptName}"`,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    scriptShell: opts.scriptShell,
     silent: opts.reporter === 'silent',
     shellEmulator: opts.shellEmulator,
     stdio: 'inherit',

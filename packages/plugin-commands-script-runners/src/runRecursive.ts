@@ -15,6 +15,7 @@ import realpathMissing = require('realpath-missing')
 export type RecursiveRunOpts = Pick<Config,
 | 'unsafePerm'
 | 'rawConfig'
+| 'scriptShell'
 | 'shellEmulator'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>> &
@@ -67,6 +68,7 @@ export default async (
             pkgRoot: prefix,
             rawConfig: opts.rawConfig,
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
+            scriptShell: opts.scriptShell,
             shellEmulator: opts.shellEmulator,
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.

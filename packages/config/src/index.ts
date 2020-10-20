@@ -66,6 +66,7 @@ export const types = Object.assign({
   reporter: String,
   'save-peer': Boolean,
   'save-workspace-protocol': Boolean,
+  'script-shell': String,
   'shamefully-flatten': Boolean,
   'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,

@@ -155,6 +155,7 @@ export async function rebuild (
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
     rawConfig: opts.rawConfig,
+    scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
     unsafePerm: opts.unsafePerm || false,
   }
