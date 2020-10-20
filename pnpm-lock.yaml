@@ -5619,7 +5619,7 @@ packages:
       content-type: 1.0.4
       debug: 2.6.9
       depd: 1.1.2
-      http-errors: 1.7.2
+      http-errors: 1.8.0
       iconv-lite: 0.4.24
       on-finished: 2.3.0
       qs: 6.7.0
@@ -8427,18 +8427,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-carPklcUh7ROWRK7Cv27RPtdhYhUsela/ue5/jKzjegVvXDqM2ILE9Q2BGn9JZJh1g87cp56su/FgQSzcWS8cQ==
-  /http-errors/1.7.2:
-    dependencies:
-      depd: 1.1.2
-      inherits: 2.0.3
-      setprototypeof: 1.1.1
-      statuses: 1.5.0
-      toidentifier: 1.0.0
-    dev: true
-    engines:
-      node: '>= 0.6'
-    resolution:
-      integrity: sha512-uUQBt3H/cSIVfch6i1EuPNy/YsRSOUBXTVfZ+yR7Zjez3qjBz6i9+i4zjNaoqcoFVI4lQJ5plg63TvGfRSDCRg==
   /http-errors/1.8.0:
     dependencies:
       depd: 1.1.2
@@ -8619,10 +8607,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-J4QdcoZ920JCzWEtecEGM4gcang=
-  /inherits/2.0.3:
-    dev: true
-    resolution:
-      integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
   /inherits/2.0.4:
     resolution:
       integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==
@@ -11950,7 +11934,7 @@ packages:
   /raw-body/2.4.0:
     dependencies:
       bytes: 3.1.0
-      http-errors: 1.7.2
+      http-errors: 1.8.0
       iconv-lite: 0.4.24
       unpipe: 1.0.0
     dev: true
@@ -12658,7 +12642,7 @@ packages:
       escape-html: 1.0.3
       etag: 1.8.1
       fresh: 0.5.2
-      http-errors: 1.7.2
+      http-errors: 1.8.0
       mime: 1.6.0
       ms: 2.1.1
       on-finished: 2.3.0
@@ -14615,3 +14599,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==
+resolutions:
+  '@nodelib/fs.walk@^1.1.0': 1.1.1
+  http-errors: ^1.7.3
+  istanbul-reports: 'npm:@zkochan/istanbul-reports'
