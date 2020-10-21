@@ -82,6 +82,9 @@ interface BaseManifest {
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
 
 export type ProjectManifest = BaseManifest & {
+  pnpm?: {
+    overrides?: Record<string, string>
+  }
   private?: boolean
   resolutions?: Record<string, string>
 }
