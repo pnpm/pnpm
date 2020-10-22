@@ -48,7 +48,7 @@ import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
 import allProjectsAreUpToDate from './allProjectsAreUpToDate'
-import createVersionsReplacer from './createVersionsReplacer'
+import createVersionsOverrider from './createVersionsOverrider'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
@@ -138,15 +138,21 @@ export async function mutateModules (
   opts['forceNewModules'] = installsOnly
   const ctx = await getContext(projects, opts)
   const rootProject = ctx.projects.find(({ id }) => id === '.')
-  if (!R.isEmpty(rootProject?.manifest.resolutions ?? {})) {
-    const versionsReplacer = createVersionsReplacer(rootProject!.manifest.resolutions!)
+  // We read Yarn's resolutions field for compatibility
+  // but we really replace the version specs to any other version spec, not only to exact versions,
+  // so we cannot call it resolutions
+  const overrides = rootProject
+    ? rootProject.manifest.pnpm?.overrides ?? rootProject.manifest.resolutions
+    : undefined
+  if (!R.isEmpty(overrides ?? {})) {
+    const versionsOverrider = createVersionsOverrider(overrides!)
     if (opts.hooks.readPackage) {
       opts.hooks.readPackage = R.pipe(
         opts.hooks.readPackage,
-        versionsReplacer
+        versionsOverrider
       ) as ReadPackageHook
     } else {
-      opts.hooks.readPackage = versionsReplacer
+      opts.hooks.readPackage = versionsOverrider
     }
   }
 
@@ -178,8 +184,8 @@ export async function mutateModules (
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(ctx.projects, {
-          resolutions: rootProject?.manifest.resolutions,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+          overrides,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: opts.workspacePackages,
         })
@@ -417,7 +423,7 @@ export async function mutateModules (
       ...opts,
       currentLockfileIsUpToDate: !ctx.existsWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
-      resolutions: rootProject?.manifest.resolutions,
+      overrides,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
     })
@@ -562,9 +568,9 @@ async function installInContext (
   ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
     makePartialCurrentLockfile: boolean
+    overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
-    resolutions?: Record<string, string>
     currentLockfileIsUpToDate: boolean
   }
 ) {
@@ -589,11 +595,14 @@ async function installInContext (
       }
     }
   }
-  const resolutionsChanged = !R.equals(opts.resolutions ?? {}, ctx.wantedLockfile.resolutions ?? {})
-  if (!R.isEmpty(opts.resolutions ?? {})) {
-    ctx.wantedLockfile.resolutions = opts.resolutions
+  const overridesChanged = !R.equals(opts.overrides ?? {}, ctx.wantedLockfile.overrides ?? {})
+  if (!R.isEmpty(opts.overrides ?? {})) {
+    ctx.wantedLockfile.overrides = opts.overrides
   } else {
-    delete ctx.wantedLockfile.resolutions
+    delete ctx.wantedLockfile.overrides
+    // We were only setting the resolutions field in pnpm v5.10.0, which was never latest,
+    // so we can probably remove this line safely in future pnpm versions.
+    delete ctx.wantedLockfile['resolutions']
   }
 
   await Promise.all(
@@ -623,7 +632,7 @@ async function installInContext (
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
-    resolutionsChanged
+    overridesChanged
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,
     lockfileOnly: opts.lockfileOnly,
