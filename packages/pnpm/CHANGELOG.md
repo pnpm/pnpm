@@ -1,22 +1,27 @@
 # pnpm
 
-## 5.10.0
+## 5.10.1
 
 ### Minor Changes
 
-- A "resolutions" field may be used to override version ranges of dependencies.
-  The resolution field can be specified only in the root project's `package.json`.
+- A `"pnpm"."overrides"` field may be used to override version ranges of dependencies.
+  The overrides field can be specified only in the root project's `package.json`.
 
-  An example of a "resolutions" field:
+  An example of the `"pnpm"."overrides"` field:
 
   ```json
   {
-    "resolutions": {
-      "foo": "^1.0.0",
-      "bar@^2.1.0": "3.0.0"
+    "pnpm": {
+      "overrides": {
+        "foo": "^1.0.0",
+        "bar@^2.1.0": "3.0.0",
+        "qar@1>zoo": "2"
+      }
     }
   }
   ```
+
+  You may specify the package to which the overriden dependency belongs by separating the package selector from the dependency selector with a ">", for example `qar@1>zoo` will only override the `zoo` dependency of any `qar@1` dependency.
 
 - A new setting added for specifying the shell to use, when running scripts: script-shell [#2942](https://github.com/pnpm/pnpm/issues/2942)
 

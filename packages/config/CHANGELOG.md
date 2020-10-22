@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 11.7.1
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/types@6.3.1
+
 ## 11.7.0
 
 ### Minor Changes

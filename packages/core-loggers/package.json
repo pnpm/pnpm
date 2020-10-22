@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core-loggers",
   "description": "Core loggers of pnpm",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -35,7 +35,7 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:^6.3.0"
+    "@pnpm/types": "workspace:^6.3.1"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/core-loggers#readme",
   "funding": "https://opencollective.com/pnpm"

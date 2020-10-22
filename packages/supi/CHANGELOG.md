@@ -1,5 +1,54 @@
 # supi
 
+## 0.43.10
+
+### Patch Changes
+
+- b5d694e7f: Use pnpm.overrides instead of resolutions. Still support resolutions for partial compatibility with Yarn and for avoiding a breaking change.
+- c03a2b2cb: Allow to specify the overriden dependency's parent package.
+
+  For example, if `foo` should be overriden only in dependencies of bar v2, this configuration may be used:
+
+  ```json
+  {
+    ...
+    "pnpm": {
+      "overriden": {
+        "bar@2>foo": "1.0.0"
+      }
+    }
+  }
+  ```
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/types@6.3.1
+  - @pnpm/filter-lockfile@4.0.11
+  - @pnpm/hoist@4.0.16
+  - @pnpm/lockfile-file@3.0.16
+  - @pnpm/lockfile-utils@2.0.18
+  - @pnpm/lockfile-walker@3.0.6
+  - @pnpm/modules-cleaner@10.0.13
+  - @pnpm/prune-lockfile@2.0.16
+  - @pnpm/resolve-dependencies@18.1.1
+  - @pnpm/build-modules@5.2.1
+  - @pnpm/core-loggers@5.0.2
+  - dependency-path@5.0.5
+  - @pnpm/get-context@3.2.9
+  - @pnpm/headless@14.5.1
+  - @pnpm/lifecycle@9.6.1
+  - @pnpm/link-bins@5.3.17
+  - @pnpm/lockfile-to-pnp@0.3.3
+  - @pnpm/manifest-utils@1.1.3
+  - @pnpm/modules-yaml@8.0.4
+  - @pnpm/normalize-registries@1.0.5
+  - @pnpm/package-requester@12.1.2
+  - @pnpm/read-package-json@3.1.7
+  - @pnpm/read-project-manifest@1.1.2
+  - @pnpm/remove-bins@1.0.8
+  - @pnpm/resolver-base@7.0.5
+  - @pnpm/store-controller-types@9.1.2
+  - @pnpm/symlink-dependency@3.0.12
+
 ## 0.43.9
 
 ### Patch Changes

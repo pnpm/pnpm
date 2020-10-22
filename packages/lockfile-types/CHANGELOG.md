@@ -1,5 +1,11 @@
 # @pnpm/lockfile-types
 
+## 2.1.1
+
+### Patch Changes
+
+- b5d694e7f: Use pnpm.overrides instead of resolutions. Still support resolutions for partial compatibility with Yarn and for avoiding a breaking change.
+
 ## 2.1.0
 
 ### Minor Changes

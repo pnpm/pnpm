@@ -1,5 +1,12 @@
 # @pnpm/read-package-json
 
+## 3.1.7
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/types@6.3.1
+
 ## 3.1.6
 
 ### Patch Changes

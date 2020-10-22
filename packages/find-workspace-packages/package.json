@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/find-workspace-packages",
-  "version": "2.3.20",
+  "version": "2.3.21",
   "description": "Finds packages inside a workspace",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,10 +32,10 @@
     "@pnpm/find-workspace-packages": "link:"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.34",
+    "@pnpm/cli-utils": "workspace:0.4.35",
     "@pnpm/constants": "workspace:4.1.0",
-    "@pnpm/types": "workspace:6.3.0",
-    "find-packages": "workspace:7.0.18",
+    "@pnpm/types": "workspace:6.3.1",
+    "find-packages": "workspace:7.0.19",
     "read-yaml-file": "^2.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

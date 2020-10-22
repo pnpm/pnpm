@@ -1,5 +1,14 @@
 # @pnpm/server
 
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/types@6.3.1
+  - @pnpm/store-controller-types@9.1.2
+  - @pnpm/fetch@2.1.7
+
 ## 9.0.2
 
 ### Patch Changes

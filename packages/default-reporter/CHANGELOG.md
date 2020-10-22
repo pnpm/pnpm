@@ -1,5 +1,14 @@
 # @pnpm/default-reporter
 
+## 7.9.7
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/types@6.3.1
+  - @pnpm/config@11.7.1
+  - @pnpm/core-loggers@5.0.2
+
 ## 7.9.6
 
 ### Patch Changes

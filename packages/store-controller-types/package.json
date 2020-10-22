@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-controller-types",
-  "version": "9.1.1",
+  "version": "9.1.2",
   "description": "Types for the store controller",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -28,8 +28,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/store-controller-types#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "workspace:7.0.4",
-    "@pnpm/types": "workspace:6.3.0"
+    "@pnpm/resolver-base": "workspace:7.0.5",
+    "@pnpm/types": "workspace:6.3.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

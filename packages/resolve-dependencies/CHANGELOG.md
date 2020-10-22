@@ -1,5 +1,24 @@
 # @pnpm/resolve-dependencies
 
+## 18.1.1
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/lockfile-types@2.1.1
+  - @pnpm/types@6.3.1
+  - @pnpm/lockfile-utils@2.0.18
+  - @pnpm/prune-lockfile@2.0.16
+  - @pnpm/core-loggers@5.0.2
+  - dependency-path@5.0.5
+  - @pnpm/manifest-utils@1.1.3
+  - @pnpm/npm-resolver@10.0.5
+  - @pnpm/package-is-installable@4.0.17
+  - @pnpm/pick-registry-for-package@1.0.5
+  - @pnpm/read-package-json@3.1.7
+  - @pnpm/resolver-base@7.0.5
+  - @pnpm/store-controller-types@9.1.2
+
 ## 18.1.0
 
 ### Minor Changes

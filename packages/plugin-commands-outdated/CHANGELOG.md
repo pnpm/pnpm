@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.24
+
+### Patch Changes
+
+- @pnpm/lockfile-file@3.0.16
+- @pnpm/cli-utils@0.4.35
+- @pnpm/config@11.7.1
+- @pnpm/modules-yaml@8.0.4
+- @pnpm/outdated@7.2.9
+- @pnpm/default-resolver@11.0.7
+
 ## 3.0.23
 
 ### Patch Changes

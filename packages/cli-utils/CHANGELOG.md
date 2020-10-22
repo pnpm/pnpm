@@ -1,5 +1,15 @@
 # @pnpm/cli-utils
 
+## 0.4.35
+
+### Patch Changes
+
+- @pnpm/cli-meta@1.0.1
+- @pnpm/config@11.7.1
+- @pnpm/manifest-utils@1.1.3
+- @pnpm/package-is-installable@4.0.17
+- @pnpm/read-project-manifest@1.1.2
+
 ## 0.4.34
 
 ### Patch Changes

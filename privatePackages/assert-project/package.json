@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "2.1.10",
+  "version": "2.1.11",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -41,9 +41,9 @@
     "test": "pnpm run tsc && ts-node test"
   },
   "dependencies": {
-    "@pnpm/assert-store": "workspace:1.0.11",
+    "@pnpm/assert-store": "workspace:1.0.12",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:2.1.0",
+    "@pnpm/lockfile-types": "workspace:2.1.1",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/mz": "^2.7.1",

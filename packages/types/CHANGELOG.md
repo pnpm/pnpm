@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 6.3.1
+
+### Patch Changes
+
+- b5d694e7f: Use pnpm.overrides instead of resolutions. Still support resolutions for partial compatibility with Yarn and for avoiding a breaking change.
+
 ## 6.3.0
 
 ### Minor Changes
