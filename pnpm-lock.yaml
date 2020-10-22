@@ -3066,6 +3066,10 @@ importers:
       path-exists: ^4.0.0
       write-json-file: 4.0.0
 lockfileVersion: 5.2
+overrides:
+  '@nodelib/fs.walk@^1.1.0': 1.1.1
+  http-errors: ^1.7.3
+  istanbul-reports: 'npm:@zkochan/istanbul-reports'
 packages:
   /@babel/code-frame/7.10.4:
     dependencies:
@@ -14599,7 +14603,3 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==
-resolutions:
-  '@nodelib/fs.walk@^1.1.0': 1.1.1
-  http-errors: ^1.7.3
-  istanbul-reports: 'npm:@zkochan/istanbul-reports'

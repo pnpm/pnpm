@@ -57,9 +57,11 @@
       "post-rewrite": "yarnhook"
     }
   },
-  "resolutions": {
-    "@nodelib/fs.walk@^1.1.0": "1.1.1",
-    "istanbul-reports": "npm:@zkochan/istanbul-reports",
-    "http-errors": "^1.7.3"
+  "pnpm": {
+    "overrides": {
+      "@nodelib/fs.walk@^1.1.0": "1.1.1",
+      "istanbul-reports": "npm:@zkochan/istanbul-reports",
+      "http-errors": "^1.7.3"
+    }
   }
 }
