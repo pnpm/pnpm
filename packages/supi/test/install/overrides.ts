@@ -13,21 +13,26 @@ test('versions are replaced with versions specified through pnpm.overrides field
   const project = prepareEmpty(t)
 
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({
     pnpm: {
       overrides: {
+        'foobarqar>foo': 'npm:qar@100.0.0',
         'bar@^100.0.0': '100.1.0',
         'dep-of-pkg-with-1-dep': '101.0.0',
       },
     },
-  }, ['pkg-with-1-dep@100.0.0', 'foobar@100.0.0'], await testDefaults())
+  }, ['pkg-with-1-dep@100.0.0', 'foobar@100.0.0', 'foobarqar@1.0.0'], await testDefaults())
 
   {
     const lockfile = await project.readLockfile()
+    t.equal(lockfile.packages['/foobarqar/1.0.0'].dependencies['foo'], '/qar/100.0.0')
+    t.equal(lockfile.packages['/foobar/100.0.0'].dependencies['foo'], '100.0.0')
     t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/101.0.0'])
     t.ok(lockfile.packages['/bar/100.1.0'])
     t.deepEqual(lockfile.overrides, {
+      'foobarqar>foo': 'npm:qar@100.0.0',
       'bar@^100.0.0': '100.1.0',
       'dep-of-pkg-with-1-dep': '101.0.0',
     })
@@ -49,6 +54,7 @@ test('versions are replaced with versions specified through pnpm.overrides field
     t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/101.0.0'])
     t.ok(lockfile.packages['/bar/100.0.0'])
     t.deepEqual(lockfile.overrides, {
+      'foobarqar>foo': 'npm:qar@100.0.0',
       'bar@^100.0.0': '100.0.0',
       'dep-of-pkg-with-1-dep': '101.0.0',
     })
