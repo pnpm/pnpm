@@ -4,7 +4,7 @@ import { PackageManifest } from '@pnpm/types'
 import fs = require('fs')
 import chalk = require('chalk')
 
-class BadReadPackageHookError extends PnpmError {
+export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
 
   constructor (pnpmfile: string, message: string) {
