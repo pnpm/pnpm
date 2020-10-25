@@ -14,9 +14,9 @@ export default async function (
   const extract = tar.extract()
   const filesIndex = {}
   await new Promise((resolve, reject) => {
-    extract.on('entry', async (header, fileStream, next) => {
-      const filename = header.name.substr(header.name.indexOf('/') + 1)
-      if (header.type !== 'file' || ignore(filename)) {
+    extract.on('entry', (header, fileStream, next) => {
+      const filename = header.name.substr(header.name.indexOf('/') + 1).replace(/\/\//g, '/')
+      if (header.type !== 'file' || ignore(filename) || filesIndex[filename]) {
         fileStream.resume()
         next()
         return

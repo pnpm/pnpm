@@ -52,3 +52,19 @@ describe('checkFilesIntegrity()', () => {
     })).toBeFalsy()
   })
 })
+
+test('file names are normalized when unpacking a tarball', async () => {
+  const dest = tempy.directory()
+  console.log(dest)
+  const cafs = createCafs(dest)
+  const filesIndex = await cafs.addFilesFromTarball(
+    fs.createReadStream(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
+  )
+  expect(Object.keys(filesIndex).sort()).toStrictEqual([
+    'LICENSE',
+    'README.md',
+    'lib/index.d.ts',
+    'lib/index.js',
+    'package.json',
+  ])
+})
