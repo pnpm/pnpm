@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.10.2
+
+### Patch Changes
+
+- When extracting packages to the store, file duplicates are skipped.
+- When creating a hard link fails, fall back to copying only if the target file does not exist.
+
 ## 5.10.1
 
 ### Minor Changes

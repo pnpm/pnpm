@@ -1,5 +1,14 @@
 # @pnpm/package-store
 
+## 10.1.6
+
+### Patch Changes
+
+- 01aecf038: Do not try to copy a file during linking, if the target already exists.
+- Updated dependencies [b3059f4f8]
+  - @pnpm/cafs@2.0.3
+  - @pnpm/package-requester@12.1.3
+
 ## 10.1.5
 
 ### Patch Changes

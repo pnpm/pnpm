@@ -36,7 +36,7 @@
     "tempy": "^1.0.0"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:2.0.2",
+    "@pnpm/cafs": "workspace:2.0.3",
     "@pnpm/git-fetcher": "link:",
     "@pnpm/types": "workspace:6.3.1",
     "p-defer": "^3.0.0"

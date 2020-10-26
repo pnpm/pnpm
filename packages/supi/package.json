@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.43.10",
+  "version": "0.43.11",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -22,7 +22,7 @@
     "@pnpm/error": "workspace:1.3.1",
     "@pnpm/filter-lockfile": "workspace:4.0.11",
     "@pnpm/get-context": "workspace:3.2.9",
-    "@pnpm/headless": "workspace:14.5.1",
+    "@pnpm/headless": "workspace:14.5.2",
     "@pnpm/hoist": "workspace:4.0.16",
     "@pnpm/lifecycle": "workspace:9.6.1",
     "@pnpm/link-bins": "workspace:5.3.17",
@@ -34,7 +34,7 @@
     "@pnpm/modules-cleaner": "workspace:10.0.13",
     "@pnpm/modules-yaml": "workspace:8.0.4",
     "@pnpm/normalize-registries": "workspace:1.0.5",
-    "@pnpm/package-requester": "workspace:12.1.2",
+    "@pnpm/package-requester": "workspace:12.1.3",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",
     "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/prune-lockfile": "workspace:2.0.16",
@@ -70,11 +70,11 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/cafs": "workspace:^2.0.2",
-    "@pnpm/client": "workspace:^2.0.9",
+    "@pnpm/cafs": "workspace:^2.0.3",
+    "@pnpm/client": "workspace:^2.0.10",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/package-store": "workspace:*",
-    "@pnpm/prepare": "workspace:0.0.13",
+    "@pnpm/prepare": "workspace:0.0.14",
     "@pnpm/store-path": "^4.0.2",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.2",

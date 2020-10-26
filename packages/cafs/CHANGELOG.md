@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 2.0.3
+
+### Patch Changes
+
+- b3059f4f8: Don't unpack file duplicates to the content-addressable store.
+
 ## 2.0.2
 
 ### Patch Changes

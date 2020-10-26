@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 14.5.2
+
+### Patch Changes
+
+- @pnpm/package-requester@12.1.3
+
 ## 14.5.1
 
 ### Patch Changes
