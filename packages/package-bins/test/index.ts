@@ -1,39 +1,36 @@
 import getBinsFromPkg from '@pnpm/package-bins'
 import path = require('path')
-import test = require('tape')
 
-test('getBinsFromPkg()', async (t) => {
-  t.deepEqual(
+test('getBinsFromPkg()', async () => {
+  expect(
     await getBinsFromPkg({
       bin: 'one-bin',
       name: 'one-bin',
       version: '1.0.0',
-    }, process.cwd()),
+    }, process.cwd())).toStrictEqual(
     [{
       name: 'one-bin',
       path: path.resolve('one-bin'),
     }]
   )
-  t.end()
 })
 
-test('get bin of scoped package', async (t) => {
-  t.deepEqual(
+test('get bin of scoped package', async () => {
+  expect(
     await getBinsFromPkg({
       bin: 'bin.js',
       name: '@foo/bar',
       version: '1.0.0',
-    }, process.cwd()),
+    }, process.cwd())).toStrictEqual(
     [{
       name: 'bar',
       path: path.resolve('bin.js'),
     }]
   )
-  t.end()
 })
 
-test('skip dangerous bin names', async (t) => {
-  t.deepEqual(
+test('skip dangerous bin names', async () => {
+  expect(
     await getBinsFromPkg({
       name: 'foo',
       version: '1.0.0',
@@ -44,7 +41,7 @@ test('skip dangerous bin names', async (t) => {
         good: './good',
         '~/bad': './bad',
       },
-    }, process.cwd()),
+    }, process.cwd())).toStrictEqual(
     [
       {
         name: 'good',
@@ -52,11 +49,10 @@ test('skip dangerous bin names', async (t) => {
       },
     ]
   )
-  t.end()
 })
 
-test('skip dangerous bin locations', async (t) => {
-  t.deepEqual(
+test('skip dangerous bin locations', async () => {
+  expect(
     await getBinsFromPkg({
       name: 'foo',
       version: '1.0.0',
@@ -65,7 +61,7 @@ test('skip dangerous bin locations', async (t) => {
         bad: '../bad',
         good: './good',
       },
-    }, process.cwd()),
+    }, process.cwd())).toStrictEqual(
     [
       {
         name: 'good',
@@ -73,5 +69,4 @@ test('skip dangerous bin locations', async (t) => {
       },
     ]
   )
-  t.end()
 })

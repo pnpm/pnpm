@@ -58,6 +58,7 @@ const repoRoot = path.join(__dirname, '../../..')
 let registryMockPort = 7769
 
 async function updateManifest (dir: string, manifest: ProjectManifest) {
+  const usesJest = await exists(path.join(dir, 'jest.config.js'))
   const relative = normalizePath(path.relative(repoRoot, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
@@ -79,12 +80,22 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
     // supi tests currently works only with port 4873 due to the usage of
     // the next package: pkg-with-tarball-dep-from-registry
     const port = manifest.name === 'supi' ? 4873 : ++registryMockPort
-    scripts = {
-      ...manifest.scripts,
-      'registry-mock': 'registry-mock',
-      'test:tap': `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
+    if (usesJest) {
+      scripts = {
+        ...manifest.scripts,
+        'registry-mock': 'registry-mock',
+        'test:jest': 'jest',
 
-      'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:tap',
+        'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:jest',
+      }
+    } else {
+      scripts = {
+        ...manifest.scripts,
+        'registry-mock': 'registry-mock',
+        'test:tap': `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
+
+        'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:tap',
+      }
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
     scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`

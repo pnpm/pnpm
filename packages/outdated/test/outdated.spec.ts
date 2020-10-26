@@ -1,5 +1,4 @@
 import outdated from '@pnpm/outdated/lib/outdated'
-import test = require('tape')
 
 async function getLatestManifest (packageName: string) {
   return ({
@@ -23,7 +22,7 @@ async function getLatestManifest (packageName: string) {
   })[packageName] || null
 }
 
-test('outdated()', async (t) => {
+test('outdated()', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: {
       importers: {
@@ -134,7 +133,7 @@ test('outdated()', async (t) => {
       },
     },
   })
-  t.deepEqual(outdatedPkgs, [
+  expect(outdatedPkgs).toStrictEqual([
     {
       alias: 'from-github',
       belongsTo: 'dependencies',
@@ -174,10 +173,9 @@ test('outdated()', async (t) => {
       wanted: '3.1.0',
     },
   ])
-  t.end()
 })
 
-test('outdated() should return deprecated package even if its current version is latest', async (t) => {
+test('outdated() should return deprecated package even if its current version is latest', async () => {
   const lockfile = {
     importers: {
       '.': {
@@ -214,7 +212,7 @@ test('outdated() should return deprecated package even if its current version is
     prefix: 'project',
     wantedLockfile: lockfile,
   })
-  t.deepEqual(outdatedPkgs, [
+  expect(outdatedPkgs).toStrictEqual([
     {
       alias: 'deprecated-pkg',
       belongsTo: 'dependencies',
@@ -228,10 +226,9 @@ test('outdated() should return deprecated package even if its current version is
       wanted: '1.0.0',
     },
   ])
-  t.end()
 })
 
-test('using a matcher', async (t) => {
+test('using a matcher', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: {
       importers: {
@@ -332,7 +329,7 @@ test('using a matcher', async (t) => {
       },
     },
   })
-  t.deepEqual(outdatedPkgs, [
+  expect(outdatedPkgs).toStrictEqual([
     {
       alias: 'is-negative',
       belongsTo: 'dependencies',
@@ -345,10 +342,9 @@ test('using a matcher', async (t) => {
       wanted: '1.1.0',
     },
   ])
-  t.end()
 })
 
-test('outdated() aliased dependency', async (t) => {
+test('outdated() aliased dependency', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: {
       importers: {
@@ -402,7 +398,7 @@ test('outdated() aliased dependency', async (t) => {
       },
     },
   })
-  t.deepEqual(outdatedPkgs, [
+  expect(outdatedPkgs).toStrictEqual([
     {
       alias: 'positive',
       belongsTo: 'dependencies',
@@ -415,10 +411,9 @@ test('outdated() aliased dependency', async (t) => {
       wanted: '3.1.0',
     },
   ])
-  t.end()
 })
 
-test('a dependency is not outdated if it is newer than the latest version', async (t) => {
+test('a dependency is not outdated if it is newer than the latest version', async () => {
   const lockfile = {
     importers: {
       '.': {
@@ -492,11 +487,10 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     prefix: 'project',
     wantedLockfile: lockfile,
   })
-  t.deepEqual(outdatedPkgs, [])
-  t.end()
+  expect(outdatedPkgs).toStrictEqual([])
 })
 
-test('outdated() should [] when there is no dependency', async (t) => {
+test('outdated() should [] when there is no dependency', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: null,
     getLatestManifest: async () => {
@@ -510,6 +504,5 @@ test('outdated() should [] when there is no dependency', async (t) => {
     prefix: 'project',
     wantedLockfile: null,
   })
-  t.deepEqual(outdatedPkgs, [])
-  t.end()
+  expect(outdatedPkgs).toStrictEqual([])
 })

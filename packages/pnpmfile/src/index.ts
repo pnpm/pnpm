@@ -1,4 +1,4 @@
 import requireHooks from './requireHooks'
-import requirePnpmfile from './requirePnpmfile'
+import requirePnpmfile, { BadReadPackageHookError } from './requirePnpmfile'
 
-export { requireHooks, requirePnpmfile }
+export { requireHooks, requirePnpmfile, BadReadPackageHookError }
