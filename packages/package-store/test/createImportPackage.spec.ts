@@ -120,7 +120,12 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
 
 test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', async () => {
   const importPackage = createImportPackage('hardlink')
-  fsMock.link = jest.fn(() => {
+  fsMock.link = jest.fn((src: string, dest: string) => {
+    if (dest.endsWith('license')) {
+      const err = new Error('')
+      err['code'] = 'EEXIST'
+      throw err
+    }
     throw new Error('This file system does not support hard linking')
   })
   fsMock.copyFile = jest.fn()
@@ -128,11 +133,13 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
     filesMap: {
       'index.js': 'hash2',
       'package.json': 'hash1',
+      license: 'hash3',
     },
     force: false,
     fromStore: false,
   })).toBe('hardlink')
-  expect(fsMock.link).toBeCalled()
+  expect(fsMock.link).toBeCalledTimes(3)
+  expect(fsMock.copyFile).toBeCalledTimes(2) // One time the target already exists, so it won't be copied
   expect(fsMock.copyFile).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
   expect(fsMock.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
 })

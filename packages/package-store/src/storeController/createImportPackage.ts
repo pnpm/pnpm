@@ -120,6 +120,9 @@ async function linkOrCopy (existingPath: string, newPath: string) {
   try {
     await fs.link(existingPath, newPath)
   } catch (err) {
+    // If a hard link to the same file already exists
+    // then trying to copy it will make an empty file from it.
+    if (err['code'] === 'EEXIST') return
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
