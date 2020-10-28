@@ -42,7 +42,7 @@ export interface Project {
   writePackageJson: (pkgJson: object) => Promise<void>
 }
 
-export default (t: Test, projectPath: string, encodedRegistryName?: string): Project => {
+export default (t: Test | undefined, projectPath: string, encodedRegistryName?: string): Project => {
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
 
@@ -77,17 +77,21 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
     return modulesYaml.virtualStoreDir
   }
 
+  // eslint-disable-next-line
+  const ok = t ? t.ok : (value: any) => expect(value).toBeTruthy()
+  // eslint-disable-next-line
+  const notOk = t ? t.notOk : (value: any) => expect(value).toBeFalsy()
   return {
     requireModule (pkgName: string) {
       return require(path.join(modules, pkgName))
     },
     async has (pkgName: string, _modulesDir?: string) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
-      t.ok(await exists(path.join(md, pkgName)), `${pkgName} is in ${md}`)
+      ok(await exists(path.join(md, pkgName)), `${pkgName} is in ${md}`)
     },
     async hasNot (pkgName: string, _modulesDir?: string) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
-      t.notOk(await exists(path.join(md, pkgName)), `${pkgName} is not in ${md}`)
+      notOk(await exists(path.join(md, pkgName)), `${pkgName} is not in ${md}`)
     },
     async getStorePath () {
       const store = await getStoreInstance()
@@ -119,14 +123,14 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
         return store.storeHasNot(pkgName, version)
       } catch (err) {
         if (err.message.startsWith('Cannot find module store')) {
-          t.pass(`${pkgName}@${version ?? ''} is not in store (store does not even exist)`)
+          t?.pass(`${pkgName}@${version ?? ''} is not in store (store does not even exist)`)
           return
         }
         throw err
       }
     },
     isExecutable (pathToExe: string) {
-      return isExecutable(t, path.join(modules, pathToExe))
+      return isExecutable(ok, path.join(modules, pathToExe))
     },
     async readCurrentLockfile () {
       try {

@@ -66,7 +66,7 @@ test('link global bin', async function (t: tape.Test) {
 
   await execPnpm(['link'], { env })
 
-  await isExecutable(t, path.join(globalBin, 'package-with-bin'))
+  await isExecutable(t.ok, path.join(globalBin, 'package-with-bin'))
 })
 
 test('relative link', async (t: tape.Test) => {

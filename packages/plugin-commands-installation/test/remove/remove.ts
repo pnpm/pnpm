@@ -2,10 +2,9 @@ import PnpmError from '@pnpm/error'
 import { remove } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { DEFAULT_OPTS } from '../utils'
-import test = require('tape')
 
-test('remove should fail if no dependency is specified for removal', async (t) => {
-  prepare(t)
+test('remove should fail if no dependency is specified for removal', async () => {
+  prepare()
 
   let err!: PnpmError
   try {
@@ -16,13 +15,12 @@ test('remove should fail if no dependency is specified for removal', async (t) =
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_MUST_REMOVE_SOMETHING')
-  t.equal(err.message, 'At least one dependency name should be specified for removal')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_MUST_REMOVE_SOMETHING')
+  expect(err.message).toBe('At least one dependency name should be specified for removal')
 })
 
-test('remove should fail if the project has no dependencies at all', async (t) => {
-  prepare(t)
+test('remove should fail if the project has no dependencies at all', async () => {
+  prepare()
 
   {
     let err!: PnpmError
@@ -34,8 +32,8 @@ test('remove should fail if the project has no dependencies at all', async (t) =
     } catch (_err) {
       err = _err
     }
-    t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, "Cannot remove 'express': project has no dependencies of any kind")
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': project has no dependencies of any kind")
   }
   {
     let err!: PnpmError
@@ -48,8 +46,8 @@ test('remove should fail if the project has no dependencies at all', async (t) =
     } catch (_err) {
       err = _err
     }
-    t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, "Cannot remove 'express': project has no 'dependencies'")
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': project has no 'dependencies'")
   }
   {
     let err!: PnpmError
@@ -62,8 +60,8 @@ test('remove should fail if the project has no dependencies at all', async (t) =
     } catch (_err) {
       err = _err
     }
-    t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, "Cannot remove 'express': project has no 'devDependencies'")
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': project has no 'devDependencies'")
   }
   {
     let err!: PnpmError
@@ -76,14 +74,13 @@ test('remove should fail if the project has no dependencies at all', async (t) =
     } catch (_err) {
       err = _err
     }
-    t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, "Cannot remove 'express': project has no 'optionalDependencies'")
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': project has no 'optionalDependencies'")
   }
-  t.end()
 })
 
-test('remove should fail if the project does not have one of the removed dependencies', async (t) => {
-  prepare(t, {
+test('remove should fail if the project does not have one of the removed dependencies', async () => {
+  prepare(undefined, {
     dependencies: {
       'prod-dep-1': '1.0.0',
       'prod-dep-2': '1.0.0',
@@ -109,10 +106,10 @@ test('remove should fail if the project does not have one of the removed depende
     } catch (_err) {
       err = _err
     }
-    t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, 'Cannot remove \'dev-dep-1\', \'optional-dep-1\': \
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe('Cannot remove \'dev-dep-1\', \'optional-dep-1\': \
 no such dependencies found in \'dependencies\'')
-    t.equal(err.hint, 'Available dependencies: prod-dep-1, prod-dep-2')
+    expect(err.hint).toBe('Available dependencies: prod-dep-1, prod-dep-2')
   }
   {
     let err!: PnpmError
@@ -125,10 +122,10 @@ no such dependencies found in \'dependencies\'')
     } catch (_err) {
       err = _err
     }
-    t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, 'Cannot remove \'prod-dep-1\', \'optional-dep-1\': \
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe('Cannot remove \'prod-dep-1\', \'optional-dep-1\': \
 no such dependencies found in \'devDependencies\'')
-    t.equal(err.hint, 'Available dependencies: dev-dep-1, dev-dep-2')
+    expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2')
   }
   {
     let err!: PnpmError
@@ -141,10 +138,10 @@ no such dependencies found in \'devDependencies\'')
     } catch (_err) {
       err = _err
     }
-    t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, 'Cannot remove \'prod-dep-1\', \'dev-dep-1\': \
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe('Cannot remove \'prod-dep-1\', \'dev-dep-1\': \
 no such dependencies found in \'optionalDependencies\'')
-    t.equal(err.hint, 'Available dependencies: optional-dep-1, optional-dep-2')
+    expect(err.hint).toBe('Available dependencies: optional-dep-1, optional-dep-2')
   }
   {
     let err!: PnpmError
@@ -156,10 +153,9 @@ no such dependencies found in \'optionalDependencies\'')
     } catch (_err) {
       err = _err
     }
-    t.equal(err.code, 'ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    t.equal(err.message, "Cannot remove 'express': no such dependency found")
-    t.equal(err.hint, 'Available dependencies: dev-dep-1, dev-dep-2, \
+    expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+    expect(err.message).toBe("Cannot remove 'express': no such dependency found")
+    expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2, \
 prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2')
   }
-  t.end()
 })

@@ -16,13 +16,13 @@ const tmpPath = tempy.directory()
 
 let dirNumber = 0
 
-export function tempDir (t: Test) {
+export function tempDir (t: Test | undefined) {
   dirNumber++
   const dirname = dirNumber.toString()
   const tmpDir = path.join(tmpPath, dirname)
   fs.mkdirSync(tmpDir, { recursive: true })
 
-  t.pass(`create testing dir ${path.join(tmpDir)}`)
+  t?.pass(`create testing dir ${path.join(tmpDir)}`)
 
   process.chdir(tmpDir)
 
@@ -30,7 +30,7 @@ export function tempDir (t: Test) {
 }
 
 export function preparePackages (
-  t: Test,
+  t: Test | undefined,
   pkgs: Array<{ location: string, package: ProjectManifest } | ProjectManifest>,
   opts?: {
     manifestFormat?: ManifestFormat
@@ -60,7 +60,7 @@ export function preparePackages (
 }
 
 export default function prepare (
-  test: Test,
+  test?: Test,
   manifest?: ProjectManifest,
   opts?: {
     manifestFormat?: ManifestFormat

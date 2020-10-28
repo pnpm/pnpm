@@ -4,7 +4,6 @@ import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
 import loadJsonFile = require('load-json-file')
-import test = require('tape')
 import tempy = require('tempy')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -32,8 +31,8 @@ const DEFAULT_OPTIONS = {
   workspaceConcurrency: 1,
 }
 
-test('installing with "workspace:" should work even if link-workspace-packages is off', async (t) => {
-  const projects = preparePackages(t, [
+test('installing with "workspace:" should work even if link-workspace-packages is off', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -54,15 +53,13 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  t.deepEqual(pkg?.dependencies, { 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
 
   await projects['project-1'].has('project-2')
-
-  t.end()
 })
 
-test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is false', async (t) => {
-  const projects = preparePackages(t, [
+test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is false', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -84,15 +81,13 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  t.deepEqual(pkg?.dependencies, { 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
 
   await projects['project-1'].has('project-2')
-
-  t.end()
 })
 
-test('add: fail when "workspace" option is true but the command runs not in a workspace', async (t) => {
-  preparePackages(t, [
+test('add: fail when "workspace" option is true but the command runs not in a workspace', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -115,13 +110,12 @@ test('add: fail when "workspace" option is true but the command runs not in a wo
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_WORKSPACE_OPTION_OUTSIDE_WORKSPACE')
-  t.equal(err.message, '--workspace can only be used inside a workspace')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_WORKSPACE_OPTION_OUTSIDE_WORKSPACE')
+  expect(err.message).toBe('--workspace can only be used inside a workspace')
 })
 
-test('add: fail when "workspace" option is true but linkWorkspacePackages is false and --no-save-workspace-protocol option is used', async (t) => {
-  preparePackages(t, [
+test('add: fail when "workspace" option is true but linkWorkspacePackages is false and --no-save-workspace-protocol option is used', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -149,13 +143,12 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_BAD_OPTIONS')
-  t.ok(err.message.startsWith('This workspace has link-workspace-packages turned off'))
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_BAD_OPTIONS')
+  expect(err.message.startsWith('This workspace has link-workspace-packages turned off')).toBeTruthy()
 })
 
-test('installing with "workspace=true" with linkWorkpacePackages on and saveWorkspaceProtocol off', async (t) => {
-  const projects = preparePackages(t, [
+test('installing with "workspace=true" with linkWorkpacePackages on and saveWorkspaceProtocol off', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -177,14 +170,12 @@ test('installing with "workspace=true" with linkWorkpacePackages on and saveWork
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  t.deepEqual(pkg?.dependencies, { 'project-2': '^2.0.0' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': '^2.0.0' })
 
   await projects['project-1'].has('project-2')
-
-  t.end()
 })
 
-test('add: fail when --no-save option is used', async (t) => {
+test('add: fail when --no-save option is used', async () => {
   let err!: PnpmError
   try {
     await add.handler({
@@ -198,13 +189,12 @@ test('add: fail when --no-save option is used', async (t) => {
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_OPTION_NOT_SUPPORTED')
-  t.equal(err.message, 'The "add" command currently does not support the no-save option')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_OPTION_NOT_SUPPORTED')
+  expect(err.message).toBe('The "add" command currently does not support the no-save option')
 })
 
-test('pnpm add --save-peer', async (t) => {
-  const project = prepare(t)
+test('pnpm add --save-peer', async () => {
+  const project = prepare()
 
   await add.handler({
     ...DEFAULT_OPTIONS,
@@ -216,8 +206,9 @@ test('pnpm add --save-peer', async (t) => {
   {
     const manifest = await loadJsonFile(path.resolve('package.json'))
 
-    t.deepEqual(
-      manifest,
+    expect(
+      manifest
+    ).toStrictEqual(
       {
         name: 'project',
         version: '0.0.0',
@@ -241,14 +232,13 @@ test('pnpm add --save-peer', async (t) => {
   {
     const manifest = await loadJsonFile(path.resolve('package.json'))
 
-    t.deepEqual(
-      manifest,
+    expect(
+      manifest
+    ).toStrictEqual(
       {
         name: 'project',
         version: '0.0.0',
       }
     )
   }
-
-  t.end()
 })

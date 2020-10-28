@@ -1,9 +1,8 @@
 import getUpdateChoices from '../../lib/update/getUpdateChoices'
 import chalk = require('chalk')
-import test = require('tape')
 
-test('getUpdateChoices()', (t) => {
-  t.deepEqual(
+test('getUpdateChoices()', () => {
+  expect(
     getUpdateChoices([
       {
         alias: 'foo',
@@ -71,8 +70,8 @@ test('getUpdateChoices()', (t) => {
         packageName: 'foo',
         wanted: '1.0.1',
       },
-    ]),
-    [
+    ]))
+    .toStrictEqual([
       {
         message: chalk`foo            1.0.0 ❯ {redBright.bold 2.0.0} \n    foo (dev)      1.0.1 ❯ 1.{yellowBright.bold 2.0} `,
         name: 'foo',
@@ -89,7 +88,5 @@ test('getUpdateChoices()', (t) => {
         message: chalk`zoo (dev)      1.1.0 ❯ 1.{yellowBright.bold 2.0} `,
         name: 'zoo',
       },
-    ]
-  )
-  t.end()
+    ])
 })
