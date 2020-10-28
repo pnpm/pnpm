@@ -1,7 +1,7 @@
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { getBorderCharacters, table } from 'table'
+import { getBorderCharacters, table } from '@zkochan/table'
 import R = require('ramda')
 
 export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {

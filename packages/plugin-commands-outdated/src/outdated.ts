@@ -13,7 +13,7 @@ import {
   OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { table } from 'table'
+import { table } from '@zkochan/table'
 import outdatedRecursive from './recursive'
 import {
   DEFAULT_COMPARATORS,

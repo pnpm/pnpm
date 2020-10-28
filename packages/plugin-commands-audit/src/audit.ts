@@ -5,7 +5,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies, Registries } from '@pnpm/types'
-import { table } from 'table'
+import { table } from '@zkochan/table'
 import chalk = require('chalk')
 import R = require('ramda')
 import renderHelp = require('render-help')

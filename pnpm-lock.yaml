@@ -1531,15 +1531,15 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@zkochan/table': 1.0.0
       chalk: 4.1.0
       ramda: 0.27.1
       render-help: 1.0.1
-      table: 6.0.3
     devDependencies:
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': 'link:../types'
       '@types/ramda': 0.27.29
-      '@types/table': 5.0.0
+      '@types/zkochan__table': /@types/table/5.0.0
       strip-ansi: 6.0.0
     specifiers:
       '@pnpm/audit': 'workspace:1.1.16'
@@ -1551,12 +1551,12 @@ importers:
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': 'workspace:6.3.1'
       '@types/ramda': ^0.27.28
-      '@types/table': ^5.0.0
+      '@types/zkochan__table': 'npm:@types/table@^5.0.0'
+      '@zkochan/table': ^1.0.0
       chalk: ^4.1.0
       ramda: ^0.27.1
       render-help: ^1.0.1
       strip-ansi: ^6.0.0
-      table: ^6.0.3
   packages/plugin-commands-import:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1594,7 +1594,7 @@ importers:
   packages/plugin-commands-installation:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
-      '@pnpm/colorize-semver-diff': 1.0.0
+      '@pnpm/colorize-semver-diff': 1.0.1
       '@pnpm/command': 'link:../command'
       '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
@@ -1615,6 +1615,7 @@ importers:
       '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/types': 'link:../types'
+      '@zkochan/table': 1.0.0
       camelcase-keys: 6.2.2
       chalk: 4.1.0
       enquirer: 2.3.6
@@ -1630,7 +1631,6 @@ importers:
       read-ini-file: 3.0.0
       render-help: 1.0.1
       supi: 'link:../supi'
-      table: 6.0.3
       version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
@@ -1644,7 +1644,7 @@ importers:
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.29
       '@types/sinon': 9.0.8
-      '@types/table': 5.0.0
+      '@types/zkochan__table': /@types/table/5.0.0
       load-json-file: 6.2.0
       proxyquire: 2.1.3
       read-yaml-file: 2.0.0
@@ -1654,7 +1654,7 @@ importers:
       write-yaml-file: 4.1.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.35'
-      '@pnpm/colorize-semver-diff': ^1.0.0
+      '@pnpm/colorize-semver-diff': ^1.0.1
       '@pnpm/command': 'workspace:1.0.0'
       '@pnpm/common-cli-options-help': 'workspace:0.2.0'
       '@pnpm/config': 'workspace:11.7.1'
@@ -1686,7 +1686,8 @@ importers:
       '@types/proxyquire': ^1.3.28
       '@types/ramda': ^0.27.28
       '@types/sinon': ^9.0.8
-      '@types/table': ^5.0.0
+      '@types/zkochan__table': 'npm:@types/table@^5.0.0'
+      '@zkochan/table': ^1.0.0
       camelcase-keys: ^6.2.2
       chalk: ^4.1.0
       enquirer: ^2.3.6
@@ -1706,7 +1707,6 @@ importers:
       render-help: ^1.0.1
       sinon: ^9.2.0
       supi: 'workspace:0.43.11'
-      table: ^6.0.3
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
       write-json-file: 4.0.0
@@ -1758,7 +1758,7 @@ importers:
   packages/plugin-commands-outdated:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
-      '@pnpm/colorize-semver-diff': 1.0.0
+      '@pnpm/colorize-semver-diff': 1.0.1
       '@pnpm/command': 'link:../command'
       '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
@@ -1770,11 +1770,11 @@ importers:
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/store-path': 4.0.2
+      '@zkochan/table': 1.0.0
       chalk: 4.1.0
       lru-cache: 6.0.0
       ramda: 0.27.1
       render-help: 1.0.1
-      table: 6.0.3
       wrap-ansi: 7.0.0
     devDependencies:
       '@pnpm/constants': 'link:../constants'
@@ -1786,13 +1786,13 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.1
       '@types/ramda': 0.27.29
-      '@types/table': 5.0.0
       '@types/wrap-ansi': 3.0.0
+      '@types/zkochan__table': /@types/table/5.0.0
       mz: 2.7.0
       strip-ansi: 6.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.35'
-      '@pnpm/colorize-semver-diff': ^1.0.0
+      '@pnpm/colorize-semver-diff': ^1.0.1
       '@pnpm/command': 'workspace:1.0.0'
       '@pnpm/common-cli-options-help': 'workspace:0.2.0'
       '@pnpm/config': 'workspace:11.7.1'
@@ -1813,15 +1813,15 @@ importers:
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.28
-      '@types/table': ^5.0.0
       '@types/wrap-ansi': ^3.0.0
+      '@types/zkochan__table': 'npm:@types/table@^5.0.0'
+      '@zkochan/table': ^1.0.0
       chalk: ^4.1.0
       lru-cache: ^6.0.0
       mz: ^2.7.0
       ramda: ^0.27.1
       render-help: ^1.0.1
       strip-ansi: ^6.0.0
-      table: ^6.0.3
       wrap-ansi: ^7.0.0
   packages/plugin-commands-publishing:
     dependencies:
@@ -3071,6 +3071,12 @@ overrides:
   http-errors: ^1.7.3
   istanbul-reports: 'npm:@zkochan/istanbul-reports'
 packages:
+  /@arcanis/slice-ansi/1.0.2:
+    dependencies:
+      grapheme-splitter: 1.0.4
+    dev: false
+    resolution:
+      integrity: sha512-lDL63z0W/L/WTgqrwVOuNyMAsTv+pvjybd21z9SWdStmQoXT59E/iVWwat3gYjcdTNBf6oHAMoyFm8dtjpXEYw==
   /@babel/code-frame/7.10.4:
     dependencies:
       '@babel/highlight': 7.10.4
@@ -3983,14 +3989,14 @@ packages:
       node: '>= 8'
     resolution:
       integrity: sha512-1V9XOY4rDW0rehzbrcqAmHnz8e7SKvX27gh8Gt2WgB0+pdzdiLV83p72kZPU+jvMbS1qU5mauP2iOvO8rhmurQ==
-  /@pnpm/colorize-semver-diff/1.0.0:
+  /@pnpm/colorize-semver-diff/1.0.1:
     dependencies:
-      chalk: 3.0.0
+      chalk: 4.1.0
     dev: false
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-GTsO3rA0vKVx9w3IrB6rrxFfhguAqJxSl0Bg0DG/GxlzKYEe9YlSBImZgR/UxTrSDQICodpCJ/lYC1Vo4+K3eA==
+      integrity: sha512-qP4E7mzmCBhB4so6szszeIdVDrcKGTTCxBazCKoiPUG34xLha6r57zJuFBkTmD65i3TB7++lf3BwpQruUwf/BQ==
   /@pnpm/exec/1.1.5:
     dependencies:
       '@pnpm/self-installer': 2.1.0
@@ -4766,6 +4772,17 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-uWMEF7fdc6C3VGTaW6Z9G9rYS41ulS0Lz+a3lGlDGji42kI6FSVVLI9s8bZ4ZR4l4Hs28MJHHVN8cOqvNlN86w==
+  /@zkochan/table/1.0.0:
+    dependencies:
+      '@arcanis/slice-ansi': 1.0.2
+      ajv: 6.12.6
+      lodash: 4.17.20
+      string-width: 4.2.0
+    dev: false
+    engines:
+      node: '>=10.0.0'
+    resolution:
+      integrity: sha512-xLQlpiyapKO00VN3X0FmIzDN5CNCLCaSSnEldb9wAhKrFzQmmfu+FDlMvU0lA0wVDC8pawS8HFYYuGoZR6GdOw==
   /JSONStream/1.3.5:
     dependencies:
       jsonparse: 1.3.1
@@ -8255,7 +8272,6 @@ packages:
     resolution:
       integrity: sha1-v7gJuK9YT29Sh83OUHow1K6m7nA=
   /grapheme-splitter/1.0.4:
-    dev: true
     resolution:
       integrity: sha512-bzh50DW9kTPM00T8y4o8vQg89Di9oLJVLW/KaOGIXJWP/iqCN6WKYkbNOF04vFLJhwcpYUh9ydh/+5vpOqV4YQ==
   /growly/1.3.0:

@@ -8,7 +8,7 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import { table } from 'table'
+import { table } from '@zkochan/table'
 import {
   getCellWidth,
   OutdatedCommandOptions,
