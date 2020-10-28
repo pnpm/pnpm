@@ -5,10 +5,9 @@ import { preparePackages } from '@pnpm/prepare'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 import path = require('path')
-import test = require('tape')
 
-test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async (t) => {
-  const projects = preparePackages(t, [
+test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -42,40 +41,45 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
 
   {
     const manifest = (await import(path.resolve('project-1/package.json')))
-    t.deepEqual(
-      manifest.devDependencies,
+    expect(
+      manifest.devDependencies
+    ).toStrictEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
-    t.deepEqual(
-      manifest.peerDependencies,
+    expect(
+      manifest.peerDependencies
+    ).toStrictEqual(
       { 'is-negative': '1.0.0' }
     )
-    t.deepEqual(
-      (await projects['project-1'].readLockfile()).devDependencies,
+    expect(
+      (await projects['project-1'].readLockfile()).devDependencies
+    ).toStrictEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
   }
 
   {
     const manifest = (await import(path.resolve('project-2/package.json')))
-    t.deepEqual(
-      manifest.devDependencies,
+    expect(
+      manifest.devDependencies
+    ).toStrictEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
-    t.deepEqual(
-      manifest.peerDependencies,
+    expect(
+      manifest.peerDependencies
+    ).toStrictEqual(
       { 'is-negative': '1.0.0' }
     )
-    t.deepEqual(
-      (await projects['project-2'].readLockfile()).devDependencies,
+    expect(
+      (await projects['project-2'].readLockfile()).devDependencies
+    ).toStrictEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
   }
-  t.end()
 })
 
-test('recursive add --save-dev, --save-peer on workspace with single lockfile', async (t) => {
-  preparePackages(t, [
+test('recursive add --save-dev, --save-peer on workspace with single lockfile', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -111,32 +115,36 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
 
   {
     const manifest = (await import(path.resolve('project-1/package.json')))
-    t.deepEqual(
-      manifest.devDependencies,
+    expect(
+      manifest.devDependencies
+    ).toStrictEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
-    t.deepEqual(
-      manifest.peerDependencies,
+    expect(
+      manifest.peerDependencies
+    ).toStrictEqual(
       { 'is-negative': '1.0.0' }
     )
   }
 
   {
     const manifest = (await import(path.resolve('project-2/package.json')))
-    t.deepEqual(
-      manifest.devDependencies,
+    expect(
+      manifest.devDependencies
+    ).toStrictEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
-    t.deepEqual(
-      manifest.peerDependencies,
+    expect(
+      manifest.peerDependencies
+    ).toStrictEqual(
       { 'is-negative': '1.0.0' }
     )
   }
 
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
-  t.deepEqual(
-    lockfile.importers['project-1'].devDependencies,
+  expect(
+    lockfile.importers['project-1'].devDependencies
+  ).toStrictEqual(
     { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
   )
-  t.end()
 })

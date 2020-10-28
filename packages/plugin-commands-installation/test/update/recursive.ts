@@ -6,10 +6,9 @@ import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from '../utils'
-import test = require('tape')
 
-test('recursive update', async (t) => {
-  const projects = preparePackages(t, [
+test('recursive update', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -47,16 +46,15 @@ test('recursive update', async (t) => {
     workspaceDir: process.cwd(),
   }, ['is-positive@2.0.0'])
 
-  t.equal(projects['project-1'].requireModule('is-positive/package.json').version, '2.0.0')
+  expect(projects['project-1'].requireModule('is-positive/package.json').version).toBe('2.0.0')
   await projects['project-2'].hasNot('is-positive')
-  t.end()
 })
 
-test('recursive update prod dependencies only', async (t) => {
+test('recursive update prod dependencies only', async () => {
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
 
-  preparePackages(t, [
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -103,19 +101,15 @@ test('recursive update prod dependencies only', async (t) => {
   })
 
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
-  t.deepEqual(
-    Object.keys(lockfile.packages ?? {}),
+  expect(
+    Object.keys(lockfile.packages ?? {})
+  ).toStrictEqual(
     ['/bar/100.0.0', '/foo/100.1.0']
   )
-  t.end()
 })
 
-test('recursive update with pattern', async (t) => {
-  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
-  await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
-
-  const projects = preparePackages(t, [
+test('recursive update with pattern', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -145,6 +139,10 @@ test('recursive update with pattern', async (t) => {
     workspaceDir: process.cwd(),
   })
 
+  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
+
   await update.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -155,19 +153,18 @@ test('recursive update with pattern', async (t) => {
     workspaceDir: process.cwd(),
   }, ['peer-*'])
 
-  t.equal(projects['project-1'].requireModule('peer-a/package.json').version, '1.0.1')
-  t.equal(projects['project-1'].requireModule('pnpm-foo/package.json').version, '1.0.0')
-  t.equal(projects['project-2'].requireModule('peer-c/package.json').version, '2.0.0')
-  t.end()
+  expect(projects['project-1'].requireModule('peer-a/package.json').version).toBe('1.0.1')
+  expect(projects['project-1'].requireModule('pnpm-foo/package.json').version).toBe('1.0.0')
+  expect(projects['project-2'].requireModule('peer-c/package.json').version).toBe('2.0.0')
 })
 
-test('recursive update with pattern and name in project', async (t) => {
+test('recursive update with pattern and name in project', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: 'print-version', version: '2.0.0', distTag: 'latest' })
 
-  const projects = preparePackages(t, [
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -216,8 +213,8 @@ test('recursive update with pattern and name in project', async (t) => {
   } catch (_err) {
     err = _err
   }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES', 'recursive update fails if no dependency matched')
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
 
   await update.handler({
     ...DEFAULT_OPTS,
@@ -230,19 +227,18 @@ test('recursive update with pattern and name in project', async (t) => {
     workspaceDir: process.cwd(),
   }, ['peer-*', 'print-version'])
 
-  t.equal(projects['project-1'].requireModule('peer-a/package.json').version, '1.0.1')
-  t.equal(projects['project-1'].requireModule('pnpm-foo/package.json').version, '1.0.0')
-  t.equal(projects['project-2'].requireModule('peer-c/package.json').version, '2.0.0')
-  t.equal(projects['project-2'].requireModule('print-version/package.json').version, '2.0.0')
-  t.end()
+  expect(projects['project-1'].requireModule('peer-a/package.json').version).toBe('1.0.1')
+  expect(projects['project-1'].requireModule('pnpm-foo/package.json').version).toBe('1.0.0')
+  expect(projects['project-2'].requireModule('peer-c/package.json').version).toBe('2.0.0')
+  expect(projects['project-2'].requireModule('print-version/package.json').version).toBe('2.0.0')
 })
 
-test('recursive update --latest foo should only update projects that have foo', async (t) => {
+test('recursive update --latest foo should only update projects that have foo', async () => {
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
 
-  preparePackages(t, [
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -292,16 +288,20 @@ test('recursive update --latest foo should only update projects that have foo', 
 
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
 
-  t.deepEqual(Object.keys(lockfile.packages ?? {}), ['/@zkochan/async-regex-replace/0.2.0', '/bar/100.0.0', '/foo/100.1.0', '/qar/100.1.0'])
-  t.end()
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
+    '/@zkochan/async-regex-replace/0.2.0',
+    '/bar/100.0.0',
+    '/foo/100.1.0',
+    '/qar/100.1.0',
+  ])
 })
 
-test('recursive update --latest foo should only update packages that have foo', async (t) => {
+test('recursive update --latest foo should only update packages that have foo', async () => {
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
 
-  const projects = preparePackages(t, [
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -347,19 +347,18 @@ test('recursive update --latest foo should only update packages that have foo', 
   {
     const lockfile = await projects['project-1'].readLockfile()
 
-    t.deepEqual(Object.keys(lockfile.packages ?? {}), ['/foo/100.1.0', '/qar/100.1.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/foo/100.1.0', '/qar/100.1.0'])
   }
 
   {
     const lockfile = await projects['project-2'].readLockfile()
 
-    t.deepEqual(Object.keys(lockfile.packages ?? {}), ['/bar/100.0.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/bar/100.0.0'])
   }
-  t.end()
 })
 
-test('recursive update in workspace should not add new dependencies', async (t) => {
-  const projects = preparePackages(t, [
+test('recursive update in workspace should not add new dependencies', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -382,10 +381,9 @@ test('recursive update in workspace should not add new dependencies', async (t) 
   } catch (_err) {
     err = _err
   }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
 
   await projects['project-1'].hasNot('is-positive')
   await projects['project-2'].hasNot('is-positive')
-  t.end()
 })

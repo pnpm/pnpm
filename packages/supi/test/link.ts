@@ -176,7 +176,7 @@ test('global link', async (t: tape.Test) => {
   const globalBin = path.resolve('..', 'global', 'bin')
   await linkToGlobal(process.cwd(), { ...opts, globalDir, globalBin, manifest: {} }) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  await isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
+  await isExecutable(t.ok, path.join(globalBin, 'hello-world-js-bin'))
 
   // bins of dependencies should not be linked, see issue https://github.com/pnpm/pnpm/issues/905
   t.notOk(await exists(path.join(globalBin, 'cowsay')), 'cowsay not linked')

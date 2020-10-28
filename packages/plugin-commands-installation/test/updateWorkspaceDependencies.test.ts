@@ -3,7 +3,6 @@ import {
   createWorkspaceSpecs,
   updateToWorkspacePackagesFromManifest,
 } from '@pnpm/plugin-commands-installation/lib/updateWorkspaceDependencies'
-import test = require('tape')
 
 const INCLUDE_ALL = {
   dependencies: true,
@@ -41,7 +40,7 @@ const WORKSPACE_PACKAGES = {
   },
 }
 
-test('updateToWorkspacePackagesFromManifest()', t => {
+test('updateToWorkspacePackagesFromManifest()', () => {
   const manifest = {
     dependencies: {
       alpha: '1.0.0',
@@ -56,12 +55,12 @@ test('updateToWorkspacePackagesFromManifest()', t => {
       qar: '1.0.0',
     },
   }
-  t.deepEqual(updateToWorkspacePackagesFromManifest(
+  expect(updateToWorkspacePackagesFromManifest(
     manifest,
     INCLUDE_ALL,
     WORKSPACE_PACKAGES
-  ), ['bar@workspace:*', 'foo@workspace:*', 'qar@workspace:*'])
-  t.deepEqual(updateToWorkspacePackagesFromManifest(
+  )).toStrictEqual(['bar@workspace:*', 'foo@workspace:*', 'qar@workspace:*'])
+  expect(updateToWorkspacePackagesFromManifest(
     manifest,
     {
       dependencies: true,
@@ -69,19 +68,17 @@ test('updateToWorkspacePackagesFromManifest()', t => {
       optionalDependencies: false,
     },
     WORKSPACE_PACKAGES
-  ), ['foo@workspace:*'])
-  t.end()
+  )).toStrictEqual(['foo@workspace:*'])
 })
 
-test('createWorkspaceSpecs', t => {
-  t.deepEqual(createWorkspaceSpecs(['bar', 'foo@2', 'qar@workspace:3'], WORKSPACE_PACKAGES), ['bar@workspace:*', 'foo@workspace:2', 'qar@workspace:3'])
+test('createWorkspaceSpecs', () => {
+  expect(createWorkspaceSpecs(['bar', 'foo@2', 'qar@workspace:3'], WORKSPACE_PACKAGES)).toStrictEqual(['bar@workspace:*', 'foo@workspace:2', 'qar@workspace:3'])
   let err!: PnpmError
   try {
     createWorkspaceSpecs(['express'], WORKSPACE_PACKAGES)
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_WORKSPACE_PACKAGE_NOT_FOUND')
-  t.equal(err.message, '"express" not found in the workspace')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_WORKSPACE_PACKAGE_NOT_FOUND')
+  expect(err.message).toBe('"express" not found in the workspace')
 })

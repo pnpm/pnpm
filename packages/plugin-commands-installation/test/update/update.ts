@@ -6,14 +6,13 @@ import { ProjectManifest } from '@pnpm/types'
 import { DEFAULT_OPTS } from '../utils'
 import path = require('path')
 import loadJsonFile = require('load-json-file')
-import test = require('tape')
 
-test('update with "*" pattern', async (t) => {
+test('update with "*" pattern', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
 
-  const project = prepare(t, {
+  const project = prepare(undefined, {
     dependencies: {
       'peer-a': '1.0.0',
       'peer-c': '1.0.0',
@@ -36,14 +35,13 @@ test('update with "*" pattern', async (t) => {
 
   const lockfile = await project.readLockfile()
 
-  t.ok(lockfile.packages['/peer-a/1.0.1'])
-  t.ok(lockfile.packages['/peer-c/2.0.0'])
-  t.ok(lockfile.packages['/pnpm-foo/1.0.0'])
-  t.end()
+  expect(lockfile.packages['/peer-a/1.0.1']).toBeTruthy()
+  expect(lockfile.packages['/peer-c/2.0.0']).toBeTruthy()
+  expect(lockfile.packages['/pnpm-foo/1.0.0']).toBeTruthy()
 })
 
-test('update: fail when both "latest" and "workspace" are true', async (t) => {
-  preparePackages(t, [
+test('update: fail when both "latest" and "workspace" are true', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -68,13 +66,12 @@ test('update: fail when both "latest" and "workspace" are true', async (t) => {
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_BAD_OPTIONS')
-  t.equal(err.message, 'Cannot use --latest with --workspace simultaneously')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_BAD_OPTIONS')
+  expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
 })
 
-test('update: fail when package not in dependencies', async (t) => {
-  prepare(t, {
+test('update: fail when package not in dependencies', async () => {
+  prepare(undefined, {
     dependencies: {
       'peer-a': '1.0.0',
       'peer-c': '1.0.0',
@@ -98,15 +95,14 @@ test('update: fail when package not in dependencies', async (t) => {
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
-  t.equal(err.message, 'None of the specified packages were found in the dependencies of any of the projects.')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
+  expect(err.message).toBe('None of the specified packages were found in the dependencies of any of the projects.')
 })
 
-test('update --no-save should not update package.json and pnpm-lock.yaml', async (t) => {
+test('update --no-save should not update package.json and pnpm-lock.yaml', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
 
-  const project = prepare(t, {
+  const project = prepare(undefined, {
     dependencies: {
       'peer-a': '^1.0.0',
     },
@@ -120,11 +116,11 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
 
   {
     const manifest = await loadJsonFile<ProjectManifest>('package.json')
-    t.equal(manifest.dependencies['peer-a'], '^1.0.0')
+    expect(manifest.dependencies?.['peer-a']).toBe('^1.0.0')
 
     const lockfile = await project.readLockfile()
-    t.equal(lockfile.specifiers['peer-a'], '^1.0.0')
-    t.ok(lockfile.packages['/peer-a/1.0.0'])
+    expect(lockfile.specifiers['peer-a']).toBe('^1.0.0')
+    expect(lockfile.packages['/peer-a/1.0.0']).toBeTruthy()
   }
 
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
@@ -139,12 +135,10 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
 
   {
     const manifest = await loadJsonFile<ProjectManifest>('package.json')
-    t.equal(manifest.dependencies['peer-a'], '^1.0.0')
+    expect(manifest.dependencies?.['peer-a']).toBe('^1.0.0')
 
     const lockfile = await project.readLockfile()
-    t.equal(lockfile.specifiers['peer-a'], '^1.0.0')
-    t.ok(lockfile.packages['/peer-a/1.0.1'])
+    expect(lockfile.specifiers['peer-a']).toBe('^1.0.0')
+    expect(lockfile.packages['/peer-a/1.0.1']).toBeTruthy()
   }
-
-  t.end()
 })

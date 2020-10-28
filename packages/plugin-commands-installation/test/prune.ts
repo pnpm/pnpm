@@ -3,7 +3,6 @@ import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
 import path = require('path')
-import test = require('tape')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -29,8 +28,8 @@ const DEFAULT_OPTIONS = {
   workspaceConcurrency: 1,
 }
 
-test('prune removes external link that is not in package.json', async function (t) {
-  const project = prepare(t)
+test('prune removes external link that is not in package.json', async () => {
+  const project = prepare(undefined)
   const storeDir = path.resolve('store')
   await copyFixture('local-pkg', 'local')
 
@@ -50,11 +49,10 @@ test('prune removes external link that is not in package.json', async function (
   })
 
   await project.hasNot('local-pkg')
-  t.end()
 })
 
-test('prune removes dev dependencies', async (t) => {
-  const project = prepare(t, {
+test('prune removes dev dependencies', async () => {
+  const project = prepare(undefined, {
     dependencies: { 'is-positive': '1.0.0' },
     devDependencies: { 'is-negative': '1.0.0' },
   })
@@ -76,5 +74,4 @@ test('prune removes dev dependencies', async (t) => {
 
   await project.has('is-positive')
   await project.hasNot('is-negative')
-  t.end()
 })

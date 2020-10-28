@@ -1,7 +1,6 @@
 import { add, install } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import test = require('tape')
 import tempy = require('tempy')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -29,8 +28,8 @@ const DEFAULT_OPTIONS = {
   workspaceConcurrency: 1,
 }
 
-test('root dependency that has a peer is correctly updated after its version changes', async (t) => {
-  const project = prepare(t, {})
+test('root dependency that has a peer is correctly updated after its version changes', async () => {
+  const project = prepare(undefined, {})
 
   await add.handler({
     ...DEFAULT_OPTIONS,
@@ -40,7 +39,7 @@ test('root dependency that has a peer is correctly updated after its version cha
 
   {
     const lockfile = await project.readLockfile()
-    t.equal(lockfile.dependencies['ajv-keywords'], '1.5.0_ajv@4.10.4')
+    expect(lockfile.dependencies['ajv-keywords']).toBe('1.5.0_ajv@4.10.4')
   }
 
   await project.writePackageJson({
@@ -61,8 +60,6 @@ test('root dependency that has a peer is correctly updated after its version cha
 
   {
     const lockfile = await project.readLockfile()
-    t.equal(lockfile.dependencies['ajv-keywords'], '1.5.1_ajv@4.10.4')
+    expect(lockfile.dependencies['ajv-keywords']).toBe('1.5.1_ajv@4.10.4')
   }
-
-  t.end()
 })
