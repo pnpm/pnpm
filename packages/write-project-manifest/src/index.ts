@@ -1,12 +1,9 @@
-import { promisify } from 'util'
 import { ProjectManifest } from '@pnpm/types'
 import path = require('path')
 import JSON5 = require('json5')
 import fs = require('mz/fs')
-import writeFileAtomicCB = require('write-file-atomic')
+import writeFileAtomic = require('write-file-atomic')
 import writeYamlFile = require('write-yaml-file')
-
-const writeFileAtomic = promisify(writeFileAtomicCB)
 
 const YAML_FORMAT = {
   noCompatMode: true,
