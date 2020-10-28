@@ -39,7 +39,7 @@
     "@pnpm/resolve-workspace-range": "workspace:1.0.1",
     "@pnpm/resolver-base": "workspace:7.0.5",
     "@pnpm/types": "workspace:6.3.1",
-    "encode-registry": "^2.0.2",
+    "encode-registry": "^3.0.0",
     "load-json-file": "^6.2.0",
     "lru-cache": "^6.0.0",
     "mz": "^2.7.0",

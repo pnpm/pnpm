@@ -383,7 +383,7 @@ importers:
   packages/dependency-path:
     dependencies:
       '@pnpm/types': 'link:../types'
-      encode-registry: 2.0.2
+      encode-registry: 3.0.0
       semver: 7.3.2
     devDependencies:
       '@types/semver': 7.3.4
@@ -392,7 +392,7 @@ importers:
       '@pnpm/types': 'workspace:6.3.1'
       '@types/semver': ^7.3.4
       dependency-path: 'link:'
-      encode-registry: ^2.0.2
+      encode-registry: ^3.0.0
       semver: ^7.3.2
   packages/error:
     specifiers: {}
@@ -1212,7 +1212,7 @@ importers:
       '@pnpm/resolve-workspace-range': 'link:../resolve-workspace-range'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
-      encode-registry: 2.0.2
+      encode-registry: 3.0.0
       load-json-file: 6.2.0
       lru-cache: 6.0.0
       mz: 2.7.0
@@ -1251,7 +1251,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/semver': ^7.3.4
       '@types/ssri': ^6.0.3
-      encode-registry: ^2.0.2
+      encode-registry: ^3.0.0
       load-json-file: ^6.2.0
       lru-cache: ^6.0.0
       mz: ^2.7.0
@@ -2507,7 +2507,7 @@ importers:
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      encode-registry: 2.0.2
+      encode-registry: 3.0.0
       get-npm-tarball-url: 2.0.1
       import-from: 3.0.0
       path-exists: 4.0.0
@@ -2541,7 +2541,7 @@ importers:
       '@types/ramda': ^0.27.28
       '@types/semver': ^7.3.4
       dependency-path: 'workspace:5.0.5'
-      encode-registry: ^2.0.2
+      encode-registry: ^3.0.0
       get-npm-tarball-url: ^2.0.1
       import-from: ^3.0.0
       path-exists: ^4.0.0
@@ -6999,14 +6999,14 @@ packages:
   /emoji-regex/8.0.0:
     resolution:
       integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==
-  /encode-registry/2.0.2:
+  /encode-registry/3.0.0:
     dependencies:
-      mem: 6.1.1
+      mem: 8.0.0
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-sdldVQE2HjzPNwpSHBVEs0ZKhMHcVxtQ9wQXLQlv7zIjO1gW41mCNw01Hu68tFfbn6qYhBySJH6jwxlJesvN4w==
+      integrity: sha512-2fRYji8K6FwYuQ6EPBKR/J9mcqb7kIoNqt1vGvJr3NrvKfncRiNm00Oxo6gi/YJF8R5Sp2bNFSFdGKTG0rje1Q==
   /encodeurl/1.0.2:
     dev: true
     engines:
