@@ -984,7 +984,6 @@ importers:
       '@pnpm/config': 'link:../config'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/logger': 3.2.2
       '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@yarnpkg/pnp': 2.3.1
@@ -993,6 +992,7 @@ importers:
       normalize-path: 3.0.0
       ramda: 0.27.1
     devDependencies:
+      '@pnpm/logger': 3.2.2
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/normalize-path': 3.0.0
