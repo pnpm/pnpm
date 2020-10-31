@@ -1,5 +1,11 @@
 # dependency-path
 
+## 5.0.6
+
+### Patch Changes
+
+- 39142e2ad: Update encode-registry to v3.
+
 ## 5.0.5
 
 ### Patch Changes

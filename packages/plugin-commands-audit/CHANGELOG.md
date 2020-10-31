@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.23
+
+### Patch Changes
+
+- e70232907: Use @arcanis/slice-ansi instead of slice-ansi.
+- Updated dependencies [aa6bc4f95]
+  - @pnpm/lockfile-file@3.0.17
+  - @pnpm/audit@1.1.17
+  - @pnpm/cli-utils@0.4.36
+
 ## 2.0.22
 
 ### Patch Changes

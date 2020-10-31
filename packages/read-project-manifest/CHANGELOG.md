@@ -1,5 +1,12 @@
 # @pnpm/read-project-manifest
 
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [cb6e6fc8a]
+  - @pnpm/write-project-manifest@1.1.4
+
 ## 1.1.2
 
 ### Patch Changes

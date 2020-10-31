@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.10.3
+
+### Patch Changes
+
+- Don't ignore the `overrides` field of the root project, when the scope of the command doesn't include the root project.
+
 ## 5.10.2
 
 ### Patch Changes

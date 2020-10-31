@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.26
+
+### Patch Changes
+
+- e70232907: Use @arcanis/slice-ansi instead of slice-ansi.
+- Updated dependencies [aa6bc4f95]
+  - @pnpm/lockfile-file@3.0.17
+  - @pnpm/outdated@7.2.11
+  - @pnpm/default-resolver@11.0.8
+  - @pnpm/cli-utils@0.4.36
+
 ## 3.0.25
 
 ### Patch Changes

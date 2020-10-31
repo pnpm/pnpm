@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.50
+
+### Patch Changes
+
+- Updated dependencies [39142e2ad]
+  - dependency-path@5.0.6
+  - @pnpm/lockfile-utils@2.0.19
+  - @pnpm/get-context@3.2.10
+  - @pnpm/cli-utils@0.4.36
+  - @pnpm/store-connection-manager@0.3.45
+
 ## 2.0.49
 
 ### Patch Changes

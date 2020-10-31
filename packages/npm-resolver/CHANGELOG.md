@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 10.0.6
+
+### Patch Changes
+
+- 39142e2ad: Update encode-registry to v3.
+
 ## 10.0.5
 
 ### Patch Changes

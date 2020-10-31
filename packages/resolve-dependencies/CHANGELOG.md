@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 18.1.2
+
+### Patch Changes
+
+- 39142e2ad: Update encode-registry to v3.
+- Updated dependencies [39142e2ad]
+  - dependency-path@5.0.6
+  - @pnpm/npm-resolver@10.0.6
+  - @pnpm/lockfile-utils@2.0.19
+  - @pnpm/prune-lockfile@2.0.17
+
 ## 18.1.1
 
 ### Patch Changes

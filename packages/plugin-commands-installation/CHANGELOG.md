@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 3.4.3
+
+### Patch Changes
+
+- e70232907: Use @arcanis/slice-ansi instead of slice-ansi.
+- Updated dependencies [c4ec56eeb]
+  - supi@0.43.12
+  - @pnpm/outdated@7.2.11
+  - @pnpm/plugin-commands-rebuild@2.2.3
+  - @pnpm/cli-utils@0.4.36
+  - @pnpm/package-store@10.1.7
+  - @pnpm/store-connection-manager@0.3.45
+  - @pnpm/find-workspace-packages@2.3.22
+  - @pnpm/filter-workspace-packages@2.2.7
+
 ## 3.4.2
 
 ### Patch Changes

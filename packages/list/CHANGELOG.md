@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 5.0.12
+
+### Patch Changes
+
+- dependencies-hierarchy@9.0.8
+- @pnpm/read-project-manifest@1.1.3
+
 ## 5.0.11
 
 ### Patch Changes

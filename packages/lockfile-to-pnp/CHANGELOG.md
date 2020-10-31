@@ -1,5 +1,17 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.3.4
+
+### Patch Changes
+
+- 60e01bd1d: @pnpm/logger should not be a prod dependency because it is a peer dependency.
+- Updated dependencies [39142e2ad]
+- Updated dependencies [aa6bc4f95]
+  - dependency-path@5.0.6
+  - @pnpm/lockfile-file@3.0.17
+  - @pnpm/lockfile-utils@2.0.19
+  - @pnpm/read-project-manifest@1.1.3
+
 ## 0.3.3
 
 ### Patch Changes

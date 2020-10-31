@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 3.0.17
+
+### Patch Changes
+
+- aa6bc4f95: Print a better when stringifying a lockfile object fails.
+
 ## 3.0.16
 
 ### Patch Changes

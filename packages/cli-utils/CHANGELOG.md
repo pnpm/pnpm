@@ -1,5 +1,11 @@
 # @pnpm/cli-utils
 
+## 0.4.36
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1.1.3
+
 ## 0.4.35
 
 ### Patch Changes

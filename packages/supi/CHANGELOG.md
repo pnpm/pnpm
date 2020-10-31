@@ -1,5 +1,30 @@
 # supi
 
+## 0.43.12
+
+### Patch Changes
+
+- c4ec56eeb: Don't ignore the "overrides" field when install/update doesn't include the root project.
+- Updated dependencies [39142e2ad]
+- Updated dependencies [60e01bd1d]
+- Updated dependencies [aa6bc4f95]
+  - dependency-path@5.0.6
+  - @pnpm/resolve-dependencies@18.1.2
+  - @pnpm/lockfile-to-pnp@0.3.4
+  - @pnpm/lockfile-file@3.0.17
+  - @pnpm/filter-lockfile@4.0.12
+  - @pnpm/headless@14.5.3
+  - @pnpm/hoist@4.0.17
+  - @pnpm/lockfile-utils@2.0.19
+  - @pnpm/lockfile-walker@3.0.7
+  - @pnpm/modules-cleaner@10.0.14
+  - @pnpm/prune-lockfile@2.0.17
+  - @pnpm/get-context@3.2.10
+  - @pnpm/read-project-manifest@1.1.3
+  - @pnpm/link-bins@5.3.18
+  - @pnpm/package-requester@12.1.3
+  - @pnpm/build-modules@5.2.2
+
 ## 0.43.11
 
 ### Patch Changes

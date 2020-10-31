@@ -1,5 +1,11 @@
 # @pnpm/write-project-manifest
 
+## 1.1.4
+
+### Patch Changes
+
+- cb6e6fc8a: Use the promise version of write-file-atomic.
+
 ## 1.1.3
 
 ### Patch Changes
