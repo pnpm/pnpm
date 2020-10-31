@@ -137,12 +137,15 @@ export async function mutateModules (
   const installsOnly = projects.every((project) => project.mutation === 'install')
   opts['forceNewModules'] = installsOnly
   const ctx = await getContext(projects, opts)
-  const rootProject = ctx.projects.find(({ id }) => id === '.')
+  const rootProjectManifest = ctx.projects.find(({ id }) => id === '.')?.manifest ??
+    // When running install/update on a subset of projects, the root project might not be included,
+    // so reading its manifest explicitly hear.
+    await safeReadProjectManifestOnly(opts.lockfileDir)
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
-  const overrides = rootProject
-    ? rootProject.manifest.pnpm?.overrides ?? rootProject.manifest.resolutions
+  const overrides = rootProjectManifest
+    ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
   if (!R.isEmpty(overrides ?? {})) {
     const versionsOverrider = createVersionsOverrider(overrides!)
