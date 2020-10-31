@@ -23,4 +23,4 @@ If there was a fatal error also include a gist of your node_modules/.pnpm-debug.
 ### Additional information:
 
  - `node -v` prints:
- - Windows, OS X, or Linux?:
+ - Windows, macOS, or Linux?:
