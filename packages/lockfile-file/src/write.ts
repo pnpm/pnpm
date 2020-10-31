@@ -63,14 +63,12 @@ function writeLockfile (
 }
 
 function yamlStringify (lockfile: Lockfile, forceSharedFormat: boolean) {
+  const normalizedLockfile = normalizeLockfile(lockfile, forceSharedFormat)
   try {
-    return yaml.safeDump(
-      normalizeLockfile(lockfile, forceSharedFormat),
-      LOCKFILE_YAML_FORMAT
-    )
+    return yaml.safeDump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
   } catch (err) {
     if (err.message.includes('[object Undefined]')) {
-      const brokenValuePath = findBrokenRecord(lockfile)
+      const brokenValuePath = findBrokenRecord(normalizedLockfile)
       if (brokenValuePath) {
         throw new PnpmError('LOCKFILE_STRINGIFY', `Failed to stringify the lockfile object. Undefined value at: ${brokenValuePath}`)
       }
@@ -127,7 +125,7 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
       importers: R.keys(lockfile.importers).reduce((acc, alias) => {
         const importer = lockfile.importers[alias]
         const normalizedImporter = {
-          specifiers: importer.specifiers,
+          specifiers: importer.specifiers ?? {},
         }
         for (const depType of DEPENDENCIES_FIELDS) {
           if (!R.isEmpty(importer[depType] ?? {})) {

@@ -149,16 +149,17 @@ test('writeLockfiles() fails with meaningful error, when an invalid lockfile obj
           'is-negative': '1.0.0',
           'is-positive': '1.0.0',
         },
-        // eslint-disable-next-line
-        specifiers: undefined as any,
+        specifiers: {
+          'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
-        dependencies: {
-          'is-positive': '2.0.0',
-        },
+        // eslint-disable-next-line
+        dependencies: undefined as any,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -180,5 +181,5 @@ test('writeLockfiles() fails with meaningful error, when an invalid lockfile obj
     currentLockfileDir: projectPath,
     wantedLockfile,
     wantedLockfileDir: projectPath,
-  })).toThrow(new PnpmError('LOCKFILE_STRINGIFY', 'Failed to stringify the lockfile object. Undefined value at: importers[.].specifiers'))
+  })).toThrow(new PnpmError('LOCKFILE_STRINGIFY', 'Failed to stringify the lockfile object. Undefined value at: packages./is-negative/1.0.0.dependencies'))
 })
