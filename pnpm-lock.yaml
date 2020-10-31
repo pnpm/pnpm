@@ -1068,7 +1068,7 @@ importers:
   packages/make-dedicated-lockfile:
     dependencies:
       '@pnpm/error': 'link:../error'
-      '@pnpm/exec': 1.1.5
+      '@pnpm/exec': 2.0.0
       '@pnpm/exportable-manifest': 'link:../exportable-manifest'
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
@@ -1087,7 +1087,7 @@ importers:
       tempy: 1.0.0
     specifiers:
       '@pnpm/error': 'workspace:^1.3.1'
-      '@pnpm/exec': ^1.1.5
+      '@pnpm/exec': ^2.0.0
       '@pnpm/exportable-manifest': 'workspace:^1.0.5'
       '@pnpm/find-workspace-dir': 'workspace:^1.0.1'
       '@pnpm/lockfile-file': 'workspace:^3.0.16'
@@ -3066,10 +3066,6 @@ importers:
       path-exists: ^4.0.0
       write-json-file: 4.0.0
 lockfileVersion: 5.2
-overrides:
-  '@nodelib/fs.walk@^1.1.0': 1.1.1
-  http-errors: ^1.7.3
-  istanbul-reports: 'npm:@zkochan/istanbul-reports'
 packages:
   /@arcanis/slice-ansi/1.0.2:
     dependencies:
@@ -3996,18 +3992,16 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-qP4E7mzmCBhB4so6szszeIdVDrcKGTTCxBazCKoiPUG34xLha6r57zJuFBkTmD65i3TB7++lf3BwpQruUwf/BQ==
-  /@pnpm/exec/1.1.5:
+  /@pnpm/exec/2.0.0:
     dependencies:
       '@pnpm/self-installer': 2.1.0
-      '@types/got': 8.3.5
-      '@types/node': 10.17.44
       command-exists: 1.2.9
-      cross-spawn: 6.0.5
+      cross-spawn: 7.0.3
     dev: false
     engines:
-      node: '>=4'
+      node: '>=10'
     resolution:
-      integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
+      integrity: sha512-b5ALfWEOFQprWKntN7MF8XWCyslBk2c8u20GEDcDDQOs6c0HyHlWxX5lig8riQKdS000U6YyS4L4b32NOleXAQ==
   /@pnpm/file-reporter/1.0.0:
     dependencies:
       graceful-fs: 4.2.4
@@ -4211,12 +4205,6 @@ packages:
       '@types/node': 14.14.6
     resolution:
       integrity: sha512-SEYeGAIQIQX8NN6LDKprLjbrd5dARM5EXsd8GI/A5l0apYI1fGMWgPHSe4ZKL4eozlAyI+doUE9XbYS4xCkQ1w==
-  /@types/got/8.3.5:
-    dependencies:
-      '@types/node': 10.17.44
-    dev: false
-    resolution:
-      integrity: sha512-AaXSrIF99SjjtPVNmCmYb388HML+PKEJb/xmj4SbL2ZO0hHuETZZzyDIKfOqaEoAHZEuX4sC+FRFrHYJoIby6A==
   /@types/graceful-fs/4.1.4:
     dependencies:
       '@types/node': 12.19.3
@@ -4322,10 +4310,6 @@ packages:
       form-data: 3.0.0
     resolution:
       integrity: sha512-o2WVNf5UhWRkxlf6eq+jMZDu7kjgpgJfl4xVNlvryc95O/6F2ld8ztKX+qu+Rjyet93WAWm5LjeX9H5FGkODvw==
-  /@types/node/10.17.44:
-    dev: false
-    resolution:
-      integrity: sha512-vHPAyBX1ffLcy4fQHmDyIUMUb42gHZjPHU66nhvbMzAWJqHnySGZ6STwN3rwrnSd1FHB0DI/RWgGELgKSYRDmw==
   /@types/node/12.19.3:
     dev: true
     resolution:
@@ -6514,6 +6498,7 @@ packages:
       semver: 5.7.1
       shebang-command: 1.2.0
       which: 1.3.1
+    dev: true
     engines:
       node: '>=4.8'
     resolution:
@@ -10723,6 +10708,7 @@ packages:
     resolution:
       integrity: sha1-gixFgNer54PfGZZbeJYiyoAWA+Q=
   /nice-try/1.0.5:
+    dev: true
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
   /nise/4.0.4:
@@ -11450,6 +11436,7 @@ packages:
     resolution:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
   /path-key/2.0.1:
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -12747,6 +12734,7 @@ packages:
   /shebang-command/1.2.0:
     dependencies:
       shebang-regex: 1.0.0
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -12759,6 +12747,7 @@ packages:
     resolution:
       integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==
   /shebang-regex/1.0.0:
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -14349,6 +14338,7 @@ packages:
   /which/1.3.1:
     dependencies:
       isexe: 2.0.0
+    dev: true
     hasBin: true
     resolution:
       integrity: sha512-HxJdYWq1MTIQbJ3nw0cqssHoTNU267KlrDuGZ1WYlxDStUtKUhOaJmh112/TZmHxxUfuJqPXSOm7tDyas0OSIQ==
