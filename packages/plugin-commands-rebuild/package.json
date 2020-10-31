@@ -38,12 +38,12 @@
     "@pnpm/plugin-commands-rebuild": "link:",
     "@pnpm/prepare": "workspace:0.0.14",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "^0.27.28",
+    "@types/ramda": "^0.27.32",
     "@types/semver": "^7.3.4",
     "@types/sinon": "^9.0.8",
-    "execa": "^4.0.3",
+    "execa": "^4.1.0",
     "path-exists": "^4.0.0",
-    "sinon": "^9.2.0",
+    "sinon": "^9.2.1",
     "write-yaml-file": "^4.1.0"
   },
   "dependencies": {

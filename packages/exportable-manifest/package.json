@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/exportable-manifest#readme",
   "devDependencies": {
     "@pnpm/exportable-manifest": "link:",
-    "@types/ramda": "^0.27.28"
+    "@types/ramda": "^0.27.32"
   },
   "dependencies": {
     "@pnpm/error": "workspace:^1.3.1",

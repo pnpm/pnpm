@@ -27,7 +27,7 @@
     "mz": "^2.7.0"
   },
   "devDependencies": {
-    "@types/mz": "^2.7.1"
+    "@types/mz": "^2.7.2"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

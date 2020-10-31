@@ -43,7 +43,7 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.2",
     "@pnpm/modules-cleaner": "link:",
-    "@types/ramda": "^0.27.28"
+    "@types/ramda": "^0.27.32"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

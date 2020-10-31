@@ -31,7 +31,7 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.2",
     "@pnpm/store-connection-manager": "link:",
-    "@types/mz": "^2.7.1"
+    "@types/mz": "^2.7.2"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.1",

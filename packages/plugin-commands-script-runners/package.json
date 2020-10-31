@@ -37,10 +37,10 @@
     "@pnpm/logger": "^3.2.2",
     "@pnpm/plugin-commands-script-runners": "link:",
     "@pnpm/prepare": "workspace:0.0.14",
-    "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.28",
+    "@types/mz": "^2.7.2",
+    "@types/ramda": "^0.27.32",
     "@zkochan/rimraf": "^1.0.0",
-    "execa": "^4.0.3",
+    "execa": "^4.1.0",
     "mz": "^2.7.0",
     "write-yaml-file": "^4.1.0"
   },

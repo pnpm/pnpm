@@ -39,8 +39,8 @@
     "@pnpm/client": "workspace:^2.0.10",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/package-store": "link:",
-    "@types/mz": "^2.7.1",
-    "@types/ramda": "^0.27.28",
+    "@types/mz": "^2.7.2",
+    "@types/ramda": "^0.27.32",
     "@types/ssri": "^6.0.3",
     "tempy": "^1.0.0"
   },

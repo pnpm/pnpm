@@ -58,7 +58,7 @@
     "@pnpm/logger": "^3.2.2",
     "@pnpm/npm-resolver": "link:",
     "@types/lru-cache": "^5.1.0",
-    "@types/mz": "^2.7.1",
+    "@types/mz": "^2.7.2",
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "^7.3.4",
     "@types/ssri": "^6.0.3",

@@ -47,9 +47,9 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@types/mz": "^2.7.1",
+    "@types/mz": "^2.7.2",
     "@types/ncp": "^2.0.4",
-    "@types/ramda": "^0.27.28",
+    "@types/ramda": "^0.27.32",
     "ncp": "^2.0.0",
     "tempy": "^1.0.0"
   }

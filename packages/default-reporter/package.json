@@ -53,7 +53,7 @@
     "@pnpm/logger": "^3.2.2",
     "@types/normalize-path": "^3.0.0",
     "@types/pretty-time": "^1.1.0",
-    "@types/ramda": "^0.27.28",
+    "@types/ramda": "^0.27.32",
     "@types/semver": "^7.3.4",
     "delay": "^4.4.0",
     "ghooks": "2.0.4",
