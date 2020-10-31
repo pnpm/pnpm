@@ -1,4 +1,5 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import {
   readCurrentLockfile,
   readWantedLockfile,
@@ -137,4 +138,47 @@ test('write does not use yaml anchors/aliases', async () => {
   const lockfileContent = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
   expect(lockfileContent).not.toMatch('&')
   expect(lockfileContent).not.toMatch('*')
+})
+
+test('writeLockfiles() fails with meaningful error, when an invalid lockfile object is passed in', async () => {
+  const projectPath = tempy.directory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+        // eslint-disable-next-line
+        specifiers: undefined as any,
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/is-negative/1.0.0': {
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/is-positive/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/is-positive/2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+  expect(() => writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })).toThrow(new PnpmError('LOCKFILE_STRINGIFY', 'Failed to stringify the lockfile object. Undefined value at: importers[.].specifiers'))
 })

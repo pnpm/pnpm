@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import logger from './logger'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
@@ -56,9 +57,46 @@ function writeLockfile (
     return rimraf(lockfilePath)
   }
 
-  const yamlDoc = yaml.safeDump(normalizeLockfile(wantedLockfile, opts?.forceSharedFormat === true), LOCKFILE_YAML_FORMAT)
+  const yamlDoc = yamlStringify(wantedLockfile, opts?.forceSharedFormat === true)
 
   return writeFileAtomic(lockfilePath, yamlDoc)
+}
+
+function yamlStringify (lockfile: Lockfile, forceSharedFormat: boolean) {
+  try {
+    return yaml.safeDump(
+      normalizeLockfile(lockfile, forceSharedFormat),
+      LOCKFILE_YAML_FORMAT
+    )
+  } catch (err) {
+    if (err.message.includes('[object Undefined]')) {
+      const brokenValuePath = findBrokenRecord(lockfile)
+      if (brokenValuePath) {
+        throw new PnpmError('LOCKFILE_STRINGIFY', `Failed to stringify the lockfile object. Undefined value at: ${brokenValuePath}`)
+      }
+    }
+    throw err
+  }
+}
+
+function findBrokenRecord (obj: Object): string | null {
+  for (let [key, value] of Object.entries(obj)) {
+    if (key === '.') key = '[.]'
+    switch (typeof value) {
+    case 'undefined': {
+      return key
+    }
+    case 'object': {
+      const brokenKey = findBrokenRecord(value)
+      if (!brokenKey) break
+      if (brokenKey.startsWith('[')) {
+        return `${key}${brokenKey}`
+      }
+      return `${key}.${brokenKey}`
+    }
+    }
+  }
+  return null
 }
 
 function isEmptyLockfile (lockfile: Lockfile) {
@@ -128,7 +166,7 @@ export default function writeLockfiles (
   }
 
   const forceSharedFormat = opts?.forceSharedFormat === true
-  const yamlDoc = yaml.safeDump(normalizeLockfile(opts.wantedLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
+  const yamlDoc = yamlStringify(opts.wantedLockfile, forceSharedFormat)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
@@ -148,7 +186,7 @@ export default function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentYamlDoc = yaml.safeDump(normalizeLockfile(opts.currentLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
+  const currentYamlDoc = yamlStringify(opts.currentLockfile, forceSharedFormat)
 
   return Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),
