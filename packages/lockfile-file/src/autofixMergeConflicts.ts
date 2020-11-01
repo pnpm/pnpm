@@ -8,10 +8,11 @@ const MERGE_CONFLICT_THEIRS = '======='
 const MERGE_CONFLICT_OURS = '<<<<<<<'
 
 export default function (fileContent: string) {
-  const { ours, theirs, base } = parseMergeFile(fileContent)
+  const { ours, theirs } = parseMergeFile(fileContent)
+  const oursParsed = yaml.safeLoad(ours) as Lockfile
   return mergeLockfiles({
-    base: yaml.safeLoad(base) as Lockfile,
-    ours: yaml.safeLoad(ours) as Lockfile,
+    base: oursParsed,
+    ours: oursParsed,
     theirs: yaml.safeLoad(theirs) as Lockfile,
   })
 }
