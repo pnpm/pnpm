@@ -19,9 +19,9 @@ export default function (fileContent: string) {
 function parseMergeFile (fileContent: string) {
   const lines = fileContent.split(/[\n\r]+/g) as string[]
   let state: 'top' | 'ours' | 'theirs' | 'parent' = 'top'
-  let ours = ''
-  let theirs = ''
-  let base = ''
+  const ours = []
+  const theirs = []
+  const base = []
   while (lines.length > 0) {
     const line = lines.shift() as string
     if (line.startsWith(MERGE_CONFLICT_PARENT)) {
@@ -40,11 +40,11 @@ function parseMergeFile (fileContent: string) {
       state = 'top'
       continue
     }
-    if (state === 'top' || state === 'ours') ours += line
-    if (state === 'top' || state === 'theirs') theirs += line
-    if (state === 'top' || state === 'parent') base += line
+    if (state === 'top' || state === 'ours') ours.push(line)
+    if (state === 'top' || state === 'theirs') theirs.push(line)
+    if (state === 'top' || state === 'parent') base.push(line)
   }
-  return { ours, theirs, base }
+  return { ours: ours.join('\n'), theirs: theirs.join('\n'), base: base.join('\n') }
 }
 
 export function isDiff (fileContent: string) {
