@@ -4,10 +4,13 @@ import {
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
 import { LockfileBreakingChangeError } from './errors'
 import logger from './logger'
+import yaml = require('js-yaml')
 import path = require('path')
+import stripBom = require('strip-bom')
+import fs = require('mz/fs')
+import autofixMergeConflicts, { isDiff } from './autofixMergeConflicts'
 
 export function readCurrentLockfile (
   virtualStoreDir: string,
@@ -17,12 +20,17 @@ export function readCurrentLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
-  return _read(lockfilePath, virtualStoreDir, opts)
+  return _read(lockfilePath, virtualStoreDir, {
+    ...opts,
+    // The current lockfile is not committed to the repository, so it should never have merge conflicts
+    autofixMergeConflicts: false,
+  })
 }
 
 export function readWantedLockfile (
   pkgPath: string,
   opts: {
+    autofixMergeConflicts?: boolean
     wantedVersion?: number
     ignoreIncompatible: boolean
   }
@@ -35,18 +43,28 @@ async function _read (
   lockfilePath: string,
   prefix: string,
   opts: {
+    autofixMergeConflicts?: boolean
     wantedVersion?: number
     ignoreIncompatible: boolean
   }
 ): Promise<Lockfile | null> {
-  let lockfile
+  let lockfileRawContent
   try {
-    lockfile = await readYamlFile<Lockfile>(lockfilePath)
+    lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
     return null
+  }
+  let lockfile: Lockfile
+  try {
+    lockfile = yaml.safeLoad(lockfileRawContent) as Lockfile
+  } catch (err) {
+    if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
+      throw err
+    }
+    lockfile = autofixMergeConflicts(lockfileRawContent)
   }
   /* eslint-disable @typescript-eslint/dot-notation */
   if (typeof lockfile?.['specifiers'] !== 'undefined') {
