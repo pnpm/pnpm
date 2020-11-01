@@ -11,6 +11,6 @@
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",
     "path-exists": "^4.0.0",
-    "write-json-file": "4.0.0"
+    "write-json-file": "^4.3.0"
   }
 }

@@ -33,7 +33,7 @@
     "ramda": "^0.27.1",
     "rename-overwrite": "^3.0.0",
     "ssri": "6.0.1",
-    "write-json-file": "4.0.0"
+    "write-json-file": "^4.3.0"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:^2.0.11",

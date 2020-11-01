@@ -34,7 +34,7 @@
     "@pnpm/types": "workspace:6.3.1",
     "is-windows": "^1.0.2",
     "read-yaml-file": "^2.0.0",
-    "write-yaml-file": "^4.1.0"
+    "write-yaml-file": "^4.1.1"
   },
   "devDependencies": {
     "@pnpm/modules-yaml": "link:",

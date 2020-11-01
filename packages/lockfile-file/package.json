@@ -42,7 +42,7 @@
     "@types/ramda": "^0.27.32",
     "@types/write-file-atomic": "^3.0.1",
     "tempy": "^1.0.0",
-    "write-yaml-file": "^4.1.0",
+    "write-yaml-file": "^4.1.1",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
@@ -56,7 +56,7 @@
     "normalize-path": "^3.0.0",
     "ramda": "^0.27.1",
     "read-yaml-file": "^2.0.0",
-    "write-file-atomic": "^2.4.3"
+    "write-file-atomic": "^3.0.3"
   },
   "funding": "https://opencollective.com/pnpm"
 }

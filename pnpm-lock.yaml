@@ -470,7 +470,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@types/ramda': 0.27.32
       tempy: 1.0.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/constants': 'workspace:4.1.0'
@@ -486,7 +486,7 @@ importers:
       dependency-path: 'workspace:5.0.6'
       ramda: ^0.27.1
       tempy: ^1.0.0
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
       yaml-tag: 1.1.0
   packages/filter-workspace-packages:
     dependencies:
@@ -711,7 +711,7 @@ importers:
       sinon: 9.2.1
       tape-promise: 4.0.0
       tempy: 1.0.0
-      write-json-file: 4.0.0
+      write-json-file: 4.3.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/build-modules': 'workspace:5.2.2'
@@ -762,7 +762,7 @@ importers:
       sinon: ^9.2.1
       tape-promise: 4.0.0
       tempy: ^1.0.0
-      write-json-file: 4.0.0
+      write-json-file: ^4.3.0
   packages/hoist:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -945,7 +945,7 @@ importers:
       normalize-path: 3.0.0
       ramda: 0.27.1
       read-yaml-file: 2.0.0
-      write-file-atomic: 2.4.3
+      write-file-atomic: 3.0.3
     devDependencies:
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/logger': 3.2.2
@@ -955,7 +955,7 @@ importers:
       '@types/ramda': 0.27.32
       '@types/write-file-atomic': 3.0.1
       tempy: 1.0.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/constants': 'workspace:4.1.0'
@@ -976,8 +976,8 @@ importers:
       ramda: ^0.27.1
       read-yaml-file: ^2.0.0
       tempy: ^1.0.0
-      write-file-atomic: ^2.4.3
-      write-yaml-file: ^4.1.0
+      write-file-atomic: ^3.0.3
+      write-yaml-file: ^4.1.1
       yaml-tag: 1.1.0
   packages/lockfile-to-pnp:
     dependencies:
@@ -1032,7 +1032,7 @@ importers:
       '@types/js-yaml': 3.12.5
       '@types/ramda': 0.27.32
       tempy: 1.0.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/lockfile-types': 'workspace:2.1.1'
@@ -1045,7 +1045,7 @@ importers:
       get-npm-tarball-url: ^2.0.1
       ramda: ^0.27.1
       tempy: ^1.0.0
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
       yaml-tag: 1.1.0
   packages/lockfile-walker:
     dependencies:
@@ -1162,7 +1162,7 @@ importers:
       '@pnpm/types': 'link:../types'
       is-windows: 1.0.2
       read-yaml-file: 2.0.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
     devDependencies:
       '@pnpm/modules-yaml': 'link:'
       '@types/is-windows': 1.0.0
@@ -1174,7 +1174,7 @@ importers:
       is-windows: ^1.0.2
       read-yaml-file: ^2.0.0
       tempy: ^1.0.0
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
   packages/normalize-registries:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -1436,7 +1436,7 @@ importers:
       ramda: 0.27.1
       rename-overwrite: 3.0.0
       ssri: 6.0.1
-      write-json-file: 4.0.0
+      write-json-file: 4.3.0
     devDependencies:
       '@pnpm/client': 'link:../client'
       '@pnpm/logger': 3.2.2
@@ -1470,7 +1470,7 @@ importers:
       rename-overwrite: ^3.0.0
       ssri: 6.0.1
       tempy: ^1.0.0
-      write-json-file: 4.0.0
+      write-json-file: ^4.3.0
   packages/parse-cli-args:
     dependencies:
       '@pnpm/error': 'link:../error'
@@ -1650,8 +1650,8 @@ importers:
       read-yaml-file: 2.0.0
       sinon: 9.2.1
       tempy: 1.0.0
-      write-json-file: 4.0.0
-      write-yaml-file: 4.1.0
+      write-json-file: 4.3.0
+      write-yaml-file: 4.1.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.36'
       '@pnpm/colorize-semver-diff': ^1.0.1
@@ -1709,8 +1709,8 @@ importers:
       supi: 'workspace:0.43.12'
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
-      write-json-file: 4.0.0
-      write-yaml-file: ^4.1.0
+      write-json-file: ^4.3.0
+      write-yaml-file: ^4.1.1
   packages/plugin-commands-listing:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1733,7 +1733,7 @@ importers:
       execa: 4.1.0
       mz: 2.7.0
       strip-ansi: 6.0.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.36'
       '@pnpm/common-cli-options-help': 'workspace:0.2.0'
@@ -1754,7 +1754,7 @@ importers:
       ramda: ^0.27.1
       render-help: ^1.0.1
       strip-ansi: ^6.0.0
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
   packages/plugin-commands-outdated:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1846,7 +1846,7 @@ importers:
       ramda: 0.27.1
       realpath-missing: 1.0.0
       render-help: 1.0.1
-      write-json-file: 4.0.0
+      write-json-file: 4.3.0
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/plugin-commands-publishing': 'link:'
@@ -1862,7 +1862,7 @@ importers:
       proxyquire: 2.1.3
       sinon: 9.2.1
       tempy: 1.0.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.36'
       '@pnpm/client': 'workspace:^2.0.11'
@@ -1899,8 +1899,8 @@ importers:
       render-help: ^1.0.1
       sinon: ^9.2.1
       tempy: ^1.0.0
-      write-json-file: 4.0.0
-      write-yaml-file: ^4.1.0
+      write-json-file: ^4.3.0
+      write-yaml-file: ^4.1.1
   packages/plugin-commands-rebuild:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1945,7 +1945,7 @@ importers:
       execa: 4.1.0
       path-exists: 4.0.0
       sinon: 9.2.1
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.36'
       '@pnpm/common-cli-options-help': 'workspace:0.2.0'
@@ -1988,7 +1988,7 @@ importers:
       run-groups: ^3.0.1
       semver: ^7.3.2
       sinon: ^9.2.1
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
   packages/plugin-commands-script-runners:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -2014,7 +2014,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       execa: 4.1.0
       mz: 2.7.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.36'
       '@pnpm/command': 'workspace:1.0.0'
@@ -2038,7 +2038,7 @@ importers:
       ramda: ^0.27.1
       realpath-missing: ^1.0.0
       render-help: ^1.0.1
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
   packages/plugin-commands-server:
     dependencies:
       '@pnpm/cli-meta': 'link:../cli-meta'
@@ -2255,9 +2255,9 @@ importers:
       symlink-dir: 4.1.0
       tape-promise: 4.0.0
       tree-kill: 1.2.2
-      write-json-file: 4.0.0
+      write-json-file: 4.3.0
       write-pkg: 4.0.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/cli-meta': 'workspace:1.0.1'
@@ -2344,9 +2344,9 @@ importers:
       tree-kill: ^1.2.2
       update-notifier: ^5.0.0
       which: ^2.0.2
-      write-json-file: 4.0.0
+      write-json-file: ^4.3.0
       write-pkg: 4.0.0
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
   packages/pnpmfile:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -2759,8 +2759,8 @@ importers:
       supi: 'link:'
       symlink-dir: 4.1.0
       tape-promise: 4.0.0
-      write-json-file: 4.0.0
-      write-yaml-file: 4.1.0
+      write-json-file: 4.3.0
+      write-yaml-file: 4.1.1
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/assert-store': 'workspace:*'
@@ -2851,8 +2851,8 @@ importers:
       symlink-dir: ^4.1.0
       tape-promise: 4.0.0
       version-selector-type: ^3.0.0
-      write-json-file: 4.0.0
-      write-yaml-file: ^4.1.0
+      write-json-file: ^4.3.0
+      write-yaml-file: ^4.1.1
   packages/symlink-dependency:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -2929,7 +2929,7 @@ importers:
       json5: 2.1.3
       mz: 2.7.0
       write-file-atomic: 3.0.3
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
     devDependencies:
       '@pnpm/write-project-manifest': 'link:'
       '@types/json5': 0.0.30
@@ -2946,7 +2946,7 @@ importers:
       mz: ^2.7.0
       tempy: ^1.0.0
       write-file-atomic: ^3.0.3
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
   privatePackages/assert-project:
     dependencies:
       '@pnpm/assert-store': 'link:../assert-store'
@@ -2998,9 +2998,9 @@ importers:
       '@pnpm/assert-project': 'link:../assert-project'
       '@pnpm/types': 'link:../../packages/types'
       tempy: 1.0.0
-      write-json5-file: 3.0.0
+      write-json5-file: 3.0.1
       write-pkg: 4.0.0
-      write-yaml-file: 4.1.0
+      write-yaml-file: 4.1.1
     devDependencies:
       '@types/node': 12.19.3
       tslint-config-standard: 9.0.0
@@ -3012,9 +3012,9 @@ importers:
       tempy: ^1.0.0
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
-      write-json5-file: ^3.0.0
+      write-json5-file: ^3.0.1
       write-pkg: 4.0.0
-      write-yaml-file: ^4.1.0
+      write-yaml-file: ^4.1.1
   privatePackages/test-fixtures:
     dependencies:
       ncp: 2.0.0
@@ -3052,7 +3052,7 @@ importers:
       load-json-file: 6.2.0
       normalize-path: 3.0.0
       path-exists: 4.0.0
-      write-json-file: 4.0.0
+      write-json-file: 4.3.0
     specifiers:
       '@pnpm/find-workspace-packages': 'workspace:2.3.22'
       '@pnpm/lockfile-file': 'workspace:3.0.17'
@@ -3062,7 +3062,7 @@ importers:
       load-json-file: ^6.2.0
       normalize-path: ^3.0.0
       path-exists: ^4.0.0
-      write-json-file: 4.0.0
+      write-json-file: ^4.3.0
 lockfileVersion: 5.2
 overrides:
   '@nodelib/fs.walk@^1.1.0': 1.1.1
@@ -12900,17 +12900,9 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-ZYU1WEhh7JfXMNbPQYIuH1ZoQSg=
-  /sort-keys/3.0.0:
-    dependencies:
-      is-plain-obj: 2.1.0
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-77XUKMiZN5LvQXZ9sgWfJza19AvYIDwaDGwGiULM+B5XYru8Z90Oh06JvqDlJczvjjYvssrV0aK1GI6+YXvn5A==
   /sort-keys/4.1.0:
     dependencies:
       is-plain-obj: 2.1.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -14449,28 +14441,29 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-3xZqT7Byc2uORAatYiP3DHUUAVEkNOswEWNs9H5KXiicRTvzYzYqKjYc4G7p+8pltvAw641lVByKVtMpf+4sYQ==
-  /write-json-file/4.0.0:
+  /write-json-file/4.3.0:
     dependencies:
       detect-indent: 6.0.0
       graceful-fs: 4.2.4
+      is-plain-obj: 2.1.0
       make-dir: 3.1.0
-      sort-keys: 3.0.0
-      write-file-atomic: 2.4.3
+      sort-keys: 4.1.0
+      write-file-atomic: 3.0.3
     engines:
-      node: '>=8'
+      node: '>=8.3'
     resolution:
-      integrity: sha512-ak8Ww3Me8G9jD1XcFyXV4HTX0HGISBrJu09JYx/v+WINBOdJAge7wVH1BGhOnJxaFM1ufUevjlrrgiZz8Vwj7w==
-  /write-json5-file/3.0.0:
+      integrity: sha512-PxiShnxf0IlnQuMYOPPhPkhExoCQuTUNPOa/2JWCYTmBquU9njyyDuwRKN26IZBlp4yn1nt+Agh2HOOBl+55HQ==
+  /write-json5-file/3.0.1:
     dependencies:
       graceful-fs: 4.2.4
       json5: 2.1.3
       sort-keys: 4.1.0
-      write-file-atomic: 2.4.3
+      write-file-atomic: 3.0.3
     dev: false
     engines:
       node: '>=10.12'
     resolution:
-      integrity: sha512-kk4j7hIiYDJXAmBFUdhtIN4g9KNZuXcWI/M7zBAPA/2YuYKEeickz3aczV0QQSyw/YSJfFM/0/VoOF9hQbG+HA==
+      integrity: sha512-LhB01JvzYFAqBUuuYFFBB/FGRJogsasQ/f4TN/kYgeL452/rQOWRF0UiIS7uY2fVfQF9mlUk92Qx3nHRUL7zRg==
   /write-pkg/4.0.0:
     dependencies:
       sort-keys: 2.0.0
@@ -14485,10 +14478,20 @@ packages:
       graceful-fs: 4.2.4
       js-yaml: 3.14.0
       write-file-atomic: 2.4.3
+    dev: true
     engines:
       node: '>=10.13'
     resolution:
       integrity: sha512-jN421OlwO/MN/EwAykk5ic8AL9QAycpKGaHKFBlcr3aQ6RUX8ZbrreOPUuhoYSxj/o30FhOQLSH36WYldAFrUw==
+  /write-yaml-file/4.1.1:
+    dependencies:
+      graceful-fs: 4.2.4
+      js-yaml: 3.14.0
+      write-file-atomic: 3.0.3
+    engines:
+      node: '>=10.13'
+    resolution:
+      integrity: sha512-DrZlCt+PTsT/U6v0CszHJ+S0lTUhd1aLt2Vx7RDFE/J0Px5erwNoTXoQTse+zkPdwNo8fNtnJnzb3hT7ltd9EA==
   /write/1.0.3:
     dependencies:
       mkdirp: 0.5.5

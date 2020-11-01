@@ -104,9 +104,9 @@
     "symlink-dir": "^4.1.0",
     "tape-promise": "4.0.0",
     "tree-kill": "^1.2.2",
-    "write-json-file": "4.0.0",
+    "write-json-file": "^4.3.0",
     "write-pkg": "4.0.0",
-    "write-yaml-file": "^4.1.0"
+    "write-yaml-file": "^4.1.1"
   },
   "directories": {
     "test": "test"

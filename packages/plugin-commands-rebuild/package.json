@@ -44,7 +44,7 @@
     "execa": "^4.1.0",
     "path-exists": "^4.0.0",
     "sinon": "^9.2.1",
-    "write-yaml-file": "^4.1.0"
+    "write-yaml-file": "^4.1.1"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.4.36",

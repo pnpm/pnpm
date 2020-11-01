@@ -94,14 +94,6 @@
       "allowedVersions": "6.0.1"
     },
     {
-      "packageNames": ["write-json-file"],
-      "allowedVersions": "4.0.0"
-    },
-    {
-      "packageNames": ["write-file-atomic"],
-      "allowedVersions": "2.4.3"
-    },
-    {
       "packageNames": ["uuid"],
       "allowedVersions": "^3.4.0"
     },
