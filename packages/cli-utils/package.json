@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "0.4.36",
+  "version": "0.4.37",
   "description": "Utils for pnpm commands",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "@pnpm/error": "workspace:1.3.1",
     "@pnpm/manifest-utils": "workspace:1.1.3",
     "@pnpm/package-is-installable": "workspace:4.0.17",
-    "@pnpm/read-project-manifest": "workspace:1.1.3",
+    "@pnpm/read-project-manifest": "workspace:1.1.4",
     "chalk": "^4.1.0",
     "load-json-file": "^6.2.0"
   },

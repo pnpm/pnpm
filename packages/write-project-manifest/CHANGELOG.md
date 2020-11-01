@@ -1,5 +1,11 @@
 # @pnpm/write-project-manifest
 
+## 1.1.5
+
+### Patch Changes
+
+- 09492b7b4: Update write-file-atomic to v3.
+
 ## 1.1.4
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.2.15
+
+### Patch Changes
+
+- 09492b7b4: Update write-file-atomic to v3.
+  - @pnpm/cli-utils@0.4.37
+  - @pnpm/exportable-manifest@1.0.7
+  - @pnpm/client@2.0.12
+
 ## 2.2.14
 
 ### Patch Changes

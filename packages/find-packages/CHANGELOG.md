@@ -1,5 +1,11 @@
 # find-packages
 
+## 7.0.21
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1.1.4
+
 ## 7.0.20
 
 ### Patch Changes

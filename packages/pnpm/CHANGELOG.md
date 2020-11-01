@@ -1,6 +1,6 @@
 # pnpm
 
-## 5.10.3
+## 5.10.4
 
 ### Patch Changes
 

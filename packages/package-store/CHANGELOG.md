@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 10.1.8
+
+### Patch Changes
+
+- 09492b7b4: Update write-file-atomic to v3.
+  - @pnpm/package-requester@12.1.3
+
 ## 10.1.7
 
 ### Patch Changes

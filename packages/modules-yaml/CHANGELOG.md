@@ -1,5 +1,11 @@
 # @pnpm/modules-yaml
 
+## 8.0.5
+
+### Patch Changes
+
+- 09492b7b4: Update write-file-atomic to v3.
+
 ## 8.0.4
 
 ### Patch Changes

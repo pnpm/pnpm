@@ -32,7 +32,7 @@
   "devDependencies": {
     "@pnpm/audit": "link:",
     "@pnpm/constants": "workspace:^4.1.0",
-    "@pnpm/lockfile-file": "workspace:3.0.17",
+    "@pnpm/lockfile-file": "workspace:3.0.18",
     "nock": "12.0.3"
   },
   "dependencies": {

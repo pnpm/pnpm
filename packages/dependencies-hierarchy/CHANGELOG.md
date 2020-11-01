@@ -1,5 +1,14 @@
 # dependencies-hierarchy
 
+## 9.0.9
+
+### Patch Changes
+
+- Updated dependencies [dbcc6c96f]
+- Updated dependencies [09492b7b4]
+  - @pnpm/lockfile-file@3.0.18
+  - @pnpm/modules-yaml@8.0.5
+
 ## 9.0.8
 
 ### Patch Changes

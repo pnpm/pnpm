@@ -1,5 +1,15 @@
 # @pnpm-private/updater
 
+## 0.0.34
+
+### Patch Changes
+
+- 09492b7b4: Update write-file-atomic to v3.
+- Updated dependencies [dbcc6c96f]
+- Updated dependencies [09492b7b4]
+  - @pnpm/lockfile-file@3.0.18
+  - @pnpm/find-workspace-packages@2.3.23
+
 ## 0.0.33
 
 ### Patch Changes

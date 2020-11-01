@@ -1,5 +1,12 @@
 # @pnpm/lockfile-file
 
+## 3.0.18
+
+### Patch Changes
+
+- dbcc6c96f: Print a better error message when stringifying a lockfile object fails.
+- 09492b7b4: Update write-file-atomic to v3.
+
 ## 3.0.17
 
 ### Patch Changes
