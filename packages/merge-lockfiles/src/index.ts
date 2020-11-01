@@ -83,7 +83,7 @@ function mergeDict<T> (
       ourDict[key],
       baseDict[key],
       theirDict[key],
-      `${fieldName}.${key}`,
+      `${fieldName}.${key}`
     )
     if (changedValue) {
       newDict[key] = changedValue
@@ -96,6 +96,7 @@ function takeChangedValue<T> (ourValue: T, baseValue: T, theirValue: T, fieldNam
   if (ourValue === theirValue) return ourValue
   if (baseValue === ourValue) return theirValue
   if (baseValue === theirValue) return ourValue
+  // eslint-disable-next-line
   throw new Error(`Cannot resolve '${fieldName}'. Base value: ${baseValue}. Our: ${ourValue}. Their: ${theirValue}`)
 }
 
