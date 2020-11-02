@@ -178,6 +178,7 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
+      !ctx.hadConflicts &&
       !opts.lockfileOnly &&
       !opts.update &&
       installsOnly &&

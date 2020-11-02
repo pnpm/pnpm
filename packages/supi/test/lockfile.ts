@@ -1229,3 +1229,41 @@ test('tarball installed through non-standard URL endpoint from the registry doma
     },
   })
 })
+
+test('a lockfile with merge conflicts is autofixed', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await fs.writeFile(WANTED_LOCKFILE, `\
+importers:
+  .:
+    dependencies:
+<<<<<<< HEAD
+      dep-of-pkg-with-1-dep: 100.0.0
+=======
+      dep-of-pkg-with-1-dep: 100.1.0
+>>>>>>> next
+    specifiers:
+      dep-of-pkg-with-1-dep: '>100.0.0'
+lockfileVersion: ${LOCKFILE_VERSION}
+packages:
+<<<<<<< HEAD
+  /dep-of-pkg-with-1-dep/100.0.0:
+    dev: false
+    resolution:
+      integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}
+=======
+  /dep-of-pkg-with-1-dep/100.1.0:
+    dev: false
+    resolution:
+      integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.1.0')}
+>>>>>>> next`, 'utf8')
+
+  await install({
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '>100.0.0',
+    },
+  }, await testDefaults())
+
+  const lockfile = await project.readLockfile()
+  t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '100.1.0')
+})
