@@ -178,7 +178,7 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
-      !ctx.hadConflicts &&
+      !ctx.lockfileHadConflicts &&
       !opts.lockfileOnly &&
       !opts.update &&
       installsOnly &&
@@ -638,7 +638,7 @@ async function installInContext (
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
     overridesChanged ||
-    ctx.hadConflicts
+    ctx.lockfileHadConflicts
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,
     lockfileOnly: opts.lockfileOnly,

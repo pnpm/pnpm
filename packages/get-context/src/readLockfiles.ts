@@ -41,7 +41,7 @@ export default async function (
     existsCurrentLockfile: boolean
     existsWantedLockfile: boolean
     wantedLockfile: Lockfile
-    hadConflicts: boolean
+    lockfileHadConflicts: boolean
   }> {
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
@@ -50,13 +50,13 @@ export default async function (
     wantedVersion: LOCKFILE_VERSION,
   }
   const fileReads = [] as Array<Promise<Lockfile | undefined | null>>
-  let hadConflicts: boolean = false
+  let lockfileHadConflicts: boolean = false
   if (opts.useLockfile) {
     if (opts.autofixMergeConflicts) {
       fileReads.push(
         readWantedLockfileAndAutofixConflicts(opts.lockfileDir, lockfileOpts)
-          .then(({ lockfile, hadConflicts: _hc }) => {
-            hadConflicts = _hc
+          .then(({ lockfile, hadConflicts }) => {
+            lockfileHadConflicts = hadConflicts
             return lockfile
           })
       )
@@ -101,6 +101,6 @@ export default async function (
     existsCurrentLockfile: !!files[1],
     existsWantedLockfile: !!files[0],
     wantedLockfile,
-    hadConflicts,
+    lockfileHadConflicts,
   }
 }

@@ -28,7 +28,7 @@ export interface PnpmContext<T> {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   extraBinPaths: string[]
-  hadConflicts: boolean
+  lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
   include: IncludedDependencies
   modulesFile: Modules | null
@@ -325,7 +325,7 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   extraBinPaths: string[]
-  hadConflicts: boolean
+  lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
   hoistedModulesDir: string
   hoistPattern: string[] | undefined

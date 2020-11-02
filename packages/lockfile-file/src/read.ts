@@ -4,8 +4,8 @@ import {
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import autofixMergeConflicts, { isDiff } from './autofixMergeConflicts'
 import { LockfileBreakingChangeError } from './errors'
+import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import logger from './logger'
 import yaml = require('js-yaml')
 import path = require('path')
@@ -87,6 +87,10 @@ async function _read (
     }
     hadConflicts = true
     lockfile = autofixMergeConflicts(lockfileRawContent)
+    logger.info({
+      message: `Merge conflict detected in ${WANTED_LOCKFILE} and successfully merged`,
+      prefix: path.dirname(lockfilePath),
+    })
   }
   /* eslint-disable @typescript-eslint/dot-notation */
   if (typeof lockfile?.['specifiers'] !== 'undefined') {
