@@ -20,11 +20,7 @@ export async function readCurrentLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
-  return (await _read(lockfilePath, virtualStoreDir, {
-    ...opts,
-    // The current lockfile is not committed to the repository, so it should never have merge conflicts
-    autofixMergeConflicts: false,
-  })).lockfile
+  return (await _read(lockfilePath, virtualStoreDir, opts)).lockfile
 }
 
 export function readWantedLockfileAndAutofixConflicts (
