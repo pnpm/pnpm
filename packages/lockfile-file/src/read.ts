@@ -4,12 +4,15 @@ import {
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
 import { LockfileBreakingChangeError } from './errors'
+import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import logger from './logger'
+import yaml = require('js-yaml')
 import path = require('path')
+import stripBom = require('strip-bom')
+import fs = require('mz/fs')
 
-export function readCurrentLockfile (
+export async function readCurrentLockfile (
   virtualStoreDir: string,
   opts: {
     wantedVersion?: number
@@ -17,10 +20,24 @@ export function readCurrentLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
-  return _read(lockfilePath, virtualStoreDir, opts)
+  return (await _read(lockfilePath, virtualStoreDir, opts)).lockfile
 }
 
-export function readWantedLockfile (
+export function readWantedLockfileAndAutofixConflicts (
+  pkgPath: string,
+  opts: {
+    wantedVersion?: number
+    ignoreIncompatible: boolean
+  }
+): Promise<{
+    lockfile: Lockfile | null
+    hadConflicts: boolean
+  }> {
+  const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
+  return _read(lockfilePath, pkgPath, { ...opts, autofixMergeConflicts: true })
+}
+
+export async function readWantedLockfile (
   pkgPath: string,
   opts: {
     wantedVersion?: number
@@ -28,25 +45,48 @@ export function readWantedLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  return _read(lockfilePath, pkgPath, opts)
+  return (await _read(lockfilePath, pkgPath, opts)).lockfile
 }
 
 async function _read (
   lockfilePath: string,
   prefix: string,
   opts: {
+    autofixMergeConflicts?: boolean
     wantedVersion?: number
     ignoreIncompatible: boolean
   }
-): Promise<Lockfile | null> {
-  let lockfile
+): Promise<{
+    lockfile: Lockfile | null
+    hadConflicts: boolean
+  }> {
+  let lockfileRawContent
   try {
-    lockfile = await readYamlFile<Lockfile>(lockfilePath)
+    lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
-    return null
+    return {
+      lockfile: null,
+      hadConflicts: false,
+    }
+  }
+  let lockfile: Lockfile
+  let hadConflicts!: boolean
+  try {
+    lockfile = yaml.safeLoad(lockfileRawContent) as Lockfile
+    hadConflicts = false
+  } catch (err) {
+    if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
+      throw err
+    }
+    hadConflicts = true
+    lockfile = autofixMergeConflicts(lockfileRawContent)
+    logger.info({
+      message: `Merge conflict detected in ${WANTED_LOCKFILE} and successfully merged`,
+      prefix: path.dirname(lockfilePath),
+    })
   }
   /* eslint-disable @typescript-eslint/dot-notation */
   if (typeof lockfile?.['specifiers'] !== 'undefined') {
@@ -73,7 +113,7 @@ async function _read (
           prefix,
         })
       }
-      return lockfile
+      return { lockfile, hadConflicts }
     }
   }
   if (opts.ignoreIncompatible) {
@@ -81,7 +121,7 @@ async function _read (
       message: `Ignoring not compatible lockfile at ${lockfilePath}`,
       prefix,
     })
-    return null
+    return { lockfile: null, hadConflicts: false }
   }
   throw new LockfileBreakingChangeError(lockfilePath)
 }

@@ -136,6 +136,7 @@ export async function mutateModules (
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
   opts['forceNewModules'] = installsOnly
+  opts['autofixMergeConflicts'] = !opts.frozenLockfile
   const ctx = await getContext(projects, opts)
   const rootProjectManifest = ctx.projects.find(({ id }) => id === '.')?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
@@ -177,6 +178,7 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
+      !ctx.lockfileHadConflicts &&
       !opts.lockfileOnly &&
       !opts.update &&
       installsOnly &&
@@ -635,7 +637,8 @@ async function installInContext (
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
-    overridesChanged
+    overridesChanged ||
+    ctx.lockfileHadConflicts
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,
     lockfileOnly: opts.lockfileOnly,

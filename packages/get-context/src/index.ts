@@ -28,6 +28,7 @@ export interface PnpmContext<T> {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   extraBinPaths: string[]
+  lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
   include: IncludedDependencies
   modulesFile: Modules | null
@@ -62,6 +63,7 @@ interface HookOptions {
 export default async function getContext<T> (
   projects: Array<ProjectOptions & HookOptions & T>,
   opts: {
+    autofixMergeConflicts?: boolean
     force: boolean
     forceNewModules?: boolean
     forceSharedLockfile: boolean
@@ -156,6 +158,7 @@ export default async function getContext<T> (
     storeDir: opts.storeDir,
     virtualStoreDir,
     ...await readLockfileFile({
+      autofixMergeConflicts: opts.autofixMergeConflicts === true,
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       lockfileDir: opts.lockfileDir,
@@ -322,6 +325,7 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   extraBinPaths: string[]
+  lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
   hoistedModulesDir: string
   hoistPattern: string[] | undefined
@@ -345,6 +349,7 @@ export interface PnpmSingleContext {
 export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
+    autofixMergeConflicts?: boolean
     force: boolean
     forceNewModules?: boolean
     forceSharedLockfile: boolean
@@ -453,6 +458,7 @@ export async function getContextForSingleImporter (
     storeDir,
     virtualStoreDir,
     ...await readLockfileFile({
+      autofixMergeConflicts: opts.autofixMergeConflicts === true,
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       lockfileDir: opts.lockfileDir,

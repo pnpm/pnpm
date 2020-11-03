@@ -10,19 +10,7 @@
   ],
   "references": [
     {
-      "path": "../constants"
-    },
-    {
-      "path": "../error"
-    },
-    {
       "path": "../lockfile-types"
-    },
-    {
-      "path": "../merge-lockfiles"
-    },
-    {
-      "path": "../types"
     }
   ]
 }
