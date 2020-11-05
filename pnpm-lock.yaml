@@ -1771,6 +1771,28 @@ importers:
       render-help: ^1.0.1
       strip-ansi: ^6.0.0
       write-yaml-file: ^4.1.1
+  packages/plugin-commands-merge-driver:
+    dependencies:
+      '@pnpm/constants': 'link:../constants'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/merge-lockfile-changes': 'link:../merge-lockfile-changes'
+      execa: 4.1.0
+      npm-merge-driver: 2.3.6
+      render-help: 1.0.1
+    devDependencies:
+      '@pnpm/plugin-commands-merge-driver': 'link:'
+      '@types/node': 14.14.6
+      tempy: 1.0.0
+    specifiers:
+      '@pnpm/constants': 'workspace:^4.1.0'
+      '@pnpm/lockfile-file': 'workspace:^3.0.18'
+      '@pnpm/merge-lockfile-changes': 'workspace:^0.0.0'
+      '@pnpm/plugin-commands-merge-driver': 'link:'
+      '@types/node': ^14.14.6
+      execa: ^4.1.0
+      npm-merge-driver: ^2.3.6
+      render-help: ^1.0.1
+      tempy: ^1.0.0
   packages/plugin-commands-outdated:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -2201,6 +2223,7 @@ importers:
       '@pnpm/plugin-commands-import': 'link:../plugin-commands-import'
       '@pnpm/plugin-commands-installation': 'link:../plugin-commands-installation'
       '@pnpm/plugin-commands-listing': 'link:../plugin-commands-listing'
+      '@pnpm/plugin-commands-merge-driver': 'link:../plugin-commands-merge-driver'
       '@pnpm/plugin-commands-outdated': 'link:../plugin-commands-outdated'
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
@@ -2296,6 +2319,7 @@ importers:
       '@pnpm/plugin-commands-import': 'workspace:1.0.78'
       '@pnpm/plugin-commands-installation': 'workspace:3.4.4'
       '@pnpm/plugin-commands-listing': 'workspace:2.0.33'
+      '@pnpm/plugin-commands-merge-driver': 'workspace:^0.0.0'
       '@pnpm/plugin-commands-outdated': 'workspace:3.0.27'
       '@pnpm/plugin-commands-publishing': 'workspace:2.2.15'
       '@pnpm/plugin-commands-rebuild': 'workspace:2.2.4'
@@ -10897,6 +10921,14 @@ packages:
       node: '>= 0.10'
     resolution:
       integrity: sha512-KGvQ0cB70AQfg107Xvs/Fbu+dGmZoTRJp2TaPwcwQm3/7PteUyN2BCgk8KBMPGBUXZdVwyWS8fDCGFygBm19UQ==
+  /npm-merge-driver/2.3.6:
+    bundledDependencies:
+      - yargs
+      - mkdirp
+    dev: false
+    hasBin: true
+    resolution:
+      integrity: sha512-uPjCEWZ93f379zw0AMEgFtZIlpSSnpXc8BEIcs8yYHEZs5Y3d85OZHisLjNhjbYnbdAznxTq+VbyBWAQZDEm9w==
   /npm-normalize-package-bin/1.0.1:
     dev: false
     resolution:

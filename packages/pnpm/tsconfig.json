@@ -55,6 +55,9 @@
       "path": "../plugin-commands-listing"
     },
     {
+      "path": "../plugin-commands-merge-driver"
+    },
+    {
       "path": "../plugin-commands-outdated"
     },
     {
