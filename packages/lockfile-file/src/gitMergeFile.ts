@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import mergeLockfiles from '@pnpm/merge-lockfiles'
+import mergeLockfilesChanges from '@pnpm/merge-lockfile-changes'
 import yaml = require('js-yaml')
 
 const MERGE_CONFLICT_PARENT = '|||||||'
@@ -10,7 +10,7 @@ const MERGE_CONFLICT_OURS = '<<<<<<<'
 export function autofixMergeConflicts (fileContent: string) {
   const { ours, theirs } = parseMergeFile(fileContent)
   const oursParsed = yaml.safeLoad(ours) as Lockfile
-  return mergeLockfiles({
+  return mergeLockfilesChanges({
     base: oursParsed,
     ours: oursParsed,
     theirs: yaml.safeLoad(theirs) as Lockfile,

@@ -19,7 +19,7 @@
       "path": "../lockfile-types"
     },
     {
-      "path": "../merge-lockfiles"
+      "path": "../merge-lockfile-changes"
     },
     {
       "path": "../types"

@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import mergeLockfile from '../src'
+import mergeLockfileChanges from '../src'
 
 const simpleLockfile = {
   importers: {
@@ -24,7 +24,7 @@ const simpleLockfile = {
 
 test('fails when specifiers differ', () => {
   expect(() => {
-    mergeLockfile({
+    mergeLockfileChanges({
       base: simpleLockfile,
       ours: {
         ...simpleLockfile,
@@ -49,7 +49,7 @@ test('fails when specifiers differ', () => {
 })
 
 test('picks the newer version when dependencies differ inside importer', () => {
-  const mergedLockfile = mergeLockfile({
+  const mergedLockfile = mergeLockfileChanges({
     base: simpleLockfile,
     ours: {
       ...simpleLockfile,
@@ -110,7 +110,7 @@ test('picks the newer version when dependencies differ inside package', () => {
       },
     },
   }
-  const mergedLockfile = mergeLockfile({
+  const mergedLockfile = mergeLockfileChanges({
     base,
     ours: {
       ...base,
@@ -219,7 +219,7 @@ test('picks the newer version when dependencies differ inside package', () => {
 })
 
 test('prefers our lockfile resolutions when it has newer packages', () => {
-  const mergedLockfile = mergeLockfile({
+  const mergedLockfile = mergeLockfileChanges({
     base: simpleLockfile,
     ours: {
       ...simpleLockfile,
@@ -301,7 +301,7 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
 })
 
 test('prefers our lockfile resolutions when it has newer packages', () => {
-  const mergedLockfile = mergeLockfile({
+  const mergedLockfile = mergeLockfileChanges({
     base: simpleLockfile,
     theirs: {
       ...simpleLockfile,

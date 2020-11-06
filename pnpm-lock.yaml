@@ -938,7 +938,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
-      '@pnpm/merge-lockfiles': 'link:../merge-lockfiles'
+      '@pnpm/merge-lockfile-changes': 'link:../merge-lockfile-changes'
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       js-yaml: 3.14.0
@@ -964,7 +964,7 @@ importers:
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/lockfile-types': 'workspace:2.1.1'
       '@pnpm/logger': ^3.2.2
-      '@pnpm/merge-lockfiles': 'workspace:^0.0.0'
+      '@pnpm/merge-lockfile-changes': 'workspace:^0.0.0'
       '@pnpm/types': 'workspace:6.3.1'
       '@types/js-yaml': ^3.12.5
       '@types/mz': ^2.7.2
@@ -1125,7 +1125,7 @@ importers:
     specifiers:
       '@pnpm/matcher': 'link:'
       escape-string-regexp: ^4.0.0
-  packages/merge-lockfiles:
+  packages/merge-lockfile-changes:
     dependencies:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       ramda: 0.27.1

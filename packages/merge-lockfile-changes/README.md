@@ -1,11 +1,11 @@
-# @pnpm/merge-lockfiles
+# @pnpm/merge-lockfile-changes
 
 > Merges lockfiles. Can automatically fix merge conflicts
 
 ## Install
 
 ```
-pnpm add @pnpm/merge-lockfiles
+pnpm add @pnpm/merge-lockfile-changes
 ```
 
 ## License

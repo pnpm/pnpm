@@ -1,5 +1,5 @@
 ---
-"@pnpm/merge-lockfiles": major
+"@pnpm/merge-lockfile-changes": major
 ---
 
 Initial release.

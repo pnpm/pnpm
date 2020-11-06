@@ -2,7 +2,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import R = require('ramda')
 import semver = require('semver')
 
-export default function mergeLockfile (
+export default function mergeLockfileChanges (
   opts: {
     base: Lockfile
     ours: Lockfile
