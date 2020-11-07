@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.11.0
+
+### Minor Changes
+
+- Conflicts in `pnpm-lock.yaml` are automatically fixed by `pnpm install` [#2965](https://github.com/pnpm/pnpm/pull/2965).
+
 ## 5.10.4
 
 ### Patch Changes

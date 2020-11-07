@@ -1,5 +1,17 @@
 # @pnpm/get-context
 
+## 3.3.0
+
+### Minor Changes
+
+- 3776b5a52: A new option added to the context: lockfileHadConflicts.
+
+### Patch Changes
+
+- Updated dependencies [3776b5a52]
+  - @pnpm/lockfile-file@3.1.0
+  - @pnpm/read-projects-context@4.0.10
+
 ## 3.2.11
 
 ### Patch Changes

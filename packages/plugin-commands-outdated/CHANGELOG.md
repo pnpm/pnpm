@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.28
+
+### Patch Changes
+
+- Updated dependencies [3776b5a52]
+  - @pnpm/lockfile-file@3.1.0
+  - @pnpm/outdated@7.2.13
+
 ## 3.0.27
 
 ### Patch Changes

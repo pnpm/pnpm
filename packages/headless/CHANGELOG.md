@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 14.5.5
+
+### Patch Changes
+
+- Updated dependencies [3776b5a52]
+  - @pnpm/lockfile-file@3.1.0
+  - @pnpm/lockfile-to-pnp@0.3.6
+
 ## 14.5.4
 
 ### Patch Changes

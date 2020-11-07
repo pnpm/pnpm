@@ -1,5 +1,16 @@
 # @pnpm/lockfile-file
 
+## 3.1.0
+
+### Minor Changes
+
+- 3776b5a52: New function added that reads the lockfile and autofixes any merge conflicts.
+
+### Patch Changes
+
+- Updated dependencies [3776b5a52]
+  - @pnpm/merge-lockfile-changes@1.0.0
+
 ## 3.0.18
 
 ### Patch Changes
