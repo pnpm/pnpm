@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import mergeLockfilesChanges from '@pnpm/merge-lockfile-changes'
+import mergeLockfileChanges from '@pnpm/merge-lockfile-changes'
 import yaml = require('js-yaml')
 
 const MERGE_CONFLICT_PARENT = '|||||||'
@@ -9,12 +9,10 @@ const MERGE_CONFLICT_OURS = '<<<<<<<'
 
 export function autofixMergeConflicts (fileContent: string) {
   const { ours, theirs } = parseMergeFile(fileContent)
-  const oursParsed = yaml.safeLoad(ours) as Lockfile
-  return mergeLockfilesChanges({
-    base: oursParsed,
-    ours: oursParsed,
-    theirs: yaml.safeLoad(theirs) as Lockfile,
-  })
+  return mergeLockfileChanges(
+    yaml.safeLoad(ours) as Lockfile,
+    yaml.safeLoad(theirs) as Lockfile
+  )
 }
 
 function parseMergeFile (fileContent: string) {
@@ -22,7 +20,6 @@ function parseMergeFile (fileContent: string) {
   let state: 'top' | 'ours' | 'theirs' | 'parent' = 'top'
   const ours = []
   const theirs = []
-  const base = []
   while (lines.length > 0) {
     const line = lines.shift() as string
     if (line.startsWith(MERGE_CONFLICT_PARENT)) {
@@ -43,9 +40,8 @@ function parseMergeFile (fileContent: string) {
     }
     if (state === 'top' || state === 'ours') ours.push(line)
     if (state === 'top' || state === 'theirs') theirs.push(line)
-    if (state === 'top' || state === 'parent') base.push(line)
   }
-  return { ours: ours.join('\n'), theirs: theirs.join('\n'), base: base.join('\n') }
+  return { ours: ours.join('\n'), theirs: theirs.join('\n') }
 }
 
 export function isDiff (fileContent: string) {

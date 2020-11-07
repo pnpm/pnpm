@@ -2,28 +2,20 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import R = require('ramda')
 import semver = require('semver')
 
-export default function mergeLockfileChanges (
-  opts: {
-    base: Lockfile
-    ours: Lockfile
-    theirs: Lockfile
-  }
-) {
+export default function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
   const newLockfile: Lockfile = {
     importers: {},
-    lockfileVersion: Math.max(opts.base.lockfileVersion, opts.ours.lockfileVersion),
+    lockfileVersion: Math.max(theirs.lockfileVersion, ours.lockfileVersion),
   }
 
-  for (const importerId of Array.from(new Set([...Object.keys(opts.ours.importers), ...Object.keys(opts.theirs.importers)]))) {
+  for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)]))) {
     newLockfile.importers[importerId] = {
       specifiers: {},
     }
     for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
       newLockfile.importers[importerId][key] = mergeDict(
-        opts.ours.importers[importerId]?.[key] ?? {},
-        opts.base.importers[importerId]?.[key] ?? {},
-        opts.theirs.importers[importerId]?.[key] ?? {},
-        key,
+        ours.importers[importerId]?.[key] ?? {},
+        theirs.importers[importerId]?.[key] ?? {},
         mergeVersions
       )
       if (!Object.keys(newLockfile.importers[importerId][key]).length) {
@@ -31,30 +23,24 @@ export default function mergeLockfileChanges (
       }
     }
     newLockfile.importers[importerId].specifiers = mergeDict(
-      opts.ours.importers[importerId]?.specifiers ?? {},
-      opts.base.importers[importerId]?.specifiers ?? {},
-      opts.theirs.importers[importerId]?.specifiers ?? {},
-      'specifiers',
+      ours.importers[importerId]?.specifiers ?? {},
+      theirs.importers[importerId]?.specifiers ?? {},
       takeChangedValue
     )
   }
 
   const packages = {}
-  for (const depPath of Array.from(new Set([...Object.keys(opts.ours.packages ?? {}), ...Object.keys(opts.theirs.packages ?? {})]))) {
-    const basePkg = opts.base.packages?.[depPath]
-    const ourPkg = opts.ours.packages?.[depPath]
-    const theirPkg = opts.theirs.packages?.[depPath]
+  for (const depPath of Array.from(new Set([...Object.keys(ours.packages ?? {}), ...Object.keys(theirs.packages ?? {})]))) {
+    const ourPkg = ours.packages?.[depPath]
+    const theirPkg = theirs.packages?.[depPath]
     const pkg = {
-      ...basePkg,
       ...ourPkg,
       ...theirPkg,
     }
     for (const key of ['dependencies', 'optionalDependencies']) {
       pkg[key] = mergeDict(
         ourPkg?.[key] ?? {},
-        basePkg?.[key] ?? {},
         theirPkg?.[key] ?? {},
-        key,
         mergeVersions
       )
       if (!Object.keys(pkg[key]).length) {
@@ -68,22 +54,18 @@ export default function mergeLockfileChanges (
   return newLockfile
 }
 
-type ValueMerger<T> = (ourValue: T, baseValue: T, theirValue: T, fieldName: string) => T
+type ValueMerger<T> = (ourValue: T, theirValue: T) => T
 
 function mergeDict<T> (
   ourDict: Record<string, T>,
-  baseDict: Record<string, T>,
   theirDict: Record<string, T>,
-  fieldName: string,
   valueMerger: ValueMerger<T>
 ) {
   const newDict = {}
   for (const key of R.keys(ourDict).concat(R.keys(theirDict))) {
     const changedValue = valueMerger(
       ourDict[key],
-      baseDict[key],
-      theirDict[key],
-      `${fieldName}.${key}`
+      theirDict[key]
     )
     if (changedValue) {
       newDict[key] = changedValue
@@ -92,18 +74,14 @@ function mergeDict<T> (
   return newDict
 }
 
-function takeChangedValue<T> (ourValue: T, baseValue: T, theirValue: T, fieldName: string): T {
-  if (ourValue === theirValue) return ourValue
-  if (baseValue === ourValue) return theirValue
-  if (baseValue === theirValue) return ourValue
-  // eslint-disable-next-line
-  throw new Error(`Cannot resolve '${fieldName}'. Base value: ${baseValue}. Our: ${ourValue}. Their: ${theirValue}`)
+function takeChangedValue<T> (ourValue: T, theirValue: T): T {
+  if (ourValue === theirValue || theirValue == null) return ourValue
+  return theirValue
 }
 
-function mergeVersions (ourValue: string, baseValue: string, theirValue: string, fieldName: string) {
-  if (ourValue === theirValue) return ourValue
-  if (baseValue === ourValue) return theirValue
-  if (baseValue === theirValue) return ourValue
+function mergeVersions (ourValue: string, theirValue: string) {
+  if (ourValue === theirValue || !theirValue) return ourValue
+  if (!ourValue) return theirValue
   const [ourVersion] = ourValue.split('_')
   const [theirVersion] = theirValue.split('_')
   if (semver.gt(ourVersion, theirVersion)) {

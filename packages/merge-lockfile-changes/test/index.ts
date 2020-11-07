@@ -22,36 +22,9 @@ const simpleLockfile = {
   },
 }
 
-test('fails when specifiers differ', () => {
-  expect(() => {
-    mergeLockfileChanges({
-      base: simpleLockfile,
-      ours: {
-        ...simpleLockfile,
-        importers: {
-          '.': {
-            ...simpleLockfile.importers['.'],
-            specifiers: { foo: '^1.0.0' },
-          },
-        },
-      },
-      theirs: {
-        ...simpleLockfile,
-        importers: {
-          '.': {
-            ...simpleLockfile.importers['.'],
-            specifiers: { foo: '^1.1.0' },
-          },
-        },
-      },
-    })
-  }).toThrowError(/Cannot resolve 'specifiers.foo'/)
-})
-
 test('picks the newer version when dependencies differ inside importer', () => {
-  const mergedLockfile = mergeLockfileChanges({
-    base: simpleLockfile,
-    ours: {
+  const mergedLockfile = mergeLockfileChanges(
+    {
       ...simpleLockfile,
       importers: {
         '.': {
@@ -64,7 +37,7 @@ test('picks the newer version when dependencies differ inside importer', () => {
         },
       },
     },
-    theirs: {
+    {
       ...simpleLockfile,
       importers: {
         '.': {
@@ -76,8 +49,8 @@ test('picks the newer version when dependencies differ inside importer', () => {
           },
         },
       },
-    },
-  })
+    }
+  )
   expect(mergedLockfile.importers['.'].dependencies?.foo).toBe('1.2.0')
   expect(mergedLockfile.importers['.'].dependencies?.bar).toBe('4.0.0_qar@1.0.0')
   expect(mergedLockfile.importers['.'].dependencies?.zoo).toBe('4.0.0_qar@1.0.0')
@@ -110,9 +83,8 @@ test('picks the newer version when dependencies differ inside package', () => {
       },
     },
   }
-  const mergedLockfile = mergeLockfileChanges({
-    base,
-    ours: {
+  const mergedLockfile = mergeLockfileChanges(
+    {
       ...base,
       packages: {
         ...base.packages,
@@ -156,7 +128,7 @@ test('picks the newer version when dependencies differ inside package', () => {
         },
       },
     },
-    theirs: {
+    {
       ...base,
       packages: {
         ...base.packages,
@@ -199,8 +171,8 @@ test('picks the newer version when dependencies differ inside package', () => {
           },
         },
       },
-    },
-  })
+    }
+  )
   expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.linked).toBe('link:../1')
   expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.foo).toBe('1.2.0')
   expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.bar).toBe('4.0.0_qar@1.0.0')
@@ -219,9 +191,8 @@ test('picks the newer version when dependencies differ inside package', () => {
 })
 
 test('prefers our lockfile resolutions when it has newer packages', () => {
-  const mergedLockfile = mergeLockfileChanges({
-    base: simpleLockfile,
-    ours: {
+  const mergedLockfile = mergeLockfileChanges(
+    {
       ...simpleLockfile,
       packages: {
         '/foo/1.0.0': {
@@ -239,7 +210,7 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
         },
       },
     },
-    theirs: {
+    {
       ...simpleLockfile,
       packages: {
         '/foo/1.0.0': {
@@ -264,8 +235,8 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
           },
         },
       },
-    },
-  })
+    }
+  )
 
   expect(mergedLockfile).toStrictEqual({
     ...simpleLockfile,
@@ -301,9 +272,8 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
 })
 
 test('prefers our lockfile resolutions when it has newer packages', () => {
-  const mergedLockfile = mergeLockfileChanges({
-    base: simpleLockfile,
-    theirs: {
+  const mergedLockfile = mergeLockfileChanges(
+    {
       ...simpleLockfile,
       packages: {
         '/foo/1.0.0': {
@@ -321,7 +291,7 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
         },
       },
     },
-    ours: {
+    {
       ...simpleLockfile,
       packages: {
         '/foo/1.0.0': {
@@ -346,8 +316,8 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
           },
         },
       },
-    },
-  })
+    }
+  )
 
   expect(mergedLockfile).toStrictEqual({
     ...simpleLockfile,
