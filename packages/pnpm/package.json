@@ -55,7 +55,7 @@
     "render-help": "^1.0.1",
     "split-cmd": "^1.0.1",
     "strip-ansi": "^6.0.0",
-    "update-notifier": "^5.0.0",
+    "update-notifier": "^5.0.1",
     "which": "^2.0.2"
   },
   "devDependencies": {
