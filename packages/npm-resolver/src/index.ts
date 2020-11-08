@@ -13,7 +13,7 @@ import {
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import createPkgId from './createNpmPkgId'
-import fromRegistry from './fetch'
+import fromRegistry, { RegistryResponseError } from './fetch'
 import parsePref, {
   RegistryPackageSpec,
 } from './parsePref'
@@ -30,7 +30,7 @@ import pMemoize = require('p-memoize')
 import semver = require('semver')
 import ssri = require('ssri')
 
-class NoMatchingVersionError extends PnpmError {
+export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
   constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta}) {
     const dep = opts.wantedDependency.alias
@@ -44,6 +44,7 @@ class NoMatchingVersionError extends PnpmError {
 export {
   PackageMeta,
   PackageMetaCache,
+  RegistryResponseError,
 }
 
 // This file contains meta information
