@@ -13,8 +13,6 @@ import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import nock = require('nock')
 import normalize = require('normalize-path')
-import sinon = require('sinon')
-import test = require('tape')
 import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
@@ -28,15 +26,14 @@ const { resolve, fetchers } = createClient({
   storeDir: '.store',
 })
 
-test('request package', async t => {
+test('request package', async () => {
   const storeDir = tempy.directory()
-  t.comment(storeDir)
   const requestPackage = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
   })
-  t.equal(typeof requestPackage, 'function')
+  expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
@@ -47,38 +44,35 @@ test('request package', async t => {
     registry,
   })
 
-  t.ok(pkgResponse, 'response received')
-  t.ok(pkgResponse.body, 'response has body')
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
 
-  t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
-  t.equal(pkgResponse.body.resolvedVia, 'npm-registry', 'responded with correct resolvedVia')
-  t.equal(pkgResponse.body.isLocal, false, 'package is not local')
-  t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
-  t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
-  t.ok(!pkgResponse.body.normalizedPref, 'no normalizedPref returned')
-  t.deepEqual(pkgResponse.body.resolution, {
+  expect(pkgResponse.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(pkgResponse.body.resolvedVia).toBe('npm-registry')
+  expect(pkgResponse.body.isLocal).toBe(false)
+  expect(typeof pkgResponse.body.latest).toBe('string')
+  expect(pkgResponse.body.manifest?.name).toBe('is-positive')
+  expect(!pkgResponse.body.normalizedPref).toBeTruthy()
+  expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
     registry: 'https://registry.npmjs.org/',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-  }, 'resolution returned')
+  })
 
   const files = await pkgResponse.files!()
-  t.deepEqual(Object.keys(files.filesIndex).sort(),
-    ['package.json', 'index.js', 'license', 'readme.md'].sort())
-  t.notOk(files.fromStore)
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(files.fromStore).toBeFalsy()
 
-  t.ok(pkgResponse.finishing!())
-
-  t.end()
+  expect(pkgResponse.finishing!()).toBeTruthy()
 })
 
-test('request package but skip fetching', async t => {
+test('request package but skip fetching', async () => {
   const requestPackage = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: '.store',
     verifyStoreIntegrity: true,
   })
-  t.equal(typeof requestPackage, 'function')
+  expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
@@ -90,33 +84,31 @@ test('request package but skip fetching', async t => {
     skipFetch: true,
   })
 
-  t.ok(pkgResponse, 'response received')
-  t.ok(pkgResponse.body, 'response has body')
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
 
-  t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
-  t.equal(pkgResponse.body.isLocal, false, 'package is not local')
-  t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
-  t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
-  t.ok(!pkgResponse.body.normalizedPref, 'no normalizedPref returned')
-  t.deepEqual(pkgResponse.body.resolution, {
+  expect(pkgResponse.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(pkgResponse.body.isLocal).toBe(false)
+  expect(typeof pkgResponse.body.latest).toBe('string')
+  expect(pkgResponse.body.manifest?.name).toBe('is-positive')
+  expect(!pkgResponse.body.normalizedPref).toBeTruthy()
+  expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
     registry: 'https://registry.npmjs.org/',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-  }, 'resolution returned')
+  })
 
-  t.notOk(pkgResponse.files, 'files fetching not done')
-  t.notOk(pkgResponse.finishing)
-
-  t.end()
+  expect(pkgResponse.files).toBeFalsy()
+  expect(pkgResponse.finishing).toBeFalsy()
 })
 
-test('request package but skip fetching, when resolution is already available', async t => {
+test('request package but skip fetching, when resolution is already available', async () => {
   const requestPackage = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: '.store',
     verifyStoreIntegrity: true,
   })
-  t.equal(typeof requestPackage, 'function')
+  expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
@@ -142,27 +134,25 @@ test('request package but skip fetching, when resolution is already available', 
     finishing: () => Promise<void>
   }
 
-  t.ok(pkgResponse, 'response received')
-  t.ok(pkgResponse.body, 'response has body')
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
 
-  t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
-  t.equal(pkgResponse.body.isLocal, false, 'package is not local')
-  t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
-  t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
-  t.ok(!pkgResponse.body.normalizedPref, 'no normalizedPref returned')
-  t.deepEqual(pkgResponse.body.resolution, {
+  expect(pkgResponse.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(pkgResponse.body.isLocal).toBe(false)
+  expect(typeof pkgResponse.body.latest).toBe('string')
+  expect(pkgResponse.body.manifest.name).toBe('is-positive')
+  expect(!pkgResponse.body.normalizedPref).toBeTruthy()
+  expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
     registry: 'https://registry.npmjs.org/',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-  }, 'resolution returned')
+  })
 
-  t.notOk(pkgResponse.files, 'files fetching not done')
-  t.notOk(pkgResponse.finishing)
-
-  t.end()
+  expect(pkgResponse.files).toBeFalsy()
+  expect(pkgResponse.finishing).toBeFalsy()
 })
 
-test('refetch local tarball if its integrity has changed', async t => {
+test('refetch local tarball if its integrity has changed', async () => {
   const projectDir = tempy.directory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
   const tarballRelativePath = path.relative(projectDir, tarballPath)
@@ -201,9 +191,9 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.files()
     await response.finishing()
 
-    t.notOk(response.body.updated, 'resolution not updated')
-    t.notOk((await response.files()).fromStore, 'unpack tarball if it is not in store yet')
-    t.ok(await response.bundledManifest!())
+    expect(response.body.updated).toBeFalsy()
+    expect((await response.files()).fromStore).toBeFalsy()
+    expect(await response.bundledManifest!()).toBeTruthy()
   }
 
   await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
@@ -225,9 +215,9 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.files!()
     await response.finishing!()
 
-    t.ok(response.body.updated, 'resolution updated')
-    t.notOk((await response.files!()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
-    t.ok(await response.bundledManifest!())
+    expect(response.body.updated).toBeTruthy()
+    expect((await response.files!()).fromStore).toBeFalsy()
+    expect(await response.bundledManifest!()).toBeTruthy()
   }
 
   {
@@ -249,15 +239,13 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.files()
     await response.finishing()
 
-    t.notOk(response.body.updated, 'resolution not updated')
-    t.ok((await response.files()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
-    t.ok(await response.bundledManifest!())
+    expect(response.body.updated).toBeFalsy()
+    expect((await response.files()).fromStore).toBeTruthy()
+    expect(await response.bundledManifest!()).toBeTruthy()
   }
-
-  t.end()
 })
 
-test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async t => {
+test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async () => {
   const projectDir = tempy.directory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
   await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
@@ -286,9 +274,9 @@ test('refetch local tarball if its integrity has changed. The requester does not
     await response.files()
     await response.finishing()
 
-    t.ok(response.body.updated, 'resolution updated')
-    t.notOk((await response.files()).fromStore, 'unpack tarball if it is not in store yet')
-    t.ok(await response.bundledManifest!())
+    expect(response.body.updated).toBeTruthy()
+    expect((await response.files()).fromStore).toBeFalsy()
+    expect(await response.bundledManifest!()).toBeTruthy()
   }
 
   await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
@@ -307,9 +295,9 @@ test('refetch local tarball if its integrity has changed. The requester does not
     await response.files()
     await response.finishing()
 
-    t.ok(response.body.updated, 'resolution updated')
-    t.notOk((await response.files()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
-    t.ok(await response.bundledManifest!())
+    expect(response.body.updated).toBeTruthy()
+    expect((await response.files()).fromStore).toBeFalsy()
+    expect(await response.bundledManifest!()).toBeTruthy()
   }
 
   {
@@ -325,14 +313,12 @@ test('refetch local tarball if its integrity has changed. The requester does not
     await response.files()
     await response.finishing()
 
-    t.ok((await response.files()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
-    t.ok(await response.bundledManifest!())
+    expect((await response.files()).fromStore).toBeTruthy()
+    expect(await response.bundledManifest!()).toBeTruthy()
   }
-
-  t.end()
 })
 
-test('fetchPackageToStore()', async (t) => {
+test('fetchPackageToStore()', async () => {
   const packageRequester = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: tempy.directory(),
@@ -351,19 +337,17 @@ test('fetchPackageToStore()', async (t) => {
     },
   })
 
-  t.notOk(fetchResult.bundledManifest, 'full manifest not returned')
+  expect(fetchResult.bundledManifest).toBeFalsy()
 
   const files = await fetchResult.files()
-  t.deepEqual(Object.keys(files.filesIndex).sort(),
-    ['package.json', 'index.js', 'license', 'readme.md'].sort(),
-    'returned info about files after fetch completed')
-  t.notOk(files.fromStore)
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(files.fromStore).toBeFalsy()
 
   const indexFile = await loadJsonFile<PackageFilesIndex>(fetchResult.filesIndexFile)
-  t.ok(indexFile, 'index file is written')
-  t.ok(typeof indexFile.files['package.json'].checkedAt, 'number')
+  expect(indexFile).toBeTruthy()
+  expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
 
-  t.ok(fetchResult.finishing())
+  expect(fetchResult.finishing()).toBeTruthy()
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,
@@ -379,21 +363,19 @@ test('fetchPackageToStore()', async (t) => {
 
   // This verifies that when a package has been cached with no full manifest
   // the full manifest is requested and added to the cache
-  t.deepEqual(
-    await fetchResult2.bundledManifest!(),
+  expect(
+    await fetchResult2.bundledManifest!()
+  ).toStrictEqual(
     {
       engines: { node: '>=0.10.0' },
       name: 'is-positive',
       scripts: { test: 'node test.js' },
       version: '1.0.0',
-    },
-    'full manifest returned'
+    }
   )
-
-  t.end()
 })
 
-test('fetchPackageToStore() concurrency check', async (t) => {
+test('fetchPackageToStore() concurrency check', async () => {
   const storeDir = tempy.directory()
   const cafsDir = path.join(storeDir, 'files')
   const packageRequester = createPackageRequester(resolve, fetchers, {
@@ -437,13 +419,10 @@ test('fetchPackageToStore() concurrency check', async (t) => {
 
     ino1 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
-    t.deepEqual(Object.keys(files.filesIndex).sort(),
-      ['package.json', 'index.js', 'license', 'readme.md'].sort(),
-      'returned info about files after fetch completed'
-    )
-    t.notOk(files.fromStore)
+    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(files.fromStore).toBeFalsy()
 
-    t.ok(fetchResult.finishing)
+    expect(fetchResult.finishing).toBeTruthy()
   }
 
   {
@@ -452,21 +431,16 @@ test('fetchPackageToStore() concurrency check', async (t) => {
 
     ino2 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
-    t.deepEqual(Object.keys(files.filesIndex).sort(),
-      ['package.json', 'index.js', 'license', 'readme.md'].sort(),
-      'returned info about files after fetch completed'
-    )
-    t.notOk(files.fromStore)
+    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(files.fromStore).toBeFalsy()
 
-    t.ok(fetchResult.finishing())
+    expect(fetchResult.finishing()).toBeTruthy()
   }
 
-  t.equal(ino1, ino2, 'package fetched only once to the store')
-
-  t.end()
+  expect(ino1).toBe(ino2)
 })
 
-test('fetchPackageToStore() does not cache errors', async (t) => {
+test('fetchPackageToStore() does not cache errors', async () => {
   nock(registry)
     .get('/is-positive/-/is-positive-1.0.0.tgz')
     .reply(404)
@@ -489,22 +463,17 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
 
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
 
-  try {
-    const badRequest = packageRequester.fetchPackageToStore({
-      force: false,
-      lockfileDir: tempy.directory(),
-      pkgId,
-      resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-      },
-    })
-    await badRequest.files()
-    t.fail('first fetch should have failed')
-  } catch (err) {
-    t.pass('first fetch failed')
-  }
+  const badRequest = packageRequester.fetchPackageToStore({
+    force: false,
+    lockfileDir: tempy.directory(),
+    pkgId,
+    resolution: {
+      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+      registry: 'https://registry.npmjs.org/',
+      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    },
+  })
+  await expect(badRequest.files()).rejects.toThrow()
 
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
@@ -517,27 +486,22 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
     },
   })
   const files = await fetchResult.files()
-  t.deepEqual(Object.keys(files.filesIndex).sort(),
-    ['package.json', 'index.js', 'license', 'readme.md'].sort(),
-    'returned info about files after fetch completed'
-  )
-  t.notOk(files.fromStore)
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(files.fromStore).toBeFalsy()
 
-  t.ok(fetchResult.finishing())
-  t.ok(nock.isDone())
-
-  t.end()
+  expect(fetchResult.finishing()).toBeTruthy()
+  expect(nock.isDone()).toBeTruthy()
 })
 
 // This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
-test('always return a package manifest in the response', async t => {
+test('always return a package manifest in the response', async () => {
   nock.cleanAll()
   const requestPackage = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storeDir: tempy.directory(),
     verifyStoreIntegrity: true,
   })
-  t.equal(typeof requestPackage, 'function')
+  expect(typeof requestPackage).toBe('function')
   const projectDir = tempy.directory()
 
   {
@@ -549,8 +513,8 @@ test('always return a package manifest in the response', async t => {
       registry,
     }) as PackageResponse & {body: {manifest: {name: string}}}
 
-    t.ok(pkgResponse.body, 'response has body')
-    t.ok(pkgResponse.body.manifest.name, 'response has manifest')
+    expect(pkgResponse.body).toBeTruthy()
+    expect(pkgResponse.body.manifest.name).toBeTruthy()
   }
 
   {
@@ -568,24 +532,22 @@ test('always return a package manifest in the response', async t => {
       registry,
     }) as PackageResponse & {bundledManifest: () => Promise<DependencyManifest>}
 
-    t.ok(pkgResponse.body, 'response has body')
-    t.deepEqual(
-      await pkgResponse.bundledManifest(),
+    expect(pkgResponse.body).toBeTruthy()
+    expect(
+      await pkgResponse.bundledManifest()
+    ).toStrictEqual(
       {
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
         scripts: { test: 'node test.js' },
         version: '1.0.0',
-      },
-      'response has manifest'
+      }
     )
   }
-
-  t.end()
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1293
-test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => {
+test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
   nock(registry)
     .get('/is-positive/-/is-positive-1.0.0.tgz')
     .replyWithFile(200, IS_POSTIVE_TARBALL)
@@ -618,16 +580,14 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
     }),
   ])
 
-  t.ok(await fetchResults[1].bundledManifest!())
-  t.end()
+  expect(await fetchResults[1].bundledManifest!()).toBeTruthy()
 })
 
-test('refetch package to store if it has been modified', async (t) => {
+test('refetch package to store if it has been modified', async () => {
   nock.cleanAll()
   const storeDir = tempy.directory()
   const cafsDir = path.join(storeDir, 'files')
   const lockfileDir = tempy.directory()
-  t.comment(`store location: ${storeDir}`)
 
   const pkgId = 'registry.npmjs.org/magic-hook/2.0.0'
   const resolution = {
@@ -659,7 +619,7 @@ test('refetch package to store if it has been modified', async (t) => {
   // Adding some content to the file to change its integrity
   await fs.appendFile(indexJsFile, '// foobar')
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   streamParser.on('data', reporter)
 
   {
@@ -682,14 +642,12 @@ test('refetch package to store if it has been modified', async (t) => {
 
   streamParser.removeListener('data', reporter)
 
-  t.notOk((await fs.readFile(indexJsFile, 'utf8')).includes('// foobar'))
+  expect((await fs.readFile(indexJsFile, 'utf8')).includes('// foobar')).toBeFalsy()
 
-  t.ok(reporter.calledWithMatch({
+  expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',
     message: `Refetching ${path.join(storeDir, pkgIdToFilename(pkgId, process.cwd()))} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
     prefix: lockfileDir,
-  }), 'refetch logged')
-
-  t.end()
+  }))
 })

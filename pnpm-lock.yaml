@@ -1395,13 +1395,11 @@ importers:
       '@types/ncp': 2.0.4
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.32
-      '@types/sinon': 9.0.8
       '@types/ssri': 6.0.3
       delay: 4.4.0
       ncp: 2.0.0
       nock: 12.0.3
       normalize-path: 3.0.0
-      sinon: 9.2.1
       tempy: 1.0.0
     specifiers:
       '@pnpm/cafs': 'workspace:2.0.3'
@@ -1419,7 +1417,6 @@ importers:
       '@types/ncp': ^2.0.4
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.32
-      '@types/sinon': ^9.0.8
       '@types/ssri': ^6.0.3
       delay: ^4.4.0
       load-json-file: ^6.2.0
@@ -1434,7 +1431,6 @@ importers:
       promise-share: ^1.0.0
       ramda: ^0.27.1
       rename-overwrite: ^3.0.0
-      sinon: ^9.2.1
       ssri: 6.0.1
       tempy: ^1.0.0
   packages/package-store:
