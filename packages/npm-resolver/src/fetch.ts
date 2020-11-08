@@ -1,4 +1,5 @@
-import {
+import { requestRetryLogger } from '@pnpm/core-loggers'
+import PnpmError, {
   FetchError,
   FetchErrorRequest,
   FetchErrorResponse,
@@ -48,7 +49,7 @@ export default async function fromRegistry (
   const uri = toUri(pkgName, registry)
   const op = retry.operation(retryOpts)
   return new Promise((resolve, reject) =>
-    op.attempt(async () => {
+    op.attempt(async (attempt) => {
       const response = await fetch(uri, { authHeaderValue, retry: retryOpts }) as RegistryResponse
       if (response.status > 400) {
         const request = {
@@ -63,11 +64,22 @@ export default async function fromRegistry (
       // Other HTTP issues are retried by the @pnpm/fetch library
       try {
         resolve(await response.json())
-        return
-      } catch (err) {
-        if (!op.retry(err)) {
+      } catch (error) {
+        const timeout = op.retry(
+          new PnpmError('BROKEN_METADATA_JSON', error.message)
+        )
+        if (timeout === false) {
           reject(op.mainError())
+          return
         }
+        requestRetryLogger.debug({
+          attempt,
+          error,
+          maxRetries: retryOpts.retries!,
+          method: 'GET',
+          timeout,
+          url: uri,
+        })
       }
     })
   )
