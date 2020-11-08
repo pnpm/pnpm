@@ -1228,6 +1228,7 @@ importers:
       '@pnpm/resolve-workspace-range': 'link:../resolve-workspace-range'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
+      '@zkochan/retry': 0.2.0
       encode-registry: 3.0.0
       load-json-file: 6.2.0
       lru-cache: 6.0.0
@@ -1267,6 +1268,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/semver': ^7.3.4
       '@types/ssri': ^6.0.3
+      '@zkochan/retry': ^0.2.0
       encode-registry: ^3.0.0
       load-json-file: ^6.2.0
       lru-cache: ^6.0.0
