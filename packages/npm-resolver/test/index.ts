@@ -1427,3 +1427,25 @@ test('resolveFromNpm() should always return the name of the package that is spec
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
 })
+
+test('request to metadata is retried if the received JSON is broken', async () => {
+  const registry = 'https://registry1.com/'
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, '{')
+
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    retry: { retries: 1 },
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, {
+    registry,
+  })!
+
+  expect(resolveResult?.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+})

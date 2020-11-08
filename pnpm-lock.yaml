@@ -1223,11 +1223,13 @@ importers:
       socks-proxy-agent: ^5.0.0
   packages/npm-resolver:
     dependencies:
+      '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
       '@pnpm/fetching-types': 'link:../fetching-types'
       '@pnpm/resolve-workspace-range': 'link:../resolve-workspace-range'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
+      '@zkochan/retry': 0.2.0
       encode-registry: 3.0.0
       load-json-file: 6.2.0
       lru-cache: 6.0.0
@@ -1254,6 +1256,7 @@ importers:
       path-exists: 4.0.0
       tempy: 1.0.0
     specifiers:
+      '@pnpm/core-loggers': 'workspace:^5.0.2'
       '@pnpm/error': 'workspace:1.3.1'
       '@pnpm/fetch': 'workspace:^2.1.7'
       '@pnpm/fetching-types': 'workspace:^1.0.0'
@@ -1267,6 +1270,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/semver': ^7.3.4
       '@types/ssri': ^6.0.3
+      '@zkochan/retry': ^0.2.0
       encode-registry: ^3.0.0
       load-json-file: ^6.2.0
       lru-cache: ^6.0.0

@@ -1,10 +1,12 @@
-import {
+import { requestRetryLogger } from '@pnpm/core-loggers'
+import PnpmError, {
   FetchError,
   FetchErrorRequest,
   FetchErrorResponse,
 } from '@pnpm/error'
 import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import { PackageMeta } from './pickPackage'
+import * as retry from '@zkochan/retry'
 import url = require('url')
 
 interface RegistryResponse {
@@ -39,21 +41,48 @@ export class RegistryResponseError extends FetchError {
 
 export default async function fromRegistry (
   fetch: FetchFromRegistry,
-  retry: RetryTimeoutOptions,
+  retryOpts: RetryTimeoutOptions,
   pkgName: string,
   registry: string,
   authHeaderValue?: string
-) {
+): Promise<PackageMeta> {
   const uri = toUri(pkgName, registry)
-  const response = await fetch(uri, { authHeaderValue, retry }) as RegistryResponse
-  if (response.status > 400) {
-    const request = {
-      authHeaderValue,
-      url: uri,
-    }
-    throw new RegistryResponseError(request, response, pkgName)
-  }
-  return response.json()
+  const op = retry.operation(retryOpts)
+  return new Promise((resolve, reject) =>
+    op.attempt(async (attempt) => {
+      const response = await fetch(uri, { authHeaderValue, retry: retryOpts }) as RegistryResponse
+      if (response.status > 400) {
+        const request = {
+          authHeaderValue,
+          url: uri,
+        }
+        reject(new RegistryResponseError(request, response, pkgName))
+        return
+      }
+
+      // Here we only retry broken JSON responses.
+      // Other HTTP issues are retried by the @pnpm/fetch library
+      try {
+        resolve(await response.json())
+      } catch (error) {
+        const timeout = op.retry(
+          new PnpmError('BROKEN_METADATA_JSON', error.message)
+        )
+        if (timeout === false) {
+          reject(op.mainError())
+          return
+        }
+        requestRetryLogger.debug({
+          attempt,
+          error,
+          maxRetries: retryOpts.retries!,
+          method: 'GET',
+          timeout,
+          url: uri,
+        })
+      }
+    })
+  )
 }
 
 function toUri (pkgName: string, registry: string) {
