@@ -229,5 +229,5 @@ test('frozen-lockfile: installation fails if the integrity of a tarball dependen
   }
 
   t.ok(err)
-  t.equal(err.code, 'EINTEGRITY')
+  t.equal(err.code, 'ERR_PNPM_TARBALL_INTEGRITY')
 })

@@ -11,6 +11,9 @@
   ],
   "references": [
     {
+      "path": "../core-loggers"
+    },
+    {
       "path": "../error"
     },
     {
