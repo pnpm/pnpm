@@ -14,7 +14,7 @@ import ssri = require('ssri')
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
-class TarballIntegrityError extends PnpmError {
+export class TarballIntegrityError extends PnpmError {
   public readonly found: string
   public readonly expected: string
   public readonly algorithm: string
@@ -22,13 +22,17 @@ class TarballIntegrityError extends PnpmError {
   public readonly url: string
 
   constructor (opts: {
+    attempts?: number
     found: string
     expected: string
     algorithm: string
     sri: string
     url: string
   }) {
-    super('TARBALL_INTEGRITY', `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`)
+    super('TARBALL_INTEGRITY',
+      `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
+      { attempts: opts.attempts }
+    )
     this.found = opts.found
     this.expected = opts.expected
     this.algorithm = opts.algorithm

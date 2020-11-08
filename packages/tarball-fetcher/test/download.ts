@@ -1,17 +1,19 @@
 /// <reference path="../../../typings/index.d.ts" />
 import createCafs from '@pnpm/cafs'
+import PnpmError, { FetchError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import createFetcher from '@pnpm/tarball-fetcher'
+import createFetcher, {
+  BadTarballError,
+  TarballIntegrityError,
+} from '@pnpm/tarball-fetcher'
 import path = require('path')
 import cpFile = require('cp-file')
 import fs = require('mz/fs')
 import nock = require('nock')
 import ssri = require('ssri')
-import test = require('tape')
 import tempy = require('tempy')
 
 const cafsDir = tempy.directory()
-console.log(cafsDir)
 const cafs = createCafs(cafsDir)
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
@@ -28,7 +30,7 @@ const fetch = createFetcher(fetchFromRegistry, getCredentials, {
   },
 })
 
-test('fail when tarball size does not match content-length', async t => {
+test('fail when tarball size does not match content-length', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
     .times(2)
@@ -37,7 +39,6 @@ test('fail when tarball size does not match content-length', async t => {
     })
 
   process.chdir(tempy.directory())
-  t.comment(`temp dir ${process.cwd()}`)
 
   const resolution = {
     // Even though the integrity of the downloaded tarball
@@ -48,24 +49,21 @@ test('fail when tarball size does not match content-length', async t => {
     tarball: `${registry}foo.tgz`,
   }
 
-  try {
-    await fetch.tarball(cafs, resolution, {
+  await expect(
+    fetch.tarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
-    t.fail('should have failed')
-  } catch (err) {
-    t.equal(err.message, 'Actual size (1279) of tarball (http://example.com/foo.tgz) did not match the one specified in \'Content-Length\' header (1048576)')
-    t.equal(err['code'], 'ERR_PNPM_BAD_TARBALL_SIZE')
-    t.equal(err['expectedSize'], 1048576)
-    t.equal(err['receivedSize'], tarballSize)
-    t.equal(err['attempts'], 2)
-
-    t.ok(scope.isDone())
-    t.end()
-  }
+  ).rejects.toThrow(
+    new BadTarballError({
+      expectedSize: 1048576,
+      receivedSize: tarballSize,
+      tarballUrl: resolution.tarball,
+    })
+  )
+  expect(scope.isDone()).toBeTruthy()
 })
 
-test('retry when tarball size does not match content-length', async t => {
+test('retry when tarball size does not match content-length', async () => {
   nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
@@ -79,7 +77,6 @@ test('retry when tarball size does not match content-length', async t => {
     })
 
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
@@ -87,12 +84,11 @@ test('retry when tarball size does not match content-length', async t => {
     lockfileDir: process.cwd(),
   })
 
-  t.ok(result.filesIndex)
-  t.ok(nock.isDone())
-  t.end()
+  expect(result.filesIndex).toBeTruthy()
+  expect(nock.isDone()).toBeTruthy()
 })
 
-test('fail when integrity check fails two times in a row', async t => {
+test('fail when integrity check fails two times in a row', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
     .times(2)
@@ -101,31 +97,29 @@ test('fail when integrity check fails two times in a row', async t => {
     })
 
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const resolution = {
     integrity: tarballIntegrity,
     tarball: 'http://example.com/foo.tgz',
   }
 
-  try {
-    await fetch.tarball(cafs, resolution, {
+  await expect(
+    fetch.tarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
-    t.fail('should have failed')
-  } catch (err) {
-    t.equal(err.message, 'Got unexpected checksum for "http://example.com/foo.tgz". Wanted "sha1-HssnaJydJVE+rbyZFKc/VAi+enY=". ' +
-      'Got "sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=".')
-    t.equal(err['code'], 'ERR_PNPM_TARBALL_INTEGRITY')
-    t.equal(err['resource'], 'http://example.com/foo.tgz')
-    t.equal(err['attempts'], 2)
-
-    t.ok(scope.isDone())
-    t.end()
-  }
+  ).rejects.toThrow(
+    new TarballIntegrityError({
+      algorithm: 'sha512',
+      expected: 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY=',
+      found: 'sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=',
+      sri: '',
+      url: resolution.tarball,
+    })
+  )
+  expect(scope.isDone()).toBeTruthy()
 })
 
-test('retry when integrity check fails', async t => {
+test('retry when integrity check fails', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
@@ -137,7 +131,6 @@ test('retry when integrity check fails', async t => {
     })
 
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const resolution = {
     integrity: tarballIntegrity,
@@ -152,16 +145,15 @@ test('retry when integrity check fails', async t => {
     },
   })
 
-  t.deepEqual(params[0], [1194, 1])
-  t.deepEqual(params[1], [tarballSize, 2])
+  expect(params[0]).toStrictEqual([1194, 1])
+  expect(params[1]).toStrictEqual([tarballSize, 2])
 
-  t.ok(scope.isDone())
-  t.end()
+  expect(scope.isDone()).toBeTruthy()
 })
 
-test('fail when integrity check of local file fails', async (t) => {
-  process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
+test('fail when integrity check of local file fails', async () => {
+  const storeDir = tempy.directory()
+  process.chdir(storeDir)
 
   await cpFile(
     path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
@@ -172,28 +164,23 @@ test('fail when integrity check of local file fails', async (t) => {
     tarball: 'file:tar.tgz',
   }
 
-  let err: Error | null = null
-  try {
-    await fetch.tarball(cafs, resolution, {
+  await expect(
+    fetch.tarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
-  } catch (_err) {
-    err = _err
-  }
-
-  t.ok(err, 'error thrown')
-  t.equal(err.message, 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY= integrity checksum failed when using sha1: ' +
-    'wanted sha1-HssnaJydJVE+rbyZFKc/VAi+enY= but got sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=. (1194 bytes)')
-  t.equal(err['code'], 'EINTEGRITY')
-  t.equal(err['resource'], path.resolve('tar.tgz'))
-  t.equal(err['attempts'], 1)
-
-  t.end()
+  ).rejects.toThrow(
+    new TarballIntegrityError({
+      algorithm: 'sha512',
+      expected: 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY=',
+      found: 'sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=',
+      sri: '',
+      url: path.join(storeDir, 'tar.tgz'),
+    })
+  )
 })
 
-test("don't fail when integrity check of local file succeeds", async (t) => {
+test("don't fail when integrity check of local file succeeds", async () => {
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const localTarballLocation = path.resolve('tar.tgz')
   await cpFile(
@@ -209,14 +196,11 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
     lockfileDir: process.cwd(),
   })
 
-  t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
-
-  t.end()
+  expect(typeof filesIndex['package.json']).toBe('object')
 })
 
-test("don't fail when fetching a local tarball in offline mode", async (t) => {
+test("don't fail when fetching a local tarball in offline mode", async () => {
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
@@ -236,14 +220,11 @@ test("don't fail when fetching a local tarball in offline mode", async (t) => {
     lockfileDir: process.cwd(),
   })
 
-  t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
-
-  t.end()
+  expect(typeof filesIndex['package.json']).toBe('object')
 })
 
-test('fail when trying to fetch a non-local tarball in offline mode', async (t) => {
+test('fail when trying to fetch a non-local tarball in offline mode', async () => {
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
@@ -251,30 +232,26 @@ test('fail when trying to fetch a non-local tarball in offline mode', async (t) 
     tarball: `${registry}foo.tgz`,
   }
 
-  let err!: Error
-  try {
-    const fetch = createFetcher(fetchFromRegistry, getCredentials, {
-      offline: true,
-      retry: {
-        maxTimeout: 100,
-        minTimeout: 0,
-        retries: 1,
-      },
-    })
-    await fetch.tarball(cafs, resolution, {
+  const fetch = createFetcher(fetchFromRegistry, getCredentials, {
+    offline: true,
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+  await expect(
+    fetch.tarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
-  } catch (_err) {
-    err = _err
-  }
-
-  t.ok(err)
-  t.equal(err['code'], 'ERR_PNPM_NO_OFFLINE_TARBALL')
-
-  t.end()
+  ).rejects.toThrow(
+    new PnpmError('NO_OFFLINE_TARBALL',
+      `A package is missing from the store but cannot download it in offline mode. \
+The missing package may be downloaded from ${resolution.tarball}.`)
+  )
 })
 
-test('retry on server error', async t => {
+test('retry on server error', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
     .reply(500)
@@ -284,7 +261,6 @@ test('retry on server error', async t => {
     })
 
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const resolution = {
     integrity: tarballIntegrity,
@@ -295,47 +271,42 @@ test('retry on server error', async t => {
     lockfileDir: process.cwd(),
   })
 
-  t.ok(index)
+  expect(index).toBeTruthy()
 
-  t.ok(scope.isDone())
-  t.end()
+  expect(scope.isDone()).toBeTruthy()
 })
 
-test('throw error when accessing private package w/o authorization', async t => {
+test('throw error when accessing private package w/o authorization', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
     .reply(403)
 
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const resolution = {
     integrity: tarballIntegrity,
     tarball: 'http://example.com/foo.tgz',
   }
 
-  let err!: Error
-
-  try {
-    await fetch.tarball(cafs, resolution, {
+  await expect(
+    fetch.tarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
-  } catch (_err) {
-    err = _err
-  }
-
-  t.ok(err)
-  err = err || new Error()
-  t.equal(err.message, 'GET http://example.com/foo.tgz: Forbidden - 403')
-  t.equal(err['hint'], 'No authorization header was set for the request.')
-  t.equal(err['code'], 'ERR_PNPM_FETCH_403')
-  t.equal(err['request']['url'], 'http://example.com/foo.tgz')
-
-  t.ok(scope.isDone())
-  t.end()
+  ).rejects.toThrow(
+    new FetchError(
+      {
+        url: resolution.tarball,
+      },
+      {
+        status: 403,
+        statusText: 'Forbidden',
+      }
+    )
+  )
+  expect(scope.isDone()).toBeTruthy()
 })
 
-test('accessing private packages', async t => {
+test('accessing private packages', async () => {
   const scope = nock(
     registry,
     {
@@ -350,7 +321,6 @@ test('accessing private packages', async t => {
     })
 
   process.chdir(tempy.directory())
-  t.comment(`testing in ${process.cwd()}`)
 
   const getCredentials = () => ({
     alwaysAuth: undefined,
@@ -374,10 +344,9 @@ test('accessing private packages', async t => {
     lockfileDir: process.cwd(),
   })
 
-  t.ok(index)
+  expect(index).toBeTruthy()
 
-  t.ok(scope.isDone())
-  t.end()
+  expect(scope.isDone()).toBeTruthy()
 })
 
 async function getFileIntegrity (filename: string) {

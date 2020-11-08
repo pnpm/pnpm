@@ -11,10 +11,17 @@ import {
   GetCredentials,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import createDownloader, { DownloadFunction } from './createDownloader'
+import createDownloader, {
+  DownloadFunction,
+  TarballIntegrityError,
+} from './createDownloader'
 import path = require('path')
 import fs = require('mz/fs')
 import ssri = require('ssri')
+
+export { BadTarballError } from './errorTypes'
+
+export { TarballIntegrityError }
 
 export default function (
   fetchFromRegistry: FetchFromRegistry,
@@ -36,7 +43,7 @@ export default function (
   }
 }
 
-function fetchFromTarball (
+async function fetchFromTarball (
   ctx: {
     download: DownloadFunction
     getCredentialsByURI: (registry: string) => {
@@ -101,8 +108,15 @@ async function fetchFromLocalTarball (
     )
     return { filesIndex: fetchResult }
   } catch (err) {
-    err.attempts = 1
-    err.resource = tarball
-    throw err
+    const error = new TarballIntegrityError({
+      attempts: 1,
+      algorithm: err['algorithm'],
+      expected: err['expected'],
+      found: err['found'],
+      sri: err['sri'],
+      url: tarball,
+    })
+    error['resource'] = tarball
+    throw error
   }
 }
