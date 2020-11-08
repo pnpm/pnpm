@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 9.6.2
+
+### Patch Changes
+
+- @pnpm/read-package-json@3.1.8
+
 ## 9.6.1
 
 ### Patch Changes

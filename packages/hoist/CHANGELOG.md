@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 4.0.19
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.20
+
 ## 4.0.18
 
 ### Patch Changes

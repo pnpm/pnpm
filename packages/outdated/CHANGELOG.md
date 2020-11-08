@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 7.2.14
+
+### Patch Changes
+
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+  - @pnpm/client@2.0.13
+  - @pnpm/lockfile-file@3.1.1
+  - @pnpm/manifest-utils@1.1.4
+
 ## 7.2.13
 
 ### Patch Changes

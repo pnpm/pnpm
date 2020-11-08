@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 8.2.5
+
+### Patch Changes
+
+- 0c5f1bcc9: Throw a better error message when a local tarball integrity check fails.
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+
 ## 8.2.4
 
 ### Patch Changes

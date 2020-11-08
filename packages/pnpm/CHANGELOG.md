@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.11.1
+
+### Patch Changes
+
+- Retry metadata download if the received JSON is broken [#2949](https://github.com/pnpm/pnpm/issues/2949).
+
 ## 5.11.0
 
 ### Minor Changes

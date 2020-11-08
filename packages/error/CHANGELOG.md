@@ -1,5 +1,11 @@
 # @pnpm/error
 
+## 1.4.0
+
+### Minor Changes
+
+- 0c5f1bcc9: Every error object has an optional "attempts" field.
+
 ## 1.3.1
 
 ### Patch Changes

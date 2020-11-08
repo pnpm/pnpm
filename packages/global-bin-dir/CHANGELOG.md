@@ -1,5 +1,12 @@
 # @pnpm/global-bin-dir
 
+## 1.2.5
+
+### Patch Changes
+
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+
 ## 1.2.4
 
 ### Patch Changes

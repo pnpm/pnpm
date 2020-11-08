@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 5.2.4
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.20
+- @pnpm/read-package-json@3.1.8
+- @pnpm/lifecycle@9.6.2
+
 ## 5.2.3
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 18.1.3
+
+### Patch Changes
+
+- Updated dependencies [5ff6c28fa]
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/npm-resolver@10.0.7
+  - @pnpm/error@1.4.0
+  - @pnpm/manifest-utils@1.1.4
+  - @pnpm/package-is-installable@4.0.18
+  - @pnpm/read-package-json@3.1.8
+
 ## 18.1.2
 
 ### Patch Changes

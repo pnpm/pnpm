@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 10.0.7
+
+### Patch Changes
+
+- 5ff6c28fa: Retry metadata download if the received JSON is broken.
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+
 ## 10.0.6
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/config
 
+## 11.7.2
+
+### Patch Changes
+
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+  - @pnpm/global-bin-dir@1.2.5
+
 ## 11.7.1
 
 ### Patch Changes

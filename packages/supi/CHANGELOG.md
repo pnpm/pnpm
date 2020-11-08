@@ -1,5 +1,28 @@
 # supi
 
+## 0.43.15
+
+### Patch Changes
+
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+  - @pnpm/resolve-dependencies@18.1.3
+  - @pnpm/filter-lockfile@4.0.13
+  - @pnpm/get-context@3.3.1
+  - @pnpm/headless@14.5.6
+  - @pnpm/link-bins@5.3.20
+  - @pnpm/lockfile-file@3.1.1
+  - @pnpm/manifest-utils@1.1.4
+  - @pnpm/read-package-json@3.1.8
+  - @pnpm/read-project-manifest@1.1.5
+  - @pnpm/package-requester@12.1.4
+  - @pnpm/lockfile-to-pnp@0.3.7
+  - @pnpm/modules-cleaner@10.0.15
+  - @pnpm/build-modules@5.2.4
+  - @pnpm/hoist@4.0.19
+  - @pnpm/lifecycle@9.6.2
+  - @pnpm/remove-bins@1.0.9
+
 ## 0.43.14
 
 ### Patch Changes

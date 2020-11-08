@@ -1,5 +1,12 @@
 # @pnpm-private/updater
 
+## 0.0.36
+
+### Patch Changes
+
+- @pnpm/lockfile-file@3.1.1
+- @pnpm/find-workspace-packages@2.3.24
+
 ## 0.0.35
 
 ### Patch Changes

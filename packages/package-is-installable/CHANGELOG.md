@@ -1,5 +1,12 @@
 # @pnpm/package-is-installable
 
+## 4.0.18
+
+### Patch Changes
+
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+
 ## 4.0.17
 
 ### Patch Changes

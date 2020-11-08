@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Remove bins from .bin",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
@@ -29,7 +29,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:5.0.2",
     "@pnpm/package-bins": "workspace:4.0.9",
-    "@pnpm/read-package-json": "workspace:3.1.7",
+    "@pnpm/read-package-json": "workspace:3.1.8",
     "@pnpm/types": "workspace:6.3.1",
     "@zkochan/rimraf": "^1.0.0",
     "is-windows": "^1.0.2"
