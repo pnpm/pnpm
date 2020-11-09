@@ -22,7 +22,7 @@ export default function parsePref (
   projectDir: string,
   lockfileDir: string
 ): LocalPackageSpec | null {
-  if (pref.startsWith('link:')) {
+  if (pref.startsWith('link:') || pref.startsWith('workspace:')) {
     return fromLocal(pref, projectDir, lockfileDir, 'directory')
   }
   if (pref.endsWith('.tgz') ||
@@ -54,8 +54,8 @@ function fromLocal (
   type: 'file' | 'directory'
 ): LocalPackageSpec {
   const spec = pref.replace(/\\/g, '/')
-    .replace(/^(file|link):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows
-    .replace(/^(file|link):(?:[/]*([~./]))?/, '$2')
+    .replace(/^(file|link|workspace):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows
+    .replace(/^(file|link|workspace):(?:[/]*([~./]))?/, '$2')
 
   const protocol = type === 'directory' ? 'link:' : 'file:'
   let fetchSpec!: string

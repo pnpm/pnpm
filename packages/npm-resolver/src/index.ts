@@ -114,14 +114,17 @@ async function resolveNpm (
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
-  const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
-    defaultTag,
-    projectDir: opts.projectDir,
-    registry: opts.registry,
-    workspacePackages: opts.workspacePackages,
-  })
-  if (resolvedFromWorkspace) {
-    return resolvedFromWorkspace
+  if (wantedDependency.pref?.startsWith('workspace:')) {
+    if (wantedDependency.pref.startsWith('workspace:.')) return null
+    const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
+      defaultTag,
+      projectDir: opts.projectDir,
+      registry: opts.registry,
+      workspacePackages: opts.workspacePackages,
+    })
+    if (resolvedFromWorkspace) {
+      return resolvedFromWorkspace
+    }
   }
   const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
   const spec = wantedDependency.pref
