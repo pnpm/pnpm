@@ -199,7 +199,10 @@ function tryResolveFromWorkspace (
   if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null
   }
-  const pref = wantedDependency.pref.substr(10)
+  let pref = wantedDependency.pref.substr(10)
+  if (pref.includes('@', 1)) {
+    pref = `npm:${pref}`
+  }
   const spec = parsePref(pref, wantedDependency.alias, opts.defaultTag, opts.registry)
   if (!spec) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
   if (!opts.workspacePackages) {

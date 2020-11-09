@@ -62,7 +62,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
-  if (depSpec === 'workspace:*') {
+  if (depSpec === 'workspace:*' || depSpec.endsWith('@*')) {
     const { manifest } = await tryReadProjectManifest(path.join(dir, 'node_modules', depName))
     if (!manifest || !manifest.version) {
       throw new PnpmError(
@@ -71,7 +71,14 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
           'because this dependency is not installed. Try running "pnpm install".'
       )
     }
+    if (depName !== manifest.name) {
+      return `npm:${manifest.name!}@${manifest.version}`
+    }
     return manifest.version
   }
-  return depSpec.substr(10)
+  depSpec = depSpec.substr(10)
+  if (depSpec.includes('@')) {
+    return `npm:${depSpec}`
+  }
+  return depSpec
 }

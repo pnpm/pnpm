@@ -964,6 +964,39 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 })
 
+test('resolve from local directory when alwaysTryWorkspacePackages is false but workspace: is used with a different package name', async () => {
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'positive', pref: 'workspace:is-positive@*' }, {
+    alwaysTryWorkspacePackages: false,
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '1.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.resolution).toStrictEqual({
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('1.0.0')
+})
+
 test('use version from the registry if it is newer than the local one', async () => {
   nock(registry)
     .get('/is-positive')
