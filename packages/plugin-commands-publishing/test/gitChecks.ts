@@ -4,16 +4,18 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils'
 import execa = require('execa')
 import fs = require('mz/fs')
-import proxyquire = require('proxyquire')
-import sinon = require('sinon')
-import test = require('tape')
 import tempy = require('tempy')
 
-const prompt = sinon.stub()
+jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
-const publish = proxyquire('../lib/publish', {
-  enquirer: { prompt },
-})
+// eslint-disable-next-line
+import * as enquirer from 'enquirer'
+
+// eslint-disable-next-line
+const prompt = enquirer.prompt as any
+
+// eslint-disable-next-line
+import { publish } from '@pnpm/plugin-commands-publishing'
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -22,8 +24,8 @@ const CREDENTIALS = [
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ]
 
-test('publish: fails git check if branch is not on master', async (t) => {
-  prepare(t, {
+test('publish: fails git check if branch is not on master', async () => {
+  prepare(undefined, {
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -35,29 +37,23 @@ test('publish: fails git check if branch is not on master', async (t) => {
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
 
-  prompt.returns({
+  prompt.mockResolvedValue({
     confirm: false,
   })
 
-  let err!: PnpmError
-  try {
-    await publish.handler({
+  await expect(
+    publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
     }, [])
-  } catch (_err) {
-    err = _err
-  }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GIT_NOT_CORRECT_BRANCH')
-  t.equal(err.message, "Branch is not on 'master'.")
-
-  t.end()
+  ).rejects.toThrow(
+    new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'master'.")
+  )
 })
 
-test('publish: fails git check if branch is not on specified branch', async (t) => {
-  prepare(t, {
+test('publish: fails git check if branch is not on specified branch', async () => {
+  prepare(undefined, {
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -69,30 +65,24 @@ test('publish: fails git check if branch is not on specified branch', async (t) 
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
 
-  prompt.returns({
+  prompt.mockResolvedValue({
     confirm: false,
   })
 
-  let err!: PnpmError
-  try {
-    await publish.handler({
+  await expect(
+    publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
       publishBranch: 'latest',
     }, [])
-  } catch (_err) {
-    err = _err
-  }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GIT_NOT_CORRECT_BRANCH')
-  t.equal(err.message, "Branch is not on 'latest'.")
-
-  t.end()
+  ).rejects.toThrow(
+    new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'latest'.")
+  )
 })
 
-test('publish: fails git check if branch is not clean', async (t) => {
-  prepare(t, {
+test('publish: fails git check if branch is not clean', async () => {
+  prepare(undefined, {
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -105,27 +95,21 @@ test('publish: fails git check if branch is not clean', async (t) => {
 
   await fs.writeFile('LICENSE', 'workspace license', 'utf8')
 
-  let err!: PnpmError
-  try {
-    await publish.handler({
+  await expect(
+    publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
     }, [])
-  } catch (_err) {
-    err = _err
-  }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GIT_NOT_UNCLEAN')
-  t.equal(err.message, 'Unclean working tree. Commit or stash changes first.')
-
-  t.end()
+  ).rejects.toThrow(
+    new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
+  )
 })
 
-test('publish: fails git check if branch is not up-to-date', async (t) => {
+test('publish: fails git check if branch is not up-to-date', async () => {
   const remote = tempy.directory()
 
-  prepare(t, {
+  prepare(undefined, {
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -141,19 +125,13 @@ test('publish: fails git check if branch is not up-to-date', async (t) => {
   await execa('git', ['push', '-u', 'origin', 'master'])
   await execa('git', ['reset', '--hard', 'HEAD~1'])
 
-  let err!: PnpmError
-  try {
-    await publish.handler({
+  await expect(
+    publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
     }, [])
-  } catch (_err) {
-    err = _err
-  }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GIT_NOT_LATEST')
-  t.equal(err.message, 'Remote history differs. Please pull changes.')
-
-  t.end()
+  ).rejects.toThrow(
+    new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.')
+  )
 })

@@ -6,7 +6,6 @@ import { DEFAULT_OPTS } from './utils'
 import crossSpawn = require('cross-spawn')
 import execa = require('execa')
 import fs = require('mz/fs')
-import test = require('tape')
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -15,7 +14,9 @@ const CREDENTIALS = [
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ].join('\n')
 
-test('recursive publish', async (t) => {
+jest.setTimeout(60000)
+
+test('recursive publish', async () => {
   const pkg1 = {
     name: '@pnpmtest/test-recursive-publish-project-1',
     version: '1.0.0',
@@ -32,7 +33,7 @@ test('recursive publish', async (t) => {
       'is-negative': '1.0.0',
     },
   }
-  const projects = preparePackages(t, [
+  const projects = preparePackages(undefined, [
     pkg1,
     pkg2,
     // This will not be published because is-positive@1.0.0 is in the registry
@@ -67,7 +68,6 @@ test('recursive publish', async (t) => {
 
   await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
-  t.comment('packages not published, when dryRun is true')
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
@@ -78,11 +78,11 @@ test('recursive publish', async (t) => {
 
   {
     const { status } = crossSpawn.sync('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    t.deepEqual(status, 1)
+    expect(status).toBe(1)
   }
   {
     const { status } = crossSpawn.sync('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    t.deepEqual(status, 1)
+    expect(status).toBe(1)
   }
 
   await publish.handler({
@@ -94,11 +94,11 @@ test('recursive publish', async (t) => {
 
   {
     const { stdout } = await execa('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    t.deepEqual(JSON.parse(stdout.toString()), [pkg1.version])
+    expect(JSON.parse(stdout.toString())).toStrictEqual([pkg1.version])
   }
   {
     const { stdout } = await execa('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    t.deepEqual(JSON.parse(stdout.toString()), [pkg2.version])
+    expect(JSON.parse(stdout.toString())).toStrictEqual([pkg2.version])
   }
 
   await projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
@@ -113,8 +113,6 @@ test('recursive publish', async (t) => {
 
   {
     const { stdout } = await execa('npm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
-    t.ok(stdout.toString().includes('next: 2.0.0'), 'new version published with correct dist tag')
+    expect(stdout.toString().includes('next: 2.0.0')).toBeTruthy()
   }
-
-  t.end()
 })

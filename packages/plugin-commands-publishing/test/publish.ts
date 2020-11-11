@@ -7,8 +7,9 @@ import path = require('path')
 import crossSpawn = require('cross-spawn')
 import fs = require('mz/fs')
 import exists = require('path-exists')
-import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
+
+jest.setTimeout(10000)
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -18,8 +19,8 @@ const CREDENTIALS = [
 ]
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
-test('publish: package with package.json', async (t) => {
-  prepare(t, {
+test('publish: package with package.json', async () => {
+  prepare(undefined, {
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -29,11 +30,10 @@ test('publish: package with package.json', async (t) => {
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
   }, [])
-  t.end()
 })
 
-test('publish: package with package.yaml', async (t) => {
-  prepare(t, {
+test('publish: package with package.yaml', async () => {
+  prepare(undefined, {
     name: 'test-publish-package.yaml',
     version: '0.0.0',
   }, { manifestFormat: 'YAML' })
@@ -44,13 +44,12 @@ test('publish: package with package.yaml', async (t) => {
     dir: process.cwd(),
   }, [])
 
-  t.ok(await exists('package.yaml'))
-  t.notOk(await exists('package.json'))
-  t.end()
+  expect(await exists('package.yaml')).toBeTruthy()
+  expect(await exists('package.json')).toBeFalsy()
 })
 
-test('publish: package with package.json5', async (t) => {
-  prepare(t, {
+test('publish: package with package.json5', async () => {
+  prepare(undefined, {
     name: 'test-publish-package.json5',
     version: '0.0.0',
   }, { manifestFormat: 'JSON5' })
@@ -61,13 +60,12 @@ test('publish: package with package.json5', async (t) => {
     dir: process.cwd(),
   }, [])
 
-  t.ok(await exists('package.json5'))
-  t.notOk(await exists('package.json'))
-  t.end()
+  expect(await exists('package.json5')).toBeTruthy()
+  expect(await exists('package.json')).toBeFalsy()
 })
 
-test('publish: package with package.json5 running publish from different folder', async (t) => {
-  prepare(t, {
+test('publish: package with package.json5 running publish from different folder', async () => {
+  prepare(undefined, {
     name: 'test-publish-package.json5',
     version: '0.0.1',
   }, { manifestFormat: 'JSON5' })
@@ -80,13 +78,12 @@ test('publish: package with package.json5 running publish from different folder'
     dir: process.cwd(),
   }, ['project'])
 
-  t.ok(await exists('project/package.json5'))
-  t.notOk(await exists('project/package.json'))
-  t.end()
+  expect(await exists('project/package.json5')).toBeTruthy()
+  expect(await exists('project/package.json')).toBeFalsy()
 })
 
-test('pack packages with workspace LICENSE if no own LICENSE is present', async (t) => {
-  preparePackages(t, [
+test('pack packages with workspace LICENSE if no own LICENSE is present', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -116,17 +113,16 @@ test('pack packages with workspace LICENSE if no own LICENSE is present', async 
 
   crossSpawn.sync(pnpmBin, ['add', '../project-1/project-1-1.0.0.tgz', '../project-2/project-2-1.0.0.tgz'])
 
-  t.equal(await fs.readFile('node_modules/project-1/LICENSE', 'utf8'), 'workspace license')
-  t.equal(await fs.readFile('node_modules/project-2/LICENSE', 'utf8'), 'project-2 license')
+  expect(await fs.readFile('node_modules/project-1/LICENSE', 'utf8')).toBe('workspace license')
+  expect(await fs.readFile('node_modules/project-2/LICENSE', 'utf8')).toBe('project-2 license')
 
   process.chdir('..')
-  t.notOk(await exists('project-1/LICENSE'))
-  t.ok(await exists('project-2/LICENSE'))
-  t.end()
+  expect(await exists('project-1/LICENSE')).toBeFalsy()
+  expect(await exists('project-2/LICENSE')).toBeTruthy()
 })
 
-test('publish packages with workspace LICENSE if no own LICENSE is present', async (t) => {
-  preparePackages(t, [
+test('publish packages with workspace LICENSE if no own LICENSE is present', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-100',
       version: '1.0.0',
@@ -166,17 +162,16 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
 
   crossSpawn.sync(pnpmBin, ['add', 'project-100', 'project-200', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
-  t.equal(await fs.readFile('node_modules/project-100/LICENSE', 'utf8'), 'workspace license')
-  t.equal(await fs.readFile('node_modules/project-200/LICENSE', 'utf8'), 'project-200 license')
+  expect(await fs.readFile('node_modules/project-100/LICENSE', 'utf8')).toBe('workspace license')
+  expect(await fs.readFile('node_modules/project-200/LICENSE', 'utf8')).toBe('project-200 license')
 
   process.chdir('..')
-  t.notOk(await exists('project-100/LICENSE'))
-  t.ok(await exists('project-200/LICENSE'))
-  t.end()
+  expect(await exists('project-100/LICENSE')).toBeFalsy()
+  expect(await exists('project-200/LICENSE')).toBeTruthy()
 })
 
-test('publish: package with all possible fields in publishConfig', async (t) => {
-  preparePackages(t, [
+test('publish: package with all possible fields in publishConfig', async () => {
+  preparePackages(undefined, [
     {
       name: 'test-publish-config',
       version: '1.0.0',
@@ -215,8 +210,8 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
     dir: process.cwd(),
   }, [])
 
-  const originalManifests = await import(path.resolve('package.json'))
-  t.deepEqual(originalManifests, {
+  const { default: originalManifests } = await import(path.resolve('package.json'))
+  expect(originalManifests).toStrictEqual({
     name: 'test-publish-config',
     version: '1.0.0',
 
@@ -244,8 +239,8 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
   process.chdir('../test-publish-config-installation')
   crossSpawn.sync(pnpmBin, ['add', 'test-publish-config', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
-  const publishedManifest = await import(path.resolve('node_modules/test-publish-config/package.json'))
-  t.deepEqual(publishedManifest, {
+  const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-config/package.json'))
+  expect(publishedManifest).toStrictEqual({
     name: 'test-publish-config',
     version: '1.0.0',
 
@@ -276,11 +271,10 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
     'umd:main': './published-umd.js',
     unpkg: './published-unpkg.js',
   })
-  t.end()
 })
 
-test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async (t) => {
-  preparePackages(t, [
+test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {
+  preparePackages(undefined, [
     {
       location: '.',
       package: {
@@ -325,8 +319,9 @@ test.skip('publish package that calls executable from the workspace .bin folder 
     workspaceDir,
   }, [])
 
-  t.deepEqual(
-    await import(path.resolve('output.json')),
+  expect(
+    (await import(path.resolve('output.json'))).default
+  ).toStrictEqual(
     [
       'prepublish',
       'prepare',
@@ -339,8 +334,8 @@ test.skip('publish package that calls executable from the workspace .bin folder 
   )
 })
 
-test('convert specs with workspace protocols to regular version ranges', async (t) => {
-  preparePackages(t, [
+test('convert specs with workspace protocols to regular version ranges', async () => {
+  preparePackages(undefined, [
     {
       name: 'workspace-protocol-package',
       version: '1.0.0',
@@ -391,20 +386,17 @@ test('convert specs with workspace protocols to regular version ranges', async (
 
   process.chdir('workspace-protocol-package')
 
-  let err!: PnpmError
-  try {
-    await publish.handler({
+  await expect(
+    publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
     }, [])
-  } catch (_err) {
-    err = _err
-  }
-  t.equal(err.code, 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL', 'publish fails if cannot resolve workspace:*')
-  t.ok(
-    err.message.includes('Cannot resolve workspace protocol of dependency "is-negative"'),
-    'publish fails with the correct error message'
+  ).rejects.toThrow(
+    new PnpmError('CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+      'Cannot resolve workspace protocol of dependency "is-negative" \
+because this dependency is not installed. Try running "pnpm install".'
+    )
   )
 
   process.chdir('..')
@@ -422,27 +414,26 @@ test('convert specs with workspace protocols to regular version ranges', async (
 
   crossSpawn.sync(pnpmBin, ['add', '--store-dir=../store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
-  const publishedManifest = await import(path.resolve('node_modules/workspace-protocol-package/package.json'))
-  t.deepEqual(publishedManifest.dependencies, {
+  const { default: publishedManifest } = await import(path.resolve('node_modules/workspace-protocol-package/package.json'))
+  expect(publishedManifest.dependencies).toStrictEqual({
     'file-type': '12.0.1',
     'is-negative': '1.0.0',
     'is-positive': '1.0.0',
     'lodash.delay': '~4.1.0',
   })
-  t.deepEqual(publishedManifest.devDependencies, {
+  expect(publishedManifest.devDependencies).toStrictEqual({
     'random-package': '^1.2.3',
   })
-  t.deepEqual(publishedManifest.optionalDependencies, {
+  expect(publishedManifest.optionalDependencies).toStrictEqual({
     'lodash.deburr': '^4.1.0',
   })
-  t.deepEqual(publishedManifest.peerDependencies, {
+  expect(publishedManifest.peerDependencies).toStrictEqual({
     'random-package': '1.2.3',
   })
-  t.end()
 })
 
-test('publish: runs all the lifecycle scripts', async (t) => {
-  prepare(t, {
+test('publish: runs all the lifecycle scripts', async () => {
+  prepare(undefined, {
     name: 'test-publish-with-scripts',
     version: '0.0.0',
 
@@ -470,8 +461,8 @@ test('publish: runs all the lifecycle scripts', async (t) => {
     dir: process.cwd(),
   }, [])
 
-  const outputs = await import(path.resolve('output.json')) as string[]
-  t.deepEqual(outputs, [
+  const { default: outputs } = await import(path.resolve('output.json'))
+  expect(outputs).toStrictEqual([
     'prepublish',
     'prepare',
     'prepublishOnly',
@@ -479,12 +470,10 @@ test('publish: runs all the lifecycle scripts', async (t) => {
     'publish',
     'postpublish',
   ])
-
-  t.end()
 })
 
-test('publish: ignores all the lifecycle scripts when --ignore-scripts is used', async (t) => {
-  prepare(t, {
+test('publish: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
+  prepare(undefined, {
     name: 'test-publish-with-ignore-scripts',
     version: '0.0.0',
 
@@ -513,8 +502,6 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
     ignoreScripts: true,
   }, [])
 
-  t.ok(await exists('package.json'))
-  t.notOk(await exists('output.json'))
-
-  t.end()
+  expect(await exists('package.json')).toBeTruthy()
+  expect(await exists('output.json')).toBeFalsy()
 })
