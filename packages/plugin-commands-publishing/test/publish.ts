@@ -9,7 +9,7 @@ import fs = require('mz/fs')
 import exists = require('path-exists')
 import writeYamlFile = require('write-yaml-file')
 
-jest.setTimeout(10000)
+jest.setTimeout(60000)
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
