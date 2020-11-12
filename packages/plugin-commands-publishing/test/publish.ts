@@ -9,7 +9,7 @@ import fs = require('mz/fs')
 import exists = require('path-exists')
 import writeYamlFile = require('write-yaml-file')
 
-jest.setTimeout(10000)
+jest.setTimeout(60000)
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -341,10 +341,12 @@ test('convert specs with workspace protocols to regular version ranges', async (
       version: '1.0.0',
 
       dependencies: {
+        even: 'workspace:is-even@^1.0.0',
         'file-type': 'workspace:12.0.1',
         'is-negative': 'workspace:*',
         'is-positive': '1.0.0',
         'lodash.delay': '~4.1.0',
+        odd: 'workspace:is-odd@*',
       },
       devDependencies: {
         'random-package': 'workspace:^1.2.3',
@@ -355,6 +357,14 @@ test('convert specs with workspace protocols to regular version ranges', async (
       peerDependencies: {
         'random-package': 'workspace:*',
       },
+    },
+    {
+      name: 'is-even',
+      version: '1.0.0',
+    },
+    {
+      name: 'is-odd',
+      version: '1.0.0',
     },
     {
       name: 'is-negative',
@@ -420,6 +430,8 @@ because this dependency is not installed. Try running "pnpm install".'
     'is-negative': '1.0.0',
     'is-positive': '1.0.0',
     'lodash.delay': '~4.1.0',
+    even: 'npm:is-even@^1.0.0',
+    odd: 'npm:is-odd@1.0.0',
   })
   expect(publishedManifest.devDependencies).toStrictEqual({
     'random-package': '^1.2.3',
