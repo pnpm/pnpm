@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.27
+
+### Patch Changes
+
+- Updated dependencies [fcc1c7100]
+  - @pnpm/config@11.8.0
+  - @pnpm/cli-utils@0.4.39
+
 ## 2.0.26
 
 ### Patch Changes

@@ -1,5 +1,32 @@
 # pnpm
 
+## 5.11.2
+
+### Minor Changes
+
+- Workspace packages now can be referenced through aliases [#2970](https://github.com/pnpm/pnpm/issues/2970).
+
+  For instance, the package in the workspace may be named `foo`. Usually, you would reference it as `{ "foo": "workspace:*" }`.
+  If you want to use a different alias, the next syntax will work now: `{ "bar": "workspace:foo@*" }`.
+
+  Before publish, aliases are converted to regular aliased dependencies. The above example will become: `{ "bar": "npm:foo@1.0.0" }`.
+
+- Workspace packages now can be referenced through relative path [#2959](https://github.com/pnpm/pnpm/issues/2959).
+
+  For example, in a workspace with 2 packages:
+
+  ```
+  + packages
+    + foo
+    + bar
+  ```
+
+  `bar` may have `foo` in its dependencies declared as `{ "foo": "workspace:../foo" }`. Before publish, these specs are converted to regular version specs supported by all package managers.
+
+- For better compatibility with prettier, two new default patterns added to `public-hoist-pattern`:
+  - `@prettier/plugin-*`
+  - `*prettier-plugin-*`
+
 ## 5.11.1
 
 ### Patch Changes

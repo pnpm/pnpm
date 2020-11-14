@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.5.5
+
+### Patch Changes
+
+- Updated dependencies [fcc1c7100]
+  - @pnpm/config@11.8.0
+  - @pnpm/cli-utils@0.4.39
+
 ## 2.5.4
 
 ### Patch Changes

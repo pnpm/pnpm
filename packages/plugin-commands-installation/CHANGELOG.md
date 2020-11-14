@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 3.4.7
+
+### Patch Changes
+
+- Updated dependencies [fcc1c7100]
+  - @pnpm/config@11.8.0
+  - @pnpm/cli-utils@0.4.39
+  - @pnpm/plugin-commands-rebuild@2.2.7
+  - @pnpm/store-connection-manager@0.3.48
+  - supi@0.43.16
+  - @pnpm/find-workspace-packages@2.3.25
+  - @pnpm/outdated@7.2.15
+  - @pnpm/package-store@10.1.10
+  - @pnpm/filter-workspace-packages@2.2.10
+
 ## 3.4.6
 
 ### Patch Changes

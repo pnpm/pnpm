@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 10.1.0
+
+### Minor Changes
+
+- 284e95c5e: Skip workspace protocol specs that use relative path.
+- 084614f55: Support aliases to workspace packages. For instance, `"foo": "workspace:bar@*"` will link bar from the repository but aliased to foo. Before publish, these specs are converted to regular aliased versions.
+
 ## 10.0.7
 
 ### Patch Changes

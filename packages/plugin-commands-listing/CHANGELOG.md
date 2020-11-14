@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-listing
 
+## 2.0.36
+
+### Patch Changes
+
+- Updated dependencies [fcc1c7100]
+  - @pnpm/config@11.8.0
+  - @pnpm/cli-utils@0.4.39
+
 ## 2.0.35
 
 ### Patch Changes

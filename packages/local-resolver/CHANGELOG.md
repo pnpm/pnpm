@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 5.1.0
+
+### Minor Changes
+
+- 284e95c5e: Support relative path to workspace directory.
+
 ## 5.0.20
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.3.0
+
+### Minor Changes
+
+- 084614f55: Support aliases to workspace packages. For instance, `"foo": "workspace:bar@*"` will link bar from the repository but aliased to foo. Before publish, these specs are converted to regular aliased versions.
+
+### Patch Changes
+
+- Updated dependencies [284e95c5e]
+- Updated dependencies [084614f55]
+- Updated dependencies [fcc1c7100]
+  - @pnpm/exportable-manifest@1.1.0
+  - @pnpm/config@11.8.0
+  - @pnpm/cli-utils@0.4.39
+  - @pnpm/client@2.0.14
+
 ## 2.2.16
 
 ### Patch Changes

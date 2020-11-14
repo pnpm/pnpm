@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 7.9.9
+
+### Patch Changes
+
+- Updated dependencies [fcc1c7100]
+  - @pnpm/config@11.8.0
+
 ## 7.9.8
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.30
+
+### Patch Changes
+
+- Updated dependencies [fcc1c7100]
+  - @pnpm/config@11.8.0
+  - @pnpm/default-resolver@11.0.11
+  - @pnpm/cli-utils@0.4.39
+  - @pnpm/outdated@7.2.15
+
 ## 3.0.29
 
 ### Patch Changes

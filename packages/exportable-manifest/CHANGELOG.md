@@ -1,5 +1,12 @@
 # @pnpm/exportable-manifest
 
+## 1.1.0
+
+### Minor Changes
+
+- 284e95c5e: Convert relative workspace paths to version specs.
+- 084614f55: Support aliases to workspace packages. For instance, `"foo": "workspace:bar@*"` will link bar from the repository but aliased to foo. Before publish, these specs are converted to regular aliased versions.
+
 ## 1.0.8
 
 ### Patch Changes

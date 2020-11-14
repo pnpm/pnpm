@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-server
 
+## 2.0.49
+
+### Patch Changes
+
+- Updated dependencies [fcc1c7100]
+  - @pnpm/config@11.8.0
+  - @pnpm/cli-utils@0.4.39
+  - @pnpm/store-connection-manager@0.3.48
+  - @pnpm/server@9.0.3
+
 ## 2.0.48
 
 ### Patch Changes

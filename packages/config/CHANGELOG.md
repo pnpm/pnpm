@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.8.0
+
+### Minor Changes
+
+- fcc1c7100: Add prettier plugins to the default public-hoist-pattern list
+
 ## 11.7.2
 
 ### Patch Changes
