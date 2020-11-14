@@ -76,6 +76,18 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
     }
     return manifest.version
   }
+  if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
+    const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.substr(10)))
+    if (!manifest || !manifest.name || !manifest.version) {
+      throw new PnpmError(
+        'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+        `Cannot resolve workspace protocol of dependency "${depName}" ` +
+          'because this dependency is not installed. Try running "pnpm install".'
+      )
+    }
+    if (manifest.name === depName) return `${manifest.version}`
+    return `npm:${manifest.name}@${manifest.version}`
+  }
   depSpec = depSpec.substr(10)
   if (depSpec.includes('@')) {
     return `npm:${depSpec}`

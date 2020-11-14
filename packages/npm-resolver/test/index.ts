@@ -73,6 +73,19 @@ test('resolveFromNpm()', async () => {
   expect(meta['dist-tags']).toBeTruthy()
 })
 
+test('relative workspace protocol is skipped', async () => {
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    storeDir,
+  })
+  const resolveResult = await resolve({ pref: 'workspace:../is-positive' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+  })
+
+  expect(resolveResult).toBe(null)
+})
+
 test('dry run', async (done) => {
   nock(registry)
     .get('/is-positive')

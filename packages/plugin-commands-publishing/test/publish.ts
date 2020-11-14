@@ -444,6 +444,92 @@ because this dependency is not installed. Try running "pnpm install".'
   })
 })
 
+test('convert specs with relative workspace protocols to regular version ranges', async () => {
+  preparePackages(undefined, [
+    {
+      name: 'relative-workspace-protocol-package',
+      version: '1.0.0',
+
+      dependencies: {
+        'file-type': 'workspace:../file-type',
+        'is-neg': 'workspace:../is-negative',
+        'is-positive': '1.0.0',
+        'lodash.delay': '~4.1.0',
+      },
+      devDependencies: {
+        'random-package': 'workspace:../random-package',
+      },
+      optionalDependencies: {
+        'lodash.deburr': 'workspace:../lodash.deburr',
+      },
+      peerDependencies: {
+        'random-package': 'workspace:../random-package',
+      },
+    },
+    {
+      name: 'is-negative',
+      version: '1.0.0',
+    },
+    {
+      name: 'file-type',
+      version: '12.0.1',
+    },
+    {
+      name: 'lodash.deburr',
+      version: '4.1.0',
+    },
+    {
+      name: 'lodash.delay',
+      version: '4.1.0',
+    },
+    {
+      name: 'random-package',
+      version: '1.2.3',
+    },
+    {
+      name: 'target',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  process.chdir('relative-workspace-protocol-package')
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, [])
+
+  process.chdir('../target')
+
+  crossSpawn.sync(pnpmBin, [
+    'add',
+    '--store-dir=../store',
+    'relative-workspace-protocol-package',
+    '--no-link-workspace-packages',
+    `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+  ])
+
+  const { default: publishedManifest } = await import(path.resolve('node_modules/relative-workspace-protocol-package/package.json'))
+  expect(publishedManifest.dependencies).toStrictEqual({
+    'file-type': '12.0.1',
+    'is-neg': 'npm:is-negative@1.0.0',
+    'is-positive': '1.0.0',
+    'lodash.delay': '~4.1.0',
+  })
+  expect(publishedManifest.devDependencies).toStrictEqual({
+    'random-package': '1.2.3',
+  })
+  expect(publishedManifest.optionalDependencies).toStrictEqual({
+    'lodash.deburr': '4.1.0',
+  })
+  expect(publishedManifest.peerDependencies).toStrictEqual({
+    'random-package': '1.2.3',
+  })
+})
+
 test('publish: runs all the lifecycle scripts', async () => {
   prepare(undefined, {
     name: 'test-publish-with-scripts',
