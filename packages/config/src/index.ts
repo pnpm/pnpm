@@ -158,6 +158,8 @@ export default async (
       // should be publicly hoisted because TypeScript only searches in the root of node_modules
       '*types*',
       '*eslint*',
+      '@prettier/plugin-*',
+      '*prettier-plugin-*',
     ],
     'recursive-install': true,
     registry: npmDefaults.registry,
