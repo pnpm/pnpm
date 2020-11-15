@@ -23,6 +23,7 @@ export interface StrictInstallOptions {
   lockfileOnly: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean
+  preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
   scriptShell?: string
   shellEmulator: boolean
@@ -115,6 +116,7 @@ const defaults = async (opts: InstallOptions) => {
     ownLifecycleHooksStdio: 'inherit',
     packageManager,
     preferFrozenLockfile: true,
+    preferWorkspacePackages: false,
     preserveWorkspaceProtocol: true,
     pruneLockfileImporters: false,
     pruneStore: false,

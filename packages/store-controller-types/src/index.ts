@@ -90,6 +90,7 @@ export interface RequestPackageOptions {
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions
+  preferWorkspacePackages?: boolean
   registry: string
   sideEffectsCache?: boolean
   skipFetch?: boolean

@@ -671,6 +671,7 @@ async function installInContext (
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+      preferWorkspacePackages: opts.preferWorkspacePackages,
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: opts.registries,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,

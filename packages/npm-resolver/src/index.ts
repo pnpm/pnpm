@@ -97,6 +97,7 @@ export type ResolveFromNpmOptions = {
   dryRun?: boolean
   registry: string
   preferredVersions?: PreferredVersions
+  preferWorkspacePackages?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -166,7 +167,7 @@ async function resolveNpm (
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[pickedPackage.name], spec)
-    if (localVersion && semver.gt(localVersion, pickedPackage.version)) {
+    if (localVersion && (semver.gt(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
       return {
         ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.projectDir),
         latest: meta['dist-tags'].latest,

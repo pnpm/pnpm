@@ -3,6 +3,7 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
@@ -603,4 +604,42 @@ test('recursive install in a monorepo with different modules directories', async
 
   await projects['project-1'].has('is-positive', 'modules_1')
   await projects['project-2'].has('is-positive', 'modules_2')
+})
+
+test('prefer-workspace-package', async () => {
+  await addDistTag({
+    distTag: 'latest',
+    package: 'foo',
+    version: '100.1.0',
+  })
+  preparePackages(undefined, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        foo: '^100.0.0',
+      },
+    },
+    {
+      name: 'foo',
+      version: '100.0.0',
+    },
+  ])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    preferWorkspacePackages: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspace: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve('pnpm-lock.yaml'))
+  expect(lockfile.importers['project-1'].dependencies?.foo).toBe('link:../foo')
 })

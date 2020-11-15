@@ -136,6 +136,7 @@ export interface ResolutionContext {
   dependenciesTree: DependenciesTree<ResolvedPackage>
   force: boolean
   prefix: string
+  preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
   engineStrict: boolean
   modulesDir: string
@@ -597,6 +598,7 @@ async function resolveDependency (
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
       preferredVersions: options.preferredVersions,
+      preferWorkspacePackages: ctx.preferWorkspacePackages,
       projectDir: options.currentDepth > 0 ? ctx.lockfileDir : ctx.prefix,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias) || ctx.registries.default,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json

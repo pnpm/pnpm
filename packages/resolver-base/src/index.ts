@@ -58,6 +58,7 @@ export interface ResolveOptions {
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions
+  preferWorkspacePackages?: boolean
   registry: string
   workspacePackages?: WorkspacePackages
 }
