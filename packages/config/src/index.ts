@@ -59,6 +59,7 @@ export const types = Object.assign({
   'prefer-frozen-lockfile': Boolean,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
+  'prefer-workspace-packages': Boolean,
   production: [null, true],
   'public-hoist-pattern': Array,
   'publish-branch': String,
@@ -153,6 +154,7 @@ export default async (
     'link-workspace-packages': true,
     'package-lock': npmDefaults['package-lock'],
     pending: false,
+    'prefer-workspace-packages': false,
     'public-hoist-pattern': [
       // Packages like @types/node, @babel/types
       // should be publicly hoisted because TypeScript only searches in the root of node_modules

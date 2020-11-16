@@ -286,7 +286,7 @@ export type InstallCommandOptions = Pick<Config,
   useBetaCli?: boolean
   recursive?: boolean
   workspace?: boolean
-}
+} & Partial<Pick<Config, 'preferWorkspacePackages'>>
 
 export function handler (
   opts: InstallCommandOptions

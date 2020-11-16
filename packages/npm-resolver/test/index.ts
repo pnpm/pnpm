@@ -1053,6 +1053,46 @@ test('use version from the registry if it is newer than the local one', async ()
   expect(resolveResult!.manifest!.version).toBe('3.1.0')
 })
 
+test('preferWorkspacePackages: use version from the workspace even if there is newer version in the registry', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const resolveFromNpm = createResolveFromNpm({
+    storeDir: tempy.directory(),
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    pref: '^3.0.0',
+  }, {
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '3.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult).toStrictEqual(
+    expect.objectContaining({
+      resolvedVia: 'local-filesystem',
+      id: 'link:is-positive',
+      latest: '3.1.0',
+    })
+  )
+})
+
 test('use local version if it is newer than the latest in the registry', async () => {
   nock(registry)
     .get('/is-positive')

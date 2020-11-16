@@ -103,6 +103,7 @@ export interface Config {
   workspaceDir?: string
   reporter?: string
   linkWorkspacePackages: boolean | 'deep'
+  preferWorkspacePackages: boolean
   sort: boolean
   strictPeerDependencies: boolean
   lockfileDir?: string

@@ -56,6 +56,7 @@ export interface ResolveDependenciesOptions {
   nodeVersion: string
   registries: Registries
   pnpmVersion: string
+  preferWorkspacePackages?: boolean
   updateMatching?: (pkgName: string) => boolean
   linkWorkspacePackagesDepth?: number
   lockfileDir: string
@@ -89,6 +90,7 @@ export default async function<T> (
     outdatedDependencies: {} as {[pkgId: string]: string},
     pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
+    preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
     registries: opts.registries,
     resolvedPackagesByDepPath: {} as ResolvedPackagesByDepPath,

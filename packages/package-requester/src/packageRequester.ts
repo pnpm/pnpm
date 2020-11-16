@@ -144,6 +144,7 @@ async function resolveAndFetch (
       defaultTag: options.defaultTag,
       lockfileDir: options.lockfileDir,
       preferredVersions: options.preferredVersions,
+      preferWorkspacePackages: options.preferWorkspacePackages,
       projectDir: options.projectDir,
       registry: options.registry,
       workspacePackages: options.workspacePackages,
