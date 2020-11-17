@@ -31,8 +31,8 @@ With pnpm, lodash will be stored in a content-addressable storage, so:
 1. If you depend on different versions of lodash, only the files that differ are added to the store.
   If lodash has 100 files, and a new version has a change only in one of those files,
   `pnpm update` will only add 1 new file to the storage.
-1. All the files are saved in a single place on the disk. When packages are installed, their files are hard-linked
-  from that single place consuming no additional disk space.
+1. All the files are saved in a single place on the disk. When packages are installed, their files are linked
+  from that single place consuming no additional disk space. Linking is performed using either hard-links or reflinks (copy-on-write).
 
 As a result, you save gigabytes of space on your disk and you have a lot faster installations!
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
