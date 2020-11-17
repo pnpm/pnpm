@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- New setting added: `prefer-workspace-packages` [#2136]https://github.com/pnpm/pnpm/issues/2136).
+- New setting added: `prefer-workspace-packages` [#2136](https://github.com/pnpm/pnpm/issues/2136).
 
   When `prefer-workspace-packages` is set to `true`, local packages from the workspace are preferred over
   packages from the registry, even if there is a newer version of that package in the registry.
