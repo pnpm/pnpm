@@ -1,5 +1,19 @@
 # @pnpm/package-requester
 
+## 12.2.0
+
+### Minor Changes
+
+- 8698a7060: New option added: preferWorkspacePackages. When it is `true`, dependencies are linked from the workspace even, when there are newer version available in the registry.
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/resolver-base@7.1.0
+  - @pnpm/store-controller-types@9.2.0
+  - @pnpm/fetcher-base@9.0.3
+  - @pnpm/cafs@2.0.4
+
 ## 12.1.4
 
 ### Patch Changes

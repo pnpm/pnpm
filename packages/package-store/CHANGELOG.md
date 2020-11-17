@@ -1,5 +1,16 @@
 # @pnpm/package-store
 
+## 10.1.11
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/package-requester@12.2.0
+  - @pnpm/resolver-base@7.1.0
+  - @pnpm/store-controller-types@9.2.0
+  - @pnpm/fetcher-base@9.0.3
+  - @pnpm/cafs@2.0.4
+
 ## 10.1.10
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "5.2.4",
+  "version": "5.2.5",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
     "@pnpm/lifecycle": "workspace:9.6.2",
     "@pnpm/link-bins": "workspace:5.3.20",
     "@pnpm/read-package-json": "workspace:3.1.8",
-    "@pnpm/store-controller-types": "workspace:9.1.2",
+    "@pnpm/store-controller-types": "workspace:9.2.0",
     "@pnpm/types": "workspace:6.3.1",
     "graph-sequencer": "2.0.0",
     "ramda": "^0.27.1",

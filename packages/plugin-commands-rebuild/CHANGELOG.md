@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.2.8
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/config@11.9.0
+  - @pnpm/store-controller-types@9.2.0
+  - @pnpm/cli-utils@0.4.40
+  - @pnpm/store-connection-manager@0.3.49
+  - @pnpm/lockfile-utils@2.0.20
+  - @pnpm/find-workspace-packages@2.3.26
+
 ## 2.2.7
 
 ### Patch Changes

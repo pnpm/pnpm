@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-listing",
-  "version": "2.0.36",
+  "version": "2.0.37",
   "description": "The list and why commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -37,7 +37,7 @@
     "@pnpm/logger": "^3.2.2",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-listing": "link:",
-    "@pnpm/prepare": "workspace:0.0.15",
+    "@pnpm/prepare": "workspace:0.0.16",
     "@types/mz": "^2.7.2",
     "@types/ramda": "^0.27.32",
     "execa": "^4.1.0",
@@ -46,11 +46,11 @@
     "write-yaml-file": "^4.1.1"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.39",
+    "@pnpm/cli-utils": "workspace:0.4.40",
     "@pnpm/common-cli-options-help": "workspace:0.2.0",
-    "@pnpm/config": "workspace:11.8.0",
+    "@pnpm/config": "workspace:11.9.0",
     "@pnpm/error": "workspace:1.4.0",
-    "@pnpm/list": "workspace:5.0.15",
+    "@pnpm/list": "workspace:5.0.16",
     "@pnpm/types": "workspace:6.3.1",
     "ramda": "^0.27.1",
     "render-help": "^1.0.1"

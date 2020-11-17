@@ -1,5 +1,19 @@
 # @pnpm/headless
 
+## 14.5.8
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/package-requester@12.2.0
+  - @pnpm/store-controller-types@9.2.0
+  - @pnpm/lockfile-to-pnp@0.3.9
+  - @pnpm/lockfile-utils@2.0.20
+  - @pnpm/build-modules@5.2.5
+  - @pnpm/modules-cleaner@10.0.16
+  - @pnpm/filter-lockfile@4.0.14
+  - @pnpm/hoist@4.0.20
+
 ## 14.5.7
 
 ### Patch Changes

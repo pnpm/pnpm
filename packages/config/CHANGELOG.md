@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.9.0
+
+### Minor Changes
+
+- 8698a7060: New option added: preferWorkspacePackages. When it is `true`, dependencies are linked from the workspace even, when there are newer version available in the registry.
+
 ## 11.8.0
 
 ### Minor Changes

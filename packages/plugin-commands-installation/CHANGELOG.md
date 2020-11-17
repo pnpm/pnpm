@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-installation
 
+## 3.5.0
+
+### Minor Changes
+
+- 8698a7060: New option added: preferWorkspacePackages. When it is `true`, dependencies are linked from the workspace even, when there are newer version available in the registry.
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/config@11.9.0
+  - @pnpm/resolver-base@7.1.0
+  - supi@0.43.17
+  - @pnpm/cli-utils@0.4.40
+  - @pnpm/plugin-commands-rebuild@2.2.8
+  - @pnpm/store-connection-manager@0.3.49
+  - @pnpm/package-store@10.1.11
+  - @pnpm/find-workspace-packages@2.3.26
+  - @pnpm/outdated@7.2.16
+  - @pnpm/filter-workspace-packages@2.2.11
+
 ## 3.4.7
 
 ### Patch Changes

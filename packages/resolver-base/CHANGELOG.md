@@ -1,5 +1,11 @@
 # @pnpm/resolver-base
 
+## 7.1.0
+
+### Minor Changes
+
+- 8698a7060: New option added: preferWorkspacePackages. When it is `true`, dependencies are linked from the workspace even, when there are newer version available in the registry.
+
 ## 7.0.5
 
 ### Patch Changes

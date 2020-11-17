@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 5.2.5
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/store-controller-types@9.2.0
+
 ## 5.2.4
 
 ### Patch Changes

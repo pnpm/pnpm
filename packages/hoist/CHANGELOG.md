@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 4.0.20
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@2.0.20
+
 ## 4.0.19
 
 ### Patch Changes

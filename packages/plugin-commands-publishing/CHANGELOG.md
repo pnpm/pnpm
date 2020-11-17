@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.3.1
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/config@11.9.0
+  - @pnpm/resolver-base@7.1.0
+  - @pnpm/cli-utils@0.4.40
+  - @pnpm/client@2.0.15
+
 ## 2.3.0
 
 ### Minor Changes

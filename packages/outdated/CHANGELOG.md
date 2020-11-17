@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 7.2.16
+
+### Patch Changes
+
+- @pnpm/client@2.0.15
+- @pnpm/lockfile-utils@2.0.20
+
 ## 7.2.15
 
 ### Patch Changes

@@ -1,9 +1,9 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "0.0.37",
+  "version": "0.0.38",
   "private": true,
   "dependencies": {
-    "@pnpm/find-workspace-packages": "workspace:2.3.25",
+    "@pnpm/find-workspace-packages": "workspace:2.3.26",
     "@pnpm/lockfile-file": "workspace:3.1.1",
     "@pnpm/types": "workspace:6.3.1",
     "@types/normalize-path": "^3.0.0",

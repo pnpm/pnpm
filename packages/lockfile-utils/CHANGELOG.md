@@ -1,5 +1,12 @@
 # @pnpm/lockfile-utils
 
+## 2.0.20
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/resolver-base@7.1.0
+
 ## 2.0.19
 
 ### Patch Changes

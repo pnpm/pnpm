@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-resolver",
-  "version": "4.1.6",
+  "version": "4.1.7",
   "description": "Resolver for git-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/git-resolver#readme",
   "dependencies": {
     "@pnpm/fetch": "workspace:2.1.7",
-    "@pnpm/resolver-base": "workspace:7.0.5",
+    "@pnpm/resolver-base": "workspace:7.1.0",
     "graceful-git": "3.0.1",
     "hosted-git-info": "^3.0.7",
     "semver": "^7.3.2"

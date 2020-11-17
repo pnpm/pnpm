@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "10.1.0",
+  "version": "10.2.0",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -38,7 +38,7 @@
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/fetching-types": "workspace:^1.0.0",
     "@pnpm/resolve-workspace-range": "workspace:1.0.1",
-    "@pnpm/resolver-base": "workspace:7.0.5",
+    "@pnpm/resolver-base": "workspace:7.1.0",
     "@pnpm/types": "workspace:6.3.1",
     "@zkochan/retry": "^0.2.0",
     "encode-registry": "^3.0.0",

@@ -1,5 +1,23 @@
 # supi
 
+## 0.43.17
+
+### Patch Changes
+
+- 8698a7060: New option added: preferWorkspacePackages. When it is `true`, dependencies are linked from the workspace even, when there are newer version available in the registry.
+- Updated dependencies [8698a7060]
+  - @pnpm/package-requester@12.2.0
+  - @pnpm/resolve-dependencies@18.2.0
+  - @pnpm/resolver-base@7.1.0
+  - @pnpm/store-controller-types@9.2.0
+  - @pnpm/lockfile-to-pnp@0.3.9
+  - @pnpm/headless@14.5.8
+  - @pnpm/lockfile-utils@2.0.20
+  - @pnpm/build-modules@5.2.5
+  - @pnpm/modules-cleaner@10.0.16
+  - @pnpm/filter-lockfile@4.0.14
+  - @pnpm/hoist@4.0.20
+
 ## 0.43.16
 
 ### Patch Changes
