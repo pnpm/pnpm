@@ -40,7 +40,7 @@
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/package-store": "workspace:10.1.11",
     "@pnpm/server": "workspace:9.0.4",
-    "@pnpm/store-path": "^4.0.2",
+    "@pnpm/store-path": "^4.0.3",
     "@zkochan/diable": "^1.0.2",
     "delay": "^4.4.0",
     "dir-is-case-sensitive": "^1.0.2",

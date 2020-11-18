@@ -60,7 +60,7 @@
     "@pnpm/modules-yaml": "workspace:8.0.5",
     "@pnpm/outdated": "workspace:7.2.16",
     "@pnpm/semver-diff": "^1.0.2",
-    "@pnpm/store-path": "^4.0.2",
+    "@pnpm/store-path": "^4.0.3",
     "@zkochan/table": "^1.0.0",
     "chalk": "^4.1.0",
     "lru-cache": "^6.0.0",

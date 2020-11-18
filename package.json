@@ -25,7 +25,7 @@
     "@pnpm/registry-mock": "^2.2.0",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "^26.0.15",
-    "@types/node": "^12.19.4",
+    "@types/node": "^12.19.5",
     "@types/tape": "^4.13.0",
     "c8": "^7.3.5",
     "coveralls": "^3.1.0",
