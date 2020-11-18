@@ -10,10 +10,16 @@
   ],
   "references": [
     {
+      "path": "../constants"
+    },
+    {
       "path": "../error"
     },
     {
       "path": "../fetch"
+    },
+    {
+      "path": "../lockfile-file"
     },
     {
       "path": "../lockfile-types"
@@ -26,12 +32,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../lockfile-file"
     }
   ]
 }

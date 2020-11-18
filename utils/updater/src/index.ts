@@ -42,7 +42,7 @@ const repoRoot = path.join(__dirname, '../../..')
         ...tsConfig['compilerOptions'],
         rootDir: 'src',
       },
-      references,
+      references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
     }, { indent: 2 })
     await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
       extends: './tsconfig.json',

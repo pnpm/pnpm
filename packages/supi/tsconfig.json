@@ -10,13 +10,34 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
+      "path": "../../privatePackages/assert-store"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
       "path": "../build-modules"
+    },
+    {
+      "path": "../cafs"
+    },
+    {
+      "path": "../client"
     },
     {
       "path": "../constants"
     },
     {
       "path": "../core-loggers"
+    },
+    {
+      "path": "../dependency-path"
     },
     {
       "path": "../error"
@@ -67,6 +88,9 @@
       "path": "../package-requester"
     },
     {
+      "path": "../package-store"
+    },
+    {
       "path": "../parse-wanted-dependency"
     },
     {
@@ -98,30 +122,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../../privatePackages/assert-project"
-    },
-    {
-      "path": "../../privatePackages/assert-store"
-    },
-    {
-      "path": "../cafs"
-    },
-    {
-      "path": "../client"
-    },
-    {
-      "path": "../package-store"
-    },
-    {
-      "path": "../../privatePackages/prepare"
-    },
-    {
-      "path": "../../privatePackages/test-fixtures"
     }
   ]
 }

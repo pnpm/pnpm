@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
       "path": "../cli-utils"
     },
     {
@@ -23,6 +29,12 @@
     },
     {
       "path": "../core-loggers"
+    },
+    {
+      "path": "../dependency-path"
+    },
+    {
+      "path": "../filter-workspace-packages"
     },
     {
       "path": "../find-workspace-packages"
@@ -59,18 +71,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../filter-workspace-packages"
-    },
-    {
-      "path": "../../privatePackages/prepare"
-    },
-    {
-      "path": "../../privatePackages/test-fixtures"
     }
   ]
 }

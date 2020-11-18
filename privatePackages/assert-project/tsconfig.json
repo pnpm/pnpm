@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../assert-store"
-    },
-    {
       "path": "../../packages/constants"
     },
     {
@@ -23,6 +20,9 @@
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../assert-store"
     }
   ]
 }

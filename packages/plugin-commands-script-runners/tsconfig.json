@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/prepare"
+    },
+    {
       "path": "../cli-utils"
     },
     {
@@ -25,6 +28,9 @@
       "path": "../error"
     },
     {
+      "path": "../filter-workspace-packages"
+    },
+    {
       "path": "../lifecycle"
     },
     {
@@ -32,12 +38,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../filter-workspace-packages"
-    },
-    {
-      "path": "../../privatePackages/prepare"
     }
   ]
 }

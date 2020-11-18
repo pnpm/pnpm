@@ -13,6 +13,9 @@
       "path": "../config"
     },
     {
+      "path": "../dependency-path"
+    },
+    {
       "path": "../lockfile-file"
     },
     {
@@ -20,9 +23,6 @@
     },
     {
       "path": "../read-project-manifest"
-    },
-    {
-      "path": "../dependency-path"
     },
     {
       "path": "../types"

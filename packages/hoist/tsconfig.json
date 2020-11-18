@@ -13,6 +13,9 @@
       "path": "../constants"
     },
     {
+      "path": "../dependency-path"
+    },
+    {
       "path": "../link-bins"
     },
     {
@@ -32,9 +35,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../dependency-path"
     }
   ]
 }

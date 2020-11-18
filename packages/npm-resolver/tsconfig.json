@@ -17,6 +17,9 @@
       "path": "../error"
     },
     {
+      "path": "../fetch"
+    },
+    {
       "path": "../fetching-types"
     },
     {
@@ -27,9 +30,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../fetch"
     }
   ]
 }

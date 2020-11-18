@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/assert-store"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
       "path": "../cafs"
     },
     {
@@ -19,10 +25,16 @@
       "path": "../config"
     },
     {
+      "path": "../dependency-path"
+    },
+    {
       "path": "../error"
     },
     {
       "path": "../get-context"
+    },
+    {
+      "path": "../lockfile-file"
     },
     {
       "path": "../lockfile-utils"
@@ -44,18 +56,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../../privatePackages/assert-store"
-    },
-    {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../../privatePackages/prepare"
     }
   ]
 }

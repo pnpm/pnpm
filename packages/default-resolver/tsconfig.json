@@ -13,6 +13,9 @@
       "path": "../error"
     },
     {
+      "path": "../fetch"
+    },
+    {
       "path": "../fetching-types"
     },
     {
@@ -29,9 +32,6 @@
     },
     {
       "path": "../tarball-resolver"
-    },
-    {
-      "path": "../fetch"
     }
   ]
 }

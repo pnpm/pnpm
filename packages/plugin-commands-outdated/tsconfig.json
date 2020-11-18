@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/prepare"
+    },
+    {
       "path": "../cli-utils"
     },
     {
@@ -22,10 +25,16 @@
       "path": "../config"
     },
     {
+      "path": "../constants"
+    },
+    {
       "path": "../default-resolver"
     },
     {
       "path": "../error"
+    },
+    {
+      "path": "../filter-workspace-packages"
     },
     {
       "path": "../lockfile-file"
@@ -40,16 +49,7 @@
       "path": "../outdated"
     },
     {
-      "path": "../constants"
-    },
-    {
-      "path": "../filter-workspace-packages"
-    },
-    {
       "path": "../plugin-commands-installation"
-    },
-    {
-      "path": "../../privatePackages/prepare"
     },
     {
       "path": "../types"

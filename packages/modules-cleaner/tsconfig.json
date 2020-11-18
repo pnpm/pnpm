@@ -13,6 +13,9 @@
       "path": "../core-loggers"
     },
     {
+      "path": "../dependency-path"
+    },
+    {
       "path": "../filter-lockfile"
     },
     {
@@ -32,9 +35,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../dependency-path"
     }
   ]
 }

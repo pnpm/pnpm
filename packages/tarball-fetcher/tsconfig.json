@@ -10,22 +10,22 @@
   ],
   "references": [
     {
+      "path": "../cafs"
+    },
+    {
       "path": "../core-loggers"
     },
     {
       "path": "../error"
     },
     {
+      "path": "../fetch"
+    },
+    {
       "path": "../fetcher-base"
     },
     {
       "path": "../fetching-types"
-    },
-    {
-      "path": "../cafs"
-    },
-    {
-      "path": "../fetch"
     }
   ]
 }

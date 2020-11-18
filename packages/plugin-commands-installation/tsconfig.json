@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
       "path": "../cli-utils"
     },
     {
@@ -40,7 +46,13 @@
       "path": "../global-bin-dir"
     },
     {
+      "path": "../lockfile-types"
+    },
+    {
       "path": "../manifest-utils"
+    },
+    {
+      "path": "../matcher"
     },
     {
       "path": "../outdated"
@@ -67,22 +79,10 @@
       "path": "../store-connection-manager"
     },
     {
-      "path": "../types"
-    },
-    {
       "path": "../supi"
     },
     {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../matcher"
-    },
-    {
-      "path": "../../privatePackages/prepare"
-    },
-    {
-      "path": "../../privatePackages/test-fixtures"
+      "path": "../types"
     }
   ]
 }

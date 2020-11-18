@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../dependencies-hierarchy"
+    },
+    {
       "path": "../matcher"
     },
     {
@@ -20,9 +23,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../dependencies-hierarchy"
     }
   ]
 }

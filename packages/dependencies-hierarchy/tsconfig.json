@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../constants"
+    },
+    {
+      "path": "../dependency-path"
+    },
+    {
       "path": "../lockfile-file"
     },
     {
@@ -29,12 +35,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../constants"
     }
   ]
 }

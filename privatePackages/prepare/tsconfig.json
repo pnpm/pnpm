@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../assert-project"
+      "path": "../../packages/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../assert-project"
     }
   ]
 }

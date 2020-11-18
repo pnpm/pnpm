@@ -13,6 +13,12 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
       "path": "../cli-meta"
     },
     {
@@ -28,6 +34,9 @@
       "path": "../config"
     },
     {
+      "path": "../constants"
+    },
+    {
       "path": "../core-loggers"
     },
     {
@@ -40,7 +49,19 @@
       "path": "../find-workspace-dir"
     },
     {
+      "path": "../find-workspace-packages"
+    },
+    {
+      "path": "../lockfile-types"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
       "path": "../parse-cli-args"
+    },
+    {
+      "path": "../pkgs-graph"
     },
     {
       "path": "../plugin-commands-audit"
@@ -73,37 +94,16 @@
       "path": "../plugin-commands-store"
     },
     {
-      "path": "../run-npm"
-    },
-    {
-      "path": "../types"
-    },
-    {
-      "path": "../pkgs-graph"
-    },
-    {
-      "path": "../../privatePackages/assert-project"
-    },
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../find-workspace-packages"
-    },
-    {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../modules-yaml"
-    },
-    {
-      "path": "../../privatePackages/prepare"
-    },
-    {
       "path": "../read-package-json"
     },
     {
       "path": "../read-project-manifest"
+    },
+    {
+      "path": "../run-npm"
+    },
+    {
+      "path": "../types"
     },
     {
       "path": "../write-project-manifest"

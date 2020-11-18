@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../fetcher-base"
+      "path": "../cafs"
     },
     {
-      "path": "../cafs"
+      "path": "../fetcher-base"
     },
     {
       "path": "../types"

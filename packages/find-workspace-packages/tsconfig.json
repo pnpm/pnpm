@@ -16,10 +16,10 @@
       "path": "../constants"
     },
     {
-      "path": "../types"
+      "path": "../find-packages"
     },
     {
-      "path": "../find-packages"
+      "path": "../types"
     }
   ]
 }

@@ -16,6 +16,9 @@
       "path": "../constants"
     },
     {
+      "path": "../dependency-path"
+    },
+    {
       "path": "../error"
     },
     {
@@ -38,9 +41,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../dependency-path"
     }
   ]
 }

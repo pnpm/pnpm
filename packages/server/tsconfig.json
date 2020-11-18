@@ -10,22 +10,22 @@
   ],
   "references": [
     {
-      "path": "../fetch"
-    },
-    {
-      "path": "../store-controller-types"
-    },
-    {
-      "path": "../types"
-    },
-    {
       "path": "../client"
+    },
+    {
+      "path": "../fetch"
     },
     {
       "path": "../package-requester"
     },
     {
       "path": "../package-store"
+    },
+    {
+      "path": "../store-controller-types"
+    },
+    {
+      "path": "../types"
     }
   ]
 }

@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/prepare"
+    },
+    {
       "path": "../cli-utils"
     },
     {
@@ -19,25 +22,22 @@
       "path": "../config"
     },
     {
-      "path": "../error"
-    },
-    {
-      "path": "../list"
-    },
-    {
-      "path": "../types"
-    },
-    {
       "path": "../constants"
+    },
+    {
+      "path": "../error"
     },
     {
       "path": "../filter-workspace-packages"
     },
     {
+      "path": "../list"
+    },
+    {
       "path": "../plugin-commands-installation"
     },
     {
-      "path": "../../privatePackages/prepare"
+      "path": "../types"
     }
   ]
 }

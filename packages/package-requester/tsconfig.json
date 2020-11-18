@@ -13,6 +13,9 @@
       "path": "../cafs"
     },
     {
+      "path": "../client"
+    },
+    {
       "path": "../core-loggers"
     },
     {
@@ -29,9 +32,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../client"
     }
   ]
 }
