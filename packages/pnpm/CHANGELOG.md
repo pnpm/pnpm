@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.13.1
+
+### Patch Changes
+
+- pnpm should not leave empty temporary directories in the root of the partition [#2749](https://github.com/pnpm/pnpm/issues/2749).
+
 ## 5.13.0
 
 ### Minor Changes
