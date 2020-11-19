@@ -130,6 +130,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
     }
+    scripts.compile += ' && npm run bundle'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
@@ -142,9 +143,19 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       scripts.lint = 'eslint -c ../../eslint.json src/**/*.ts'
     }
   }
-  const files = ['lib', '!*.map'] // the order is important
-  if (manifest.bin) {
+  const files: string[] = []
+  if (manifest.name === 'pnpm') {
+    files.push('lib/pnpm.js')
+    files.push('lib/pnpx.js')
+    files.push('lib/node_modules')
     files.push('bin')
+  } else {
+    // the order is important
+    files.push('lib')
+    files.push('!*.map')
+    if (manifest.bin) {
+      files.push('bin')
+    }
   }
   return {
     ...manifest,

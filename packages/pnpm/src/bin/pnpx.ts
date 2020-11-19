@@ -3,7 +3,7 @@ import path = require('path')
 import npx = require('@zkochan/libnpx/index')
 import PATH = require('path-name')
 
-const PNPM_PATH = path.join(__dirname, '../../bin/pnpm.js')
+const PNPM_PATH = path.join(__dirname, 'pnpm.js')
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
 ; (async () => {
