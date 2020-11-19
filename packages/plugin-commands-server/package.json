@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-server#readme",
   "devDependencies": {
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/plugin-commands-server": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.2",

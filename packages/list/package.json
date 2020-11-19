@@ -49,7 +49,7 @@
   },
   "devDependencies": {
     "@pnpm/list": "link:",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@types/archy": "0.0.31",
     "@types/ramda": "^0.27.32",
     "@types/semver": "^7.3.4"

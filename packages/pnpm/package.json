@@ -27,7 +27,7 @@
     "@pnpm/file-reporter": "^1.0.0",
     "@pnpm/filter-workspace-packages": "workspace:2.2.11",
     "@pnpm/find-workspace-dir": "workspace:1.0.1",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/parse-cli-args": "workspace:3.2.1",
     "@pnpm/plugin-commands-audit": "workspace:2.0.28",
     "@pnpm/plugin-commands-import": "workspace:1.0.82",

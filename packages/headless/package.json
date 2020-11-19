@@ -19,7 +19,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:^2.0.15",
     "@pnpm/headless": "link:",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/store-path": "^4.0.3",

@@ -34,7 +34,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:4.1.0",
     "@pnpm/filter-workspace-packages": "workspace:*",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-listing": "link:",
     "@pnpm/prepare": "workspace:0.0.16",

@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/lockfile-file": "link:",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@types/js-yaml": "^3.12.5",
     "@types/mz": "^2.7.2",
     "@types/normalize-path": "^3.0.0",

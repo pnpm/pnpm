@@ -34,7 +34,7 @@
     "semver": "^7.3.2"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/package-is-installable": "link:",
     "@types/semver": "^7.3.4"
   },

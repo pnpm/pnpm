@@ -33,7 +33,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-installation#readme",
   "devDependencies": {
     "@pnpm/lockfile-types": "workspace:2.1.1",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/matcher": "workspace:1.0.3",
     "@pnpm/plugin-commands-installation": "link:",
     "@pnpm/prepare": "workspace:0.0.16",

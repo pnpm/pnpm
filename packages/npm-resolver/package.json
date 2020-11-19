@@ -57,7 +57,7 @@
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:^2.1.7",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/npm-resolver": "link:",
     "@types/lru-cache": "^5.1.0",
     "@types/mz": "^2.7.2",

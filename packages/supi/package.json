@@ -72,7 +72,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:^2.0.4",
     "@pnpm/client": "workspace:^2.0.15",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:0.0.16",
     "@pnpm/store-path": "^4.0.3",

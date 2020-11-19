@@ -44,7 +44,7 @@
   },
   "devDependencies": {
     "@pnpm/lifecycle": "link:",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@types/rimraf": "^3.0.0",
     "json-append": "1.1.1",
     "load-json-file": "^6.2.0"

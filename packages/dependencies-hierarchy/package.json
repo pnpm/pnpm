@@ -47,7 +47,7 @@
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@types/normalize-path": "^3.0.0",
     "dependencies-hierarchy": "link:"
   },

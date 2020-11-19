@@ -34,7 +34,7 @@
     "@pnpm/logger": ">=3.2.2 <4.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.2",
+    "@pnpm/logger": "^3.2.3",
     "@pnpm/types": "workspace:6.3.1",
     "@types/mz": "0.0.32",
     "@types/normalize-path": "^3.0.0",
