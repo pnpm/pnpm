@@ -143,9 +143,19 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       scripts.lint = 'eslint -c ../../eslint.json src/**/*.ts'
     }
   }
-  const files = ['lib', '!*.map'] // the order is important
-  if (manifest.bin) {
+  const files: string[] = []
+  if (manifest.name === 'pnpm') {
+    files.push('lib/pnpm.js')
+    files.push('lib/pnpx.js')
+    files.push('lib/node_modules')
     files.push('bin')
+  } else {
+    // the order is important
+    files.push('lib')
+    files.push('!*.map')
+    if (manifest.bin) {
+      files.push('bin')
+    }
   }
   return {
     ...manifest,

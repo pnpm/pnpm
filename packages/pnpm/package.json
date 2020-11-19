@@ -12,8 +12,9 @@
   },
   "main": "lib/bin/pnpm.js",
   "files": [
-    "lib",
-    "!*.map",
+    "lib/pnpm.js",
+    "lib/pnpx.js",
+    "lib/node_modules",
     "bin"
   ],
   "dependencies": {
