@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 2.1.8
+
+### Patch Changes
+
+- 263f5d813: Import node-fetch-unix correctly.
+
 ## 2.1.7
 
 ### Patch Changes

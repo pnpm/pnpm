@@ -130,7 +130,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
     }
-    scripts.compile += ' && npm run bundle'
+    scripts.compile += ' && pnpm run bundle'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`

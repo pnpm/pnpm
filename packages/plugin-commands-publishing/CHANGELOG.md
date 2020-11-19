@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.3.2
+
+### Patch Changes
+
+- @pnpm/client@2.0.16
+
 ## 2.3.1
 
 ### Patch Changes

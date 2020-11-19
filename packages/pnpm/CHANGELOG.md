@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.13.2
+
+### Patch Changes
+
+- The pnpm CLI is bundled for faster startup.
+
 ## 5.13.1
 
 ### Patch Changes
