@@ -2181,11 +2181,8 @@ importers:
       tempy: ^1.0.0
   packages/pnpm:
     dependencies:
-      boxen: 4.2.0
-      node-gyp: 7.1.0
-      resolve-from: 5.0.0
+      node-gyp: 7.1.2
       update-notifier: 5.0.1
-      xdg-basedir: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/cli-meta': 'link:../cli-meta'
@@ -2326,7 +2323,6 @@ importers:
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^1.0.0
       anonymous-npm-registry-client: 0.1.2
-      boxen: 4.2.0
       byline: 5.0.0
       chalk: ^4.1.0
       cross-spawn: ^7.0.3
@@ -2343,7 +2339,7 @@ importers:
       loud-rejection: ^2.2.0
       mz: ^2.7.0
       ncp: ^2.0.0
-      node-gyp: 7.1.0
+      node-gyp: ^7.1.2
       nopt: ^5.0.0
       normalize-newline: 3.0.0
       npm-run-all: ^4.1.5
@@ -2354,7 +2350,6 @@ importers:
       ramda: ^0.27.1
       read-yaml-file: ^2.0.0
       render-help: ^1.0.1
-      resolve-from: 5.0.0
       semver: ^7.3.2
       split-cmd: ^1.0.1
       strip-ansi: ^6.0.0
@@ -2366,7 +2361,6 @@ importers:
       write-json-file: ^4.3.0
       write-pkg: 4.0.0
       write-yaml-file: ^4.1.1
-      xdg-basedir: 4.0.0
   packages/pnpmfile:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -10801,24 +10795,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-dSq1xmcPDKPZ2EED2S6zw/b9NKsqzXRE6dVr8TVQnI3FJOTteUMuqF3Qqs6LZg+mLGYJWqQzMbIjMtJqTv87nQ==
-  /node-gyp/7.1.0:
-    dependencies:
-      env-paths: 2.2.0
-      glob: 7.1.6
-      graceful-fs: 4.2.4
-      nopt: 4.0.3
-      npmlog: 4.1.2
-      request: 2.88.2
-      rimraf: 2.7.1
-      semver: 7.3.2
-      tar: 6.0.5
-      which: 2.0.2
-    dev: false
-    engines:
-      node: '>= 10.12.0'
-    hasBin: true
-    resolution:
-      integrity: sha512-rjlHQlnl1dqiDZxZYiKqQdrjias7V+81OVR5PTzZioCBtWkNdrKy06M05HLKxy/pcKikKRCabeDRoZaEc6nIjw==
   /node-gyp/7.1.2:
     dependencies:
       env-paths: 2.2.0
@@ -10871,14 +10847,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-bd0hvSoxQXuScn3Vhfim83YI6+4=
-  /nopt/4.0.3:
-    dependencies:
-      abbrev: 1.1.1
-      osenv: 0.1.5
-    dev: false
-    hasBin: true
-    resolution:
-      integrity: sha512-CvaGwVMztSMJLOeXPrez7fyfObdZqNUK1cPAEzLHrTybIua9pMdmmPR5YwtfNftIOMv3DPUhFaxsZMNTQO20Kg==
   /nopt/5.0.0:
     dependencies:
       abbrev: 1.1.1
@@ -11176,24 +11144,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-d8DLN8QVJdZBZtmQ/61+xqDhNj4=
-  /os-homedir/1.0.2:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-/7xJiDNuDoM94MFox+8VISGqf7M=
   /os-tmpdir/1.0.2:
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-u+Z0BseaqFxc/sdm/lc0VV36EnQ=
-  /osenv/0.1.5:
-    dependencies:
-      os-homedir: 1.0.2
-      os-tmpdir: 1.0.2
-    dev: false
-    resolution:
-      integrity: sha512-0CWcCECdMVc2Rw3U5w9ZjqX6ga6ubk1xDVKxtBQPK7wis/0F2r9T6k4ydGYhecl7YUBxBVxhL5oisPsNxAPe2g==
   /outdent/0.5.0:
     dev: true
     resolution:
@@ -12576,6 +12532,7 @@ packages:
   /rimraf/2.7.1:
     dependencies:
       glob: 7.1.6
+    dev: true
     hasBin: true
     resolution:
       integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==

@@ -18,11 +18,8 @@
     "bin"
   ],
   "dependencies": {
-    "boxen": "4.2.0",
-    "node-gyp": "7.1.0",
-    "resolve-from": "5.0.0",
-    "update-notifier": "^5.0.1",
-    "xdg-basedir": "4.0.0"
+    "node-gyp": "^7.1.2",
+    "update-notifier": "^5.0.1"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -152,7 +149,7 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle:pnpm": "esbuild lib/bin/pnpm.js --bundle --platform=node --outfile=lib/pnpm.js --external:update-notifier",
+    "bundle:pnpm": "esbuild lib/bin/pnpm.js --bundle --platform=node --outfile=lib/pnpm.js --external:update-notifier --external:node-gyp",
     "bundle:pnpx": "esbuild lib/bin/pnpx.js --bundle --platform=node --outfile=lib/pnpx.js",
     "bundle": "pnpm bundle:pnpm && pnpm bundle:pnpx",
     "start": "pnpm tsc -- --watch",
