@@ -2261,7 +2261,6 @@ importers:
       path-exists: 4.0.0
       path-name: 1.0.0
       pkgs-graph: 'link:../pkgs-graph'
-      pnpm: 'link:'
       ramda: 0.27.1
       read-yaml-file: 2.0.0
       render-help: 1.0.1
@@ -2352,7 +2351,6 @@ importers:
       path-exists: ^4.0.0
       path-name: ^1.0.0
       pkgs-graph: 'workspace:5.2.0'
-      pnpm: 'link:'
       ramda: ^0.27.1
       read-yaml-file: ^2.0.0
       render-help: ^1.0.1
