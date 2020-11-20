@@ -27,7 +27,7 @@ importers:
       typescript: 4.0.5
       verdaccio: 4.8.1
       yarn: 1.22.10
-      yarnhook: 0.4.5
+      yarnhook: 0.5.1
     specifiers:
       '@changesets/cli': ^2.11.2
       '@commitlint/cli': ^11.0.0
@@ -55,7 +55,7 @@ importers:
       typescript: ^4.0.5
       verdaccio: ^4.8.1
       yarn: ^1.22.10
-      yarnhook: ^0.4.5
+      yarnhook: ^0.5.0
   packages/audit:
     dependencies:
       '@pnpm/error': 'link:../error'
@@ -3100,7 +3100,7 @@ packages:
       '@babel/generator': 7.12.5
       '@babel/helper-module-transforms': 7.12.1
       '@babel/helpers': 7.12.5
-      '@babel/parser': 7.12.5_@babel+types@7.12.6
+      '@babel/parser': 7.12.5
       '@babel/template': 7.10.4
       '@babel/traverse': 7.12.5
       '@babel/types': 7.12.6
@@ -3214,15 +3214,11 @@ packages:
       js-tokens: 4.0.0
     resolution:
       integrity: sha512-i6rgnR/YgPEQzZZnbTHHuZdlE8qyoBNalD6F+q4vAFlcMEcqmkoG+mPqJYJCo63qPf74+Y1UZsl3l6f7/RIkmA==
-  /@babel/parser/7.12.5_@babel+types@7.12.6:
-    dependencies:
-      '@babel/types': 7.12.6
+  /@babel/parser/7.12.5:
     dev: true
     engines:
       node: '>=6.0.0'
     hasBin: true
-    peerDependencies:
-      '@babel/types': '*'
     resolution:
       integrity: sha512-FVM6RZQ0mn2KCf1VUED7KepYeUWoVShczewOCfm3nzoBybaih51h+sYVVGthW9M6lPByEPTQf+xm27PBdlpwmQ==
   /@babel/plugin-syntax-async-generators/7.8.4_@babel+core@7.12.3:
@@ -3341,7 +3337,7 @@ packages:
   /@babel/template/7.10.4:
     dependencies:
       '@babel/code-frame': 7.10.4
-      '@babel/parser': 7.12.5_@babel+types@7.12.6
+      '@babel/parser': 7.12.5
       '@babel/types': 7.12.6
     dev: true
     resolution:
@@ -3352,7 +3348,7 @@ packages:
       '@babel/generator': 7.12.5
       '@babel/helper-function-name': 7.10.4
       '@babel/helper-split-export-declaration': 7.11.0
-      '@babel/parser': 7.12.5_@babel+types@7.12.6
+      '@babel/parser': 7.12.5
       '@babel/types': 7.12.6
       debug: 4.2.0
       globals: 11.12.0
@@ -4157,7 +4153,7 @@ packages:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
   /@types/babel__core/7.1.12:
     dependencies:
-      '@babel/parser': 7.12.5_@babel+types@7.12.6
+      '@babel/parser': 7.12.5
       '@babel/types': 7.12.6
       '@types/babel__generator': 7.6.2
       '@types/babel__template': 7.4.0
@@ -4173,7 +4169,7 @@ packages:
       integrity: sha512-MdSJnBjl+bdwkLskZ3NGFp9YcXGx5ggLpQQPqtgakVhsWK0hTtNYhjpZLlWQTviGTvF8at+Bvli3jV7faPdgeQ==
   /@types/babel__template/7.4.0:
     dependencies:
-      '@babel/parser': 7.12.5_@babel+types@7.12.6
+      '@babel/parser': 7.12.5
       '@babel/types': 7.12.6
     dev: true
     resolution:
@@ -14646,14 +14642,14 @@ packages:
     requiresBuild: true
     resolution:
       integrity: sha512-IanQGI9RRPAN87VGTF7zs2uxkSyQSrSPsju0COgbsKQOOXr5LtcVPeyXWgwVa0ywG3d8dg6kSYKGBuYK021qeA==
-  /yarnhook/0.4.5:
+  /yarnhook/0.5.1:
     dependencies:
       execa: 4.1.0
       find-parent-dir: 0.3.0
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-ES7Z/OPagymy0/IHUc/UmogECxO916JxH+K9IpBewDdWEwtEMDa5BxJfBOB43dgobuoJORru5UdRBn0Fq40y7A==
+      integrity: sha512-YPLLXO/PzsFXKvRfsOG/r60WBz8RT7VbkkQv2oHDb6o+EjX0vcUSeA3aw5el2AEWjbcg1sgemjHyCwRIvQxZWw==
   /yn/3.1.1:
     dev: true
     engines:
