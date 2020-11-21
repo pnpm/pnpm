@@ -2262,6 +2262,7 @@ importers:
       read-yaml-file: 2.0.0
       render-help: 1.0.1
       semver: 7.3.2
+      shx: 0.3.3
       split-cmd: 1.0.1
       strip-ansi: 6.0.0
       symlink-dir: 4.1.0
@@ -2351,6 +2352,7 @@ importers:
       read-yaml-file: ^2.0.0
       render-help: ^1.0.1
       semver: ^7.3.2
+      shx: ^0.3.3
       split-cmd: ^1.0.1
       strip-ansi: ^6.0.0
       symlink-dir: ^4.1.0
@@ -8670,6 +8672,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-dEi/qSQJKvMR1HFzu6uZDK4rsCc=
+  /interpret/1.4.0:
+    dev: true
+    engines:
+      node: '>= 0.10'
+    resolution:
+      integrity: sha512-agE4QfB2Lkp9uICn7BAqoscw4SZP9kTE2hxiFI3jBPmXJfdqiahTbUuKGsMoN2GtqL9AxhYioAcVvgsb1HvRbA==
   /ip-regex/2.1.0:
     dev: true
     engines:
@@ -12166,6 +12174,14 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-X6VKspeG3XYaSJovVE39AOis+M/DNmVlsKvbhvmI3t2Su8/VN1lrIqLwEznowYedNYg5jLIx2OMjo7oIRJpmEQ==
+  /rechoir/0.6.2:
+    dependencies:
+      resolve: 1.19.0
+    dev: true
+    engines:
+      node: '>= 0.10'
+    resolution:
+      integrity: sha1-hSBLVNuoLVdC4oyWdW70OvUOM4Q=
   /redent/1.0.0:
     dependencies:
       indent-string: 2.1.0
@@ -12793,11 +12809,32 @@ packages:
     dev: true
     resolution:
       integrity: sha512-mRz/m/JVscCrkMyPqHc/bczi3OQHkLTqXHEFu0zDhK/qfv3UcOA4SVmRCLmos4bhjr9ekVQubj/R7waKapmiQg==
+  /shelljs/0.8.4:
+    dependencies:
+      glob: 7.1.6
+      interpret: 1.4.0
+      rechoir: 0.6.2
+    dev: true
+    engines:
+      node: '>=4'
+    hasBin: true
+    resolution:
+      integrity: sha512-7gk3UZ9kOfPLIAbslLzyWeGiEqx9e3rxwZM0KE6EL8GlGwjym9Mrlx5/p33bWTu9YG6vcS4MBxYZDHYr5lr8BQ==
   /shellwords/0.1.1:
     dev: true
     optional: true
     resolution:
       integrity: sha512-vFwSUfQvqybiICwZY5+DAWIPLKsWO31Q91JSKl3UYv+K5c2QRPzn0qzec6QPu1Qc9eHYItiP3NdJqNVqetYAww==
+  /shx/0.3.3:
+    dependencies:
+      minimist: 1.2.5
+      shelljs: 0.8.4
+    dev: true
+    engines:
+      node: '>=6'
+    hasBin: true
+    resolution:
+      integrity: sha512-nZJ3HFWVoTSyyB+evEKjJ1STiixGztlqwKLTUNV5KqMWtGey9fTd4KU1gdZ1X9BV6215pswQ/Jew9NsuS/fNDA==
   /signal-exit/3.0.3:
     resolution:
       integrity: sha512-VUJ49FC8U1OxwZLxIbTTrDvLnf/6TDgxZcK8wxR8zs13xpx7xbG60ndBlhNrFi2EMuFRoeDoJO7wthSLq42EjA==
