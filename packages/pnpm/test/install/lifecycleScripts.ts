@@ -153,7 +153,11 @@ test('dependency should not be added to package.json and lockfile if it was not 
 })
 
 test('node-gyp is in the PATH', async (t) => {
-  prepare(t)
+  prepare(t, {
+    scripts: {
+      test: 'node-gyp --help',
+    },
+  })
 
   // `npm test` adds node-gyp to the PATH
   // it is removed here to test that pnpm adds it
@@ -166,7 +170,7 @@ test('node-gyp is in the PATH', async (t) => {
     .filter((p: string) => !p.includes('node-gyp-bin') && !p.includes('npm'))
     .join(path.delimiter)
 
-  const result = execPnpmSync(['add', 'drivelist@5.1.8'])
+  const result = execPnpmSync(['test'])
 
   process.env[PATH] = initialPath
 
