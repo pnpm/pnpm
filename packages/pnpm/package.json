@@ -164,7 +164,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client yarn",
     "postpublish": "publish-packed",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && cp -r node-gyp-bin lib/node-gyp-bin && pnpm run bundle"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && shx cp -r node-gyp-bin lib/node-gyp-bin && pnpm run bundle"
   },
   "publishconfig": {
     "tag": "next"
