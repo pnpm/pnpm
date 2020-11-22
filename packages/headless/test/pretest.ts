@@ -23,5 +23,5 @@ async function removeModules () {
 }
 
 function rimraf (dir: string) {
-  return new Promise((resolve, reject) => rimrafModule(dir, err => err ? reject(err) : resolve()))
+  return new Promise<void>((resolve, reject) => rimrafModule(dir, err => err ? reject(err) : resolve()))
 }

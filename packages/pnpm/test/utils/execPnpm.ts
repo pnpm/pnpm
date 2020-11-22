@@ -13,7 +13,7 @@ export async function execPnpm (
     env: Object
   }
 ): Promise<void> {
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const proc = spawnPnpm(args, opts)
 
     proc.on('error', reject)
@@ -42,7 +42,7 @@ export function spawnPnpm (
 }
 
 export async function execPnpx (args: string[]): Promise<void> {
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const proc = spawnPnpx(args)
 
     proc.on('error', reject)

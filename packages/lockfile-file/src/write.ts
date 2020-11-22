@@ -143,7 +143,7 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   }
 }
 
-export default function writeLockfiles (
+export default async function writeLockfiles (
   opts: {
     forceSharedFormat?: boolean
     wantedLockfile: Lockfile
@@ -157,10 +157,11 @@ export default function writeLockfiles (
 
   // empty lockfile is not saved
   if (isEmptyLockfile(opts.wantedLockfile)) {
-    return Promise.all([
+    await Promise.all([
       rimraf(wantedLockfilePath),
       rimraf(currentLockfilePath),
     ])
+    return
   }
 
   const forceSharedFormat = opts?.forceSharedFormat === true
@@ -170,13 +171,14 @@ export default function writeLockfiles (
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
   if (opts.wantedLockfile === opts.currentLockfile) {
-    return Promise.all([
+    await Promise.all([
       writeFileAtomic(wantedLockfilePath, yamlDoc),
       (async () => {
         await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
         await writeFileAtomic(currentLockfilePath, yamlDoc)
       })(),
     ])
+    return
   }
 
   logger.debug({
@@ -186,7 +188,7 @@ export default function writeLockfiles (
 
   const currentYamlDoc = yamlStringify(opts.currentLockfile, forceSharedFormat)
 
-  return Promise.all([
+  await Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),
     (async () => {
       await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })

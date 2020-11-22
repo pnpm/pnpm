@@ -832,15 +832,13 @@ async function installInContext (
 
     await Promise.all([
       opts.useLockfile
-        ? (async () => {
-          await writeLockfiles({
-            currentLockfile: result.currentLockfile,
-            currentLockfileDir: ctx.virtualStoreDir,
-            wantedLockfile: newLockfile,
-            wantedLockfileDir: ctx.lockfileDir,
-            ...lockfileOpts,
-          })
-        })()
+        ? writeLockfiles({
+          currentLockfile: result.currentLockfile,
+          currentLockfileDir: ctx.virtualStoreDir,
+          wantedLockfile: newLockfile,
+          wantedLockfileDir: ctx.lockfileDir,
+          ...lockfileOpts,
+        })
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile, lockfileOpts),
       (() => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
