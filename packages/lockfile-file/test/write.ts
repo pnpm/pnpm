@@ -176,10 +176,10 @@ test('writeLockfiles() fails with meaningful error, when an invalid lockfile obj
       },
     },
   }
-  expect(() => writeLockfiles({
+  await expect(() => writeLockfiles({
     currentLockfile: wantedLockfile,
     currentLockfileDir: projectPath,
     wantedLockfile,
     wantedLockfileDir: projectPath,
-  })).toThrow(new PnpmError('LOCKFILE_STRINGIFY', 'Failed to stringify the lockfile object. Undefined value at: packages./is-negative/1.0.0.dependencies'))
+  })).rejects.toThrow(new PnpmError('LOCKFILE_STRINGIFY', 'Failed to stringify the lockfile object. Undefined value at: packages./is-negative/1.0.0.dependencies'))
 })
