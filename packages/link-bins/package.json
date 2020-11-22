@@ -52,7 +52,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.2",
     "@types/ncp": "^2.0.4",
-    "@types/node": "^12.19.5",
+    "@types/node": "^12.19.6",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.32",
     "ncp": "^2.0.0",
