@@ -1,5 +1,9 @@
 # pnpm
 
+## 5.13.3
+
+- Fix regression with node-gyp that was introduced in v5.13.2.
+
 ## 5.13.2
 
 ### Patch Changes
