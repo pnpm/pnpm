@@ -1,8 +1,14 @@
 # pnpm
 
+## 5.13.4
+
+### Patch Changes
+
+- Issue with Homebrew fixed [#2993]https://github.com/pnpm/pnpm/issues/2993).
+
 ## 5.13.3
 
-- Fix regression with node-gyp that was introduced in v5.13.2.
+- Fix regression with node-gyp that was introduced in v5.13.2 [#2988](https://github.com/pnpm/pnpm/issues/2988).
 
 ## 5.13.2
 
