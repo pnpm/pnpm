@@ -1,5 +1,11 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.1.13
+
+### Patch Changes
+
+- 4bd1cb46f: Shebang added to the bin file.
+
 ## 0.1.12
 
 ### Patch Changes
