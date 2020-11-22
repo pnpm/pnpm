@@ -21,7 +21,7 @@ const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', '
 
 const registry = 'https://registry.npmjs.org/'
 
-const delay = (time: number) => new Promise((resolve) => setTimeout(() => resolve(), time))
+const delay = (time: number) => new Promise<void>((resolve) => setTimeout(() => resolve(), time))
 
 const fetch = createFetchFromRegistry({})
 const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
