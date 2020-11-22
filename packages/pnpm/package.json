@@ -15,6 +15,7 @@
     "lib/pnpm.js",
     "lib/pnpx.js",
     "lib/node_modules",
+    "lib/node-gyp-bin",
     "bin"
   ],
   "dependencies": {
@@ -100,6 +101,7 @@
     "read-yaml-file": "^2.0.0",
     "render-help": "^1.0.1",
     "semver": "^7.3.2",
+    "shx": "^0.3.3",
     "split-cmd": "^1.0.1",
     "strip-ansi": "^6.0.0",
     "symlink-dir": "^4.1.0",
@@ -162,7 +164,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client yarn",
     "postpublish": "publish-packed",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run bundle"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && shx cp -r node-gyp-bin lib/node-gyp-bin && pnpm run bundle"
   },
   "publishconfig": {
     "tag": "next"

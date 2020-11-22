@@ -3,6 +3,7 @@ import { PackageManifest } from '@pnpm/types'
 import promisifyTape from 'tape-promise'
 import { execPnpmSync } from '../utils'
 import path = require('path')
+import PATH = require('path-name')
 import loadJsonFile = require('load-json-file')
 import tape = require('tape')
 
@@ -149,4 +150,29 @@ test('dependency should not be added to package.json and lockfile if it was not 
 
   const pkg = await import(path.resolve('package.json'))
   t.deepEqual(pkg, { name: 'foo', version: '1.0.0' }, 'package.json not updated')
+})
+
+test('node-gyp is in the PATH', async (t) => {
+  prepare(t, {
+    scripts: {
+      test: 'node-gyp --help',
+    },
+  })
+
+  // `npm test` adds node-gyp to the PATH
+  // it is removed here to test that pnpm adds it
+  const initialPath = process.env.PATH
+
+  if (typeof initialPath !== 'string') throw new Error('PATH is not defined')
+
+  process.env[PATH] = initialPath
+    .split(path.delimiter)
+    .filter((p: string) => !p.includes('node-gyp-bin') && !p.includes('npm'))
+    .join(path.delimiter)
+
+  const result = execPnpmSync(['test'])
+
+  process.env[PATH] = initialPath
+
+  t.equal(result.status, 0)
 })
