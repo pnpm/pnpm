@@ -10,12 +10,9 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "main": "lib/bin/pnpm.js",
+  "main": "bin/pnpm.js",
   "files": [
-    "lib/pnpm.js",
-    "lib/pnpx.js",
-    "lib/node_modules",
-    "lib/node-gyp-bin",
+    "dist",
     "bin"
   ],
   "dependencies": {
@@ -151,8 +148,8 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle:pnpm": "esbuild lib/bin/pnpm.js --bundle --platform=node --outfile=lib/pnpm.js --external:update-notifier --external:node-gyp",
-    "bundle:pnpx": "esbuild lib/bin/pnpx.js --bundle --platform=node --outfile=lib/pnpx.js",
+    "bundle:pnpm": "esbuild lib/bin/pnpm.js --bundle --platform=node --outfile=dist/pnpm.js --external:update-notifier --external:node-gyp",
+    "bundle:pnpx": "esbuild lib/bin/pnpx.js --bundle --platform=node --outfile=dist/pnpx.js",
     "bundle": "pnpm bundle:pnpm && pnpm bundle:pnpx",
     "start": "pnpm tsc -- --watch",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
@@ -162,9 +159,9 @@
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7780 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client yarn",
+    "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client yarn --dest dist",
     "postpublish": "publish-packed",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && shx cp -r node-gyp-bin lib/node-gyp-bin && pnpm run bundle"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin"
   },
   "publishconfig": {
     "tag": "next"

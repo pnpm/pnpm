@@ -11,4 +11,4 @@ The current version of Node.js is ${process.version}`)
   process.exit(1)
 }
 
-require('../lib/pnpm')
+require('../dist/pnpm')

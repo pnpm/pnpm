@@ -130,7 +130,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
     }
-    scripts.compile += ' && shx cp -r node-gyp-bin lib/node-gyp-bin && pnpm run bundle'
+    scripts.compile += ' && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
@@ -145,10 +145,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
   }
   const files: string[] = []
   if (manifest.name === 'pnpm') {
-    files.push('lib/pnpm.js')
-    files.push('lib/pnpx.js')
-    files.push('lib/node_modules')
-    files.push('lib/node-gyp-bin')
+    files.push('dist')
     files.push('bin')
   } else {
     // the order is important

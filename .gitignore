@@ -15,6 +15,7 @@ coverage
 _docpress
 
 lib
+dist
 tsconfig.tsbuildinfo
 
 # Visual Studio Code configs

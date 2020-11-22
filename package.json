@@ -35,7 +35,7 @@
     "jest": "^26.6.3",
     "lcov-result-merger": "^3.1.0",
     "npm-run-all": "^4.1.5",
-    "publish-packed": "^3.0.2",
+    "publish-packed": "^3.1.1",
     "rimraf": "^3.0.2",
     "tape": "^4.13.3",
     "ts-jest": "^26.4.4",
