@@ -174,5 +174,5 @@ test('node-gyp is in the PATH', async (t) => {
 
   process.env[PATH] = initialPath
 
-  t.equal(result.status, 0, "drivelist's install script has found node-gyp in PATH")
+  t.equal(result.status, 0)
 })
