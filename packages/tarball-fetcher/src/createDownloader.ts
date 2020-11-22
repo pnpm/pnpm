@@ -215,7 +215,7 @@ function waitTillClosed (
     url: string
   }
 ) {
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     opts.stream.on('end', () => {
       const downloaded = opts.getDownloaded()
       if (opts.size !== null && opts.size !== downloaded) {

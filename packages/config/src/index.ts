@@ -21,7 +21,7 @@ const npmDefaults = loadNpmConf.defaults
 
 function which (cmd: string) {
   return new Promise<string>((resolve, reject) => {
-    whichcb(cmd, (err, resolvedPath) => err ? reject(err) : resolve(resolvedPath))
+    whichcb(cmd, (err, resolvedPath) => err ? reject(err) : resolve(resolvedPath!))
   })
 }
 

@@ -13,7 +13,7 @@ export default async function (
   const ignore = _ignore ?? (() => false)
   const extract = tar.extract()
   const filesIndex = {}
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, fileStream, next) => {
       // There are some edge cases, where the same files are extracted multiple times.
       // So there will be an entry for "lib/index.js" and another one for "lib//index.js",
