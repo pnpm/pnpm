@@ -1,0 +1,5 @@
+jobs:
+- template: azure-pipelines-template.yml
+  parameters:
+    name: Linux
+    vmImage: ubuntu-16.04
