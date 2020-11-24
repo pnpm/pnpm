@@ -6,7 +6,7 @@ importers:
       '@commitlint/config-conventional': 11.0.0
       '@commitlint/prompt-cli': 11.0.0
       '@pnpm/eslint-config': 'link:utils/eslint-config'
-      '@pnpm/registry-mock': 2.2.1
+      '@pnpm/registry-mock': 2.2.2
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@types/jest': 26.0.15
       '@types/node': 12.19.6
@@ -34,7 +34,7 @@ importers:
       '@commitlint/config-conventional': ^11.0.0
       '@commitlint/prompt-cli': ^11.0.0
       '@pnpm/eslint-config': 'workspace:*'
-      '@pnpm/registry-mock': ^2.2.1
+      '@pnpm/registry-mock': ^2.2.2
       '@pnpm/tsconfig': 'workspace:*'
       '@types/jest': ^26.0.15
       '@types/node': ^12.19.6
@@ -4049,7 +4049,7 @@ packages:
       node: '>=10.13'
     resolution:
       integrity: sha512-4XVzYoO77hziiJRVTk5pv+9KD631tlqR5+MVu2BlDyrTpgfp+7Su5XPI/2Cek46X2L71vTpYW6LMW22DpmjocA==
-  /@pnpm/registry-mock/2.2.1:
+  /@pnpm/registry-mock/2.2.2:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -4063,7 +4063,7 @@ packages:
       node: '>=10.13'
     hasBin: true
     resolution:
-      integrity: sha512-WsENLJTWvW52E/q7BuV9o1yaGJGlU2KUKFCLCAixUl/wksWVy4K8H6LuAAn0EZukawNofOPkfBPzC/QwLH67EA==
+      integrity: sha512-RqtdO1dJw8F922Kt72B3kJiwTZAX4MVsT5u3X+8tCoI98BcsvBCzsoetnjQR4eD7mKqKMk9MDwUTV8SMSuDoWQ==
   /@pnpm/self-installer/2.1.0:
     dev: false
     engines:
@@ -6458,7 +6458,7 @@ packages:
       graceful-fs: 4.2.4
       minimist: 1.2.5
       mkdirp: 0.5.5
-      rimraf: 2.7.1
+      rimraf: 2.6.3
     dev: true
     hasBin: true
     resolution:
@@ -12545,13 +12545,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-mwqeW5XsA2qAejG46gYdENaxXjx9onRNCfn7L0duuP4hCuTIi/QO7PDK07KJfp1d+izWPrzEJDcSqBa0OZQriA==
-  /rimraf/2.7.1:
-    dependencies:
-      glob: 7.1.6
-    dev: true
-    hasBin: true
-    resolution:
-      integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==
   /rimraf/3.0.2:
     dependencies:
       glob: 7.1.6
