@@ -5,6 +5,9 @@ middlewares:
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
+    max_fails: 30
+    fail_timeout: 10m
+    timeout: 60s
 packages:
   '@*/*':
     access: $all
