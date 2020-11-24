@@ -22,7 +22,7 @@
     "@commitlint/config-conventional": "^11.0.0",
     "@commitlint/prompt-cli": "^11.0.0",
     "@pnpm/eslint-config": "workspace:*",
-    "@pnpm/registry-mock": "^2.2.0",
+    "@pnpm/registry-mock": "^2.2.1",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "^26.0.15",
     "@types/node": "^12.19.6",
