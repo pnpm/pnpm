@@ -5,9 +5,14 @@ middlewares:
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
-    max_fails: 30
+    max_fails: 100
+    maxage: 30m
     fail_timeout: 10m
-    timeout: 60s
+    timeout: 600s
+    agent_options:
+      keepAlive: true
+      maxSockets: 40
+      maxFreeSockets: 10
 packages:
   '@*/*':
     access: $all
