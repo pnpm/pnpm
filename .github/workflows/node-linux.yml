@@ -9,7 +9,11 @@ jobs:
 
     strategy:
       matrix:
-        node: [ '10.16', '12' ]
+        node: 
+          - '10.16'
+          - '12'
+          - '14'
+          - '15'
 
     name: ${{ matrix.node }} (Linux)
     steps:
