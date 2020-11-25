@@ -58,6 +58,8 @@ export default async (
     storeDir: opts.storeDir,
     strictSSL: opts.strictSsl ?? true,
     userAgent: opts.userAgent,
+    maxSockets: opts.networkConcurrency != null
+      ? (opts.networkConcurrency * 3) : undefined,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
