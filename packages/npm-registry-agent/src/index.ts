@@ -7,6 +7,8 @@ import SocksProxyAgent = require('socks-proxy-agent')
 
 const HttpsAgent = HttpAgent.HttpsAgent
 
+const DEFAULT_MAX_SOCKETS = 50
+
 const AGENT_CACHE = new LRU({ max: 50 })
 
 export interface AgentOptions {
@@ -64,13 +66,13 @@ export default function getAgent (uri: string, opts: AgentOptions) {
       cert: opts.cert,
       key: opts.key,
       localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets ?? 15,
+      maxSockets: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
       rejectUnauthorized: opts.strictSSL,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     : new HttpAgent({
       localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets ?? 15,
+      maxSockets: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   AGENT_CACHE.set(key, agent)
@@ -152,7 +154,7 @@ function getProxy (
     host: proxyUrl.hostname,
     key: opts.key,
     localAddress: opts.localAddress,
-    maxSockets: opts.maxSockets ?? 15,
+    maxSockets: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     path: proxyUrl.pathname,
     port: proxyUrl.port,
     protocol: proxyUrl.protocol,
