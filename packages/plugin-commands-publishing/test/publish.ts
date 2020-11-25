@@ -1,7 +1,6 @@
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
-import PnpmError from '@pnpm/error'
 import { DEFAULT_OPTS } from './utils'
 import path = require('path')
 import crossSpawn = require('cross-spawn')
@@ -402,12 +401,11 @@ test('convert specs with workspace protocols to regular version ranges', async (
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
     }, [])
-  ).rejects.toThrow(
-    new PnpmError('CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
-      'Cannot resolve workspace protocol of dependency "is-negative" \
-because this dependency is not installed. Try running "pnpm install".'
-    )
   )
+    .rejects
+    // It would be great to match the exact error message
+    // but the message will contain randomly one of the dependency names
+    .toThrow(/^Cannot resolve workspace protocol of dependency "/)
 
   process.chdir('..')
 
