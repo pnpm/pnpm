@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.13.5
+
+### Patch Changes
+
+- Include dependencies of dependents, when using `--filter ...pkg...` [#2917](https://github.com/pnpm/pnpm/issues/2917).
+- Fix hanging requests issue. The number of max open sockets increased [#2998](https://github.com/pnpm/pnpm/pull/2998).
+
 ## 5.13.4
 
 ### Patch Changes

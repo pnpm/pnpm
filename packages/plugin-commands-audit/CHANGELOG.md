@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.30
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+  - @pnpm/audit@1.1.21
+
 ## 2.0.29
 
 ### Patch Changes

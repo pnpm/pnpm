@@ -1,5 +1,13 @@
 # @pnpm/get-context
 
+## 3.3.2
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+  - @pnpm/read-projects-context@4.0.12
+
 ## 3.3.1
 
 ### Patch Changes

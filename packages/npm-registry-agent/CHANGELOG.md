@@ -1,5 +1,11 @@
 # @pnpm/npm-registry-agent
 
+## 3.1.1
+
+### Patch Changes
+
+- dc5a0a102: Increase the default maximum number of connections to use per origin to 50 (from 15).
+
 ## 3.1.0
 
 ### Minor Changes

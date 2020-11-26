@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 14.5.10
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+  - @pnpm/lockfile-to-pnp@0.3.10
+  - @pnpm/package-requester@12.2.0
+
 ## 14.5.9
 
 ### Patch Changes

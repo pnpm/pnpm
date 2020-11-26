@@ -1,5 +1,12 @@
 # @pnpm/read-projects-context
 
+## 4.0.12
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+
 ## 4.0.11
 
 ### Patch Changes

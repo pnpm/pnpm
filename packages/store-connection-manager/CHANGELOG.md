@@ -1,5 +1,14 @@
 # @pnpm/store-connection-manager
 
+## 0.3.51
+
+### Patch Changes
+
+- dc5a0a102: The maximum number of allowed connections increased to 3 times the number of network concurrency. This should fix the socket timeout issues that sometimes happen.
+  - @pnpm/client@2.0.17
+  - @pnpm/server@9.0.6
+  - @pnpm/package-store@10.1.13
+
 ## 0.3.50
 
 ### Patch Changes

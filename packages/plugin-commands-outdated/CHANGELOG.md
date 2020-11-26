@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-outdated
 
+## 3.0.33
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+  - @pnpm/outdated@7.2.18
+  - @pnpm/default-resolver@11.0.14
+
 ## 3.0.32
 
 ### Patch Changes

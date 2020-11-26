@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "2.1.8",
+  "version": "2.1.9",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:^5.0.2",
     "@pnpm/fetching-types": "workspace:^1.0.0",
-    "@pnpm/npm-registry-agent": "workspace:^3.1.0",
+    "@pnpm/npm-registry-agent": "workspace:^3.1.1",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "^2.6.1",
     "node-fetch-unix": "2.3.0"

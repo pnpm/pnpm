@@ -1,5 +1,17 @@
 # supi
 
+## 0.43.19
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+  - @pnpm/get-context@3.3.2
+  - @pnpm/headless@14.5.10
+  - @pnpm/lockfile-to-pnp@0.3.10
+  - @pnpm/package-requester@12.2.0
+  - @pnpm/resolve-dependencies@18.2.2
+
 ## 0.43.18
 
 ### Patch Changes

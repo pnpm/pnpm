@@ -1,5 +1,12 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+
 ## 0.1.13
 
 ### Patch Changes

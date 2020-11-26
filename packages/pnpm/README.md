@@ -16,7 +16,6 @@ To quote the [Rush](https://rushjs.io/) team:
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
 ![CI](https://github.com/pnpm/pnpm/workflows/CI/badge.svg)
-[![Coverage Status](https://coveralls.io/repos/github/pnpm/pnpm/badge.svg?branch=master)](https://coveralls.io/github/pnpm/pnpm?branch=master)
 [![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://discord.gg/mThkzAT)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](#backers)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
@@ -80,7 +79,7 @@ Benchmarks on an app with lots of dependencies:
 
 ## Contributors
 
-This project exists thanks to all the people who contribute. [[Contribute](../../blob/master/CONTRIBUTING.md)].
+This project exists thanks to all the people who contribute. [[Contribute](../../blob/main/CONTRIBUTING.md)].
 <a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" /></a>
 
 ### Backers
@@ -106,7 +105,7 @@ Support this project by becoming a sponsor. Your logo will show up here with a l
 
 ## License
 
-[MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE)
+[MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE)
 
 ***
 

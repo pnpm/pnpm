@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 3.1.2
+
+### Patch Changes
+
+- fba715512: writeLockfiles should return Promise<void>.
+
 ## 3.1.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/filter-workspace-packages
 
+## 2.2.12
+
+### Patch Changes
+
+- 54ab5c87f: Dependencies of dependents should be included when using `...pkg...` filter.
+
 ## 2.2.11
 
 ### Patch Changes

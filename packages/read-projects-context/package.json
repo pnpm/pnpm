@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "4.0.11",
+  "version": "4.0.12",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
@@ -27,7 +27,7 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:3.1.1",
+    "@pnpm/lockfile-file": "workspace:3.1.2",
     "@pnpm/modules-yaml": "workspace:8.0.5",
     "@pnpm/normalize-registries": "workspace:1.0.5",
     "@pnpm/types": "workspace:6.3.1",

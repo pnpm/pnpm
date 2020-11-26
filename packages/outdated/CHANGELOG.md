@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 7.2.18
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+  - @pnpm/client@2.0.17
+
 ## 7.2.17
 
 ### Patch Changes

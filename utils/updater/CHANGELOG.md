@@ -1,5 +1,12 @@
 # @pnpm-private/updater
 
+## 0.0.39
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+
 ## 0.0.38
 
 ### Patch Changes
