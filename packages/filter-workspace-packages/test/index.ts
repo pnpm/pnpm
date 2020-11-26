@@ -16,7 +16,7 @@ const mkdir = promisify(fs.mkdir)
 
 const PKGS_GRAPH: PackageGraph<{}> = {
   '/packages/project-0': {
-    dependencies: ['/packages/project-1'],
+    dependencies: ['/packages/project-1', '/project-5'],
     package: {
       dir: '/packages/project-0',
       manifest: {
@@ -88,6 +88,20 @@ const PKGS_GRAPH: PackageGraph<{}> = {
       },
     },
   },
+  '/project-5': {
+    dependencies: [],
+    package: {
+      dir: '/project-5',
+      manifest: {
+        name: 'project-5',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+  },
 }
 
 test('select only package dependencies (excluding the package itself)', async () => {
@@ -114,7 +128,7 @@ test('select package with dependencies', async () => {
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-1', '/project-2', '/project-4'])
 })
 
-test('select package with dependencies and dependents', async () => {
+test('select package with dependencies and dependents, including dependent dependencies', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
@@ -124,7 +138,7 @@ test('select package with dependencies and dependents', async () => {
     },
   ], { workspaceDir: process.cwd() })
 
-  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2', '/project-4', '/packages/project-0'])
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2', '/project-4', '/packages/project-0', '/packages/project-1', '/project-5'])
 })
 
 test('select package with dependents', async () => {
@@ -302,11 +316,11 @@ test('should return unmatched filters', async () => {
     {
       excludeSelf: true,
       includeDependencies: true,
-      namePattern: 'project-5',
+      namePattern: 'project-6',
     },
   ], { workspaceDir: process.cwd() })
 
-  expect(unmatchedFilters).toStrictEqual(['project-5'])
+  expect(unmatchedFilters).toStrictEqual(['project-6'])
 })
 
 test('select all packages except one', async () => {
