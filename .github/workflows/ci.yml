@@ -51,4 +51,4 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
     - name: run tests (branch)
       if: github.ref != 'refs/heads/main'
-      run: pnpm run test-branch
+      run: pnpm run test-main
