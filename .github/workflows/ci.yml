@@ -38,6 +38,11 @@ jobs:
     - name: run tests (main)
       if: github.ref == 'refs/heads/main'
       run: pnpm run test-main
+    - name: Posting Coverage to Coveralls
+      uses: coverallsapp/github-action@master
+      if: github.ref == 'refs/heads/main'
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
     - name: run tests (branch)
       if: github.ref != 'refs/heads/main'
       run: pnpm run test-branch
