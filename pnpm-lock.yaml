@@ -12,7 +12,6 @@ importers:
       '@types/node': 12.19.6
       '@types/tape': 4.13.0
       c8: 7.3.5
-      coveralls: 3.1.0
       cross-env: 7.0.2
       eslint: 7.14.0
       husky: 4.3.0
@@ -40,7 +39,6 @@ importers:
       '@types/node': ^12.19.6
       '@types/tape': ^4.13.0
       c8: ^7.3.5
-      coveralls: ^3.1.0
       cross-env: ^7.0.2
       eslint: ^7.14.0
       husky: ^4.3.0
@@ -6419,19 +6417,6 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-pondGvTuVYDk++upghXJabWzL6Kxu6f26ljFw64Swq9v6sQPUL3EUlVDV56diOjpCayKihL6hVe8exIACU4XcA==
-  /coveralls/3.1.0:
-    dependencies:
-      js-yaml: 3.14.0
-      lcov-parse: 1.0.0
-      log-driver: 1.2.7
-      minimist: 1.2.5
-      request: 2.88.2
-    dev: true
-    engines:
-      node: '>=6'
-    hasBin: true
-    resolution:
-      integrity: sha512-sHxOu2ELzW8/NC1UP5XVLbZDzO4S3VxfFye3XYCznopHy02YjNkHcj5bKaVw2O7hVaBdBjEdQGpie4II1mWhuQ==
   /cp-file/7.0.0:
     dependencies:
       graceful-fs: 4.2.4
@@ -9871,11 +9856,6 @@ packages:
       node: '>= 0.6.3'
     resolution:
       integrity: sha1-9plf4PggOS9hOWvolGJAe7dxaOQ=
-  /lcov-parse/1.0.0:
-    dev: true
-    hasBin: true
-    resolution:
-      integrity: sha1-6w1GtUER68VhrLTECO+TY73I9+A=
   /lcov-result-merger/3.1.0:
     dependencies:
       through2: 2.0.5
@@ -10202,12 +10182,6 @@ packages:
   /lodash/4.17.20:
     resolution:
       integrity: sha512-PlhdFcillOINfeV7Ni6oF1TAEayyZBoZ8bcshTHqOYJYlrqzRK5hagpagky5o4HfCzzd1TRkXPMFq6cKk9rGmA==
-  /log-driver/1.2.7:
-    dev: true
-    engines:
-      node: '>=0.8.6'
-    resolution:
-      integrity: sha512-U7KCmLdqsGHBLeWqYlFA0V0Sl6P08EE1ZrmA9cxjUE0WVqT9qnyVDPz1kzpFEP0jdJuFnasWIfSd7fsaNXkpbg==
   /log-ok/0.1.1:
     dependencies:
       ansi-green: 0.1.1

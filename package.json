@@ -13,7 +13,7 @@
     "verdaccio": "verdaccio --config=./verdaccio.yaml --listen=7348",
     "compile": "pnpm --filter=pnpm --filter=@pnpm/make-dedicated-lockfile run compile && pnpm run update-manifests",
     "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile -- --watch",
-    "coveralls": "lcov-result-merger './packages/*/coverage/lcov.info' | coveralls",
+    "make-lcov": "mkdir coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "ts-node utils/updater/src/index.ts"
   },
   "devDependencies": {
@@ -28,7 +28,6 @@
     "@types/node": "^12.19.6",
     "@types/tape": "^4.13.0",
     "c8": "^7.3.5",
-    "coveralls": "^3.1.0",
     "cross-env": "^7.0.2",
     "eslint": "^7.14.0",
     "husky": "^4.3.0",
