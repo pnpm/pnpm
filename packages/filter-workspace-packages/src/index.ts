@@ -115,6 +115,7 @@ async function _filterGraph<T> (
   const cherryPickedPackages = [] as string[]
   const walkedDependencies = new Set<string>()
   const walkedDependents = new Set<string>()
+  const walkedDependentsDependencies = new Set<string>()
   const graph = pkgGraphToGraph(pkgGraph)
   const unmatchedFilters = [] as string[]
   let reversedGraph: Graph | undefined
@@ -156,11 +157,16 @@ async function _filterGraph<T> (
       }
       pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf })
     }
+
+    if (selector.includeDependencies && selector.includeDependents) {
+      pickSubgraph(graph, Array.from(walkedDependents), walkedDependentsDependencies, { includeRoot: false })
+    }
+
     if (!selector.includeDependencies && !selector.includeDependents) {
       Array.prototype.push.apply(cherryPickedPackages, entryPackages)
     }
   }
-  const walked = new Set([...walkedDependencies, ...walkedDependents])
+  const walked = new Set([...walkedDependencies, ...walkedDependents, ...walkedDependentsDependencies])
   cherryPickedPackages.forEach((cherryPickedPackage) => walked.add(cherryPickedPackage))
   return {
     selected: Array.from(walked),
