@@ -5,16 +5,12 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import path = require('path')
 import sinon = require('sinon')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async (t) => {
-  prepareEmpty(t)
+test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {
+  prepareEmpty()
 
   await install(
     {
@@ -25,20 +21,17 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
     await testDefaults()
   )
 
-  try {
-    await install({
+  await expect(
+    install({
       dependencies: {
         'is-positive': '^3.1.0',
       },
     }, await testDefaults({ frozenLockfile: true }))
-    t.fail()
-  } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
-  }
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
 })
 
-test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async (t) => {
-  prepareEmpty(t)
+test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {
+  prepareEmpty()
 
   await install({
     dependencies: {
@@ -46,20 +39,17 @@ test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json 
     },
   }, await testDefaults({ hoistPattern: '*' }))
 
-  try {
-    await install({
+  await expect(
+    install({
       dependencies: {
         'is-positive': '^3.1.0',
       },
     }, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
-    t.fail()
-  } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
-  }
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
 })
 
-test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy one of the package.json files`, async (t) => {
-  prepareEmpty(t)
+test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy one of the package.json files`, async () => {
+  prepareEmpty()
 
   const projects: MutatedProject[] = [
     {
@@ -95,16 +85,13 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
     },
   }
 
-  try {
-    await mutateModules(projects, await testDefaults({ frozenLockfile: true }))
-    t.fail()
-  } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with p1${path.sep}package.json`)
-  }
+  await expect(
+    mutateModules(projects, await testDefaults({ frozenLockfile: true }))
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with p1${path.sep}package.json`)
 })
 
-test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is available`, async (t) => {
-  const project = prepareEmpty(t)
+test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is available`, async () => {
+  const project = prepareEmpty()
 
   const manifest = await install({
     dependencies: {
@@ -119,23 +106,20 @@ test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is av
   await project.has('is-positive')
 })
 
-test(`frozen-lockfile: should fail if no ${WANTED_LOCKFILE} is present`, async (t) => {
-  prepareEmpty(t)
+test(`frozen-lockfile: should fail if no ${WANTED_LOCKFILE} is present`, async () => {
+  prepareEmpty()
 
-  try {
-    await install({
+  await expect(
+    install({
       dependencies: {
         'is-positive': '^3.0.0',
       },
     }, await testDefaults({ frozenLockfile: true }))
-    t.fail()
-  } catch (err) {
-    t.equals(err.message, `Headless installation requires a ${WANTED_LOCKFILE} file`)
-  }
+  ).rejects.toThrow(`Headless installation requires a ${WANTED_LOCKFILE} file`)
 })
 
-test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
-  const project = prepareEmpty(t)
+test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async () => {
+  const project = prepareEmpty()
 
   const manifest = await install({
     dependencies: {
@@ -148,17 +132,17 @@ test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_
   const reporter = sinon.spy()
   await install(manifest, await testDefaults({ reporter, preferFrozenLockfile: true }))
 
-  t.ok(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'info',
     message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
-  }), 'start of headless installation logged')
+  })).toBeTruthy()
 
   await project.has('is-positive')
 })
 
-test(`prefer-frozen-lockfile: should not prefer headless installation when ${WANTED_LOCKFILE} does not satisfy package.json`, async (t) => {
-  const project = prepareEmpty(t)
+test(`prefer-frozen-lockfile: should not prefer headless installation when ${WANTED_LOCKFILE} does not satisfy package.json`, async () => {
+  const project = prepareEmpty()
 
   await install({
     dependencies: {
@@ -175,29 +159,29 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
     },
   }, await testDefaults({ reporter, preferFrozenLockfile: true }))
 
-  t.notOk(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'info',
     message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
-  }), 'start of headless installation not logged')
+  })).toBeFalsy()
 
   await project.has('is-negative')
 })
 
-test(`prefer-frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
-  prepareEmpty(t)
+test(`prefer-frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async () => {
+  prepareEmpty()
 
   await install({}, await testDefaults({ preferFrozenLockfile: true }))
 })
 
-test(`frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
-  prepareEmpty(t)
+test(`frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async () => {
+  prepareEmpty()
 
   await install({}, await testDefaults({ frozenLockfile: true }))
 })
 
-test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
-  const project = prepareEmpty(t)
+test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async () => {
+  const project = prepareEmpty()
 
   const manifest = await install({
     dependencies: {
@@ -214,18 +198,18 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
     reporter,
   }))
 
-  t.ok(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'info',
     message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
-  }), 'start of headless installation logged')
+  })).toBeTruthy()
 
   await project.has('pkg-with-1-dep')
   await project.has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
 })
 
-test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has linked dependency', async (t) => {
-  const projects = preparePackages(t, [
+test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has linked dependency', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'p1',
 
@@ -276,11 +260,11 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
     reporter,
   }))
 
-  t.ok(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'info',
     message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
-  }), 'start of headless installation logged')
+  })).toBeTruthy()
 
   await projects['p1'].has('p2')
   await projects['p2'].has('is-negative')

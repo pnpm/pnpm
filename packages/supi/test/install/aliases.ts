@@ -1,25 +1,21 @@
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from 'supi'
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('installing aliased dependency', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('installing aliased dependency', async () => {
+  const project = prepareEmpty()
   await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('negative')
-  t.ok(typeof m === 'function', 'negative() is available')
-  t.ok(typeof project.requireModule('positive') === 'function', 'positive() is available')
+  expect(typeof m).toBe('function')
+  expect(typeof project.requireModule('positive')).toBe('function')
 
-  t.deepEqual(await project.readLockfile(), {
+  expect(await project.readLockfile()).toStrictEqual({
     dependencies: {
       negative: '/is-negative/1.0.0',
       positive: '/is-positive/3.1.0',
@@ -49,11 +45,11 @@ test('installing aliased dependency', async (t: tape.Test) => {
       negative: 'npm:is-negative@1.0.0',
       positive: 'npm:is-positive@^3.1.0',
     },
-  }, `correct ${WANTED_LOCKFILE}`)
+  })
 })
 
-test('aliased dependency w/o version spec, with custom tag config', async (t) => {
-  const project = prepareEmpty(t)
+test('aliased dependency w/o version spec, with custom tag config', async () => {
+  const project = prepareEmpty()
 
   const tag = 'beta'
 
@@ -65,16 +61,16 @@ test('aliased dependency w/o version spec, with custom tag config', async (t) =>
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('a dependency has an aliased subdependency', async (t: tape.Test) => {
+test('a dependency has an aliased subdependency', async () => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  const project = prepareEmpty(t)
+  const project = prepareEmpty()
 
   await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ fastUnpack: false }))
 
-  t.equal(project.requireModule('pkg-with-1-aliased-dep')().name, 'dep-of-pkg-with-1-dep', 'can require aliased subdep')
+  expect(project.requireModule('pkg-with-1-aliased-dep')().name).toEqual('dep-of-pkg-with-1-dep')
 
-  t.deepEqual(await project.readLockfile(), {
+  expect(await project.readLockfile()).toStrictEqual({
     dependencies: {
       'pkg-with-1-aliased-dep': '100.0.0',
     },
@@ -99,15 +95,15 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
     specifiers: {
       'pkg-with-1-aliased-dep': '^100.0.0',
     },
-  }, `correct ${WANTED_LOCKFILE}`)
+  })
 })
 
-test('installing the same package via an alias and directly', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('installing the same package via an alias and directly', async () => {
+  const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], await testDefaults({ fastUnpack: false }))
 
-  t.deepEqual(manifest.dependencies, { negative: 'npm:is-negative@^1.0.1', 'is-negative': '^1.0.1' })
+  expect(manifest.dependencies).toStrictEqual({ negative: 'npm:is-negative@^1.0.1', 'is-negative': '^1.0.1' })
 
-  t.ok(typeof project.requireModule('negative') === 'function', 'negative() is available')
-  t.ok(typeof project.requireModule('is-negative') === 'function', 'isNegative() is available')
+  expect(typeof project.requireModule('negative')).toEqual('function')
+  expect(typeof project.requireModule('is-negative')).toEqual('function')
 })

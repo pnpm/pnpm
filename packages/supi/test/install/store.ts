@@ -1,16 +1,12 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from 'supi'
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
-import tape = require('tape')
 import writeJsonFile = require('write-json-file')
 
-const test = promisifyTape(tape)
-
-test('repeat install with corrupted `store.json` should work', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('repeat install with corrupted `store.json` should work', async () => {
+  const project = prepareEmpty()
 
   const opts = await testDefaults()
   const manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], opts)

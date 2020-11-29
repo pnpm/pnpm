@@ -6,18 +6,14 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
-import promisifyTape from 'tape-promise'
 import { addDistTag, testDefaults } from '../utils'
 import fs = require('fs')
 import rimraf = require('@zkochan/rimraf')
 import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('should hoist dependencies', async (t) => {
-  const project = prepareEmpty(t)
+test('should hoist dependencies', async () => {
+  const project = prepareEmpty()
 
   await addDependenciesToPackage({}, ['express', '@foo/has-dep-from-same-scope'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
@@ -32,8 +28,8 @@ test('should hoist dependencies', async (t) => {
   await project.isExecutable('.pnpm/node_modules/.bin/mime')
 })
 
-test('should hoist dependencies to the root of node_modules when publicHoistPattern is used', async (t) => {
-  const project = prepareEmpty(t)
+test('should hoist dependencies to the root of node_modules when publicHoistPattern is used', async () => {
+  const project = prepareEmpty()
 
   await addDependenciesToPackage({},
     ['express', '@foo/has-dep-from-same-scope'],
@@ -50,8 +46,8 @@ test('should hoist dependencies to the root of node_modules when publicHoistPatt
   await project.isExecutable('.bin/mime')
 })
 
-test('should hoist some dependencies to the root of node_modules when publicHoistPattern is used and others to the virtual store directory', async (t) => {
-  const project = prepareEmpty(t)
+test('should hoist some dependencies to the root of node_modules when publicHoistPattern is used and others to the virtual store directory', async () => {
+  const project = prepareEmpty()
 
   await addDependenciesToPackage({},
     ['express', '@foo/has-dep-from-same-scope'],
@@ -68,8 +64,8 @@ test('should hoist some dependencies to the root of node_modules when publicHois
   await project.isExecutable('.pnpm/node_modules/.bin/mime')
 })
 
-test('should hoist dependencies by pattern', async (t) => {
-  const project = prepareEmpty(t)
+test('should hoist dependencies by pattern', async () => {
+  const project = prepareEmpty()
 
   await addDependenciesToPackage({}, ['express'], await testDefaults({ fastUnpack: false, hoistPattern: 'mime' }))
 
@@ -82,8 +78,8 @@ test('should hoist dependencies by pattern', async (t) => {
   await project.isExecutable('.pnpm/node_modules/.bin/mime')
 })
 
-test('should remove hoisted dependencies', async (t) => {
-  const project = prepareEmpty(t)
+test('should remove hoisted dependencies', async () => {
+  const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['express'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
   await mutateModules([
@@ -100,19 +96,19 @@ test('should remove hoisted dependencies', async (t) => {
   await project.hasNot('.pnpm/node_modules/cookie')
 })
 
-test('should not override root packages with hoisted dependencies', async (t) => {
-  const project = prepareEmpty(t)
+test('should not override root packages with hoisted dependencies', async () => {
+  const project = prepareEmpty()
 
   // this installs debug@3.1.0
   const manifest = await addDependenciesToPackage({}, ['debug@3.1.0'], await testDefaults({ hoistPattern: '*' }))
   // this installs express@4.16.2, that depends on debug 2.6.9, but we don't want to flatten debug@2.6.9
   await addDependenciesToPackage(manifest, ['express@4.16.2'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug did not get overridden by flattening')
+  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
 })
 
-test('should rehoist when uninstalling a package', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('should rehoist when uninstalling a package', async () => {
+  const project = prepareEmpty()
 
   // this installs debug@3.1.0 and express@4.16.0
   const manifest = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
@@ -126,16 +122,16 @@ test('should rehoist when uninstalling a package', async (t: tape.Test) => {
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
-  t.equal(project.requireModule('.pnpm/node_modules/debug/package.json').version, '2.6.9', 'debug was hoisted after uninstall')
-  t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express did not get updated by hoisting')
+  expect(project.requireModule('.pnpm/node_modules/debug/package.json').version).toEqual('2.6.9')
+  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
 
   const modules = await project.readModulesManifest()
-  t.ok(modules)
-  t.deepEqual(modules!.hoistedDependencies['/debug/2.6.9'], { debug: 'private' }, 'new hoisted debug added to .modules.yaml')
+  expect(modules).toBeTruthy()
+  expect(modules!.hoistedDependencies['/debug/2.6.9']).toStrictEqual({ debug: 'private' })
 })
 
-test('should rehoist after running a general install', async (t) => {
-  const project = prepareEmpty(t)
+test('should rehoist after running a general install', async () => {
+  const project = prepareEmpty()
 
   await install({
     dependencies: {
@@ -144,8 +140,8 @@ test('should rehoist after running a general install', async (t) => {
     },
   }, await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug installed correctly')
-  t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express installed correctly')
+  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
+  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
 
   await project.hasNot('.pnpm/node_modules/debug') // debug not hoisted because it is a direct dep
 
@@ -161,49 +157,43 @@ test('should rehoist after running a general install', async (t) => {
   }, await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
-  t.equal(prevExpressModulePath, currExpressModulePath, 'express not updated')
+  expect(prevExpressModulePath).toEqual(currExpressModulePath)
 
   await project.has('.pnpm/node_modules/debug') // debug hoisted because it is not a direct dep anymore
 })
 
-test('should not override aliased dependencies', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('should not override aliased dependencies', async () => {
+  const project = prepareEmpty()
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
   await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  t.equal(project.requireModule('debug/package.json').version, '1.0.0', 'alias respected by flattening')
+  expect(project.requireModule('debug/package.json').version).toEqual('1.0.0')
 })
 
-test('hoistPattern=* throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('hoistPattern=* throws exception when executed on node_modules installed w/o the option', async () => {
+  prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ hoistPattern: undefined }))
 
-  try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({
+  await expect(
+    addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({
       forceHoistPattern: true,
       hoistPattern: '*',
     }))
-    t.fail('installation should have failed')
-  } catch (err) {
-    t.equal(err['code'], 'ERR_PNPM_HOIST_PATTERN_DIFF') // eslint-disable-line @typescript-eslint/dot-notation
-  }
+  ).rejects.toThrow(/different hoist-pattern value/)
 })
 
-test('hoistPattern=undefined throws exception when executed on node_modules installed with hoist-pattern=*', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('hoistPattern=undefined throws exception when executed on node_modules installed with hoist-pattern=*', async () => {
+  prepareEmpty()
   const opts = await testDefaults({ hoistPattern: '*' })
   const manifest = await addDependenciesToPackage({}, ['is-positive'], opts)
 
-  try {
-    await addDependenciesToPackage(manifest, ['is-negative'], {
+  await expect(
+    addDependenciesToPackage(manifest, ['is-negative'], {
       ...opts,
       forceHoistPattern: true,
       hoistPattern: undefined,
     })
-    t.fail('installation should have failed')
-  } catch (err) {
-    t.equal(err['code'], 'ERR_PNPM_HOIST_PATTERN_DIFF') // eslint-disable-line @typescript-eslint/dot-notation
-  }
+  ).rejects.toThrow(/different hoist-pattern value/)
 
   // Instatll doesn't fail if the value of hoistPattern isn't forced
   await addDependenciesToPackage(manifest, ['is-negative'], {
@@ -213,9 +203,9 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
   })
 })
 
-test('hoist by alias', async (t: tape.Test) => {
+test('hoist by alias', async () => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
-  const project = prepareEmpty(t)
+  const project = prepareEmpty()
 
   // pkg-with-1-aliased-dep aliases dep-of-pkg-with-1-dep as just "dep"
   await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
@@ -225,12 +215,12 @@ test('hoist by alias', async (t: tape.Test) => {
   await project.hasNot('.pnpm/node_modules/dep-of-pkg-with-1-dep')
 
   const modules = await project.readModulesManifest()
-  t.ok(modules)
-  t.deepEqual(modules!.hoistedDependencies, { '/dep-of-pkg-with-1-dep/100.1.0': { dep: 'private' } }, '.modules.yaml updated correctly')
+  expect(modules).toBeTruthy()
+  expect(modules!.hoistedDependencies).toStrictEqual({ '/dep-of-pkg-with-1-dep/100.1.0': { dep: 'private' } })
 })
 
-test('should remove aliased hoisted dependencies', async (t) => {
-  const project = prepareEmpty(t)
+test('should remove aliased hoisted dependencies', async () => {
+  const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
   await mutateModules([
@@ -244,21 +234,18 @@ test('should remove aliased hoisted dependencies', async (t) => {
 
   await project.hasNot('pkg-with-1-aliased-dep')
   await project.hasNot('dep-of-pkg-with-1-dep')
-  let caught = false
   try {
     await resolveLinkTarget('./node_modules/dep')
-  } catch (e) {
-    caught = true
-  }
-  t.ok(caught, 'dep removed correctly')
+    throw new Error('should have failed')
+  } catch (e) {}
 
   const modules = await project.readModulesManifest()
-  t.ok(modules)
-  t.deepEqual(modules!.hoistedDependencies, {}, '.modules.yaml updated correctly')
+  expect(modules).toBeTruthy()
+  expect(modules!.hoistedDependencies).toStrictEqual({})
 })
 
-test('should update .modules.yaml when pruning if we are flattening', async (t) => {
-  const project = prepareEmpty(t)
+test('should update .modules.yaml when pruning if we are flattening', async () => {
+  const project = prepareEmpty()
 
   await install({
     dependencies: {
@@ -269,12 +256,12 @@ test('should update .modules.yaml when pruning if we are flattening', async (t) 
   await install({}, await testDefaults({ hoistPattern: '*', pruneStore: true }))
 
   const modules = await project.readModulesManifest()
-  t.ok(modules)
-  t.deepEqual(modules!.hoistedDependencies, {}, '.modules.yaml updated correctly')
+  expect(modules).toBeTruthy()
+  expect(modules!.hoistedDependencies).toStrictEqual({})
 })
 
-test('should rehoist after pruning', async (t) => {
-  const project = prepareEmpty(t)
+test('should rehoist after pruning', async () => {
+  const project = prepareEmpty()
 
   await install({
     dependencies: {
@@ -283,8 +270,8 @@ test('should rehoist after pruning', async (t) => {
     },
   }, await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug installed correctly')
-  t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express installed correctly')
+  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
+  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
 
   await project.hasNot('.pnpm/node_modules/debug') // debug is not hoisted because it is a direct dep
   // read this module path because we can't use requireModule again, as it is cached
@@ -300,20 +287,20 @@ test('should rehoist after pruning', async (t) => {
   }, await testDefaults({ fastUnpack: false, hoistPattern: '*', pruneStore: true }))
 
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
-  t.equal(prevExpressModulePath, currExpressModulePath, 'express not updated')
+  expect(prevExpressModulePath).toEqual(currExpressModulePath)
 
   await project.has('.pnpm/node_modules/debug') // debug is hoisted because it is not a direct dep anymore
 })
 
-test('should hoist correctly peer dependencies', async (t) => {
-  const project = prepareEmpty(t)
+test('should hoist correctly peer dependencies', async () => {
+  const project = prepareEmpty()
   await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ hoistPattern: '*' }))
 
   await project.has('.pnpm/node_modules/ajv-keywords')
 })
 
-test('should uninstall correctly peer dependencies', async (t) => {
-  prepareEmpty(t)
+test('should uninstall correctly peer dependencies', async () => {
+  prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ hoistPattern: '*' }))
   await mutateModules([
     {
@@ -324,10 +311,11 @@ test('should uninstall correctly peer dependencies', async (t) => {
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
-  t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
+  // symlink to peer dependency is deleted
+  expect(() => fs.lstatSync('node_modules/ajv-keywords')).toThrow()
 })
 
-test('hoist-pattern: hoist all dependencies to the virtual store node_modules', async (t) => {
+test('hoist-pattern: hoist all dependencies to the virtual store node_modules', async () => {
   const workspaceRootManifest = {
     name: 'root',
 
@@ -342,7 +330,7 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
       foobar: '100.0.0',
     },
   }
-  const projects = preparePackages(t, [
+  const projects = preparePackages(undefined, [
     {
       location: '.',
       package: workspaceRootManifest,
@@ -401,7 +389,7 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
   await projects['package'].hasNot('bar')
 })
 
-test('hoist when updating in one of the workspace projects', async (t) => {
+test('hoist when updating in one of the workspace projects', async () => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
   const workspaceRootManifest = {
@@ -418,7 +406,7 @@ test('hoist when updating in one of the workspace projects', async (t) => {
       foo: '100.0.0',
     },
   }
-  preparePackages(t, [
+  preparePackages(undefined, [
     {
       location: '.',
       package: workspaceRootManifest,
@@ -445,10 +433,10 @@ test('hoist when updating in one of the workspace projects', async (t) => {
   ]
   await mutateModules(mutatedProjects, await testDefaults({ hoistPattern: '*' }))
 
-  const rootModules = assertProject(t, process.cwd())
+  const rootModules = assertProject(undefined, process.cwd())
   {
     const modulesManifest = await rootModules.readModulesManifest()
-    t.deepEqual(modulesManifest?.hoistedDependencies, {
+    expect(modulesManifest?.hoistedDependencies).toStrictEqual({
       '/dep-of-pkg-with-1-dep/100.0.0': { 'dep-of-pkg-with-1-dep': 'private' },
       '/foo/100.0.0': { foo: 'private' },
     })
@@ -464,8 +452,9 @@ test('hoist when updating in one of the workspace projects', async (t) => {
 
   const lockfile = await rootModules.readCurrentLockfile()
 
-  t.deepEqual(
-    Object.keys(lockfile.packages),
+  expect(
+    Object.keys(lockfile.packages)
+  ).toStrictEqual(
     [
       '/dep-of-pkg-with-1-dep/100.0.0',
       '/foo/100.0.0',
@@ -476,21 +465,21 @@ test('hoist when updating in one of the workspace projects', async (t) => {
 
   {
     const modulesManifest = await rootModules.readModulesManifest()
-    t.deepEqual(modulesManifest?.hoistedDependencies, {
+    expect(modulesManifest?.hoistedDependencies).toStrictEqual({
       '/dep-of-pkg-with-1-dep/100.0.0': { 'dep-of-pkg-with-1-dep': 'private' },
     })
   }
 })
 
-test('should recreate node_modules with hoisting', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('should recreate node_modules with hoisting', async () => {
+  const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ hoistPattern: undefined }))
 
   await project.hasNot('.pnpm/node_modules/dep-of-pkg-with-1-dep')
   {
     const modulesManifest = await project.readModulesManifest()
-    t.notOk(modulesManifest.hoistPattern)
-    t.deepEqual(modulesManifest.hoistedDependencies, {})
+    expect(modulesManifest?.hoistPattern).toBeFalsy()
+    expect(modulesManifest?.hoistedDependencies).toStrictEqual({})
   }
 
   await mutateModules([
@@ -506,7 +495,7 @@ test('should recreate node_modules with hoisting', async (t: tape.Test) => {
   await project.has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
   {
     const modulesManifest = await project.readModulesManifest()
-    t.ok(modulesManifest.hoistPattern)
-    t.ok(Object.keys(modulesManifest.hoistedDependencies).length > 0)
+    expect(modulesManifest?.hoistPattern).toBeTruthy()
+    expect(Object.keys(modulesManifest?.hoistedDependencies ?? {}).length > 0).toBeTruthy()
   }
 })

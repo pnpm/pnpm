@@ -4,16 +4,12 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('installing to a custom modules directory', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('installing to a custom modules directory', async () => {
+  const project = prepareEmpty()
 
   await install({
     dependencies: {
@@ -35,8 +31,8 @@ test('installing to a custom modules directory', async (t: tape.Test) => {
   await project.has('is-positive', 'pnpm_modules')
 })
 
-test('using different custom modules directory for every project', async (t) => {
-  const projects = preparePackages(t, [
+test('using different custom modules directory for every project', async () => {
+  const projects = preparePackages(undefined, [
     {
       location: 'project-1',
       package: {

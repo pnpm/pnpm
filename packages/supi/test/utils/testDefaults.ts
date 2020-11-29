@@ -54,7 +54,14 @@ export default async function testDefaults<T> (
       ...storeOpts,
     }
   )
-  const result: (
+  const result = {
+    registries: {
+      default: registry,
+    },
+    storeController,
+    storeDir,
+    ...opts,
+  } as (
     InstallOptions &
     {
       registries: Registries
@@ -62,13 +69,6 @@ export default async function testDefaults<T> (
       storeDir: string
     } &
     T
-  ) = {
-    registries: {
-      default: registry,
-    },
-    storeController,
-    storeDir,
-    ...opts,
-  }
+  )
   return result
 }

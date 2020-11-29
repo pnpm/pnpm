@@ -86,7 +86,7 @@ export default function prepare (
   return assertProject(test, dir)
 }
 
-export function prepareEmpty (t: Test) {
+export function prepareEmpty (t?: Test) {
   const pkgTmpPath = path.join(tempDir(t), 'project')
 
   fs.mkdirSync(pkgTmpPath, { recursive: true })

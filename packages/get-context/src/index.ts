@@ -15,12 +15,16 @@ import {
   Registries,
 } from '@pnpm/types'
 import checkCompatibility from './checkCompatibility'
+import UnexpectedStoreError from './checkCompatibility/UnexpectedStoreError'
+import UnexpectedVirtualStoreDirError from './checkCompatibility/UnexpectedVirtualStoreDirError'
 import readLockfileFile from './readLockfiles'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
+
+export { UnexpectedStoreError, UnexpectedVirtualStoreDirError }
 
 export interface PnpmContext<T> {
   currentLockfile: Lockfile

@@ -1,16 +1,12 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from 'supi'
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from './utils'
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('should fail to update when requests are cached', async (t) => {
-  const project = prepareEmpty(t)
+test('should fail to update when requests are cached', async () => {
+  const project = prepareEmpty()
 
   const opts = await testDefaults()
 
@@ -27,8 +23,8 @@ test('should fail to update when requests are cached', async (t) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('should not cache when cache is not used', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('should not cache when cache is not used', async () => {
+  const project = prepareEmpty()
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 

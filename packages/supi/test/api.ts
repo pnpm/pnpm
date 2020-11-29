@@ -1,13 +1,11 @@
 import * as pnpm from 'supi'
 import { testDefaults } from './utils'
-import test = require('tape')
 
-test('API', (t) => {
-  t.equal(typeof pnpm.install, 'function', 'exports install()')
-  t.equal(typeof pnpm.linkFromGlobal, 'function', 'exports linkFromGlobal()')
-  t.equal(typeof pnpm.link, 'function', 'exports link()')
-  t.equal(typeof pnpm.linkToGlobal, 'function', 'exports linkToGlobal()')
-  t.end()
+test('API', () => {
+  expect(typeof pnpm.install).toBe('function')
+  expect(typeof pnpm.linkFromGlobal).toBe('function')
+  expect(typeof pnpm.link).toBe('function')
+  expect(typeof pnpm.linkToGlobal).toBe('function')
 })
 
 // TODO: some sort of this validation might need to exist
@@ -15,17 +13,16 @@ test('API', (t) => {
 // this seems illogical as even though all save types are false,
 // the dependency will be saved
 // eslint-disable-next-line @typescript-eslint/dot-notation
-test.skip('install fails when all saving types are false', async (t: test.Test) => {
+test.skip('install fails when all saving types are false', async () => {
   try {
     await pnpm.install({}, await testDefaults({ save: false, saveDev: false, saveOptional: false }))
-    t.fail('installation should have failed')
+    throw new Error('installation should have failed')
   } catch (err) {
-    t.equal(err.message, 'Cannot install with save/saveDev/saveOptional all being equal false')
-    t.end()
+    expect(err.message).toBe('Cannot install with save/saveDev/saveOptional all being equal false')
   }
 })
 
-test('install fails on optional = true but production = false', async (t: test.Test) => {
+test('install fails on optional = true but production = false', async () => {
   try {
     const opts = await testDefaults({
       include: {
@@ -35,9 +32,8 @@ test('install fails on optional = true but production = false', async (t: test.T
       },
     })
     await pnpm.install({}, opts)
-    t.fail('installation should have failed')
+    throw new Error('installation should have failed')
   } catch (err) {
-    t.equal(err.message, 'Optional dependencies cannot be installed without production dependencies')
-    t.end()
+    expect(err.message).toBe('Optional dependencies cannot be installed without production dependencies')
   }
 })
