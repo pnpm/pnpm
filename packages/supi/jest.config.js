@@ -7,6 +7,6 @@ module.exports = {
     '<rootDir>/test/utils/index.ts',
     '<rootDir>/test/utils/testDefaults.ts',
   ],
-  testTimeout: 120000,
+  testTimeout: 240000,
 }
 
