@@ -1,14 +1,10 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
-import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
 import fs = require('mz/fs')
-import tape = require('tape')
 import writeYamlFile = require('write-yaml-file')
 
-const test = promisifyTape(tape)
-
-test('hoist the dependency graph', async function (t) {
-  const project = prepare(t)
+test('hoist the dependency graph', async () => {
+  const project = prepare()
 
   await execPnpm(['install', 'express@4.16.2'])
 
@@ -23,8 +19,8 @@ test('hoist the dependency graph', async function (t) {
   await project.hasNot('.pnpm/node_modules/cookie')
 })
 
-test('shamefully hoist the dependency graph', async function (t) {
-  const project = prepare(t)
+test('shamefully hoist the dependency graph', async () => {
+  const project = prepare()
 
   await execPnpm(['add', '--shamefully-hoist', 'express@4.16.2'])
 
@@ -39,8 +35,8 @@ test('shamefully hoist the dependency graph', async function (t) {
   await project.hasNot('cookie')
 })
 
-test('shamefully-hoist: applied to all the workspace projects when set to true in the root .npmrc file', async (t: tape.Test) => {
-  const projects = preparePackages(t, [
+test('shamefully-hoist: applied to all the workspace projects when set to true in the root .npmrc file', async () => {
+  const projects = preparePackages(undefined, [
     {
       location: '.',
       package: {

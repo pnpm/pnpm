@@ -1,6 +1,5 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   execPnpm,
@@ -8,12 +7,9 @@ import {
 import path = require('path')
 import isWindows = require('is-windows')
 import exists = require('path-exists')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('global installation', async (t: tape.Test) => {
-  prepare(t)
+test('global installation', async () => {
+  prepare()
   const global = path.resolve('..', 'global')
 
   const env = { NPM_CONFIG_PREFIX: global }
@@ -27,24 +23,24 @@ test('global installation', async (t: tape.Test) => {
 
   const globalPrefix = path.join(global, `pnpm-global/${LAYOUT_VERSION}`)
 
-  const isPositive = await import(path.join(globalPrefix, 'node_modules', 'is-positive'))
-  t.ok(typeof isPositive === 'function', 'isPositive() is available')
+  const { default: isPositive } = await import(path.join(globalPrefix, 'node_modules', 'is-positive'))
+  expect(typeof isPositive).toBe('function')
 
-  const isNegative = await import(path.join(globalPrefix, 'node_modules', 'is-negative'))
-  t.ok(typeof isNegative === 'function', 'isNegative() is available')
+  const { default: isNegative } = await import(path.join(globalPrefix, 'node_modules', 'is-negative'))
+  expect(typeof isNegative).toBe('function')
 })
 
-test('global installation to custom directory with --global-dir', async (t: tape.Test) => {
-  prepare(t)
+test('global installation to custom directory with --global-dir', async () => {
+  prepare()
 
   await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'])
 
-  const isPositive = await import(path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`))
-  t.ok(typeof isPositive === 'function', 'isPositive() is available')
+  const { default: isPositive } = await import(path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`))
+  expect(typeof isPositive).toBe('function')
 })
 
-test('always install latest when doing global installation without spec', async (t: tape.Test) => {
-  prepare(t)
+test('always install latest when doing global installation without spec', async () => {
+  prepare()
   await addDistTag('peer-c', '2.0.0', 'latest')
 
   const global = path.resolve('..', 'global')
@@ -61,16 +57,16 @@ test('always install latest when doing global installation without spec', async 
   process.chdir(globalPrefix)
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  t.equal(require(path.resolve('node_modules', 'peer-c', 'package.json')).version, '2.0.0')
+  expect(require(path.resolve('node_modules', 'peer-c', 'package.json')).version).toBe('2.0.0')
 })
 
-test('run lifecycle events of global packages in correct working directory', async (t: tape.Test) => {
+test('run lifecycle events of global packages in correct working directory', async () => {
   if (isWindows()) {
     // Skipping this test on Windows because "$npm_execpath run create-file" will fail on Windows
     return
   }
 
-  prepare(t)
+  prepare()
   const global = path.resolve('..', 'global')
 
   const env = { NPM_CONFIG_PREFIX: global }
@@ -78,5 +74,5 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   await execPnpm(['install', '-g', 'postinstall-calls-pnpm@1.0.0'], { env })
 
-  t.ok(await exists(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules/postinstall-calls-pnpm/created-by-postinstall`)))
+  expect(await exists(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
 })

@@ -1,19 +1,15 @@
 import prepare from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
-import promisifyTape from 'tape-promise'
 import { execPnpmSync } from '../utils'
 import path = require('path')
 import PATH = require('path-name')
 import loadJsonFile = require('load-json-file')
-import tape = require('tape')
 
 const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
 
-const test = promisifyTape(tape)
-
-test('installation fails if lifecycle script fails', t => {
-  prepare(t, {
+test('installation fails if lifecycle script fails', () => {
+  prepare(undefined, {
     scripts: {
       preinstall: 'exit 1',
     },
@@ -21,13 +17,11 @@ test('installation fails if lifecycle script fails', t => {
 
   const result = execPnpmSync(['install'])
 
-  t.equal(result.status, 1, 'installation failed')
-
-  t.end()
+  expect(result.status).toBe(1)
 })
 
-test('lifecycle script runs with the correct user agent', t => {
-  prepare(t, {
+test('lifecycle script runs with the correct user agent', () => {
+  prepare(undefined, {
     scripts: {
       preinstall: 'node --eval "console.log(process.env.npm_config_user_agent)"',
     },
@@ -35,15 +29,13 @@ test('lifecycle script runs with the correct user agent', t => {
 
   const result = execPnpmSync(['install'])
 
-  t.equal(result.status, 0, 'installation was successfull')
+  expect(result.status).toBe(0)
   const expectedUserAgentPrefix = `${pnpmPkg.name}/${pnpmPkg.version} `
-  t.ok(result.stdout.toString().includes(expectedUserAgentPrefix), 'correct npm_config_user_agent value')
-
-  t.end()
+  expect(result.stdout.toString().includes(expectedUserAgentPrefix)).toBeTruthy()
 })
 
-test('preinstall is executed before general installation', t => {
-  prepare(t, {
+test('preinstall is executed before general installation', () => {
+  prepare(undefined, {
     scripts: {
       preinstall: 'echo "Hello world!"',
     },
@@ -51,14 +43,12 @@ test('preinstall is executed before general installation', t => {
 
   const result = execPnpmSync(['install'])
 
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().includes('Hello world!'), 'preinstall script was executed')
-
-  t.end()
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString().includes('Hello world!')).toBeTruthy()
 })
 
-test('postinstall is executed after general installation', t => {
-  prepare(t, {
+test('postinstall is executed after general installation', () => {
+  prepare(undefined, {
     scripts: {
       postinstall: 'echo "Hello world!"',
     },
@@ -66,14 +56,12 @@ test('postinstall is executed after general installation', t => {
 
   const result = execPnpmSync(['install'])
 
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().includes('Hello world!'), 'postinstall script was executed')
-
-  t.end()
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString().includes('Hello world!')).toBeTruthy()
 })
 
-test('postinstall is not executed after named installation', t => {
-  prepare(t, {
+test('postinstall is not executed after named installation', () => {
+  prepare(undefined, {
     scripts: {
       postinstall: 'echo "Hello world!"',
     },
@@ -81,14 +69,12 @@ test('postinstall is not executed after named installation', t => {
 
   const result = execPnpmSync(['install', 'is-negative'])
 
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(!result.stdout.toString().includes('Hello world!'), 'postinstall script was not executed')
-
-  t.end()
+  expect(result.status).toBe(0)
+  expect(!result.stdout.toString().includes('Hello world!')).toBeTruthy()
 })
 
-test('prepare is not executed after installation with arguments', t => {
-  prepare(t, {
+test('prepare is not executed after installation with arguments', () => {
+  prepare(undefined, {
     scripts: {
       prepare: 'echo "Hello world!"',
     },
@@ -96,14 +82,12 @@ test('prepare is not executed after installation with arguments', t => {
 
   const result = execPnpmSync(['install', 'is-negative'])
 
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(!result.stdout.toString().includes('Hello world!'), 'prepare script was not executed')
-
-  t.end()
+  expect(result.status).toBe(0)
+  expect(!result.stdout.toString().includes('Hello world!')).toBeTruthy()
 })
 
-test('prepare is executed after argumentless installation', t => {
-  prepare(t, {
+test('prepare is executed after argumentless installation', () => {
+  prepare(undefined, {
     scripts: {
       prepare: 'echo "Hello world!"',
     },
@@ -111,14 +95,12 @@ test('prepare is executed after argumentless installation', t => {
 
   const result = execPnpmSync(['install'])
 
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().includes('Hello world!'), 'prepare script was executed')
-
-  t.end()
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString().includes('Hello world!')).toBeTruthy()
 })
 
-test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
-  prepare(t, {
+test('lifecycle events have proper npm_config_argv', async () => {
+  prepare(undefined, {
     dependencies: {
       'write-lifecycle-env': '^1.0.0',
     },
@@ -131,29 +113,29 @@ test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
 
   const lifecycleEnv = await loadJsonFile<object>('env.json')
 
-  t.deepEqual(JSON.parse(lifecycleEnv['npm_config_argv']), {
+  expect(JSON.parse(lifecycleEnv['npm_config_argv'])).toStrictEqual({
     cooked: ['install'],
     original: ['install'],
     remain: ['install'],
   })
 })
 
-test('dependency should not be added to package.json and lockfile if it was not built successfully', async (t: tape.Test) => {
-  const project = prepare(t, { name: 'foo', version: '1.0.0' })
+test('dependency should not be added to package.json and lockfile if it was not built successfully', async () => {
+  const project = prepare(undefined, { name: 'foo', version: '1.0.0' })
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
-  t.equal(result.status, 1)
+  expect(result.status).toBe(1)
 
-  t.notOk(await project.readCurrentLockfile())
-  t.notOk(await project.readLockfile())
+  expect(await project.readCurrentLockfile()).toBeFalsy()
+  expect(await project.readLockfile()).toBeFalsy()
 
-  const pkg = await import(path.resolve('package.json'))
-  t.deepEqual(pkg, { name: 'foo', version: '1.0.0' }, 'package.json not updated')
+  const { default: pkg } = await import(path.resolve('package.json'))
+  expect(pkg).toStrictEqual({ name: 'foo', version: '1.0.0' })
 })
 
-test('node-gyp is in the PATH', async (t) => {
-  prepare(t, {
+test('node-gyp is in the PATH', async () => {
+  prepare(undefined, {
     scripts: {
       test: 'node-gyp --help',
     },
@@ -174,5 +156,5 @@ test('node-gyp is in the PATH', async (t) => {
 
   process.env[PATH] = initialPath
 
-  t.equal(result.status, 0)
+  expect(result.status).toBe(0)
 })
