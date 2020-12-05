@@ -5,18 +5,14 @@ import {
   addDependenciesToPackage,
   PackageManifest,
 } from 'supi'
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
 import sinon = require('sinon')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('readPackage, afterAllResolved hooks', async () => {
+  const project = prepareEmpty()
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
@@ -46,9 +42,9 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
-  t.ok(afterAllResolved.calledOnce, 'afterAllResolved() called once')
-  t.equal(afterAllResolved.getCall(0).args[0].lockfileVersion, LOCKFILE_VERSION)
+  expect(afterAllResolved.calledOnce).toBeTruthy()
+  expect(afterAllResolved.getCall(0).args[0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
   const wantedLockfile = await project.readLockfile()
-  t.equal(wantedLockfile['foo'], 'foo', 'the lockfile object has been updated by the hook') // eslint-disable-line @typescript-eslint/dot-notation
+  expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
 })

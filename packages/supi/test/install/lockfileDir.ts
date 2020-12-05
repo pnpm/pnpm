@@ -4,17 +4,12 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { copyFixture } from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, mutateModules } from 'supi'
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-const testSkip = promisifyTape(tape.skip)
-
-testSkip('subsequent installation uses same lockfile directory by default', async (t: tape.Test) => {
-  prepareEmpty(t)
+test.skip('subsequent installation uses same lockfile directory by default', async () => {
+  prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
 
@@ -22,11 +17,11 @@ testSkip('subsequent installation uses same lockfile directory by default', asyn
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
-  t.deepEqual(Object.keys(lockfile.packages ?? {}), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // eslint-disable-line @typescript-eslint/dot-notation
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/is-negative/1.0.0', '/is-positive/1.0.0']) // eslint-disable-line @typescript-eslint/dot-notation
 })
 
-testSkip('subsequent installation fails if a different lockfile directory is specified', async (t: tape.Test) => {
-  prepareEmpty(t)
+test.skip('subsequent installation fails if a different lockfile directory is specified', async () => {
+  prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
 
@@ -34,16 +29,16 @@ testSkip('subsequent installation fails if a different lockfile directory is spe
 
   try {
     await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ lockfileDir: process.cwd() }))
+    throw new Error('test failed')
   } catch (_) {
     err = _
   }
 
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_LOCKFILE_DIRECTORY_MISMATCH', 'failed with correct error code')
+  expect(err.code).toBe('ERR_PNPM_LOCKFILE_DIRECTORY_MISMATCH')
 })
 
-test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async () => {
+  const project = prepareEmpty()
 
   await copyFixture('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', 'pkg.tgz')
 
@@ -62,8 +57,8 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
   )
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-  t.ok(lockfile.packages!['file:project/pkg.tgz'])
-  t.equal(lockfile.packages!['file:project/pkg.tgz'].resolution['tarball'], 'file:project/pkg.tgz')
+  expect(lockfile.packages!['file:project/pkg.tgz']).toBeTruthy()
+  expect(lockfile.packages!['file:project/pkg.tgz'].resolution['tarball']).toBe('file:project/pkg.tgz')
 
   await rimraf('node_modules')
 

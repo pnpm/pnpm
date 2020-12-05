@@ -10,7 +10,6 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
@@ -18,53 +17,46 @@ import deepRequireCwd = require('deep-require-cwd')
 import fs = require('mz/fs')
 import exists = require('path-exists')
 import sinon = require('sinon')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test("don't fail when peer dependency is fetched from GitHub", async (t) => {
-  prepareEmpty(t)
+test("don't fail when peer dependency is fetched from GitHub", async () => {
+  prepareEmpty()
   await addDependenciesToPackage({}, ['test-pnpm-peer-deps'], await testDefaults())
 })
 
-test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async () => {
+  const project = prepareEmpty()
   const opts = await testDefaults()
   let manifest = await addDependenciesToPackage({}, ['using-ajv'], opts)
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv')), 'peer dependency is linked')
-  t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version).toBe('4.10.4')
 
   // testing that peers are reinstalled correctly using info from the lockfile
   await rimraf('node_modules')
   await rimraf(path.resolve('..', '.store'))
   manifest = await install(manifest, await testDefaults())
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv')), 'peer dependency is linked')
-  t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version).toBe('4.10.4')
 
   await addDependenciesToPackage(manifest, ['using-ajv'], await testDefaults({ update: true }))
 
   const lockfile = await project.readLockfile()
 
-  t.equal(
-    lockfile.packages['/using-ajv/1.0.0'].dependencies!['ajv-keywords'],
-    '1.5.0_ajv@4.10.4',
-    `${WANTED_LOCKFILE}: correct reference is created to ajv-keywords from using-ajv`
-  )
+  expect(lockfile.packages['/using-ajv/1.0.0'].dependencies!['ajv-keywords']).toBe('1.5.0_ajv@4.10.4')
   // covers https://github.com/pnpm/pnpm/issues/1150
-  t.ok(lockfile.packages['/ajv-keywords/1.5.0_ajv@4.10.4'])
+  expect(lockfile.packages).toHaveProperty(['/ajv-keywords/1.5.0_ajv@4.10.4'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1133
-test('nothing is needlessly removed from node_modules', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('nothing is needlessly removed from node_modules', async () => {
+  prepareEmpty()
   const opts = await testDefaults()
   const manifest = await addDependenciesToPackage({}, ['using-ajv', 'ajv-keywords@1.5.0'], opts)
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv')), 'peer dependency is linked')
-  t.ok(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords')), 'root dependency resolution is present')
-  t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeTruthy()
+  expect(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version).toBe('4.10.4')
 
   await mutateModules([
     {
@@ -75,22 +67,22 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
     },
   ], opts)
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv')), 'peer dependency link is not removed')
-  t.notOk(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords')), 'root dependency resolution is removed')
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeFalsy()
 })
 
-test('peer dependency is grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('peer dependency is grouped with dependent when the peer is a top dependency', async () => {
+  const project = prepareEmpty()
 
   const reporter = sinon.spy()
 
   const manifest = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
-  t.notOk(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
-  }), 'no warning is logged about unresolved peer dep')
+  })).toBeFalsy()
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords')), 'dependent is grouped with top peer dep')
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
 
   await mutateModules([
     {
@@ -102,10 +94,10 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   ], await testDefaults({ preferFrozenLockfile: false }))
 
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.packages['/ajv-keywords/1.5.0_ajv@4.10.4'].dependencies.ajv, 'peer dep is still linked after repeat install')
+  expect(lockfile.packages['/ajv-keywords/1.5.0_ajv@4.10.4'].dependencies).toHaveProperty(['ajv'])
 })
 
-test('the right peer dependency is used in every workspace package', async (t: tape.Test) => {
+test('the right peer dependency is used in every workspace package', async () => {
   const manifest1 = {
     name: 'project-1',
 
@@ -121,7 +113,7 @@ test('the right peer dependency is used in every workspace package', async (t: t
       'ajv-keywords': '1.5.0',
     },
   }
-  preparePackages(t, [
+  preparePackages(undefined, [
     {
       location: 'project-1',
       package: manifest1,
@@ -150,17 +142,17 @@ test('the right peer dependency is used in every workspace package', async (t: t
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
 
-  t.deepEqual(lockfile.importers['project-1'].dependencies, {
+  expect(lockfile.importers['project-1'].dependencies).toStrictEqual({
     'ajv-keywords': '1.5.0',
   })
-  t.deepEqual(lockfile.importers['project-2'].dependencies, {
+  expect(lockfile.importers['project-2'].dependencies).toStrictEqual({
     ajv: '4.10.4',
     'ajv-keywords': '1.5.0_ajv@4.10.4',
   })
 })
 
-test('warning is reported when cannot resolve peer dependency for top-level dependency', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('warning is reported when cannot resolve peer dependency for top-level dependency', async () => {
+  prepareEmpty()
 
   const reporter = sinon.spy()
 
@@ -171,29 +163,21 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-  t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+  expect(reportedTimes).toBe(1)
 })
 
-test('strict-peer-dependencies: error is thrown when cannot resolve peer dependency for top-level dependency', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('strict-peer-dependencies: error is thrown when cannot resolve peer dependency for top-level dependency', async () => {
+  prepareEmpty()
 
   const reporter = sinon.spy()
 
-  let err!: Error & {code: string}
-
-  try {
-    await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ reporter, strictPeerDependencies: true }))
-  } catch (_) {
-    err = _
-  }
-
-  t.ok(err, 'error is thrown')
-  t.equal(err.code, 'ERR_PNPM_MISSING_PEER_DEPENDENCY')
-  t.equal(err.message, 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.')
+  await expect(
+    addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ reporter, strictPeerDependencies: true }))
+  ).rejects.toThrow(/ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed./)
 })
 
-test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async () => {
+  prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['ajv@4.10.0'], await testDefaults())
 
@@ -210,11 +194,11 @@ test('warning is not reported if the peer dependency can be required from a node
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-  t.equal(reportedTimes, 0, 'warning is not logged')
+  expect(reportedTimes).toBe(0)
 })
 
-test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
+  prepareEmpty()
 
   const reporter = sinon.spy()
 
@@ -225,11 +209,11 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-  t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+  expect(reportedTimes).toBe(1)
 })
 
-test('warning is reported when bad version of resolved peer dependency for non-top-level dependency', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('warning is reported when bad version of resolved peer dependency for non-top-level dependency', async () => {
+  prepareEmpty()
 
   const reporter = sinon.spy()
 
@@ -240,79 +224,71 @@ test('warning is reported when bad version of resolved peer dependency for non-t
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-  t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+  expect(reportedTimes).toBe(1)
 })
 
-test('strict-peer-dependencies: error is thrown when bad version of resolved peer dependency for non-top-level dependency', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('strict-peer-dependencies: error is thrown when bad version of resolved peer dependency for non-top-level dependency', async () => {
+  prepareEmpty()
 
   const reporter = sinon.spy()
 
-  let err!: Error & {code: string}
-
-  try {
-    await addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter, strictPeerDependencies: true }))
-  } catch (_) {
-    err = _
-  }
-
-  t.ok(err, 'error is thrown')
-  t.equal(err.code, 'ERR_PNPM_INVALID_PEER_DEPENDENCY')
-  t.equal(err.message, 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.')
+  await expect(
+    addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter, strictPeerDependencies: true }))
+  ).rejects.toThrow('abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.')
 })
 
-test('top peer dependency is linked on subsequent install', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('top peer dependency is linked on subsequent install', async () => {
+  prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['ajv@4.10.4'], await testDefaults())
 
   await addDependenciesToPackage(manifest, ['ajv-keywords@1.5.0'], await testDefaults())
 
-  t.notOk(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords')), 'dependency without peer is prunned')
-  t.ok(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv')), 'peer dependency is linked')
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeFalsy()
+  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
 })
 
-async function okFile (t: tape.Test, filename: string) {
-  t.ok(await exists(filename), `exists ${filename}`)
+async function okFile (filename: string) {
+  expect(await exists(filename)).toBeTruthy()
 }
 
 // This usecase was failing. See https://github.com/pnpm/supi/issues/15
-test('peer dependencies are linked when running one named installation', async (t: tape.Test) => {
+test('peer dependencies are linked when running one named installation', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 
-  prepareEmpty(t)
+  prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults())
 
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
   const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
-  await okFile(t, path.join(pkgVariation1, 'abc'))
-  await okFile(t, path.join(pkgVariation1, 'peer-a'))
-  await okFile(t, path.join(pkgVariation1, 'peer-b'))
-  await okFile(t, path.join(pkgVariation1, 'peer-c'))
-  await okFile(t, path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
+  await okFile(path.join(pkgVariation1, 'abc'))
+  await okFile(path.join(pkgVariation1, 'peer-a'))
+  await okFile(path.join(pkgVariation1, 'peer-b'))
+  await okFile(path.join(pkgVariation1, 'peer-c'))
+  await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
   const pkgVariation2 = path.join(pkgVariationsDir + '_f101cfec1621b915239e5c82246da43c/node_modules')
-  await okFile(t, path.join(pkgVariation2, 'abc'))
-  await okFile(t, path.join(pkgVariation2, 'peer-a'))
-  await okFile(t, path.join(pkgVariation2, 'peer-b'))
-  await okFile(t, path.join(pkgVariation2, 'peer-c'))
-  await okFile(t, path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
+  await okFile(path.join(pkgVariation2, 'abc'))
+  await okFile(path.join(pkgVariation2, 'peer-a'))
+  await okFile(path.join(pkgVariation2, 'peer-b'))
+  await okFile(path.join(pkgVariation2, 'peer-c'))
+  await okFile(path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
 
-  t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
-  t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
+  expect(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version).toBe('2.0.0')
+  expect(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version).toBe('1.0.0')
 
   // this part was failing. See issue: https://github.com/pnpm/pnpm/issues/1201
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
   await install(manifest, await testDefaults({ update: true, depth: 100 }))
 })
 
-test('peer dependencies are linked when running two separate named installations', async (t: tape.Test) => {
+test('peer dependencies are linked when running two separate named installations', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
-  prepareEmpty(t)
+  prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
   await addDependenciesToPackage(manifest, ['abc-parent-with-ab'], await testDefaults())
@@ -320,25 +296,25 @@ test('peer dependencies are linked when running two separate named installations
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
   const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
-  await okFile(t, path.join(pkgVariation1, 'abc'))
-  await okFile(t, path.join(pkgVariation1, 'peer-a'))
-  await okFile(t, path.join(pkgVariation1, 'peer-b'))
-  await okFile(t, path.join(pkgVariation1, 'peer-c'))
-  await okFile(t, path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
+  await okFile(path.join(pkgVariation1, 'abc'))
+  await okFile(path.join(pkgVariation1, 'peer-a'))
+  await okFile(path.join(pkgVariation1, 'peer-b'))
+  await okFile(path.join(pkgVariation1, 'peer-c'))
+  await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
   const pkgVariation2 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
-  await okFile(t, path.join(pkgVariation2, 'abc'))
-  await okFile(t, path.join(pkgVariation2, 'peer-a'))
-  await okFile(t, path.join(pkgVariation2, 'peer-b'))
-  await okFile(t, path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
+  await okFile(path.join(pkgVariation2, 'abc'))
+  await okFile(path.join(pkgVariation2, 'peer-a'))
+  await okFile(path.join(pkgVariation2, 'peer-b'))
+  await okFile(path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
 
-  t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
-  t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
+  expect(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version).toBe('2.0.0')
+  expect(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version).toBe('1.0.0')
 })
 
 // eslint-disable-next-line @typescript-eslint/dot-notation
-test.skip('peer dependencies are linked', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test.skip('peer dependencies are linked', async () => {
+  const project = prepareEmpty()
   await install({
     dependencies: {
       'abc-grand-parent-with-c': '*',
@@ -352,36 +328,36 @@ test.skip('peer dependencies are linked', async (t: tape.Test) => {
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
   const pkgVariation1 = path.join(pkgVariationsDir, '165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
-  await okFile(t, path.join(pkgVariation1, 'abc'))
-  await okFile(t, path.join(pkgVariation1, 'peer-a'))
-  await okFile(t, path.join(pkgVariation1, 'peer-b'))
-  await okFile(t, path.join(pkgVariation1, 'peer-c'))
-  await okFile(t, path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
+  await okFile(path.join(pkgVariation1, 'abc'))
+  await okFile(path.join(pkgVariation1, 'peer-a'))
+  await okFile(path.join(pkgVariation1, 'peer-b'))
+  await okFile(path.join(pkgVariation1, 'peer-c'))
+  await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
   const pkgVariation2 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0/node_modules')
-  await okFile(t, path.join(pkgVariation2, 'abc'))
-  await okFile(t, path.join(pkgVariation2, 'peer-a'))
-  await okFile(t, path.join(pkgVariation2, 'peer-b'))
-  await okFile(t, path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
+  await okFile(path.join(pkgVariation2, 'abc'))
+  await okFile(path.join(pkgVariation2, 'peer-a'))
+  await okFile(path.join(pkgVariation2, 'peer-b'))
+  await okFile(path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
 
-  t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
-  t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
+  expect(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version).toBe('2.0.0')
+  expect(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version).toBe('1.0.0')
 
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0/peer-a@1.0.0+peer-b@1.0.0'].dev, `the dev resolution set is marked as dev in ${WANTED_LOCKFILE}`)
+  expect(lockfile.packages['/abc-parent-with-ab/1.0.0/peer-a@1.0.0+peer-b@1.0.0'].dev).toBeTruthy()
 })
 
-test('scoped peer dependency is linked', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('scoped peer dependency is linked', async () => {
+  prepareEmpty()
   await addDependenciesToPackage({}, ['for-testing-scoped-peers'], await testDefaults())
 
   const pkgVariation = path.resolve('node_modules/.pnpm/@having/scoped-peer@1.0.0_@scoped+peer@1.0.0/node_modules')
-  await okFile(t, path.join(pkgVariation, '@having', 'scoped-peer'))
-  await okFile(t, path.join(pkgVariation, '@scoped', 'peer'))
+  await okFile(path.join(pkgVariation, '@having', 'scoped-peer'))
+  await okFile(path.join(pkgVariation, '@scoped', 'peer'))
 })
 
-test('peer bins are linked', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('peer bins are linked', async () => {
+  const project = prepareEmpty()
 
   await addDependenciesToPackage({}, ['for-testing-peers-having-bins'], await testDefaults({ fastUnpack: false }))
 
@@ -392,74 +368,74 @@ test('peer bins are linked', async (t: tape.Test) => {
   await project.isExecutable(path.join(pkgVariation, 'pkg-with-peer-having-bin/node_modules/.bin', 'hello-world-js-bin'))
 })
 
-test('run pre/postinstall scripts of each variations of packages with peer dependencies', async (t: tape.Test) => {
+test('run pre/postinstall scripts of each variations of packages with peer dependencies', async () => {
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
-  prepareEmpty(t)
+  prepareEmpty()
   await addDependenciesToPackage({}, ['parent-of-pkg-with-events-and-peers', 'pkg-with-events-and-peers', 'peer-c@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const pkgVariation1 = path.resolve('node_modules/.pnpm/pkg-with-events-and-peers@1.0.0_peer-c@1.0.0/node_modules')
-  await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
-  await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
+  await okFile(path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
+  await okFile(path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 
   const pkgVariation2 = path.resolve('node_modules/.pnpm/pkg-with-events-and-peers@1.0.0_peer-c@2.0.0/node_modules')
-  await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
-  await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
+  await okFile(path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
+  await okFile(path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 })
 
-test('package that resolves its own peer dependency', async (t: tape.Test) => {
+test('package that resolves its own peer dependency', async () => {
   // TODO: investigate how npm behaves in such situations
   // should there be a warning printed?
   // does it currently print a warning that peer dependency is not resolved?
 
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
-  const project = prepareEmpty(t)
+  const project = prepareEmpty()
   await addDependenciesToPackage({}, ['pkg-with-resolved-peer', 'peer-c@2.0.0'], await testDefaults())
 
-  t.equal(deepRequireCwd(['pkg-with-resolved-peer', 'peer-c', './package.json']).version, '1.0.0')
+  expect(deepRequireCwd(['pkg-with-resolved-peer', 'peer-c', './package.json']).version).toBe('1.0.0')
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/pkg-with-resolved-peer@1.0.0/node_modules/pkg-with-resolved-peer')))
+  expect(await exists(path.resolve('node_modules/.pnpm/pkg-with-resolved-peer@1.0.0/node_modules/pkg-with-resolved-peer'))).toBeTruthy()
 
   const lockfile = await project.readLockfile()
 
-  t.notOk(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].peerDependencies, 'peerDependencies not added to lockfile')
-  t.ok(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].dependencies!['peer-c'])
-  t.ok(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies!['peer-b'])
+  expect(lockfile.packages['/pkg-with-resolved-peer/1.0.0']).not.toHaveProperty(['peerDependencies'])
+  expect(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].dependencies).toHaveProperty(['peer-c'])
+  expect(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies).toHaveProperty(['peer-b'])
 })
 
-test('package that has parent as peer dependency', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('package that has parent as peer dependency', async () => {
+  const project = prepareEmpty()
   await addDependenciesToPackage({}, ['has-alpha', 'alpha'], await testDefaults())
 
   const lockfile = await project.readLockfile()
 
-  t.ok(lockfile.packages['/has-alpha-as-peer/1.0.0_alpha@1.0.0'])
-  t.notOk(lockfile.packages['/has-alpha-as-peer/1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/has-alpha-as-peer/1.0.0_alpha@1.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/has-alpha-as-peer/1.0.0'])
 })
 
-test('own peer installed in root as well is linked to root', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('own peer installed in root as well is linked to root', async () => {
+  prepareEmpty()
 
   await addDependenciesToPackage({}, ['is-negative@kevva/is-negative#2.1.0', 'peer-deps-in-child-pkg'], await testDefaults())
 
-  t.ok(deepRequireCwd.silent(['is-negative', './package.json']), 'is-negative is linked to root')
+  expect(deepRequireCwd.silent(['is-negative', './package.json'])).toBeTruthy()
 })
 
-test('peer dependency is grouped with dependent when the peer is a top dependency but an external lockfile is used', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('peer dependency is grouped with dependent when the peer is a top dependency but an external lockfile is used', async () => {
+  prepareEmpty()
 
   const reporter = sinon.spy()
 
   await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, lockfileDir: path.resolve('..') }))
 
-  t.notOk(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
-  }), 'no warning is logged about unresolved peer dep')
+  })).toBeFalsy()
 
-  t.ok(await exists(path.join('../node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords')))
+  expect(await exists(path.join('../node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 
-  t.deepEqual(lockfile.importers.project, { // eslint-disable-line
+  expect(lockfile.importers.project).toStrictEqual({ // eslint-disable-line
     dependencies: {
       ajv: '4.10.4',
       'ajv-keywords': '1.5.0_ajv@4.10.4',
@@ -468,12 +444,12 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
       ajv: '4.10.4',
       'ajv-keywords': '1.5.0',
     },
-  }, `correct ${WANTED_LOCKFILE} created`)
+  })
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1483
-test('peer dependency is grouped correctly with peer installed via separate installation when external lockfile is used', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('peer dependency is grouped correctly with peer installed via separate installation when external lockfile is used', async () => {
+  prepareEmpty()
 
   const reporter = sinon.spy()
   const lockfileDir = path.resolve('..')
@@ -485,11 +461,11 @@ test('peer dependency is grouped correctly with peer installed via separate inst
   }, await testDefaults({ reporter, lockfileDir }))
   await addDependenciesToPackage(manifest, ['peer-c@2.0.0'], await testDefaults({ reporter, lockfileDir }))
 
-  t.ok(await exists(path.join('../node_modules/.pnpm/abc@1.0.0_peer-c@2.0.0/node_modules/dep-of-pkg-with-1-dep')))
+  expect(await exists(path.join('../node_modules/.pnpm/abc@1.0.0_peer-c@2.0.0/node_modules/dep-of-pkg-with-1-dep'))).toBeTruthy()
 })
 
-test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async () => {
+  prepareEmpty()
   await fs.mkdir('_')
   process.chdir('_')
   const lockfileDir = path.resolve('..')
@@ -498,7 +474,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(lockfile.importers._, {
+    expect(lockfile.importers._).toStrictEqual({
       dependencies: {
         ajv: '4.10.4',
         'ajv-keywords': '1.5.0_ajv@4.10.4',
@@ -514,7 +490,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(lockfile.importers._, {
+    expect(lockfile.importers._).toStrictEqual({
       dependencies: {
         ajv: '4.10.4',
         'ajv-keywords': '1.5.0_ajv@4.10.4',
@@ -543,7 +519,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(lockfile.importers._, {
+    expect(lockfile.importers._).toStrictEqual({
       dependencies: {
         'ajv-keywords': '1.5.0',
       },
@@ -554,8 +530,8 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }
 })
 
-test('external lockfile: peer dependency is grouped with dependent even after a named update', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('external lockfile: peer dependency is grouped with dependent even after a named update', async () => {
+  prepareEmpty()
   await fs.mkdir('_')
   process.chdir('_')
   const lockfileDir = path.resolve('..')
@@ -564,7 +540,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(lockfile.importers._, {
+    expect(lockfile.importers._).toStrictEqual({
       dependencies: {
         ajv: '4.10.4',
         'ajv-keywords': '1.4.0_ajv@4.10.4',
@@ -580,7 +556,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(lockfile.importers._, {
+    expect(lockfile.importers._).toStrictEqual({
       dependencies: {
         ajv: '4.10.4',
         'ajv-keywords': '1.5.0_ajv@4.10.4',
@@ -593,8 +569,8 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
   }
 })
 
-test('external lockfile: peer dependency is grouped with dependent even after a named update of the resolved package', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('external lockfile: peer dependency is grouped with dependent even after a named update of the resolved package', async () => {
+  prepareEmpty()
   await fs.mkdir('_')
   process.chdir('_')
   const lockfileDir = path.resolve('..')
@@ -603,7 +579,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(lockfile.importers._, {
+    expect(lockfile.importers._).toStrictEqual({
       dependencies: {
         'abc-parent-with-ab': '1.0.0_peer-c@1.0.0',
         'peer-c': '1.0.0',
@@ -619,7 +595,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(lockfile.importers._, {
+    expect(lockfile.importers._).toStrictEqual({
       dependencies: {
         'abc-parent-with-ab': '1.0.0_peer-c@2.0.0',
         'peer-c': '2.0.0',
@@ -631,11 +607,11 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
     })
   }
 
-  t.ok(await exists(path.join('../node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@2.0.0/node_modules/is-positive')))
+  expect(await exists(path.join('../node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@2.0.0/node_modules/is-positive'))).toBeTruthy()
 })
 
-test('regular dependencies are not removed on update from transitive packages that have children with peers resolved from above', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('regular dependencies are not removed on update from transitive packages that have children with peers resolved from above', async () => {
+  prepareEmpty()
   await fs.mkdir('_')
   process.chdir('_')
   const lockfileDir = path.resolve('..')
@@ -647,11 +623,11 @@ test('regular dependencies are not removed on update from transitive packages th
   await addDistTag({ package: 'peer-c', version: '1.0.1', distTag: 'latest' })
   await install(manifest, await testDefaults({ lockfileDir, update: true, depth: 2 }))
 
-  t.ok(await exists(path.join('../node_modules/.pnpm/abc-parent-with-ab@1.0.1_peer-c@1.0.1/node_modules/is-positive')))
+  expect(await exists(path.join('../node_modules/.pnpm/abc-parent-with-ab@1.0.1_peer-c@1.0.1/node_modules/is-positive'))).toBeTruthy()
 })
 
-test('peer dependency is resolved from parent package', async (t) => {
-  preparePackages(t, [
+test('peer dependency is resolved from parent package', async () => {
+  preparePackages(undefined, [
     {
       name: 'pkg',
     },
@@ -666,14 +642,14 @@ test('peer dependency is resolved from parent package', async (t) => {
   ], await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  t.deepEqual(Object.keys(lockfile.packages ?? {}), [
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
     '/has-tango-as-peer-dep/1.0.0_tango@1.0.0',
     '/tango/1.0.0',
   ])
 })
 
-test('transitive peerDependencies field does not break the lockfile on subsequent named install', async (t) => {
-  preparePackages(t, [
+test('transitive peerDependencies field does not break the lockfile on subsequent named install', async () => {
+  preparePackages(undefined, [
     {
       name: 'pkg',
     },
@@ -698,15 +674,15 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  t.deepEqual(Object.keys(lockfile.packages!['/most/1.7.3'].dependencies!), [
+  expect(Object.keys(lockfile.packages!['/most/1.7.3'].dependencies!)).toStrictEqual([
     '@most/multicast',
     '@most/prelude',
     'symbol-observable',
   ])
 })
 
-test('peer dependency is resolved from parent package via its alias', async (t) => {
-  preparePackages(t, [
+test('peer dependency is resolved from parent package via its alias', async () => {
+  preparePackages(undefined, [
     {
       name: 'pkg',
     },
@@ -721,14 +697,14 @@ test('peer dependency is resolved from parent package via its alias', async (t) 
   ], await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  t.deepEqual(Object.keys(lockfile.packages ?? {}), [
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
     '/has-tango-as-peer-dep/1.0.0_tango@1.0.0',
     '/tango-tango/1.0.0_tango@1.0.0',
   ])
 })
 
-test('peer dependency is saved', async (t) => {
-  prepareEmpty(t)
+test('peer dependency is saved', async () => {
+  prepareEmpty()
 
   const manifest = await addDependenciesToPackage(
     {},
@@ -739,8 +715,7 @@ test('peer dependency is saved', async (t) => {
     })
   )
 
-  t.deepEqual(
-    manifest,
+  expect(manifest).toStrictEqual(
     {
       devDependencies: { 'is-positive': '1.0.0' },
       peerDependencies: { 'is-positive': '1.0.0' },
@@ -756,8 +731,7 @@ test('peer dependency is saved', async (t) => {
     },
   ], await testDefaults())
 
-  t.deepEqual(
-    mutatedImporter.manifest,
+  expect(mutatedImporter.manifest).toStrictEqual(
     {
       devDependencies: {},
       peerDependencies: {},
@@ -765,8 +739,8 @@ test('peer dependency is saved', async (t) => {
   )
 })
 
-test('warning is not reported when cannot resolve optional peer dependency', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('warning is not reported when cannot resolve optional peer dependency', async () => {
+  const project = prepareEmpty()
 
   const reporter = sinon.spy()
 
@@ -778,7 +752,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
     })
     const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-    t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+    expect(reportedTimes).toBe(1)
   }
 
   {
@@ -787,7 +761,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
     })
     const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-    t.equal(reportedTimes, 0, 'warning is not logged about unresolved optional peer dep')
+    expect(reportedTimes).toBe(0)
   }
 
   {
@@ -796,12 +770,12 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
     })
     const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-    t.equal(reportedTimes, 1, 'warning is logged bad version number of optional peer dep')
+    expect(reportedTimes).toBe(1)
   }
 
   const lockfile = await project.readLockfile()
 
-  t.deepEqual(lockfile.packages['/abc-optional-peers/1.0.0_peer-c@2.0.0'].peerDependenciesMeta, {
+  expect(lockfile.packages['/abc-optional-peers/1.0.0_peer-c@2.0.0'].peerDependenciesMeta).toStrictEqual({
     'peer-b': {
       optional: true,
     },
@@ -811,8 +785,8 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
   })
 })
 
-test('warning is not reported when cannot resolve optional peer dependency (specified by meta field only)', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('warning is not reported when cannot resolve optional peer dependency (specified by meta field only)', async () => {
+  const project = prepareEmpty()
 
   const reporter = sinon.spy()
 
@@ -824,7 +798,7 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
     })
     const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-    t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+    expect(reportedTimes).toBe(1)
   }
 
   {
@@ -833,17 +807,17 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
     })
     const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-    t.equal(reportedTimes, 0, 'warning is not logged about unresolved optional peer dep')
+    expect(reportedTimes).toBe(0)
   }
 
   const lockfile = await project.readLockfile()
 
-  t.deepEqual(lockfile.packages['/abc-optional-peers-meta-only/1.0.0_peer-c@2.0.0'].peerDependencies, {
+  expect(lockfile.packages['/abc-optional-peers-meta-only/1.0.0_peer-c@2.0.0'].peerDependencies).toStrictEqual({
     'peer-a': '^1.0.0',
     'peer-b': '*',
     'peer-c': '*',
   })
-  t.deepEqual(lockfile.packages['/abc-optional-peers-meta-only/1.0.0_peer-c@2.0.0'].peerDependenciesMeta, {
+  expect(lockfile.packages['/abc-optional-peers-meta-only/1.0.0_peer-c@2.0.0'].peerDependenciesMeta).toStrictEqual({
     'peer-b': {
       optional: true,
     },
@@ -853,8 +827,8 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
   })
 })
 
-test('local tarball dependency with peer dependency', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('local tarball dependency with peer dependency', async () => {
+  prepareEmpty()
 
   const reporter = sinon.spy()
 
@@ -866,8 +840,8 @@ test('local tarball dependency with peer dependency', async (t: tape.Test) => {
 
   const localPkgDirs = await fs.readdir('node_modules/.pnpm/local')
 
-  t.equal(localPkgDirs.length, 1)
-  t.ok(localPkgDirs[0].endsWith('_bar@100.0.0+foo@100.0.0'))
+  expect(localPkgDirs.length).toBe(1)
+  expect(localPkgDirs[0].endsWith('_bar@100.0.0+foo@100.0.0')).toBeTruthy()
 
   await rimraf('node_modules')
 
@@ -880,11 +854,11 @@ test('local tarball dependency with peer dependency', async (t: tape.Test) => {
     },
   ], await testDefaults())
 
-  t.deepEqual(await fs.readdir('node_modules/.pnpm/local'), localPkgDirs)
+  expect(await fs.readdir('node_modules/.pnpm/local')).toStrictEqual(localPkgDirs)
 })
 
-test('peer dependency that is resolved by a dev dependency', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('peer dependency that is resolved by a dev dependency', async () => {
+  const project = prepareEmpty()
   const manifest = {
     dependencies: {
       '@typegoose/typegoose': '7.3.0',
@@ -904,7 +878,7 @@ test('peer dependency that is resolved by a dev dependency', async (t: tape.Test
   ], await testDefaults({ fastUnpack: false, lockfileOnly: true }))
 
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.packages['/@types/mongoose/5.7.32'].dev)
+  expect(lockfile.packages['/@types/mongoose/5.7.32'].dev).toBeTruthy()
 
   await mutateModules([
     {

@@ -1,17 +1,13 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { addDependenciesToPackage, install } from 'supi'
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import RegClient = require('anonymous-npm-registry-client')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('a package that need authentication', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('a package that need authentication', async () => {
+  const project = prepareEmpty()
 
   const client = new RegClient()
 
@@ -56,8 +52,8 @@ test('a package that need authentication', async (t: tape.Test) => {
   await project.has('needs-auth')
 })
 
-test('installing a package that need authentication, using password', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('installing a package that need authentication, using password', async () => {
+  const project = prepareEmpty()
 
   const client = new RegClient()
 
@@ -86,8 +82,8 @@ test('installing a package that need authentication, using password', async (t: 
   await project.has('needs-auth')
 })
 
-test('a package that need authentication, legacy way', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('a package that need authentication, legacy way', async () => {
+  const project = prepareEmpty()
 
   const client = new RegClient()
 
@@ -115,8 +111,8 @@ test('a package that need authentication, legacy way', async (t: tape.Test) => {
   await project.has('needs-auth')
 })
 
-test('a scoped package that need authentication specific to scope', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('a scoped package that need authentication specific to scope', async () => {
+  const project = prepareEmpty()
 
   const client = new RegClient()
 
@@ -161,8 +157,8 @@ test('a scoped package that need authentication specific to scope', async (t: ta
   await project.has('@private/foo')
 })
 
-test('a scoped package that need legacy authentication specific to scope', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('a scoped package that need legacy authentication specific to scope', async () => {
+  const project = prepareEmpty()
 
   const client = new RegClient()
 
@@ -208,8 +204,8 @@ test('a scoped package that need legacy authentication specific to scope', async
   await project.has('@private/foo')
 })
 
-test('a package that need authentication reuses authorization tokens for tarball fetching', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('a package that need authentication reuses authorization tokens for tarball fetching', async () => {
+  const project = prepareEmpty()
 
   const client = new RegClient()
 
@@ -242,8 +238,8 @@ test('a package that need authentication reuses authorization tokens for tarball
   await project.has('needs-auth')
 })
 
-test('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async () => {
+  const project = prepareEmpty()
 
   const client = new RegClient()
 

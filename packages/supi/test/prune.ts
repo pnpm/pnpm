@@ -7,16 +7,12 @@ import {
   link,
   mutateModules,
 } from 'supi'
-import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
 import path = require('path')
 import sinon = require('sinon')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('prune removes extraneous packages', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('prune removes extraneous packages', async () => {
+  const project = prepareEmpty()
 
   const opts = await testDefaults()
   let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
@@ -49,7 +45,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
     }
   )
 
-  t.ok(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:root',
     removed: {
@@ -57,7 +53,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
       name: 'hello-world-js-bin',
       version: '1.0.0',
     },
-  } as RootLog), 'removing link to external package')
+  } as RootLog)).toBeTruthy()
 
   await project.hasNot('hello-world-js-bin') // external link pruned
 
@@ -77,8 +73,8 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
   await project.has('fnumber')
 })
 
-test('prune removes dev dependencies in production', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('prune removes dev dependencies in production', async () => {
+  const project = prepareEmpty()
 
   let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
   manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))

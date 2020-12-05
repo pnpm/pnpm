@@ -1,8 +1,4 @@
 import allProjectsAreUpToDate from 'supi/lib/install/allProjectsAreUpToDate'
-import promisifyTape from 'tape-promise'
-import tape = require('tape')
-
-const test = promisifyTape(tape)
 
 const fooManifest = {
   name: 'foo',
@@ -17,8 +13,8 @@ const workspacePackages = {
   },
 }
 
-test('allProjectsAreUpToDate(): works with aliased local dependencies', async (t: tape.Test) => {
-  t.ok(await allProjectsAreUpToDate([
+test('allProjectsAreUpToDate(): works with aliased local dependencies', async () => {
+  expect(await allProjectsAreUpToDate([
     {
       id: 'bar',
       manifest: {
@@ -52,11 +48,11 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async (t
       lockfileVersion: 5,
     },
     workspacePackages,
-  }))
+  })).toBeTruthy()
 })
 
-test('allProjectsAreUpToDate(): works with aliased local dependencies that specify versions', async (t: tape.Test) => {
-  t.ok(await allProjectsAreUpToDate([
+test('allProjectsAreUpToDate(): works with aliased local dependencies that specify versions', async () => {
+  expect(await allProjectsAreUpToDate([
     {
       id: 'bar',
       manifest: {
@@ -90,11 +86,11 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
       lockfileVersion: 5,
     },
     workspacePackages,
-  }))
+  })).toBeTruthy()
 })
 
-test('allProjectsAreUpToDate(): returns false if the aliased dependency version is out of date', async (t: tape.Test) => {
-  t.notOk(await allProjectsAreUpToDate([
+test('allProjectsAreUpToDate(): returns false if the aliased dependency version is out of date', async () => {
+  expect(await allProjectsAreUpToDate([
     {
       id: 'bar',
       manifest: {
@@ -128,11 +124,11 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
       lockfileVersion: 5,
     },
     workspacePackages,
-  }))
+  })).toBeFalsy()
 })
 
-test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePackages = false', async (t: tape.Test) => {
-  t.ok(
+test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePackages = false', async () => {
+  expect(
     await allProjectsAreUpToDate(
       [
         {
@@ -188,5 +184,5 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
         workspacePackages,
       }
     )
-  )
+  ).toBeTruthy()
 })

@@ -1,16 +1,11 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from 'supi'
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 import path = require('path')
 import exists = require('path-exists')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('production install (with --production flag)', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('production install (with --production flag)', async () => {
+  const project = prepareEmpty()
 
   await install({
     dependencies: {
@@ -33,16 +28,16 @@ test('production install (with --production flag)', async (t: tape.Test) => {
     },
   }))
 
-  t.notOk(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0')))
+  expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
+  expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
   await project.has('pkg-with-1-dep')
   await project.has('write-yaml')
   await project.hasNot('@zkochan/foo')
   await project.hasNot('js-yaml')
 })
 
-test('production install with --no-optional', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('production install with --no-optional', async () => {
+  const project = prepareEmpty()
 
   await install({
     dependencies: {
@@ -65,16 +60,16 @@ test('production install with --no-optional', async (t: tape.Test) => {
     },
   }))
 
-  t.notOk(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0')))
+  expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
+  expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
   await project.has('pkg-with-1-dep')
   await project.has('write-yaml')
   await project.hasNot('@zkochan/foo')
   await project.hasNot('js-yaml')
 })
 
-test('install dev dependencies only', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('install dev dependencies only', async () => {
+  const project = prepareEmpty()
 
   const manifest = await install({
     dependencies: {
@@ -97,12 +92,12 @@ test('install dev dependencies only', async (t: tape.Test) => {
 
   {
     const lockfile = await project.readLockfile()
-    t.ok(lockfile.packages['/is-positive/1.0.0'].dev === false)
+    expect(lockfile.packages['/is-positive/1.0.0'].dev === false).toBeTruthy()
   }
 
   {
     const currentLockfile = await project.readCurrentLockfile()
-    t.notOk(currentLockfile.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
+    expect(currentLockfile.packages['/is-positive/1.0.0']).toBeFalsy()
   }
 
   // Repeat normal installation adds missing deps to node_modules
@@ -112,12 +107,12 @@ test('install dev dependencies only', async (t: tape.Test) => {
 
   {
     const currentLockfile = await project.readCurrentLockfile()
-    t.ok(currentLockfile.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
+    expect(currentLockfile.packages['/is-positive/1.0.0']).toBeTruthy()
   }
 })
 
-test('fail if installing different types of dependencies in a project that uses an external lockfile', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('fail if installing different types of dependencies in a project that uses an external lockfile', async () => {
+  const project = prepareEmpty()
 
   const lockfileDir = path.resolve('..')
 
@@ -141,7 +136,6 @@ test('fail if installing different types of dependencies in a project that uses 
   await project.has('inflight')
   await project.hasNot('once')
 
-  let err!: Error & { code: string }
   const newOpts = await testDefaults({
     include: {
       dependencies: true,
@@ -151,15 +145,9 @@ test('fail if installing different types of dependencies in a project that uses 
     lockfileDir,
   })
 
-  try {
-    await addDependenciesToPackage(manifest, ['is-negative'], newOpts)
-  } catch (_) {
-    err = _
-  }
-
-  t.ok(err, 'installation failed')
-  t.equal(err.code, 'ERR_PNPM_INCLUDED_DEPS_CONFLICT', 'error has correct error code')
-  t.ok(err.message.includes('was installed with devDependencies. Current install wants optionalDependencies, dependencies, devDependencies.'), 'correct error message')
+  await expect(
+    addDependenciesToPackage(manifest, ['is-negative'], newOpts)
+  ).rejects.toThrow(/was installed with devDependencies. Current install wants optionalDependencies, dependencies, devDependencies./)
 
   await install(manifest, newOpts)
 })

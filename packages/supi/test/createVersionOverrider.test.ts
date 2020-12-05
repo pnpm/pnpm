@@ -1,38 +1,33 @@
 import createVersionOverrider from 'supi/lib/install/createVersionsOverrider'
-import promisifyTape from 'tape-promise'
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('createVersionsOverrider() overrides dependencies of specified packages only', (t: tape.Test) => {
+test('createVersionsOverrider() overrides dependencies of specified packages only', () => {
   const overrider = createVersionOverrider({
     'foo@1>bar@^1.2.0': '3.0.0',
   })
-  t.deepEqual(overrider({
+  expect(overrider({
     name: 'foo',
     version: '1.2.0',
     dependencies: {
       bar: '^1.2.0',
     },
-  }), {
+  })).toStrictEqual({
     name: 'foo',
     version: '1.2.0',
     dependencies: {
       bar: '3.0.0',
     },
   })
-  t.deepEqual(overrider({
+  expect(overrider({
     name: 'foo',
     version: '2.0.0',
     dependencies: {
       bar: '^1.2.0',
     },
-  }), {
+  })).toStrictEqual({
     name: 'foo',
     version: '2.0.0',
     dependencies: {
       bar: '^1.2.0',
     },
   })
-  t.end()
 })

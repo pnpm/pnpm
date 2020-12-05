@@ -3,18 +3,14 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, install } from 'supi'
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
 import path = require('path')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('preserve subdeps on update', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('preserve subdeps on update', async () => {
+  const project = prepareEmpty()
 
   await Promise.all([
     addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
@@ -39,18 +35,18 @@ test('preserve subdeps on update', async (t: tape.Test) => {
 
   const lockfile = await project.readLockfile()
 
-  t.ok(lockfile.packages)
-  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
-  t.ok(lockfile.packages['/foobarqar/1.0.1'])
-  t.deepEqual(lockfile.packages['/foobarqar/1.0.1'].dependencies, {
+  expect(lockfile.packages).toBeTruthy()
+  expect(lockfile.packages).toHaveProperty(['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/foobarqar/1.0.1'])
+  expect(lockfile.packages['/foobarqar/1.0.1'].dependencies).toStrictEqual({
     bar: '100.0.0',
     foo: '100.0.0',
     qar: '100.0.0',
   })
 })
 
-test('preserve subdeps on update when no node_modules is present', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('preserve subdeps on update when no node_modules is present', async () => {
+  const project = prepareEmpty()
 
   await Promise.all([
     addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
@@ -75,28 +71,26 @@ test('preserve subdeps on update when no node_modules is present', async (t: tap
 
   const lockfile = await project.readLockfile()
 
-  t.ok(lockfile.packages)
-  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
-  t.ok(lockfile.packages['/foobarqar/1.0.1'])
-  t.deepEqual(lockfile.packages['/foobarqar/1.0.1'].dependencies, {
+  expect(lockfile.packages).toBeTruthy()
+  expect(lockfile.packages).toHaveProperty(['/abc-parent-with-ab/1.0.0_peer-c@1.0.0']) // preserve version of package that has resolved peer deps
+  expect(lockfile.packages).toHaveProperty(['/foobarqar/1.0.1'])
+  expect(lockfile.packages['/foobarqar/1.0.1'].dependencies).toStrictEqual({
     bar: '100.0.0',
     foo: '100.0.0',
     qar: '100.0.0',
   })
 })
 
-test('update does not fail when package has only peer dependencies', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('update does not fail when package has only peer dependencies', async () => {
+  prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['has-pkg-with-peer-only'], await testDefaults())
 
   await install(manifest, await testDefaults({ update: true, depth: Infinity }))
-
-  t.pass('did not fail')
 })
 
-test('update does not install the package if it is not present in package.json', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('update does not install the package if it is not present in package.json', async () => {
+  const project = prepareEmpty()
 
   await addDependenciesToPackage({}, ['is-positive'], await testDefaults({
     allowNew: false,
@@ -106,8 +100,8 @@ test('update does not install the package if it is not present in package.json',
   await project.hasNot('is-positive')
 })
 
-test('update dependency when external lockfile directory is used', async (t: tape.Test) => {
-  prepareEmpty(t)
+test('update dependency when external lockfile directory is used', async () => {
+  prepareEmpty()
 
   await addDistTag('foo', '100.0.0', 'latest')
 
@@ -120,12 +114,12 @@ test('update dependency when external lockfile directory is used', async (t: tap
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 
-  t.ok(lockfile.packages?.['/foo/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/foo/100.1.0'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2191
-test('preserve subdeps when installing on a package that has one dependency spec changed in the manifest', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('preserve subdeps when installing on a package that has one dependency spec changed in the manifest', async () => {
+  const project = prepareEmpty()
 
   await Promise.all([
     addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
@@ -151,10 +145,9 @@ test('preserve subdeps when installing on a package that has one dependency spec
 
   const lockfile = await project.readLockfile()
 
-  t.ok(lockfile.packages)
-  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
-  t.ok(lockfile.packages['/foobarqar/1.0.1'])
-  t.deepEqual(lockfile.packages['/foobarqar/1.0.1'].dependencies, {
+  expect(lockfile.packages).toHaveProperty(['/abc-parent-with-ab/1.0.0_peer-c@1.0.0']) // preserve version of package that has resolved peer deps
+  expect(lockfile.packages).toHaveProperty(['/foobarqar/1.0.1'])
+  expect(lockfile.packages['/foobarqar/1.0.1'].dependencies).toStrictEqual({
     bar: '100.0.0',
     foo: '100.0.0',
     qar: '100.0.0',
@@ -162,8 +155,8 @@ test('preserve subdeps when installing on a package that has one dependency spec
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2226
-test('update only the packages that were requested to be updated when hoisting is on', async (t) => {
-  const project = prepareEmpty(t)
+test('update only the packages that were requested to be updated when hoisting is on', async () => {
+  const project = prepareEmpty()
 
   await addDistTag('bar', '100.0.0', 'latest')
   await addDistTag('foo', '100.0.0', 'latest')
@@ -175,14 +168,14 @@ test('update only the packages that were requested to be updated when hoisting i
 
   manifest = await addDependenciesToPackage(manifest, ['foo'], await testDefaults({ allowNew: false, update: true, hoistPattern: ['*'] }))
 
-  t.deepEqual(manifest.dependencies, { bar: '^100.0.0', foo: '^100.1.0' })
+  expect(manifest.dependencies).toStrictEqual({ bar: '^100.0.0', foo: '^100.1.0' })
 
   const lockfile = await project.readLockfile()
-  t.deepEqual(Object.keys(lockfile.packages), ['/bar/100.0.0', '/foo/100.1.0'])
+  expect(Object.keys(lockfile.packages)).toStrictEqual(['/bar/100.0.0', '/foo/100.1.0'])
 })
 
-test('update only the specified package', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('update only the specified package', async () => {
+  const project = prepareEmpty()
 
   await Promise.all([
     addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
@@ -211,10 +204,9 @@ test('update only the specified package', async (t: tape.Test) => {
 
   const lockfile = await project.readLockfile()
 
-  t.ok(lockfile.packages)
-  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
-  t.ok(lockfile.packages['/foobarqar/1.0.0'])
-  t.deepEqual(lockfile.packages['/foobarqar/1.0.0'].dependencies, {
+  expect(lockfile.packages).toHaveProperty(['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/foobarqar/1.0.0'])
+  expect(lockfile.packages['/foobarqar/1.0.0'].dependencies).toStrictEqual({
     bar: '100.0.0',
     foo: '100.1.0',
     'is-positive': '3.1.0',

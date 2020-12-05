@@ -6,52 +6,49 @@ import {
   addDependenciesToPackage,
   install,
 } from 'supi'
-import promisifyTape from 'tape-promise'
-import { testDefaults } from '../utils'
+import { addDistTag, testDefaults } from '../utils'
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('install with lockfileOnly = true', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('install with lockfileOnly = true', async () => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  const project = prepareEmpty()
 
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
-  const { cafsHas } = assertStore(t, opts.storeDir)
+  const { cafsHas } = assertStore(undefined, opts.storeDir)
 
   await cafsHas('pkg-with-1-dep', '100.0.0')
-  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`)))
+  expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()
   await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
-  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`)))
+  expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
   await project.hasNot('pkg-with-1-dep')
 
-  t.ok(manifest.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
+  expect(manifest.dependencies!['pkg-with-1-dep']).toBeTruthy()
 
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.dependencies['pkg-with-1-dep'])
-  t.ok(lockfile.packages['/pkg-with-1-dep/100.0.0'])
-  t.ok(lockfile.specifiers['pkg-with-1-dep'])
+  expect(lockfile.dependencies['pkg-with-1-dep']).toBeTruthy()
+  expect(lockfile.packages['/pkg-with-1-dep/100.0.0']).toBeTruthy()
+  expect(lockfile.specifiers['pkg-with-1-dep']).toBeTruthy()
 
   const currentLockfile = await project.readCurrentLockfile()
-  t.notOk(currentLockfile, 'current lockfile not created')
+  expect(currentLockfile).toBeFalsy()
 
-  t.comment(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
+  console.log(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
   await install(manifest, opts)
 
   await cafsHas('pkg-with-1-dep', '100.0.0')
-  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`)))
+  expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()
   await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
-  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`)))
+  expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
   await project.hasNot('pkg-with-1-dep')
 
-  t.notOk(await project.readCurrentLockfile(), 'current lockfile not created')
+  expect(await project.readCurrentLockfile()).toBeFalsy()
 })
 
-test('warn when installing with lockfileOnly = true and node_modules exists', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+test('warn when installing with lockfileOnly = true and node_modules exists', async () => {
+  const project = prepareEmpty()
   const reporter = sinon.spy()
 
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults())
@@ -60,22 +57,22 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
     reporter,
   }))
 
-  t.ok(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'warn',
     message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
     name: 'pnpm',
-  }), 'log warning')
+  })).toBeTruthy()
 
   await project.storeHas('rimraf', '2.5.1')
   await project.hasNot('rimraf')
 
-  t.ok(manifest.dependencies!.rimraf, 'the new dependency added to package.json')
+  expect(manifest.dependencies!.rimraf).toBeTruthy()
 
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.dependencies.rimraf)
-  t.ok(lockfile.packages['/rimraf/2.5.1'])
-  t.ok(lockfile.specifiers.rimraf)
+  expect(lockfile.dependencies.rimraf).toBeTruthy()
+  expect(lockfile.packages['/rimraf/2.5.1']).toBeTruthy()
+  expect(lockfile.specifiers.rimraf).toBeTruthy()
 
   const currentLockfile = await project.readCurrentLockfile()
-  t.notOk(currentLockfile.packages['/rimraf/2.5.1'], 'current lockfile not changed')
+  expect(currentLockfile.packages['/rimraf/2.5.1']).toBeFalsy()
 })
