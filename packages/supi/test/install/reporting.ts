@@ -7,8 +7,6 @@ import {
 import * as sinon from 'sinon'
 import { testDefaults } from '../utils'
 
-jest.setTimeout(20000)
-
 // TODO: use a smaller package for testing deprecation
 test('reports warning when installing deprecated packages', async () => {
   const project = prepareEmpty()

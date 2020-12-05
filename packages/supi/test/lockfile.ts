@@ -26,8 +26,6 @@ import R = require('ramda')
 import sinon = require('sinon')
 import writeYamlFile = require('write-yaml-file')
 
-jest.setTimeout(200000)
-
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
   message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,

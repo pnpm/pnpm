@@ -11,8 +11,6 @@ import fs = require('mz/fs')
 import exists = require('path-exists')
 import writeJsonFile = require('write-json-file')
 
-jest.setTimeout(20000)
-
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
 test.skip('caching side effects of native package', async () => {

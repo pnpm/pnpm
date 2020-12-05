@@ -11,8 +11,6 @@ import { testDefaults } from './utils'
 import path = require('path')
 import sinon = require('sinon')
 
-jest.setTimeout(20000)
-
 test('prune removes extraneous packages', async () => {
   const project = prepareEmpty()
 

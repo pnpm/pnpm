@@ -35,7 +35,6 @@ import sinon = require('sinon')
 import writeYamlFile = require('write-yaml-file')
 
 const IS_WINDOWS = isWindows()
-jest.setTimeout(600000)
 
 test('spec not specified in package.json.dependencies', async () => {
   const project = prepareEmpty()
