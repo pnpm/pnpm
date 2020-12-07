@@ -1,7 +1,6 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import readYamlFile from 'read-yaml-file'
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   execPnpm,
@@ -9,13 +8,10 @@ import {
 } from '../utils'
 import path = require('path')
 import fs = require('mz/fs')
-import tape = require('tape')
 import writeYamlFile = require('write-yaml-file')
 
-const test = promisifyTape(tape)
-
-test('readPackage hook', async (t: tape.Test) => {
-  const project = prepare(t)
+test('readPackage hook', async () => {
+  const project = prepare()
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -39,8 +35,8 @@ test('readPackage hook', async (t: tape.Test) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('readPackage hook makes installation fail if it does not return the modified package manifests', async (t: tape.Test) => {
-  prepare(t)
+test('readPackage hook makes installation fail if it does not return the modified package manifests', async () => {
+  prepare()
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -51,13 +47,13 @@ test('readPackage hook makes installation fail if it does not return the modifie
     }
   `, 'utf8')
 
-  const result = await execPnpmSync(['install', 'pkg-with-1-dep'])
+  const result = execPnpmSync(['install', 'pkg-with-1-dep'])
 
-  t.equal(result.status, 1, 'installation failed')
+  expect(result.status).toBe(1)
 })
 
-test('readPackage hook from custom location', async (t: tape.Test) => {
-  const project = prepare(t)
+test('readPackage hook from custom location', async () => {
+  const project = prepare()
 
   await fs.writeFile('pnpm.js', `
     'use strict'
@@ -81,8 +77,8 @@ test('readPackage hook from custom location', async (t: tape.Test) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('readPackage hook from global pnpmfile', async (t: tape.Test) => {
-  const project = prepare(t)
+test('readPackage hook from global pnpmfile', async () => {
+  const project = prepare()
 
   await fs.writeFile('../pnpmfile.js', `
     'use strict'
@@ -106,8 +102,8 @@ test('readPackage hook from global pnpmfile', async (t: tape.Test) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('readPackage hook from global pnpmfile and local pnpmfile', async (t: tape.Test) => {
-  const project = prepare(t)
+test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
+  const project = prepare()
 
   await fs.writeFile('../pnpmfile.js', `
     'use strict'
@@ -147,8 +143,8 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async (t: tape.
   await project.storeHas('is-positive', '1.0.0')
 })
 
-test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test) => {
-  const projects = preparePackages(t, [
+test('readPackage hook from pnpmfile at root of workspace', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -186,17 +182,17 @@ test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test)
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
   /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
-  t.deepEqual(lockfile.packages!['/is-positive/1.0.0'].dependencies, {
+  expect(lockfile.packages!['/is-positive/1.0.0'].dependencies).toStrictEqual({
     'dep-of-pkg-with-1-dep': '100.1.0',
-  }, 'dep-of-pkg-with-1-dep is dependency of is-positive')
-  t.deepEqual(lockfile.packages!['/is-negative/1.0.0'].dependencies, {
+  })
+  expect(lockfile.packages!['/is-negative/1.0.0'].dependencies).toStrictEqual({
     'dep-of-pkg-with-1-dep': '100.1.0',
-  }, 'dep-of-pkg-with-1-dep is dependency of is-negative')
+  })
   /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
-test('readPackage hook during update', async (t: tape.Test) => {
-  const project = prepare(t, {
+test('readPackage hook during update', async () => {
+  const project = prepare(undefined, {
     dependencies: {
       'pkg-with-1-dep': '*',
     },
@@ -224,30 +220,30 @@ test('readPackage hook during update', async (t: tape.Test) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('prints meaningful error when there is syntax error in pnpmfile.js', async (t: tape.Test) => {
-  prepare(t)
+test('prints meaningful error when there is syntax error in pnpmfile.js', async () => {
+  prepare()
 
   await fs.writeFile('pnpmfile.js', '/boom', 'utf8')
 
   const proc = execPnpmSync(['install', 'pkg-with-1-dep'])
 
-  t.ok(proc.stderr.toString().includes('SyntaxError: Invalid regular expression: missing /'))
-  t.equal(proc.status, 1)
+  expect(proc.stderr.toString().includes('SyntaxError: Invalid regular expression: missing /')).toBeTruthy()
+  expect(proc.status).toBe(1)
 })
 
-test('fails when pnpmfile.js requires a non-existend module', async (t: tape.Test) => {
-  prepare(t)
+test('fails when pnpmfile.js requires a non-existend module', async () => {
+  prepare()
 
   await fs.writeFile('pnpmfile.js', 'module.exports = require("./this-does-node-exist")', 'utf8')
 
   const proc = execPnpmSync(['install', 'pkg-with-1-dep'])
 
-  t.ok(proc.stdout.toString().includes('Error during pnpmfile execution'))
-  t.equal(proc.status, 1)
+  expect(proc.stdout.toString().includes('Error during pnpmfile execution')).toBeTruthy()
+  expect(proc.status).toBe(1)
 })
 
-test('ignore pnpmfile.js when --ignore-pnpmfile is used', async (t: tape.Test) => {
-  const project = prepare(t)
+test('ignore pnpmfile.js when --ignore-pnpmfile is used', async () => {
+  const project = prepare()
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -270,8 +266,8 @@ test('ignore pnpmfile.js when --ignore-pnpmfile is used', async (t: tape.Test) =
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test('ignore pnpmfile.js during update when --ignore-pnpmfile is used', async (t: tape.Test) => {
-  const project = prepare(t, {
+test('ignore pnpmfile.js during update when --ignore-pnpmfile is used', async () => {
+  const project = prepare(undefined, {
     dependencies: {
       'pkg-with-1-dep': '*',
     },
@@ -298,8 +294,8 @@ test('ignore pnpmfile.js during update when --ignore-pnpmfile is used', async (t
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test('pnpmfile: pass log function to readPackage hook', async (t: tape.Test) => {
-  const project = prepare(t)
+test('pnpmfile: pass log function to readPackage hook', async () => {
+  const project = prepare()
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -329,15 +325,15 @@ test('pnpmfile: pass log function to readPackage hook', async (t: tape.Test) => 
     .map((output) => JSON.parse(output))
     .find((log) => log.name === 'pnpm:hook')
 
-  t.ok(hookLog, 'logged')
-  t.ok(hookLog.prefix, 'logged prefix')
-  t.ok(hookLog.from, 'logged the hook source')
-  t.equal(hookLog.hook, 'readPackage', 'logged hook name')
-  t.equal(hookLog.message, 'dep-of-pkg-with-1-dep pinned to 100.0.0', 'logged the message')
+  expect(hookLog).toBeTruthy()
+  expect(hookLog.prefix).toBeTruthy()
+  expect(hookLog.from).toBeTruthy()
+  expect(hookLog.hook).toBe('readPackage')
+  expect(hookLog.message).toBe('dep-of-pkg-with-1-dep pinned to 100.0.0')
 })
 
-test('pnpmfile: pass log function to readPackage hook of global and local pnpmfile', async (t: tape.Test) => {
-  const project = prepare(t)
+test('pnpmfile: pass log function to readPackage hook of global and local pnpmfile', async () => {
+  const project = prepare()
 
   await fs.writeFile('../pnpmfile.js', `
     'use strict'
@@ -384,24 +380,24 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
     .map((output) => JSON.parse(output))
     .filter((log) => log.name === 'pnpm:hook')
 
-  t.ok(hookLogs[0], 'logged')
-  t.ok(hookLogs[0].prefix, 'logged prefix')
-  t.ok(hookLogs[0].from, 'logged the hook source')
-  t.equal(hookLogs[0].hook, 'readPackage', 'logged hook name')
-  t.equal(hookLogs[0].message, 'is-positive pinned to 3.0.0', 'logged the message')
+  expect(hookLogs[0]).toBeTruthy()
+  expect(hookLogs[0].prefix).toBeTruthy()
+  expect(hookLogs[0].from).toBeTruthy()
+  expect(hookLogs[0].hook).toBe('readPackage')
+  expect(hookLogs[0].message).toBe('is-positive pinned to 3.0.0')
 
-  t.ok(hookLogs[1], 'logged')
-  t.ok(hookLogs[1].prefix, 'logged prefix')
-  t.ok(hookLogs[1].from, 'logged the hook source')
-  t.equal(hookLogs[1].hook, 'readPackage', 'logged hook name')
-  t.equal(hookLogs[1].message, 'is-positive pinned to 1.0.0', 'logged the message')
+  expect(hookLogs[1]).toBeTruthy()
+  expect(hookLogs[1].prefix).toBeTruthy()
+  expect(hookLogs[1].from).toBeTruthy()
+  expect(hookLogs[1].hook).toBe('readPackage')
+  expect(hookLogs[1].message).toBe('is-positive pinned to 1.0.0')
 
-  t.ok(hookLogs[0].prefix === hookLogs[1].prefix, 'logged prefix correctly')
-  t.ok(hookLogs[0].from !== hookLogs[1].from, 'logged from correctly')
+  expect(hookLogs[0].prefix).toBe(hookLogs[1].prefix)
+  expect(hookLogs[0].from).not.toBe(hookLogs[1].from)
 })
 
-test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
-  prepare(t)
+test('pnpmfile: run afterAllResolved hook', async () => {
+  prepare()
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -423,15 +419,15 @@ test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
     .map((output) => JSON.parse(output))
     .find((log) => log.name === 'pnpm:hook')
 
-  t.ok(hookLog, 'logged')
-  t.ok(hookLog.prefix, 'logged prefix')
-  t.ok(hookLog.from, 'logged the hook source')
-  t.equal(hookLog.hook, 'afterAllResolved', 'logged hook name')
-  t.equal(hookLog.message, 'All resolved', 'logged the message')
+  expect(hookLog).toBeTruthy()
+  expect(hookLog.prefix).toBeTruthy()
+  expect(hookLog.from).toBeTruthy()
+  expect(hookLog.hook).toBe('afterAllResolved')
+  expect(hookLog.message).toBe('All resolved')
 })
 
-test('readPackage hook normalizes the package manifest', async (t: tape.Test) => {
-  prepare(t)
+test('readPackage hook normalizes the package manifest', async () => {
+  prepare()
 
   await fs.writeFile('pnpmfile.js', `
     'use strict'
@@ -451,12 +447,10 @@ test('readPackage hook normalizes the package manifest', async (t: tape.Test) =>
   `, 'utf8')
 
   await execPnpm(['install', 'dep-of-pkg-with-1-dep'])
-
-  t.pass('code in pnpmfile did not fail')
 })
 
-test('readPackage hook overrides project package', async (t: tape.Test) => {
-  const project = prepare(t, {
+test('readPackage hook overrides project package', async () => {
+  const project = prepare(undefined, {
     name: 'test-read-package-hook',
   })
 
@@ -481,11 +475,11 @@ test('readPackage hook overrides project package', async (t: tape.Test) => {
   await project.has('is-positive')
 
   const pkg = await import(path.resolve('package.json'))
-  t.notOk(pkg.dependencies, 'dependencies added by the hooks not saved in package.json')
+  expect(pkg.dependencies).toBeFalsy()
 })
 
-test('readPackage hook is used during removal inside a workspace', async (t: tape.Test) => {
-  preparePackages(t, [
+test('readPackage hook is used during removal inside a workspace', async () => {
+  preparePackages(undefined, [
     {
       name: 'project',
       version: '1.0.0',
@@ -522,5 +516,5 @@ test('readPackage hook is used during removal inside a workspace', async (t: tap
 
   process.chdir('..')
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  t.equal(lockfile.packages!['/abc/1.0.0_is-negative@1.0.0+peer-a@1.0.0'].peerDependencies!['is-negative'], '1.0.0')
+  expect(lockfile.packages!['/abc/1.0.0_is-negative@1.0.0+peer-a@1.0.0'].peerDependencies!['is-negative']).toBe('1.0.0')
 })

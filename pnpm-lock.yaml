@@ -2253,6 +2253,7 @@ importers:
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
       p-any: 3.0.0
+      p-defer: 3.0.0
       path-exists: 4.0.0
       path-name: 1.0.0
       pkgs-graph: 'link:../pkgs-graph'
@@ -2343,6 +2344,7 @@ importers:
       normalize-newline: 3.0.0
       npm-run-all: ^4.1.5
       p-any: 3.0.0
+      p-defer: ^3.0.0
       path-exists: ^4.0.0
       path-name: ^1.0.0
       pkgs-graph: 'workspace:5.2.0'

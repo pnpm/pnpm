@@ -1,8 +1,6 @@
 import { promisify } from 'util'
-import promisifyTape from 'tape-promise'
 import readYamlFile from 'read-yaml-file'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import assertProject, { isExecutable } from '@pnpm/assert-project'
 import {
   execPnpm,
@@ -12,14 +10,12 @@ import path = require('path')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import PATH = require('path-name')
-import tape = require('tape')
 import writePkg = require('write-pkg')
 
 const ncp = promisify(ncpCB.ncp)
-const test = promisifyTape(tape)
 
-test('linking multiple packages', async (t: tape.Test) => {
-  const project = prepare(t)
+test('linking multiple packages', async () => {
+  const project = prepare()
 
   process.chdir('..')
 
@@ -31,7 +27,7 @@ test('linking multiple packages', async (t: tape.Test) => {
 
   process.chdir('linked-foo')
 
-  t.comment('linking linked-foo to global package')
+  console.log('linking linked-foo to global package')
   await execPnpm(['link'], { env })
 
   process.chdir('..')
@@ -43,11 +39,11 @@ test('linking multiple packages', async (t: tape.Test) => {
   await project.has('linked-bar')
 
   const modules = await readYamlFile<object>('../linked-bar/node_modules/.modules.yaml')
-  t.deepEqual(modules['hoistPattern'], ['*'], 'the linked package used its own configs during installation') // eslint-disable-line @typescript-eslint/dot-notation
+  expect(modules['hoistPattern']).toStrictEqual(['*']) // the linked package used its own configs during installation // eslint-disable-line @typescript-eslint/dot-notation
 })
 
-test('link global bin', async function (t: tape.Test) {
-  prepare(t)
+test('link global bin', async function () {
+  prepare()
   process.chdir('..')
 
   const global = path.resolve('global')
@@ -66,11 +62,11 @@ test('link global bin', async function (t: tape.Test) {
 
   await execPnpm(['link'], { env })
 
-  await isExecutable(t.ok, path.join(globalBin, 'package-with-bin'))
+  await isExecutable((value) => expect(value).toBeTruthy(), path.join(globalBin, 'package-with-bin'))
 })
 
-test('relative link', async (t: tape.Test) => {
-  const project = prepare(t, {
+test('relative link', async () => {
+  const project = prepare(undefined, {
     dependencies: {
       'hello-world-js-bin': '*',
     },
@@ -86,19 +82,19 @@ test('relative link', async (t: tape.Test) => {
 
   // The linked package has been installed successfully as well with bins linked
   // to node_modules/.bin
-  const linkedProject = assertProject(t, linkedPkgPath)
+  const linkedProject = assertProject(undefined, linkedPkgPath)
   await linkedProject.isExecutable('.bin/cowsay')
 
   const wantedLockfile = await project.readLockfile()
-  t.equal(wantedLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
-  t.equal(wantedLockfile.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
+  expect(wantedLockfile.dependencies['hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
+  expect(wantedLockfile.specifiers['hello-world-js-bin']).toBe('*') // specifier of linked dependency added to ${WANTED_LOCKFILE}
 
   const currentLockfile = await project.readCurrentLockfile()
-  t.equal(currentLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
+  expect(currentLockfile.dependencies['hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
-test('link --production', async (t: tape.Test) => {
-  const projects = preparePackages(t, [
+test('link --production', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'target',
       version: '1.0.0',

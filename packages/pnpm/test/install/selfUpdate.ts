@@ -1,5 +1,4 @@
 import prepare from '@pnpm/prepare'
-import promisifyTape from 'tape-promise'
 import {
   execPnpm,
   retryLoadJsonFile,
@@ -7,19 +6,16 @@ import {
 } from '../utils'
 import path = require('path')
 import pathExists = require('path-exists')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('self-update stops the store server', async (t: tape.Test) => {
-  prepare(t)
+test('self-update stops the store server', async () => {
+  prepare()
 
   spawnPnpm(['server', 'start'])
 
   const serverJsonPath = path.resolve('../store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
-  t.ok(serverJson)
-  t.ok(serverJson.connectionOptions)
+  expect(serverJson).toBeTruthy()
+  expect(serverJson.connectionOptions).toBeTruthy()
 
   const global = path.resolve('global')
 
@@ -28,5 +24,5 @@ test('self-update stops the store server', async (t: tape.Test) => {
 
   await execPnpm(['install', '-g', 'pnpm', '--store-dir', path.resolve('..', 'store')], { env })
 
-  t.notOk(await pathExists(serverJsonPath), 'server.json removed')
+  expect(await pathExists(serverJsonPath)).toBeFalsy()
 })

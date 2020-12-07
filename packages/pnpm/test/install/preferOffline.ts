@@ -1,17 +1,13 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   execPnpm,
 } from '../utils'
 import rimraf = require('@zkochan/rimraf')
-import tape = require('tape')
 
-const test = promisifyTape(tape)
-
-test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async (t: tape.Test) => {
-  const project = prepare(t)
+test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async () => {
+  const project = prepare()
 
   await addDistTag('foo', '100.0.0', 'latest')
 
@@ -25,5 +21,5 @@ test('when prefer offline is used, meta from store is used, where latest might b
 
   await execPnpm(['install', 'foo', '--prefer-offline'])
 
-  t.equal(project.requireModule('foo/package.json').version, '100.0.0')
+  expect(project.requireModule('foo/package.json').version).toBe('100.0.0')
 })

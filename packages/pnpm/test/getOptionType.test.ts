@@ -3,7 +3,6 @@ import {
   getLastOption,
   getOptionCompletions,
 } from '../src/getOptionType'
-import test = require('tape')
 
 const TYPES = {
   color: ['red', 'blue', Array],
@@ -16,19 +15,18 @@ const SHORTHANDS = {
   D: '--save-dev',
 }
 
-test('getOptionCompletions()', t => {
-  t.deepEqual(getOptionCompletions(TYPES, SHORTHANDS, '--store-dir'), [])
-  t.deepEqual(getOptionCompletions(TYPES, SHORTHANDS, '--dev'), undefined)
-  t.deepEqual(getOptionCompletions(TYPES, SHORTHANDS, '--no-dev'), undefined)
-  t.deepEqual(getOptionCompletions(TYPES, SHORTHANDS, '-D'), undefined)
-  t.deepEqual(getOptionCompletions(TYPES, SHORTHANDS, '--unknown'), undefined)
-  t.deepEqual(getOptionCompletions(TYPES, SHORTHANDS, '--color'), ['red', 'blue'])
-  t.deepEqual(getOptionCompletions(TYPES, SHORTHANDS, '--'), undefined)
-  t.end()
+test('getOptionCompletions()', () => {
+  expect(getOptionCompletions(TYPES, SHORTHANDS, '--store-dir')).toStrictEqual([])
+  expect(getOptionCompletions(TYPES, SHORTHANDS, '--dev')).toBeUndefined()
+  expect(getOptionCompletions(TYPES, SHORTHANDS, '--no-dev')).toBeUndefined()
+  expect(getOptionCompletions(TYPES, SHORTHANDS, '-D')).toBeUndefined()
+  expect(getOptionCompletions(TYPES, SHORTHANDS, '--unknown')).toBeUndefined()
+  expect(getOptionCompletions(TYPES, SHORTHANDS, '--color')).toStrictEqual(['red', 'blue'])
+  expect(getOptionCompletions(TYPES, SHORTHANDS, '--')).toBeUndefined()
 })
 
-test('getLastOption()', t => {
-  t.equal(
+test('getLastOption()', () => {
+  expect(
     getLastOption({
       last: '',
       lastPartial: 'f',
@@ -37,10 +35,9 @@ test('getLastOption()', t => {
       point: 30,
       prev: 'f',
       words: 4,
-    }),
-    '--resolution-strategy'
-  )
-  t.equal(
+    })
+  ).toBe('--resolution-strategy')
+  expect(
     getLastOption({
       last: '',
       lastPartial: '',
@@ -49,14 +46,12 @@ test('getLastOption()', t => {
       point: 28,
       prev: '--resolution-strategy',
       words: 3,
-    }),
-    '--resolution-strategy'
-  )
-  t.end()
+    })
+  ).toBe('--resolution-strategy')
 })
 
-test('currentTypedWordType()', t => {
-  t.equal(currentTypedWordType({
+test('currentTypedWordType()', () => {
+  expect(currentTypedWordType({
     last: '',
     lastPartial: '',
     line: 'pnpm i --resolution-strategy ',
@@ -64,8 +59,8 @@ test('currentTypedWordType()', t => {
     point: 29,
     prev: '--resolution-strategy',
     words: 3,
-  }), null, 'pnpm i --resolution-strategy |')
-  t.equal(currentTypedWordType({
+  })).toBe(null)
+  expect(currentTypedWordType({
     last: '',
     lastPartial: 'f',
     line: 'pnpm i --resolution-strategy f ',
@@ -73,8 +68,8 @@ test('currentTypedWordType()', t => {
     point: 30,
     prev: 'f',
     words: 4,
-  }), 'value', 'pnpm i --resolution-strategy f|')
-  t.equal(currentTypedWordType({
+  })).toBe('value')
+  expect(currentTypedWordType({
     last: '',
     lastPartial: 'ex',
     line: 'pnpm add ex --save-dev ',
@@ -82,8 +77,8 @@ test('currentTypedWordType()', t => {
     point: 11,
     prev: '--save-dev',
     words: 4,
-  }), 'value', 'pnpm add ex| --save-dev')
-  t.equal(currentTypedWordType({
+  })).toBe('value')
+  expect(currentTypedWordType({
     last: '',
     lastPartial: '--res',
     line: 'pnpm i --res foo ',
@@ -91,6 +86,5 @@ test('currentTypedWordType()', t => {
     point: 12,
     prev: 'foo',
     words: 4,
-  }), 'option', 'pnpm i --res| foo')
-  t.end()
+  })).toBe('option')
 })

@@ -1,7 +1,6 @@
 import complete from '../src/cmd/complete'
-import test = require('tape')
 
-test('complete an option value', async (t) => {
+test('complete an option value', async () => {
   const completions = await complete(
     {
       cliOptionsTypesByCommandName: {
@@ -22,14 +21,13 @@ test('complete an option value', async (t) => {
       params: [],
     }
   )
-  t.deepEqual(completions, [
+  expect(completions).toStrictEqual([
     { name: 'fast' },
     { name: 'fewer-dependencies' },
   ])
-  t.end()
 })
 
-test('complete a command', async (t) => {
+test('complete a command', async () => {
   const ctx = {
     cliOptionsTypesByCommandName: {
       run: () => ({
@@ -45,7 +43,7 @@ test('complete a command', async (t) => {
       filter: String,
     },
   }
-  t.deepEqual(
+  expect(
     await complete(ctx,
       {
         cmd: 'run',
@@ -54,10 +52,11 @@ test('complete a command', async (t) => {
         options: {},
         params: [],
       }
-    ),
+    )
+  ).toStrictEqual(
     [{ name: 'test' }]
   )
-  t.deepEqual(
+  expect(
     await complete(ctx,
       {
         cmd: 'run',
@@ -66,7 +65,8 @@ test('complete a command', async (t) => {
         options: {},
         params: [],
       }
-    ),
+    )
+  ).toStrictEqual(
     [
       { name: 'test' },
       { name: '--filter' },
@@ -74,7 +74,7 @@ test('complete a command', async (t) => {
       { name: '--no-if-present' },
     ]
   )
-  t.deepEqual(
+  expect(
     await complete(ctx,
       {
         cmd: 'run',
@@ -83,18 +83,18 @@ test('complete a command', async (t) => {
         options: {},
         params: [],
       }
-    ),
+    )
+  ).toStrictEqual(
     [
       { name: '--filter' },
       { name: '--if-present' },
       { name: '--no-if-present' },
     ]
   )
-  t.end()
 })
 
-test('if command completion fails, return empty array', async (t) => {
-  t.deepEqual(
+test('if command completion fails, return empty array', async () => {
+  expect(
     await complete(
       {
         cliOptionsTypesByCommandName: {},
@@ -116,13 +116,13 @@ test('if command completion fails, return empty array', async (t) => {
         options: {},
         params: [],
       }
-    ),
+    )
+  ).toStrictEqual(
     []
   )
-  t.end()
 })
 
-test('initial completion', async (t) => {
+test('initial completion', async () => {
   const ctx = {
     cliOptionsTypesByCommandName: {},
     completionByCommandName: {},
@@ -135,7 +135,7 @@ test('initial completion', async (t) => {
       filter: String,
     },
   }
-  t.deepEqual(
+  expect(
     await complete(ctx,
       {
         cmd: null,
@@ -144,14 +144,14 @@ test('initial completion', async (t) => {
         options: {},
         params: [],
       }
-    ), [
-      { name: 'add' },
-      { name: 'install' },
-      { name: '--filter' },
-      { name: '--version' },
-    ]
-  )
-  t.deepEqual(
+    )
+  ).toStrictEqual([
+    { name: 'add' },
+    { name: 'install' },
+    { name: '--filter' },
+    { name: '--version' },
+  ])
+  expect(
     await complete(ctx,
       {
         cmd: 'ad',
@@ -160,12 +160,12 @@ test('initial completion', async (t) => {
         options: {},
         params: [],
       }
-    ), [
-      { name: 'add' },
-      { name: 'install' },
-    ]
-  )
-  t.deepEqual(
+    )
+  ).toStrictEqual([
+    { name: 'add' },
+    { name: 'install' },
+  ])
+  expect(
     await complete(ctx,
       {
         cmd: null,
@@ -174,16 +174,15 @@ test('initial completion', async (t) => {
         options: {},
         params: [],
       }
-    ), [
-      { name: '--filter' },
-      { name: '--version' },
-    ]
-  )
-  t.end()
+    )
+  ).toStrictEqual([
+    { name: '--filter' },
+    { name: '--version' },
+  ])
 })
 
-test('suggest no completions for after --version', async (t) => {
-  t.deepEqual(
+test('suggest no completions for after --version', async () => {
+  expect(
     await complete(
       {
         cliOptionsTypesByCommandName: {},
@@ -202,7 +201,6 @@ test('suggest no completions for after --version', async (t) => {
         options: { version: true },
         params: [],
       }
-    ), []
-  )
-  t.end()
+    )
+  ).toStrictEqual([])
 })
