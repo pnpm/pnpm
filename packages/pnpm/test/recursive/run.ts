@@ -1,15 +1,11 @@
 import { execPnpm } from '../utils'
 import { preparePackages } from '@pnpm/prepare'
-import promisifyTape from 'tape-promise'
 import fs = require('mz/fs')
 import path = require('path')
-import tape = require('tape')
 import writeYamlFile = require('write-yaml-file')
 
-const test = promisifyTape(tape)
-
-test('pnpm recursive run finds bins from the root of the workspace', async (t: tape.Test) => {
-  preparePackages(t, [
+test('pnpm recursive run finds bins from the root of the workspace', async () => {
+  preparePackages(undefined, [
     {
       location: '.',
       package: {
@@ -38,15 +34,17 @@ test('pnpm recursive run finds bins from the root of the workspace', async (t: t
 
   await execPnpm(['recursive', 'install'])
 
-  t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8')),
+  expect(
+    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8'))
+  ).toStrictEqual(
     ['project-postinstall']
   )
 
   await execPnpm(['recursive', 'run', 'build'])
 
-  t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8')),
+  expect(
+    JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8'))
+  ).toStrictEqual(
     ['project-build']
   )
 
@@ -54,22 +52,25 @@ test('pnpm recursive run finds bins from the root of the workspace', async (t: t
   await execPnpm(['run', 'build'])
   process.chdir('..')
 
-  t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8')),
+  expect(
+    JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8'))
+  ).toStrictEqual(
     ['project-build', 'project-build']
   )
 
   await execPnpm(['recursive', 'rebuild'])
 
-  t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8')),
+  expect(
+    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8'))
+  ).toStrictEqual(
     ['project-postinstall', 'project-postinstall']
   )
 
   await execPnpm(['recursive', 'run', 'testBinPriority'])
 
-  t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('testBinPriority.json'), 'utf8')),
+  expect(
+    JSON.parse(await fs.readFile(path.resolve('testBinPriority.json'), 'utf8'))
+  ).toStrictEqual(
     ['1.0.0\n']
   )
 })

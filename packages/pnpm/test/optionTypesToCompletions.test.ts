@@ -1,12 +1,12 @@
 import optionTypesToCompletions from '../src/optionTypesToCompletions'
-import test = require('tape')
 
-test('optionTypesToCompletions()', t => {
-  t.deepEqual(
+test('optionTypesToCompletions()', () => {
+  expect(
     optionTypesToCompletions({
       bar: String,
       foo: Boolean,
-    }), [
+    })
+  ).toStrictEqual([
       {
         name: '--bar',
       },
@@ -18,5 +18,4 @@ test('optionTypesToCompletions()', t => {
       },
     ]
   )
-  t.end()
 })

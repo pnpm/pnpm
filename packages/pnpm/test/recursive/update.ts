@@ -1,18 +1,14 @@
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
 import path = require('path')
 import fs = require('mz/fs')
-import tape = require('tape')
-
-const test = promisifyTape(tape)
 
 // TODO: This should work if the settings are passed through CLI
-test.skip('recursive update --latest should update deps with correct specs', async (t: tape.Test) => {
+test.skip('recursive update --latest should update deps with correct specs', async () => {
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
-  preparePackages(t, [
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -53,7 +49,7 @@ test.skip('recursive update --latest should update deps with correct specs', asy
 
   await execPnpm(['recursive', 'update', '--latest'])
 
-  t.deepEqual((await import(path.resolve('project-1/package.json'))).dependencies, { foo: '^100.1.0' })
-  t.deepEqual((await import(path.resolve('project-2/package.json'))).dependencies, { foo: '100.1.0' })
-  t.deepEqual((await import(path.resolve('project-3/package.json'))).dependencies, { foo: '~100.1.0' })
+  expect((await import(path.resolve('project-1/package.json'))).dependencies).toStrictEqual({ foo: '^100.1.0' })
+  expect((await import(path.resolve('project-2/package.json'))).dependencies).toStrictEqual({ foo: '100.1.0' })
+  expect((await import(path.resolve('project-3/package.json'))).dependencies).toStrictEqual({ foo: '~100.1.0' })
 })

@@ -1,16 +1,12 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
-import promisifyTape from 'tape-promise'
 import { execPnpm, execPnpmSync } from './utils'
 import path = require('path')
 import fs = require('mz/fs')
-import tape = require('tape')
-
-const test = promisifyTape(tape)
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
-test('run -r: pass the args to the command that is specfied in the build script', async (t: tape.Test) => {
-  preparePackages(t, [{
+test('run -r: pass the args to the command that is specfied in the build script', async () => {
+  preparePackages(undefined, [{
     name: 'project',
     scripts: {
       foo: 'node recordArgs',
@@ -23,16 +19,16 @@ test('run -r: pass the args to the command that is specfied in the build script'
 
   await execPnpm(['run', '-r', 'foo', 'arg', '--', '--flag=true'])
 
-  const args = await import(path.resolve('project/args.json'))
-  t.deepEqual(args, [
+  const { default: args } = await import(path.resolve('project/args.json'))
+  expect(args).toStrictEqual([
     [],
     ['arg', '--flag=true'],
     [],
   ])
 })
 
-test('test -r: pass the args to the command that is specfied in the build script of a package.json manifest', async (t: tape.Test) => {
-  preparePackages(t, [{
+test('test -r: pass the args to the command that is specfied in the build script of a package.json manifest', async () => {
+  preparePackages(undefined, [{
     name: 'project',
     scripts: {
       test: 'ts-node test',
@@ -41,21 +37,21 @@ test('test -r: pass the args to the command that is specfied in the build script
 
   const result = execPnpmSync(['test', '-r', 'arg', '--', '--flag=true'])
 
-  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true"/), 'command was successful')
+  expect((result.stdout as Buffer).toString('utf8')).toMatch(/ts-node test "arg" "--flag=true"/)
 })
 
-test('start: run "node server.js" by default', async (t: tape.Test) => {
-  prepare(t, {}, { manifestFormat: 'YAML' })
+test('start: run "node server.js" by default', async () => {
+  prepare(undefined, {}, { manifestFormat: 'YAML' })
 
   await fs.writeFile('server.js', 'console.log("Hello world!")', 'utf8')
 
   const result = execPnpmSync(['start'])
 
-  t.ok((result.stdout as Buffer).toString('utf8').match(/Hello world!/), 'command was successful')
+  expect((result.stdout as Buffer).toString('utf8')).toMatch(/Hello world!/)
 })
 
-test('install-test: install dependencies and runs tests', async (t: tape.Test) => {
-  prepare(t, {
+test('install-test: install dependencies and runs tests', async () => {
+  prepare(undefined, {
     dependencies: {
       'json-append': '1',
     },
@@ -68,16 +64,16 @@ test('install-test: install dependencies and runs tests', async (t: tape.Test) =
 
   await execPnpm(['install-test'])
 
-  const scriptsRan = await import(path.resolve('output.json'))
-  t.deepEqual(scriptsRan, [
+  const { default: scriptsRan } = await import(path.resolve('output.json'))
+  expect(scriptsRan).toStrictEqual([
     'pretest',
     'test',
     'posttest',
   ])
 })
 
-test('silent run only prints the output of the child process', async (t: tape.Test) => {
-  prepare(t, {
+test('silent run only prints the output of the child process', async () => {
+  prepare(undefined, {
     scripts: {
       hi: 'echo hi && exit 1',
     },
@@ -85,5 +81,5 @@ test('silent run only prints the output of the child process', async (t: tape.Te
 
   const result = execPnpmSync(['run', '--silent', 'hi'])
 
-  t.ok(result.stdout.toString().trim() === 'hi')
+  expect(result.stdout.toString().trim()).toBe('hi')
 })
