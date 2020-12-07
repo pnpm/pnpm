@@ -146,12 +146,11 @@ test('initial completion', async () => {
       }
     )
   ).toStrictEqual([
-      { name: 'add' },
-      { name: 'install' },
-      { name: '--filter' },
-      { name: '--version' },
-    ]
-  )
+    { name: 'add' },
+    { name: 'install' },
+    { name: '--filter' },
+    { name: '--version' },
+  ])
   expect(
     await complete(ctx,
       {
@@ -163,10 +162,9 @@ test('initial completion', async () => {
       }
     )
   ).toStrictEqual([
-      { name: 'add' },
-      { name: 'install' },
-    ]
-  )
+    { name: 'add' },
+    { name: 'install' },
+  ])
   expect(
     await complete(ctx,
       {
@@ -178,10 +176,9 @@ test('initial completion', async () => {
       }
     )
   ).toStrictEqual([
-      { name: '--filter' },
-      { name: '--version' },
-    ]
-  )
+    { name: '--filter' },
+    { name: '--version' },
+  ])
 })
 
 test('suggest no completions for after --version', async () => {

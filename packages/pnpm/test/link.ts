@@ -1,7 +1,6 @@
 import { promisify } from 'util'
 import readYamlFile from 'read-yaml-file'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import assertProject, { isExecutable } from '@pnpm/assert-project'
 import {
   execPnpm,

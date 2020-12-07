@@ -1,5 +1,4 @@
 import prepare from '@pnpm/prepare'
-import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
 import deepRequireCwd = require('deep-require-cwd')
 

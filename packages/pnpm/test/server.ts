@@ -10,6 +10,7 @@ import {
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import delay, { ClearablePromise } from 'delay'
+import { DeferredPromise } from 'p-defer'
 import path = require('path')
 import byline = require('byline')
 import pAny = require('p-any')
@@ -17,8 +18,6 @@ import pDefer = require('p-defer')
 import pathExists = require('path-exists')
 import killcb = require('tree-kill')
 import writeJsonFile = require('write-json-file')
-
-import { DeferredPromise } from 'p-defer'
 
 // Third element is true if and only if we attempted to kill the process via a signal.
 interface ServerProcess {

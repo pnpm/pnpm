@@ -7,15 +7,14 @@ test('optionTypesToCompletions()', () => {
       foo: Boolean,
     })
   ).toStrictEqual([
-      {
-        name: '--bar',
-      },
-      {
-        name: '--foo',
-      },
-      {
-        name: '--no-foo',
-      },
-    ]
-  )
+    {
+      name: '--bar',
+    },
+    {
+      name: '--foo',
+    },
+    {
+      name: '--no-foo',
+    },
+  ])
 })

@@ -545,29 +545,27 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
   {
     const { default: outputs1 } = await import(path.resolve('output1.json'))
     expect(outputs1).toStrictEqual([
-        'project-999-install',
-        'project-999-postinstall',
-        'project-999-prepublish',
-        'project-999-prepare',
-        'project-1-install',
-        'project-1-postinstall',
-        'project-1-prepublish',
-        'project-1-prepare',
-      ]
-    )
+      'project-999-install',
+      'project-999-postinstall',
+      'project-999-prepublish',
+      'project-999-prepare',
+      'project-1-install',
+      'project-1-postinstall',
+      'project-1-prepublish',
+      'project-1-prepare',
+    ])
 
     const { default: outputs2 } = await import(path.resolve('output2.json'))
     expect(outputs2).toStrictEqual([
-        'project-999-install',
-        'project-999-postinstall',
-        'project-999-prepublish',
-        'project-999-prepare',
-        'project-2-install',
-        'project-2-postinstall',
-        'project-2-prepublish',
-        'project-2-prepare',
-      ]
-    )
+      'project-999-install',
+      'project-999-postinstall',
+      'project-999-prepublish',
+      'project-999-prepare',
+      'project-2-install',
+      'project-2-postinstall',
+      'project-2-prepublish',
+      'project-2-prepare',
+    ])
   }
 
   await rimraf('node_modules')
@@ -580,29 +578,27 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
   {
     const { default: outputs1 } = await import(path.resolve('output1.json'))
     expect(outputs1).toStrictEqual([
-        'project-999-install',
-        'project-999-postinstall',
-        'project-999-prepublish',
-        'project-999-prepare',
-        'project-1-install',
-        'project-1-postinstall',
-        'project-1-prepublish',
-        'project-1-prepare',
-      ]
-    )
+      'project-999-install',
+      'project-999-postinstall',
+      'project-999-prepublish',
+      'project-999-prepare',
+      'project-1-install',
+      'project-1-postinstall',
+      'project-1-prepublish',
+      'project-1-prepare',
+    ])
 
     const { default: outputs2 } = await import(path.resolve('output2.json'))
     expect(outputs2).toStrictEqual([
-        'project-999-install',
-        'project-999-postinstall',
-        'project-999-prepublish',
-        'project-999-prepare',
-        'project-2-install',
-        'project-2-postinstall',
-        'project-2-prepublish',
-        'project-2-prepare',
-      ]
-    )
+      'project-999-install',
+      'project-999-postinstall',
+      'project-999-prepublish',
+      'project-999-prepare',
+      'project-2-install',
+      'project-2-postinstall',
+      'project-2-prepublish',
+      'project-2-prepare',
+    ])
   }
 })
 
