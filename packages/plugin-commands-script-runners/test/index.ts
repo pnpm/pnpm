@@ -8,21 +8,16 @@ import {
 } from '@pnpm/plugin-commands-script-runners'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import './exec'
-import './runCompletion'
-import './runRecursive'
-import './testRecursive'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
-import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
-test('pnpm run: returns correct exit code', async (t) => {
-  prepare(t, {
+test('pnpm run: returns correct exit code', async () => {
+  prepare(undefined, {
     scripts: {
       exit0: 'exit 0',
       exit1: 'exit 1',
@@ -45,15 +40,13 @@ test('pnpm run: returns correct exit code', async (t) => {
   } catch (_err) {
     err = _err
   }
-  t.equal(err.errno, 1)
-
-  t.end()
+  expect(err.errno).toBe(1)
 })
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
-test('run: pass the args to the command that is specfied in the build script', async (t) => {
-  prepare(t, {
+test('run: pass the args to the command that is specfied in the build script', async () => {
+  prepare(undefined, {
     scripts: {
       foo: 'node recordArgs',
       postfoo: 'node recordArgs',
@@ -69,18 +62,16 @@ test('run: pass the args to the command that is specfied in the build script', a
     rawConfig: {},
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
-  const args = await import(path.resolve('args.json'))
-  t.deepEqual(args, [
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
     [],
     ['arg', '--flag=true', '--help', '-h'],
     [],
   ])
-
-  t.end()
 })
 
-test('run: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t) => {
-  prepare(t, {
+test('run: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
+  prepare(undefined, {
     scripts: {
       foo: 'node recordArgs',
       postfoo: 'node recordArgs',
@@ -96,18 +87,16 @@ test('run: pass the args to the command that is specfied in the build script of 
     rawConfig: {},
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
-  const args = await import(path.resolve('args.json'))
-  t.deepEqual(args, [
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
     [],
     ['arg', '--flag=true', '--help', '-h'],
     [],
   ])
-
-  t.end()
 })
 
-test('test: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t) => {
-  prepare(t, {
+test('test: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
+  prepare(undefined, {
     scripts: {
       posttest: 'node recordArgs',
       pretest: 'node recordArgs',
@@ -123,18 +112,16 @@ test('test: pass the args to the command that is specfied in the build script of
     rawConfig: {},
   }, ['arg', '--flag=true', '--help', '-h'])
 
-  const args = await import(path.resolve('args.json'))
-  t.deepEqual(args, [
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
     [],
     ['arg', '--flag=true', '--help', '-h'],
     [],
   ])
-
-  t.end()
 })
 
-test('run start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t) => {
-  prepare(t, {
+test('run start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
+  prepare(undefined, {
     scripts: {
       poststart: 'node recordArgs',
       prestart: 'node recordArgs',
@@ -150,18 +137,16 @@ test('run start: pass the args to the command that is specfied in the build scri
     rawConfig: {},
   }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
-  const args = await import(path.resolve('args.json'))
-  t.deepEqual(args, [
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
     [],
     ['arg', '--flag=true', '--help', '-h'],
     [],
   ])
-
-  t.end()
 })
 
-test('run stop: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t) => {
-  prepare(t, {
+test('run stop: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
+  prepare(undefined, {
     scripts: {
       poststop: 'node recordArgs',
       prestop: 'node recordArgs',
@@ -177,18 +162,16 @@ test('run stop: pass the args to the command that is specfied in the build scrip
     rawConfig: {},
   }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
-  const args = await import(path.resolve('args.json'))
-  t.deepEqual(args, [
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
     [],
     ['arg', '--flag=true', '--help', '-h'],
     [],
   ])
-
-  t.end()
 })
 
-test('restart: run stop, restart and start', async (t) => {
-  prepare(t, {
+test('restart: run stop, restart and start', async () => {
+  prepare(undefined, {
     scripts: {
       poststop: 'node -e "process.stdout.write(\'poststop\')" | json-append ./output.json',
       prestop: 'node -e "process.stdout.write(\'prestop\')" | json-append ./output.json',
@@ -211,8 +194,8 @@ test('restart: run stop, restart and start', async (t) => {
     rawConfig: {},
   }, [])
 
-  const scriptsRan = await import(path.resolve('output.json'))
-  t.deepEqual(scriptsRan, [
+  const { default: scriptsRan } = await import(path.resolve('output.json'))
+  expect(scriptsRan).toStrictEqual([
     'prestop',
     'stop',
     'poststop',
@@ -223,11 +206,10 @@ test('restart: run stop, restart and start', async (t) => {
     'start',
     'poststart',
   ])
-  t.end()
 })
 
-test('"pnpm run" prints the list of available commands', async (t) => {
-  prepare(t, {
+test('"pnpm run" prints the list of available commands', async () => {
+  prepare(undefined, {
     scripts: {
       foo: 'echo hi',
       test: 'ts-node test',
@@ -240,7 +222,7 @@ test('"pnpm run" prints the list of available commands', async (t) => {
     rawConfig: {},
   }, [])
 
-  t.equal(output, `\
+  expect(output).toBe(`\
 Lifecycle scripts:
   test
     ts-node test
@@ -248,11 +230,10 @@ Lifecycle scripts:
 Commands available via "pnpm run":
   foo
     echo hi`)
-  t.end()
 })
 
-test('"pnpm run" prints the list of available commands, including commands of the root workspace project', async (t) => {
-  preparePackages(t, [
+test('"pnpm run" prints the list of available commands, including commands of the root workspace project', async () => {
+  preparePackages(undefined, [
     {
       location: '.',
       package: {
@@ -290,7 +271,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
     workspaceDir,
   }, [])
 
-  t.equal(output, `\
+  expect(output).toBe(`\
 Lifecycle scripts:
   test
     ts-node test
@@ -304,11 +285,10 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
     echo root
   test
     test-all`)
-  t.end()
 })
 
-test('pnpm run does not fail with --if-present even if the wanted script is not present', async (t) => {
-  prepare(t, {})
+test('pnpm run does not fail with --if-present even if the wanted script is not present', async () => {
+  prepare(undefined, {})
 
   await run.handler({
     dir: process.cwd(),
@@ -316,12 +296,10 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
     ifPresent: true,
     rawConfig: {},
   }, ['build'])
-
-  t.end()
 })
 
-test('if a script is not found but is present in the root, print an info message about it in the error message', async (t) => {
-  preparePackages(t, [
+test('if a script is not found but is present in the root, print an info message about it in the error message', async () => {
+  preparePackages(undefined, [
     {
       location: '.',
       package: {
@@ -363,13 +341,12 @@ test('if a script is not found but is present in the root, print an info message
     err = _err
   }
 
-  t.ok(err)
-  t.ok(err.hint.includes('But build is present in the root'))
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err.hint).toMatch(/But build is present in the root/)
 })
 
-test('scripts work with PnP', async (t) => {
-  prepare(t, {
+test('scripts work with PnP', async () => {
+  prepare(undefined, {
     scripts: {
       foo: 'node -e "process.stdout.write(\'foo\')" | json-append ./output.json',
     },
@@ -387,13 +364,12 @@ test('scripts work with PnP', async (t) => {
     rawConfig: {},
   }, ['foo'])
 
-  const scriptsRan = await import(path.resolve('output.json'))
-  t.deepEqual(scriptsRan, ['foo'])
-  t.end()
+  const { default: scriptsRan } = await import(path.resolve('output.json'))
+  expect(scriptsRan).toStrictEqual(['foo'])
 })
 
-test('pnpm run with custom shell', async (t) => {
-  prepare(t, {
+test('pnpm run with custom shell', async () => {
+  prepare(undefined, {
     scripts: {
       build: 'foo bar',
     },
@@ -416,6 +392,5 @@ test('pnpm run with custom shell', async (t) => {
     scriptShell: path.resolve('node_modules/.bin/shell-mock'),
   }, ['build'])
 
-  t.deepEqual(await import(path.resolve('shell-input.json')), ['-c', 'foo bar'])
-  t.end()
+  expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
 })

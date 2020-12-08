@@ -7,7 +7,6 @@ import prepare, { tempDir } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
 import ncpCB = require('ncp')
-import test = require('tape')
 import tempy = require('tempy')
 
 const ncp = promisify(ncpCB)
@@ -42,9 +41,9 @@ const DEFAULT_OPTS = {
   useStoreServer: false,
 }
 
-test('import from package-lock.json', async (t) => {
+test('import from package-lock.json', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  tempDir(t)
+  tempDir(undefined)
 
   await ncp(path.join(fixtures, 'has-package-lock-json'), process.cwd())
 
@@ -53,21 +52,19 @@ test('import from package-lock.json', async (t) => {
     dir: process.cwd(),
   })
 
-  const project = assertProject(t, process.cwd())
+  const project = assertProject(undefined, process.cwd())
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
-  t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
 
   // node_modules is not created
   await project.hasNot('dep-of-pkg-with-1-dep')
   await project.hasNot('pkg-with-1-dep')
-
-  t.end()
 })
 
-test('import from npm-shrinkwrap.json', async (t) => {
+test('import from npm-shrinkwrap.json', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  tempDir(t)
+  tempDir(undefined)
 
   await ncp(path.join(fixtures, 'has-npm-shrinkwrap-json'), process.cwd())
 
@@ -76,20 +73,18 @@ test('import from npm-shrinkwrap.json', async (t) => {
     dir: process.cwd(),
   })
 
-  const project = assertProject(t, process.cwd())
+  const project = assertProject(undefined, process.cwd())
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
-  t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
 
   // node_modules is not created
   await project.hasNot('dep-of-pkg-with-1-dep')
   await project.hasNot('pkg-with-1-dep')
-
-  t.end()
 })
 
-test('import fails when no npm lockfiles are found', async (t) => {
-  prepare(t)
+test('import fails when no npm lockfiles are found', async () => {
+  prepare(undefined)
 
   let err!: PnpmError
   try {
@@ -101,7 +96,5 @@ test('import fails when no npm lockfiles are found', async (t) => {
     err = _err
   }
 
-  t.ok(err.message.toString().includes('No package-lock.json or npm-shrinkwrap.json found'))
-
-  t.end()
+  expect(err.message.toString()).toMatch(/No package-lock.json or npm-shrinkwrap.json found/)
 })

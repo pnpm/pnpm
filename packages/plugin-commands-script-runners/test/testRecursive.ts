@@ -4,10 +4,9 @@ import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 import path = require('path')
 import execa = require('execa')
-import test = require('tape')
 
-test('pnpm recursive test', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive test', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -69,16 +68,15 @@ test('pnpm recursive test', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  const outputs1 = await import(path.resolve('output1.json')) as string[]
-  const outputs2 = await import(path.resolve('output2.json')) as string[]
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const { default: outputs2 } = await import(path.resolve('output2.json'))
 
-  t.deepEqual(outputs1, ['project-1', 'project-2'])
-  t.deepEqual(outputs2, ['project-1', 'project-3'])
-  t.end()
+  expect(outputs1).toStrictEqual(['project-1', 'project-2'])
+  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })
 
-test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async (t) => {
-  preparePackages(t, [
+test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -125,13 +123,10 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
-
-  t.pass('command did not fail')
-  t.end()
 })
 
-test('pnpm recursive test with filtering', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive test with filtering', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -180,8 +175,7 @@ test('pnpm recursive test with filtering', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  const outputs = await import(path.resolve('output.json')) as string[]
+  const { default: outputs } = await import(path.resolve('output.json'))
 
-  t.deepEqual(outputs, ['project-1'])
-  t.end()
+  expect(outputs).toStrictEqual(['project-1'])
 })

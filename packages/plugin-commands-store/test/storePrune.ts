@@ -10,14 +10,13 @@ import path = require('path')
 import R = require('ramda')
 import sinon = require('sinon')
 import ssri = require('ssri')
-import test = require('tape')
 
 const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
-test('remove unreferenced packages', async (t) => {
-  const project = prepare(t)
+test('remove unreferenced packages', async () => {
+  const project = prepare()
   const storeDir = path.resolve('store')
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
@@ -36,10 +35,10 @@ test('remove unreferenced packages', async (t) => {
     storeDir,
   }, ['prune'])
 
-  t.ok(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'info',
     message: 'Removed 1 package',
-  }), 'report removal')
+  })).toBeTruthy()
 
   await project.storeHasNot('is-negative', '2.1.0')
 
@@ -54,17 +53,16 @@ test('remove unreferenced packages', async (t) => {
     storeDir,
   }, ['prune'])
 
-  t.notOk(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'info',
     message: 'Removed 1 package',
-  }))
-  t.end()
+  })).toBeFalsy()
 })
 
-test.skip('remove packages that are used by project that no longer exist', async (t) => {
-  prepare(t)
+test.skip('remove packages that are used by project that no longer exist', async () => {
+  prepare()
   const storeDir = path.resolve('store', STORE_VERSION)
-  const { cafsHas, cafsHasNot } = assertStore(t, storeDir)
+  const { cafsHas, cafsHasNot } = assertStore(undefined, storeDir)
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
@@ -83,17 +81,16 @@ test.skip('remove packages that are used by project that no longer exist', async
     storeDir,
   }, ['prune'])
 
-  t.ok(reporter.calledWithMatch({
+  expect(reporter.calledWithMatch({
     level: 'info',
     message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
-  }))
+  })).toBeTruthy()
 
   await cafsHasNot(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
-  t.end()
 })
 
-test('keep dependencies used by others', async (t) => {
-  const project = prepare(t)
+test('keep dependencies used by others', async () => {
+  const project = prepare()
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'camelcase-keys@3.0.0', '--store-dir', storeDir, '--registry', REGISTRY])
   await execa('node', [pnpmBin, 'add', 'hastscript@3.0.0', '--save-dev', '--store-dir', storeDir, '--registry', REGISTRY])
@@ -109,9 +106,9 @@ test('keep dependencies used by others', async (t) => {
 
   // all dependencies are marked as dev
   const lockfile = await project.readLockfile() as Lockfile
-  t.notOk(R.isEmpty(lockfile.packages))
+  expect(R.isEmpty(lockfile.packages)).toBeFalsy()
 
-  Object.entries(lockfile.packages ?? {}).forEach(([depPath, dep]) => t.ok(dep.dev, `${depPath} is dev`))
+  Object.entries(lockfile.packages ?? {}).forEach(([depPath, dep]) => expect(dep.dev).toBeTruthy())
 
   await store.handler({
     dir: process.cwd(),
@@ -125,11 +122,10 @@ test('keep dependencies used by others', async (t) => {
   await project.storeHasNot('camelcase-keys', '3.0.0')
   await project.storeHasNot('map-obj', '1.0.1')
   await project.storeHas('camelcase', '3.0.0')
-  t.end()
 })
 
-test('keep dependency used by package', async (t) => {
-  const project = prepare(t)
+test('keep dependency used by package', async () => {
+  const project = prepare()
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
   await execa('node', [pnpmBin, 'remove', 'is-not-positive', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
@@ -144,11 +140,10 @@ test('keep dependency used by package', async (t) => {
   }, ['prune'])
 
   await project.storeHas('is-positive', '3.1.0')
-  t.end()
 })
 
-test('prune will skip scanning non-directory in storeDir', async (t) => {
-  prepare(t)
+test('prune will skip scanning non-directory in storeDir', async () => {
+  prepare()
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
   fs.writeFileSync(path.join(storeDir, STORE_VERSION, 'files/.DS_store'), 'foobar')
@@ -161,6 +156,4 @@ test('prune will skip scanning non-directory in storeDir', async (t) => {
     registries: { default: REGISTRY },
     storeDir,
   }, ['prune'])
-
-  t.end()
 })

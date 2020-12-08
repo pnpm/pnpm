@@ -4,12 +4,11 @@ import { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fs = require('fs')
 import path = require('path')
-import test = require('tape')
 
 const STORE_VERSION = 'v3'
 
-test('pnpm store add express@4.16.3', async function (t) {
-  tempDir(t)
+test('pnpm store add express@4.16.3', async () => {
+  tempDir(undefined)
 
   const storeDir = path.resolve('store')
 
@@ -22,14 +21,12 @@ test('pnpm store add express@4.16.3', async function (t) {
     storeDir,
   }, ['add', 'express@4.16.3'])
 
-  const { cafsHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
+  const { cafsHas } = assertStore(undefined, path.join(storeDir, STORE_VERSION))
   await cafsHas('sha1-avilAjUNsyRuzEvs9rWjTSL37VM=')
-
-  t.end()
 })
 
-test('pnpm store add scoped package that uses not the standard registry', async function (t) {
-  tempDir(t)
+test('pnpm store add scoped package that uses not the standard registry', async () => {
+  tempDir(undefined)
 
   const storeDir = path.resolve('store')
 
@@ -45,14 +42,12 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     storeDir,
   }, ['add', '@foo/no-deps@1.0.0'])
 
-  const { cafsHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
+  const { cafsHas } = assertStore(undefined, path.join(storeDir, STORE_VERSION))
   await cafsHas('@foo/no-deps', '1.0.0')
-
-  t.end()
 })
 
-test('should fail if some packages can not be added', async (t) => {
-  tempDir(t)
+test('should fail if some packages can not be added', async () => {
+  tempDir(undefined)
   fs.mkdirSync('_')
   process.chdir('_')
   const storeDir = path.resolve('pnpm-store')
@@ -72,9 +67,8 @@ test('should fail if some packages can not be added', async (t) => {
     }, ['add', '@pnpm/this-does-not-exist'])
   } catch (e) {
     thrown = true
-    t.equal(e.code, 'ERR_PNPM_STORE_ADD_FAILURE', 'has thrown the correct error code')
-    t.equal(e.message, 'Some packages have not been added correctly', 'has thrown the correct error')
+    expect(e.code).toBe('ERR_PNPM_STORE_ADD_FAILURE')
+    expect(e.message).toBe('Some packages have not been added correctly')
   }
-  t.ok(thrown, 'has thrown')
-  t.end()
+  expect(thrown).toBeTruthy()
 })

@@ -5,13 +5,12 @@ import { PackageManifest } from '@pnpm/types'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 import path = require('path')
 import execa = require('execa')
-import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
-test('pnpm recursive rebuild', async (t) => {
-  const projects = preparePackages(t, [
+test('pnpm recursive rebuild', async () => {
+  const projects = preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -60,11 +59,10 @@ test('pnpm recursive rebuild', async (t) => {
   await projects['project-1'].has('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
   await projects['project-2'].has('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-2'].has('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  t.end()
 })
 
 // TODO: make this test pass
-test.skip('rebuild multiple packages in correct order', async (t) => {
+test.skip('rebuild multiple packages in correct order', async () => {
   const pkgs = [
     {
       name: 'project-1',
@@ -108,7 +106,7 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
       dependencies: {},
     },
   ] as PackageManifest[]
-  preparePackages(t, pkgs)
+  preparePackages(undefined, pkgs)
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
@@ -135,7 +133,6 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
   const outputs1 = await import(path.resolve('output1.json')) as string[]
   const outputs2 = await import(path.resolve('output2.json')) as string[]
 
-  t.deepEqual(outputs1, ['project-1', 'project-2'])
-  t.deepEqual(outputs2, ['project-1', 'project-3'])
-  t.end()
+  expect(outputs1).toStrictEqual(['project-1', 'project-2'])
+  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })

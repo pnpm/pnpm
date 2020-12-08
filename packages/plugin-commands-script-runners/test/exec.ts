@@ -7,12 +7,11 @@ import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
 import fs = require('mz/fs')
-import test = require('tape')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
-test('pnpm recursive exec', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive exec', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -67,17 +66,15 @@ test('pnpm recursive exec', async (t) => {
     selectedProjectsGraph,
   }, ['npm', 'run', 'build'])
 
-  const outputs1 = await import(path.resolve('output1.json')) as string[]
-  const outputs2 = await import(path.resolve('output2.json')) as string[]
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const { default: outputs2 } = await import(path.resolve('output2.json'))
 
-  t.deepEqual(outputs1, ['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
-  t.deepEqual(outputs2, ['project-1', 'project-3'])
-
-  t.end()
+  expect(outputs1).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })
 
-test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
+  preparePackages(undefined, [
     {
       name: 'foo',
       version: '1.0.0',
@@ -91,12 +88,11 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t) => {
     selectedProjectsGraph,
   }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkgname\', process.env.PNPM_PACKAGE_NAME, \'utf8\')'])
 
-  t.equal(await fs.readFile('foo/pkgname', 'utf8'), 'foo', '$PNPM_PACKAGE_NAME is correct')
-  t.end()
+  expect(await fs.readFile('foo/pkgname', 'utf8')).toBe('foo')
 })
 
-test('testing the bail config with "pnpm recursive exec"', async (t) => {
-  preparePackages(t, [
+test('testing the bail config with "pnpm recursive exec"', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -156,11 +152,11 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
     err1 = _err
     failed = true
   }
-  t.equal(err1.code, 'ERR_PNPM_RECURSIVE_FAIL')
-  t.ok(failed, 'recursive exec failed with --no-bail')
+  expect(err1.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+  expect(failed).toBeTruthy()
 
-  const outputs = await import(path.resolve('output.json')) as string[]
-  t.deepEqual(outputs, ['project-1', 'project-3'], 'error skipped')
+  const { default: outputs } = await import(path.resolve('output.json'))
+  expect(outputs).toStrictEqual(['project-1', 'project-3'])
 
   await rimraf('./output.json')
 
@@ -177,13 +173,12 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
     failed = true
   }
 
-  t.equal(err2.code, 'ERR_PNPM_RECURSIVE_FAIL')
-  t.ok(failed, 'recursive exec failed with --bail')
-  t.end()
+  expect(err2.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+  expect(failed).toBeTruthy()
 })
 
-test('pnpm recursive exec --no-sort', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive exec --no-sort', async () => {
+  preparePackages(undefined, [
     {
       name: 'a-dependent',
       version: '1.0.0',
@@ -226,14 +221,13 @@ test('pnpm recursive exec --no-sort', async (t) => {
     workspaceConcurrency: 1,
   }, ['npm', 'run', 'build'])
 
-  const outputs = await import(path.resolve('output.json')) as string[]
+  const { default: outputs } = await import(path.resolve('output.json'))
 
-  t.deepEqual(outputs, ['a-dependent', 'b-dependency'])
-  t.end()
+  expect(outputs).toStrictEqual(['a-dependent', 'b-dependency'])
 })
 
-test('pnpm exec fails without the recursive=true option', async (t) => {
-  preparePackages(t, [])
+test('pnpm exec fails without the recursive=true option', async () => {
+  preparePackages(undefined, [])
 
   let err!: PnpmError
   try {
@@ -246,13 +240,11 @@ test('pnpm exec fails without the recursive=true option', async (t) => {
     err = _err
   }
 
-  t.equal(err.code, 'ERR_PNPM_EXEC_NOT_RECURSIVE')
-
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_EXEC_NOT_RECURSIVE')
 })
 
-test('pnpm recursive exec works with PnP', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive exec works with PnP', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -312,11 +304,9 @@ test('pnpm recursive exec works with PnP', async (t) => {
     selectedProjectsGraph,
   }, ['npm', 'run', 'build'])
 
-  const outputs1 = await import(path.resolve('output1.json')) as string[]
-  const outputs2 = await import(path.resolve('output2.json')) as string[]
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const { default: outputs2 } = await import(path.resolve('output2.json'))
 
-  t.deepEqual(outputs1, ['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
-  t.deepEqual(outputs2, ['project-1', 'project-3'])
-
-  t.end()
+  expect(outputs1).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })

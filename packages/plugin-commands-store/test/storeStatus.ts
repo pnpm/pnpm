@@ -5,14 +5,13 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
-import test = require('tape')
 import tempy = require('tempy')
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
-test('CLI fails when store status finds modified packages', async function (t) {
-  prepare(t)
+test('CLI fails when store status finds modified packages', async () => {
+  prepare()
   const storeDir = tempy.directory()
 
   await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
@@ -32,14 +31,13 @@ test('CLI fails when store status finds modified packages', async function (t) {
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_MODIFIED_DEPENDENCY')
-  t.equal(err['modified'].length, 1)
-  t.ok(err['modified'][0].includes('is-positive'))
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
+  expect(err['modified'].length).toBe(1)
+  expect(err['modified'][0]).toMatch(/is-positive/)
 })
 
-test('CLI does not fail when store status does not find modified packages', async function (t) {
-  prepare(t)
+test('CLI does not fail when store status does not find modified packages', async () => {
+  prepare()
   const storeDir = tempy.directory()
 
   await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
@@ -54,6 +52,4 @@ test('CLI does not fail when store status does not find modified packages', asyn
     registries: { default: REGISTRY },
     storeDir,
   }, ['status'])
-  t.pass('CLI did not fail')
-  t.end()
 })
