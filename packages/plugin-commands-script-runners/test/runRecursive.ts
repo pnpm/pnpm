@@ -6,13 +6,12 @@ import { DEFAULT_OPTS, REGISTRY } from './utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
-import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
-test('pnpm recursive run', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive run', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -76,16 +75,15 @@ test('pnpm recursive run', async (t) => {
     workspaceDir: process.cwd(),
   }, ['build'])
 
-  const outputs1 = await import(path.resolve('output1.json')) as string[]
-  const outputs2 = await import(path.resolve('output2.json')) as string[]
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const { default: outputs2 } = await import(path.resolve('output2.json'))
 
-  t.deepEqual(outputs1, ['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
-  t.deepEqual(outputs2, ['project-1', 'project-3'])
-  t.end()
+  expect(outputs1).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })
 
-test('pnpm recursive run concurrently', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive run concurrently', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -128,15 +126,14 @@ test('pnpm recursive run concurrently', async (t) => {
     workspaceDir: process.cwd(),
   }, ['build'])
 
-  const outputs1 = await import(path.resolve('output1.json')) as number[]
-  const outputs2 = await import(path.resolve('output2.json')) as number[]
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const { default: outputs2 } = await import(path.resolve('output2.json'))
 
-  t.ok(Math.max(outputs1[0], outputs2[0]) < Math.min(outputs1[outputs1.length - 1], outputs2[outputs2.length - 1]))
-  t.end()
+  expect(Math.max(outputs1[0], outputs2[0]) < Math.min(outputs1[outputs1.length - 1], outputs2[outputs2.length - 1])).toBeTruthy()
 })
 
-test('`pnpm recursive run` fails when run without filters and no package has the desired command, unless if-present is set', async (t) => {
-  preparePackages(t, [
+test('`pnpm recursive run` fails when run without filters and no package has the desired command, unless if-present is set', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -173,7 +170,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  t.comment('recursive run does not fail when if-present is true')
+  console.log('recursive run does not fail when if-present is true')
   await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -197,12 +194,11 @@ test('`pnpm recursive run` fails when run without filters and no package has the
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
 
-test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command, unless if-present is set', async (t) => {
-  preparePackages(t, [
+test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command, unless if-present is set', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -229,7 +225,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
     },
   ])
 
-  t.comment('recursive run does not fail when if-present is true')
+  console.log('recursive run does not fail when if-present is true')
   await run.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
@@ -251,12 +247,11 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
 
-test('`pnpm recursive run` succeeds when run against a subset of packages and no package has the desired command', async (t) => {
-  preparePackages(t, [
+test('`pnpm recursive run` succeeds when run against a subset of packages and no package has the desired command', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -305,11 +300,10 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, ['this-command-does-not-exist'])
-  t.end()
 })
 
-test('"pnpm run --filter <pkg>" without specifying the script name', async (t) => {
-  preparePackages(t, [
+test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -351,7 +345,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async (t) =
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  t.comment('prints the list of available commands if a single project is selected')
+  console.log('prints the list of available commands if a single project is selected')
   {
     const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
       allProjects,
@@ -367,7 +361,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async (t) =
       workspaceDir: process.cwd(),
     }, [])
 
-    t.equal(output, `\
+    expect(output).toBe(`\
 Lifecycle scripts:
   test
     ts-node test
@@ -376,7 +370,7 @@ Commands available via "pnpm run":
   foo
     echo hi`)
   }
-  t.comment('throws an error if several projects are selected')
+  console.log('throws an error if several projects are selected')
   {
     const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
       allProjects,
@@ -398,15 +392,14 @@ Commands available via "pnpm run":
       err = _err
     }
 
-    t.ok(err)
-    t.equal(err.code, 'ERR_PNPM_SCRIPT_NAME_IS_REQUIRED')
-    t.equal(err.message, 'You must specify the script you want to run')
+    expect(err).toBeTruthy()
+    expect(err.code).toBe('ERR_PNPM_SCRIPT_NAME_IS_REQUIRED')
+    expect(err.message).toBe('You must specify the script you want to run')
   }
-  t.end()
 })
 
-test('testing the bail config with "pnpm recursive run"', async (t) => {
-  preparePackages(t, [
+test('testing the bail config with "pnpm recursive run"', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -467,10 +460,10 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
   } catch (_err) {
     err1 = _err
   }
-  t.equal(err1.code, 'ERR_PNPM_RECURSIVE_FAIL')
+  expect(err1.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
 
-  const outputs = await import(path.resolve('output.json')) as string[]
-  t.deepEqual(outputs, ['project-1', 'project-3'], 'error skipped')
+  const { default: outputs } = await import(path.resolve('output.json'))
+  expect(outputs).toStrictEqual(['project-1', 'project-3'])
 
   await rimraf('./output.json')
 
@@ -488,12 +481,11 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
     err2 = _err
   }
 
-  t.equal(err2.code, 'ERR_PNPM_RECURSIVE_FAIL')
-  t.end()
+  expect(err2.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
 })
 
-test('pnpm recursive run with filtering', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive run with filtering', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -544,14 +536,13 @@ test('pnpm recursive run with filtering', async (t) => {
     workspaceDir: process.cwd(),
   }, ['build'])
 
-  const outputs = await import(path.resolve('output.json')) as string[]
+  const { default: outputs } = await import(path.resolve('output.json'))
 
-  t.deepEqual(outputs, ['project-1'])
-  t.end()
+  expect(outputs).toStrictEqual(['project-1'])
 })
 
-test('`pnpm recursive run` should always trust the scripts', async (t) => {
-  preparePackages(t, [
+test('`pnpm recursive run` should always trust the scripts', async () => {
+  preparePackages(undefined, [
     {
       name: 'project',
       version: '1.0.0',
@@ -565,7 +556,6 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
     },
   ])
 
-  const { allProjects } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -578,7 +568,6 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
   process.env['npm_config_unsafe_perm'] = 'false'
   await run.handler({
     ...DEFAULT_OPTS,
-    allProjects,
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -586,14 +575,13 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
   }, ['build'])
   delete process.env.npm_config_unsafe_perm
 
-  const outputs = await import(path.resolve('output.json')) as string[]
+  const { default: outputs } = await import(path.resolve('output.json'))
 
-  t.deepEqual(outputs, ['project'])
-  t.end()
+  expect(outputs).toStrictEqual(['project'])
 })
 
-test('`pnpm run -r` should avoid infinite recursion', async (t) => {
-  preparePackages(t, [
+test('`pnpm run -r` should avoid infinite recursion', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -644,10 +632,9 @@ test('`pnpm run -r` should avoid infinite recursion', async (t) => {
     workspaceDir: process.cwd(),
   }, ['build'])
 
-  const outputs1 = await import(path.resolve('output1.json')) as string[]
-  const outputs2 = await import(path.resolve('output2.json')) as string[]
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const { default: outputs2 } = await import(path.resolve('output2.json'))
 
-  t.deepEqual(outputs1, ['project-2'])
-  t.deepEqual(outputs2, ['project-3'])
-  t.end()
+  expect(outputs1).toStrictEqual(['project-2'])
+  expect(outputs2).toStrictEqual(['project-3'])
 })

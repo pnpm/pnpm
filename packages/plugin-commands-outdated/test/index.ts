@@ -4,11 +4,9 @@ import PnpmError from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import './recursive'
 import fs = require('mz/fs')
 import path = require('path')
 import stripAnsi = require('strip-ansi')
-import test = require('tape')
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
@@ -36,8 +34,8 @@ const OUTDATED_OPTIONS = {
   userAgent: '',
 }
 
-test('pnpm outdated: show details', async (t) => {
-  tempDir(t)
+test('pnpm outdated: show details', async () => {
+  tempDir(undefined)
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -49,8 +47,8 @@ test('pnpm outdated: show details', async (t) => {
     long: true,
   })
 
-  t.equal(exitCode, 1)
-  t.equal(stripAnsi(output), `\
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
 ┌───────────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
 │ Package           │ Current │ Latest     │ Details                                     │
 ├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
@@ -64,11 +62,10 @@ test('pnpm outdated: show details', async (t) => {
 │ is-positive (dev) │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
 └───────────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
 `)
-  t.end()
 })
 
-test('pnpm outdated: show details (using the public registry to verify that full metadata is being requested)', async (t) => {
-  tempDir(t)
+test('pnpm outdated: show details (using the public registry to verify that full metadata is being requested)', async () => {
+  tempDir(undefined)
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(has2OutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -82,8 +79,8 @@ test('pnpm outdated: show details (using the public registry to verify that full
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
-  t.equal(exitCode, 1)
-  t.equal(stripAnsi(output), `\
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
 ┌───────────────────┬─────────┬────────┬─────────────────────────────────────────────┐
 │ Package           │ Current │ Latest │ Details                                     │
 ├───────────────────┼─────────┼────────┼─────────────────────────────────────────────┤
@@ -92,11 +89,10 @@ test('pnpm outdated: show details (using the public registry to verify that full
 │ is-positive (dev) │ 1.0.0   │ 3.1.0  │ https://github.com/kevva/is-positive#readme │
 └───────────────────┴─────────┴────────┴─────────────────────────────────────────────┘
 `)
-  t.end()
 })
 
-test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
-  tempDir(t)
+test('pnpm outdated: showing only prod or dev dependencies', async () => {
+  tempDir(undefined)
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -109,8 +105,8 @@ test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
       production: false,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toBe(`\
 ┌───────────────────┬─────────┬────────┐
 │ Package           │ Current │ Latest │
 ├───────────────────┼─────────┼────────┤
@@ -126,8 +122,8 @@ test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
       dir: process.cwd(),
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toBe(`\
 ┌─────────────┬─────────┬────────────┐
 │ Package     │ Current │ Latest     │
 ├─────────────┼─────────┼────────────┤
@@ -137,12 +133,10 @@ test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
 └─────────────┴─────────┴────────────┘
 `)
   }
-
-  t.end()
 })
 
-test('pnpm outdated: no table', async (t) => {
-  tempDir(t)
+test('pnpm outdated: no table', async () => {
+  tempDir(undefined)
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -155,8 +149,8 @@ test('pnpm outdated: no table', async (t) => {
       table: false,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output), `deprecated
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toBe(`deprecated
 1.0.0 => Deprecated
 
 is-negative
@@ -175,8 +169,8 @@ is-positive (dev)
       table: false,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output), `deprecated
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toBe(`deprecated
 1.0.0 => Deprecated
 This package is deprecated. Lorem ipsum
 dolor sit amet, consectetur adipiscing
@@ -192,11 +186,10 @@ is-positive (dev)
 https://github.com/kevva/is-positive#readme
 `)
   }
-  t.end()
 })
 
-test('pnpm outdated: only current lockfile is available', async (t) => {
-  tempDir(t)
+test('pnpm outdated: only current lockfile is available', async () => {
+  tempDir(undefined)
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -207,8 +200,8 @@ test('pnpm outdated: only current lockfile is available', async (t) => {
     dir: process.cwd(),
   })
 
-  t.equal(exitCode, 1)
-  t.equal(stripAnsi(output), `\
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
 ┌───────────────────┬─────────┬────────────┐
 │ Package           │ Current │ Latest     │
 ├───────────────────┼─────────┼────────────┤
@@ -219,11 +212,10 @@ test('pnpm outdated: only current lockfile is available', async (t) => {
 │ is-positive (dev) │ 1.0.0   │ 3.1.0      │
 └───────────────────┴─────────┴────────────┘
 `)
-  t.end()
 })
 
-test('pnpm outdated: only wanted lockfile is available', async (t) => {
-  tempDir(t)
+test('pnpm outdated: only wanted lockfile is available', async () => {
+  tempDir(undefined)
 
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
@@ -233,8 +225,8 @@ test('pnpm outdated: only wanted lockfile is available', async (t) => {
     dir: process.cwd(),
   })
 
-  t.equal(exitCode, 1)
-  t.equal(stripAnsi(output), `\
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
 ┌───────────────────┬────────────────────────┬────────────┐
 │ Package           │ Current                │ Latest     │
 ├───────────────────┼────────────────────────┼────────────┤
@@ -245,10 +237,9 @@ test('pnpm outdated: only wanted lockfile is available', async (t) => {
 │ is-negative       │ missing (wanted 1.1.0) │ 2.1.0      │
 └───────────────────┴────────────────────────┴────────────┘
 `)
-  t.end()
 })
 
-test('pnpm outdated does not print anything when all is good', async (t) => {
+test('pnpm outdated does not print anything when all is good', async () => {
   process.chdir(hasNotOutdatedDepsFixture)
 
   const { output, exitCode } = await outdated.handler({
@@ -256,12 +247,11 @@ test('pnpm outdated does not print anything when all is good', async (t) => {
     dir: process.cwd(),
   })
 
-  t.equal(output, '')
-  t.equal(exitCode, 0)
-  t.end()
+  expect(output).toBe('')
+  expect(exitCode).toBe(0)
 })
 
-test('pnpm outdated with external lockfile', async (t) => {
+test('pnpm outdated with external lockfile', async () => {
   process.chdir(hasOutdatedDepsFixtureAndExternalLockfile)
 
   const { output, exitCode } = await outdated.handler({
@@ -270,8 +260,8 @@ test('pnpm outdated with external lockfile', async (t) => {
     lockfileDir: path.resolve('..'),
   })
 
-  t.equal(exitCode, 1)
-  t.equal(stripAnsi(output), `\
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
 ┌─────────────┬──────────────────────┬────────┐
 │ Package     │ Current              │ Latest │
 ├─────────────┼──────────────────────┼────────┤
@@ -280,10 +270,9 @@ test('pnpm outdated with external lockfile', async (t) => {
 │ is-negative │ 1.0.0 (wanted 1.1.0) │ 2.1.0  │
 └─────────────┴──────────────────────┴────────┘
 `)
-  t.end()
 })
 
-test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the root of the project`, async (t) => {
+test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the root of the project`, async () => {
   process.chdir(hasNoLockfileFixture)
 
   let err!: PnpmError
@@ -295,37 +284,34 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
   } catch (_err) {
     err = _err
   }
-  t.equal(err.code, 'ERR_PNPM_OUTDATED_NO_LOCKFILE')
-  t.end()
+  expect(err.code).toBe('ERR_PNPM_OUTDATED_NO_LOCKFILE')
 })
 
-test('pnpm outdated should return empty when there is no lockfile and no dependencies', async (t) => {
-  prepare(t)
+test('pnpm outdated should return empty when there is no lockfile and no dependencies', async () => {
+  prepare(undefined)
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
   })
 
-  t.equal(output, '')
-  t.equal(exitCode, 0)
-  t.end()
+  expect(output).toBe('')
+  expect(exitCode).toBe(0)
 })
 
-test('pnpm outdated: print only compatible versions', async (t) => {
+test('pnpm outdated: print only compatible versions', async () => {
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     compatible: true,
     dir: hasMajorOutdatedDepsFixture,
   })
 
-  t.equal(exitCode, 1)
-  t.equal(stripAnsi(output), `\
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
 ┌─────────────┬─────────┬────────┐
 │ Package     │ Current │ Latest │
 ├─────────────┼─────────┼────────┤
 │ is-negative │ 1.0.0   │ 1.0.1  │
 └─────────────┴─────────┴────────┘
 `)
-  t.end()
 })

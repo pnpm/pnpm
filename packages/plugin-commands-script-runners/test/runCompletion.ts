@@ -1,17 +1,17 @@
 import { run } from '@pnpm/plugin-commands-script-runners'
 import prepare from '@pnpm/prepare'
-import test = require('tape')
 
-test('run completion', async (t) => {
-  prepare(t, {
+test('run completion', async () => {
+  prepare(undefined, {
     scripts: {
       lint: 'eslint',
       test: 'node test.js',
     },
   })
 
-  t.deepEqual(
-    await run.completion({}, []),
+  expect(
+    await run.completion({}, [])
+  ).toStrictEqual(
     [
       {
         name: 'lint',
@@ -22,8 +22,5 @@ test('run completion', async (t) => {
     ]
   )
 
-  t.deepEqual(await run.completion({}, ['test']), [],
-    "don't suggest script completions if script name already typed")
-
-  t.end()
+  expect(await run.completion({}, ['test'])).toStrictEqual([])
 })

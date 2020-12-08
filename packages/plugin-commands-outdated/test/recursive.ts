@@ -4,10 +4,9 @@ import { outdated } from '@pnpm/plugin-commands-outdated'
 import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS } from './utils'
 import stripAnsi = require('strip-ansi')
-import test = require('tape')
 
-test('pnpm recursive outdated', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive outdated', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -57,8 +56,8 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 ┌───────────────────┬─────────┬────────┬──────────────────────┐
 │ Package           │ Current │ Latest │ Dependents           │
 ├───────────────────┼─────────┼────────┼──────────────────────┤
@@ -83,8 +82,8 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 ┌───────────────────┬─────────┬────────┬────────────┐
 │ Package           │ Current │ Latest │ Dependents │
 ├───────────────────┼─────────┼────────┼────────────┤
@@ -103,8 +102,8 @@ test('pnpm recursive outdated', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 ┌───────────────────┬─────────┬────────┬──────────────────────┬─────────────────────────────────────────────┐
 │ Package           │ Current │ Latest │ Dependents           │ Details                                     │
 ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
@@ -129,8 +128,8 @@ test('pnpm recursive outdated', async (t) => {
       table: false,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 is-negative
 1.0.0 => 2.1.0
 Dependent: project-2
@@ -160,8 +159,8 @@ Dependent: project-2
       table: false,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 is-negative
 1.0.0 => 2.1.0
 Dependent: project-2
@@ -193,8 +192,8 @@ https://github.com/kevva/is-positive#readme
       selectedProjectsGraph,
     }, ['is-positive'])
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 ┌─────────────┬─────────┬────────┬──────────────────────┐
 │ Package     │ Current │ Latest │ Dependents           │
 ├─────────────┼─────────┼────────┼──────────────────────┤
@@ -204,11 +203,10 @@ https://github.com/kevva/is-positive#readme
 └─────────────┴─────────┴────────┴──────────────────────┘
 `)
   }
-  t.end()
 })
 
-test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
-  preparePackages(t, [
+test('pnpm recursive outdated in workspace with shared lockfile', async () => {
+  preparePackages(undefined, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -257,8 +255,8 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 ┌───────────────────┬─────────┬────────┬──────────────────────┐
 │ Package           │ Current │ Latest │ Dependents           │
 ├───────────────────┼─────────┼────────┼──────────────────────┤
@@ -281,8 +279,8 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     })
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 ┌───────────────────┬─────────┬────────┬────────────┐
 │ Package           │ Current │ Latest │ Dependents │
 ├───────────────────┼─────────┼────────┼────────────┤
@@ -300,8 +298,8 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
       selectedProjectsGraph,
     }, ['is-positive'])
 
-    t.equal(exitCode, 1)
-    t.equal(stripAnsi(output as unknown as string), `\
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`\
 ┌─────────────┬─────────┬────────┬──────────────────────┐
 │ Package     │ Current │ Latest │ Dependents           │
 ├─────────────┼─────────┼────────┼──────────────────────┤
@@ -309,5 +307,4 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
 └─────────────┴─────────┴────────┴──────────────────────┘
 `)
   }
-  t.end()
 })

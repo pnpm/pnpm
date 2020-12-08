@@ -1,12 +1,10 @@
 import { audit } from '@pnpm/plugin-commands-audit'
 import path = require('path')
 import stripAnsi = require('strip-ansi')
-import test = require('tape')
 
-test('audit', async (t) => {
+test('audit', async () => {
   if (process.version.split('.')[0] === 'v10') {
     // The audits give different results on Node 10, for some reason
-    t.end()
     return
   }
   const { output, exitCode } = await audit.handler({
@@ -20,10 +18,8 @@ test('audit', async (t) => {
       default: 'https://registry.npmjs.org/',
     },
   })
-  t.equal(exitCode, 1)
-  t.equal(
-    stripAnsi(output),
-    `┌─────────────────────┬───────────────────────────────────┐
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`┌─────────────────────┬───────────────────────────────────┐
 │ high                │ Insufficient Entropy              │
 ├─────────────────────┼───────────────────────────────────┤
 │ Package             │ cryptiles                         │
@@ -146,10 +142,9 @@ test('audit', async (t) => {
 └─────────────────────┴───────────────────────────────────┘
 12 vulnerabilities found
 Severity: 6 low | 3 moderate | 3 high`)
-  t.end()
 })
 
-test('audit --dev', async (t) => {
+test('audit --dev', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
@@ -162,10 +157,8 @@ test('audit --dev', async (t) => {
     },
   })
 
-  t.equal(exitCode, 1)
-  t.equal(
-    stripAnsi(output),
-    `┌─────────────────────┬──────────────────────────────────┐
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`┌─────────────────────┬──────────────────────────────────┐
 │ moderate            │ Denial of Service                │
 ├─────────────────────┼──────────────────────────────────┤
 │ Package             │ axios                            │
@@ -178,10 +171,9 @@ test('audit --dev', async (t) => {
 └─────────────────────┴──────────────────────────────────┘
 1 vulnerabilities found
 Severity: 1 moderate`)
-  t.end()
 })
 
-test('audit --audit-level', async (t) => {
+test('audit --audit-level', async () => {
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
@@ -195,10 +187,8 @@ test('audit --audit-level', async (t) => {
     },
   })
 
-  t.equal(exitCode, 1)
-  t.equal(
-    stripAnsi(output),
-    `┌─────────────────────┬───────────────────────────────────┐
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`┌─────────────────────┬───────────────────────────────────┐
 │ high                │ Insufficient Entropy              │
 ├─────────────────────┼───────────────────────────────────┤
 │ Package             │ cryptiles                         │
@@ -266,10 +256,9 @@ test('audit --audit-level', async (t) => {
 └─────────────────────┴──────────────────────────────────┘
 12 vulnerabilities found
 Severity: 6 low | 3 moderate | 3 high`)
-  t.end()
 })
 
-test('audit: no vulnerabilities', async (t) => {
+test('audit: no vulnerabilities', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
     include: {
@@ -282,12 +271,11 @@ test('audit: no vulnerabilities', async (t) => {
     },
   })
 
-  t.equal(stripAnsi(output), 'No known vulnerabilities found')
-  t.equal(exitCode, 0)
-  t.end()
+  expect(stripAnsi(output)).toBe('No known vulnerabilities found')
+  expect(exitCode).toBe(0)
 })
 
-test('audit --json', async (t) => {
+test('audit --json', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
@@ -302,12 +290,11 @@ test('audit --json', async (t) => {
   })
 
   const json = JSON.parse(output)
-  t.ok(json.metadata)
-  t.equal(exitCode, 1)
-  t.end()
+  expect(json.metadata).toBeTruthy()
+  expect(exitCode).toBe(1)
 })
 
-test('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async (t) => {
+test('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async () => {
   const { output, exitCode } = await audit.handler({
     auditLevel: 'high',
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
@@ -321,10 +308,7 @@ test('audit does not exit with code 1 if the found vulnerabilities are having lo
     },
   })
 
-  t.equal(exitCode, 0)
-  t.equal(
-    stripAnsi(output),
-    `1 vulnerabilities found
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toBe(`1 vulnerabilities found
 Severity: 1 moderate`)
-  t.end()
 })
