@@ -4,7 +4,6 @@ import {
   pruneLockfile,
   pruneSharedLockfile,
 } from '@pnpm/prune-lockfile'
-import test = require('tape')
 import yaml = require('yaml-tag')
 
 const DEFAULT_OPTS = {
@@ -13,8 +12,8 @@ const DEFAULT_OPTS = {
   },
 }
 
-test('remove one redundant package', t => {
-  t.deepEqual(pruneLockfile({
+test('remove one redundant package', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -47,7 +46,7 @@ test('remove one redundant package', t => {
     dependencies: {
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -68,12 +67,10 @@ test('remove one redundant package', t => {
       },
     },
   })
-
-  t.end()
 })
 
-test('remove redundant linked package', t => {
-  t.deepEqual(pruneLockfile({
+test('remove redundant linked package', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -91,7 +88,7 @@ test('remove redundant linked package', t => {
     version: '1.0.0',
 
     dependencies: {},
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         specifiers: {},
@@ -99,12 +96,10 @@ test('remove redundant linked package', t => {
     },
     lockfileVersion: LOCKFILE_VERSION,
   })
-
-  t.end()
 })
 
-test('keep all', t => {
-  t.deepEqual(pruneLockfile({
+test('keep all', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -149,7 +144,7 @@ test('keep all', t => {
       'is-negative': '^1.0.0',
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -187,12 +182,10 @@ test('keep all', t => {
       },
     },
   })
-
-  t.end()
 })
 
-test('optional dependency should have optional = true', t => {
-  t.deepEqual(pruneLockfile({
+test('optional dependency should have optional = true', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -263,7 +256,7 @@ test('optional dependency should have optional = true', t => {
     optionalDependencies: {
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -325,12 +318,10 @@ test('optional dependency should have optional = true', t => {
       },
     },
   })
-
-  t.end()
 })
 
-test('optional dependency should not have optional = true if used not only as optional', t => {
-  t.deepEqual(pruneLockfile({
+test('optional dependency should not have optional = true if used not only as optional', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -369,7 +360,7 @@ test('optional dependency should not have optional = true if used not only as op
       'is-positive': '^1.0.0',
       'pkg-with-good-optional': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -401,12 +392,10 @@ test('optional dependency should not have optional = true if used not only as op
       },
     },
   })
-
-  t.end()
 })
 
-test('dev dependency should have dev = true', t => {
-  t.deepEqual(pruneLockfile({
+test('dev dependency should have dev = true', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -445,7 +434,7 @@ test('dev dependency should have dev = true', t => {
     devDependencies: {
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -476,12 +465,10 @@ test('dev dependency should have dev = true', t => {
       },
     },
   })
-
-  t.end()
 })
 
-test('dev dependency should not have dev = true if it is used not only as dev', t => {
-  t.deepEqual(pruneLockfile({
+test('dev dependency should not have dev = true if it is used not only as dev', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -523,7 +510,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
     devDependencies: {
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -556,12 +543,10 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
       },
     },
   })
-
-  t.end()
 })
 
-test('the dev field should be updated to dev = false if it is not a dev dependency anymore', t => {
-  t.deepEqual(pruneLockfile({
+test('the dev field should be updated to dev = false if it is not a dev dependency anymore', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -587,7 +572,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
     dependencies: {
       a: '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -608,12 +593,10 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
       },
     },
   })
-
-  t.end()
 })
 
-test('subdependency is both optional and dev', t => {
-  t.deepEqual(pruneLockfile(yaml`
+test('subdependency is both optional and dev', () => {
+  expect(pruneLockfile(yaml`
     importers:
       .:
         dependencies:
@@ -652,7 +635,7 @@ test('subdependency is both optional and dev', t => {
     devDependencies: {
       parent: '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), yaml`
+  }, '.', DEFAULT_OPTS)).toStrictEqual(yaml`
     importers:
       .:
         dependencies:
@@ -686,12 +669,10 @@ test('subdependency is both optional and dev', t => {
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
   `)
-
-  t.end()
 })
 
-test('dev = true is removed if dependency is used both as dev and prod dependency', t => {
-  t.deepEqual(pruneLockfile(yaml`
+test('dev = true is removed if dependency is used both as dev and prod dependency', () => {
+  expect(pruneLockfile(yaml`
     importers:
       .:
         dependencies:
@@ -730,7 +711,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
     devDependencies: {
       inflight: '^1.0.6',
     },
-  }, '.', DEFAULT_OPTS), yaml`
+  }, '.', DEFAULT_OPTS)).toStrictEqual(yaml`
     importers:
       .:
         dependencies:
@@ -757,12 +738,10 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
   `)
-
-  t.end()
 })
 
-test('optional = true is removed if dependency is used both as optional and prod dependency', t => {
-  t.deepEqual(pruneLockfile(yaml`
+test('optional = true is removed if dependency is used both as optional and prod dependency', () => {
+  expect(pruneLockfile(yaml`
     importers:
       .:
         dependencies:
@@ -801,7 +780,7 @@ test('optional = true is removed if dependency is used both as optional and prod
     optionalDependencies: {
       inflight: '^1.0.6',
     },
-  }, '.', DEFAULT_OPTS), yaml`
+  }, '.', DEFAULT_OPTS)).toStrictEqual(yaml`
     importers:
       .:
         dependencies:
@@ -831,12 +810,10 @@ test('optional = true is removed if dependency is used both as optional and prod
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
   `)
-
-  t.end()
 })
 
-test('remove dependencies that are not in the package', t => {
-  t.deepEqual(pruneLockfile({
+test('remove dependencies that are not in the package', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -876,7 +853,7 @@ test('remove dependencies that are not in the package', t => {
   }, {
     name: 'foo',
     version: '1.0.0',
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         specifiers: {},
@@ -884,12 +861,10 @@ test('remove dependencies that are not in the package', t => {
     },
     lockfileVersion: LOCKFILE_VERSION,
   })
-
-  t.end()
 })
 
-test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKFILE}`, t => {
-  t.deepEqual(pruneLockfile({
+test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKFILE}`, () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -917,7 +892,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
       'is-negative': '^1.0.0',
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -938,13 +913,11 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
       },
     },
   })
-
-  t.end()
 })
 
 // this test may be redundant
-test('keep lockfileMinorVersion, if present', t => {
-  t.deepEqual(pruneLockfile({
+test('keep lockfileMinorVersion, if present', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -971,7 +944,7 @@ test('keep lockfileMinorVersion, if present', t => {
     dependencies: {
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -992,12 +965,10 @@ test('keep lockfileMinorVersion, if present', t => {
       },
     },
   })
-
-  t.end()
 })
 
-test('keep linked package even if it is not in package.json', t => {
-  t.deepEqual(pruneLockfile({
+test('keep linked package even if it is not in package.json', () => {
+  expect(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -1025,7 +996,7 @@ test('keep linked package even if it is not in package.json', t => {
     dependencies: {
       'is-negative': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS), {
+  }, '.', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -1047,12 +1018,10 @@ test('keep linked package even if it is not in package.json', t => {
       },
     },
   })
-
-  t.end()
 })
 
-test("prune: don't remove package used by another importer", t => {
-  t.deepEqual(pruneLockfile({
+test("prune: don't remove package used by another importer", () => {
+  expect(pruneLockfile({
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1097,7 +1066,7 @@ test("prune: don't remove package used by another importer", t => {
     version: '1.0.0',
 
     dependencies: { 'is-negative': '^1.0.0' },
-  }, 'packages/package-2', DEFAULT_OPTS), {
+  }, 'packages/package-2', DEFAULT_OPTS)).toStrictEqual({
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1132,12 +1101,10 @@ test("prune: don't remove package used by another importer", t => {
       },
     },
   })
-
-  t.end()
 })
 
-test('pruneSharedLockfile: remove one redundant package', t => {
-  t.deepEqual(pruneSharedLockfile({
+test('pruneSharedLockfile: remove one redundant package', () => {
+  expect(pruneSharedLockfile({
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1163,7 +1130,7 @@ test('pruneSharedLockfile: remove one redundant package', t => {
         },
       },
     },
-  }, DEFAULT_OPTS), {
+  }, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1184,6 +1151,4 @@ test('pruneSharedLockfile: remove one redundant package', t => {
       },
     },
   })
-
-  t.end()
 })
