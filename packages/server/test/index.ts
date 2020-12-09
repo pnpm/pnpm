@@ -8,7 +8,6 @@ import rimraf = require('@zkochan/rimraf')
 import isPortReachable = require('is-port-reachable')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
-import test = require('tape')
 import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
@@ -29,7 +28,7 @@ function createStoreController (storeDir?: string) {
   })
 }
 
-test('server', async t => {
+test('server', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -52,25 +51,24 @@ test('server', async t => {
     }
   )
 
-  t.equal((await response.bundledManifest!()).name, 'is-positive', 'responded with bundledManifest')
-  t.equal(response.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct ID')
+  expect((await response.bundledManifest!()).name).toBe('is-positive')
+  expect(response.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
 
-  t.equal(response.body.manifest!.name, 'is-positive', 'responded with correct name in manifest')
-  t.equal(response.body.manifest!.version, '1.0.0', 'responded with correct version in manifest')
+  expect(response.body.manifest!.name).toBe('is-positive')
+  expect(response.body.manifest!.version).toBe('1.0.0')
 
   const files = await response.files!()
-  t.notOk(files.fromStore)
-  t.ok(files.filesIndex['package.json'])
-  t.ok(response.finishing)
+  expect(files.fromStore).toBeFalsy()
+  expect(files.filesIndex).toHaveProperty(['package.json'])
+  expect(response.finishing).toBeTruthy()
 
   await response.finishing!()
 
   await server.close()
   await storeCtrl.close()
-  t.end()
 })
 
-test('fetchPackage', async t => {
+test('fetchPackage', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -94,25 +92,22 @@ test('fetchPackage', async t => {
     },
   })
 
-  t.equal(typeof response.filesIndexFile, 'string', 'index file location in store returned')
+  expect(typeof response.filesIndexFile).toBe('string')
 
-  t.ok(await response.bundledManifest!())
+  expect(await response.bundledManifest!()).toBeTruthy()
 
   const files = await response['files']()
-  t.notOk(files.fromStore)
-  t.ok(files.filesIndex['package.json'])
-  t.ok(response['finishing'])
+  expect(files.fromStore).toBeFalsy()
+  expect(files.filesIndex).toHaveProperty(['package.json'])
+  expect(response).toHaveProperty(['finishing'])
 
   await response['finishing']()
 
-  t.comment('getPackageLocation()')
-
   await server.close()
   await storeCtrl.close()
-  t.end()
 })
 
-test('server errors should arrive to the client', async t => {
+test('server errors should arrive to the client', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -138,22 +133,21 @@ test('server errors should arrive to the client', async t => {
     )
   } catch (e) {
     caught = true
-    t.equal(e.message, 'GET https://registry.npmjs.org/not-an-existing-package: Not Found - 404', 'error message delivered correctly')
-    t.equal(e.hint, `not-an-existing-package is not in the npm registry, or you have no permission to fetch it.
+    expect(e.message).toBe('GET https://registry.npmjs.org/not-an-existing-package: Not Found - 404')
+    expect(e.hint).toBe(`not-an-existing-package is not in the npm registry, or you have no permission to fetch it.
 
 No authorization header was set for the request.`)
-    t.equal(e.code, 'ERR_PNPM_FETCH_404', 'error code delivered correctly')
-    t.ok(e.response, 'error response field delivered')
-    t.ok(e.pkgName, 'error package field delivered')
+    expect(e.code).toBe('ERR_PNPM_FETCH_404')
+    expect(e.response).toBeTruthy()
+    expect(e.pkgName).toBeTruthy()
   }
-  t.ok(caught, 'exception raised correctly')
+  expect(caught).toBeTruthy()
 
   await server.close()
   await storeCtrl.close()
-  t.end()
 })
 
-test('server upload', async t => {
+test('server upload', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -174,14 +168,13 @@ test('server upload', async t => {
   })
 
   const cacheIntegrity = await loadJsonFile(filesIndexFile)
-  t.deepEqual(Object.keys(cacheIntegrity['sideEffects'][fakeEngine]).sort(), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
+  expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine]).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
   await storeCtrl.close()
-  t.end()
 })
 
-test('disable server upload', async t => {
+test('disable server upload', async () => {
   await rimraf('.store')
 
   const port = 5813
@@ -208,16 +201,15 @@ test('disable server upload', async t => {
   } catch (e) {
     thrown = true
   }
-  t.ok(thrown, 'error is thrown when trying to upload')
+  expect(thrown).toBeTruthy()
 
-  t.notOk(await fs.exists(filesIndexFile), 'cache directory not created')
+  expect(await fs.exists(filesIndexFile)).toBeFalsy()
 
   await server.close()
   await storeCtrl.close()
-  t.end()
 })
 
-test('stop server with remote call', async t => {
+test('stop server with remote call', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -228,18 +220,16 @@ test('stop server with remote call', async t => {
     port,
   })
 
-  t.ok(await isPortReachable(port), 'server is running')
+  expect(await isPortReachable(port)).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/stop`, { method: 'POST' })
 
-  t.equal(response.status, 200, 'success returned by server stopping endpoint')
+  expect(response.status).toBe(200)
 
-  t.notOk(await isPortReachable(port), 'server is not running')
-
-  t.end()
+  expect(await isPortReachable(port)).toBeFalsy()
 })
 
-test('disallow stop server with remote call', async t => {
+test('disallow stop server with remote call', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -250,18 +240,17 @@ test('disallow stop server with remote call', async t => {
     port,
   })
 
-  t.ok(await isPortReachable(port), 'server is running')
+  expect(await isPortReachable(port)).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/stop`, { method: 'POST' })
-  t.equal(response.status, 403, 'server not stopped')
+  expect(response.status).toBe(403)
 
-  t.ok(await isPortReachable(port), 'server is running')
+  expect(await isPortReachable(port)).toBeTruthy()
 
   await server.close()
-  t.end()
 })
 
-test('disallow store prune', async t => {
+test('disallow store prune', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -271,17 +260,16 @@ test('disallow store prune', async t => {
     port,
   })
 
-  t.ok(await isPortReachable(port), 'server is running')
+  expect(await isPortReachable(port)).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/prune`, { method: 'POST' })
-  t.equal(response.status, 403, 'store not pruned')
+  expect(response.status).toBe(403)
 
   await server.close()
   await storeCtrlForServer.close()
-  t.end()
 })
 
-test('server should only allow POST', async (t) => {
+test('server should only allow POST', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -291,25 +279,24 @@ test('server should only allow POST', async (t) => {
     port,
   })
 
-  t.ok(await isPortReachable(port), 'server is running')
+  expect(await isPortReachable(port)).toBeTruthy()
 
   // Try various methods (not including POST)
   const methods = ['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 
   for (const method of methods) {
-    t.comment(`Testing HTTP ${method}`)
+    console.log(`Testing HTTP ${method}`)
     // Ensure 405 error is received
     const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: method })
-    t.equal(response.status, 405, 'response code should be a 504')
-    t.ok((await response.json()).error, 'error field should be set in response body')
+    expect(response.status).toBe(405)
+    expect((await response.json()).error).toBeTruthy()
   }
 
   await server.close()
   await storeCtrlForServer.close()
-  t.end()
 })
 
-test('server route not found', async (t) => {
+test('server route not found', async () => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
@@ -319,15 +306,14 @@ test('server route not found', async (t) => {
     port,
   })
 
-  t.ok(await isPortReachable(port), 'server is running')
+  expect(await isPortReachable(port)).toBeTruthy()
 
   // Ensure 404 error is received
   const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
   // Ensure error is correct
-  t.equal(response.status, 404, 'response code should be a 404')
-  t.ok((await response.json()).error, 'error field should be set in response body')
+  expect(response.status).toBe(404)
+  expect((await response.json()).error).toBeTruthy()
 
   await server.close()
   await storeCtrlForServer.close()
-  t.end()
 })

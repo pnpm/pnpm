@@ -21,7 +21,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-is-installable#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-is-installable/coverage ts-node packages/package-is-installable/test --type-check",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
