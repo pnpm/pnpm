@@ -1,11 +1,10 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import resolveFromTarball from '@pnpm/tarball-resolver'
-import test = require('tape')
 
-test('tarball from npm registry', async t => {
+test('tarball from npm registry', async () => {
   const resolutionResult = await resolveFromTarball({ pref: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
 
-  t.deepEqual(resolutionResult, {
+  expect(resolutionResult).toStrictEqual({
     id: '@registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
     normalizedPref: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
     resolution: {
@@ -13,14 +12,12 @@ test('tarball from npm registry', async t => {
     },
     resolvedVia: 'url',
   })
-
-  t.end()
 })
 
-test('tarball not from npm registry', async t => {
+test('tarball not from npm registry', async () => {
   const resolutionResult = await resolveFromTarball({ pref: 'https://github.com/hegemonic/taffydb/tarball/master' })
 
-  t.deepEqual(resolutionResult, {
+  expect(resolutionResult).toStrictEqual({
     id: '@github.com/hegemonic/taffydb/tarball/master',
     normalizedPref: 'https://github.com/hegemonic/taffydb/tarball/master',
     resolution: {
@@ -28,14 +25,12 @@ test('tarball not from npm registry', async t => {
     },
     resolvedVia: 'url',
   })
-
-  t.end()
 })
 
-test('tarballs from GitHub (is-negative)', async t => {
+test('tarballs from GitHub (is-negative)', async () => {
   const resolutionResult = await resolveFromTarball({ pref: 'https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz' })
 
-  t.deepEqual(resolutionResult, {
+  expect(resolutionResult).toStrictEqual({
     id: '@github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz',
     normalizedPref: 'https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz',
     resolution: {
@@ -43,14 +38,11 @@ test('tarballs from GitHub (is-negative)', async t => {
     },
     resolvedVia: 'url',
   })
-
-  t.end()
 })
 
-test('ignore direct URLs to repositories', async t => {
-  t.equal(await resolveFromTarball({ pref: 'https://github.com/foo/bar' }), null)
-  t.equal(await resolveFromTarball({ pref: 'https://github.com/foo/bar/' }), null)
-  t.equal(await resolveFromTarball({ pref: 'https://gitlab.com/foo/bar' }), null)
-  t.equal(await resolveFromTarball({ pref: 'https://bitbucket.org/foo/bar' }), null)
-  t.end()
+test('ignore direct URLs to repositories', async () => {
+  expect(await resolveFromTarball({ pref: 'https://github.com/foo/bar' })).toBe(null)
+  expect(await resolveFromTarball({ pref: 'https://github.com/foo/bar/' })).toBe(null)
+  expect(await resolveFromTarball({ pref: 'https://gitlab.com/foo/bar' })).toBe(null)
+  expect(await resolveFromTarball({ pref: 'https://bitbucket.org/foo/bar' })).toBe(null)
 })

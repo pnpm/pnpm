@@ -1,68 +1,59 @@
 import checkPlatform from '../lib/checkPlatform'
-import test = require('tape')
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 
-test('target cpu wrong', (t) => {
+test('target cpu wrong', () => {
   const target = {
     cpu: 'enten-cpu',
     os: 'any',
   }
   const err = checkPlatform(packageId, target)
-  t.ok(err, 'error present')
-  t.equal(err.code, 'ERR_PNPM_UNSUPPORTED_PLATFORM')
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
-test('os wrong', (t) => {
+test('os wrong', () => {
   const target = {
     cpu: 'any',
     os: 'enten-os',
   }
   const err = checkPlatform(packageId, target)
-  t.ok(err, 'error present')
-  t.equal(err.code, 'ERR_PNPM_UNSUPPORTED_PLATFORM')
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
-test('nothing wrong', (t) => {
+test('nothing wrong', () => {
   const target = {
     cpu: 'any',
     os: 'any',
   }
-  t.notOk(checkPlatform(packageId, target))
-  t.end()
+  expect(checkPlatform(packageId, target)).toBeFalsy()
 })
 
-test('only target cpu wrong', (t) => {
+test('only target cpu wrong', () => {
   const err = checkPlatform(packageId, { cpu: 'enten-cpu', os: 'any' })
-  t.ok(err, 'error present')
-  t.equal(err.code, 'ERR_PNPM_UNSUPPORTED_PLATFORM')
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
-test('only os wrong', (t) => {
+test('only os wrong', () => {
   const err = checkPlatform(packageId, { cpu: 'any', os: 'enten-os' })
-  t.ok(err, 'error present')
-  t.equal(err.code, 'ERR_PNPM_UNSUPPORTED_PLATFORM')
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
-test('everything wrong w/arrays', (t) => {
+test('everything wrong w/arrays', () => {
   const err = checkPlatform(packageId, { cpu: ['enten-cpu'], os: ['enten-os'] })
-  t.ok(err, 'error present')
-  t.equal(err.code, 'ERR_PNPM_UNSUPPORTED_PLATFORM')
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
-test('os wrong (negation)', (t) => {
+test('os wrong (negation)', () => {
   const err = checkPlatform(packageId, { cpu: 'any', os: `!${process.platform}` })
-  t.ok(err, 'error present')
-  t.equal(err.code, 'ERR_PNPM_UNSUPPORTED_PLATFORM')
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
-test('nothing wrong (negation)', (t) => {
-  t.deepEqual(checkPlatform(packageId, { cpu: '!enten-cpu', os: '!enten-os' }), null)
-  t.end()
+test('nothing wrong (negation)', () => {
+  expect(checkPlatform(packageId, { cpu: '!enten-cpu', os: '!enten-os' })).toBe(null)
 })
