@@ -1,7 +1,6 @@
 import PnpmError from '@pnpm/error'
 import parseCliArgs from '@pnpm/parse-cli-args'
 import os = require('os')
-import test = require('tape')
 import tempy = require('tempy')
 
 const DEFAULT_OPTS = {
@@ -13,86 +12,78 @@ const DEFAULT_OPTS = {
   universalShorthands: {},
 }
 
-test('a command is recursive if it has a --filter option', async (t) => {
+test('a command is recursive if it has a --filter option', async () => {
   const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { filter: [String, Array] },
   }, ['--filter', 'foo', 'update'])
-  t.equal(cmd, 'update')
-  t.ok(options['recursive'])
-  t.end()
+  expect(cmd).toBe('update')
+  expect(options).toHaveProperty(['recursive'])
 })
 
-test('a command is recursive if -r option is used', async (t) => {
+test('a command is recursive if -r option is used', async () => {
   const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { recursive: Boolean },
     universalShorthands: { r: '--recursive' },
   }, ['-r', 'update'])
-  t.equal(cmd, 'update')
-  t.ok(options['recursive'])
-  t.end()
+  expect(cmd).toBe('update')
+  expect(options).toHaveProperty(['recursive'])
 })
 
-test('a command is recursive if --recursive option is used', async (t) => {
+test('a command is recursive if --recursive option is used', async () => {
   const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { recursive: Boolean },
   }, ['-r', 'update'])
-  t.equal(cmd, 'update')
-  t.ok(options['recursive'])
-  t.end()
+  expect(cmd).toBe('update')
+  expect(options).toHaveProperty(['recursive'])
 })
 
-test('recursive is returned as the command name if no subcommand passed', async (t) => {
+test('recursive is returned as the command name if no subcommand passed', async () => {
   const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { filter: [String, Array] },
   }, ['recursive'])
-  t.equal(cmd, 'recursive')
-  t.ok(options['recursive'])
-  t.end()
+  expect(cmd).toBe('recursive')
+  expect(options).toHaveProperty(['recursive'])
 })
 
-test('when runnning a global command inside a workspace, the workspace should be ignored', async (t) => {
+test('when runnning a global command inside a workspace, the workspace should be ignored', async () => {
   const { workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { global: Boolean },
   }, ['--global', 'add', 'foo'])
-  t.notOk(workspaceDir)
-  t.end()
+  expect(workspaceDir).toBeFalsy()
 })
 
-test('command is used recursively', async (t) => {
+test('command is used recursively', async () => {
   const { cmd, options } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: {},
   }, ['recursive', 'outdated'])
-  t.equal(cmd, 'outdated')
-  t.equal(options.recursive, true)
-  t.end()
+  expect(cmd).toBe('outdated')
+  expect(options.recursive).toBe(true)
 })
 
-test('the install command is converted to add when called with args', async (t) => {
+test('the install command is converted to add when called with args', async () => {
   const { params, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['install', 'rimraf@1'])
-  t.equal(cmd, 'add')
-  t.deepEqual(params, ['rimraf@1'])
-  t.end()
+  expect(cmd).toBe('add')
+  expect(params).toStrictEqual(['rimraf@1'])
 })
 
-test('the "i" command is converted to add when called with args', async (t) => {
+test('the "i" command is converted to add when called with args', async () => {
   const { params, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getCommandLongName: (commandName) => commandName === 'i' ? 'install' : commandName,
   }, ['i', 'rimraf@1'])
-  t.equal(cmd, 'add')
-  t.deepEqual(params, ['rimraf@1'])
-  t.end()
+  expect(cmd).toBe('add')
+  expect(params).toStrictEqual(['rimraf@1'])
 })
 
-test('detect unknown options', async (t) => {
+test('detect unknown options', async () => {
   const { unknownOptions } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
@@ -107,14 +98,10 @@ test('detect unknown options', async (t) => {
     },
     universalOptionsTypes: { filter: [String, Array] },
   }, ['install', '--save-dev', '--registry=https://example.com', '--qar', '--filter=packages'])
-  t.deepEqual(
-    Array.from(unknownOptions.entries()),
-    [['save-dev', []], ['qar', ['bar']]]
-  )
-  t.end()
+  expect(Array.from(unknownOptions.entries())).toStrictEqual([['save-dev', []], ['qar', ['bar']]])
 })
 
-test('allow any option that starts with "config."', async (t) => {
+test('allow any option that starts with "config."', async () => {
   const { options, unknownOptions } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
@@ -129,13 +116,12 @@ test('allow any option that starts with "config."', async (t) => {
     },
     universalOptionsTypes: { filter: [String, Array] },
   }, ['install', '--config.save-dev', '--registry=https://example.com', '--config.qar', '--filter=packages'])
-  t.deepEqual(Array.from(unknownOptions.entries()), [])
-  t.equal(options.qar, true)
-  t.equal(options['save-dev'], true)
-  t.end()
+  expect(Array.from(unknownOptions.entries())).toStrictEqual([])
+  expect(options.qar).toBe(true)
+  expect(options['save-dev']).toBe(true)
 })
 
-test('do not incorrectly change "install" command to "add"', async (t) => {
+test('do not incorrectly change "install" command to "add"', async () => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
@@ -152,27 +138,24 @@ test('do not incorrectly change "install" command to "add"', async (t) => {
       r: '--recursive',
     },
   }, ['install', '-C', os.homedir(), '--network-concurrency', '1'])
-  t.equal(cmd, 'install')
-  t.end()
+  expect(cmd).toBe('install')
 })
 
-test('if a help option is used, set cmd to "help"', async (t) => {
+test('if a help option is used, set cmd to "help"', async () => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['install', '--help'])
-  t.equal(cmd, 'help')
-  t.end()
+  expect(cmd).toBe('help')
 })
 
-test('no command', async (t) => {
+test('no command', async () => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['--version'])
-  t.equal(cmd, null)
-  t.end()
+  expect(cmd).toBe(null)
 })
 
-test('use command-specific shorthands', async (t) => {
+test('use command-specific shorthands', async () => {
   const { options } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
@@ -187,55 +170,50 @@ test('use command-specific shorthands', async (t) => {
       install: { D: '--dev' },
     },
   }, ['install', '-D'])
-  t.ok(options['dev'])
-  t.end()
+  expect(options).toHaveProperty(['dev'])
 })
 
-test('any unknown command is treated as a script', async (t) => {
+test('any unknown command is treated as a script', async () => {
   const { options, cmd, params } = await parseCliArgs({
     ...DEFAULT_OPTS,
     fallbackCommand: 'run',
     getCommandLongName: () => null,
     universalOptionsTypes: { filter: [String, Array] },
   }, ['foo', '--recursive'])
-  t.equal(cmd, 'run')
-  t.deepEqual(params, ['foo'])
-  t.ok(options['recursive'])
-  t.end()
+  expect(cmd).toBe('run')
+  expect(params).toStrictEqual(['foo'])
+  expect(options).toHaveProperty(['recursive'])
 })
 
-test("don't use the fallback command if no command is present", async (t) => {
+test("don't use the fallback command if no command is present", async () => {
   const { cmd, params } = await parseCliArgs({
     ...DEFAULT_OPTS,
     fallbackCommand: 'run',
     getCommandLongName: () => null,
     universalOptionsTypes: { filter: [String, Array] },
   }, [])
-  t.equal(cmd, null)
-  t.deepEqual(params, [])
-  t.end()
+  expect(cmd).toBe(null)
+  expect(params).toStrictEqual([])
 })
 
-test('--workspace-root changes the directory to the workspace root', async (t) => {
+test('--workspace-root changes the directory to the workspace root', async () => {
   const { options, workspaceDir } = await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])
-  t.ok(workspaceDir)
-  t.equal(options.dir, workspaceDir)
-  t.end()
+  expect(workspaceDir).toBeTruthy()
+  expect(options.dir).toBe(workspaceDir)
 })
 
-test('--workspace-root fails if used with --global', async (t) => {
+test('--workspace-root fails if used with --global', async () => {
   let err!: PnpmError
   try {
     await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root', '--global'])
   } catch (_err) {
     err = _err
   }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_OPTIONS_CONFLICT')
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_OPTIONS_CONFLICT')
 })
 
-test('--workspace-root fails if used outside of a workspace', async (t) => {
+test('--workspace-root fails if used outside of a workspace', async () => {
   process.chdir(tempy.directory())
   let err!: PnpmError
   try {
@@ -243,7 +221,6 @@ test('--workspace-root fails if used outside of a workspace', async (t) => {
   } catch (_err) {
     err = _err
   }
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_NOT_IN_WORKSPACE')
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_NOT_IN_WORKSPACE')
 })

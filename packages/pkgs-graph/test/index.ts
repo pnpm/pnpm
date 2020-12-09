@@ -1,7 +1,6 @@
 /// <reference path="../../../typings/local.d.ts"/>
 import createPkgGraph from 'pkgs-graph'
 import pathResolve = require('better-path-resolve')
-import test = require('tape')
 
 const BAR1_PATH = pathResolve('/zkochan/src/bar')
 const FOO1_PATH = pathResolve('/zkochan/src/foo')
@@ -9,7 +8,7 @@ const BAR2_PATH = pathResolve('/zkochan/src/bar@2')
 const FOO2_PATH = pathResolve('/zkochan/src/foo@2')
 const BAR3_PATH = pathResolve('/zkochan/src/bar@3')
 
-test('create package graph', t => {
+test('create package graph', () => {
   const result = createPkgGraph([
     {
       dir: BAR1_PATH,
@@ -53,8 +52,8 @@ test('create package graph', t => {
       },
     },
   ])
-  t.deepEqual(result.unmatched, [{ pkgName: 'bar', range: '^10.0.0' }])
-  t.deepEqual(result.graph, {
+  expect(result.unmatched).toStrictEqual([{ pkgName: 'bar', range: '^10.0.0' }])
+  expect(result.graph).toStrictEqual({
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
@@ -109,10 +108,9 @@ test('create package graph', t => {
       },
     },
   })
-  t.end()
 })
 
-test('create package graph for local directory dependencies', t => {
+test('create package graph for local directory dependencies', () => {
   const result = createPkgGraph([
     {
       dir: BAR1_PATH,
@@ -157,8 +155,8 @@ test('create package graph for local directory dependencies', t => {
       },
     },
   ])
-  t.deepEqual(result.unmatched, [{ pkgName: 'bar', range: '^10.0.0' }])
-  t.deepEqual(result.graph, {
+  expect(result.unmatched).toStrictEqual([{ pkgName: 'bar', range: '^10.0.0' }])
+  expect(result.graph).toStrictEqual({
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
@@ -214,10 +212,9 @@ test('create package graph for local directory dependencies', t => {
       },
     },
   })
-  t.end()
 })
 
-test('create package graph ignoring the workspace protocol', t => {
+test('create package graph ignoring the workspace protocol', () => {
   const result = createPkgGraph([
     {
       dir: BAR1_PATH,
@@ -261,8 +258,8 @@ test('create package graph ignoring the workspace protocol', t => {
       },
     },
   ])
-  t.deepEqual(result.unmatched, [{ pkgName: 'bar', range: '^10.0.0' }])
-  t.deepEqual(result.graph, {
+  expect(result.unmatched).toStrictEqual([{ pkgName: 'bar', range: '^10.0.0' }])
+  expect(result.graph).toStrictEqual({
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
@@ -317,10 +314,9 @@ test('create package graph ignoring the workspace protocol', t => {
       },
     },
   })
-  t.end()
 })
 
-test('create package graph respects linked-workspace-packages = false', t => {
+test('create package graph respects linked-workspace-packages = false', () => {
   const result = createPkgGraph([
     {
       dir: BAR1_PATH,
@@ -363,8 +359,8 @@ test('create package graph respects linked-workspace-packages = false', t => {
       },
     },
   ], { linkWorkspacePackages: false })
-  t.deepEqual(result.unmatched, [{ pkgName: 'bar', range: '^10.0.0' }, { pkgName: 'foo', range: '1.0.1' }])
-  t.deepEqual(result.graph, {
+  expect(result.unmatched).toStrictEqual([{ pkgName: 'bar', range: '^10.0.0' }, { pkgName: 'foo', range: '1.0.1' }])
+  expect(result.graph).toStrictEqual({
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
@@ -420,10 +416,9 @@ test('create package graph respects linked-workspace-packages = false', t => {
       },
     },
   })
-  t.end()
 })
 
-test('* matches prerelease versions', t => {
+test('* matches prerelease versions', () => {
   const result = createPkgGraph([
     {
       dir: BAR1_PATH,
@@ -443,8 +438,8 @@ test('* matches prerelease versions', t => {
       },
     },
   ])
-  t.deepEqual(result.unmatched, [])
-  t.deepEqual(result.graph, {
+  expect(result.unmatched).toStrictEqual([])
+  expect(result.graph).toStrictEqual({
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
@@ -469,5 +464,4 @@ test('* matches prerelease versions', t => {
       },
     },
   })
-  t.end()
 })
