@@ -12,7 +12,6 @@ import logger, {
 import { map, skip, take } from 'rxjs/operators'
 import chalk = require('chalk')
 import normalizeNewline = require('normalize-newline')
-import test = require('tape')
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const hlValue = chalk.cyanBright
@@ -20,7 +19,7 @@ const hlPkgId = chalk['whiteBright']
 
 const EOL = '\n'
 
-test('prints progress beginning', t => {
+test('prints progress beginning', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -39,18 +38,18 @@ test('prints progress beginning', t => {
     status: 'resolved',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
+      expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
     },
   })
 })
 
-test('prints all progress stats', t => {
+test('prints all progress stats', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -85,18 +84,18 @@ test('prints all progress stats', t => {
     to: '/node_modules/.pnpm/foo@1.0.0',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(skip(3), take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `Progress: resolved ${hlValue('1')}, reused ${hlValue('1')}, downloaded ${hlValue('1')}, added ${hlValue('1')}`)
+      expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('1')}, downloaded ${hlValue('1')}, added ${hlValue('1')}`)
     },
   })
 })
 
-test('prints progress beginning of node_modules from not cwd', t => {
+test('prints progress beginning of node_modules from not cwd', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -115,18 +114,18 @@ test('prints progress beginning of node_modules from not cwd', t => {
     status: 'resolved',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `foo                                      | Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
+      expect(output).toBe(`foo                                      | Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
     },
   })
 })
 
-test('prints progress beginning when appendOnly is true', t => {
+test('prints progress beginning when appendOnly is true', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -148,18 +147,18 @@ test('prints progress beginning when appendOnly is true', t => {
     status: 'resolved',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
+      expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
     },
   })
 })
 
-test('prints progress beginning during recursive install', t => {
+test('prints progress beginning during recursive install', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -181,19 +180,19 @@ test('prints progress beginning during recursive install', t => {
     status: 'resolved',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
+      expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
     },
   })
 })
 
-test('prints progress on first download', async t => {
-  t.plan(1)
+test('prints progress on first download', async (done) => {
+  expect.assertions(1)
 
   const output$ = toOutput$({
     context: {
@@ -205,10 +204,10 @@ test('prints progress on first download', async t => {
   })
 
   output$.pipe(skip(1), take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, added ${hlValue('0')}`)
+      expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, added ${hlValue('0')}`)
     },
   })
 
@@ -231,8 +230,8 @@ test('prints progress on first download', async t => {
   })
 })
 
-test('moves fixed line to the end', async t => {
-  t.plan(1)
+test('moves fixed line to the end', async (done) => {
+  expect.assertions(1)
   const prefix = '/src/project'
   const output$ = toOutput$({
     context: {
@@ -244,10 +243,10 @@ test('moves fixed line to the end', async t => {
   })
 
   output$.pipe(skip(3), take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${WARN} foo` + EOL +
+      expect(output).toBe(`${WARN} foo` + EOL +
         `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, added ${hlValue('0')}, done`)
     },
   })
@@ -281,7 +280,7 @@ test('moves fixed line to the end', async t => {
   })
 })
 
-test('prints "Already up-to-date"', t => {
+test('prints "Already up-to-date"', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -292,19 +291,19 @@ test('prints "Already up-to-date"', t => {
   statsLogger.debug({ added: 0, prefix })
   statsLogger.debug({ removed: 0, prefix })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, 'Already up-to-date')
+      expect(output).toBe('Already up-to-date')
     },
   })
 })
 
-test('prints progress of big files download', async t => {
-  t.plan(6)
+test('prints progress of big files download', async (done) => {
+  expect.assertions(6)
 
   const output$ = toOutput$({
     context: {
@@ -320,35 +319,36 @@ test('prints progress of big files download', async t => {
   const pkgId3 = 'registry.npmjs.org/qar/3.0.0'
 
   output$.pipe(
+    take(9),
     map(normalizeNewline),
     map((output, index) => {
       switch (index) {
       case 0:
-        t.equal(output, `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
+        expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
         return
       case 1:
-        t.equal(output, `\
+        expect(output).toBe(`\
 Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}`)
         return
       case 2:
-        t.equal(output, `\
+        expect(output).toBe(`\
 Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}`)
         return
       case 4:
-        t.equal(output, `\
+        expect(output).toBe(`\
 Progress: resolved ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}`, 'downloading of small package not reported')
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}`)
         return
       case 7:
-        t.equal(output, `\
+        expect(output).toBe(`\
 Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
 Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
         return
       case 8:
-        t.equal(output, `\
+        expect(output).toBe(`\
 Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
 Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
@@ -357,8 +357,8 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
     })
   )
     .subscribe({
-      complete: () => t.end(),
-      error: t.end,
+      complete: () => done(),
+      error: done,
       next: () => undefined,
     })
 

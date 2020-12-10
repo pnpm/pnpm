@@ -93,11 +93,6 @@ declare module 'node-fetch-unix' {
   export = anything;
 }
 
-declare module 'normalize-newline' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'process-exists' {
   const anything: any;
   export = anything;

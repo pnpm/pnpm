@@ -5,11 +5,10 @@ import {
 } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
 import chalk = require('chalk')
-import test = require('tape')
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 
-test('print warning about request retry', (t) => {
+test('print warning about request retry', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -26,13 +25,13 @@ test('print warning about request retry', (t) => {
     url: 'https://foo.bar/qar',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${WARN} GET https://foo.bar/qar error (undefined). Will retry in 12.5 seconds. 4 retries left.`)
+      expect(output).toBe(`${WARN} GET https://foo.bar/qar error (undefined). Will retry in 12.5 seconds. 4 retries left.`)
     },
   })
 })

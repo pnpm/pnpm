@@ -5,9 +5,8 @@ import {
 } from '@pnpm/logger'
 import delay from 'delay'
 import { take } from 'rxjs/operators'
-import test = require('tape')
 
-test('print context and import method info', (t) => {
+test('print context and import method info', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -24,13 +23,13 @@ test('print context and import method info', (t) => {
     method: 'hardlink',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `\
+      expect(output).toBe(`\
 Packages are hard linked from the content-addressable store to the virtual store.
   Content-addressable store is at: ~/.pnpm-store/v3
   Virtual store is at:             node_modules/.pnpm`)
@@ -38,7 +37,7 @@ Packages are hard linked from the content-addressable store to the virtual store
   })
 })
 
-test('do not print info if not fresh install', async (t) => {
+test('do not print info if not fresh install', async (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -55,17 +54,15 @@ test('do not print info if not fresh install', async (t) => {
     method: 'hardlink',
   })
 
-  t.plan(1)
-
   const subscription = output$.subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: (msg) => {
-      t.notOk(msg)
+      expect(msg).toBeFalsy()
     },
   })
 
   await delay(10)
-  t.ok('output$ has no event')
+  done()
   subscription.unsubscribe()
 })

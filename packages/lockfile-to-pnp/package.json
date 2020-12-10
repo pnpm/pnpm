@@ -39,8 +39,7 @@
     "@types/mz": "0.0.32",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.32",
-    "rimraf": "^3.0.2",
-    "tape": "^4.13.3"
+    "rimraf": "^3.0.2"
   },
   "dependencies": {
     "@pnpm/config": "workspace:11.9.0",

@@ -5,7 +5,6 @@ import { map, skip, take } from 'rxjs/operators'
 import path = require('path')
 import chalk = require('chalk')
 import normalizeNewline = require('normalize-newline')
-import test = require('tape')
 
 const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']
@@ -28,7 +27,7 @@ function replaceTimeWith1Sec (text: string) {
     .replace(/failed in [a-z0-9μ]+/g, 'failed in 1s')
 }
 
-test('groups lifecycle output', t => {
+test('groups lifecycle output', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 79 },
@@ -113,13 +112,13 @@ test('groups lifecycle output', t => {
     wd: 'packages/foo',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(skip(9), take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), `\
+      expect(replaceTimeWith1Sec(output)).toBe(`\
 packages/foo ${PREINSTALL}$ node foo
 ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
 ${STATUS_INDENTATION} ${STATUS_RUNNING}
@@ -137,7 +136,7 @@ ${STATUS_INDENTATION} ${STATUS_DONE}`)
   })
 })
 
-test('groups lifecycle output when append-only is used', t => {
+test('groups lifecycle output when append-only is used', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: {
@@ -232,13 +231,13 @@ test('groups lifecycle output when append-only is used', t => {
     wd: 'packages/foo',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   const allOutputs = [] as string[]
 
   output$.pipe(take(11), map(normalizeNewline)).subscribe({
     complete: () => {
-      t.equal(allOutputs.join(EOL), `\
+      expect(allOutputs.join(EOL)).toBe(`\
 ${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
 ${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
 ${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
@@ -250,16 +249,16 @@ ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
 ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
 ${chalk.blue('packages/qar')} ${INSTALL}$ node qar
 ${chalk.blue('packages/qar')} ${INSTALL}: Done`)
-      t.end()
+      done()
     },
-    error: t.end,
+    error: done,
     next: (output: string) => {
       allOutputs.push(output)
     },
   })
 })
 
-test('groups lifecycle output when streamLifecycleOutput is used', t => {
+test('groups lifecycle output when streamLifecycleOutput is used', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: {
@@ -354,13 +353,13 @@ test('groups lifecycle output when streamLifecycleOutput is used', t => {
     wd: 'packages/foo',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(skip(11), take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: (output: string) => {
-      t.equal(output, `\
+      expect(output).toBe(`\
 ${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
 ${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
 ${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
@@ -377,7 +376,7 @@ ${chalk.cyan('packages/foo')} ${POSTINSTALL}: Done`)
   })
 })
 
-test('collapse lifecycle output when it has too many lines', t => {
+test('collapse lifecycle output when it has too many lines', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 79 },
@@ -408,13 +407,13 @@ test('collapse lifecycle output when it has too many lines', t => {
     wd: 'packages/foo',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(skip(101), take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), `\
+      expect(replaceTimeWith1Sec(output)).toBe(`\
 packages/foo ${POSTINSTALL}$ node foo
 [90 lines collapsed]
 ${OUTPUT_INDENTATION} foo 90
@@ -432,7 +431,7 @@ ${STATUS_INDENTATION} ${STATUS_DONE}`)
   })
 })
 
-test('collapses lifecycle output of packages from node_modules', t => {
+test('collapses lifecycle output of packages from node_modules', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 79 },
@@ -522,13 +521,13 @@ test('collapses lifecycle output of packages from node_modules', t => {
     wd: wdOfFoo,
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(skip(5), take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), `\
+      expect(replaceTimeWith1Sec(output)).toBe(`\
 ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running preinstall script...
 ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running postinstall script, done in 1s
 ${chalk.gray('node_modules/.registry.npmjs.org/bar/1.0.0/node_modules/')}bar: Running postinstall script...
@@ -537,7 +536,7 @@ ${chalk.gray('node_modules/.registry.npmjs.org/qar/1.0.0/node_modules/')}qar: Ru
   })
 })
 
-test('output of failed optional dependency is not shown', t => {
+test('output of failed optional dependency is not shown', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 79 },
@@ -568,18 +567,18 @@ test('output of failed optional dependency is not shown', t => {
     wd,
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(skip(1), take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), `${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s (skipped as optional)`)
+      expect(replaceTimeWith1Sec(output)).toBe(`${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s (skipped as optional)`)
     },
   })
 })
 
-test('output of failed non-optional dependency is printed', t => {
+test('output of failed non-optional dependency is printed', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 79 },
@@ -610,13 +609,13 @@ test('output of failed non-optional dependency is printed', t => {
     wd,
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(skip(1), take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: (output: string) => {
-      t.equal(replaceTimeWith1Sec(output), `\
+      expect(replaceTimeWith1Sec(output)).toBe(`\
 ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
 .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
 ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9
@@ -626,7 +625,7 @@ ${STATUS_INDENTATION} ${STATUS_FAILED}`)
 })
 
 // Many libs use stderr for logging, so showing all stderr adds not much value
-test['skip']('prints lifecycle progress', t => {
+test['skip']('prints lifecycle progress', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -667,16 +666,16 @@ test['skip']('prints lifecycle progress', t => {
     wd,
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   const childOutputColor = chalk.grey
   const childOutputError = chalk.red
 
   output$.pipe(skip(3), take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `\
+      expect(output).toBe(`\
 Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo I')}
 Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}! ${childOutputError('foo II')}
 Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo III')}

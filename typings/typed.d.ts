@@ -16,6 +16,11 @@ declare module 'normalize-registry-url' {
   export = normalizeRegistryUrl;
 }
 
+declare module 'normalize-newline' {
+  function normalizeNewline (text: string): string
+  export = normalizeNewline;
+}
+
 declare module 'path-name' {
   const pathname: string;
   export = pathname;

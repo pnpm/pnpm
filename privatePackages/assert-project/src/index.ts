@@ -4,7 +4,6 @@ import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { Modules, read as readModules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
-import { Test } from 'tape'
 import isExecutable from './isExecutable'
 import path = require('path')
 import exists = require('path-exists')
@@ -42,7 +41,7 @@ export interface Project {
   writePackageJson: (pkgJson: object) => Promise<void>
 }
 
-export default (t: Test | undefined, projectPath: string, encodedRegistryName?: string): Project => {
+export default (t: undefined, projectPath: string, encodedRegistryName?: string): Project => {
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
 
@@ -78,20 +77,20 @@ export default (t: Test | undefined, projectPath: string, encodedRegistryName?: 
   }
 
   // eslint-disable-next-line
-  const ok = t ? t.ok : (value: any) => expect(value).toBeTruthy()
+  const ok = (value: any) => expect(value).toBeTruthy()
   // eslint-disable-next-line
-  const notOk = t ? t.notOk : (value: any) => expect(value).toBeFalsy()
+  const notOk = (value: any) => expect(value).toBeFalsy()
   return {
     requireModule (pkgName: string) {
       return require(path.join(modules, pkgName))
     },
     async has (pkgName: string, _modulesDir?: string) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
-      ok(await exists(path.join(md, pkgName)), `${pkgName} is in ${md}`)
+      ok(await exists(path.join(md, pkgName)))
     },
     async hasNot (pkgName: string, _modulesDir?: string) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
-      notOk(await exists(path.join(md, pkgName)), `${pkgName} is not in ${md}`)
+      notOk(await exists(path.join(md, pkgName)))
     },
     async getStorePath () {
       const store = await getStoreInstance()
@@ -123,7 +122,6 @@ export default (t: Test | undefined, projectPath: string, encodedRegistryName?: 
         return store.storeHasNot(pkgName, version)
       } catch (err) {
         if (err.message.startsWith('Cannot find module store')) {
-          t?.pass(`${pkgName}@${version ?? ''} is not in store (store does not even exist)`)
           return
         }
         throw err

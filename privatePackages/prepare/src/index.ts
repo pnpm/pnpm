@@ -1,6 +1,5 @@
 import assertProject, { Modules, Project } from '@pnpm/assert-project'
 import { ProjectManifest } from '@pnpm/types'
-import { Test } from 'tape'
 import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import fs = require('fs')
@@ -16,13 +15,11 @@ const tmpPath = tempy.directory()
 
 let dirNumber = 0
 
-export function tempDir (t: Test | undefined) {
+export function tempDir (t: undefined) {
   dirNumber++
   const dirname = dirNumber.toString()
   const tmpDir = path.join(tmpPath, dirname)
   fs.mkdirSync(tmpDir, { recursive: true })
-
-  t?.pass(`create testing dir ${path.join(tmpDir)}`)
 
   process.chdir(tmpDir)
 
@@ -30,7 +27,7 @@ export function tempDir (t: Test | undefined) {
 }
 
 export function preparePackages (
-  t: Test | undefined,
+  t: undefined,
   pkgs: Array<{ location: string, package: ProjectManifest } | ProjectManifest>,
   opts?: {
     manifestFormat?: ManifestFormat
@@ -60,7 +57,7 @@ export function preparePackages (
 }
 
 export default function prepare (
-  test?: Test,
+  test?: undefined,
   manifest?: ProjectManifest,
   opts?: {
     manifestFormat?: ManifestFormat
@@ -86,7 +83,7 @@ export default function prepare (
   return assertProject(test, dir)
 }
 
-export function prepareEmpty (t?: Test) {
+export function prepareEmpty (t?: undefined) {
   const pkgTmpPath = path.join(tempDir(t), 'project')
 
   fs.mkdirSync(pkgTmpPath, { recursive: true })

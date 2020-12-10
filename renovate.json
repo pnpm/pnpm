@@ -98,10 +98,6 @@
       "allowedVersions": "^3.4.0"
     },
     {
-      "packageNames": ["tape"],
-      "allowedVersions": "^4.13.3"
-    },
-    {
       "packageNames": ["nock"],
       "allowedVersions": "12.0.3"
     }

@@ -9,11 +9,10 @@ import chalk = require('chalk')
 import loadJsonFile = require('load-json-file')
 import normalizeNewline = require('normalize-newline')
 import StackTracey = require('stacktracey')
-import test = require('tape')
 
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
 
-test('prints generic error', t => {
+test('prints generic error', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -22,19 +21,19 @@ test('prints generic error', t => {
   const err = new Error('some error')
   logger.error(err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('some error')}
+      expect(output).toBe(`${ERROR} ${chalk.red('some error')}
 ${new StackTracey(err.stack).pretty as string}`)
     },
   })
 })
 
-test('prints generic error when recursive install fails', t => {
+test('prints generic error when recursive install fails', (done) => {
   const output$ = toOutput$({
     context: { argv: ['recursive'] },
     streamParser: createStreamParser(),
@@ -44,32 +43,32 @@ test('prints generic error when recursive install fails', t => {
   err['prefix'] = '/home/src/'
   logger.error(err, err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `/home/src/:
+      expect(output).toBe(`/home/src/:
 ${ERROR} ${chalk.red('some error')}
 ${new StackTracey(err.stack).pretty as string}`)
     },
   })
 })
 
-test('prints no matching version error when many dist-tags exist', async (t) => {
+test('prints no matching version error when many dist-tags exist', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('No matching version found for pnpm@1000.0.0')}
+      expect(output).toBe(`${ERROR} ${chalk.red('No matching version found for pnpm@1000.0.0')}
 
 The latest release of pnpm is "2.4.0".
 
@@ -87,19 +86,19 @@ If you need the full list of all 281 published versions run "$ pnpm view pnpm ve
   logger.error(err, err)
 })
 
-test('prints no matching version error when only the latest dist-tag exists', async (t) => {
+test('prints no matching version error when only the latest dist-tag exists', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('No matching version found for is-positive@1000.0.0')}
+      expect(output).toBe(`${ERROR} ${chalk.red('No matching version found for is-positive@1000.0.0')}
 
 The latest release of is-positive is "3.1.0".
 
@@ -112,19 +111,19 @@ If you need the full list of all 4 published versions run "$ pnpm view is-positi
   logger.error(err, err)
 })
 
-test('prints suggestions when an internet-connection related error happens', async (t) => {
+test('prints suggestions when an internet-connection related error happens', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
+      expect(output).toBe(`${ERROR} ${chalk.red('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
 
 Seems like you have internet connection issues.
 Try running the same command again.
@@ -149,19 +148,19 @@ For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\``)
   logger.error(err, err)
 })
 
-test('prints test error', async (t) => {
+test('prints test error', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['run', 'test'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('Test failed. See above for more details.')}`)
+      expect(output).toBe(`${ERROR} ${chalk.red('Test failed. See above for more details.')}`)
     },
   })
 
@@ -171,19 +170,19 @@ test('prints test error', async (t) => {
   logger.error(err, err)
 })
 
-test('prints command error with exit code', async (t) => {
+test('prints command error with exit code', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['run', 'lint'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('Command failed with exit code 100.')}`)
+      expect(output).toBe(`${ERROR} ${chalk.red('Command failed with exit code 100.')}`)
     },
   })
 
@@ -194,19 +193,19 @@ test('prints command error with exit code', async (t) => {
   logger.error(err, err)
 })
 
-test('prints command error without exit code', async (t) => {
+test('prints command error without exit code', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['run', 'lint'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('Command failed.')}`)
+      expect(output).toBe(`${ERROR} ${chalk.red('Command failed.')}`)
     },
   })
 
@@ -216,19 +215,19 @@ test('prints command error without exit code', async (t) => {
   logger.error(err, err)
 })
 
-test('prints unsupported pnpm version error', async (t) => {
+test('prints unsupported pnpm version error', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+      expect(output).toBe(`${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
 
 Expected version: 2
 Got: 3.0.0
@@ -248,19 +247,19 @@ To check your pnpm version, run "pnpm -v".`)
   logger.error(err, err)
 })
 
-test('prints unsupported Node version error', async (t) => {
+test('prints unsupported Node version error', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+      expect(output).toBe(`${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
 
 Expected version: >=12
 Got: 10.0.0
@@ -277,19 +276,19 @@ To fix this issue, install the required Node version.`)
   logger.error(err, err)
 })
 
-test('prints unsupported pnpm and Node versions error', async (t) => {
+test('prints unsupported pnpm and Node versions error', async (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+      expect(output).toBe(`${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
 
 Expected version: 2
 Got: 3.0.0
@@ -316,7 +315,7 @@ To fix this issue, install the required Node version.`)
   logger.error(err, err)
 })
 
-test('prints error even if the error object not passed in through the message object', t => {
+test('prints error even if the error object not passed in through the message object', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -325,18 +324,18 @@ test('prints error even if the error object not passed in through the message ob
   const err = new PnpmError('SOME_ERROR', 'some error')
   logger.error(err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}`)
+      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}`)
     },
   })
 })
 
-test('prints error without packages stacktrace when pkgsStack is empty', t => {
+test('prints error without packages stacktrace when pkgsStack is empty', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -346,18 +345,18 @@ test('prints error without packages stacktrace when pkgsStack is empty', t => {
   err.pkgsStack = []
   logger.error(err, err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}`)
+      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}`)
     },
   })
 })
 
-test('prints error with packages stacktrace - depth 1 and hint', t => {
+test('prints error with packages stacktrace - depth 1 and hint', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -373,20 +372,20 @@ test('prints error with packages stacktrace - depth 1 and hint', t => {
   ]
   logger.error(err, err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
 This error happened while installing the dependencies of foo@1.0.0
 hint`)
     },
   })
 })
 
-test('prints error with packages stacktrace - depth 2', t => {
+test('prints error with packages stacktrace - depth 2', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -407,20 +406,20 @@ test('prints error with packages stacktrace - depth 2', t => {
   ]
   logger.error(err, err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
 This error happened while installing the dependencies of foo@1.0.0
  at bar@1.0.0`)
     },
   })
 })
 
-test('prints error and hint', t => {
+test('prints error and hint', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -429,19 +428,19 @@ test('prints error and hint', t => {
   const err = new PnpmError('SOME_ERROR', 'some error', { hint: 'some hint' })
   logger.error(err, err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
 some hint`)
     },
   })
 })
 
-test('prints authorization error with auth settings', t => {
+test('prints authorization error with auth settings', (done) => {
   const rawConfig = {
     '//foo.bar:_auth': '9876543219',
     '//foo.bar:_authToken': '9876543219',
@@ -462,13 +461,13 @@ test('prints authorization error with auth settings', t => {
   const err = new PnpmError('FETCH_401', 'some error', { hint: 'some hint' })
   logger.error(err, err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
 some hint
 
 These authorization settings were found:
@@ -486,7 +485,7 @@ username=nagy.gabor`)
   })
 })
 
-test('prints authorization error without auth settings, where there are none', t => {
+test('prints authorization error without auth settings, where there are none', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'], config: { rawConfig: {} } as any }, // eslint-disable-line
     streamParser: createStreamParser(),
@@ -495,13 +494,13 @@ test('prints authorization error without auth settings, where there are none', t
   const err = new PnpmError('FETCH_401', 'some error', { hint: 'some hint' })
   logger.error(err, err)
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
 some hint
 
 No authorization settings were found in the configs.

@@ -5,11 +5,10 @@ import logger, {
 } from '@pnpm/logger'
 import delay from 'delay'
 import { take } from 'rxjs/operators'
-import test = require('tape')
 
 const scopeLogger = logger<object>('scope')
 
-test('does not print scope of non-recursive install in a workspace', async (t) => {
+test('does not print scope of non-recursive install in a workspace', async (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -22,22 +21,20 @@ test('does not print scope of non-recursive install in a workspace', async (t) =
     workspacePrefix: '/home/src',
   })
 
-  t.plan(1)
-
   const subscription = output$.subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: () => {
-      t.fail('should not log anything')
+      done('should not log anything')
     },
   })
 
   await delay(10)
-  t.ok('output$ has no event')
+  done()
   subscription.unsubscribe()
 })
 
-test('prints scope of recursive install in a workspace when not all packages are selected', (t) => {
+test('prints scope of recursive install in a workspace when not all packages are selected', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -52,18 +49,18 @@ test('prints scope of recursive install in a workspace when not all packages are
     workspacePrefix: '/home/src',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, 'Scope: 2 of 10 workspace projects')
+      expect(output).toBe('Scope: 2 of 10 workspace projects')
     },
   })
 })
 
-test('prints scope of recursive install in a workspace when all packages are selected', (t) => {
+test('prints scope of recursive install in a workspace when all packages are selected', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -78,18 +75,18 @@ test('prints scope of recursive install in a workspace when all packages are sel
     workspacePrefix: '/home/src',
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, 'Scope: all 10 workspace projects')
+      expect(output).toBe('Scope: all 10 workspace projects')
     },
   })
 })
 
-test('prints scope of recursive install not in a workspace when not all packages are selected', (t) => {
+test('prints scope of recursive install not in a workspace when not all packages are selected', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -103,18 +100,18 @@ test('prints scope of recursive install not in a workspace when not all packages
     total: 10,
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, 'Scope: 2 of 10 projects')
+      expect(output).toBe('Scope: 2 of 10 projects')
     },
   })
 })
 
-test('prints scope of recursive install not in a workspace when all packages are selected', (t) => {
+test('prints scope of recursive install not in a workspace when all packages are selected', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -128,13 +125,13 @@ test('prints scope of recursive install not in a workspace when all packages are
     total: 10,
   })
 
-  t.plan(1)
+  expect.assertions(1)
 
   output$.pipe(take(1)).subscribe({
-    complete: () => t.end(),
-    error: t.end,
+    complete: () => done(),
+    error: done,
     next: output => {
-      t.equal(output, 'Scope: all 10 projects')
+      expect(output).toBe('Scope: all 10 projects')
     },
   })
 })
