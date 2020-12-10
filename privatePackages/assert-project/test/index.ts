@@ -1,30 +1,24 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import assertProject from '@pnpm/assert-project'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import assertProject from '../src'
 import path = require('path')
-import test = require('tape')
 
-test('assertProject()', async (t) => {
-  const project = assertProject(t, path.join(__dirname, '../../..'))
+test('assertProject()', async () => {
+  const project = assertProject(undefined, path.join(__dirname, '../../..'))
 
   await project.has('tape')
   await project.hasNot('sfdsff3g34')
-  t.equal(typeof project.requireModule('tape'), 'function', 'can require module')
+  expect(typeof project.requireModule('tape')).toBe('function')
   await project.isExecutable('.bin/tape')
-
-  t.end()
 })
 
-test('assertProject() store functions', async (t) => {
-  const project = assertProject(t, path.join(__dirname, 'fixture/project'), 'registry.npmjs.org')
+test('assertProject() store functions', async () => {
+  const project = assertProject(undefined, path.join(__dirname, 'fixture/project'), 'registry.npmjs.org')
 
-  t.equal(typeof await project.getStorePath(), 'string', 'returns store path')
+  expect(typeof await project.getStorePath()).toBe('string')
   await project.storeHas('is-positive', '3.1.0')
-  t.equal(typeof await project.resolve('is-positive', '3.1.0'), 'string')
+  expect(typeof await project.resolve('is-positive', '3.1.0')).toBe('string')
   await project.storeHasNot('is-positive', '3.100.0')
-  t.ok(await project.readLockfile(), `loads wanted ${WANTED_LOCKFILE}`)
-  t.ok(await project.readCurrentLockfile(), 'loads current lockfile')
-  t.ok(await project.readModulesManifest(), 'loads .modules.yaml')
-
-  t.end()
+  expect(await project.readLockfile()).toBeTruthy()
+  expect(await project.readCurrentLockfile()).toBeTruthy()
+  expect(await project.readModulesManifest()).toBeTruthy()
 })

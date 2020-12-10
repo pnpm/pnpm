@@ -40,7 +40,7 @@
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc",
     "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm run tsc && ts-node test"
+    "test": "pnpm run tsc && jest"
   },
   "dependencies": {
     "@pnpm/assert-store": "workspace:1.0.14",

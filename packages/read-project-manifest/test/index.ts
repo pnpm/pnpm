@@ -3,7 +3,6 @@ import { promisify } from 'util'
 import readProjectManifest, { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import path = require('path')
 import fs = require('graceful-fs')
-import test = require('tape')
 import tempy = require('tempy')
 
 const writeFile = promisify(fs.writeFile)
@@ -12,31 +11,31 @@ const stat = promisify(fs.stat)
 
 const fixtures = path.join(__dirname, '../fixtures')
 
-test('readProjectManifest()', async (t) => {
-  t.deepEqual(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-json'))).manifest,
+test('readProjectManifest()', async () => {
+  expect(
+    (await tryReadProjectManifest(path.join(fixtures, 'package-json'))).manifest
+  ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
-  t.deepEqual(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-json5'))).manifest,
+  expect(
+    (await tryReadProjectManifest(path.join(fixtures, 'package-json5'))).manifest
+  ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
-  t.deepEqual(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-yaml'))).manifest,
+  expect(
+    (await tryReadProjectManifest(path.join(fixtures, 'package-yaml'))).manifest
+  ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
-  t.deepEqual(
-    (await tryReadProjectManifest(fixtures)).manifest,
-    null
-  )
-
-  t.end()
+  expect(
+    (await tryReadProjectManifest(fixtures)).manifest
+  ).toStrictEqual(null)
 })
 
-test('preserve tab indentation in json file', async (t) => {
+test('preserve tab indentation in json file', async () => {
   process.chdir(tempy.directory())
 
   await writeFile('package.json', '{\n\t"name": "foo"\n}\n', 'utf8')
@@ -46,11 +45,10 @@ test('preserve tab indentation in json file', async (t) => {
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await readFile('package.json', 'utf8')
-  t.equal(rawManifest, '{\n\t"name": "foo",\n\t"dependencies": {\n\t\t"bar": "1.0.0"\n\t}\n}\n')
-  t.end()
+  expect(rawManifest).toBe('{\n\t"name": "foo",\n\t"dependencies": {\n\t\t"bar": "1.0.0"\n\t}\n}\n')
 })
 
-test('preserve space indentation in json file', async (t) => {
+test('preserve space indentation in json file', async () => {
   process.chdir(tempy.directory())
 
   await writeFile('package.json', '{\n  "name": "foo"\n}\n', 'utf8')
@@ -60,11 +58,10 @@ test('preserve space indentation in json file', async (t) => {
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await readFile('package.json', 'utf8')
-  t.equal(rawManifest, '{\n  "name": "foo",\n  "dependencies": {\n    "bar": "1.0.0"\n  }\n}\n')
-  t.end()
+  expect(rawManifest).toBe('{\n  "name": "foo",\n  "dependencies": {\n    "bar": "1.0.0"\n  }\n}\n')
 })
 
-test('preserve tab indentation in json5 file', async (t) => {
+test('preserve tab indentation in json5 file', async () => {
   process.chdir(tempy.directory())
 
   await writeFile('package.json5', "{\n\tname: 'foo',\n}\n", 'utf8')
@@ -74,11 +71,10 @@ test('preserve tab indentation in json5 file', async (t) => {
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await readFile('package.json5', 'utf8')
-  t.equal(rawManifest, "{\n\tname: 'foo',\n\tdependencies: {\n\t\tbar: '1.0.0',\n\t},\n}\n")
-  t.end()
+  expect(rawManifest).toBe("{\n\tname: 'foo',\n\tdependencies: {\n\t\tbar: '1.0.0',\n\t},\n}\n")
 })
 
-test('preserve space indentation in json5 file', async (t) => {
+test('preserve space indentation in json5 file', async () => {
   process.chdir(tempy.directory())
 
   await writeFile('package.json5', "{\n  name: 'foo'\n}\n", 'utf8')
@@ -88,11 +84,10 @@ test('preserve space indentation in json5 file', async (t) => {
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await readFile('package.json5', 'utf8')
-  t.equal(rawManifest, "{\n  name: 'foo',\n  dependencies: {\n    bar: '1.0.0',\n  },\n}\n")
-  t.end()
+  expect(rawManifest).toBe("{\n  name: 'foo',\n  dependencies: {\n    bar: '1.0.0',\n  },\n}\n")
 })
 
-test('do not save manifest if it had no changes', async (t) => {
+test('do not save manifest if it had no changes', async () => {
   process.chdir(tempy.directory())
 
   await writeFile(
@@ -115,12 +110,10 @@ test('do not save manifest if it had no changes', async (t) => {
 
   const stat2 = await stat('package.json5')
 
-  t.deepEqual(stat1.ino, stat2.ino, 'manifest was not resaved')
-
-  t.end()
+  expect(stat1.ino).toBe(stat2.ino)
 })
 
-test('fail on invalid JSON', async (t) => {
+test('fail on invalid JSON', async () => {
   let err!: Error
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-json'))
@@ -128,14 +121,13 @@ test('fail on invalid JSON', async (t) => {
     err = _err
   }
 
-  t.ok(err)
-  t.equal(err['code'], 'ERR_PNPM_JSON_PARSE')
-  t.ok(err.message.startsWith('Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in '))
-
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err['code']).toBe('ERR_PNPM_JSON_PARSE')
+  // eslint-disable-next-line
+  expect(err.message).toMatch(/^Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in /)
 })
 
-test('fail on invalid JSON5', async (t) => {
+test('fail on invalid JSON5', async () => {
   let err!: Error
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-json5'))
@@ -143,14 +135,12 @@ test('fail on invalid JSON5', async (t) => {
     err = _err
   }
 
-  t.ok(err)
-  t.equal(err['code'], 'ERR_PNPM_JSON5_PARSE')
-  t.ok(err.message.startsWith("JSON5: invalid character 'v' at 3:3 in"))
-
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err['code']).toBe('ERR_PNPM_JSON5_PARSE')
+  expect(err.message).toMatch(/^JSON5: invalid character 'v' at 3:3 in/)
 })
 
-test('fail on invalid YAML', async (t) => {
+test('fail on invalid YAML', async () => {
   let err!: Error
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-yaml'))
@@ -158,14 +148,12 @@ test('fail on invalid YAML', async (t) => {
     err = _err
   }
 
-  t.ok(err)
-  t.equal(err['code'], 'ERR_PNPM_YAML_PARSE')
-  t.ok(err.message.startsWith('missed comma between flow collection entries at line 3, column 3:'))
-
-  t.end()
+  expect(err).toBeTruthy()
+  expect(err['code']).toBe('ERR_PNPM_YAML_PARSE')
+  expect(err.message).toMatch(/^missed comma between flow collection entries at line 3, column 3:/)
 })
 
-test('preserve trailing new line at the end of package.json', async (t) => {
+test('preserve trailing new line at the end of package.json', async () => {
   process.chdir(tempy.directory())
 
   await writeFile('package.json', '{}', 'utf8')
@@ -175,11 +163,10 @@ test('preserve trailing new line at the end of package.json', async (t) => {
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await readFile('package.json', 'utf8')
-  t.equal(rawManifest, '{"dependencies":{"bar":"1.0.0"}}')
-  t.end()
+  expect(rawManifest).toBe('{"dependencies":{"bar":"1.0.0"}}')
 })
 
-test('preserve trailing new line at the end of package.json5', async (t) => {
+test('preserve trailing new line at the end of package.json5', async () => {
   process.chdir(tempy.directory())
 
   await writeFile('package.json5', '{}', 'utf8')
@@ -189,6 +176,5 @@ test('preserve trailing new line at the end of package.json5', async (t) => {
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await readFile('package.json5', 'utf8')
-  t.equal(rawManifest, "{dependencies:{bar:'1.0.0'}}")
-  t.end()
+  expect(rawManifest).toBe("{dependencies:{bar:'1.0.0'}}")
 })
