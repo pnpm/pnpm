@@ -35,7 +35,7 @@ const OUTDATED_OPTIONS = {
 }
 
 test('pnpm outdated: show details', async () => {
-  tempDir(undefined)
+  tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -65,7 +65,7 @@ test('pnpm outdated: show details', async () => {
 })
 
 test('pnpm outdated: show details (using the public registry to verify that full metadata is being requested)', async () => {
-  tempDir(undefined)
+  tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(has2OutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -92,7 +92,7 @@ test('pnpm outdated: show details (using the public registry to verify that full
 })
 
 test('pnpm outdated: showing only prod or dev dependencies', async () => {
-  tempDir(undefined)
+  tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -136,7 +136,7 @@ test('pnpm outdated: showing only prod or dev dependencies', async () => {
 })
 
 test('pnpm outdated: no table', async () => {
-  tempDir(undefined)
+  tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -189,7 +189,7 @@ https://github.com/kevva/is-positive#readme
 })
 
 test('pnpm outdated: only current lockfile is available', async () => {
-  tempDir(undefined)
+  tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -215,7 +215,7 @@ test('pnpm outdated: only current lockfile is available', async () => {
 })
 
 test('pnpm outdated: only wanted lockfile is available', async () => {
-  tempDir(undefined)
+  tempDir()
 
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))

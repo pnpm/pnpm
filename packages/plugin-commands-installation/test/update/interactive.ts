@@ -44,7 +44,7 @@ const DEFAULT_OPTIONS = {
 }
 
 test('interactively update', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       // has 1.0.0 and 1.0.1 that satisfy this range
       'is-negative': '^1.0.0',
@@ -154,7 +154,7 @@ test('interactively update', async () => {
 })
 
 test('interactive update of dev dependencies only', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project1',
 

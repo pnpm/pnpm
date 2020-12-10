@@ -11,7 +11,7 @@ import writeYamlFile = require('write-yaml-file')
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('pnpm recursive run', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -83,7 +83,7 @@ test('pnpm recursive run', async () => {
 })
 
 test('pnpm recursive run concurrently', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -133,7 +133,7 @@ test('pnpm recursive run concurrently', async () => {
 })
 
 test('`pnpm recursive run` fails when run without filters and no package has the desired command, unless if-present is set', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -198,7 +198,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
 })
 
 test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command, unless if-present is set', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -251,7 +251,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
 })
 
 test('`pnpm recursive run` succeeds when run against a subset of packages and no package has the desired command', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -303,7 +303,7 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
 })
 
 test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -399,7 +399,7 @@ Commands available via "pnpm run":
 })
 
 test('testing the bail config with "pnpm recursive run"', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -485,7 +485,7 @@ test('testing the bail config with "pnpm recursive run"', async () => {
 })
 
 test('pnpm recursive run with filtering', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -542,7 +542,7 @@ test('pnpm recursive run with filtering', async () => {
 })
 
 test('`pnpm recursive run` should always trust the scripts', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project',
       version: '1.0.0',
@@ -581,7 +581,7 @@ test('`pnpm recursive run` should always trust the scripts', async () => {
 })
 
 test('`pnpm run -r` should avoid infinite recursion', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

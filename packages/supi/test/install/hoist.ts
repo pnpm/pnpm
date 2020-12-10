@@ -330,7 +330,7 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
       foobar: '100.0.0',
     },
   }
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: '.',
       package: workspaceRootManifest,
@@ -406,7 +406,7 @@ test('hoist when updating in one of the workspace projects', async () => {
       foo: '100.0.0',
     },
   }
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: '.',
       package: workspaceRootManifest,
@@ -433,7 +433,7 @@ test('hoist when updating in one of the workspace projects', async () => {
   ]
   await mutateModules(mutatedProjects, await testDefaults({ hoistPattern: '*' }))
 
-  const rootModules = assertProject(undefined, process.cwd())
+  const rootModules = assertProject(process.cwd())
   {
     const modulesManifest = await rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({

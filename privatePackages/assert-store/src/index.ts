@@ -4,7 +4,6 @@ import path = require('path')
 import exists = require('path-exists')
 
 export default (
-  t: undefined,
   storePath: string | Promise<string>,
   encodedRegistryName?: string
 ) => {

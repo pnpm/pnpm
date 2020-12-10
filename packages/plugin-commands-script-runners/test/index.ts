@@ -17,7 +17,7 @@ import writeYamlFile = require('write-yaml-file')
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('pnpm run: returns correct exit code', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       exit0: 'exit 0',
       exit1: 'exit 1',
@@ -46,7 +46,7 @@ test('pnpm run: returns correct exit code', async () => {
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
 test('run: pass the args to the command that is specfied in the build script', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       foo: 'node recordArgs',
       postfoo: 'node recordArgs',
@@ -71,7 +71,7 @@ test('run: pass the args to the command that is specfied in the build script', a
 })
 
 test('run: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       foo: 'node recordArgs',
       postfoo: 'node recordArgs',
@@ -96,7 +96,7 @@ test('run: pass the args to the command that is specfied in the build script of 
 })
 
 test('test: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       posttest: 'node recordArgs',
       pretest: 'node recordArgs',
@@ -121,7 +121,7 @@ test('test: pass the args to the command that is specfied in the build script of
 })
 
 test('run start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       poststart: 'node recordArgs',
       prestart: 'node recordArgs',
@@ -146,7 +146,7 @@ test('run start: pass the args to the command that is specfied in the build scri
 })
 
 test('run stop: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       poststop: 'node recordArgs',
       prestop: 'node recordArgs',
@@ -171,7 +171,7 @@ test('run stop: pass the args to the command that is specfied in the build scrip
 })
 
 test('restart: run stop, restart and start', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       poststop: 'node -e "process.stdout.write(\'poststop\')" | json-append ./output.json',
       prestop: 'node -e "process.stdout.write(\'prestop\')" | json-append ./output.json',
@@ -209,7 +209,7 @@ test('restart: run stop, restart and start', async () => {
 })
 
 test('"pnpm run" prints the list of available commands', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       foo: 'echo hi',
       test: 'ts-node test',
@@ -233,7 +233,7 @@ Commands available via "pnpm run":
 })
 
 test('"pnpm run" prints the list of available commands, including commands of the root workspace project', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: '.',
       package: {
@@ -288,7 +288,7 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
 })
 
 test('pnpm run does not fail with --if-present even if the wanted script is not present', async () => {
-  prepare(undefined, {})
+  prepare({})
 
   await run.handler({
     dir: process.cwd(),
@@ -299,7 +299,7 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
 })
 
 test('if a script is not found but is present in the root, print an info message about it in the error message', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: '.',
       package: {
@@ -346,7 +346,7 @@ test('if a script is not found but is present in the root, print an info message
 })
 
 test('scripts work with PnP', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       foo: 'node -e "process.stdout.write(\'foo\')" | json-append ./output.json',
     },
@@ -369,7 +369,7 @@ test('scripts work with PnP', async () => {
 })
 
 test('pnpm run with custom shell', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       build: 'foo bar',
     },

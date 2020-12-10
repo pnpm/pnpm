@@ -66,7 +66,7 @@ test('link global bin', async function () {
 })
 
 test('relative link', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'hello-world-js-bin': '*',
     },
@@ -82,7 +82,7 @@ test('relative link', async () => {
 
   // The linked package has been installed successfully as well with bins linked
   // to node_modules/.bin
-  const linkedProject = assertProject(undefined, linkedPkgPath)
+  const linkedProject = assertProject(linkedPkgPath)
   await linkedProject.isExecutable('.bin/cowsay')
 
   const wantedLockfile = await project.readLockfile()
@@ -94,7 +94,7 @@ test('relative link', async () => {
 })
 
 test('link --production', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'target',
       version: '1.0.0',

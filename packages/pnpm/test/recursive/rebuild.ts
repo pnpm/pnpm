@@ -2,7 +2,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { execPnpm } from '../utils'
 
 test('`pnpm recursive rebuild` specific dependencies', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

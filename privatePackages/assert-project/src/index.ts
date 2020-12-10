@@ -41,7 +41,7 @@ export interface Project {
   writePackageJson: (pkgJson: object) => Promise<void>
 }
 
-export default (t: undefined, projectPath: string, encodedRegistryName?: string): Project => {
+export default (projectPath: string, encodedRegistryName?: string): Project => {
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
 
@@ -63,7 +63,7 @@ export default (t: undefined, projectPath: string, encodedRegistryName?: string)
       const storePath = modulesYaml.storeDir
       cachedStore = {
         storePath,
-        ...assertStore(t, storePath, ern),
+        ...assertStore(storePath, ern),
       }
     }
     return cachedStore

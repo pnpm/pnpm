@@ -22,7 +22,7 @@ test('`pnpm why` should fail if no package name was provided', async () => {
 })
 
 test('"why" should find non-direct dependency', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'dep-of-pkg-with-1-dep': '100.0.0',
       'pkg-with-1-dep': '100.0.0',

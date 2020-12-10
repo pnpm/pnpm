@@ -144,7 +144,7 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
 })
 
 test('readPackage hook from pnpmfile at root of workspace', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -192,7 +192,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
 })
 
 test('readPackage hook during update', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'pkg-with-1-dep': '*',
     },
@@ -267,7 +267,7 @@ test('ignore pnpmfile.js when --ignore-pnpmfile is used', async () => {
 })
 
 test('ignore pnpmfile.js during update when --ignore-pnpmfile is used', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'pkg-with-1-dep': '*',
     },
@@ -450,7 +450,7 @@ test('readPackage hook normalizes the package manifest', async () => {
 })
 
 test('readPackage hook overrides project package', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     name: 'test-read-package-hook',
   })
 
@@ -479,7 +479,7 @@ test('readPackage hook overrides project package', async () => {
 })
 
 test('readPackage hook is used during removal inside a workspace', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project',
       version: '1.0.0',

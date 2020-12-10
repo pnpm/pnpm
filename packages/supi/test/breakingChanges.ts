@@ -32,7 +32,7 @@ test("don't fail on non-compatible node_modules when forced", async () => {
 })
 
 test("don't fail on non-compatible node_modules when forced in a workspace", async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'pkg',
       package: {},

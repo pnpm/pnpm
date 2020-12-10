@@ -920,7 +920,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
       'is-positive': '^3.1.0',
     },
   }
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     pkg1,
     pkg2,
   ])

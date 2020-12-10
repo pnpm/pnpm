@@ -6,7 +6,7 @@ import { DEFAULT_OPTS } from './utils'
 import stripAnsi = require('strip-ansi')
 
 test('pnpm recursive outdated', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -206,7 +206,7 @@ https://github.com/kevva/is-positive#readme
 })
 
 test('pnpm recursive outdated in workspace with shared lockfile', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

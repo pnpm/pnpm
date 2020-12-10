@@ -12,7 +12,7 @@ test('update with "*" pattern', async () => {
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
 
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'peer-a': '1.0.0',
       'peer-c': '1.0.0',
@@ -41,7 +41,7 @@ test('update with "*" pattern', async () => {
 })
 
 test('update: fail when both "latest" and "workspace" are true', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -71,7 +71,7 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
 })
 
 test('update: fail when package not in dependencies', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'peer-a': '1.0.0',
       'peer-c': '1.0.0',
@@ -102,7 +102,7 @@ test('update: fail when package not in dependencies', async () => {
 test('update --no-save should not update package.json and pnpm-lock.yaml', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
 
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'peer-a': '^1.0.0',
     },

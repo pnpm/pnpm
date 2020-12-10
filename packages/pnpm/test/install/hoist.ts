@@ -36,7 +36,7 @@ test('shamefully hoist the dependency graph', async () => {
 })
 
 test('shamefully-hoist: applied to all the workspace projects when set to true in the root .npmrc file', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: '.',
       package: {

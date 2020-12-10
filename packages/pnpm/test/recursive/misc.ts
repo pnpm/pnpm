@@ -14,7 +14,7 @@ import fs = require('mz/fs')
 import writeYamlFile = require('write-yaml-file')
 
 test('recursive installation with package-specific .npmrc', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -48,7 +48,7 @@ test('recursive installation with package-specific .npmrc', async () => {
 })
 
 test('workspace .npmrc is always read', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'workspace/project-1',
       package: {
@@ -98,7 +98,7 @@ test('workspace .npmrc is always read', async () => {
 })
 
 test('recursive installation using server', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -136,7 +136,7 @@ test('recursive installation using server', async () => {
 test('recursive installation of packages with hooks', async () => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -183,7 +183,7 @@ test('recursive installation of packages with hooks', async () => {
 test('recursive installation of packages in workspace ignores hooks in packages', async () => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -240,7 +240,7 @@ test('recursive installation of packages in workspace ignores hooks in packages'
 test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile is used', async () => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -285,7 +285,7 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
 })
 
 test('recursive command with filter from config', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -322,7 +322,7 @@ test('recursive command with filter from config', async () => {
 })
 
 test('non-recursive install ignores filter from config', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: '.',
       package: {
@@ -403,7 +403,7 @@ test('adding new dependency in the root should fail if neither --workspace-root 
 })
 
 test('--workspace-packages', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'project-1',
       package: {
@@ -438,7 +438,7 @@ test('--workspace-packages', async () => {
 })
 
 test('set recursive-install to false in .npmrc would disable recursive install in workspace', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'workspace/project-1',
       package: {
@@ -474,7 +474,7 @@ test('set recursive-install to false in .npmrc would disable recursive install i
 })
 
 test('set recursive-install to false would install as --filter {.}...', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'workspace/project-1',
       package: {

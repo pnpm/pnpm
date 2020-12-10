@@ -38,7 +38,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
 })
 
 test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-a',
       version: '1.0.0',

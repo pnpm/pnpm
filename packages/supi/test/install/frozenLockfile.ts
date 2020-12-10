@@ -209,7 +209,7 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
 })
 
 test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has linked dependency', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'p1',
 

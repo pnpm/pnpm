@@ -32,7 +32,7 @@ test('installing to a custom modules directory', async () => {
 })
 
 test('using different custom modules directory for every project', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'project-1',
       package: {

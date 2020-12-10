@@ -204,7 +204,7 @@ test('don\'t skip optional dependency that does not support the current OS when 
 
 // Covers https://github.com/pnpm/pnpm/issues/2636
 test('optional subdependency is not removed from current lockfile when new dependency added', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project-1',
       package: { name: 'project-1' },
@@ -471,7 +471,7 @@ test('only skip optional dependencies', async () => {
 })
 
 test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace projects', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project1',
     },

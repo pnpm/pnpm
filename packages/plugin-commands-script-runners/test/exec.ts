@@ -11,7 +11,7 @@ import fs = require('mz/fs')
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('pnpm recursive exec', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -74,7 +74,7 @@ test('pnpm recursive exec', async () => {
 })
 
 test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'foo',
       version: '1.0.0',
@@ -92,7 +92,7 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
 })
 
 test('testing the bail config with "pnpm recursive exec"', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -178,7 +178,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
 })
 
 test('pnpm recursive exec --no-sort', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'a-dependent',
       version: '1.0.0',
@@ -227,7 +227,7 @@ test('pnpm recursive exec --no-sort', async () => {
 })
 
 test('pnpm exec fails without the recursive=true option', async () => {
-  preparePackages(undefined, [])
+  preparePackages([])
 
   let err!: PnpmError
   try {
@@ -244,7 +244,7 @@ test('pnpm exec fails without the recursive=true option', async () => {
 })
 
 test('pnpm recursive exec works with PnP', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

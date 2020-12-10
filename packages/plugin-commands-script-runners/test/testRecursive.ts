@@ -6,7 +6,7 @@ import path = require('path')
 import execa = require('execa')
 
 test('pnpm recursive test', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -76,7 +76,7 @@ test('pnpm recursive test', async () => {
 })
 
 test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -126,7 +126,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
 })
 
 test('pnpm recursive test with filtering', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

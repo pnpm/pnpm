@@ -7,7 +7,7 @@ import { DEFAULT_OPTS } from './utils'
 import path = require('path')
 
 test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -79,7 +79,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
 })
 
 test('recursive add --save-dev, --save-peer on workspace with single lockfile', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

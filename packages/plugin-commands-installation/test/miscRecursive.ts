@@ -14,7 +14,7 @@ import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 
 test('recursive add/remove', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -72,7 +72,7 @@ test('recursive add/remove', async () => {
 })
 
 test('recursive add/remove in workspace with many lockfiles', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -156,7 +156,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
 
 // Created to cover the issue described in https://github.com/pnpm/pnpm/issues/1253
 test('recursive install with package that has link', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -190,7 +190,7 @@ test('recursive install with package that has link', async () => {
 })
 
 test('running `pnpm recursive` on a subset of packages', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -224,7 +224,7 @@ test('running `pnpm recursive` on a subset of packages', async () => {
 })
 
 test('running `pnpm recursive` only for packages in subdirectories of cwd', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'packages/project-1',
       package: {
@@ -277,7 +277,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
 })
 
 test('recursive installation fails when installation in one of the packages fails', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -312,7 +312,7 @@ test('recursive installation fails when installation in one of the packages fail
 })
 
 test('second run of `recursive install` after package.json has been edited manually', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'is-negative',
       version: '1.0.0',
@@ -359,7 +359,7 @@ test('second run of `recursive install` after package.json has been edited manua
 })
 
 test('recursive --filter ignore excluded packages', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -410,7 +410,7 @@ test('recursive --filter ignore excluded packages', async () => {
 })
 
 test('recursive filter multiple times', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -455,7 +455,7 @@ test('recursive filter multiple times', async () => {
 })
 
 test('recursive install --no-bail', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -494,7 +494,7 @@ test('recursive install --no-bail', async () => {
 })
 
 test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is false', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -535,7 +535,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 })
 
 test('recursive install on workspace with custom lockfile-dir', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -571,7 +571,7 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
 })
 
 test('recursive install in a monorepo with different modules directories', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -612,7 +612,7 @@ test('prefer-workspace-package', async () => {
     package: 'foo',
     version: '100.1.0',
   })
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

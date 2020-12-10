@@ -3,7 +3,7 @@ import assertProject from '../src'
 import path = require('path')
 
 test('assertProject()', async () => {
-  const project = assertProject(undefined, path.join(__dirname, '../../..'))
+  const project = assertProject(path.join(__dirname, '../../..'))
 
   await project.has('tape')
   await project.hasNot('sfdsff3g34')
@@ -12,7 +12,7 @@ test('assertProject()', async () => {
 })
 
 test('assertProject() store functions', async () => {
-  const project = assertProject(undefined, path.join(__dirname, 'fixture/project'), 'registry.npmjs.org')
+  const project = assertProject(path.join(__dirname, 'fixture/project'), 'registry.npmjs.org')
 
   expect(typeof await project.getStorePath()).toBe('string')
   await project.storeHas('is-positive', '3.1.0')

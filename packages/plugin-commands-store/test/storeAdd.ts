@@ -8,7 +8,7 @@ import path = require('path')
 const STORE_VERSION = 'v3'
 
 test('pnpm store add express@4.16.3', async () => {
-  tempDir(undefined)
+  tempDir()
 
   const storeDir = path.resolve('store')
 
@@ -21,12 +21,12 @@ test('pnpm store add express@4.16.3', async () => {
     storeDir,
   }, ['add', 'express@4.16.3'])
 
-  const { cafsHas } = assertStore(undefined, path.join(storeDir, STORE_VERSION))
+  const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
   await cafsHas('sha1-avilAjUNsyRuzEvs9rWjTSL37VM=')
 })
 
 test('pnpm store add scoped package that uses not the standard registry', async () => {
-  tempDir(undefined)
+  tempDir()
 
   const storeDir = path.resolve('store')
 
@@ -42,12 +42,12 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     storeDir,
   }, ['add', '@foo/no-deps@1.0.0'])
 
-  const { cafsHas } = assertStore(undefined, path.join(storeDir, STORE_VERSION))
+  const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
   await cafsHas('@foo/no-deps', '1.0.0')
 })
 
 test('should fail if some packages can not be added', async () => {
-  tempDir(undefined)
+  tempDir()
   fs.mkdirSync('_')
   process.chdir('_')
   const storeDir = path.resolve('pnpm-store')

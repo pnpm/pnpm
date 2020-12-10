@@ -3,7 +3,7 @@ import { execPnpm } from '../utils'
 import deepRequireCwd = require('deep-require-cwd')
 
 test('installing optional dependencies when --no-optional is not used', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'pkg-with-good-optional': '*',
     },
@@ -22,7 +22,7 @@ test('installing optional dependencies when --no-optional is not used', async ()
 })
 
 test('not installing optional dependencies when --no-optional is used', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'pkg-with-good-optional': '*',
     },

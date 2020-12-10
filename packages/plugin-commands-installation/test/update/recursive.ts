@@ -8,7 +8,7 @@ import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from '../utils'
 
 test('recursive update', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -54,7 +54,7 @@ test('recursive update prod dependencies only', async () => {
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
 
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -109,7 +109,7 @@ test('recursive update prod dependencies only', async () => {
 })
 
 test('recursive update with pattern', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -164,7 +164,7 @@ test('recursive update with pattern and name in project', async () => {
   await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: 'print-version', version: '2.0.0', distTag: 'latest' })
 
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -238,7 +238,7 @@ test('recursive update --latest foo should only update projects that have foo', 
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
 
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -301,7 +301,7 @@ test('recursive update --latest foo should only update packages that have foo', 
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
 
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -358,7 +358,7 @@ test('recursive update --latest foo should only update packages that have foo', 
 })
 
 test('recursive update in workspace should not add new dependencies', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

@@ -17,7 +17,7 @@ test('install with lockfileOnly = true', async () => {
 
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
-  const { cafsHas } = assertStore(undefined, opts.storeDir)
+  const { cafsHas } = assertStore(opts.storeDir)
 
   await cafsHas('pkg-with-1-dep', '100.0.0')
   expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()

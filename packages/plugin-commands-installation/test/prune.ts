@@ -52,7 +52,7 @@ test('prune removes external link that is not in package.json', async () => {
 })
 
 test('prune removes dev dependencies', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: { 'is-positive': '1.0.0' },
     devDependencies: { 'is-negative': '1.0.0' },
   })

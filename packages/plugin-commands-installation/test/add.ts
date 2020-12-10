@@ -32,7 +32,7 @@ const DEFAULT_OPTIONS = {
 }
 
 test('installing with "workspace:" should work even if link-workspace-packages is off', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -59,7 +59,7 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 })
 
 test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is false', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -87,7 +87,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 })
 
 test('add: fail when "workspace" option is true but the command runs not in a workspace', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -115,7 +115,7 @@ test('add: fail when "workspace" option is true but the command runs not in a wo
 })
 
 test('add: fail when "workspace" option is true but linkWorkspacePackages is false and --no-save-workspace-protocol option is used', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -148,7 +148,7 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
 })
 
 test('installing with "workspace=true" with linkWorkpacePackages on and saveWorkspaceProtocol off', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

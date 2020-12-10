@@ -68,7 +68,7 @@ test('rebuilds dependencies', async () => {
 })
 
 test('rebuild does not fail when a linked package is present', async () => {
-  prepareEmpty(undefined)
+  prepareEmpty()
   const storeDir = path.resolve('store')
   await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
 
@@ -95,7 +95,7 @@ test('rebuild does not fail when a linked package is present', async () => {
 })
 
 test('rebuilds specific dependencies', async () => {
-  const project = prepareEmpty(undefined)
+  const project = prepareEmpty()
   const storeDir = path.resolve('store')
   await execa('node', [
     pnpmBin,
@@ -128,7 +128,7 @@ test('rebuilds specific dependencies', async () => {
 })
 
 test('rebuild with pending option', async () => {
-  const project = prepareEmpty(undefined)
+  const project = prepareEmpty()
   const storeDir = path.resolve('store')
   await execa('node', [
     pnpmBin,
@@ -228,7 +228,7 @@ test('rebuild dependencies in correct order', async () => {
 })
 
 test('rebuild links bins', async () => {
-  const project = prepareEmpty(undefined)
+  const project = prepareEmpty()
   const storeDir = path.resolve('store')
 
   await execa('node', [
@@ -264,7 +264,7 @@ test('rebuild links bins', async () => {
 })
 
 test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'pre-and-postinstall-scripts-example': '1.0.0',
     },

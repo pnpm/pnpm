@@ -2,7 +2,7 @@ import { remove } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 
 test('remove arg completions', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'is-positive': '1.0.0',
     },

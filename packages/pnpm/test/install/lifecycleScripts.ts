@@ -9,7 +9,7 @@ const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
 
 test('installation fails if lifecycle script fails', () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       preinstall: 'exit 1',
     },
@@ -21,7 +21,7 @@ test('installation fails if lifecycle script fails', () => {
 })
 
 test('lifecycle script runs with the correct user agent', () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       preinstall: 'node --eval "console.log(process.env.npm_config_user_agent)"',
     },
@@ -35,7 +35,7 @@ test('lifecycle script runs with the correct user agent', () => {
 })
 
 test('preinstall is executed before general installation', () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       preinstall: 'echo "Hello world!"',
     },
@@ -48,7 +48,7 @@ test('preinstall is executed before general installation', () => {
 })
 
 test('postinstall is executed after general installation', () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       postinstall: 'echo "Hello world!"',
     },
@@ -61,7 +61,7 @@ test('postinstall is executed after general installation', () => {
 })
 
 test('postinstall is not executed after named installation', () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       postinstall: 'echo "Hello world!"',
     },
@@ -74,7 +74,7 @@ test('postinstall is not executed after named installation', () => {
 })
 
 test('prepare is not executed after installation with arguments', () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       prepare: 'echo "Hello world!"',
     },
@@ -87,7 +87,7 @@ test('prepare is not executed after installation with arguments', () => {
 })
 
 test('prepare is executed after argumentless installation', () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       prepare: 'echo "Hello world!"',
     },
@@ -100,7 +100,7 @@ test('prepare is executed after argumentless installation', () => {
 })
 
 test('lifecycle events have proper npm_config_argv', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'write-lifecycle-env': '^1.0.0',
     },
@@ -121,7 +121,7 @@ test('lifecycle events have proper npm_config_argv', async () => {
 })
 
 test('dependency should not be added to package.json and lockfile if it was not built successfully', async () => {
-  const project = prepare(undefined, { name: 'foo', version: '1.0.0' })
+  const project = prepare({ name: 'foo', version: '1.0.0' })
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
@@ -135,7 +135,7 @@ test('dependency should not be added to package.json and lockfile if it was not 
 })
 
 test('node-gyp is in the PATH', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       test: 'node-gyp --help',
     },

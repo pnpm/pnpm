@@ -7,7 +7,7 @@ import loadJsonFile = require('load-json-file')
 const basicPackageManifest = loadJsonFile.sync<PackageManifest>(path.join(__dirname, '../utils/simple-package.json'))
 
 test('production install (with --production flag)', async () => {
-  const project = prepare(undefined, basicPackageManifest)
+  const project = prepare(basicPackageManifest)
 
   await execPnpm(['install', '--production'])
 
@@ -17,7 +17,7 @@ test('production install (with --production flag)', async () => {
 })
 
 test('production install (with production NODE_ENV)', async () => {
-  const project = prepare(undefined, basicPackageManifest)
+  const project = prepare(basicPackageManifest)
 
   await execPnpm(['install'], { env: { NODE_ENV: 'production' } })
 
@@ -27,7 +27,7 @@ test('production install (with production NODE_ENV)', async () => {
 })
 
 test('install dev dependencies only', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'is-positive': '^1.0.0',
     },

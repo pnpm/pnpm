@@ -113,7 +113,7 @@ test('the right peer dependency is used in every workspace package', async () =>
       'ajv-keywords': '1.5.0',
     },
   }
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project-1',
       package: manifest1,
@@ -627,7 +627,7 @@ test('regular dependencies are not removed on update from transitive packages th
 })
 
 test('peer dependency is resolved from parent package', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'pkg',
     },
@@ -649,7 +649,7 @@ test('peer dependency is resolved from parent package', async () => {
 })
 
 test('transitive peerDependencies field does not break the lockfile on subsequent named install', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'pkg',
     },
@@ -682,7 +682,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
 })
 
 test('peer dependency is resolved from parent package via its alias', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'pkg',
     },

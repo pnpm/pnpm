@@ -3,7 +3,7 @@ import prepare from '@pnpm/prepare'
 import exists = require('path-exists')
 
 test('pack: package with package.json', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -15,7 +15,7 @@ test('pack: package with package.json', async () => {
 })
 
 test('pack: package with package.yaml', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.yaml',
     version: '0.0.0',
   }, { manifestFormat: 'YAML' })
@@ -28,7 +28,7 @@ test('pack: package with package.yaml', async () => {
 })
 
 test('pack: package with package.json5', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json5',
     version: '0.0.0',
   }, { manifestFormat: 'JSON5' })

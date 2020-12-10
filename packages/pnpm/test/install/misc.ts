@@ -19,7 +19,7 @@ import exists = require('path-exists')
 import semver = require('semver')
 
 test('bin files are found by lifecycle scripts', () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'hello-world-js-bin': '*',
     },
@@ -78,7 +78,7 @@ test('install with package-lock=false in .npmrc', async () => {
 })
 
 test('install from any location via the --prefix flag', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       rimraf: '2.6.2',
     },
@@ -168,7 +168,7 @@ test('lockfile compatibility', async () => {
     console.log("don't run on Node.js 4")
     return
   }
-  prepare(undefined, { dependencies: { rimraf: '*' } })
+  prepare({ dependencies: { rimraf: '*' } })
 
   await execPnpm(['install', 'rimraf@2.5.1'])
 
@@ -187,7 +187,7 @@ test('lockfile compatibility', async () => {
 })
 
 test('top-level packages should find the plugins they use', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       test: 'pkg-that-uses-plugins',
     },
@@ -202,7 +202,7 @@ test('top-level packages should find the plugins they use', async () => {
 
 test('not top-level packages should find the plugins they use', async () => {
   // standard depends on eslint and eslint plugins
-  prepare(undefined, {
+  prepare({
     scripts: {
       test: 'standard',
     },
@@ -215,7 +215,7 @@ test('not top-level packages should find the plugins they use', async () => {
 })
 
 test('run js bin file', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       test: 'hello-world-js-bin',
     },
@@ -259,7 +259,7 @@ test('`pnpm recursive add` should fail if no package name was provided', () => {
 })
 
 test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'project',
     version: '1.0.0',
 
@@ -275,7 +275,7 @@ test('install should fail if the used pnpm version does not satisfy the pnpm ver
 })
 
 test('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'project',
     version: '1.0.0',
 
@@ -291,7 +291,7 @@ test('engine-strict=false: install should not fail if the used Node version does
 })
 
 test('engine-strict=true: install should fail if the used Node version does not satisfy the Node version specified in engines', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'project',
     version: '1.0.0',
 
@@ -307,7 +307,7 @@ test('engine-strict=true: install should fail if the used Node version does not 
 })
 
 test('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace projects', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -340,7 +340,7 @@ test('recursive install should fail if the used pnpm version does not satisfy th
 })
 
 test('engine-strict=true: recursive install should fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -373,7 +373,7 @@ test('engine-strict=true: recursive install should fail if the used Node version
 })
 
 test('engine-strict=false: recursive install should not fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -406,7 +406,7 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
 })
 
 test('using a custom virtual-store-dir location', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: { rimraf: '2.5.1' },
   })
 
@@ -428,7 +428,7 @@ test('using a custom virtual-store-dir location', async () => {
 
 // This is an integration test only because it is hard to mock is-ci
 test('installing in a CI environment', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: { rimraf: '2.5.1' },
   })
 

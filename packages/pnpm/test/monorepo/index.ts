@@ -18,7 +18,7 @@ import symlink = require('symlink-dir')
 import writeYamlFile = require('write-yaml-file')
 
 test('no projects matched the filters', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project',
       version: '1.0.0',
@@ -51,7 +51,7 @@ test('no projects found', async () => {
 })
 
 test('linking a package inside a monorepo', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -92,7 +92,7 @@ test('linking a package inside a monorepo', async () => {
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -134,7 +134,7 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -216,7 +216,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
 })
 
 test('topological order of packages with self-dependencies in monorepo is correct', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -273,7 +273,7 @@ test('do not get confused by filtered dependencies when searching for dependents
    two projects in the dependency hierarchy, that can be ignored for this query,
    as they do not depend on 'project-2'.
   */
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'unused-project-1',
       version: '1.0.0',
@@ -326,7 +326,7 @@ test('do not get confused by filtered dependencies when searching for dependents
 })
 
 test('installation with --link-workspace-packages links packages even if they were previously installed from registry', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project',
       version: '1.0.0',
@@ -364,7 +364,7 @@ test('installation with --link-workspace-packages links packages even if they we
 })
 
 test('shared-workspace-lockfile: installation with --link-workspace-packages links packages even if they were previously installed from registry', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project',
       version: '1.0.0',
@@ -415,7 +415,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
 })
 
 test('recursive install with link-workspace-packages and shared-workspace-lockfile', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'is-positive',
       version: '1.0.0',
@@ -491,7 +491,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
 
 test('recursive install with shared-workspace-lockfile builds workspace projects in correct order', async () => {
   const jsonAppend = (append: string, target: string) => `node -e "process.stdout.write('${append}')" | json-append ${target}`
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-999',
       version: '1.0.0',
@@ -603,7 +603,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
 })
 
 test('recursive installation with shared-workspace-lockfile and a readPackage hook', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -644,7 +644,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
 })
 
 test('local packages should be preferred when running "pnpm install" inside a workspace', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -673,7 +673,7 @@ test('local packages should be preferred when running "pnpm install" inside a wo
 
 // covers https://github.com/pnpm/pnpm/issues/1437
 test('shared-workspace-lockfile: create shared lockfile format when installation is inside workspace', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'is-positive': '1.0.0',
     },
@@ -692,7 +692,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
 
 // covers https://github.com/pnpm/pnpm/issues/1451
 test("shared-workspace-lockfile: don't install dependencies in projects that are outside of the current workspace", async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'workspace-1/package-1',
       package: {
@@ -760,7 +760,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 })
 
 test('shared-workspace-lockfile: install dependencies in projects that are relative to the workspace directory', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'monorepo/workspace',
       package: {
@@ -864,7 +864,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
 })
 
 test('shared-workspace-lockfile: entries of removed projects should be removed from shared lockfile', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'package-1',
       version: '1.0.0',
@@ -904,7 +904,7 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
 
 // Covers https://github.com/pnpm/pnpm/issues/1482
 test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is found', async () => {
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       'is-positive': '1.0.0',
     },
@@ -918,7 +918,7 @@ test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is f
 })
 
 test('shared-workspace-lockfile: removing a package recursively', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project1',
       version: '1.0.0',
@@ -968,7 +968,7 @@ test('shared-workspace-lockfile: removing a package recursively', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
 test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'foo',
       version: '1.0.0',
@@ -1024,7 +1024,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 })
 
 test('dependencies of workspace projects are built during headless installation', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -1051,7 +1051,7 @@ test('dependencies of workspace projects are built during headless installation'
 })
 
 test("linking the package's bin to another workspace package in a monorepo", async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'hello',
       version: '1.0.0',
@@ -1085,7 +1085,7 @@ test("linking the package's bin to another workspace package in a monorepo", asy
 })
 
 test('pnpx sees the bins from the root of the workspace', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: '.',
       package: {
@@ -1124,13 +1124,12 @@ test('pnpx sees the bins from the root of the workspace', async () => {
 })
 
 test('root package is included when not specified', async () => {
-  const tempDir = makeTempDir(undefined)
+  const tempDir = makeTempDir()
   Object.assign(
     {
-      '.': prepare(undefined, undefined, { tempDir }),
+      '.': prepare(undefined, { tempDir }),
     },
     preparePackages(
-      undefined,
       [
         {
           name: 'project-1',
@@ -1162,13 +1161,12 @@ test('root package is included when not specified', async () => {
 })
 
 test("root package can't be ignored using '!.' (or any other such glob)", async () => {
-  const tempDir = makeTempDir(undefined)
+  const tempDir = makeTempDir()
   Object.assign(
     {
-      '.': prepare(undefined, undefined, { tempDir }),
+      '.': prepare(undefined, { tempDir }),
     },
     preparePackages(
-      undefined,
       [
         {
           name: 'project-1',
@@ -1200,7 +1198,7 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
 })
 
 test('custom virtual store directory in a workspace with not shared lockfile', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -1233,7 +1231,7 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
 })
 
 test('custom virtual store directory in a workspace with shared lockfile', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

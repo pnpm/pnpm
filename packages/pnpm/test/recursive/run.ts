@@ -5,7 +5,7 @@ import path = require('path')
 import writeYamlFile = require('write-yaml-file')
 
 test('pnpm recursive run finds bins from the root of the workspace', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: '.',
       package: {

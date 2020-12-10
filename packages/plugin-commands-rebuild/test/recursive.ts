@@ -10,7 +10,7 @@ import writeYamlFile = require('write-yaml-file')
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('pnpm recursive rebuild', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -106,7 +106,7 @@ test.skip('rebuild multiple packages in correct order', async () => {
       dependencies: {},
     },
   ] as PackageManifest[]
-  preparePackages(undefined, pkgs)
+  preparePackages(pkgs)
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])

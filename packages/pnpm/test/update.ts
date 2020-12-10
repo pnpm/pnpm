@@ -30,7 +30,7 @@ test('update <dep>', async () => {
 
 test('update --no-save', async () => {
   await addDistTag('foo', '100.1.0', 'latest')
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       foo: '^100.0.0',
     },
@@ -47,7 +47,7 @@ test('update --no-save', async () => {
 
 test('update', async () => {
   await addDistTag('foo', '100.0.0', 'latest')
-  const project = prepare(undefined, {
+  const project = prepare({
     dependencies: {
       foo: '^100.0.0',
     },
@@ -68,7 +68,7 @@ test('update', async () => {
 
 test('recursive update --no-save', async () => {
   await addDistTag('foo', '100.1.0', 'latest')
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project',
       package: {
@@ -91,7 +91,7 @@ test('recursive update --no-save', async () => {
 
 test('recursive update', async () => {
   await addDistTag('foo', '100.1.0', 'latest')
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project',
       package: {
@@ -114,7 +114,7 @@ test('recursive update', async () => {
 
 test('recursive update --no-shared-workspace-lockfile', async function () {
   await addDistTag('foo', '100.1.0', 'latest')
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'project',
       package: {
@@ -264,7 +264,7 @@ test('recursive update --latest on projects that do not share a lockfile', async
     addDistTag('foo', '100.1.0', 'latest'),
   ])
 
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -317,7 +317,7 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
     addDistTag('foo', '100.1.0', 'latest'),
   ])
 
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -385,7 +385,7 @@ test('recursive update --latest specific dependency on projects that do not shar
     addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -441,7 +441,7 @@ test('recursive update --latest on projects with a shared a lockfile', async () 
     addDistTag('foo', '100.1.0', 'latest'),
   ])
 
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -493,7 +493,7 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
     addDistTag('foo', '100.1.0', 'latest'),
   ])
 
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -559,7 +559,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
     addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

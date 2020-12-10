@@ -25,7 +25,7 @@ const CREDENTIALS = [
 ]
 
 test('publish: fails git check if branch is not on master', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -53,7 +53,7 @@ test('publish: fails git check if branch is not on master', async () => {
 })
 
 test('publish: fails git check if branch is not on specified branch', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -82,7 +82,7 @@ test('publish: fails git check if branch is not on specified branch', async () =
 })
 
 test('publish: fails git check if branch is not clean', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -109,7 +109,7 @@ test('publish: fails git check if branch is not clean', async () => {
 test('publish: fails git check if branch is not up-to-date', async () => {
   const remote = tempy.directory()
 
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
   })

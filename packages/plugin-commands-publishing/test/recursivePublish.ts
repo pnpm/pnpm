@@ -33,7 +33,7 @@ test('recursive publish', async () => {
       'is-negative': '1.0.0',
     },
   }
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     pkg1,
     pkg2,
     // This will not be published because is-positive@1.0.0 is in the registry

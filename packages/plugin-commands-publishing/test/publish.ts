@@ -19,7 +19,7 @@ const CREDENTIALS = [
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('publish: package with package.json', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
@@ -32,7 +32,7 @@ test('publish: package with package.json', async () => {
 })
 
 test('publish: package with package.yaml', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.yaml',
     version: '0.0.0',
   }, { manifestFormat: 'YAML' })
@@ -48,7 +48,7 @@ test('publish: package with package.yaml', async () => {
 })
 
 test('publish: package with package.json5', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json5',
     version: '0.0.0',
   }, { manifestFormat: 'JSON5' })
@@ -64,7 +64,7 @@ test('publish: package with package.json5', async () => {
 })
 
 test('publish: package with package.json5 running publish from different folder', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-package.json5',
     version: '0.0.1',
   }, { manifestFormat: 'JSON5' })
@@ -82,7 +82,7 @@ test('publish: package with package.json5 running publish from different folder'
 })
 
 test('pack packages with workspace LICENSE if no own LICENSE is present', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -121,7 +121,7 @@ test('pack packages with workspace LICENSE if no own LICENSE is present', async 
 })
 
 test('publish packages with workspace LICENSE if no own LICENSE is present', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-100',
       version: '1.0.0',
@@ -170,7 +170,7 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
 })
 
 test('publish: package with all possible fields in publishConfig', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'test-publish-config',
       version: '1.0.0',
@@ -273,7 +273,7 @@ test('publish: package with all possible fields in publishConfig', async () => {
 })
 
 test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: '.',
       package: {
@@ -334,7 +334,7 @@ test.skip('publish package that calls executable from the workspace .bin folder 
 })
 
 test('convert specs with workspace protocols to regular version ranges', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'workspace-protocol-package',
       version: '1.0.0',
@@ -443,7 +443,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
 })
 
 test('convert specs with relative workspace protocols to regular version ranges', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'relative-workspace-protocol-package',
       version: '1.0.0',
@@ -529,7 +529,7 @@ test('convert specs with relative workspace protocols to regular version ranges'
 })
 
 test('publish: runs all the lifecycle scripts', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-with-scripts',
     version: '0.0.0',
 
@@ -569,7 +569,7 @@ test('publish: runs all the lifecycle scripts', async () => {
 })
 
 test('publish: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
-  prepare(undefined, {
+  prepare({
     name: 'test-publish-with-ignore-scripts',
     version: '0.0.0',
 

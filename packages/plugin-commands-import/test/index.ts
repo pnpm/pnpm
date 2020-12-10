@@ -43,7 +43,7 @@ const DEFAULT_OPTS = {
 
 test('import from package-lock.json', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  tempDir(undefined)
+  tempDir()
 
   await ncp(path.join(fixtures, 'has-package-lock-json'), process.cwd())
 
@@ -52,7 +52,7 @@ test('import from package-lock.json', async () => {
     dir: process.cwd(),
   })
 
-  const project = assertProject(undefined, process.cwd())
+  const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
@@ -64,7 +64,7 @@ test('import from package-lock.json', async () => {
 
 test('import from npm-shrinkwrap.json', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  tempDir(undefined)
+  tempDir()
 
   await ncp(path.join(fixtures, 'has-npm-shrinkwrap-json'), process.cwd())
 
@@ -73,7 +73,7 @@ test('import from npm-shrinkwrap.json', async () => {
     dir: process.cwd(),
   })
 
-  const project = assertProject(undefined, process.cwd())
+  const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])

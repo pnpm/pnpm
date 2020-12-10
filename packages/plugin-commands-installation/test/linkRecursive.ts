@@ -7,7 +7,7 @@ import path = require('path')
 import exists = require('path-exists')
 
 test('recursive linking/unlinking', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -68,7 +68,7 @@ test('recursive linking/unlinking', async () => {
 })
 
 test('recursive unlink specific package', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',

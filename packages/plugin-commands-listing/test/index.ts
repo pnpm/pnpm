@@ -12,7 +12,7 @@ import writeYamlFile = require('write-yaml-file')
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('listing packages', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'is-positive': '1.0.0',
     },
@@ -71,7 +71,7 @@ is-negative 1.0.0`)
 })
 
 test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'pkg',
       version: '1.0.0',

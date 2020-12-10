@@ -16,7 +16,7 @@ import sinon = require('sinon')
 import writeYamlFile = require('write-yaml-file')
 
 test('install only the dependencies of the specified importer', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'project-1',
       package: { name: 'project-1' },
@@ -62,13 +62,13 @@ test('install only the dependencies of the specified importer', async () => {
   await projects['project-1'].has('is-positive')
   await projects['project-2'].hasNot('is-negative')
 
-  const rootModules = assertProject(undefined, process.cwd())
+  const rootModules = assertProject(process.cwd())
   await rootModules.has('.pnpm/is-positive@1.0.0')
   await rootModules.hasNot('.pnpm/is-negative@1.0.0')
 })
 
 test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project-1',
       package: { name: 'project-1' },
@@ -135,7 +135,7 @@ test('install only the dependencies of the specified importer. The current lockf
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
-  const rootModules = assertProject(undefined, process.cwd())
+  const rootModules = assertProject(process.cwd())
   const currentLockfile = await rootModules.readCurrentLockfile()
   expect(currentLockfile.importers).toHaveProperty(['project-3'])
   expect(currentLockfile.packages).toHaveProperty(['/foobar/100.0.0'])
@@ -154,7 +154,7 @@ test('some projects were removed from the workspace and the ones that are left d
     name: 'project-2',
     version: '1.0.0',
   }
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project-1',
       package: project1Manifest,
@@ -204,7 +204,7 @@ test('some projects were removed from the workspace and the ones that are left d
 })
 
 test('dependencies of other importers are not pruned when installing for a subset of importers', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'project-1',
       package: { name: 'project-1' },
@@ -252,7 +252,7 @@ test('dependencies of other importers are not pruned when installing for a subse
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
 
-  const rootModules = assertProject(undefined, process.cwd())
+  const rootModules = assertProject(process.cwd())
   await rootModules.has('.pnpm/is-positive@2.0.0')
   await rootModules.hasNot('.pnpm/is-positive@1.0.0')
   await rootModules.has('.pnpm/is-negative@1.0.0')
@@ -266,7 +266,7 @@ test('dependencies of other importers are not pruned when installing for a subse
 })
 
 test('dependencies of other importers are not pruned when (headless) installing for a subset of importers', async () => {
-  const projects = preparePackages(undefined, [
+  const projects = preparePackages([
     {
       location: 'project-1',
       package: { name: 'project-1' },
@@ -317,7 +317,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
 
-  const rootModules = assertProject(undefined, process.cwd())
+  const rootModules = assertProject(process.cwd())
   await rootModules.has('.pnpm/is-positive@2.0.0')
   await rootModules.hasNot('.pnpm/is-positive@1.0.0')
   await rootModules.has('.pnpm/is-negative@1.0.0')
@@ -365,7 +365,7 @@ test('headless install is used when package linked to another package in the wor
       'is-negative': '1.0.0',
     },
   }
-  const projects = preparePackages(undefined, [pkg1, pkg2])
+  const projects = preparePackages([pkg1, pkg2])
 
   const importers: MutatedProject[] = [
     {
@@ -415,7 +415,7 @@ test('headless install is used with an up-to-date lockfile when package referenc
       'is-negative': '1.0.0',
     },
   }
-  const projects = preparePackages(undefined, [pkg1, pkg2])
+  const projects = preparePackages([pkg1, pkg2])
 
   const importers: MutatedProject[] = [
     {
@@ -482,7 +482,7 @@ test('headless install is used when packages are not linked from the workspace (
     name: 'qar',
     version: '100.0.0',
   }
-  preparePackages(undefined, [foo, bar, qar])
+  preparePackages([foo, bar, qar])
 
   const importers: MutatedProject[] = [
     {
@@ -549,7 +549,7 @@ test('current lockfile contains only installed dependencies when adding a new im
       'is-negative': '1.0.0',
     },
   }
-  preparePackages(undefined, [pkg1, pkg2])
+  preparePackages([pkg1, pkg2])
 
   await mutateModules([
     {
@@ -905,7 +905,7 @@ test('update workspace range', async () => {
 })
 
 test('remove dependencies of a project that was removed from the workspace (during non-headless install)', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project-1',
       package: { name: 'project-1' },
@@ -948,7 +948,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
 
   await mutateModules(importers.slice(0, 1), await testDefaults({ lockfileOnly: true, pruneLockfileImporters: true }))
 
-  const project = assertProject(undefined, process.cwd())
+  const project = assertProject(process.cwd())
 
   {
     const wantedLockfile = await project.readLockfile()
@@ -975,7 +975,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
 })
 
 test('do not resolve a subdependency from the workspace by default', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project',
       package: { name: 'project' },
@@ -1023,14 +1023,14 @@ test('do not resolve a subdependency from the workspace by default', async () =>
   }
   await mutateModules(importers, await testDefaults({ workspacePackages }))
 
-  const project = assertProject(undefined, process.cwd())
+  const project = assertProject(process.cwd())
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
 
 test('resolve a subdependency from the workspace', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project',
       package: { name: 'project' },
@@ -1078,7 +1078,7 @@ test('resolve a subdependency from the workspace', async () => {
   }
   await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: Infinity, workspacePackages }))
 
-  const project = assertProject(undefined, process.cwd())
+  const project = assertProject(process.cwd())
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('link:dep-of-pkg-with-1-dep')
@@ -1094,7 +1094,7 @@ test('resolve a subdependency from the workspace', async () => {
 
 test('resolve a subdependency from the workspace and use it as a peer', async () => {
   await addDistTag('peer-c', '1.0.1', 'latest')
-  preparePackages(undefined, [
+  preparePackages([
     {
       location: 'project',
       package: { name: 'project' },
@@ -1143,7 +1143,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   }
   await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: Infinity, workspacePackages }))
 
-  const project = assertProject(undefined, process.cwd())
+  const project = assertProject(process.cwd())
 
   const wantedLockfile = await project.readLockfile()
   expect(Object.keys(wantedLockfile.packages)).toStrictEqual(

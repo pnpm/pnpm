@@ -2,7 +2,7 @@ import { run } from '@pnpm/plugin-commands-script-runners'
 import prepare from '@pnpm/prepare'
 
 test('run completion', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       lint: 'eslint',
       test: 'node test.js',

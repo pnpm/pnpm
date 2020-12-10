@@ -267,7 +267,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
       },
     },
   ]
-  const projects = preparePackages(undefined, pkgs)
+  const projects = preparePackages(pkgs)
 
   const store = path.resolve('.store')
 

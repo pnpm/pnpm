@@ -29,7 +29,7 @@ const DEFAULT_OPTIONS = {
 }
 
 test('root dependency that has a peer is correctly updated after its version changes', async () => {
-  const project = prepare(undefined, {})
+  const project = prepare({})
 
   await add.handler({
     ...DEFAULT_OPTIONS,

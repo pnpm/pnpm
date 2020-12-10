@@ -5,7 +5,7 @@ import path = require('path')
 import isWindows = require('is-windows')
 
 test('pnpm root', async () => {
-  tempDir(undefined)
+  tempDir()
 
   const result = execPnpmSync(['root'])
 
@@ -15,7 +15,7 @@ test('pnpm root', async () => {
 })
 
 test('pnpm root -g', async () => {
-  tempDir(undefined)
+  tempDir()
 
   const global = path.resolve('global')
 

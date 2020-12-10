@@ -5,7 +5,7 @@ import fs = require('mz/fs')
 import PATH = require('path-name')
 
 test('pnpm bin', async () => {
-  tempDir(undefined)
+  tempDir()
   await fs.mkdir('node_modules')
 
   const result = execPnpmSync(['bin'])
@@ -15,7 +15,7 @@ test('pnpm bin', async () => {
 })
 
 test('pnpm bin -g', async () => {
-  tempDir(undefined)
+  tempDir()
 
   const result = execPnpmSync(['bin', '-g'])
 

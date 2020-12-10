@@ -6,7 +6,7 @@ import fs = require('mz/fs')
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
 test('run -r: pass the args to the command that is specfied in the build script', async () => {
-  preparePackages(undefined, [{
+  preparePackages([{
     name: 'project',
     scripts: {
       foo: 'node recordArgs',
@@ -28,7 +28,7 @@ test('run -r: pass the args to the command that is specfied in the build script'
 })
 
 test('test -r: pass the args to the command that is specfied in the build script of a package.json manifest', async () => {
-  preparePackages(undefined, [{
+  preparePackages([{
     name: 'project',
     scripts: {
       test: 'ts-node test',
@@ -41,7 +41,7 @@ test('test -r: pass the args to the command that is specfied in the build script
 })
 
 test('start: run "node server.js" by default', async () => {
-  prepare(undefined, {}, { manifestFormat: 'YAML' })
+  prepare({}, { manifestFormat: 'YAML' })
 
   await fs.writeFile('server.js', 'console.log("Hello world!")', 'utf8')
 
@@ -51,7 +51,7 @@ test('start: run "node server.js" by default', async () => {
 })
 
 test('install-test: install dependencies and runs tests', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'json-append': '1',
     },
@@ -73,7 +73,7 @@ test('install-test: install dependencies and runs tests', async () => {
 })
 
 test('silent run only prints the output of the child process', async () => {
-  prepare(undefined, {
+  prepare({
     scripts: {
       hi: 'echo hi && exit 1',
     },

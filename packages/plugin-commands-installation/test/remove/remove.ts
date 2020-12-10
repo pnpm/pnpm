@@ -80,7 +80,7 @@ test('remove should fail if the project has no dependencies at all', async () =>
 })
 
 test('remove should fail if the project does not have one of the removed dependencies', async () => {
-  prepare(undefined, {
+  prepare({
     dependencies: {
       'prod-dep-1': '1.0.0',
       'prod-dep-2': '1.0.0',

@@ -15,7 +15,7 @@ const tmpPath = tempy.directory()
 
 let dirNumber = 0
 
-export function tempDir (t: undefined) {
+export function tempDir () {
   dirNumber++
   const dirname = dirNumber.toString()
   const tmpDir = path.join(tmpPath, dirname)
@@ -27,26 +27,25 @@ export function tempDir (t: undefined) {
 }
 
 export function preparePackages (
-  t: undefined,
   pkgs: Array<{ location: string, package: ProjectManifest } | ProjectManifest>,
   opts?: {
     manifestFormat?: ManifestFormat
     tempDir?: string
   }
 ) {
-  const pkgTmpPath = opts?.tempDir ?? path.join(tempDir(t), 'project')
+  const pkgTmpPath = opts?.tempDir ?? path.join(tempDir(), 'project')
   const manifestFormat = opts?.manifestFormat
 
   const dirname = path.dirname(pkgTmpPath)
   const result: { [name: string]: Project } = {}
   for (const aPkg of pkgs) {
     if (typeof aPkg['location'] === 'string') {
-      result[aPkg['package']['name']] = prepare(t, aPkg['package'], {
+      result[aPkg['package']['name']] = prepare(aPkg['package'], {
         manifestFormat,
         tempDir: path.join(dirname, aPkg['location']),
       })
     } else {
-      result[aPkg['name']] = prepare(t, aPkg as ProjectManifest, {
+      result[aPkg['name']] = prepare(aPkg as ProjectManifest, {
         manifestFormat,
         tempDir: path.join(dirname, aPkg['name']),
       })
@@ -57,14 +56,13 @@ export function preparePackages (
 }
 
 export default function prepare (
-  test?: undefined,
   manifest?: ProjectManifest,
   opts?: {
     manifestFormat?: ManifestFormat
     tempDir?: string
   }
 ) {
-  const dir = opts?.tempDir ?? path.join(tempDir(test), 'project')
+  const dir = opts?.tempDir ?? path.join(tempDir(), 'project')
 
   fs.mkdirSync(dir, { recursive: true })
   switch (opts?.manifestFormat ?? 'JSON') {
@@ -80,14 +78,14 @@ export default function prepare (
   }
   process.chdir(dir)
 
-  return assertProject(test, dir)
+  return assertProject(dir)
 }
 
-export function prepareEmpty (t?: undefined) {
-  const pkgTmpPath = path.join(tempDir(t), 'project')
+export function prepareEmpty () {
+  const pkgTmpPath = path.join(tempDir(), 'project')
 
   fs.mkdirSync(pkgTmpPath, { recursive: true })
   process.chdir(pkgTmpPath)
 
-  return assertProject(t, pkgTmpPath)
+  return assertProject(pkgTmpPath)
 }

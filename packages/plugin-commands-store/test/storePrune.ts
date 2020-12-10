@@ -62,7 +62,7 @@ test('remove unreferenced packages', async () => {
 test.skip('remove packages that are used by project that no longer exist', async () => {
   prepare()
   const storeDir = path.resolve('store', STORE_VERSION)
-  const { cafsHas, cafsHasNot } = assertStore(undefined, storeDir)
+  const { cafsHas, cafsHasNot } = assertStore(storeDir)
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 

@@ -11,7 +11,7 @@ import stripAnsi = require('strip-ansi')
 import writeYamlFile = require('write-yaml-file')
 
 test('recursive list', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -69,7 +69,7 @@ is-negative 1.0.0`)
 
 test('recursive list with shared-workspace-lockfile', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -131,7 +131,7 @@ is-negative 1.0.0`)
 })
 
 test('recursive list --filter', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
@@ -194,7 +194,7 @@ is-negative 1.0.0`)
 })
 
 test('recursive list --filter link-workspace-packages=false', async () => {
-  preparePackages(undefined, [
+  preparePackages([
     {
       dependencies: {
         'is-positive': '1.0.0',
