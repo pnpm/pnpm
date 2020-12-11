@@ -20,7 +20,7 @@
     "@pnpm/assert-project": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/isexe": "2.0.0",
-    "@types/node": "^12.19.6"
+    "@types/node": "^12.19.8"
   },
   "directories": {
     "test": "test"
@@ -48,7 +48,7 @@
     "@pnpm/lockfile-types": "workspace:2.1.1",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/mz": "^2.7.2",
+    "@types/mz": "^2.7.3",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",
     "mz": "^2.7.0",

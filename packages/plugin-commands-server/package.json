@@ -32,7 +32,7 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/plugin-commands-server": "link:",
     "@types/is-windows": "^1.0.0",
-    "@types/mz": "^2.7.2",
+    "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.32",
     "@types/signal-exit": "^3.0.0"
   },

@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@pnpm/config": "link:",
-    "@types/mz": "^2.7.2",
+    "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.32",
     "@types/which": "^1.3.2",
     "mz": "^2.7.0",

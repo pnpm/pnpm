@@ -27,7 +27,7 @@
     "load-json-file": "^6.2.0",
     "make-empty-dir": "^1.0.0",
     "mz": "^2.7.0",
-    "p-limit": "^3.0.2",
+    "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-temp": "^2.0.0",
     "ramda": "^0.27.1",
@@ -39,7 +39,7 @@
     "@pnpm/client": "workspace:^2.0.17",
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-store": "link:",
-    "@types/mz": "^2.7.2",
+    "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.32",
     "@types/ssri": "^6.0.3",
     "tempy": "^1.0.0"

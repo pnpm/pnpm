@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
-    "@types/mz": "^2.7.2"
+    "@types/mz": "^2.7.3"
   },
   "directories": {
     "test": "test"
