@@ -160,7 +160,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client yarn --dest dist",
     "postpublish": "publish-packed",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts"
   },
   "publishconfig": {
     "tag": "next"
