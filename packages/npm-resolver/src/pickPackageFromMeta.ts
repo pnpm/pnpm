@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { VersionSelectors } from '@pnpm/resolver-base'
 import { RegistryPackageSpec } from './parsePref'
 import { PackageInRegistry, PackageMeta } from './pickPackage'
@@ -8,28 +9,35 @@ export default function (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta
 ): PackageInRegistry {
-  let version!: string
-  switch (spec.type) {
-  case 'version':
-    version = spec.fetchSpec
-    break
-  case 'tag':
-    version = meta['dist-tags'][spec.fetchSpec]
-    break
-  case 'range':
-    version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
-    break
+  try {
+    let version!: string
+    switch (spec.type) {
+    case 'version':
+      version = spec.fetchSpec
+      break
+    case 'tag':
+      version = meta['dist-tags'][spec.fetchSpec]
+      break
+    case 'range':
+      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
+      break
+    }
+    const manifest = meta.versions[version]
+    if (manifest && meta['name']) {
+      // Packages that are published to the GitHub registry are always published with a scope.
+      // However, the name in the package.json for some reason may omit the scope.
+      // So the package published to the GitHub registry will be published under @foo/bar
+      // but the name in package.json will be just bar.
+      // In order to avoid issues, we consider that the real name of the package is the one with the scope.
+      manifest.name = meta['name']
+    }
+    return manifest
+  } catch (err) {
+    throw new PnpmError('MALFORMED_METADATA',
+      `Received malformed metadata for "${spec.name}"`,
+      { hint: 'This might mean that the package was unpublished from the registry' }
+    )
   }
-  const manifest = meta.versions[version]
-  if (manifest && meta['name']) {
-    // Packages that are published to the GitHub registry are always published with a scope.
-    // However, the name in the package.json for some reason may omit the scope.
-    // So the package published to the GitHub registry will be published under @foo/bar
-    // but the name in package.json will be just bar.
-    // In order to avoid issues, we consider that the real name of the package is the one with the scope.
-    manifest.name = meta['name']
-  }
-  return manifest
 }
 
 function pickVersionByVersionRange (

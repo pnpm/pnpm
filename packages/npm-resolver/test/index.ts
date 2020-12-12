@@ -1535,3 +1535,17 @@ test('request to metadata is retried if the received JSON is broken', async () =
 
   expect(resolveResult?.id).toBe('registry.npmjs.org/is-positive/1.0.0')
 })
+
+test('request to a package with malformed metadata', async () => {
+  nock(registry)
+    .get('/code-snippet')
+    .reply(200, loadJsonFile.sync(path.join(__dirname, 'meta/malformed.json')))
+
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({ storeDir })
+
+  await expect(resolve({ alias: 'code-snippet' }, { registry })).rejects
+    .toThrow(
+      new PnpmError('MALFORMED_METADATA', 'Received malformed metadata for "code-snippet"')
+    )
+})

@@ -1,0 +1,27 @@
+{
+    "_id": "code-snippet",
+    "_rev": "2-b2defd889997bf20ca640c1a9b38d82c",
+    "name": "code-snippet",
+    "time": {
+        "modified": "2015-07-31T03:43:17.076Z",
+        "created": "2015-07-31T03:43:17.076Z",
+        "1.0.4": "2015-07-31T03:43:17.076Z",
+        "unpublished": {
+            "name": "nhnent",
+            "time": "2015-07-31T03:52:16.267Z",
+            "tags": {
+                "latest": "1.0.4"
+            },
+            "maintainers": [
+                {
+                    "name": "nhnent",
+                    "email": "dl_javascript@nhnent.com"
+                }
+            ],
+            "versions": [
+                "1.0.4"
+            ]
+        }
+    },
+    "_attachments": {}
+}
