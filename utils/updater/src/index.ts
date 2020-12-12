@@ -130,7 +130,9 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
     }
-    scripts.compile += ' && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin'
+    scripts.compile += ' && rimraf dist && pnpm run bundle \
+&& shx cp -r node-gyp-bin dist/node-gyp-bin \
+&& shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
