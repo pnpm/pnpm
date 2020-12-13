@@ -19,6 +19,7 @@ importers:
       npm-run-all: 4.1.5
       publish-packed: 3.1.1
       rimraf: 3.0.2
+      shx: 0.3.3
       ts-jest: 26.4.4_jest@26.6.3+typescript@4.1.2
       ts-node: 9.1.1_typescript@4.1.2
       typescript: 4.1.2
@@ -44,6 +45,7 @@ importers:
       npm-run-all: ^4.1.5
       publish-packed: ^3.1.1
       rimraf: ^3.0.2
+      shx: ^0.3.3
       ts-jest: ^26.4.4
       ts-node: ^9.1.1
       typescript: ^4.1.2
@@ -2246,7 +2248,6 @@ importers:
       read-yaml-file: 2.0.0
       render-help: 1.0.1
       semver: 7.3.4
-      shx: 0.3.3
       split-cmd: 1.0.1
       strip-ansi: 6.0.0
       symlink-dir: 4.1.0
@@ -2335,7 +2336,6 @@ importers:
       read-yaml-file: ^2.0.0
       render-help: ^1.0.1
       semver: ^7.3.4
-      shx: ^0.3.3
       split-cmd: ^1.0.1
       strip-ansi: ^6.0.0
       symlink-dir: ^4.1.0

@@ -98,7 +98,6 @@
     "read-yaml-file": "^2.0.0",
     "render-help": "^1.0.1",
     "semver": "^7.3.4",
-    "shx": "^0.3.3",
     "split-cmd": "^1.0.1",
     "strip-ansi": "^6.0.0",
     "symlink-dir": "^4.1.0",
