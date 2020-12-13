@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.13.6
+
+### Patch Changes
+
+- Regression in `pnpm install-completion` fixed.
+- Throw a meaningful error on malformed registry metadata.
+
 ## 5.13.5
 
 ### Patch Changes

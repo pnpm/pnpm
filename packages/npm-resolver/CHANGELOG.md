@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 10.2.1
+
+### Patch Changes
+
+- f47551a3c: Throw a meaningful error on malformed registry metadata.
+
 ## 10.2.0
 
 ### Minor Changes

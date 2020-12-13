@@ -1,5 +1,13 @@
 # supi
 
+## 0.43.20
+
+### Patch Changes
+
+- @pnpm/resolve-dependencies@18.2.3
+- @pnpm/headless@14.5.11
+- @pnpm/package-requester@12.2.0
+
 ## 0.43.19
 
 ### Patch Changes
