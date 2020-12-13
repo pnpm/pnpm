@@ -4,4 +4,5 @@ module.exports = {
   testEnvironment: 'node',
   collectCoverage: true,
   coveragePathIgnorePatterns: ['node_modules'],
+  testTimeout: 4 * 60 * 1000, // 4 minutes
 };

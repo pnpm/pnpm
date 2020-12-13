@@ -5,5 +5,4 @@ module.exports = {
   testPathIgnorePatterns: [
     '<rootDir>/test/utils.ts',
   ],
-  testTimeout: 240000,
 }

@@ -10,6 +10,5 @@ module.exports = {
     '<rootDir>/test/utils/retryLoadJsonFile.ts',
     '<rootDir>/test/utils/testDefaults.ts',
   ],
-  testTimeout: 240000,
 }
 
