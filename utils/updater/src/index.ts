@@ -58,7 +58,6 @@ const repoRoot = path.join(__dirname, '../../..')
 let registryMockPort = 7769
 
 async function updateManifest (dir: string, manifest: ProjectManifest) {
-  const usesJest = await exists(path.join(dir, 'jest.config.js'))
   const relative = normalizePath(path.relative(repoRoot, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
@@ -80,22 +79,12 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
     // supi tests currently works only with port 4873 due to the usage of
     // the next package: pkg-with-tarball-dep-from-registry
     const port = manifest.name === 'supi' ? 4873 : ++registryMockPort
-    if (usesJest) {
-      scripts = {
-        ...manifest.scripts,
-        'registry-mock': 'registry-mock',
-        'test:jest': 'jest',
+    scripts = {
+      ...manifest.scripts,
+      'registry-mock': 'registry-mock',
+      'test:jest': 'jest',
 
-        'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:jest',
-      }
-    } else {
-      scripts = {
-        ...manifest.scripts,
-        'registry-mock': 'registry-mock',
-        'test:tap': `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
-
-        'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:tap',
-      }
+      'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:jest',
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
     scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
@@ -103,13 +92,9 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
   }
   default:
     if (await exists(path.join(dir, 'test'))) {
-      if (manifest.scripts?._test?.includes('jest')) {
-        scripts = manifest.scripts
-        break
-      }
       scripts = {
         ...manifest.scripts,
-        _test: `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
+        _test: 'jest',
         test: 'pnpm run compile && pnpm run _test',
       }
     } else {
