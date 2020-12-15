@@ -17,6 +17,7 @@ import { copyFixture } from '@pnpm/test-fixtures'
 import testDefaults from './utils/testDefaults'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
+import isWindows = require('is-windows')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import exists = require('path-exists')
@@ -25,6 +26,7 @@ import tempy = require('tempy')
 import writeJsonFile = require('write-json-file')
 
 const fixtures = path.join(__dirname, 'fixtures')
+const skipOnWindows = isWindows() ? test.skip : test
 
 test('installing a simple project', async () => {
   const prefix = path.join(fixtures, 'simple')
@@ -583,7 +585,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test('using side effects cache', async () => {
+skipOnWindows('using side effects cache', async () => {
   const prefix = path.join(fixtures, 'side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
