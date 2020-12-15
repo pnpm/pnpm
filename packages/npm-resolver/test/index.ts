@@ -556,7 +556,7 @@ test('offline resolution fails when package meta not found in the store', async 
 
   await expect(resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })).rejects
     .toThrow(
-      new PnpmError('NO_OFFLINE_META', `Failed to resolve is-positive@1.0.0 in package mirror ${storeDir}/metadata/registry.npmjs.org/is-positive.json`)
+      new PnpmError('NO_OFFLINE_META', `Failed to resolve is-positive@1.0.0 in package mirror ${path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')}`)
     )
 })
 
