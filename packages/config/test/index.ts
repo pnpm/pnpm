@@ -1,6 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+import prepare from '@pnpm/prepare'
 
 import './findBestGlobalPrefixOnWindows'
 import fs = require('mz/fs')
@@ -198,9 +199,8 @@ test('registries of scoped packages are read', async () => {
 })
 
 test('registries in current directory\'s .npmrc have bigger priority then global config settings', async () => {
-  const tmp = tempy.directory()
+  prepare()
 
-  process.chdir(tmp)
   await fs.writeFile('.npmrc', 'registry=https://pnpm.js.org/', 'utf8')
 
   const { config } = await getConfig({
@@ -539,9 +539,8 @@ test('normalize the value of the color flag', async () => {
 })
 
 test('read only supported settings from config', async () => {
-  const tmp = tempy.directory()
+  prepare()
 
-  process.chdir(tmp)
   await fs.writeFile('.npmrc', 'store-dir=__store__\nfoo=bar', 'utf8')
 
   const { config } = await getConfig({

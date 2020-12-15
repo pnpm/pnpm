@@ -6,8 +6,8 @@ export default function findBestGlobalPrefixOnWindows (
   env: { [key: string]: string | undefined }
 ) {
   if (
-    (env.LOCALAPPDATA && isSubdir(env.LOCALAPPDATA, defaultNpmGlobalPrefix)) ??
-    (env.APPDATA && isSubdir(env.APPDATA, defaultNpmGlobalPrefix))
+    (env.LOCALAPPDATA != null && isSubdir(env.LOCALAPPDATA, defaultNpmGlobalPrefix)) ||
+    (env.APPDATA != null && isSubdir(env.APPDATA, defaultNpmGlobalPrefix))
   ) {
     return defaultNpmGlobalPrefix
   }
