@@ -201,11 +201,11 @@ test('parsePackageSelector()', () => {
   if (isWindows()) {
     expect(
       parsePackageSelector('.\\foo', process.cwd())).toStrictEqual(
-      { excludeSelf: false, parentDir: path.resolve('foo') }
+      { exclude: false, excludeSelf: false, parentDir: path.resolve('foo') }
     )
     expect(
       parsePackageSelector('..\\foo', process.cwd())).toStrictEqual(
-      { excludeSelf: false, parentDir: path.resolve('../foo') }
+      { exclude: false, excludeSelf: false, parentDir: path.resolve('../foo') }
     )
   }
 })
