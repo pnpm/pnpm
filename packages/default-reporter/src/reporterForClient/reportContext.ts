@@ -1,6 +1,7 @@
 import { ContextLog, PackageImportMethodLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
+import normalize = require('normalize-path')
 import path = require('path')
 
 export default (
@@ -39,7 +40,7 @@ export default (
             msg: `\
 Packages are ${method} from the content-addressable store to the virtual store.
   Content-addressable store is at: ${context.storeDir}
-  Virtual store is at:             ${path.relative(opts.cwd, context.virtualStoreDir)}`,
+  Virtual store is at:             ${normalize(path.relative(opts.cwd, context.virtualStoreDir))}`,
           })
         }
       )
