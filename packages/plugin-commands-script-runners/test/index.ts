@@ -10,6 +10,7 @@ import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 import execa = require('execa')
+import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import path = require('path')
 import writeYamlFile = require('write-yaml-file')
@@ -389,7 +390,7 @@ test('pnpm run with custom shell', async () => {
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-    scriptShell: path.resolve('node_modules/.bin/shell-mock'),
+    scriptShell: path.resolve(`node_modules/.bin/shell-mock${isWindows() ? '.cmd' : ''}`),
   }, ['build'])
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
