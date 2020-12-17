@@ -670,6 +670,7 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-package-json': 'link:../read-package-json'
@@ -724,6 +725,7 @@ importers:
       '@pnpm/logger': ^3.2.3
       '@pnpm/modules-cleaner': 'workspace:10.0.16'
       '@pnpm/modules-yaml': 'workspace:8.0.5'
+      '@pnpm/package-is-installable': 'workspace:^4.0.18'
       '@pnpm/package-requester': 'workspace:12.2.0'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/pkgid-to-filename': ^3.0.0

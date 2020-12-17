@@ -46,6 +46,7 @@ import {
   IncludedDependencies,
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
+import packageIsInstallable from '@pnpm/package-is-installable'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -218,6 +219,8 @@ export default async (opts: HeadlessOptions) => {
       lockfileDir,
       skipped,
       virtualStoreDir,
+      nodeVersion: opts.currentEngine.nodeVersion,
+      pnpmVersion: opts.currentEngine.pnpmVersion,
     } as LockfileToDepGraphOptions
   )
   if (opts.enablePnp) {
@@ -508,15 +511,18 @@ function linkRootPackages (
 }
 
 interface LockfileToDepGraphOptions {
+  engineStrict: boolean
   force: boolean
-  include: IncludedDependencies
   importerIds: string[]
+  include: IncludedDependencies
   lockfileDir: string
+  nodeVersion: string
+  pnpmVersion: string
+  registries: Registries
+  sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
   storeDir: string
-  registries: Registries
-  sideEffectsCacheRead: boolean
   virtualStoreDir: string
 }
 
@@ -535,10 +541,29 @@ async function lockfileToDepGraph (
         if (opts.skipped.has(depPath)) return
         const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
-        const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
+        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
 
+        const pkg = {
+          name: pkgName,
+          version: pkgVersion,
+          engines: pkgSnapshot.engines,
+          cpu: pkgSnapshot.cpu,
+          os: pkgSnapshot.os,
+        }
+        if (!opts.force &&
+          packageIsInstallable(packageId, pkg, {
+            engineStrict: opts.engineStrict,
+            lockfileDir: opts.lockfileDir,
+            nodeVersion: opts.nodeVersion,
+            optional: pkgSnapshot.optional === true,
+            pnpmVersion: opts.pnpmVersion,
+          }) === false
+        ) {
+          opts.skipped.add(depPath)
+          return
+        }
         const dir = path.join(modules, pkgName)
         if (
           currentPackages[depPath] && R.equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
@@ -660,6 +685,7 @@ async function getChildrenPaths (
     if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].dir
     } else if (childPkgSnapshot) {
+      if (ctx.skipped.has(childRelDepPath)) continue
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
