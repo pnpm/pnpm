@@ -146,8 +146,8 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle:pnpm": "esbuild lib/bin/pnpm.js --bundle --platform=node --outfile=dist/pnpm.js --external:update-notifier --external:node-gyp",
-    "bundle:pnpx": "esbuild lib/bin/pnpx.js --bundle --platform=node --outfile=dist/pnpx.js",
+    "bundle:pnpm": "esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.js --external:update-notifier --external:node-gyp",
+    "bundle:pnpx": "esbuild lib/pnpx.js --bundle --platform=node --outfile=dist/pnpx.js",
     "bundle": "pnpm bundle:pnpm && pnpm bundle:pnpx",
     "start": "pnpm tsc -- --watch",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
