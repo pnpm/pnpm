@@ -41,7 +41,7 @@
     "@types/is-ci": "^2.0.0",
     "@types/mz": "^2.7.3",
     "@types/proxyquire": "^1.3.28",
-    "@types/ramda": "^0.27.32",
+    "@types/ramda": "^0.27.34",
     "@types/sinon": "^9.0.9",
     "@types/zkochan__table": "npm:@types/table@^5.0.0",
     "load-json-file": "^6.2.0",

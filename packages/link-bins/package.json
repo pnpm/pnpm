@@ -52,9 +52,9 @@
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.3",
     "@types/ncp": "^2.0.4",
-    "@types/node": "^12.19.8",
+    "@types/node": "^12.19.9",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.32",
+    "@types/ramda": "^0.27.34",
     "ncp": "^2.0.0",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0"

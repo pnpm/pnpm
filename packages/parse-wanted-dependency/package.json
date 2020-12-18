@@ -14,7 +14,7 @@
   ],
   "devDependencies": {
     "@pnpm/parse-wanted-dependency": "link:",
-    "@types/validate-npm-package-name": "3.0.0"
+    "@types/validate-npm-package-name": "^3.0.2"
   },
   "keywords": [],
   "license": "MIT",

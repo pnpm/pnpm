@@ -32,7 +32,7 @@
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "link:",
     "@pnpm/types": "workspace:6.3.1",
-    "@types/ramda": "^0.27.32",
+    "@types/ramda": "^0.27.34",
     "@types/zkochan__table": "npm:@types/table@^5.0.0",
     "strip-ansi": "^6.0.0"
   },

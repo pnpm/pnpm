@@ -39,7 +39,7 @@
     "@pnpm/plugin-commands-store": "link:",
     "@pnpm/prepare": "workspace:0.0.16",
     "@types/archy": "0.0.31",
-    "@types/ramda": "^0.27.32",
+    "@types/ramda": "^0.27.34",
     "@types/sinon": "^9.0.9",
     "@types/ssri": "^6.0.3",
     "@zkochan/rimraf": "^1.0.0",
