@@ -41,14 +41,6 @@ jobs:
     - name: run tests (main)
       if: github.ref == 'refs/heads/main'
       run: pnpm run test-main
-    - name: Merging coverage files
-      if: github.ref == 'refs/heads/main'
-      run: pnpm run make-lcov
-    - name: Posting coverage to Coveralls
-      uses: coverallsapp/github-action@master
-      if: github.ref == 'refs/heads/main'
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
     - name: run tests (branch)
       if: github.ref != 'refs/heads/main'
       run: pnpm run test-branch
