@@ -356,14 +356,14 @@ test('only that package is skipped which is an optional dependency only and not 
   const reporter = sinon.spy()
 
   const manifest = await addDependenciesToPackage({}, [
-    'peer-c@1.0.1',
+    'peer-c@1.0.0',
     'has-optional-dep-with-peer',
     'not-compatible-with-any-os-and-has-peer',
   ], await testDefaults({ reporter }))
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
-    expect(modulesInfo.skipped).toStrictEqual(['/not-compatible-with-any-os-and-has-peer/1.0.0_peer-c@1.0.0'])
+    expect(modulesInfo.skipped).toStrictEqual([])
   }
 
   const lockfile = await project.readLockfile()
@@ -387,7 +387,7 @@ test('only that package is skipped which is an optional dependency only and not 
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
-    expect(modulesInfo.skipped).toStrictEqual(['/not-compatible-with-any-os-and-has-peer/1.0.0_peer-c@1.0.0'])
+    expect(modulesInfo.skipped).toStrictEqual([])
   }
 })
 

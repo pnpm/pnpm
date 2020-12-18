@@ -1,11 +1,13 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
 import { execPnpmSync } from './utils'
+import fs = require('mz/fs')
 import path = require('path')
 import isWindows = require('is-windows')
 
 test('pnpm root', async () => {
   tempDir()
+  await fs.writeFile('package.json', '{}', 'utf8')
 
   const result = execPnpmSync(['root'])
 
@@ -27,7 +29,7 @@ test('pnpm root -g', async () => {
   expect(result.status).toBe(0)
 
   if (isWindows()) {
-    expect(result.stdout.toString()).toBe(path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}/node_modules`) + '\n')
+    expect(result.stdout.toString()).toBe(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules`) + '\n')
   } else {
     expect(result.stdout.toString()).toBe(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules`) + '\n')
   }

@@ -83,6 +83,7 @@
     "@pnpm/lockfile-utils": "workspace:2.0.20",
     "@pnpm/modules-cleaner": "workspace:10.0.16",
     "@pnpm/modules-yaml": "workspace:8.0.5",
+    "@pnpm/package-is-installable": "workspace:^4.0.18",
     "@pnpm/package-requester": "workspace:12.2.0",
     "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/read-package-json": "workspace:3.1.8",

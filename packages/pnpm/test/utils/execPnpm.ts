@@ -1,9 +1,10 @@
 import { ChildProcess as NodeChildProcess } from 'child_process'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import isWindows = require('is-windows')
 import path = require('path')
 import crossSpawn = require('cross-spawn')
 
-const binDir = path.join(__dirname, '..', '..', 'bin')
+const binDir = path.join(__dirname, '../..', isWindows() ? 'lib' : 'bin')
 const pnpmBinLocation = path.join(binDir, 'pnpm.js')
 const pnpxBinLocation = path.join(binDir, 'pnpx.js')
 
@@ -32,7 +33,7 @@ export function spawnPnpm (
     storeDir?: string
   }
 ): NodeChildProcess {
-  return crossSpawn.spawn('node', [pnpmBinLocation, ...args], {
+  return crossSpawn.spawn(process.execPath, [pnpmBinLocation, ...args], {
     env: {
       ...createEnv(opts),
       ...opts?.env,
@@ -55,7 +56,7 @@ export async function execPnpx (args: string[]): Promise<void> {
 }
 
 export function spawnPnpx (args: string[], opts?: {storeDir?: string}): NodeChildProcess {
-  return crossSpawn.spawn('node', [pnpxBinLocation, ...args], {
+  return crossSpawn.spawn(process.execPath, [pnpxBinLocation, ...args], {
     env: createEnv(opts),
     stdio: 'inherit',
   })
@@ -68,7 +69,7 @@ export interface ChildProcess {
 }
 
 export function execPnpmSync (args: string[], opts?: { env: Object }): ChildProcess {
-  return crossSpawn.sync('node', [pnpmBinLocation, ...args], {
+  return crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
@@ -77,7 +78,7 @@ export function execPnpmSync (args: string[], opts?: { env: Object }): ChildProc
 }
 
 export function execPnpxSync (args: string[]): ChildProcess {
-  return crossSpawn.sync('node', [pnpxBinLocation, ...args], {
+  return crossSpawn.sync(process.execPath, [pnpxBinLocation, ...args], {
     env: createEnv(),
   }) as ChildProcess
 }

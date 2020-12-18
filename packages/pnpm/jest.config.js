@@ -10,5 +10,6 @@ module.exports = {
     '<rootDir>/test/utils/retryLoadJsonFile.ts',
     '<rootDir>/test/utils/testDefaults.ts',
   ],
+  maxWorkers: 1,
 }
 

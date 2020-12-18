@@ -6,12 +6,14 @@ import { PackageFilesIndex } from '@pnpm/cafs'
 import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
+import isWindows = require('is-windows')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import exists = require('path-exists')
 import writeJsonFile = require('write-json-file')
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
+const skipOnWindows = isWindows() ? test.skip : test
 
 test.skip('caching side effects of native package', async () => {
   prepareEmpty()
@@ -69,7 +71,7 @@ test.skip('caching side effects of native package when hoisting is used', async 
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 })
 
-test('using side effects cache', async () => {
+skipOnWindows('using side effects cache', async () => {
   prepareEmpty()
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod

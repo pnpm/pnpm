@@ -94,6 +94,7 @@
     "path-exists": "^4.0.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "workspace:5.2.0",
+    "ps-list": "^6.3.0",
     "ramda": "^0.27.1",
     "read-yaml-file": "^2.0.0",
     "render-help": "^1.0.1",
@@ -146,8 +147,8 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle:pnpm": "esbuild lib/bin/pnpm.js --bundle --platform=node --outfile=dist/pnpm.js --external:update-notifier --external:node-gyp",
-    "bundle:pnpx": "esbuild lib/bin/pnpx.js --bundle --platform=node --outfile=dist/pnpx.js",
+    "bundle:pnpm": "esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.js --external:update-notifier --external:node-gyp",
+    "bundle:pnpx": "esbuild lib/pnpx.js --bundle --platform=node --outfile=dist/pnpx.js",
     "bundle": "pnpm bundle:pnpm && pnpm bundle:pnpx",
     "start": "pnpm tsc -- --watch",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
@@ -159,7 +160,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client yarn --dest dist",
     "postpublish": "publish-packed",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp node_modules/ps-list/fastlist.exe dist/fastlist.exe"
   },
   "publishconfig": {
     "tag": "next"

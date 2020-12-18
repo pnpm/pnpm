@@ -118,20 +118,19 @@ export default async function prune (
     if (orphanDepPaths.length) {
       if (
         opts.currentLockfile.packages &&
-        opts.hoistedModulesDir &&
-        opts.publicHoistedModulesDir
+        (opts.hoistedModulesDir != null || opts.publicHoistedModulesDir != null)
       ) {
-        const binsDir = path.join(opts.hoistedModulesDir, '.bin')
         const prefix = path.join(opts.virtualStoreDir, '../..')
         await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
           if (opts.hoistedDependencies[orphanDepPath]) {
             await Promise.all(Object.entries(opts.hoistedDependencies[orphanDepPath]).map(([alias, hoistType]) => {
               const modulesDir = hoistType === 'public'
                 ? opts.publicHoistedModulesDir! : opts.hoistedModulesDir!
+              if (!modulesDir) return
               return removeDirectDependency({
                 name: alias,
               }, {
-                binsDir,
+                binsDir: path.join(modulesDir, '.bin'),
                 modulesDir,
                 muteLogs: true,
                 rootDir: prefix,

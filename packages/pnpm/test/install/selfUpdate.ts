@@ -4,10 +4,13 @@ import {
   retryLoadJsonFile,
   spawnPnpm,
 } from '../utils'
+import isWindows = require('is-windows')
 import path = require('path')
 import pathExists = require('path-exists')
 
-test('self-update stops the store server', async () => {
+const skipOnWindows = isWindows() ? test.skip : test
+
+skipOnWindows('self-update stops the store server', async () => {
   prepare()
 
   spawnPnpm(['server', 'start'])

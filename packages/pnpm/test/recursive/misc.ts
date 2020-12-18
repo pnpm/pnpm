@@ -13,6 +13,8 @@ import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import writeYamlFile = require('write-yaml-file')
 
+const skipOnWindows = isWindows() ? test.skip : test
+
 test('recursive installation with package-specific .npmrc', async () => {
   const projects = preparePackages([
     {
@@ -97,7 +99,7 @@ test('workspace .npmrc is always read', async () => {
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
-test('recursive installation using server', async () => {
+skipOnWindows('recursive installation using server', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
