@@ -4,7 +4,7 @@ import isWindows = require('is-windows')
 import path = require('path')
 import crossSpawn = require('cross-spawn')
 
-const binDir = path.join(__dirname, '../..', isWindows() ? 'lib' : 'dist')
+const binDir = path.join(__dirname, '../..', isWindows() ? 'lib' : 'bin')
 const pnpmBinLocation = path.join(binDir, 'pnpm.js')
 const pnpxBinLocation = path.join(binDir, 'pnpx.js')
 
