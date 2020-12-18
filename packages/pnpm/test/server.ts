@@ -13,11 +13,14 @@ import delay, { ClearablePromise } from 'delay'
 import { DeferredPromise } from 'p-defer'
 import path = require('path')
 import byline = require('byline')
+import isWindows = require('is-windows')
 import pAny = require('p-any')
 import pDefer = require('p-defer')
 import pathExists = require('path-exists')
 import killcb = require('tree-kill')
 import writeJsonFile = require('write-json-file')
+
+const skipOnWindows = isWindows() ? test.skip : test
 
 // Third element is true if and only if we attempted to kill the process via a signal.
 interface ServerProcess {
@@ -146,7 +149,7 @@ test('stopping server fails when the server disallows stopping via remote call',
   await kill(server.pid, 'SIGINT')
 })
 
-test('uploading cache can be disabled without breaking install', async () => {
+skipOnWindows('uploading cache can be disabled without breaking install', async () => {
   const project = prepare()
 
   spawnPnpm(['server', 'start', '--ignore-upload-requests'])
@@ -168,7 +171,7 @@ test('uploading cache can be disabled without breaking install', async () => {
   await execPnpm(['server', 'stop'])
 })
 
-test('installation using store server started in the background', async () => {
+skipOnWindows('installation using store server started in the background', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])
@@ -187,7 +190,7 @@ test('installation using store server started in the background', async () => {
   expect(await pathExists(serverJsonPath)).toBeFalsy()
 })
 
-test('store server started in the background should use store location wanted by install', async () => {
+skipOnWindows('store server started in the background should use store location wanted by install', async () => {
   const project = prepare()
 
   await execPnpm(['add', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])
@@ -332,7 +335,7 @@ test.skip('fail if the store server is run by a different version of pnpm', asyn
   expect(result.stdout.toString()).toMatch(/The store server runs on pnpm v2.0.0. The same pnpm version should be used to connect (current is/)
 })
 
-test('print server status', async () => {
+skipOnWindows('print server status', async () => {
   prepare()
 
   spawnPnpm(['server', 'start'])
