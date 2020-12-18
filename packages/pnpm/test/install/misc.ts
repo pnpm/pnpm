@@ -13,10 +13,13 @@ import {
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import crossSpawn = require('cross-spawn')
+import isWindows = require('is-windows')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import exists = require('path-exists')
 import semver = require('semver')
+
+const skipOnWindows = isWindows() ? test.skip : test
 
 test('bin files are found by lifecycle scripts', () => {
   prepare({
@@ -44,7 +47,7 @@ test('create a "node_modules/.pnpm-debug.log" file when the command fails', asyn
   expect(await exists('node_modules/.pnpm-debug.log')).toBeTruthy()
 })
 
-test('install --lockfile-only', async () => {
+skipOnWindows('install --lockfile-only', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'rimraf@2.5.1', '--lockfile-only'])
