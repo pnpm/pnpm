@@ -31,7 +31,7 @@ interface ServerProcess {
 
 const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
-test('installation using pnpm server', async () => {
+skipOnWindows('installation using pnpm server', async () => {
   const project = prepare()
 
   spawnPnpm(['server', 'start'])
@@ -53,7 +53,7 @@ test('installation using pnpm server', async () => {
   expect(await pathExists(serverJsonPath)).toBeFalsy()
 })
 
-test('store server: headless installation', async () => {
+skipOnWindows('store server: headless installation', async () => {
   const project = prepare()
 
   spawnPnpm(['server', 'start'])
@@ -74,7 +74,7 @@ test('store server: headless installation', async () => {
   expect(await pathExists(serverJsonPath)).toBeFalsy()
 })
 
-test('installation using pnpm server that runs in the background', async () => {
+skipOnWindows('installation using pnpm server that runs in the background', async () => {
   const project = prepare()
 
   await execPnpm(['server', 'start', '--background'])
@@ -95,7 +95,7 @@ test('installation using pnpm server that runs in the background', async () => {
   expect(await pathExists(serverJsonPath)).toBeFalsy()
 })
 
-test('installation using pnpm server via TCP', async () => {
+skipOnWindows('installation using pnpm server via TCP', async () => {
   const project = prepare()
 
   spawnPnpm(['server', 'start', '--protocol', 'tcp'])
@@ -116,7 +116,7 @@ test('installation using pnpm server via TCP', async () => {
   expect(await pathExists(serverJsonPath)).toBeFalsy()
 })
 
-test('pnpm server uses TCP when port specified', async () => {
+skipOnWindows('pnpm server uses TCP when port specified', async () => {
   prepare()
 
   spawnPnpm(['server', 'start', '--port', '7856'])
@@ -308,7 +308,7 @@ test('parallel server starts against the same store should result in only one se
   expect(await pathExists(serverJsonPath)).toBeFalsy()
 })
 
-test('installation without store server running in the background', async () => {
+skipOnWindows('installation without store server running in the background', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'is-positive@1.0.0', '--no-use-store-server'])
