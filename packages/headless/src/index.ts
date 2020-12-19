@@ -223,6 +223,11 @@ export default async (opts: HeadlessOptions) => {
       pnpmVersion: opts.currentEngine.pnpmVersion,
     } as LockfileToDepGraphOptions
   )
+  if (filteredLockfile.packages) {
+    for (const skippedDepPath of Array.from(skipped)) {
+      delete filteredLockfile.packages[skippedDepPath]
+    }
+  }
   if (opts.enablePnp) {
     const importerNames = R.fromPairs(
       opts.projects.map(({ manifest, id }) => [id, manifest.name ?? id])
