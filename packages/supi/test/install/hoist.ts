@@ -499,3 +499,27 @@ test('should recreate node_modules with hoisting', async () => {
     expect(Object.keys(modulesManifest?.hoistedDependencies ?? {}).length > 0).toBeTruthy()
   }
 })
+
+test('hoisting should not create a broken symlink to a skipped optional dependency', async () => {
+  const project = prepareEmpty()
+  console.log(process.cwd())
+
+  await install({
+    optionalDependencies: {
+      'not-compatible-with-any-os': '*',
+    },
+  }, await testDefaults({ publicHoistPattern: '*' }))
+
+  await project.hasNot('dep-of-optional-pkg')
+
+  // Verifying the same with headless installation
+  await rimraf('node_modules')
+
+  await install({
+    optionalDependencies: {
+      'not-compatible-with-any-os': '*',
+    },
+  }, await testDefaults({ publicHoistPattern: '*' }))
+
+  await project.hasNot('dep-of-optional-pkg')
+})
