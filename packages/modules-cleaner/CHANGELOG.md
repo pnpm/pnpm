@@ -1,5 +1,11 @@
 # @pnpm/modules-cleaner
 
+## 10.0.17
+
+### Patch Changes
+
+- 130970393: Symlinks to hoisted dependencies should be removed during pruning.
+
 ## 10.0.16
 
 ### Patch Changes

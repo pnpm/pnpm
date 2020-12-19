@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 7.9.11
+
+### Patch Changes
+
+- 8c21dc57f: Normalize path in context reporting.
+- Updated dependencies [041537bc3]
+  - @pnpm/config@11.9.1
+
 ## 7.9.10
 
 ### Patch Changes

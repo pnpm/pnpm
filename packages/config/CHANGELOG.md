@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.9.1
+
+### Patch Changes
+
+- 041537bc3: Finding global bin directory on Windows.
+
 ## 11.9.0
 
 ### Minor Changes

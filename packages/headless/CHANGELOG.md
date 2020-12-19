@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 14.5.12
+
+### Patch Changes
+
+- d064b7736: Don't create broken symlinks to skipped optional dependencies, when hoisting.
+- 130970393: Don't link skipped optional dependencies to the node_modules root.
+- Updated dependencies [130970393]
+  - @pnpm/modules-cleaner@10.0.17
+  - @pnpm/lockfile-to-pnp@0.3.11
+
 ## 14.5.11
 
 ### Patch Changes

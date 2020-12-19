@@ -1,5 +1,12 @@
 # @pnpm/store-connection-manager
 
+## 0.3.53
+
+### Patch Changes
+
+- Updated dependencies [041537bc3]
+  - @pnpm/config@11.9.1
+
 ## 0.3.52
 
 ### Patch Changes

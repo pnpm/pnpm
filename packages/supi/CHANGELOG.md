@@ -1,5 +1,16 @@
 # supi
 
+## 0.43.21
+
+### Patch Changes
+
+- Updated dependencies [d064b7736]
+- Updated dependencies [130970393]
+- Updated dependencies [130970393]
+  - @pnpm/headless@14.5.12
+  - @pnpm/modules-cleaner@10.0.17
+  - @pnpm/lockfile-to-pnp@0.3.11
+
 ## 0.43.20
 
 ### Patch Changes

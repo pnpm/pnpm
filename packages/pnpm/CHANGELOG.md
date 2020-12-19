@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.13.7
+
+### Patch Changes
+
+- Broken symlinks are not created to skipped optional dependencies, when hoisting.
+
 ## 5.13.6
 
 ### Patch Changes
