@@ -269,7 +269,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
   expect(outputs2).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
 
-test('filter-pattern-pattern is respects by the test script', async () => {
+test('filter-pattern-pattern is respected by the test script', async () => {
   const remote = tempy.directory()
 
   preparePackages([
