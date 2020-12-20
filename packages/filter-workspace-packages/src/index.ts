@@ -126,8 +126,9 @@ async function _filterGraph<T> (
   let reversedGraph: Graph | undefined
   for (const selector of packageSelectors) {
     let entryPackages: string[] | null = null
+    let ignoreDependentForPkgs: string[] = []
     if (selector.diff) {
-      entryPackages = await getChangedPkgs(Object.keys(pkgGraph),
+      [entryPackages, ignoreDependentForPkgs] = await getChangedPkgs(Object.keys(pkgGraph),
         selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir, filterPattern: opts.filterPattern })
     } else if (selector.parentDir) {
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
@@ -160,7 +161,7 @@ async function _filterGraph<T> (
       if (!reversedGraph) {
         reversedGraph = reverseGraph(graph)
       }
-      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf })
+      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf, finalNodes: ignoreDependentForPkgs })
     }
 
     if (selector.includeDependencies && selector.includeDependents) {
@@ -222,6 +223,7 @@ function pickSubgraph (
   walked: Set<string>,
   opts: {
     includeRoot: boolean
+    finalNodes?: string[]
   }
 ) {
   for (const nextNodeId of nextNodeIds) {
@@ -230,7 +232,11 @@ function pickSubgraph (
         walked.add(nextNodeId)
       }
 
-      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true })
+      if (opts.finalNodes && opts.finalNodes.includes(nextNodeId)) {
+        continue
+      }
+
+      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true, finalNodes: opts.finalNodes })
     }
   }
 }

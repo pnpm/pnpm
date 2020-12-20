@@ -5,12 +5,11 @@ import execa = require('execa')
 import findUp = require('find-up')
 import isSubdir = require('is-subdir')
 
-export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, filterPattern?: string }): Promise<string[]> {
+export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, filterPattern?: string }): Promise<[string[], string[]]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
-  let changedDirs = Array.from(
-    await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.filterPattern)
-  ).map(changedDir => path.join(repoRoot, changedDir))
-  const changedPkgs = []
+  const [dirsWithChanges, dirsMatchingFilter] = await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.filterPattern)
+  let changedDirs = Array.from(dirsWithChanges).map(changedDir => path.join(repoRoot, changedDir))
+  const changedPkgs: string[] = []
   for (const packageDir of packageDirs.sort((pkgDir1, pkgDir2) => pkgDir2.length - pkgDir1.length)) {
     if (
       changedDirs.some(changedDir => isSubdir(packageDir, changedDir))
@@ -19,7 +18,13 @@ export default async function changedSince (packageDirs: string[], commit: strin
       changedPkgs.push(packageDir)
     }
   }
-  return changedPkgs
+
+  const ignoreDependentForPkgs = Array.from(dirsMatchingFilter)
+    .map(dir => path.join(repoRoot, dir))
+    .map(dir => changedPkgs.find(pkg => dir.startsWith(pkg)))
+    .filter(dir => !!dir)
+
+  return [changedPkgs, ignoreDependentForPkgs as string[]]
 }
 
 async function getChangedDirsSinceCommit (commit: string, workingDir: string, filterPattern?: string) {
@@ -38,17 +43,22 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, fi
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${err.stderr as string}`)
   }
   const changedDirs = new Set<string>()
+  const dirsMatchingFilter = new Set<string>()
 
   if (!diff) {
-    return changedDirs
+    return [changedDirs, dirsMatchingFilter]
   }
   const changedFiles = diff.split('\n')
 
   for (const changedFile of changedFiles) {
-    if (!filterPattern || !minimatch(changedFile, filterPattern)) {
-      changedDirs.add(path.dirname(changedFile))
+    const dirName  = path.dirname(changedFile)
+
+    changedDirs.add(dirName)
+
+    if (filterPattern && minimatch(changedFile, filterPattern)) {
+      dirsMatchingFilter.add(dirName)
     }
   }
 
-  return changedDirs
+  return [changedDirs, dirsMatchingFilter]
 }
