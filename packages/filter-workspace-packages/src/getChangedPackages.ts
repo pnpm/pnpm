@@ -5,10 +5,10 @@ import findUp = require('find-up')
 import minimatch from "minimatch";
 import isSubdir = require('is-subdir')
 
-export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, testPathPattern?: string }): Promise<string[]> {
+export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, filterPattern?: string }): Promise<string[]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
   let changedDirs = Array.from(
-    await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPathPattern)
+    await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.filterPattern)
   ).map(changedDir => path.join(repoRoot, changedDir))
   const changedPkgs = []
   for (const packageDir of packageDirs.sort((pkgDir1, pkgDir2) => pkgDir2.length - pkgDir1.length)) {
@@ -22,7 +22,7 @@ export default async function changedSince (packageDirs: string[], commit: strin
   return changedPkgs
 }
 
-async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPathPattern?: string) {
+async function getChangedDirsSinceCommit (commit: string, workingDir: string, filterPattern?: string) {
   let diff!: string
   try {
     diff = (
@@ -45,7 +45,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
   const changedFiles = diff.split('\n')
 
   for (const changedFile of changedFiles) {
-    if (!testPathPattern || !minimatch(changedFile, testPathPattern)) {
+    if (!filterPattern || !minimatch(changedFile, filterPattern)) {
       changedDirs.add(path.dirname(changedFile))
     }
 

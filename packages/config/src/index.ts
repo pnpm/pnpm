@@ -91,7 +91,7 @@ export const types = Object.assign({
   'workspace-concurrency': Number,
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,
-  'test-path-pattern': String
+  'filter-pattern': String
 }, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
@@ -239,9 +239,9 @@ export default async (
   pnpmConfig.sharedWorkspaceLockfile = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
     ? pnpmConfig.sharedWorkspaceShrinkwrap
     : pnpmConfig['sharedWorkspaceLockfile']
-    pnpmConfig.testPathPattern = typeof npmConfig['test-path-pattern'] === 'undefined'
-    ? pnpmConfig.testPathPattern
-    : pnpmConfig['test-path-pattern']
+    pnpmConfig.filterPattern = typeof npmConfig['filter-pattern'] === 'undefined'
+    ? pnpmConfig.filterPattern
+    : pnpmConfig['filter-pattern']
 
   if (cliOptions['global']) {
     pnpmConfig.save = true
