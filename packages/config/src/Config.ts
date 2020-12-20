@@ -121,6 +121,8 @@ export interface Config {
   registries: Registries
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
+
+  testPathPattern?: string
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
