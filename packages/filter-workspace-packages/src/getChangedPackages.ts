@@ -51,7 +51,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, fi
   const changedFiles = diff.split('\n')
 
   for (const changedFile of changedFiles) {
-    const dirName  = path.dirname(changedFile)
+    const dirName = path.dirname(changedFile)
 
     changedDirs.add(dirName)
 

@@ -232,7 +232,7 @@ function pickSubgraph (
         walked.add(nextNodeId)
       }
 
-      if (opts.finalNodes && opts.finalNodes.includes(nextNodeId)) {
+      if (opts.finalNodes?.includes(nextNodeId)) {
         continue
       }
 
