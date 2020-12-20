@@ -494,6 +494,7 @@ importers:
       execa: 4.1.0
       find-up: 5.0.0
       is-subdir: 1.1.1
+      minimatch: 3.0.4
       pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.27.1
     devDependencies:
@@ -520,6 +521,7 @@ importers:
       is-ci: ^2.0.0
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
+      minimatch: ^3.0.4
       pkgs-graph: 'workspace:5.2.0'
       ramda: ^0.27.1
       tempy: ^1.0.0
@@ -5663,7 +5665,7 @@ packages:
       balanced-match: 1.0.0
       concat-map: 0.0.1
     resolution:
-      integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==
+      integrity: sha1-PH/L9SnYcibz0vUrlm/1Jx60Qd0=
   /braces/2.3.2:
     dependencies:
       arr-flatten: 1.1.0
@@ -10466,7 +10468,7 @@ packages:
     dependencies:
       brace-expansion: 1.1.11
     resolution:
-      integrity: sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==
+      integrity: sha1-UWbihkV/AzBgZL5Ul+jbsMPTIIM=
   /minimist-options/4.1.0:
     dependencies:
       arrify: 1.0.1

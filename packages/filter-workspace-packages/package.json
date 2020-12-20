@@ -35,6 +35,7 @@
     "execa": "^4.1.0",
     "find-up": "^5.0.0",
     "is-subdir": "^1.1.1",
+    "minimatch": "^3.0.4",
     "pkgs-graph": "workspace:5.2.0",
     "ramda": "^0.27.1"
   },

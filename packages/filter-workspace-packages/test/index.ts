@@ -297,6 +297,13 @@ test('select changed packages', async () => {
 
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg2Dir])
   }
+  {
+    const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
+      diff: 'HEAD~1',
+    }], { workspaceDir, testPathPattern: "*/file.js" })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([])
+  }
 })
 
 test('selection should fail when diffing to a branch that does not exist', async () => {

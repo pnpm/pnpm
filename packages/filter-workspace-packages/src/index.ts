@@ -41,7 +41,8 @@ export async function filterPackages<T> (
   opts: {
     linkWorkspacePackages?: boolean
     prefix: string
-    workspaceDir: string
+    workspaceDir: string,
+    testPathPattern?: string
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -58,7 +59,8 @@ export function filterPkgsBySelectorObjects<T> (
   packageSelectors: PackageSelector[],
   opts: {
     linkWorkspacePackages?: boolean
-    workspaceDir: string
+    workspaceDir: string,
+    testPathPattern?: string
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -68,6 +70,7 @@ export function filterPkgsBySelectorObjects<T> (
   if (packageSelectors?.length) {
     return filterGraph(graph, packageSelectors, {
       workspaceDir: opts.workspaceDir,
+      testPathPattern: opts.testPathPattern
     })
   } else {
     return Promise.resolve({ selectedProjectsGraph: graph, unmatchedFilters: [] })
@@ -78,7 +81,8 @@ export default async function filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   packageSelectors: PackageSelector[],
   opts: {
-    workspaceDir: string
+    workspaceDir: string,
+    testPathPattern?: string
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -105,7 +109,8 @@ export default async function filterGraph<T> (
 async function _filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   opts: {
-    workspaceDir: string
+    workspaceDir: string,
+    testPathPattern?: string
   },
   packageSelectors: PackageSelector[]
 ): Promise<{
@@ -123,7 +128,7 @@ async function _filterGraph<T> (
     let entryPackages: string[] | null = null
     if (selector.diff) {
       entryPackages = await getChangedPkgs(Object.keys(pkgGraph),
-        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir })
+        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir, testPathPattern: opts.testPathPattern })
     } else if (selector.parentDir) {
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
     }

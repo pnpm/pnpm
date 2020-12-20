@@ -2,12 +2,13 @@ import PnpmError from '@pnpm/error'
 import path = require('path')
 import execa = require('execa')
 import findUp = require('find-up')
+import minimatch from "minimatch";
 import isSubdir = require('is-subdir')
 
-export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string }): Promise<string[]> {
+export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, testPathPattern?: string }): Promise<string[]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
   let changedDirs = Array.from(
-    await getChangedDirsSinceCommit(commit, opts.workspaceDir)
+    await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPathPattern)
   ).map(changedDir => path.join(repoRoot, changedDir))
   const changedPkgs = []
   for (const packageDir of packageDirs.sort((pkgDir1, pkgDir2) => pkgDir2.length - pkgDir1.length)) {
@@ -21,7 +22,7 @@ export default async function changedSince (packageDirs: string[], commit: strin
   return changedPkgs
 }
 
-async function getChangedDirsSinceCommit (commit: string, workingDir: string) {
+async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPathPattern?: string) {
   let diff!: string
   try {
     diff = (
@@ -44,7 +45,10 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string) {
   const changedFiles = diff.split('\n')
 
   for (const changedFile of changedFiles) {
-    changedDirs.add(path.dirname(changedFile))
+    if (!testPathPattern || !minimatch(changedFile, testPathPattern)) {
+      changedDirs.add(path.dirname(changedFile))
+    }
+
   }
   return changedDirs
 }
