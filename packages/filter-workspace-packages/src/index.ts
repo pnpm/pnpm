@@ -41,7 +41,7 @@ export async function filterPackages<T> (
   opts: {
     linkWorkspacePackages?: boolean
     prefix: string
-    workspaceDir: string,
+    workspaceDir: string
     filterPattern?: string
   }
 ): Promise<{
@@ -59,7 +59,7 @@ export function filterPkgsBySelectorObjects<T> (
   packageSelectors: PackageSelector[],
   opts: {
     linkWorkspacePackages?: boolean
-    workspaceDir: string,
+    workspaceDir: string
     filterPattern?: string
   }
 ): Promise<{
@@ -70,7 +70,7 @@ export function filterPkgsBySelectorObjects<T> (
   if (packageSelectors?.length) {
     return filterGraph(graph, packageSelectors, {
       workspaceDir: opts.workspaceDir,
-      filterPattern: opts.filterPattern
+      filterPattern: opts.filterPattern,
     })
   } else {
     return Promise.resolve({ selectedProjectsGraph: graph, unmatchedFilters: [] })
@@ -81,7 +81,7 @@ export default async function filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   packageSelectors: PackageSelector[],
   opts: {
-    workspaceDir: string,
+    workspaceDir: string
     filterPattern?: string
   }
 ): Promise<{
@@ -109,7 +109,7 @@ export default async function filterGraph<T> (
 async function _filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   opts: {
-    workspaceDir: string,
+    workspaceDir: string
     filterPattern?: string
   },
   packageSelectors: PackageSelector[]

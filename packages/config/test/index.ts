@@ -594,7 +594,7 @@ test('respects filter-pattern', async () => {
       },
     })
 
-    expect(config.filterPattern).toBeUndefined();
+    expect(config.filterPattern).toBeUndefined()
   }
   {
     const workspaceDir = path.join(__dirname, 'using-filter-pattern')
@@ -605,9 +605,9 @@ test('respects filter-pattern', async () => {
         name: 'pnpm',
         version: '1.0.0',
       },
-      workspaceDir
+      workspaceDir,
     })
 
-    expect(config.filterPattern).toEqual('*.spec.js');
+    expect(config.filterPattern).toEqual('*.spec.js')
   }
 })

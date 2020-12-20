@@ -300,7 +300,7 @@ test('select changed packages', async () => {
   {
     const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
       diff: 'HEAD~1',
-    }], { workspaceDir, filterPattern: "*/file.js" })
+    }], { workspaceDir, filterPattern: '*/file.js' })
 
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([])
   }

@@ -11,7 +11,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
 import { execPnpm, execPnpmSync, execPnpxSync } from '../utils'
 import path = require('path')
-import execa = require("execa")
+import execa = require('execa')
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import exists = require('path-exists')
@@ -294,7 +294,7 @@ test('filter-pattern-pattern is respects by the test script', async () => {
     {
       name: 'project-3',
       version: '1.0.0',
-      dependencies: { 'project-2': '1.0.0'},
+      dependencies: { 'project-2': '1.0.0' },
       devDependencies: { 'json-append': '1' },
       scripts: {
         test: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
@@ -320,8 +320,8 @@ test('filter-pattern-pattern is respects by the test script', async () => {
   await execa('git', ['remote', 'add', 'origin', remote])
   await execa('git', ['push', '-u', 'origin', 'master'])
 
-  await fs.writeFile('project-2/file.js', '');
-  await fs.writeFile('project-4/different-pattern.js', '');
+  await fs.writeFile('project-2/file.js', '')
+  await fs.writeFile('project-4/different-pattern.js', '')
   await fs.writeFile('.npmrc', 'filter-pattern = "*/file.js"', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 

@@ -1,8 +1,8 @@
 import PnpmError from '@pnpm/error'
+import minimatch from 'minimatch'
 import path = require('path')
 import execa = require('execa')
 import findUp = require('find-up')
-import minimatch from "minimatch";
 import isSubdir = require('is-subdir')
 
 export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, filterPattern?: string }): Promise<string[]> {
@@ -48,7 +48,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, fi
     if (!filterPattern || !minimatch(changedFile, filterPattern)) {
       changedDirs.add(path.dirname(changedFile))
     }
-
   }
+
   return changedDirs
 }
