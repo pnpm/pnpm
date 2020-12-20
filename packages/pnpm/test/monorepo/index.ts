@@ -320,9 +320,9 @@ test('test-path-pattern-pattern is respects by the test script', async () => {
   await execa('git', ['remote', 'add', 'origin', remote])
   await execa('git', ['push', '-u', 'origin', 'master'])
 
-  await fs.writeFile('project-3/file.js', '');
+  await fs.writeFile('project-2/file.js', '');
   await fs.writeFile('project-4/different-pattern.js', '');
-  await fs.writeFile('.npmrc', 'test-path-pattern-pattern = */file.js', 'utf8')
+  await fs.writeFile('.npmrc', 'test-path-pattern = "*/file.js"', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execa('git', ['add', '.'])
