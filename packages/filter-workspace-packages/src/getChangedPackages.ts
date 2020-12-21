@@ -7,7 +7,7 @@ import isSubdir = require('is-subdir')
 
 export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, testPattern?: string }): Promise<[string[], string[]]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
-  const [dirsWithChanges, dirsMatchingFilter] = await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern)
+  const [dirsWithChanges, dirsWithTestChanges] = await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern)
   let changedDirs = Array.from(dirsWithChanges).map(changedDir => path.join(repoRoot, changedDir))
   const changedPkgs: string[] = []
   for (const packageDir of packageDirs.sort((pkgDir1, pkgDir2) => pkgDir2.length - pkgDir1.length)) {
@@ -19,7 +19,7 @@ export default async function changedSince (packageDirs: string[], commit: strin
     }
   }
 
-  const ignoreDependentForPkgs = Array.from(dirsMatchingFilter)
+  const ignoreDependentForPkgs = Array.from(dirsWithTestChanges)
     .map(dir => path.join(repoRoot, dir))
     .map(dir => changedPkgs.find(pkg => dir.startsWith(pkg)))
     .filter(dir => !!dir)
