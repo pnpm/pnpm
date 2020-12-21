@@ -335,7 +335,7 @@ test('test-pattern is respected by the test script', async () => {
   await execPnpm(['recursive', 'test', '--filter', '...[origin/master]'])
 
   const { default: output } = await import(path.resolve('..', 'output.json'))
-  expect(output).toStrictEqual(['project-2', 'project-4'])
+  expect(output.sort()).toStrictEqual(['project-2', 'project-4'])
 })
 
 test('do not get confused by filtered dependencies when searching for dependents in monorepo', async () => {
