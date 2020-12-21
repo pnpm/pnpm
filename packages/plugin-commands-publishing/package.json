@@ -43,7 +43,7 @@
     "@types/ramda": "^0.27.34",
     "@types/sinon": "^9.0.9",
     "cross-spawn": "^7.0.3",
-    "execa": "^4.1.0",
+    "execa": "^5.0.0",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.1.1"

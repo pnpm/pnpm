@@ -32,7 +32,7 @@
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/find-workspace-packages": "workspace:2.3.29",
     "@pnpm/matcher": "workspace:1.0.3",
-    "execa": "^4.1.0",
+    "execa": "^5.0.0",
     "find-up": "^5.0.0",
     "is-subdir": "^1.1.1",
     "micromatch": "^4.0.2",

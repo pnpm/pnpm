@@ -491,7 +491,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/matcher': 'link:../matcher'
-      execa: 4.1.0
+      execa: 5.0.0
       find-up: 5.0.0
       is-subdir: 1.1.1
       micromatch: 4.0.2
@@ -518,7 +518,7 @@ importers:
       '@types/micromatch': ^4.0.1
       '@types/ramda': ^0.27.34
       '@types/touch': ^3.1.1
-      execa: ^4.1.0
+      execa: ^5.0.0
       find-up: ^5.0.0
       is-ci: ^2.0.0
       is-subdir: ^1.1.1
@@ -607,7 +607,7 @@ importers:
     dependencies:
       '@pnpm/fetcher-base': 'link:../fetcher-base'
       '@zkochan/rimraf': 1.0.0
-      execa: 4.1.0
+      execa: 5.0.0
       tempy: 1.0.0
     devDependencies:
       '@pnpm/cafs': 'link:../cafs'
@@ -620,14 +620,14 @@ importers:
       '@pnpm/git-fetcher': 'link:'
       '@pnpm/types': 'workspace:6.3.1'
       '@zkochan/rimraf': ^1.0.0
-      execa: ^4.1.0
+      execa: ^5.0.0
       p-defer: ^3.0.0
       tempy: ^1.0.0
   packages/git-resolver:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
       '@pnpm/resolver-base': 'link:../resolver-base'
-      graceful-git: 3.0.1
+      graceful-git: 3.0.2
       hosted-git-info: 3.0.7
       semver: 7.3.4
     devDependencies:
@@ -643,7 +643,7 @@ importers:
       '@types/hosted-git-info': ^3.0.1
       '@types/is-windows': ^1.0.0
       '@types/semver': ^7.3.4
-      graceful-git: 3.0.1
+      graceful-git: ^3.0.2
       hosted-git-info: ^3.0.7
       is-windows: ^1.0.2
       semver: ^7.3.4
@@ -1742,7 +1742,7 @@ importers:
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/mz': 2.7.3
       '@types/ramda': 0.27.34
-      execa: 4.1.0
+      execa: 5.0.0
       mz: 2.7.0
       strip-ansi: 6.0.0
       write-yaml-file: 4.1.1
@@ -1761,7 +1761,7 @@ importers:
       '@pnpm/types': 'workspace:6.3.1'
       '@types/mz': ^2.7.3
       '@types/ramda': ^0.27.34
-      execa: ^4.1.0
+      execa: ^5.0.0
       mz: ^2.7.0
       ramda: ^0.27.1
       render-help: ^1.0.1
@@ -1869,7 +1869,7 @@ importers:
       '@types/ramda': 0.27.34
       '@types/sinon': 9.0.9
       cross-spawn: 7.0.3
-      execa: 4.1.0
+      execa: 5.0.0
       path-exists: 4.0.0
       tempy: 1.0.0
       write-yaml-file: 4.1.1
@@ -1898,7 +1898,7 @@ importers:
       cp-file: ^9.0.0
       cross-spawn: ^7.0.3
       enquirer: ^2.3.6
-      execa: ^4.1.0
+      execa: ^5.0.0
       fast-glob: ^3.2.4
       mz: ^2.7.0
       p-filter: ^2.1.0
@@ -1950,7 +1950,7 @@ importers:
       '@types/ramda': 0.27.34
       '@types/semver': 7.3.4
       '@types/sinon': 9.0.9
-      execa: 4.1.0
+      execa: 5.0.0
       path-exists: 4.0.0
       sinon: 9.2.2
       write-yaml-file: 4.1.1
@@ -1984,7 +1984,7 @@ importers:
       '@zkochan/npm-package-arg': ^1.0.2
       camelcase-keys: ^6.2.2
       dependency-path: 'workspace:5.0.6'
-      execa: ^4.1.0
+      execa: ^5.0.0
       graph-sequencer: 2.0.0
       load-json-file: ^6.2.0
       mem: ^8.0.0
@@ -2020,7 +2020,7 @@ importers:
       '@types/mz': 2.7.3
       '@types/ramda': 0.27.34
       '@zkochan/rimraf': 1.0.0
-      execa: 4.1.0
+      execa: 5.0.0
       is-windows: 1.0.2
       mz: 2.7.0
       write-yaml-file: 4.1.1
@@ -2040,7 +2040,7 @@ importers:
       '@types/mz': ^2.7.3
       '@types/ramda': ^0.27.34
       '@zkochan/rimraf': ^1.0.0
-      execa: ^4.1.0
+      execa: ^5.0.0
       is-windows: ^1.0.2
       mz: ^2.7.0
       p-limit: ^3.1.0
@@ -2134,7 +2134,7 @@ importers:
       '@types/sinon': 9.0.9
       '@types/ssri': 6.0.3
       '@zkochan/rimraf': 1.0.0
-      execa: 4.1.0
+      execa: 5.0.0
       load-json-file: 6.2.0
       path-exists: 4.0.0
       sinon: 9.2.2
@@ -2168,7 +2168,7 @@ importers:
       archy: ^1.0.0
       dependency-path: 'workspace:5.0.6'
       dint: ^5.0.0
-      execa: ^4.1.0
+      execa: ^5.0.0
       load-json-file: ^6.2.0
       p-filter: ^2.1.0
       path-exists: ^4.0.0
@@ -2239,7 +2239,7 @@ importers:
       delay: 4.4.0
       dir-is-case-sensitive: 1.0.2
       esbuild: 0.8.24
-      execa: 4.1.0
+      execa: 5.0.0
       exists-link: 2.0.0
       graceful-fs: 4.2.4
       is-ci: 2.0.0
@@ -2328,7 +2328,7 @@ importers:
       delay: ^4.4.0
       dir-is-case-sensitive: ^1.0.2
       esbuild: ^0.8.24
-      execa: ^4.1.0
+      execa: ^5.0.0
       exists-link: 2.0.0
       graceful-fs: ^4.2.4
       is-ci: ^2.0.0
@@ -2757,7 +2757,7 @@ importers:
       cross-spawn: 7.0.3
       deep-require-cwd: 1.0.0
       dir-is-case-sensitive: 1.0.2
-      execa: 4.1.0
+      execa: 5.0.0
       exists-link: 2.0.0
       is-ci: 2.0.0
       is-windows: 1.0.2
@@ -2831,7 +2831,7 @@ importers:
       deep-require-cwd: 1.0.0
       dependency-path: 'workspace:5.0.6'
       dir-is-case-sensitive: ^1.0.2
-      execa: ^4.1.0
+      execa: ^5.0.0
       exists-link: 2.0.0
       graceful-fs: ^4.2.4
       graph-sequencer: 2.0.0
@@ -7433,10 +7433,26 @@ packages:
       onetime: 5.1.2
       signal-exit: 3.0.3
       strip-final-newline: 2.0.0
+    dev: true
     engines:
       node: '>=10'
     resolution:
       integrity: sha512-j5W0//W7f8UxAn8hXVnwG8tLwdiUy4FJLcSupCg6maBYZDpyBvTApK7KyuI4bKj8KOh1r2YH+6ucuYtJv1bTZA==
+  /execa/5.0.0:
+    dependencies:
+      cross-spawn: 7.0.3
+      get-stream: 6.0.0
+      human-signals: 2.1.0
+      is-stream: 2.0.0
+      merge-stream: 2.0.0
+      npm-run-path: 4.0.1
+      onetime: 5.1.2
+      signal-exit: 3.0.3
+      strip-final-newline: 2.0.0
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-ov6w/2LCiuyO4RLYGdpFGjkcs0wMTgGE8PrkTHikeUy5iJekXyPIKUjifk5CsE0pt7sMCrMZ3YNqoCj6idQOnQ==
   /exists-link/2.0.0:
     dev: true
     engines:
@@ -8032,7 +8048,6 @@ packages:
     resolution:
       integrity: sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA==
   /get-stream/6.0.0:
-    dev: false
     engines:
       node: '>=10'
     resolution:
@@ -8209,15 +8224,15 @@ packages:
   /graceful-fs/4.2.4:
     resolution:
       integrity: sha512-WjKPNJF79dtJAVniUlGGWHYGz2jWxT6VhN/4m1NdkbZ2nOsEF+cI1Edgql5zCRhs/VsQYRvrXctxktVXZUkixw==
-  /graceful-git/3.0.1:
+  /graceful-git/3.0.2:
     dependencies:
-      execa: 4.1.0
+      execa: 5.0.0
       retry: 0.12.0
     dev: false
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-1dshAo83MPbG3snfKY+h5QtoNj5g9mG8ywvofkUJjYrOANvMARUEYz8IjQ1xkRpJvB6E8NJ5Z64vvS3D7f3RgA==
+      integrity: sha512-fZ5zG+uT3zRqpRU7kXEUQkbRfIK66JRLfV528Glm703gr/qVfF0zppqC4ksuO1fLmlxBNAxLqQUfhF/vAriMtQ==
   /graceful-readlink/1.0.1:
     dev: true
     resolution:
@@ -8454,10 +8469,16 @@ packages:
     resolution:
       integrity: sha512-UNopramDEhHJD+VR+ehk8rOslwSfByxPIZyJRfV739NDhN5LF1fa1MqnzKm2lGTQRjNrjK19Q5fhkgIfjlVUKw==
   /human-signals/1.1.1:
+    dev: true
     engines:
       node: '>=8.12.0'
     resolution:
       integrity: sha512-SEQu7vl8KjNL2eoGBLF3+wAjpsNfA9XMlXAYj/3EdaNfAlxKthD1xjEQfGOUhllCGGJVNY34bRr6lPINhNjyZw==
+  /human-signals/2.1.0:
+    engines:
+      node: '>=10.17.0'
+    resolution:
+      integrity: sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==
   /humanize-ms/1.2.1:
     dependencies:
       ms: 2.1.3

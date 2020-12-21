@@ -40,7 +40,7 @@
     "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.34",
     "@zkochan/rimraf": "^1.0.0",
-    "execa": "^4.1.0",
+    "execa": "^5.0.0",
     "is-windows": "^1.0.2",
     "mz": "^2.7.0",
     "write-yaml-file": "^4.1.1"

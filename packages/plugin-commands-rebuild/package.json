@@ -41,7 +41,7 @@
     "@types/ramda": "^0.27.34",
     "@types/semver": "^7.3.4",
     "@types/sinon": "^9.0.9",
-    "execa": "^4.1.0",
+    "execa": "^5.0.0",
     "path-exists": "^4.0.0",
     "sinon": "^9.2.2",
     "write-yaml-file": "^4.1.1"
