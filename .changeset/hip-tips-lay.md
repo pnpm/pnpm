@@ -1,6 +1,6 @@
 ---
 "@pnpm/filter-workspace-packages": major
-"pnpm": major
+"pnpm": minor
 "@pnpm/config": minor
 ---
 
