@@ -239,9 +239,6 @@ export default async (
   pnpmConfig.sharedWorkspaceLockfile = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
     ? pnpmConfig.sharedWorkspaceShrinkwrap
     : pnpmConfig['sharedWorkspaceLockfile']
-  pnpmConfig.testPattern = typeof npmConfig['test-pattern'] === 'undefined'
-    ? pnpmConfig.testPattern
-    : pnpmConfig['test-pattern']
 
   if (cliOptions['global']) {
     pnpmConfig.save = true
