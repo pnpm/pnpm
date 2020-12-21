@@ -584,7 +584,7 @@ test('local prefix search stops on pnpm-workspace.yaml', async () => {
   expect(config.dir).toEqual(workspaceDir)
 })
 
-test('respects filter-pattern', async () => {
+test('respects test-pattern', async () => {
   {
     const { config } = await getConfig({
       cliOptions: {},
@@ -594,10 +594,10 @@ test('respects filter-pattern', async () => {
       },
     })
 
-    expect(config.filterPattern).toBeUndefined()
+    expect(config.testPattern).toBeUndefined()
   }
   {
-    const workspaceDir = path.join(__dirname, 'using-filter-pattern')
+    const workspaceDir = path.join(__dirname, 'using-test-pattern')
     process.chdir(workspaceDir)
     const { config } = await getConfig({
       cliOptions: {},
@@ -608,6 +608,6 @@ test('respects filter-pattern', async () => {
       workspaceDir,
     })
 
-    expect(config.filterPattern).toEqual('*.spec.js')
+    expect(config.testPattern).toEqual('*.spec.js')
   }
 })

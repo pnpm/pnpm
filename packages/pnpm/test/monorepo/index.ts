@@ -269,7 +269,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
   expect(outputs2).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
 
-test('filter-pattern is respected by the test script', async () => {
+test('test-pattern is respected by the test script', async () => {
   const remote = tempy.directory()
 
   preparePackages([
@@ -322,7 +322,7 @@ test('filter-pattern is respected by the test script', async () => {
 
   await fs.writeFile('project-2/file.js', '')
   await fs.writeFile('project-4/different-pattern.js', '')
-  await fs.writeFile('.npmrc', 'filter-pattern = "*/file.js"', 'utf8')
+  await fs.writeFile('.npmrc', 'test-pattern = "*/file.js"', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execa('git', ['add', '.'])
