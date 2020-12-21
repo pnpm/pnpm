@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import minimatch from 'minimatch'
+import * as micromatch from 'micromatch'
 import path = require('path')
 import execa = require('execa')
 import findUp = require('find-up')
@@ -55,7 +55,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, fi
 
     changedDirs.add(dirName)
 
-    if (filterPattern && minimatch(changedFile, filterPattern)) {
+    if (filterPattern && micromatch.isMatch(changedFile, filterPattern)) {
       dirsMatchingFilter.add(dirName)
     }
   }

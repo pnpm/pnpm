@@ -494,13 +494,14 @@ importers:
       execa: 4.1.0
       find-up: 5.0.0
       is-subdir: 1.1.1
-      minimatch: 3.0.4
+      micromatch: 4.0.2
       pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.27.1
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:'
       '@types/is-ci': 2.0.0
       '@types/is-windows': 1.0.0
+      '@types/micromatch': 4.0.1
       '@types/ramda': 0.27.34
       '@types/touch': 3.1.1
       is-ci: 2.0.0
@@ -514,6 +515,7 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.3'
       '@types/is-ci': ^2.0.0
       '@types/is-windows': ^1.0.0
+      '@types/micromatch': ^4.0.1
       '@types/ramda': ^0.27.34
       '@types/touch': ^3.1.1
       execa: ^4.1.0
@@ -521,7 +523,7 @@ importers:
       is-ci: ^2.0.0
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
-      minimatch: ^3.0.4
+      micromatch: ^4.0.2
       pkgs-graph: 'workspace:5.2.0'
       ramda: ^0.27.1
       tempy: ^1.0.0
@@ -4175,6 +4177,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-kSjgDMZONiIfSH1Nxcr5JIRMwUetDki63FSQfpTCz8ogF3Ulqm8+mr5f78dUYs6vMiB6gBusQqfQmBvHZj/lwg==
+  /@types/braces/3.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-faHA1E/xx+tmCjbsB46mG6frQss=
   /@types/byline/4.2.32:
     dependencies:
       '@types/node': 14.14.14
@@ -4292,6 +4298,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-RaE0B+14ToE4l6UqdarKPnXwVDuigfFv+5j9Dze/Nqr23yyuqdNvzcZi3xB+3Agvi5R4EOgAksfv3lXX4vBt9w==
+  /@types/micromatch/4.0.1:
+    dependencies:
+      '@types/braces': 3.0.0
+    dev: true
+    resolution:
+      integrity: sha1-k4FEndZZ/Dgj/SpBkM6syYUIO8c=
   /@types/minimatch/3.0.3:
     resolution:
       integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==
