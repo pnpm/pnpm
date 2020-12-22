@@ -122,7 +122,7 @@ export interface Config {
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
 
-  testPattern?: string
+  testPattern?: string[]
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

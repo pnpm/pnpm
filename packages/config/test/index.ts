@@ -608,6 +608,6 @@ test('respects test-pattern', async () => {
       workspaceDir,
     })
 
-    expect(config.testPattern).toEqual('*.spec.js')
+    expect(config.testPattern).toEqual(['*.spec.js', '*.spec.ts'])
   }
 })

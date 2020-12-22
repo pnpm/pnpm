@@ -42,7 +42,7 @@ export async function filterPackages<T> (
     linkWorkspacePackages?: boolean
     prefix: string
     workspaceDir: string
-    testPattern?: string
+    testPattern?: string[]
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -60,7 +60,7 @@ export function filterPkgsBySelectorObjects<T> (
   opts: {
     linkWorkspacePackages?: boolean
     workspaceDir: string
-    testPattern?: string
+    testPattern?: string[]
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -82,7 +82,7 @@ export default async function filterGraph<T> (
   packageSelectors: PackageSelector[],
   opts: {
     workspaceDir: string
-    testPattern?: string
+    testPattern?: string[]
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -110,7 +110,7 @@ async function _filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   opts: {
     workspaceDir: string
-    testPattern?: string
+    testPattern?: string[]
   },
   packageSelectors: PackageSelector[]
 ): Promise<{

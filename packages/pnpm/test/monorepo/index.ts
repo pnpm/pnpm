@@ -322,7 +322,7 @@ test('test-pattern is respected by the test script', async () => {
 
   await fs.writeFile('project-2/file.js', '')
   await fs.writeFile('project-4/different-pattern.js', '')
-  await fs.writeFile('.npmrc', 'test-pattern = "*/file.js"', 'utf8')
+  await fs.writeFile('.npmrc', 'test-pattern[]=*/file.js', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execa('git', ['add', '.'])
