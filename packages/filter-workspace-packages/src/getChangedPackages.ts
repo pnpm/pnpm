@@ -5,29 +5,32 @@ import execa = require('execa')
 import findUp = require('find-up')
 import isSubdir = require('is-subdir')
 
+type ChangeType = 'source' | 'test'
+type ChangedDir = { dir: string, changeType: ChangeType }
+
 export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, testPattern?: string }): Promise<[string[], string[]]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
-  const [dirsWithChanges, dirsWithTestChanges] = await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern)
-  let changedDirs = Array.from(dirsWithChanges).map(changedDir => path.join(repoRoot, changedDir))
+  const changedDirs = (await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern))
+    .map(changedDir => ({ ...changedDir, dir: path.join(repoRoot, changedDir.dir) }))
+  let changedSourceDirs = changedDirs.filter(changedDir => changedDir.changeType === 'source');
   const changedPkgs: string[] = []
   for (const packageDir of packageDirs.sort((pkgDir1, pkgDir2) => pkgDir2.length - pkgDir1.length)) {
     if (
-      changedDirs.some(changedDir => isSubdir(packageDir, changedDir))
+      changedSourceDirs.some(changedDir => isSubdir(packageDir, changedDir.dir))
     ) {
-      changedDirs = changedDirs.filter((changedDir) => !isSubdir(packageDir, changedDir))
+      changedSourceDirs = changedSourceDirs.filter((changedDir) => !isSubdir(packageDir, changedDir.dir))
       changedPkgs.push(packageDir)
     }
   }
 
-  const ignoreDependentForPkgs = Array.from(dirsWithTestChanges)
-    .map(dir => path.join(repoRoot, dir))
-    .map(dir => changedPkgs.find(pkg => dir.startsWith(pkg)))
-    .filter(dir => !!dir)
+  const ignoreDependentForPkgs = changedDirs.filter(changedDir => changedDir.changeType === 'test')
+    .filter(changedDir => changedPkgs.find(pkg => changedDir.dir.startsWith(pkg)))
+    .map(changedDir => changedDir.dir)
 
-  return [changedPkgs, ignoreDependentForPkgs as string[]]
+  return [changedPkgs, ignoreDependentForPkgs]
 }
 
-async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPattern?: string) {
+async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPattern?: string): Promise<Array<ChangedDir>> {
   let diff!: string
   try {
     diff = (
@@ -42,23 +45,24 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
   } catch (err) {
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${err.stderr as string}`)
   }
-  const changedDirs = new Set<string>()
-  const dirsMatchingFilter = new Set<string>()
+  const changedDirs = new Set<ChangedDir>()
+  const dirsMatchingFilter = new Set<ChangedDir>()
 
   if (!diff) {
-    return [changedDirs, dirsMatchingFilter]
+    return []
   }
+
   const changedFiles = diff.split('\n')
 
   for (const changedFile of changedFiles) {
     const dirName = path.dirname(changedFile)
 
-    changedDirs.add(dirName)
+    changedDirs.add({ dir: dirName, changeType: 'source' })
 
     if (testPattern && micromatch.isMatch(changedFile, testPattern)) {
-      dirsMatchingFilter.add(dirName)
+      dirsMatchingFilter.add({dir: dirName, changeType: 'test'})
     }
   }
 
-  return [changedDirs, dirsMatchingFilter]
+  return [...Array.from(changedDirs), ...Array.from(dirsMatchingFilter)]
 }
