@@ -39,10 +39,7 @@ export default async function changedSince (packageDirs: string[], commit: strin
       break
     }
   }
-  return [
-    [...changedPkgs, ...ignoreDependentForPkgs],
-    ignoreDependentForPkgs,
-  ]
+  return [changedPkgs, ignoreDependentForPkgs]
 }
 
 async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPattern: string[]): Promise<ChangedDir[]> {

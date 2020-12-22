@@ -126,10 +126,14 @@ async function _filterGraph<T> (
   let reversedGraph: Graph | undefined
   for (const selector of packageSelectors) {
     let entryPackages: string[] | null = null
-    let ignoreDependentForPkgs: string[] = []
     if (selector.diff) {
-      [entryPackages, ignoreDependentForPkgs] = await getChangedPkgs(Object.keys(pkgGraph),
+      let ignoreDependentForPkgs: string[] = []
+      ;[entryPackages, ignoreDependentForPkgs] = await getChangedPkgs(Object.keys(pkgGraph),
         selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir, testPattern: opts.testPattern })
+      selectEntries({
+        ...selector,
+        includeDependents: false,
+      }, ignoreDependentForPkgs)
     } else if (selector.parentDir) {
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
     }
@@ -154,6 +158,16 @@ async function _filterGraph<T> (
       }
     }
 
+    selectEntries(selector, entryPackages)
+  }
+  const walked = new Set([...walkedDependencies, ...walkedDependents, ...walkedDependentsDependencies])
+  cherryPickedPackages.forEach((cherryPickedPackage) => walked.add(cherryPickedPackage))
+  return {
+    selected: Array.from(walked),
+    unmatchedFilters,
+  }
+
+  function selectEntries (selector: PackageSelector, entryPackages: string[]) {
     if (selector.includeDependencies) {
       pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !selector.excludeSelf })
     }
@@ -161,7 +175,7 @@ async function _filterGraph<T> (
       if (!reversedGraph) {
         reversedGraph = reverseGraph(graph)
       }
-      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf, finalNodes: ignoreDependentForPkgs })
+      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf })
     }
 
     if (selector.includeDependencies && selector.includeDependents) {
@@ -171,12 +185,6 @@ async function _filterGraph<T> (
     if (!selector.includeDependencies && !selector.includeDependents) {
       Array.prototype.push.apply(cherryPickedPackages, entryPackages)
     }
-  }
-  const walked = new Set([...walkedDependencies, ...walkedDependents, ...walkedDependentsDependencies])
-  cherryPickedPackages.forEach((cherryPickedPackage) => walked.add(cherryPickedPackage))
-  return {
-    selected: Array.from(walked),
-    unmatchedFilters,
   }
 }
 
@@ -223,7 +231,6 @@ function pickSubgraph (
   walked: Set<string>,
   opts: {
     includeRoot: boolean
-    finalNodes?: string[]
   }
 ) {
   for (const nextNodeId of nextNodeIds) {
@@ -232,11 +239,7 @@ function pickSubgraph (
         walked.add(nextNodeId)
       }
 
-      if (opts.finalNodes?.includes(nextNodeId)) {
-        continue
-      }
-
-      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true, finalNodes: opts.finalNodes })
+      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true })
     }
   }
 }
