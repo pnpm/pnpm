@@ -4680,7 +4680,7 @@ packages:
       fast-safe-stringify: 1.1.13
       individual: 3.0.0
     resolution:
-      integrity: sha1-nfeRETAyjJpG8DHiccHCeOrASno=
+      integrity: sha512-3iPQz6Z7A2aiKc9cxB+I4X0nKxOagBxWAl91+ukUyJ9El+DgejYgbfd4PtzUyam+JRXXydUCkKGKiWYj8EzrGw==
   /@zkochan/cmd-shim/5.0.0:
     dependencies:
       is-windows: 1.0.2
