@@ -42,6 +42,7 @@ export async function filterPackages<T> (
     linkWorkspacePackages?: boolean
     prefix: string
     workspaceDir: string
+    testPattern?: string[]
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -59,6 +60,7 @@ export function filterPkgsBySelectorObjects<T> (
   opts: {
     linkWorkspacePackages?: boolean
     workspaceDir: string
+    testPattern?: string[]
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -68,6 +70,7 @@ export function filterPkgsBySelectorObjects<T> (
   if (packageSelectors?.length) {
     return filterGraph(graph, packageSelectors, {
       workspaceDir: opts.workspaceDir,
+      testPattern: opts.testPattern,
     })
   } else {
     return Promise.resolve({ selectedProjectsGraph: graph, unmatchedFilters: [] })
@@ -79,6 +82,7 @@ export default async function filterGraph<T> (
   packageSelectors: PackageSelector[],
   opts: {
     workspaceDir: string
+    testPattern?: string[]
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -106,6 +110,7 @@ async function _filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   opts: {
     workspaceDir: string
+    testPattern?: string[]
   },
   packageSelectors: PackageSelector[]
 ): Promise<{
@@ -121,9 +126,10 @@ async function _filterGraph<T> (
   let reversedGraph: Graph | undefined
   for (const selector of packageSelectors) {
     let entryPackages: string[] | null = null
+    let ignoreDependentForPkgs: string[] = []
     if (selector.diff) {
-      entryPackages = await getChangedPkgs(Object.keys(pkgGraph),
-        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir })
+      [entryPackages, ignoreDependentForPkgs] = await getChangedPkgs(Object.keys(pkgGraph),
+        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir, testPattern: opts.testPattern })
     } else if (selector.parentDir) {
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
     }
@@ -155,7 +161,7 @@ async function _filterGraph<T> (
       if (!reversedGraph) {
         reversedGraph = reverseGraph(graph)
       }
-      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf })
+      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf, finalNodes: ignoreDependentForPkgs })
     }
 
     if (selector.includeDependencies && selector.includeDependents) {
@@ -217,6 +223,7 @@ function pickSubgraph (
   walked: Set<string>,
   opts: {
     includeRoot: boolean
+    finalNodes?: string[]
   }
 ) {
   for (const nextNodeId of nextNodeIds) {
@@ -225,7 +232,11 @@ function pickSubgraph (
         walked.add(nextNodeId)
       }
 
-      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true })
+      if (opts.finalNodes?.includes(nextNodeId)) {
+        continue
+      }
+
+      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true, finalNodes: opts.finalNodes })
     }
   }
 }

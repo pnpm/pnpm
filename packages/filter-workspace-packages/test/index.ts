@@ -219,12 +219,16 @@ test('select changed packages', async () => {
   const pkg1Dir = path.join(workspaceDir, 'package-1')
 
   await mkdir(pkg1Dir)
-  await touch(path.join(pkg1Dir, 'file.js'))
+  await touch(path.join(pkg1Dir, 'file1.js'))
 
   const pkg2Dir = path.join(workspaceDir, 'package-2')
 
   await mkdir(pkg2Dir)
-  await touch(path.join(pkg2Dir, 'file.js'))
+  await touch(path.join(pkg2Dir, 'file2.js'))
+
+  const pkg3Dir = path.join(workspaceDir, 'package-3')
+
+  await mkdir(pkg3Dir)
 
   await execa('git', ['add', '.'], { cwd: workspaceDir })
   await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
@@ -258,6 +262,16 @@ test('select changed packages', async () => {
         dir: pkg2Dir,
         manifest: {
           name: 'package-2',
+          version: '0.0.0',
+        },
+      },
+    },
+    [pkg3Dir]: {
+      dependencies: [pkg2Dir],
+      package: {
+        dir: pkg3Dir,
+        manifest: {
+          name: 'package-3',
           version: '0.0.0',
         },
       },
@@ -296,6 +310,14 @@ test('select changed packages', async () => {
     }], { workspaceDir })
 
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg2Dir])
+  }
+  {
+    const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
+      diff: 'HEAD~1',
+      includeDependents: true,
+    }], { workspaceDir, testPattern: ['*/file2.js'] })
+
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir])
   }
 })
 

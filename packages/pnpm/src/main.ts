@@ -175,6 +175,7 @@ export default async function run (inputArgv: string[]) {
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,
+      testPattern: cmd === 'test' ? config.testPattern : undefined,
     })
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (R.isEmpty(config.selectedProjectsGraph)) {

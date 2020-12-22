@@ -11,10 +11,12 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
 import { execPnpm, execPnpmSync, execPnpxSync } from '../utils'
 import path = require('path')
+import execa = require('execa')
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import exists = require('path-exists')
 import symlink = require('symlink-dir')
+import tempy = require('tempy')
 import writeYamlFile = require('write-yaml-file')
 
 test('no projects matched the filters', async () => {
@@ -265,6 +267,75 @@ test('topological order of packages with self-dependencies in monorepo is correc
 
   const { default: outputs2 } = await import(path.resolve('..', 'output2.json'))
   expect(outputs2).toStrictEqual(['project-2', 'project-3', 'project-1'])
+})
+
+test('test-pattern is respected by the test script', async () => {
+  const remote = tempy.directory()
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {},
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: { 'project-2': '1.0.0' },
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        test: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: {},
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        test: 'node -e "process.stdout.write(\'project-4\')" | json-append ../output.json',
+      },
+    },
+  ])
+
+  await execa('git', ['init'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
+  await execa('git', ['init', '--bare'], { cwd: remote })
+  await execa('git', ['add', '*'])
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await execa('git', ['remote', 'add', 'origin', remote])
+  await execa('git', ['push', '-u', 'origin', 'master'])
+
+  await fs.writeFile('project-2/file.js', '')
+  await fs.writeFile('project-4/different-pattern.js', '')
+  await fs.writeFile('.npmrc', 'test-pattern[]=*/file.js', 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execa('git', ['add', '.'])
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
+
+  process.chdir('project-1')
+
+  await execPnpm(['install'])
+
+  await execPnpm(['recursive', 'test', '--filter', '...[origin/master]'])
+
+  const { default: output } = await import(path.resolve('..', 'output.json'))
+  expect(output.sort()).toStrictEqual(['project-2', 'project-4'])
 })
 
 test('do not get confused by filtered dependencies when searching for dependents in monorepo', async () => {

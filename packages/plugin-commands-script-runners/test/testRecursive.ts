@@ -75,7 +75,7 @@ test('pnpm recursive test', async () => {
   expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })
 
-test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async () => {
+test('`pnpm recursive test` does not fail if none of the packages has a test command', async () => {
   preparePackages([
     {
       name: 'project-1',
