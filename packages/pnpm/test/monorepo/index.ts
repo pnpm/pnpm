@@ -52,6 +52,21 @@ test('no projects found', async () => {
   }
 })
 
+test('incorrect workspace manifest', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yml', { packages: ['**', '!store/**'] })
+
+  const { status, stderr } = execPnpmSync(['install'])
+  expect(stderr.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
+  expect(status).toBe(1)
+})
+
 test('linking a package inside a monorepo', async () => {
   const projects = preparePackages([
     {
