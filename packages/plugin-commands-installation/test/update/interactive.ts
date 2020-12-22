@@ -6,8 +6,6 @@ import readYamlFile from 'read-yaml-file'
 import path = require('path')
 import chalk = require('chalk')
 
-jest.setTimeout(10000)
-
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
 // eslint-disable-next-line

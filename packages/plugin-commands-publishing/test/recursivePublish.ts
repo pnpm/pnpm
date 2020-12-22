@@ -14,8 +14,6 @@ const CREDENTIALS = [
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ].join('\n')
 
-jest.setTimeout(60000)
-
 test('recursive publish', async () => {
   const pkg1 = {
     name: '@pnpmtest/test-recursive-publish-project-1',
