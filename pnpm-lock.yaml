@@ -544,8 +544,10 @@ importers:
       p-filter: ^2.1.0
   packages/find-workspace-dir:
     dependencies:
+      '@pnpm/error': 'link:../error'
       find-up: 5.0.0
     specifiers:
+      '@pnpm/error': 'workspace:^1.4.0'
       find-up: ^5.0.0
   packages/find-workspace-packages:
     dependencies:

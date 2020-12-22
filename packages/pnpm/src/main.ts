@@ -10,6 +10,7 @@ import { scopeLogger } from '@pnpm/core-loggers'
 import { filterPackages } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
+import { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { getRCOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
@@ -41,6 +42,14 @@ const DEPRECATED_OPTIONS = new Set([
 ])
 
 export default async function run (inputArgv: string[]) {
+  let parsedCliArgs!: ParsedCliArgs
+  try {
+    parsedCliArgs = await parseCliArgs(inputArgv)
+  } catch (err) {
+    // Reporting is not initialized at this point, so just printing the error
+    printError(err.message, err['hint'])
+    process.exit(1)
+  }
   const {
     argv,
     params: cliParams,
@@ -48,10 +57,9 @@ export default async function run (inputArgv: string[]) {
     cmd,
     unknownOptions,
     workspaceDir,
-  } = await parseCliArgs(inputArgv)
+  } = parsedCliArgs
   if (cmd !== null && !pnpmCmds[cmd]) {
-    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown command '${cmd}'`)}`)
-    console.log('For help, run: pnpm help')
+    printError(`Unknown command '${cmd}'`, 'For help, run: pnpm help')
     process.exit(1)
   }
 
@@ -66,8 +74,7 @@ export default async function run (inputArgv: string[]) {
       }
       console.log(deprecationMsg)
     } else {
-      console.error(formatUnknownOptionsError(unknownOptions))
-      console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+      printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
       process.exit(1)
     }
   }
@@ -91,12 +98,8 @@ export default async function run (inputArgv: string[]) {
     config.argv = argv
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
-    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(err.message)}`)
-    if (err['hint']) {
-      console.log(err['hint'])
-    } else {
-      console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
-    }
+    const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
+    printError(err.message, hint)
     process.exit(1)
   }
 
@@ -245,5 +248,12 @@ export default async function run (inputArgv: string[]) {
   }
   if (exitCode) {
     process.exit(exitCode)
+  }
+}
+
+function printError (message: string, hint?: string) {
+  console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(message)}`)
+  if (hint) {
+    console.log(hint)
   }
 }
