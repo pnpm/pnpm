@@ -96,6 +96,10 @@ export const FILTERING = {
       description: 'If a selector starts with !, it means the packages matching the selector must be excluded. E.g., "pnpm --filter !foo" selects all packages except "foo"',
       name: '--filter !<selector>',
     },
+    {
+      description: 'Defines files related to tests. Useful with the changed since filter. When selecting only changed packages and their dependent packages, the dependent packages will be ignored in case a package has changes only in tests. Usage example: pnpm --filter=...[origin/master] --test-pattern=test/* test',
+      name: '--test-pattern <pattern>',
+    },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }
