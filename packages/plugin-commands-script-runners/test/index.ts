@@ -44,6 +44,26 @@ test('pnpm run: returns correct exit code', async () => {
   expect(err.errno).toBe(1)
 })
 
+test('pnpm run --no-bail never fails', async () => {
+  prepare({
+    scripts: {
+      exit1: 'node recordArgs && exit 1',
+    },
+  })
+  await fs.writeFile('args.json', '[]', 'utf8')
+  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+
+  await run.handler({
+    bail: false,
+    dir: process.cwd(),
+    extraBinPaths: [],
+    rawConfig: {},
+  }, ['exit1'])
+
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([[]])
+})
+
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
 test('run: pass the args to the command that is specfied in the build script', async () => {

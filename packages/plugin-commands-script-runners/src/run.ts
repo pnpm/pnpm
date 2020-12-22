@@ -92,6 +92,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
+          {
+            description: 'The command will exit with a 0 exit code even if the script fails',
+            name: '--no-bail',
+          },
           IF_PRESENT_OPTION_HELP,
           PARALLEL_OPTION_HELP,
           ...UNIVERSAL_OPTIONS,
@@ -166,12 +170,18 @@ so you may run "pnpm -w ${scriptName}"`,
   if (pnpPath) {
     lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
   }
-  if (manifest.scripts?.[`pre${scriptName}`]) {
-    await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
-  }
-  await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
-  if (manifest.scripts?.[`post${scriptName}`]) {
-    await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
+  try {
+    if (manifest.scripts?.[`pre${scriptName}`]) {
+      await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
+    }
+    await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
+    if (manifest.scripts?.[`post${scriptName}`]) {
+      await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
+    }
+  } catch (err) {
+    if (opts.bail !== false) {
+      throw err
+    }
   }
   return undefined
 }
