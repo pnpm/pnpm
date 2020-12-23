@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.10.1
+
+### Patch Changes
+
+- ea09da716: The test-pattern option should be an Array.
+
 ## 11.10.0
 
 ### Minor Changes

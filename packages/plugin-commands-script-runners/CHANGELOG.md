@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.5.9
+
+### Patch Changes
+
+- Updated dependencies [ea09da716]
+  - @pnpm/config@11.10.1
+  - @pnpm/cli-utils@0.4.43
+
 ## 2.5.8
 
 ### Patch Changes

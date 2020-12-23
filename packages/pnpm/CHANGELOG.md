@@ -1,6 +1,6 @@
 # pnpm
 
-## 5.14.0
+## 5.14.1
 
 ### Minor Changes
 
@@ -13,6 +13,10 @@
   ```
 
 - An exception is thrown if the workspace manifest is created with the wrong extension: `pnpm-workspace.yml` instead of `pnpm-workspace.yaml`.
+
+### Patch Changes
+
+- `--no-bail` should work with non-recursive commands [#3036](https://github.com/pnpm/pnpm/issues/3036).
 
 ## 5.13.7
 
