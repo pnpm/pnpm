@@ -1,5 +1,19 @@
 # pnpm
 
+## 5.14.0
+
+### Minor Changes
+
+- New option added: `test-pattern`. `test-pattern` allows to detect whether the modified files are related to tests. If they are, the dependent packages of such modified packages are not included.
+
+  This option is useful with the "changed since" filter. For instance, the next command will run tests in all changed packages, and if the changes are in source code of the package, tests will run in the dependent packages as well:
+
+  ```
+  pnpm --filter=...[origin/master] --test-pattern=test/* test
+  ```
+
+- An exception is thrown if the workspace manifest is created with the wrong extension: `pnpm-workspace.yml` instead of `pnpm-workspace.yaml`.
+
 ## 5.13.7
 
 ### Patch Changes

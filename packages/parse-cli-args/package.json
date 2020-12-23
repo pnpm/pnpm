@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/parse-cli-args",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "Parses the CLI args passed to pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:^1.4.0",
-    "@pnpm/find-workspace-dir": "workspace:1.0.1",
+    "@pnpm/find-workspace-dir": "workspace:2.0.0",
     "didyoumean2": "^4.1.0",
     "nopt": "^5.0.0"
   },

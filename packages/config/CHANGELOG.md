@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.10.0
+
+### Minor Changes
+
+- a8656b42f: New option added: `test-pattern`. `test-pattern` allows to detect whether the modified files are related to tests. If they are, the dependent packages of such modified packages are not included.
+
 ## 11.9.1
 
 ### Patch Changes

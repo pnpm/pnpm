@@ -1,5 +1,15 @@
 # @pnpm/filter-workspace-packages
 
+## 2.3.0
+
+### Minor Changes
+
+- a8656b42f: New option added: `test-pattern`. `test-pattern` allows to detect whether the modified files are related to tests. If they are, the dependent packages of such modified packages are not included.
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@2.3.28
+
 ## 2.2.13
 
 ### Patch Changes

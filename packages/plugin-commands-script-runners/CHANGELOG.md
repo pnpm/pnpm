@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.5.8
+
+### Patch Changes
+
+- 9427ab392: `--no-bail` should work with non-recursive `run` commands as well.
+- Updated dependencies [1ec47db33]
+- Updated dependencies [a8656b42f]
+  - @pnpm/common-cli-options-help@0.3.0
+  - @pnpm/config@11.10.0
+  - @pnpm/cli-utils@0.4.42
+
 ## 2.5.7
 
 ### Patch Changes

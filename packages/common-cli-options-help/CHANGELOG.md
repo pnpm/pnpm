@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 0.3.0
+
+### Minor Changes
+
+- 1ec47db33: New CLI option added: `--test-pattern`.
+
 ## 0.2.0
 
 ### Minor Changes
