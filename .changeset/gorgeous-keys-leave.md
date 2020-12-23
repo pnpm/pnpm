@@ -3,4 +3,4 @@
 "pnpm": minor
 ---
 
-New CLI option added: --test-pattern.
+New CLI option added: `--test-pattern`.
