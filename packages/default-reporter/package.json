@@ -37,7 +37,7 @@
     "ansi-diff": "^1.1.1",
     "chalk": "^4.1.0",
     "normalize-path": "^3.0.0",
-    "pretty-bytes": "^5.4.1",
+    "pretty-bytes": "^5.5.0",
     "pretty-ms": "^7.0.1",
     "pretty-time": "^1.1.0",
     "ramda": "^0.27.1",

@@ -24,7 +24,7 @@
   "repository": "https://github.com/pnpm/eslint-config/blob/master/packages/supi",
   "scripts": {},
   "dependencies": {
-    "@typescript-eslint/eslint-plugin": "^4.10.0",
+    "@typescript-eslint/eslint-plugin": "^4.11.0",
     "eslint-config-standard-with-typescript": "^19.0.1",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-node": "^11.1.0",
