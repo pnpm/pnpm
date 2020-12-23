@@ -15,7 +15,6 @@ To quote the [Rush](https://rushjs.io/) team:
 > Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
-![CI](https://github.com/pnpm/pnpm/workflows/CI/badge.svg)
 [![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://discord.gg/mThkzAT)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](#backers)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
