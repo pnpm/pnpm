@@ -3,7 +3,17 @@ declare module '@pnpm/tabtab' {
   export = anything;
 }
 
+declare module 'hyperdrive-schemas' {
+  const anything: any;
+  export = anything;
+}
+
 declare module '@zeit/fetch-retry' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'fuse-native' {
   const anything: any;
   export = anything;
 }
