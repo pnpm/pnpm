@@ -51,7 +51,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir:
         cb(0, fd)
       })
     },
-    release (p: string, fd: number, cb: (exitCode: number) => number) {
+    release (p: string, fd: number, cb: (exitCode: number) => void) {
       fs.close(fd, (err) => cb(err ? -1 : 0))
     },
     read (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {

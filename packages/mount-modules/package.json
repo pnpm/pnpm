@@ -3,13 +3,15 @@
   "version": "0.0.0",
   "description": "Mounts a node_modules directory with FUSE",
   "main": "lib/index.js",
+  "bin": "lib/cli.js",
   "typings": "lib/index.d.ts",
   "engines": {
     "node": ">=10.16"
   },
   "files": [
     "lib",
-    "!*.map"
+    "!*.map",
+    "bin"
   ],
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
@@ -45,7 +47,8 @@
     "@pnpm/types": "workspace:6.3.1",
     "dependency-path": "workspace:5.0.6",
     "hyperdrive-schemas": "^2.0.0",
-    "load-json-file": "^6.2.0"
+    "load-json-file": "^6.2.0",
+    "normalize-path": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "optionalDependencies": {

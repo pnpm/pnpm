@@ -2,6 +2,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import * as dp from 'dependency-path'
+import normalize = require('normalize-path')
 import path = require('path')
 
 type DirEntry = {
@@ -51,7 +52,7 @@ function createVirtualStoreDir (lockfile: Lockfile, lockfileDir: string) {
     for (const [depName, ref] of Object.entries({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })) {
       const symlink: DirEntry = {
         entryType: 'symlink',
-        target: path.relative(`${currentPath}/node_modules/`, `${dp.depPathToFilename(dp.refToRelative(ref, depName)!, lockfileDir)}/node_modules/${depName}`),
+        target: normalize(path.relative(`${currentPath}/node_modules/`, `${dp.depPathToFilename(dp.refToRelative(ref, depName)!, lockfileDir)}/node_modules/${depName}`)),
       }
       addDirEntry(pkgNodeModules, depName, symlink)
     }

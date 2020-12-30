@@ -1191,6 +1191,7 @@ importers:
       dependency-path: 'link:../dependency-path'
       hyperdrive-schemas: 2.0.0
       load-json-file: 6.2.0
+      normalize-path: 3.0.0
     devDependencies:
       '@pnpm/logger': 3.2.3
       rimraf: 3.0.2
@@ -1207,6 +1208,7 @@ importers:
       fuse-native: ^2.2.6
       hyperdrive-schemas: ^2.0.0
       load-json-file: ^6.2.0
+      normalize-path: ^3.0.0
       rimraf: ^3.0.2
   packages/normalize-registries:
     dependencies:

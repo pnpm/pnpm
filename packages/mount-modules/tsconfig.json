@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../config"
+      "path": "../cafs"
     },
     {
       "path": "../dependency-path"
@@ -20,9 +20,6 @@
     },
     {
       "path": "../lockfile-utils"
-    },
-    {
-      "path": "../read-project-manifest"
     },
     {
       "path": "../types"
