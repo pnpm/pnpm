@@ -18,7 +18,6 @@ import {
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { ProjectManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import runGroups from 'run-groups'
@@ -266,9 +265,9 @@ async function _rebuild (
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgRoot = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
+      const pkgRoot = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
       try {
-        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
         await linkBins(modules, binPath, { warn })
         await runPostinstallHooks({
@@ -313,7 +312,7 @@ async function _rebuild (
       .map((depPath) => limitLinking(() => {
         const pkgSnapshot = pkgSnapshots[depPath]
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
         const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
         return linkBins(modules, binPath, { warn })
       }))

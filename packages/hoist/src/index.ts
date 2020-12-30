@@ -7,7 +7,6 @@ import {
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger, { globalWarn } from '@pnpm/logger'
 import matcher from '@pnpm/matcher'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
@@ -199,7 +198,7 @@ async function symlinkHoistedDependencies (
           return
         }
         const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
         const depLocation = path.join(modules, pkgName)
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'

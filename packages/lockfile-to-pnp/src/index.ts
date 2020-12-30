@@ -3,10 +3,9 @@ import { Lockfile, readWantedLockfile } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readImporterManifest from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
-import { refToRelative } from 'dependency-path'
+import { depPathToFilename, refToRelative } from 'dependency-path'
 import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
 import fs = require('mz/fs')
 import normalizePath = require('normalize-path')
@@ -116,7 +115,7 @@ export function lockfileToPackageRegistry (
     // Seems like this field should always contain a relative path
     let packageLocation = normalizePath(path.relative(opts.lockfileDir, path.join(
       opts.virtualStoreDir,
-      pkgIdToFilename(relDepPath, opts.lockfileDir),
+      depPathToFilename(relDepPath, opts.lockfileDir),
       'node_modules',
       name
     )))

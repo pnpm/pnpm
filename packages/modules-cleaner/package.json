@@ -31,7 +31,6 @@
     "@pnpm/filter-lockfile": "workspace:4.0.14",
     "@pnpm/lockfile-types": "workspace:2.1.1",
     "@pnpm/lockfile-utils": "workspace:2.0.20",
-    "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.3",
     "@pnpm/remove-bins": "workspace:1.0.9",
     "@pnpm/store-controller-types": "workspace:9.2.0",

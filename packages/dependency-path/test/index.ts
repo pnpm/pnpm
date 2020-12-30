@@ -1,5 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import {
+  depPathToFilename,
   isAbsolute,
   parse,
   refToAbsolute,
@@ -115,4 +116,13 @@ test('resolve()', () => {
   expect(resolve(registries, '/@bar/bar/1.0.0')).toEqual('bar.com/@bar/bar/1.0.0')
   expect(resolve(registries, '/@qar/qar/1.0.0')).toEqual('foo.com/@qar/qar/1.0.0')
   expect(resolve(registries, 'qar.com/foo/1.0.0')).toEqual('qar.com/foo/1.0.0')
+})
+
+test('depPathToFilename()', () => {
+  expect(depPathToFilename('/foo/1.0.0', process.cwd())).toBe('foo@1.0.0')
+  expect(depPathToFilename('/@foo/bar/1.0.0', process.cwd())).toBe('@foo/bar@1.0.0')
+  expect(depPathToFilename('github.com/something/foo/0000', process.cwd())).toBe('github.com/something/foo@0000')
+
+  const filename = depPathToFilename('file:./test/foo-1.0.0.tgz_foo@2.0.0', process.cwd())
+  expect(filename).toMatch(/%2Ffoo-1.0.0.tgz_foo@2.0.0$/)
 })

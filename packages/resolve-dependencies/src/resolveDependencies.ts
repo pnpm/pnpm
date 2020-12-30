@@ -17,7 +17,6 @@ import {
 import logger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   DirectoryResolution,
   PreferredVersions,
@@ -576,7 +575,7 @@ async function resolveDependency (
     await exists(
       path.join(
         ctx.virtualStoreDir,
-        pkgIdToFilename(currentPkg.depPath, ctx.prefix),
+        dp.depPathToFilename(currentPkg.depPath, ctx.prefix),
         'node_modules',
         nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile).name,
         'package.json'

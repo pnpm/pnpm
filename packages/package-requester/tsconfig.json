@@ -19,6 +19,9 @@
       "path": "../core-loggers"
     },
     {
+      "path": "../dependency-path"
+    },
+    {
       "path": "../fetcher-base"
     },
     {

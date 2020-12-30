@@ -13,11 +13,10 @@ import {
 } from '@pnpm/lockfile-utils'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import normalizeRegistries from '@pnpm/normalize-registries'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
-import { refToRelative } from 'dependency-path'
+import { depPathToFilename, refToRelative } from 'dependency-path'
 import path = require('path')
 import normalizePath = require('normalize-path')
 import realpathMissing = require('realpath-missing')
@@ -394,7 +393,7 @@ function getPkgInfo (
     isPeer: Boolean(opts.peers?.has(opts.alias)),
     isSkipped,
     name,
-    path: depPath ? path.join(opts.modulesDir, '.pnpm', pkgIdToFilename(depPath, opts.lockfileDir)) : path.join(opts.modulesDir, '..', opts.ref.substr(5)),
+    path: depPath ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath, opts.lockfileDir)) : path.join(opts.modulesDir, '..', opts.ref.substr(5)),
     version,
   }
   if (resolved) {

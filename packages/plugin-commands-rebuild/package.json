@@ -60,7 +60,6 @@
     "@pnpm/lockfile-walker": "workspace:3.0.7",
     "@pnpm/modules-yaml": "workspace:8.0.5",
     "@pnpm/normalize-registries": "workspace:1.0.5",
-    "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/sort-packages": "workspace:1.0.15",
     "@pnpm/store-connection-manager": "workspace:0.3.55",
     "@pnpm/store-controller-types": "workspace:9.2.0",

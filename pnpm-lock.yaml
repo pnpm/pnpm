@@ -348,7 +348,6 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/types': 'link:../types'
@@ -368,7 +367,6 @@ importers:
       '@pnpm/logger': ^3.2.3
       '@pnpm/modules-yaml': 'workspace:8.0.5'
       '@pnpm/normalize-registries': 'workspace:1.0.5'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/read-modules-dir': 'workspace:2.0.3'
       '@pnpm/read-package-json': 'workspace:3.1.8'
       '@pnpm/types': 'workspace:6.3.1'
@@ -382,6 +380,7 @@ importers:
     dependencies:
       '@pnpm/types': 'link:../types'
       encode-registry: 3.0.0
+      normalize-path: 3.0.0
       semver: 7.3.4
     devDependencies:
       '@types/semver': 7.3.4
@@ -391,6 +390,7 @@ importers:
       '@types/semver': ^7.3.4
       dependency-path: 'link:'
       encode-registry: ^3.0.0
+      normalize-path: ^3.0.0
       semver: ^7.3.4
   packages/error:
     specifiers: {}
@@ -678,7 +678,6 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-requester': 'link:../package-requester'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
@@ -734,7 +733,6 @@ importers:
       '@pnpm/package-is-installable': 'workspace:^4.0.18'
       '@pnpm/package-requester': 'workspace:12.2.0'
       '@pnpm/package-store': 'workspace:*'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/read-package-json': 'workspace:3.1.8'
       '@pnpm/read-project-manifest': 'workspace:1.1.5'
       '@pnpm/read-projects-context': 'workspace:*'
@@ -771,7 +769,6 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
       '@pnpm/matcher': 'link:../matcher'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
@@ -787,7 +784,6 @@ importers:
       '@pnpm/lockfile-walker': 'workspace:3.0.7'
       '@pnpm/logger': ^3.2.3
       '@pnpm/matcher': 'workspace:^1.0.3'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/symlink-dependency': 'workspace:3.0.12'
       '@pnpm/types': 'workspace:6.3.1'
       '@types/ramda': ^0.27.34
@@ -986,7 +982,6 @@ importers:
       '@pnpm/config': 'link:../config'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@yarnpkg/pnp': 2.3.2
       dependency-path: 'link:../dependency-path'
@@ -1005,7 +1000,6 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.1.2'
       '@pnpm/lockfile-utils': 'workspace:2.0.20'
       '@pnpm/logger': ^3.2.3
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/read-project-manifest': 'workspace:1.1.5'
       '@pnpm/types': 'workspace:6.3.1'
       '@types/mz': 0.0.32
@@ -1143,7 +1137,6 @@ importers:
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/remove-bins': 'link:../remove-bins'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
@@ -1162,7 +1155,6 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.20'
       '@pnpm/logger': ^3.2.3
       '@pnpm/modules-cleaner': 'link:'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/read-modules-dir': 'workspace:2.0.3'
       '@pnpm/remove-bins': 'workspace:1.0.9'
       '@pnpm/store-controller-types': 'workspace:9.2.0'
@@ -1368,11 +1360,11 @@ importers:
       '@pnpm/cafs': 'link:../cafs'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
+      dependency-path: 'link:../dependency-path'
       load-json-file: 6.2.0
       mz: 2.7.0
       p-defer: 3.0.0
@@ -1404,7 +1396,6 @@ importers:
       '@pnpm/fetcher-base': 'workspace:9.0.3'
       '@pnpm/logger': ^3.2.3
       '@pnpm/package-requester': 'link:'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/read-package-json': 'workspace:3.1.8'
       '@pnpm/resolver-base': 'workspace:7.1.0'
       '@pnpm/store-controller-types': 'workspace:9.2.0'
@@ -1415,6 +1406,7 @@ importers:
       '@types/ramda': ^0.27.34
       '@types/ssri': ^6.0.3
       delay: ^4.4.0
+      dependency-path: 'workspace:^5.0.6'
       load-json-file: ^6.2.0
       mz: ^2.7.0
       ncp: ^2.0.0
@@ -1924,7 +1916,6 @@ importers:
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
@@ -1970,7 +1961,6 @@ importers:
       '@pnpm/logger': ^3.2.3
       '@pnpm/modules-yaml': 'workspace:8.0.5'
       '@pnpm/normalize-registries': 'workspace:1.0.5'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': 'workspace:0.0.16'
       '@pnpm/sort-packages': 'workspace:1.0.15'
@@ -2112,7 +2102,6 @@ importers:
       '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/parse-wanted-dependency': 'link:../parse-wanted-dependency'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 4.0.3
@@ -2153,7 +2142,6 @@ importers:
       '@pnpm/normalize-registries': 'workspace:1.0.5'
       '@pnpm/parse-wanted-dependency': 'workspace:1.0.0'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.5'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': 'workspace:0.0.16'
       '@pnpm/store-connection-manager': 'workspace:0.3.55'
@@ -2512,7 +2500,6 @@ importers:
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/prune-lockfile': 'link:../prune-lockfile'
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -2543,7 +2530,6 @@ importers:
       '@pnpm/npm-resolver': 'workspace:10.2.1'
       '@pnpm/package-is-installable': 'workspace:4.0.18'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.5'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/prune-lockfile': 'workspace:^2.0.17'
       '@pnpm/read-package-json': 'workspace:^3.1.8'
       '@pnpm/resolve-dependencies': 'link:'
@@ -2703,7 +2689,6 @@ importers:
       '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/parse-wanted-dependency': 'link:../parse-wanted-dependency'
-      '@pnpm/pkgid-to-filename': 3.0.0
       '@pnpm/prune-lockfile': 'link:../prune-lockfile'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/read-package-json': 'link:../read-package-json'
@@ -2800,7 +2785,6 @@ importers:
       '@pnpm/package-requester': 'workspace:12.2.0'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/parse-wanted-dependency': 'workspace:1.0.0'
-      '@pnpm/pkgid-to-filename': ^3.0.0
       '@pnpm/prepare': 'workspace:0.0.16'
       '@pnpm/prune-lockfile': 'workspace:2.0.17'
       '@pnpm/read-modules-dir': 'workspace:2.0.3'
@@ -4034,14 +4018,6 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-/nZCAUeKwlv1MldtOHSPDm5SuXBy4L4SoS30gYn9ti2N5XlUrVoXDE8Hq8EYfl+Knb1GQEDz04KjfFEDVsAsvg==
-  /@pnpm/pkgid-to-filename/3.0.0:
-    dependencies:
-      normalize-path: 3.0.0
-    dev: false
-    engines:
-      node: '>=10.13'
-    resolution:
-      integrity: sha512-4XVzYoO77hziiJRVTk5pv+9KD631tlqR5+MVu2BlDyrTpgfp+7Su5XPI/2Cek46X2L71vTpYW6LMW22DpmjocA==
   /@pnpm/registry-mock/2.2.2:
     dependencies:
       anonymous-npm-registry-client: 0.1.2

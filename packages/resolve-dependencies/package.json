@@ -37,7 +37,6 @@
     "@pnpm/npm-resolver": "workspace:10.2.1",
     "@pnpm/package-is-installable": "workspace:4.0.18",
     "@pnpm/pick-registry-for-package": "workspace:1.0.5",
-    "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/prune-lockfile": "workspace:^2.0.17",
     "@pnpm/read-package-json": "workspace:^3.1.8",
     "@pnpm/resolver-base": "workspace:7.1.0",

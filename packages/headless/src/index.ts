@@ -47,7 +47,6 @@ import {
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
 import packageIsInstallable from '@pnpm/package-is-installable'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
@@ -547,7 +546,7 @@ async function lockfileToDepGraph (
         const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
 
         const pkg = {
@@ -692,7 +691,7 @@ async function getChildrenPaths (
     } else if (childPkgSnapshot) {
       if (ctx.skipped.has(childRelDepPath)) continue
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
+      children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
     } else if (!ctx.skipped.has(childRelDepPath) && (!peerDeps || !peerDeps.has(alias))) {

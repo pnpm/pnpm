@@ -45,7 +45,6 @@
     "@pnpm/lockfile-utils": "workspace:2.0.20",
     "@pnpm/lockfile-walker": "workspace:3.0.7",
     "@pnpm/matcher": "workspace:^1.0.3",
-    "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/symlink-dependency": "workspace:3.0.12",
     "@pnpm/types": "workspace:6.3.1",
     "dependency-path": "workspace:5.0.6",

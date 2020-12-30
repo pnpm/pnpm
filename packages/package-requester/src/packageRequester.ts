@@ -15,7 +15,6 @@ import {
   FetchResult,
 } from '@pnpm/fetcher-base'
 import logger from '@pnpm/logger'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readPackage from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
@@ -33,6 +32,7 @@ import {
   WantedDependency,
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
+import { depPathToFilename } from 'dependency-path'
 import * as fs from 'mz/fs'
 import PQueue from 'p-queue'
 import safeDeferredPromise from './safeDeferredPromise'
@@ -274,7 +274,7 @@ function fetchToStore (
     files: () => Promise<PackageFilesResponse>
     finishing: () => Promise<void>
   } {
-  const targetRelative = pkgIdToFilename(opts.pkgId, opts.lockfileDir)
+  const targetRelative = depPathToFilename(opts.pkgId, opts.lockfileDir)
   const target = path.join(ctx.storeDir, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {

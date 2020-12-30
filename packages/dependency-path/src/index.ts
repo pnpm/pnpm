@@ -1,5 +1,7 @@
 import { Registries } from '@pnpm/types'
 import encodeRegistry = require('encode-registry')
+import normalize = require('normalize-path')
+import path = require('path')
 import semver = require('semver')
 
 export function isAbsolute (dependencyPath: string) {
@@ -125,4 +127,18 @@ export function parse (dependencyPath: string) {
     host,
     isAbsolute: _isAbsolute,
   }
+}
+
+export function depPathToFilename (depPath: string, lockfileDir: string) {
+  if (depPath.indexOf('file:') !== 0) {
+    if (depPath.startsWith('/')) {
+      depPath = depPath.substring(1)
+    }
+    const index = depPath.lastIndexOf('/')
+    return `${depPath.substring(0, index)}@${depPath.substr(index + 1)}`
+  }
+
+  const absolutePath = normalize(path.join(lockfileDir, depPath.slice(5)))
+  const lastSlash = absolutePath.lastIndexOf('/')
+  return `local/${encodeURIComponent(absolutePath.substr(0, lastSlash + 1))}${absolutePath.substr(lastSlash + 1)}`
 }

@@ -10,7 +10,6 @@ import {
 } from '@pnpm/lockfile-types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
@@ -19,6 +18,7 @@ import {
   HoistedDependencies,
   Registries,
 } from '@pnpm/types'
+import { depPathToFilename } from 'dependency-path'
 import removeDirectDependency from './removeDirectDependency'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
@@ -142,7 +142,7 @@ export default async function prune (
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        const pathToRemove = path.join(opts.virtualStoreDir, pkgIdToFilename(orphanDepPath, opts.lockfileDir))
+        const pathToRemove = path.join(opts.virtualStoreDir, depPathToFilename(orphanDepPath, opts.lockfileDir))
         removalLogger.debug(pathToRemove)
         try {
           await rimraf(pathToRemove)

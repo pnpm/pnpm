@@ -60,7 +60,6 @@
     "@pnpm/normalize-registries": "workspace:1.0.5",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",
     "@pnpm/pick-registry-for-package": "workspace:1.0.5",
-    "@pnpm/pkgid-to-filename": "^3.0.0",
     "@pnpm/store-connection-manager": "workspace:0.3.55",
     "@pnpm/store-controller-types": "workspace:9.2.0",
     "@pnpm/store-path": "^4.0.3",

@@ -4,9 +4,9 @@ import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import createClient from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@pnpm/package-requester'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
+import { depPathToFilename } from 'dependency-path'
 import path = require('path')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
@@ -646,7 +646,7 @@ test('refetch package to store if it has been modified', async () => {
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',
-    message: `Refetching ${path.join(storeDir, pkgIdToFilename(pkgId, process.cwd()))} to store. It was either modified or had no integrity checksums`,
+    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId, process.cwd()))} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
     prefix: lockfileDir,
   }))

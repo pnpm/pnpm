@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { Dependencies } from '@pnpm/types'
+import { depPathToFilename } from 'dependency-path'
 import {
   createNodeId,
   splitNodeId,
@@ -221,7 +221,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   let modules: string
   let depPath: string
-  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(resolvedPackage.depPath, ctx.lockfileDir))
+  const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(resolvedPackage.depPath, ctx.lockfileDir))
   if (R.isEmpty(allResolvedPeers)) {
     modules = path.join(localLocation, 'node_modules')
     depPath = resolvedPackage.depPath
