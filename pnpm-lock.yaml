@@ -1189,12 +1189,13 @@ importers:
       '@pnpm/store-path': 4.0.3
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      fuse-native: 2.2.6
       hyperdrive-schemas: 2.0.0
       load-json-file: 6.2.0
     devDependencies:
       '@pnpm/logger': 3.2.3
       rimraf: 3.0.2
+    optionalDependencies:
+      fuse-native: 2.2.6
     specifiers:
       '@pnpm/cafs': 'workspace:^2.0.4'
       '@pnpm/lockfile-file': 'workspace:3.1.2'
@@ -7948,19 +7949,23 @@ packages:
       node-gyp-build: 4.2.3
     dev: false
     hasBin: true
+    optional: true
     requiresBuild: true
     resolution:
       integrity: sha512-Y5wXd7vUsWWWIIHbjluv7jKZgPZaSVA5YWaW3I5fXIJfcGWL6IRUgoBUveQAq+D8cG9cCiGNahv9CeToccCXrw==
   /fuse-shared-library-darwin/1.1.3:
     dev: false
+    optional: true
     resolution:
       integrity: sha512-4Q8gMxyMl1+gwHGpiYUoKKpi7xq8WcPo0TvJvjZzHMuCiszouu2GgEs6SJAqPB3LjfmEkl6kPV+2Oluczr0Nig==
   /fuse-shared-library-linux-arm/1.0.0:
     dev: false
+    optional: true
     resolution:
       integrity: sha512-Dj4ssxo1/MKGvOsVWRblSRu+o5F5OJTrVPDkjSyGDU2yKvVnIzQSwy1deiWA0qCcS/Q8iJMlZaCpCcZWSwvoug==
   /fuse-shared-library-linux/1.0.1:
     dev: false
+    optional: true
     resolution:
       integrity: sha512-07MQRSobrBKwW4D7oKm0gM2TwgvZWb+gC08JdiYDG4KBTncxk9ssqEDiDMKll8hpseZufsY2w1yc/feOu2DPmQ==
   /fuse-shared-library/1.1.1:
@@ -7969,6 +7974,7 @@ packages:
       fuse-shared-library-linux: 1.0.1
       fuse-shared-library-linux-arm: 1.0.0
     dev: false
+    optional: true
     resolution:
       integrity: sha512-EfgTo/eS1euZFUe7x8KqyA40hV4DwP7kqp1VNZApu2nlPnJv8SanraBE3VXyX7ff41sxw7M0oWY7re3G3wnZVA==
   /gauge/2.6.0:
@@ -10683,6 +10689,7 @@ packages:
     dependencies:
       inherits: 2.0.4
     dev: false
+    optional: true
     resolution:
       integrity: sha512-OI5dswqipmlYfyL3k/YMm7mbERlh4Bd1KuKdMHpeoVD1iVxqxaTMKleB4qaA2mbQZ6/zMNSxCXv9M9P/YbqTuQ==
   /napi-macros/2.0.0:
@@ -10785,6 +10792,7 @@ packages:
   /node-gyp-build/4.2.3:
     dev: false
     hasBin: true
+    optional: true
     resolution:
       integrity: sha512-MN6ZpzmfNCRM+3t57PTJHgHyw/h4OWnZ6mR8P5j/uZtqQr46RRuDE/P+g3n0YR/AiYXeWixZZzaip77gdICfRg==
   /node-gyp/7.1.2:
