@@ -1219,3 +1219,22 @@ test('installing with no symlinks with PnP', async () => {
   expect(await project.readModulesManifest()).toBeTruthy()
   expect(await exists(path.resolve('.pnp.js'))).toBeTruthy()
 })
+
+test('installing with no modules directory', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['rimraf@2.7.1'],
+    await testDefaults({
+      enableModulesDir: false,
+      fastUnpack: false,
+    })
+  )
+
+  expect(await project.readLockfile()).toBeTruthy()
+  expect(await exists(path.resolve('node_modules'))).toBeFalsy()
+})
