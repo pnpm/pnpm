@@ -11,7 +11,7 @@
     "test-branch": "pnpm compile && pnpm lint -- --quiet && git remote set-branches --add origin main && git fetch && run-p -r verdaccio test-pkgs-branch",
     "test-pkgs-branch": "cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm --filter=...[origin/main] run --no-sort _test",
     "verdaccio": "verdaccio --config=./verdaccio.yaml --listen=7348",
-    "compile": "pnpm --filter=pnpm --filter=@pnpm/make-dedicated-lockfile run compile && pnpm run update-manifests",
+    "compile": "pnpm --workspace-concurrency=1 --filter=pnpm --filter=@pnpm/make-dedicated-lockfile --filter=@pnpm/mount-modules run compile && pnpm run update-manifests",
     "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile -- --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "ts-node utils/updater/src/index.ts"

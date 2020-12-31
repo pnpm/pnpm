@@ -1,0 +1,60 @@
+{
+  "name": "@pnpm/mount-modules",
+  "version": "0.0.0",
+  "description": "Mounts a node_modules directory with FUSE",
+  "main": "lib/index.js",
+  "bin": "lib/cli.js",
+  "typings": "lib/index.d.ts",
+  "engines": {
+    "node": ">=10.16"
+  },
+  "files": [
+    "lib",
+    "!*.map",
+    "bin"
+  ],
+  "scripts": {
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "pre_test": "pnpm install --dir=test/__fixtures__/simple",
+    "_test": "jest",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/mount-modules",
+  "keywords": [
+    "pnpm",
+    "shrinkwrap",
+    "lockfile"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/mount-modules#readme",
+  "peerDependencies": {
+    "@pnpm/logger": ">=3.2.2 <4.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "^3.2.3",
+    "@types/mz": "^2.7.3",
+    "rimraf": "^3.0.2"
+  },
+  "dependencies": {
+    "@pnpm/cafs": "workspace:^2.0.4",
+    "@pnpm/lockfile-file": "workspace:3.1.2",
+    "@pnpm/lockfile-utils": "workspace:2.0.20",
+    "@pnpm/store-path": "^4.0.3",
+    "@pnpm/types": "workspace:6.3.1",
+    "dependency-path": "workspace:5.0.6",
+    "hyperdrive-schemas": "^2.0.0",
+    "load-json-file": "^6.2.0",
+    "mz": "^2.7.0",
+    "normalize-path": "^3.0.0"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "optionalDependencies": {
+    "fuse-native": "^2.2.6"
+  }
+}

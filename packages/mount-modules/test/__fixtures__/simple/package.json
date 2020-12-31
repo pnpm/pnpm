@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "is-positive": "1.0.0",
+    "@zkochan/git-config": "0.1.0"
+  }
+}

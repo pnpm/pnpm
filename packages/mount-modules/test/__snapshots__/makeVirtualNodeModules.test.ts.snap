@@ -1,0 +1,83 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`makeVirtualNodeModules 1`] = `
+Object {
+  "entries": Object {
+    ".pnpm": Object {
+      "entries": Object {
+        "@zkochan": Object {
+          "entries": Object {
+            "git-config@0.1.0": Object {
+              "entries": Object {
+                "node_modules": Object {
+                  "entries": Object {
+                    "@zkochan": Object {
+                      "entries": Object {
+                        "git-config": Object {
+                          "depPath": "/@zkochan/git-config/0.1.0",
+                          "entryType": "index",
+                        },
+                      },
+                      "entryType": "directory",
+                    },
+                    "ini": Object {
+                      "entryType": "symlink",
+                      "target": "../../../ini@1.3.8/node_modules/ini",
+                    },
+                  },
+                  "entryType": "directory",
+                },
+              },
+              "entryType": "directory",
+            },
+          },
+          "entryType": "directory",
+        },
+        "ini@1.3.8": Object {
+          "entries": Object {
+            "node_modules": Object {
+              "entries": Object {
+                "ini": Object {
+                  "depPath": "/ini/1.3.8",
+                  "entryType": "index",
+                },
+              },
+              "entryType": "directory",
+            },
+          },
+          "entryType": "directory",
+        },
+        "is-positive@1.0.0": Object {
+          "entries": Object {
+            "node_modules": Object {
+              "entries": Object {
+                "is-positive": Object {
+                  "depPath": "/is-positive/1.0.0",
+                  "entryType": "index",
+                },
+              },
+              "entryType": "directory",
+            },
+          },
+          "entryType": "directory",
+        },
+      },
+      "entryType": "directory",
+    },
+    "@zkochan": Object {
+      "entries": Object {
+        "git-config": Object {
+          "entryType": "symlink",
+          "target": "./.pnpm/@zkochan/git-config@0.1.0/node_modules/@zkochan/git-config",
+        },
+      },
+      "entryType": "directory",
+    },
+    "is-positive": Object {
+      "entryType": "symlink",
+      "target": "./.pnpm/is-positive@1.0.0/node_modules/is-positive",
+    },
+  },
+  "entryType": "directory",
+}
+`;
