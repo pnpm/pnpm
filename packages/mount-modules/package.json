@@ -15,10 +15,10 @@
   ],
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
-    "pretest": "pnpm install --dir=test/__fixtures__/simple",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "_test": "jest",
+    "prepareFixtures": "pnpm install --dir=test/__fixtures__/simple",
+    "_test": "pnpm run prepareFixtures && jest",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/mount-modules",
