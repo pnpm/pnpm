@@ -1,5 +1,0 @@
-*.swp
-.DS_Store
-node_modules/
-.idea
-npm-debug.log
