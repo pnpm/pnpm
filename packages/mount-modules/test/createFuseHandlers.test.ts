@@ -17,19 +17,19 @@ describe('FUSE handlers', () => {
   it('readdir', () => {
     handlers.readdir('/', (returnCode, files) => {
       expect(returnCode).toBe(0)
-      expect(files).toStrictEqual([
+      expect(files!.sort()).toStrictEqual([
         '.pnpm',
         '@zkochan',
         'is-positive',
-      ])
+      ].sort())
     })
     handlers.readdir('/.pnpm', (returnCode, files) => {
       expect(returnCode).toBe(0)
-      expect(files).toStrictEqual([
+      expect(files!.sort()).toStrictEqual([
         '@zkochan',
         'ini@1.3.8',
         'is-positive@1.0.0',
-      ])
+      ].sort())
     })
     handlers.readdir('/.pnpm/is-positive@1.0.0', (returnCode, files) => {
       expect(returnCode).toBe(0)
@@ -45,7 +45,7 @@ describe('FUSE handlers', () => {
     })
     handlers.readdir('/.pnpm/@zkochan/git-config@0.1.0/node_modules/@zkochan/git-config', (returnCode, files) => {
       expect(returnCode).toBe(0)
-      expect(files).toStrictEqual([
+      expect(files!.sort()).toStrictEqual([
         'package.json',
         '.npmignore',
         'README.md',
@@ -55,26 +55,26 @@ describe('FUSE handlers', () => {
         '.jshintrc',
         'test',
         'index.js',
-      ])
+      ].sort())
     })
     handlers.readdir('/.pnpm/@zkochan/git-config@0.1.0/node_modules/@zkochan/git-config/test', (returnCode, files) => {
       expect(returnCode).toBe(0)
-      expect(files).toStrictEqual([
+      expect(files!.sort()).toStrictEqual([
         'index.js',
         'fixtures',
-      ])
+      ].sort())
     })
     handlers.readdir('/.pnpm/@zkochan/git-config@0.1.0/node_modules/@zkochan/git-config/does-not-exist', (returnCode, files) => {
       expect(returnCode).toBe(Fuse.ENOENT)
     })
     handlers.readdir('/.pnpm/is-positive@1.0.0/node_modules/is-positive', (returnCode, files) => {
       expect(returnCode).toBe(0)
-      expect(files).toStrictEqual([
+      expect(files!.sort()).toStrictEqual([
         'package.json',
         'index.js',
         'license',
         'readme.md',
-      ])
+      ].sort())
     })
     handlers.readdir('/.pnpm/@zkochan/git-config@0.1.0/node_modules/@types', (returnCode) => {
       expect(returnCode).toBe(Fuse.ENOENT)
