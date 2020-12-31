@@ -1,5 +1,10 @@
-import createFuseHandlers, { createFuseHandlersFromLockfile } from '../src/createFuseHandlers'
 import path = require('path')
+
+jest.mock('fuse-native', () => ({ ENOENT: -2 }))
+
+// eslint-disable-next-line
+import createFuseHandlers, { createFuseHandlersFromLockfile } from '../src/createFuseHandlers'
+// eslint-disable-next-line
 import Fuse = require('fuse-native')
 
 describe('FUSE handlers', () => {
