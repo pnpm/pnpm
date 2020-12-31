@@ -1191,9 +1191,11 @@ importers:
       dependency-path: 'link:../dependency-path'
       hyperdrive-schemas: 2.0.0
       load-json-file: 6.2.0
+      mz: 2.7.0
       normalize-path: 3.0.0
     devDependencies:
       '@pnpm/logger': 3.2.3
+      '@types/mz': 2.7.3
       rimraf: 3.0.2
     optionalDependencies:
       fuse-native: 2.2.6
@@ -1204,10 +1206,12 @@ importers:
       '@pnpm/logger': ^3.2.3
       '@pnpm/store-path': ^4.0.3
       '@pnpm/types': 'workspace:6.3.1'
+      '@types/mz': ^2.7.3
       dependency-path: 'workspace:5.0.6'
       fuse-native: ^2.2.6
       hyperdrive-schemas: ^2.0.0
       load-json-file: ^6.2.0
+      mz: ^2.7.0
       normalize-path: ^3.0.0
       rimraf: ^3.0.2
   packages/normalize-registries:
@@ -4326,7 +4330,7 @@ packages:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/mz/2.7.3:
     dependencies:
-      '@types/node': 14.14.14
+      '@types/node': 14.14.17
     resolution:
       integrity: sha512-Zp1NUJ4Alh3gaun0a5rkF3DL7b2j1WB6rPPI5h+CJ98sQnxe9qwskClvupz/4bqChGR3L/BRhTjlaOwR+uiZJg==
   /@types/ncp/2.0.4:
@@ -4355,6 +4359,9 @@ packages:
   /@types/node/14.14.16:
     resolution:
       integrity: sha512-naXYePhweTi+BMv11TgioE2/FXU4fSl29HAH1ffxVciNsH3rYXjNP2yM8wqmSm7jS20gM8TIklKiTen+1iVncw==
+  /@types/node/14.14.17:
+    resolution:
+      integrity: sha512-G0lD1/7qD60TJ/mZmhog76k7NcpLWkPVGgzkRy3CTlnFu4LUQh5v2Wa661z6vnXmD8EQrnALUyf0VRtrACYztw==
   /@types/nopt/3.0.29:
     dev: true
     resolution:

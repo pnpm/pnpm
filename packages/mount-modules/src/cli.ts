@@ -2,10 +2,12 @@
 import getStorePath from '@pnpm/store-path'
 import createFuseHandlers from './createFuseHandlers'
 import Fuse = require('fuse-native')
+import fs = require('mz/fs')
 import path = require('path')
 
 ;(async () => { /* eslint-disable-line */
   const mnt = path.join(process.cwd(), 'node_modules')
+  await fs.mkdir(mnt, { recursive: true })
   const cafsDir = path.join(await getStorePath(process.cwd()), 'files')
   const fuse = new Fuse(mnt, await createFuseHandlers(process.cwd(), cafsDir), { debug: true })
   fuse.mount(function (err?: Error) {

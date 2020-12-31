@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
+    "@types/mz": "^2.7.3",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
@@ -48,6 +49,7 @@
     "dependency-path": "workspace:5.0.6",
     "hyperdrive-schemas": "^2.0.0",
     "load-json-file": "^6.2.0",
+    "mz": "^2.7.0",
     "normalize-path": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
