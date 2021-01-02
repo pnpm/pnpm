@@ -39,6 +39,7 @@
     "camelcase": "^6.2.0",
     "is-subdir": "^1.1.1",
     "ramda": "^0.27.1",
+    "realpath-missing": "^1.0.0",
     "which": "^2.0.2"
   },
   "devDependencies": {
@@ -48,6 +49,7 @@
     "@types/ramda": "^0.27.34",
     "@types/which": "^1.3.2",
     "mz": "^2.7.0",
+    "symlink-dir": "^4.1.0",
     "tempy": "^1.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

@@ -13,6 +13,7 @@ import path = require('path')
 import loadNpmConf = require('@zkochan/npm-conf')
 import npmTypes = require('@zkochan/npm-conf/lib/types')
 import R = require('ramda')
+import realpathMissing = require('realpath-missing')
 import whichcb = require('which')
 
 export { Config, UniversalOptions }
@@ -138,6 +139,7 @@ export default async (
   } catch (err) {} // eslint-disable-line:no-empty
 
   if (cliOptions.dir) {
+    cliOptions.dir = await realpathMissing(cliOptions.dir)
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
@@ -190,7 +192,7 @@ export default async (
     ...Object.keys(rcOptionsTypes).map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings
-  const cwd = (cliOptions['dir'] && path.resolve(cliOptions['dir'])) ?? npmConfig.localPrefix // eslint-disable-line
+  const cwd = (cliOptions.dir && path.resolve(cliOptions.dir)) ?? npmConfig.localPrefix
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
@@ -243,7 +245,7 @@ export default async (
   if (cliOptions['global']) {
     pnpmConfig.save = true
     pnpmConfig.dir = path.join(pnpmConfig.globalDir, LAYOUT_VERSION.toString())
-    pnpmConfig.bin = cliOptions['dir']
+    pnpmConfig.bin = cliOptions.dir
       ? (
         process.platform === 'win32'
           ? cliOptions.dir : path.resolve(cliOptions.dir, 'bin')

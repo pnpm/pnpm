@@ -6,6 +6,7 @@ import prepare from '@pnpm/prepare'
 import './findBestGlobalPrefixOnWindows'
 import fs = require('mz/fs')
 import path = require('path')
+import symlinkDir = require('symlink-dir')
 import tempy = require('tempy')
 
 // To override any local settings,
@@ -182,7 +183,6 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
 test('registries of scoped packages are read', async () => {
   const { config } = await getConfig({
     cliOptions: {
-      dir: 'workspace',
       userconfig: path.join(__dirname, 'scoped-registries.ini'),
     },
     packageManager: {
@@ -610,4 +610,20 @@ test('respects test-pattern', async () => {
 
     expect(config.testPattern).toEqual(['*.spec.js', '*.spec.ts'])
   }
+})
+
+test('dir is resolved to real path', async () => {
+  const tmpDir = tempy.directory()
+  const realDir = path.join(tmpDir, 'real-path')
+  await fs.mkdir(realDir)
+  const symlink = path.join(tmpDir, 'symlink')
+  await symlinkDir(realDir, symlink)
+  const { config } = await getConfig({
+    cliOptions: { dir: symlink },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.dir).toBe(realDir)
 })
