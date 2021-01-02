@@ -27,6 +27,8 @@ import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import renderHelp = require('render-help')
 
+const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
+const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const installLimit = pLimit(4)
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -80,7 +82,7 @@ export async function handler (
   | 'saveProd'
   | 'workspaceDir'
   > & Partial<Pick<Config, 'globalDir' | 'linkWorkspacePackages'>>,
-  params: string[]
+  params?: string[]
 ) {
   const cwd = opts?.dir ?? process.cwd()
 
@@ -116,7 +118,7 @@ export async function handler (
     return
   }
 
-  const [pkgPaths, pkgNames] = R.partition((inp) => inp.startsWith('.'), params)
+  const [pkgPaths, pkgNames] = R.partition((inp) => isFilespec.test(inp), params)
 
   if (pkgNames.length) {
     let globalPkgNames!: string[]
