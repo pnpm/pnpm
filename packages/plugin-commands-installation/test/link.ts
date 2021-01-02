@@ -1,39 +1,44 @@
-import { promisify } from 'util'
 import readYamlFile from 'read-yaml-file'
+import { install, link } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import assertProject, { isExecutable } from '@pnpm/assert-project'
-import {
-  execPnpm,
-  pathToLocalPkg,
-} from './utils'
+import { copyFixture } from '@pnpm/test-fixtures'
+import { DEFAULT_OPTS } from './utils'
 import path = require('path')
-import fs = require('mz/fs')
-import ncpCB = require('ncp')
 import PATH = require('path-name')
+import fs = require('mz/fs')
 import writePkg = require('write-pkg')
-
-const ncp = promisify(ncpCB.ncp)
 
 test('linking multiple packages', async () => {
   const project = prepare()
 
   process.chdir('..')
-
-  const env = { NPM_CONFIG_PREFIX: path.resolve('global') }
+  const globalDir = path.resolve('global')
 
   await writePkg('linked-foo', { name: 'linked-foo', version: '1.0.0' })
   await writePkg('linked-bar', { name: 'linked-bar', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } })
-  await fs.writeFile('linked-bar/.npmrc', 'shamefully-flatten = true')
+  await fs.writeFile('linked-bar/.npmrc', 'shamefully-hoist = true')
 
   process.chdir('linked-foo')
 
   console.log('linking linked-foo to global package')
-  await execPnpm(['link'], { env })
+  const linkOpts = {
+    ...DEFAULT_OPTS,
+    npmGlobalBinDir: path.join(globalDir, 'bin'),
+    globalDir,
+  }
+  await link.handler({
+    ...linkOpts,
+    dir: process.cwd(),
+  })
 
   process.chdir('..')
   process.chdir('project')
 
-  await execPnpm(['link', 'linked-foo', '../linked-bar'], { env })
+  await link.handler({
+    ...linkOpts,
+    dir: process.cwd(),
+  }, ['linked-foo', '../linked-bar'])
 
   await project.has('linked-foo')
   await project.has('linked-bar')
@@ -46,21 +51,24 @@ test('link global bin', async function () {
   prepare()
   process.chdir('..')
 
-  const global = path.resolve('global')
-  const globalBin = path.join(global, 'nodejs')
+  const globalDir = path.resolve('global')
+  const globalBin = path.join(globalDir, 'bin')
+  const oldPath = process.env[PATH]
+  process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
   await fs.mkdir(globalBin, { recursive: true })
-  const env = {
-    NPM_CONFIG_PREFIX: global,
-    [PATH]: `${globalBin}${path.delimiter}${process.env[PATH] ?? ''}`,
-  }
-  if (process.env.APPDATA) env['APPDATA'] = global
 
   await writePkg('package-with-bin', { name: 'package-with-bin', version: '1.0.0', bin: 'bin.js' })
   await fs.writeFile('package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
   process.chdir('package-with-bin')
 
-  await execPnpm(['link'], { env })
+  await link.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    npmGlobalBinDir: globalBin,
+    globalDir,
+  })
+  process.env[PATH] = oldPath
 
   await isExecutable((value) => expect(value).toBeTruthy(), path.join(globalBin, 'package-with-bin'))
 })
@@ -75,8 +83,12 @@ test('relative link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await execPnpm(['link', `../${linkedPkgName}`])
+  await copyFixture(linkedPkgName, linkedPkgPath)
+  await link.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    npmGlobalBinDir: '',
+  }, [`../${linkedPkgName}`])
 
   await project.isExecutable('.bin/hello-world-js-bin')
 
@@ -121,8 +133,16 @@ test('link --production', async () => {
 
   process.chdir('target')
 
-  await execPnpm(['install'])
-  await execPnpm(['link', '--production', '../source'])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+  await link.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: { production: true },
+    dir: process.cwd(),
+    npmGlobalBinDir: '',
+  }, ['../source'])
 
   await projects['source'].has('is-positive')
   await projects['source'].hasNot('is-negative')

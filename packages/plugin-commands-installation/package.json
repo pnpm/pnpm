@@ -32,6 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-installation#readme",
   "devDependencies": {
+    "@pnpm/assert-project": "workspace:^2.1.14",
     "@pnpm/lockfile-types": "workspace:2.1.1",
     "@pnpm/logger": "^3.2.3",
     "@pnpm/matcher": "workspace:1.0.3",
@@ -45,11 +46,13 @@
     "@types/sinon": "^9.0.9",
     "@types/zkochan__table": "npm:@types/table@^5.0.0",
     "load-json-file": "^6.2.0",
+    "path-name": "^1.0.0",
     "proxyquire": "^2.1.3",
     "read-yaml-file": "^2.0.0",
     "sinon": "^9.2.2",
     "tempy": "^1.0.0",
     "write-json-file": "^4.3.0",
+    "write-pkg": "^4.0.0",
     "write-yaml-file": "^4.1.1"
   },
   "dependencies": {
