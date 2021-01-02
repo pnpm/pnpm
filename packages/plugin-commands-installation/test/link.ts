@@ -105,6 +105,38 @@ test('relative link', async () => {
   expect(currentLockfile.dependencies['hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
+test('absolute link', async () => {
+  const project = prepare({
+    dependencies: {
+      'hello-world-js-bin': '*',
+    },
+  })
+
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
+
+  await copyFixture(linkedPkgName, linkedPkgPath)
+  await link.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    npmGlobalBinDir: '',
+  }, [linkedPkgPath])
+
+  await project.isExecutable('.bin/hello-world-js-bin')
+
+  // The linked package has been installed successfully as well with bins linked
+  // to node_modules/.bin
+  const linkedProject = assertProject(linkedPkgPath)
+  await linkedProject.isExecutable('.bin/cowsay')
+
+  const wantedLockfile = await project.readLockfile()
+  expect(wantedLockfile.dependencies['hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
+  expect(wantedLockfile.specifiers['hello-world-js-bin']).toBe('*') // specifier of linked dependency added to ${WANTED_LOCKFILE}
+
+  const currentLockfile = await project.readCurrentLockfile()
+  expect(currentLockfile.dependencies['hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
+})
+
 test('link --production', async () => {
   const projects = preparePackages([
     {
