@@ -35,9 +35,9 @@ async function updateTSConfig (
   manifest: ProjectManifest
 ) {
   if (manifest.name === '@pnpm/tsconfig') return tsConfig
-  const relative = path.relative(context.workspaceDir, dir)
+  const relative = normalizePath(path.relative(context.workspaceDir, dir))
   const importer = context.lockfile.importers[relative]
-  if (!importer) return
+  if (!importer) return tsConfig
   const deps = {
     ...importer.dependencies,
     ...importer.devDependencies,
