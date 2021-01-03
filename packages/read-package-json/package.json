@@ -34,8 +34,5 @@
     "@pnpm/types": "workspace:^6.3.1",
     "read-package-json": "^3.0.0"
   },
-  "devDependencies": {
-    "@pnpm/read-package-json": "link:"
-  },
   "funding": "https://opencollective.com/pnpm"
 }

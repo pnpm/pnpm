@@ -12,9 +12,6 @@
     "lib",
     "!*.map"
   ],
-  "devDependencies": {
-    "@pnpm/manifest-utils": "link:"
-  },
   "keywords": [],
   "license": "MIT",
   "engines": {

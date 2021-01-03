@@ -28,9 +28,6 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/find-workspace-packages#readme",
-  "devDependencies": {
-    "@pnpm/find-workspace-packages": "link:"
-  },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.4.44",
     "@pnpm/constants": "workspace:4.1.0",

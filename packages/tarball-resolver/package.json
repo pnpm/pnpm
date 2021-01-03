@@ -29,8 +29,5 @@
   "dependencies": {
     "@pnpm/resolver-base": "workspace:7.1.0"
   },
-  "devDependencies": {
-    "@pnpm/tarball-resolver": "link:"
-  },
   "funding": "https://opencollective.com/pnpm"
 }

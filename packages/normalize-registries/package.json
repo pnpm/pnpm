@@ -12,9 +12,6 @@
     "lib",
     "!*.map"
   ],
-  "devDependencies": {
-    "@pnpm/normalize-registries": "link:"
-  },
   "keywords": [],
   "license": "MIT",
   "engines": {

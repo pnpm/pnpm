@@ -37,7 +37,6 @@
     "write-yaml-file": "^4.1.1"
   },
   "devDependencies": {
-    "@pnpm/modules-yaml": "link:",
     "@types/is-windows": "^1.0.0",
     "tempy": "^1.0.0"
   },

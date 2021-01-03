@@ -28,7 +28,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/exportable-manifest#readme",
   "devDependencies": {
-    "@pnpm/exportable-manifest": "link:",
     "@types/ramda": "^0.27.34"
   },
   "dependencies": {

@@ -37,7 +37,6 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/package-store": "workspace:*",
-    "@pnpm/server": "link:",
     "@types/mz": "^2.7.3",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "^8.3.0",

@@ -41,7 +41,6 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
-    "@pnpm/modules-cleaner": "link:",
     "@types/ramda": "^0.27.34"
   },
   "bugs": {

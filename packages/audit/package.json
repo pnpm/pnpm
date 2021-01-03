@@ -30,7 +30,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/audit#readme",
   "devDependencies": {
-    "@pnpm/audit": "link:",
     "@pnpm/constants": "workspace:^4.1.0",
     "@pnpm/lockfile-file": "workspace:3.1.2",
     "nock": "12.0.3"

@@ -19,7 +19,6 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "devDependencies": {
-    "@pnpm/npm-registry-agent": "link:",
     "@types/http-proxy-agent": "^2.0.2",
     "@types/lru-cache": "^5.1.0"
   },

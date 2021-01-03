@@ -29,7 +29,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/parse-cli-args#readme",
   "devDependencies": {
-    "@pnpm/parse-cli-args": "link:",
     "@types/nopt": "^3.0.29",
     "tempy": "^1.0.0"
   },

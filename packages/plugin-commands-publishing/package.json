@@ -35,7 +35,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-publishing#readme",
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:2.3.2",
-    "@pnpm/plugin-commands-publishing": "link:",
     "@pnpm/prepare": "workspace:0.0.16",
     "@types/cross-spawn": "^6.0.2",
     "@types/mz": "^2.7.3",

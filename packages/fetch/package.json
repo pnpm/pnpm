@@ -41,7 +41,6 @@
     "node-fetch-unix": "2.3.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "link:",
     "@pnpm/logger": "^3.2.3",
     "@types/node-fetch": "^2.5.7",
     "cpy-cli": "^3.1.1",

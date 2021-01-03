@@ -29,7 +29,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/get-context#readme",
   "devDependencies": {
-    "@pnpm/get-context": "link:",
     "@pnpm/logger": "^3.2.3",
     "@types/is-ci": "^2.0.0",
     "@types/mz": "^2.7.3",

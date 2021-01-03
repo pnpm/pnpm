@@ -26,7 +26,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/run-npm#readme",
   "devDependencies": {
-    "@pnpm/run-npm": "link:",
     "@types/cross-spawn": "^6.0.2"
   },
   "dependencies": {

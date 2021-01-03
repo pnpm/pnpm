@@ -43,7 +43,6 @@
     "strip-bom": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/read-project-manifest": "link:",
     "@types/graceful-fs": "^4.1.4",
     "@types/is-windows": "^1.0.0",
     "@types/json5": "0.0.30",

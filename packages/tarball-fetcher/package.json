@@ -47,7 +47,6 @@
     "@pnpm/cafs": "workspace:2.0.4",
     "@pnpm/fetch": "workspace:^2.1.9",
     "@pnpm/logger": "^3.2.3",
-    "@pnpm/tarball-fetcher": "link:",
     "@types/graceful-fs": "^4.1.4",
     "@types/mz": "^2.7.3",
     "@types/retry": "^0.12.0",

@@ -35,7 +35,6 @@
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:2.3.2",
     "@pnpm/logger": "^3.2.3",
-    "@pnpm/plugin-commands-script-runners": "link:",
     "@pnpm/prepare": "workspace:0.0.16",
     "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.34",

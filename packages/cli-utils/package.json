@@ -28,7 +28,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cli-utils#readme",
   "devDependencies": {
-    "@pnpm/cli-utils": "link:",
     "@pnpm/logger": "^3.2.3",
     "@pnpm/types": "workspace:6.3.1",
     "@types/ramda": "^0.27.34"

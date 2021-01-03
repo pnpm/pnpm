@@ -57,7 +57,6 @@
   "devDependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/logger": "^3.2.3",
-    "@pnpm/package-requester": "link:",
     "@types/mz": "^2.7.3",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",

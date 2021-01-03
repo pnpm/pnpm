@@ -35,7 +35,6 @@
     "path-name": "^1.0.0"
   },
   "devDependencies": {
-    "@pnpm/global-bin-dir": "link:",
     "is-windows": "^1.0.2"
   }
 }

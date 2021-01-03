@@ -12,9 +12,6 @@
     "lib",
     "!*.map"
   ],
-  "devDependencies": {
-    "@pnpm/pick-registry-for-package": "link:"
-  },
   "keywords": [],
   "license": "MIT",
   "engines": {
