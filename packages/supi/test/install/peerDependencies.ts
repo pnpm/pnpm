@@ -240,12 +240,25 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
 test('top peer dependency is linked on subsequent install', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['ajv@4.10.4'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['peer-c@1.0.0'], await testDefaults())
 
-  await addDependenciesToPackage(manifest, ['ajv-keywords@1.5.0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['abc-parent-with-ab@1.0.0'], await testDefaults())
 
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0/node_modules/abc-parent-with-ab'))).toBeFalsy()
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@1.0.0/node_modules/abc-parent-with-ab'))).toBeTruthy()
+})
+
+test('top peer dependency is linked on subsequent install. Reverse order', async () => {
+  prepareEmpty()
+  console.log(process.cwd())
+
+  const manifest = await addDependenciesToPackage({}, ['abc-parent-with-ab@1.0.0'], await testDefaults())
+
+  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults())
+
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0/node_modules/abc-parent-with-ab'))).toBeFalsy()
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@1.0.0/node_modules/abc-parent-with-ab'))).toBeTruthy()
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@1.0.0/node_modules/is-positive'))).toBeTruthy()
 })
 
 async function okFile (filename: string) {

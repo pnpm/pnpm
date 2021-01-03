@@ -435,18 +435,15 @@ function getDepsToResolve (
       infoFromLockfile?.dependencyLockfile?.peerDependencies
     ) {
       proceed = true
-      Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
-        allPeers.add(peerName)
-      })
-    }
-    if (!infoFromLockfile && !proceedAll) {
-      // In this case we don't know if the package depends on peer dependencies, so we proceed all.
       proceedAll = true
       for (const extendedWantedDep of extendedWantedDeps) {
         if (!extendedWantedDep.proceed) {
           extendedWantedDep.proceed = true
         }
       }
+      Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
+        allPeers.add(peerName)
+      })
     }
     extendedWantedDeps.push({
       infoFromLockfile,
