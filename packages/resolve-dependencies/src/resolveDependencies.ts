@@ -434,17 +434,17 @@ function getDepsToResolve (
       !proceedAll &&
       (infoFromLockfile?.dependencyLockfile?.peerDependencies != null || !infoFromLockfile)
     ) {
+      if (infoFromLockfile?.dependencyLockfile?.peerDependencies) {
+        Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
+          allPeers.add(peerName)
+        })
+      }
       proceed = true
       proceedAll = true
       for (const extendedWantedDep of extendedWantedDeps) {
         if (!extendedWantedDep.proceed) {
           extendedWantedDep.proceed = true
         }
-      }
-      if (infoFromLockfile?.dependencyLockfile?.peerDependencies) {
-        Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
-          allPeers.add(peerName)
-        })
       }
     }
     extendedWantedDeps.push({
