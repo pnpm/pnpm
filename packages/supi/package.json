@@ -13,7 +13,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:5.2.5",
@@ -27,7 +27,7 @@
     "@pnpm/lifecycle": "workspace:9.6.2",
     "@pnpm/link-bins": "workspace:5.3.20",
     "@pnpm/lockfile-file": "workspace:3.1.2",
-    "@pnpm/lockfile-to-pnp": "workspace:^0.3.14",
+    "@pnpm/lockfile-to-pnp": "workspace:0.3.14",
     "@pnpm/lockfile-utils": "workspace:2.0.21",
     "@pnpm/lockfile-walker": "workspace:3.0.8",
     "@pnpm/manifest-utils": "workspace:1.1.4",
@@ -69,10 +69,10 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/cafs": "workspace:^2.0.4",
-    "@pnpm/client": "workspace:^2.0.19",
+    "@pnpm/cafs": "workspace:2.0.4",
+    "@pnpm/client": "workspace:2.0.19",
     "@pnpm/logger": "^3.2.3",
-    "@pnpm/package-store": "workspace:*",
+    "@pnpm/package-store": "workspace:10.1.15",
     "@pnpm/prepare": "workspace:0.0.16",
     "@pnpm/store-path": "^4.0.3",
     "@pnpm/test-fixtures": "workspace:*",

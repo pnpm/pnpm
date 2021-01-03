@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-store#readme",
   "devDependencies": {
-    "@pnpm/assert-store": "workspace:1.0.14",
+    "@pnpm/assert-store": "workspace:*",
     "@pnpm/lockfile-file": "workspace:3.1.2",
     "@pnpm/logger": "^3.2.3",
     "@pnpm/prepare": "workspace:0.0.16",
@@ -50,7 +50,7 @@
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:^2.0.4",
+    "@pnpm/cafs": "workspace:2.0.4",
     "@pnpm/cli-utils": "workspace:0.4.44",
     "@pnpm/config": "workspace:11.10.2",
     "@pnpm/error": "workspace:1.4.0",
@@ -71,7 +71,7 @@
     "render-help": "^1.0.1"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "funding": "https://opencollective.com/pnpm"
 }

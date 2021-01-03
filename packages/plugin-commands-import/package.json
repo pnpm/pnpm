@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-import#readme",
   "devDependencies": {
-    "@pnpm/assert-project": "workspace:2.1.14",
+    "@pnpm/assert-project": "workspace:*",
     "@pnpm/prepare": "workspace:0.0.16",
     "@types/ncp": "^2.0.4",
     "ncp": "^2.0.0",

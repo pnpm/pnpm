@@ -32,10 +32,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/outdated#readme",
   "peerDependencies": {
-    "@pnpm/logger": ">=3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "dependencies": {
-    "@pnpm/client": "workspace:^2.0.19",
+    "@pnpm/client": "workspace:2.0.19",
     "@pnpm/constants": "workspace:4.1.0",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/lockfile-file": "workspace:3.1.2",

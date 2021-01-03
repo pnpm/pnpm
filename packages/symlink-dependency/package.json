@@ -13,7 +13,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:5.0.2",
-    "@pnpm/types": "workspace:^6.3.1",
+    "@pnpm/types": "workspace:6.3.1",
     "mz": "^2.7.0",
     "symlink-dir": "^4.1.0"
   },

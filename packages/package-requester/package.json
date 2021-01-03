@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-requester#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:2.0.4",
@@ -42,7 +42,7 @@
     "@pnpm/resolver-base": "workspace:7.1.0",
     "@pnpm/store-controller-types": "workspace:9.2.0",
     "@pnpm/types": "workspace:6.3.1",
-    "dependency-path": "workspace:^5.1.0",
+    "dependency-path": "workspace:5.1.0",
     "load-json-file": "^6.2.0",
     "mz": "^2.7.0",
     "p-defer": "^3.0.0",
@@ -55,7 +55,7 @@
     "ssri": "6.0.1"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:*",
+    "@pnpm/client": "workspace:2.0.19",
     "@pnpm/logger": "^3.2.3",
     "@types/mz": "^2.7.3",
     "@types/ncp": "^2.0.4",

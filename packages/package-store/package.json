@@ -13,7 +13,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:2.0.4",
@@ -36,7 +36,7 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:^2.0.19",
+    "@pnpm/client": "workspace:2.0.19",
     "@pnpm/logger": "^3.2.3",
     "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.34",

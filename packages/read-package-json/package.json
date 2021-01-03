@@ -30,8 +30,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-package-json#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:^1.4.0",
-    "@pnpm/types": "workspace:^6.3.1",
+    "@pnpm/error": "workspace:1.4.0",
+    "@pnpm/types": "workspace:6.3.1",
     "read-package-json": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

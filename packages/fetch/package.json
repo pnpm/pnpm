@@ -29,13 +29,13 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch#readme",
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:^5.0.2",
-    "@pnpm/fetching-types": "workspace:^1.0.0",
-    "@pnpm/npm-registry-agent": "workspace:^3.1.1",
+    "@pnpm/core-loggers": "workspace:5.0.2",
+    "@pnpm/fetching-types": "workspace:1.0.0",
+    "@pnpm/npm-registry-agent": "workspace:3.1.1",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "^2.6.1",
     "node-fetch-unix": "2.3.0"

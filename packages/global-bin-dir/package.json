@@ -30,7 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/global-bin-dir#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/error": "workspace:^1.4.0",
+    "@pnpm/error": "workspace:1.4.0",
     "can-write-to-dir": "^1.0.0",
     "path-name": "^1.0.0"
   },

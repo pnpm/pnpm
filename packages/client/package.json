@@ -31,9 +31,9 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/client#readme",
   "dependencies": {
-    "@pnpm/default-resolver": "workspace:^11.0.16",
-    "@pnpm/fetch": "workspace:^2.1.9",
-    "@pnpm/fetching-types": "workspace:^1.0.0",
+    "@pnpm/default-resolver": "workspace:11.0.16",
+    "@pnpm/fetch": "workspace:2.1.9",
+    "@pnpm/fetching-types": "workspace:1.0.0",
     "@pnpm/git-fetcher": "workspace:3.0.12",
     "@pnpm/resolver-base": "workspace:7.1.0",
     "@pnpm/tarball-fetcher": "workspace:8.2.6",

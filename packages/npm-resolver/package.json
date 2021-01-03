@@ -31,12 +31,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/npm-resolver#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:^5.0.2",
+    "@pnpm/core-loggers": "workspace:5.0.2",
     "@pnpm/error": "workspace:1.4.0",
-    "@pnpm/fetching-types": "workspace:^1.0.0",
+    "@pnpm/fetching-types": "workspace:1.0.0",
     "@pnpm/resolve-workspace-range": "workspace:1.0.1",
     "@pnpm/resolver-base": "workspace:7.1.0",
     "@pnpm/types": "workspace:6.3.1",
@@ -56,7 +56,7 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:^2.1.9",
+    "@pnpm/fetch": "workspace:2.1.9",
     "@pnpm/logger": "^3.2.3",
     "@types/lru-cache": "^5.1.0",
     "@types/mz": "^2.7.3",

@@ -60,7 +60,7 @@
     "render-help": "^1.0.1"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "funding": "https://opencollective.com/pnpm"
 }

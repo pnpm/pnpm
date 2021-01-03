@@ -32,7 +32,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/default-resolver#readme",
   "dependencies": {
     "@pnpm/error": "workspace:1.4.0",
-    "@pnpm/fetching-types": "workspace:^1.0.0",
+    "@pnpm/fetching-types": "workspace:1.0.0",
     "@pnpm/git-resolver": "workspace:4.1.10",
     "@pnpm/local-resolver": "workspace:5.1.1",
     "@pnpm/npm-resolver": "workspace:10.2.1",
@@ -40,7 +40,7 @@
     "@pnpm/tarball-resolver": "workspace:4.0.6"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:^2.1.9",
+    "@pnpm/fetch": "workspace:2.1.9",
     "@pnpm/logger": "^3.2.3"
   },
   "funding": "https://opencollective.com/pnpm"

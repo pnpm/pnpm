@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/mount-modules#readme",
   "peerDependencies": {
-    "@pnpm/logger": ">=3.2.2 <4.0.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
@@ -42,7 +42,7 @@
     "rimraf": "^3.0.2"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:^2.0.4",
+    "@pnpm/cafs": "workspace:2.0.4",
     "@pnpm/lockfile-file": "workspace:3.1.2",
     "@pnpm/lockfile-utils": "workspace:2.0.21",
     "@pnpm/store-path": "^4.0.3",

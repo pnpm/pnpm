@@ -77,7 +77,7 @@
     "semver": "^7.3.4"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "funding": "https://opencollective.com/pnpm"
 }

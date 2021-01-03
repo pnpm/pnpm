@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/merge-lockfile-changes#readme",
   "dependencies": {
-    "@pnpm/lockfile-types": "workspace:^2.1.1",
+    "@pnpm/lockfile-types": "workspace:2.1.1",
     "ramda": "^0.27.1",
     "semver": "^7.3.4"
   },

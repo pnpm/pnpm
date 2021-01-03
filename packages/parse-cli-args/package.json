@@ -33,7 +33,7 @@
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:^1.4.0",
+    "@pnpm/error": "workspace:1.4.0",
     "@pnpm/find-workspace-dir": "workspace:2.0.0",
     "didyoumean2": "^4.1.0",
     "nopt": "^5.0.0"

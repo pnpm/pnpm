@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.1",
-    "@pnpm/client": "workspace:^2.0.19",
+    "@pnpm/client": "workspace:2.0.19",
     "@pnpm/config": "workspace:11.10.2",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/package-store": "workspace:10.1.15",
@@ -46,7 +46,7 @@
     "mz": "^2.7.0"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
+    "@pnpm/logger": "^3.2.3"
   },
   "funding": "https://opencollective.com/pnpm"
 }
