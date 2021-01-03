@@ -2,13 +2,14 @@
   "name": "@pnpm-private/updater",
   "version": "0.0.43",
   "private": true,
+  "scripts": {
+    "compile": "tsc"
+  },
   "dependencies": {
-    "@pnpm/find-workspace-packages": "workspace:2.3.30",
     "@pnpm/lockfile-file": "workspace:3.1.2",
     "@pnpm/types": "workspace:6.3.1",
     "@types/normalize-path": "^3.0.0",
     "is-subdir": "^1.1.1",
-    "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",
     "path-exists": "^4.0.0",
     "write-json-file": "^4.3.0"

@@ -6,6 +6,7 @@ importers:
       '@commitlint/config-conventional': 11.0.0
       '@commitlint/prompt-cli': 11.0.0
       '@pnpm/eslint-config': 'link:utils/eslint-config'
+      '@pnpm/meta-updater': 0.0.0
       '@pnpm/registry-mock': 2.2.2
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@types/jest': 26.0.19
@@ -33,6 +34,7 @@ importers:
       '@commitlint/config-conventional': ^11.0.0
       '@commitlint/prompt-cli': ^11.0.0
       '@pnpm/eslint-config': 'workspace:*'
+      '@pnpm/meta-updater': ^0.0.0
       '@pnpm/registry-mock': ^2.2.2
       '@pnpm/tsconfig': 'workspace:*'
       '@types/jest': ^26.0.19
@@ -3143,22 +3145,18 @@ importers:
       '@pnpm/tsconfig': 'link:'
   utils/updater:
     dependencies:
-      '@pnpm/find-workspace-packages': 'link:../../packages/find-workspace-packages'
       '@pnpm/lockfile-file': 'link:../../packages/lockfile-file'
       '@pnpm/types': 'link:../../packages/types'
       '@types/normalize-path': 3.0.0
       is-subdir: 1.1.1
-      load-json-file: 6.2.0
       normalize-path: 3.0.0
       path-exists: 4.0.0
       write-json-file: 4.3.0
     specifiers:
-      '@pnpm/find-workspace-packages': 'workspace:2.3.30'
       '@pnpm/lockfile-file': 'workspace:3.1.2'
       '@pnpm/types': 'workspace:6.3.1'
       '@types/normalize-path': ^3.0.0
       is-subdir: ^1.1.1
-      load-json-file: ^6.2.0
       normalize-path: ^3.0.0
       path-exists: ^4.0.0
       write-json-file: ^4.3.0
@@ -4088,6 +4086,32 @@ packages:
       node: '>= 8'
     resolution:
       integrity: sha512-8Broas6vTtW4GIXTAHDoE32hnN2M5ykgCpWGbuXHQ15vEMqr23pB76e/GZcYsZCHALv50ktd24qhEyKr6wBtow==
+  /@pnpm/cli-meta/1.0.1:
+    dependencies:
+      load-json-file: 6.2.0
+    dev: true
+    engines:
+      node: '>=10.13'
+    resolution:
+      integrity: sha512-tShDC50o4zc4B3lGK2TAe5p3K2ebbD4z+6YN6fX5eJ1pganxtNEbivchFX5/fEoGefcYyxZYQ0++te77O9apjg==
+  /@pnpm/cli-utils/0.4.44_@pnpm+logger@3.2.3:
+    dependencies:
+      '@pnpm/cli-meta': 1.0.1
+      '@pnpm/config': 11.10.2
+      '@pnpm/error': 1.4.0
+      '@pnpm/logger': 3.2.3
+      '@pnpm/manifest-utils': 1.1.4_@pnpm+logger@3.2.3
+      '@pnpm/package-is-installable': 4.0.18_@pnpm+logger@3.2.3
+      '@pnpm/read-project-manifest': 1.1.5
+      chalk: 4.1.0
+      load-json-file: 6.2.0
+    dev: true
+    engines:
+      node: '>=10.16'
+    peerDependencies:
+      '@pnpm/logger': ^3.1.0
+    resolution:
+      integrity: sha512-boushs09Ey8gcPoKRT0LijP30+5PHuqQdbzBsRtyZpwhFA89MQxgccMAADbrlui8+67KNyLrpAJ2wS8jcBW0Ig==
   /@pnpm/colorize-semver-diff/1.0.1:
     dependencies:
       chalk: 4.1.0
@@ -4096,6 +4120,46 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-qP4E7mzmCBhB4so6szszeIdVDrcKGTTCxBazCKoiPUG34xLha6r57zJuFBkTmD65i3TB7++lf3BwpQruUwf/BQ==
+  /@pnpm/config/11.10.2:
+    dependencies:
+      '@pnpm/constants': 4.1.0
+      '@pnpm/error': 1.4.0
+      '@pnpm/global-bin-dir': 1.2.5
+      '@pnpm/types': 6.3.1
+      '@zkochan/npm-conf': 2.0.2
+      camelcase: 6.2.0
+      is-subdir: 1.1.1
+      ramda: 0.27.1
+      realpath-missing: 1.0.0
+      which: 2.0.2
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-NWOtQMfqW+Wu6OtUp3PQDYMkCyVEAywCss6Iq6YDYJvn9Tf+kmqgPF3bohSCsEQogYCwCg1Vs3BLr4L9+p0rYw==
+  /@pnpm/constants/4.1.0:
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-kH6+y0IMPExiUnwk+BTXvaPSIp3SlBxTXK7JeW8hopJ2B8EVIwFOWLdXK85sJpr4+jxbtEn2spzLRx6Rcfh7xQ==
+  /@pnpm/core-loggers/5.0.2_@pnpm+logger@3.2.3:
+    dependencies:
+      '@pnpm/logger': 3.2.3
+      '@pnpm/types': 6.3.1
+    dev: true
+    engines:
+      node: '>=10.16'
+    peerDependencies:
+      '@pnpm/logger': ^3.1.0
+    resolution:
+      integrity: sha512-DSv5UHtCN+qB+mMl0cjppo0+oEZAIGNY3ffKUf0+9zTiG2dXT5ME2P7iO8eoCvO+Bl4VlondFgDAzh6OLIuYdA==
+  /@pnpm/error/1.4.0:
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-vxkRrkneBPVmP23kyjnYwVOtipwlSl6UfL+h+Xa3TrABJTz5rYBXemlTsU5BzST8U4pD7YDkTb3SQu+MMuIDKA==
   /@pnpm/exec/2.0.0:
     dependencies:
       '@pnpm/self-installer': 2.1.0
@@ -4115,6 +4179,39 @@ packages:
       node: '>=10.13'
     resolution:
       integrity: sha512-SM5Flsm39dMhW5AKhXLBJ3oud2uOR4UIphoo6pLlhZeKEvRE9GGS8ewlPDlFVDgvvKP1xpKwHeO3okhiL2zy6g==
+  /@pnpm/find-workspace-dir/2.0.0:
+    dependencies:
+      '@pnpm/error': 1.4.0
+      find-up: 5.0.0
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-xgDjjJwnf2cH7+LjdfzG4sbvGJtn903IpJ8eDraEjD4V/a9VdMV2GtC7lw4nLyNXsY8bqtn4jkHwiYnUpyXm5g==
+  /@pnpm/find-workspace-packages/2.3.30_@pnpm+logger@3.2.3:
+    dependencies:
+      '@pnpm/cli-utils': 0.4.44_@pnpm+logger@3.2.3
+      '@pnpm/constants': 4.1.0
+      '@pnpm/types': 6.3.1
+      find-packages: 7.0.22
+      read-yaml-file: 2.0.0
+    dev: true
+    engines:
+      node: '>=10.16'
+    peerDependencies:
+      '@pnpm/logger': '*'
+    resolution:
+      integrity: sha512-tbTWqwqGEzjQEcrxgjAyuYZmpOx3xZg8F8QI6CFTrymLyf1Yra3zIirCe80GUGc2I6RTAeTa/GAMKmNOsKDu7g==
+  /@pnpm/global-bin-dir/1.2.5:
+    dependencies:
+      '@pnpm/error': 1.4.0
+      can-write-to-dir: 1.0.0
+      path-name: 1.0.0
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-RB3oHl0dx6t/p+kQs7AKrxY4hijAL0zRAV8HXVzk8SR3k6fxqv1nLoZbVt7NpRHcTiyw8HcWo87pOU4gejVJCg==
   /@pnpm/logger/3.2.3:
     dependencies:
       bole: /@zkochan/bole/3.0.4
@@ -4123,6 +4220,66 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-/nZCAUeKwlv1MldtOHSPDm5SuXBy4L4SoS30gYn9ti2N5XlUrVoXDE8Hq8EYfl+Knb1GQEDz04KjfFEDVsAsvg==
+  /@pnpm/manifest-utils/1.1.4_@pnpm+logger@3.2.3:
+    dependencies:
+      '@pnpm/core-loggers': 5.0.2_@pnpm+logger@3.2.3
+      '@pnpm/error': 1.4.0
+      '@pnpm/types': 6.3.1
+    dev: true
+    engines:
+      node: '>=10.16'
+    peerDependencies:
+      '@pnpm/logger': '*'
+    resolution:
+      integrity: sha512-rH2TQgQRA5hf09dQL7damm6FGyLIcrGIqOr0bK7vP9tHUElrwdP6qppwsddWiBiboOPvhcELRdETbtMvrc70Uw==
+  /@pnpm/meta-updater/0.0.0:
+    dependencies:
+      '@pnpm/find-workspace-dir': 2.0.0
+      '@pnpm/find-workspace-packages': 2.3.30_@pnpm+logger@3.2.3
+      '@pnpm/logger': 3.2.3
+      '@pnpm/types': 6.3.1
+      load-json-file: 6.2.0
+      path-exists: 4.0.0
+      write-json-file: 4.3.0
+    dev: true
+    engines:
+      node: '>=10.12'
+    hasBin: true
+    resolution:
+      integrity: sha512-1bXsDuMzZRq73VniwQuGs5ZwdLKwJf5D7VwRjIiPVo0r117Gcjyjm8oTZpVll2iJlDldv2o8IVWJ60beB5/lOg==
+  /@pnpm/package-is-installable/4.0.18_@pnpm+logger@3.2.3:
+    dependencies:
+      '@pnpm/core-loggers': 5.0.2_@pnpm+logger@3.2.3
+      '@pnpm/error': 1.4.0
+      '@pnpm/logger': 3.2.3
+      '@pnpm/types': 6.3.1
+      semver: 7.3.4
+    dev: true
+    engines:
+      node: '>=10.16'
+    peerDependencies:
+      '@pnpm/logger': ^3.1.0
+    resolution:
+      integrity: sha512-d8V49I0tN4cbeoteXe144ZupihPrygD4zZ4WhAX4iakoBHLORu4uGM24LmRANIzsSXe/Cs+gDwBetwc/s3vecg==
+  /@pnpm/read-project-manifest/1.1.5:
+    dependencies:
+      '@pnpm/error': 1.4.0
+      '@pnpm/types': 6.3.1
+      '@pnpm/write-project-manifest': 1.1.5
+      detect-indent: 6.0.0
+      fast-deep-equal: 3.1.3
+      graceful-fs: 4.2.4
+      is-windows: 1.0.2
+      json5: 2.1.3
+      parse-json: 5.1.0
+      read-yaml-file: 2.0.0
+      sort-keys: 4.2.0
+      strip-bom: 4.0.0
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-U0Mrg2UUl28OspWqggArUFcal5nVAM3K2+NW1+SpdOSbmpLruNMkL9dSM4wyfiaEz8T+EqKhE063FFrrUACQkw==
   /@pnpm/registry-mock/2.2.2:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
@@ -4176,6 +4333,24 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-XLx1tSzrLxvmsNdh6AjiYy6lhMq/Sw08ELFDjlPmbdPYJ9E3l6RtSX4bxXoJt7dZHKskNypF5ksx1rt5oqPsDg==
+  /@pnpm/types/6.3.1:
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-ZH4Lon7jggSlBVuEJa/XFaHhCCkvmdaG9a8707ZqpD+iTUfslS6WOlyRVKxJiX7y5ZoJRzYRbX4mhV9gPHfXLw==
+  /@pnpm/write-project-manifest/1.1.5:
+    dependencies:
+      '@pnpm/types': 6.3.1
+      json5: 2.1.3
+      mz: 2.7.0
+      write-file-atomic: 3.0.3
+      write-yaml-file: 4.1.1
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-p8y4zIrG4sx3hJgEUob7w9TnaE1QCC25+JrP8hXrkb7gz1Vga/WGnNACSVWRWIDxjJejRCrqzewjfKM4ee2lBg==
   /@sindresorhus/is/0.14.0:
     dev: false
     engines:
@@ -4798,7 +4973,6 @@ packages:
   /@zkochan/npm-conf/2.0.2:
     dependencies:
       config-chain: 1.1.12
-    dev: false
     engines:
       node: '>=10'
     resolution:
@@ -5985,7 +6159,6 @@ packages:
     dependencies:
       graceful-fs: 4.2.4
       path-temp: 2.0.0
-    dev: false
     engines:
       node: '>=10.13'
     resolution:
@@ -6345,7 +6518,6 @@ packages:
     dependencies:
       ini: 1.3.8
       proto-list: 1.2.4
-    dev: false
     resolution:
       integrity: sha512-a1eOIcu8+7lUInge4Rpf/n4Krkf3Dd9lqhljRzII1/Zno/kRtUWnznPO3jOKBmTEktkt3fkxisUcivoj0ebzoA==
   /configstore/5.0.1:
@@ -7778,6 +7950,17 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha512-aAWcW57uxVNrQZqFXjITpW3sIUQmHGG3qSb9mUah9MgMC4NeWhNOlNjXEYq3HjRAvL6arUviZGGJsBg6z0zsWA==
+  /find-packages/7.0.22:
+    dependencies:
+      '@pnpm/read-project-manifest': 1.1.5
+      '@pnpm/types': 6.3.1
+      fast-glob: 3.2.4
+      p-filter: 2.1.0
+    dev: true
+    engines:
+      node: '>=10.16'
+    resolution:
+      integrity: sha512-ROkFB7s4x3J8/kdDg3j2LOO030vJ8tAj5EL9pGnIwQP3HBXycURnkm90rpOmZGt39GuA9e9uAmzYND5EEUeSDQ==
   /find-parent-dir/0.3.0:
     dev: true
     resolution:
@@ -11892,7 +12075,6 @@ packages:
     resolution:
       integrity: sha512-vGrhOavPSTz4QVNuBNdcNXePNdNMaO1xj9yBeH1ScQPjk/rhg9sSlCXPhMkFuaNNW/syTvYqsnbIJxMBfRbbag==
   /proto-list/1.2.4:
-    dev: false
     resolution:
       integrity: sha1-IS1b/hMYMGpCD2QCuOJv85ZHqEk=
   /protocol-buffers-encodings/1.1.1:
@@ -12225,7 +12407,6 @@ packages:
   /realpath-missing/1.0.0:
     dependencies:
       graceful-fs: 4.2.4
-    dev: false
     engines:
       node: '>=10'
     resolution:

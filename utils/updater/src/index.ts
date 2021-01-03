@@ -1,93 +1,61 @@
-import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
 import fs = require('fs')
 import isSubdir = require('is-subdir')
-import loadJsonFile = require('load-json-file')
 import normalizePath = require('normalize-path')
 import path = require('path')
 import exists = require('path-exists')
 import writeJsonFile = require('write-json-file')
 
-const repoRoot = path.join(__dirname, '../../..')
-
-async function updater (
-  repoRoot: string,
-  opts: {
-    filter?: (manifest: ProjectManifest, dir: string) => boolean
-    update: Record<string, (obj: object, dir: string, manifest: ProjectManifest) => object | Promise<object>>
+export default async (workspaceDir: string) => {
+  const pkgsDir = path.join(workspaceDir, 'packages')
+  const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
+  if (!lockfile) {
+    throw new Error('no lockfile found')
   }
-) {
-  let pkgs = await findWorkspacePackages(repoRoot, { engineStrict: false })
-  if (opts.filter) {
-    pkgs = pkgs.filter((pkg) => opts.filter(pkg.manifest, pkg.dir))
-  }
-  for (const { dir, manifest, writeProjectManifest } of pkgs) {
-    for (const [p, updateFn] of Object.entries(opts.update)) {
-      if (p === 'package.json') {
-        await writeProjectManifest(await updateFn(manifest, dir, manifest))
-        continue
+  return {
+    'package.json': (manifest: ProjectManifest, dir: string) => {
+      if (!isSubdir(pkgsDir, dir)) return manifest
+      return updateManifest(workspaceDir, manifest, dir)
+    },
+    'tsconfig.json': async (tsConfig: object, dir: string, manifest: ProjectManifest) => {
+      if (manifest.name === '@pnpm/tsconfig') return tsConfig
+      const relative = path.relative(workspaceDir, dir)
+      const importer = lockfile.importers[relative]
+      if (!importer) return
+      const deps = {
+        ...importer.dependencies,
+        ...importer.devDependencies,
       }
-      if (!p.endsWith('.json')) continue
-      const fp = path.join(dir, p)
-      if (!await exists(fp)) {
-        continue
+      const references = [] as Array<{ path: string }>
+      for (const spec of Object.values(deps)) {
+        if (!spec.startsWith('link:') || spec.length === 5) continue
+        references.push({ path: spec.substr(5) })
       }
-      const obj = await loadJsonFile(fp)
-      await writeJsonFile(fp, await updateFn(obj as object, dir, manifest), { detectIndent: true })
-    }
+      await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
+        extends: './tsconfig.json',
+        include: [
+          'src/**/*.ts',
+          'test/**/*.ts',
+          '../../typings/**/*.d.ts',
+        ],
+      }, { indent: 2 })
+      return {
+        ...tsConfig,
+        compilerOptions: {
+          ...tsConfig['compilerOptions'],
+          rootDir: 'src',
+        },
+        references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
+      }
+    },
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises
-; (async () => {
-  const pkgsDir = path.join(repoRoot, 'packages')
-  const lockfile = await readWantedLockfile(repoRoot, { ignoreIncompatible: false })
-  await updater(repoRoot, {
-    update: {
-      'package.json': (manifest, dir) => {
-        if (!isSubdir(pkgsDir, dir)) return manifest
-        return updateManifest(manifest, dir)
-      },
-      'tsconfig.json': async (tsConfig, dir, manifest) => {
-        if (manifest.name === '@pnpm/tsconfig') return tsConfig
-        const relative = path.relative(repoRoot, dir)
-        const importer = lockfile.importers[relative]
-        if (!importer) return
-        const deps = {
-          ...importer.dependencies,
-          ...importer.devDependencies,
-        }
-        const references = [] as Array<{ path: string }>
-        for (const spec of Object.values(deps)) {
-          if (!spec.startsWith('link:') || spec.length === 5) continue
-          references.push({ path: spec.substr(5) })
-        }
-        await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
-          extends: './tsconfig.json',
-          include: [
-            'src/**/*.ts',
-            'test/**/*.ts',
-            '../../typings/**/*.d.ts',
-          ],
-        }, { indent: 2 })
-        return {
-          ...tsConfig,
-          compilerOptions: {
-            ...tsConfig['compilerOptions'],
-            rootDir: 'src',
-          },
-          references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
-        }
-      },
-    },
-  })
-})()
-
 let registryMockPort = 7769
 
-async function updateManifest (manifest: ProjectManifest, dir: string) {
-  const relative = normalizePath(path.relative(repoRoot, dir))
+async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string) {
+  const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
   case '@pnpm/lockfile-types':
@@ -109,7 +77,7 @@ async function updateManifest (manifest: ProjectManifest, dir: string) {
     // the next package: pkg-with-tarball-dep-from-registry
     const port = manifest.name === 'supi' ? 4873 : ++registryMockPort
     scripts = {
-      ...manifest.scripts,
+      ...(manifest.scripts as Record<string, string>),
       'registry-mock': 'registry-mock',
       'test:jest': 'jest',
 
@@ -122,13 +90,13 @@ async function updateManifest (manifest: ProjectManifest, dir: string) {
   default:
     if (await exists(path.join(dir, 'test'))) {
       scripts = {
-        ...manifest.scripts,
+        ...(manifest.scripts as Record<string, string>),
         _test: 'jest',
         test: 'pnpm run compile && pnpm run _test',
       }
     } else {
       scripts = {
-        ...manifest.scripts,
+        ...(manifest.scripts as Record<string, string>),
         test: 'pnpm run compile',
       }
     }
