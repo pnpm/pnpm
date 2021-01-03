@@ -1,4 +1,4 @@
-import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile, Lockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
 import fs = require('fs')
 import isSubdir = require('is-subdir')
@@ -18,37 +18,50 @@ export default async (workspaceDir: string) => {
       if (!isSubdir(pkgsDir, dir)) return manifest
       return updateManifest(workspaceDir, manifest, dir)
     },
-    'tsconfig.json': async (tsConfig: object, dir: string, manifest: ProjectManifest) => {
-      if (manifest.name === '@pnpm/tsconfig') return tsConfig
-      const relative = path.relative(workspaceDir, dir)
-      const importer = lockfile.importers[relative]
-      if (!importer) return
-      const deps = {
-        ...importer.dependencies,
-        ...importer.devDependencies,
-      }
-      const references = [] as Array<{ path: string }>
-      for (const spec of Object.values(deps)) {
-        if (!spec.startsWith('link:') || spec.length === 5) continue
-        references.push({ path: spec.substr(5) })
-      }
-      await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
-        extends: './tsconfig.json',
-        include: [
-          'src/**/*.ts',
-          'test/**/*.ts',
-          '../../typings/**/*.d.ts',
-        ],
-      }, { indent: 2 })
-      return {
-        ...tsConfig,
-        compilerOptions: {
-          ...tsConfig['compilerOptions'],
-          rootDir: 'src',
-        },
-        references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
-      }
+    'tsconfig.json': updateTSConfig.bind(null, {
+      lockfile,
+      workspaceDir,
+    }),
+  }
+}
+
+async function updateTSConfig (
+  context: {
+    lockfile: Lockfile
+    workspaceDir: string
+  },
+  tsConfig: object,
+  dir: string,
+  manifest: ProjectManifest
+) {
+  if (manifest.name === '@pnpm/tsconfig') return tsConfig
+  const relative = path.relative(context.workspaceDir, dir)
+  const importer = context.lockfile.importers[relative]
+  if (!importer) return
+  const deps = {
+    ...importer.dependencies,
+    ...importer.devDependencies,
+  }
+  const references = [] as Array<{ path: string }>
+  for (const spec of Object.values(deps)) {
+    if (!spec.startsWith('link:') || spec.length === 5) continue
+    references.push({ path: spec.substr(5) })
+  }
+  await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
+    extends: './tsconfig.json',
+    include: [
+      'src/**/*.ts',
+      'test/**/*.ts',
+      '../../typings/**/*.d.ts',
+    ],
+  }, { indent: 2 })
+  return {
+    ...tsConfig,
+    compilerOptions: {
+      ...tsConfig['compilerOptions'],
+      rootDir: 'src',
     },
+    references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
   }
 }
 
