@@ -2556,7 +2556,7 @@ importers:
       ramda: 0.27.1
       replace-string: 3.1.0
       semver: 7.3.4
-      version-selector-type: 2.0.1
+      version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/logger': 3.2.3
       '@pnpm/resolve-dependencies': 'link:'
@@ -2589,7 +2589,7 @@ importers:
       ramda: ^0.27.1
       replace-string: ^3.1.0
       semver: ^7.3.4
-      version-selector-type: ^2.0.1
+      version-selector-type: ^3.0.0
   packages/resolve-workspace-range:
     dependencies:
       semver: 7.3.4
@@ -14129,14 +14129,6 @@ packages:
       '0': node >=0.6.0
     resolution:
       integrity: sha1-OhBcoXBTr1XW4nDB+CiGguGNpAA=
-  /version-selector-type/2.0.1:
-    dependencies:
-      semver: 6.3.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-wglKuX3nE2jJPld8UfSKo8YZeYovkAsErRCzbzEt5hHWp+s1Ai4q97dQI5X7wFXAykeHxvez38HJScuUWPxb6g==
   /version-selector-type/3.0.0:
     dependencies:
       semver: 7.3.4
