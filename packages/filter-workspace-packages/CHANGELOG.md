@@ -1,5 +1,12 @@
 # @pnpm/filter-workspace-packages
 
+## 2.3.2
+
+### Patch Changes
+
+- 32c9ef4be: execa updated to v5.
+  - @pnpm/find-workspace-packages@2.3.30
+
 ## 2.3.1
 
 ### Patch Changes

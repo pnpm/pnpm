@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "7.2.19",
+  "version": "7.2.20",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,18 +35,18 @@
     "@pnpm/logger": ">=3.1.0"
   },
   "dependencies": {
-    "@pnpm/client": "workspace:^2.0.18",
+    "@pnpm/client": "workspace:^2.0.19",
     "@pnpm/constants": "workspace:4.1.0",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/lockfile-file": "workspace:3.1.2",
-    "@pnpm/lockfile-utils": "workspace:2.0.20",
+    "@pnpm/lockfile-utils": "workspace:2.0.21",
     "@pnpm/manifest-utils": "workspace:1.1.4",
     "@pnpm/matcher": "workspace:1.0.3",
     "@pnpm/modules-yaml": "workspace:8.0.5",
     "@pnpm/pick-registry-for-package": "workspace:1.0.5",
     "@pnpm/store-path": "^4.0.3",
     "@pnpm/types": "workspace:6.3.1",
-    "dependency-path": "workspace:5.0.6",
+    "dependency-path": "workspace:5.1.0",
     "ramda": "^0.27.1",
     "semver": "^7.3.4"
   },

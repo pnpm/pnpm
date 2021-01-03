@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.10.2
+
+### Patch Changes
+
+- 425c7547d: Always resolve the target directory to its real path.
+
 ## 11.10.1
 
 ### Patch Changes

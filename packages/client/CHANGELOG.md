@@ -1,5 +1,13 @@
 # @pnpm/client
 
+## 2.0.19
+
+### Patch Changes
+
+- Updated dependencies [32c9ef4be]
+  - @pnpm/git-fetcher@3.0.12
+  - @pnpm/default-resolver@11.0.16
+
 ## 2.0.18
 
 ### Patch Changes

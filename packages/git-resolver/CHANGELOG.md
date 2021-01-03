@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 4.1.10
+
+### Patch Changes
+
+- 32c9ef4be: execa updated to v5.
+
 ## 4.1.9
 
 ### Patch Changes

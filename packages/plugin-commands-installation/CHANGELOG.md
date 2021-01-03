@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 3.5.7
+
+### Patch Changes
+
+- 425c7547d: The real path of linked package should be used when installing its dependencies.
+- 409736b4d: Linking dependencies by absolute path should work.
+- Updated dependencies [425c7547d]
+- Updated dependencies [32c9ef4be]
+  - @pnpm/config@11.10.2
+  - @pnpm/filter-workspace-packages@2.3.2
+  - @pnpm/outdated@7.2.20
+  - @pnpm/plugin-commands-rebuild@2.2.15
+  - supi@0.43.24
+  - @pnpm/cli-utils@0.4.44
+  - @pnpm/store-connection-manager@0.3.56
+  - @pnpm/package-store@10.1.15
+  - @pnpm/find-workspace-packages@2.3.30
+
 ## 3.5.6
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.2.15
+
+### Patch Changes
+
+- Updated dependencies [e27dcf0dc]
+- Updated dependencies [425c7547d]
+  - dependency-path@5.1.0
+  - @pnpm/config@11.10.2
+  - @pnpm/lockfile-utils@2.0.21
+  - @pnpm/lockfile-walker@3.0.8
+  - @pnpm/cli-utils@0.4.44
+  - @pnpm/store-connection-manager@0.3.56
+  - @pnpm/find-workspace-packages@2.3.30
+
 ## 2.2.14
 
 ### Patch Changes

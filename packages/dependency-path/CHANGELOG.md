@@ -1,5 +1,11 @@
 # dependency-path
 
+## 5.1.0
+
+### Minor Changes
+
+- e27dcf0dc: Add depPathToFilename().
+
 ## 5.0.6
 
 ### Patch Changes

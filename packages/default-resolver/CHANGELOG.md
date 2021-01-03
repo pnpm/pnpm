@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 11.0.16
+
+### Patch Changes
+
+- Updated dependencies [32c9ef4be]
+  - @pnpm/git-resolver@4.1.10
+
 ## 11.0.15
 
 ### Patch Changes

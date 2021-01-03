@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 3.0.12
+
+### Patch Changes
+
+- 32c9ef4be: execa updated to v5.
+
 ## 3.0.11
 
 ### Patch Changes

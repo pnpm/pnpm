@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 7.2.20
+
+### Patch Changes
+
+- Updated dependencies [e27dcf0dc]
+  - dependency-path@5.1.0
+  - @pnpm/lockfile-utils@2.0.21
+  - @pnpm/client@2.0.19
+
 ## 7.2.19
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 12.2.1
+
+### Patch Changes
+
+- Updated dependencies [e27dcf0dc]
+  - dependency-path@5.1.0
+
 ## 12.2.0
 
 ### Minor Changes

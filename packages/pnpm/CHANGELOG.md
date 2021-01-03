@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.14.2
+
+### Patch Changes
+
+- Linking dependencies by absolute path should work. For instance: `pnpm link C:\src\foo` [#3025](https://github.com/pnpm/pnpm/issues/3025)
+
 ## 5.14.1
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 0.4.44
+
+### Patch Changes
+
+- Updated dependencies [425c7547d]
+  - @pnpm/config@11.10.2
+
 ## 0.4.43
 
 ### Patch Changes
