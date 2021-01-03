@@ -11,53 +11,82 @@ import writeJsonFile = require('write-json-file')
 
 const repoRoot = path.join(__dirname, '../../..')
 
+async function updater (
+  repoRoot: string,
+  opts: {
+    filter?: (manifest: ProjectManifest, dir: string) => boolean
+    update: Record<string, (obj: object, dir: string, manifest: ProjectManifest) => object | Promise<object>>
+  }
+) {
+  let pkgs = await findWorkspacePackages(repoRoot, { engineStrict: false })
+  if (opts.filter) {
+    pkgs = pkgs.filter((pkg) => opts.filter(pkg.manifest, pkg.dir))
+  }
+  for (const { dir, manifest, writeProjectManifest } of pkgs) {
+    for (const [p, updateFn] of Object.entries(opts.update)) {
+      if (p === 'package.json') {
+        await writeProjectManifest(await updateFn(manifest, dir, manifest))
+        continue
+      }
+      if (!p.endsWith('.json')) continue
+      const fp = path.join(dir, p)
+      if (!await exists(fp)) {
+        continue
+      }
+      const obj = await loadJsonFile(fp)
+      await writeJsonFile(fp, await updateFn(obj as object, dir, manifest), { detectIndent: true })
+    }
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
 ; (async () => {
-  const pkgs = await findWorkspacePackages(repoRoot, { engineStrict: false })
   const pkgsDir = path.join(repoRoot, 'packages')
   const lockfile = await readWantedLockfile(repoRoot, { ignoreIncompatible: false })
-  for (const { dir, manifest, writeProjectManifest } of pkgs) {
-    if (isSubdir(pkgsDir, dir)) {
-      await writeProjectManifest(await updateManifest(dir, manifest))
-    }
-    if (manifest.name === '@pnpm/tsconfig') continue
-    const relative = path.relative(repoRoot, dir)
-    const importer = lockfile.importers[relative]
-    if (!importer) continue
-    const tsconfigLoc = path.join(dir, 'tsconfig.json')
-    if (!await exists(tsconfigLoc)) continue
-    const deps = {
-      ...importer.dependencies,
-      ...importer.devDependencies,
-    }
-    const references = [] as Array<{ path: string }>
-    for (const spec of Object.values(deps)) {
-      if (!spec.startsWith('link:') || spec.length === 5) continue
-      references.push({ path: spec.substr(5) })
-    }
-    const tsConfig = await loadJsonFile<Object>(tsconfigLoc)
-    await writeJsonFile(tsconfigLoc, {
-      ...tsConfig,
-      compilerOptions: {
-        ...tsConfig['compilerOptions'],
-        rootDir: 'src',
+  await updater(repoRoot, {
+    update: {
+      'package.json': (manifest, dir) => {
+        if (!isSubdir(pkgsDir, dir)) return manifest
+        return updateManifest(manifest, dir)
       },
-      references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
-    }, { indent: 2 })
-    await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
-      extends: './tsconfig.json',
-      include: [
-        'src/**/*.ts',
-        'test/**/*.ts',
-        '../../typings/**/*.d.ts',
-      ],
-    }, { indent: 2 })
-  }
+      'tsconfig.json': async (tsConfig, dir, manifest) => {
+        if (manifest.name === '@pnpm/tsconfig') return tsConfig
+        const relative = path.relative(repoRoot, dir)
+        const importer = lockfile.importers[relative]
+        if (!importer) return
+        const deps = {
+          ...importer.dependencies,
+          ...importer.devDependencies,
+        }
+        const references = [] as Array<{ path: string }>
+        for (const spec of Object.values(deps)) {
+          if (!spec.startsWith('link:') || spec.length === 5) continue
+          references.push({ path: spec.substr(5) })
+        }
+        await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
+          extends: './tsconfig.json',
+          include: [
+            'src/**/*.ts',
+            'test/**/*.ts',
+            '../../typings/**/*.d.ts',
+          ],
+        }, { indent: 2 })
+        return {
+          ...tsConfig,
+          compilerOptions: {
+            ...tsConfig['compilerOptions'],
+            rootDir: 'src',
+          },
+          references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
+        }
+      },
+    },
+  })
 })()
 
 let registryMockPort = 7769
 
-async function updateManifest (dir: string, manifest: ProjectManifest) {
+async function updateManifest (manifest: ProjectManifest, dir: string) {
   const relative = normalizePath(path.relative(repoRoot, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
