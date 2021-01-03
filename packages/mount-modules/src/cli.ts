@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import getStorePath from '@pnpm/store-path'
 import createFuseHandlers from './createFuseHandlers'
 import Fuse = require('fuse-native')

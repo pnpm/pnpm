@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import PnpmError from '@pnpm/error'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import makeDedicatedLockfile from '.'
