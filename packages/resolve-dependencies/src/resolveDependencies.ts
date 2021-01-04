@@ -432,15 +432,14 @@ function getDepsToResolve (
     const infoFromLockfile = getInfoFromLockfile(wantedLockfile, options.registries, reference, wantedDependency.alias)
     if (
       !proceedAll &&
-      infoFromLockfile?.dependencyLockfile?.peerDependencies
+      (infoFromLockfile?.dependencyLockfile?.peerDependencies != null || !infoFromLockfile)
     ) {
+      if (infoFromLockfile?.dependencyLockfile?.peerDependencies) {
+        Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
+          allPeers.add(peerName)
+        })
+      }
       proceed = true
-      Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
-        allPeers.add(peerName)
-      })
-    }
-    if (!infoFromLockfile && !proceedAll) {
-      // In this case we don't know if the package depends on peer dependencies, so we proceed all.
       proceedAll = true
       for (const extendedWantedDep of extendedWantedDeps) {
         if (!extendedWantedDep.proceed) {
