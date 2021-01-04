@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "5.14.2",
+  "version": "5.14.3",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bin": {
     "pnpm": "bin/pnpm.js",
@@ -38,8 +38,8 @@
     "@pnpm/modules-yaml": "workspace:8.0.5",
     "@pnpm/parse-cli-args": "workspace:3.2.2",
     "@pnpm/plugin-commands-audit": "workspace:2.0.34",
-    "@pnpm/plugin-commands-import": "workspace:1.0.89",
-    "@pnpm/plugin-commands-installation": "workspace:3.5.7",
+    "@pnpm/plugin-commands-import": "workspace:1.0.90",
+    "@pnpm/plugin-commands-installation": "workspace:3.5.8",
     "@pnpm/plugin-commands-listing": "workspace:2.0.42",
     "@pnpm/plugin-commands-outdated": "workspace:3.0.38",
     "@pnpm/plugin-commands-publishing": "workspace:2.3.8",

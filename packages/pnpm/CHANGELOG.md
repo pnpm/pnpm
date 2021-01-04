@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.14.3
+
+### Patch Changes
+
+- Fixed an issue with installing peer dependencies. In some rare cases, when installing a new peer dependency, the other existing dependencies were removed [#3057](https://github.com/pnpm/pnpm/pull/3057)
+
 ## 5.14.2
 
 ### Patch Changes

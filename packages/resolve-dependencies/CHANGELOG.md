@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 18.2.5
+
+### Patch Changes
+
+- db0c7e157: When a new peer dependency is installed, don't remove the existing regular dependencies of the package that depends on the peer.
+- 4d64969a6: Update version-selector-type to v3.
+
 ## 18.2.4
 
 ### Patch Changes
