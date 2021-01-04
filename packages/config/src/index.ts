@@ -32,6 +32,7 @@ export const types = Object.assign({
   color: ['always', 'auto', 'never'],
   dev: [null, true],
   dir: String,
+  'enable-modules-dir': Boolean,
   'fetching-concurrency': Number,
   filter: [String, Array],
   'frozen-lockfile': Boolean,
@@ -146,6 +147,7 @@ export default async (
   const npmConfig = loadNpmConf(cliOptions, rcOptionsTypes, {
     bail: true,
     color: 'auto',
+    'enable-modules-dir': true,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,

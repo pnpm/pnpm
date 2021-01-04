@@ -699,7 +699,7 @@ async function installInContext (
   }
 
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
-  if (!opts.lockfileOnly) {
+  if (!opts.lockfileOnly && opts.enableModulesDir) {
     const result = await linkPackages(
       projectsToResolve,
       dependenciesGraph,
