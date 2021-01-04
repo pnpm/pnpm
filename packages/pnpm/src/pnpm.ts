@@ -16,7 +16,7 @@ const argv = process.argv.slice(2)
   }
   case 'install-completion': {
     const { install: installCompletion } = await import('@pnpm/tabtab')
-    await installCompletion({ name: 'pnpm', completer: 'pnpm' })
+    await installCompletion({ name: 'pnpm', completer: 'pnpm', shell: argv[1] })
     return
   }
   case 'uninstall-completion': {
