@@ -1672,7 +1672,7 @@ importers:
       load-json-file: ^6.2.0
       ncp: ^2.0.0
       render-help: ^1.0.1
-      supi: 'workspace:0.43.24'
+      supi: 'workspace:0.43.25'
       tempy: ^1.0.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1794,7 +1794,7 @@ importers:
       read-yaml-file: ^2.0.0
       render-help: ^1.0.1
       sinon: ^9.2.2
-      supi: 'workspace:0.43.24'
+      supi: 'workspace:0.43.25'
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
       write-json-file: ^4.3.0
@@ -1832,7 +1832,7 @@ importers:
       '@pnpm/filter-workspace-packages': 'workspace:2.3.2'
       '@pnpm/list': 'workspace:5.0.18'
       '@pnpm/logger': ^3.2.3
-      '@pnpm/plugin-commands-installation': 'workspace:3.5.7'
+      '@pnpm/plugin-commands-installation': 'workspace:3.5.8'
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.16'
       '@pnpm/types': 'workspace:6.3.1'
@@ -1893,7 +1893,7 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.3'
       '@pnpm/modules-yaml': 'workspace:8.0.5'
       '@pnpm/outdated': 'workspace:7.2.20'
-      '@pnpm/plugin-commands-installation': 'workspace:3.5.7'
+      '@pnpm/plugin-commands-installation': 'workspace:3.5.8'
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': 'workspace:0.0.16'
       '@pnpm/semver-diff': ^1.0.2
@@ -2362,8 +2362,8 @@ importers:
       '@pnpm/modules-yaml': 'workspace:8.0.5'
       '@pnpm/parse-cli-args': 'workspace:3.2.2'
       '@pnpm/plugin-commands-audit': 'workspace:2.0.34'
-      '@pnpm/plugin-commands-import': 'workspace:1.0.89'
-      '@pnpm/plugin-commands-installation': 'workspace:3.5.7'
+      '@pnpm/plugin-commands-import': 'workspace:1.0.90'
+      '@pnpm/plugin-commands-installation': 'workspace:3.5.8'
       '@pnpm/plugin-commands-listing': 'workspace:2.0.42'
       '@pnpm/plugin-commands-outdated': 'workspace:3.0.38'
       '@pnpm/plugin-commands-publishing': 'workspace:2.3.8'
@@ -2888,7 +2888,7 @@ importers:
       '@pnpm/read-package-json': 'workspace:3.1.8'
       '@pnpm/read-project-manifest': 'workspace:1.1.5'
       '@pnpm/remove-bins': 'workspace:1.0.9'
-      '@pnpm/resolve-dependencies': 'workspace:18.2.4'
+      '@pnpm/resolve-dependencies': 'workspace:18.2.5'
       '@pnpm/resolver-base': 'workspace:7.1.0'
       '@pnpm/store-controller-types': 'workspace:9.2.0'
       '@pnpm/store-path': ^4.0.3
