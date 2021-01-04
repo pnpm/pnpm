@@ -2286,7 +2286,7 @@ importers:
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/run-npm': 'link:../run-npm'
-      '@pnpm/tabtab': 0.0.1
+      '@pnpm/tabtab': 0.1.1
       '@pnpm/types': 'link:../types'
       '@pnpm/write-project-manifest': 'link:../write-project-manifest'
       '@types/byline': 4.2.32
@@ -2375,7 +2375,7 @@ importers:
       '@pnpm/read-package-json': 'workspace:3.1.8'
       '@pnpm/read-project-manifest': 'workspace:1.1.5'
       '@pnpm/run-npm': 'workspace:2.0.3'
-      '@pnpm/tabtab': 0.0.1
+      '@pnpm/tabtab': ^0.1.1
       '@pnpm/types': 'workspace:6.3.1'
       '@pnpm/write-project-manifest': 'workspace:1.1.5'
       '@types/byline': ^4.2.32
@@ -4321,18 +4321,17 @@ packages:
       node: '>=10.12'
     resolution:
       integrity: sha512-f2efYa5hp5m92xtoPC6bcEfhl7+q0SjaLpY+QxqAM6uXBoldEdplE3Tu/c4ncTi9c0GH3AxzgZHyGtOw9lVOnw==
-  /@pnpm/tabtab/0.0.1:
+  /@pnpm/tabtab/0.1.1:
     dependencies:
       debug: 4.3.1
       enquirer: 2.3.6
       minimist: 1.2.5
-      mkdirp: 1.0.4
       untildify: 4.0.0
     dev: true
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-XLx1tSzrLxvmsNdh6AjiYy6lhMq/Sw08ELFDjlPmbdPYJ9E3l6RtSX4bxXoJt7dZHKskNypF5ksx1rt5oqPsDg==
+      integrity: sha512-T2YxUGspEq2nC5g7075n8A0we6weR9m6aEvZu9aCml6yEw1eXvpLa1GGhch/WHQVj1c/LzDM4rOEWl9kAObq4A==
   /@pnpm/types/6.3.1:
     dev: true
     engines:
