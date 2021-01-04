@@ -37,7 +37,7 @@ jobs:
         npm install pnpm@next -g
         pnpm --version
     - name: pnpm install
-      run: pnpm recursive install
+      run: pnpm install
     - name: run tests (main)
       if: github.ref == 'refs/heads/main'
       run: pnpm run test-main
