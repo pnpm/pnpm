@@ -2,11 +2,10 @@ import { audit } from '@pnpm/plugin-commands-audit'
 import path = require('path')
 import stripAnsi = require('strip-ansi')
 
-test('audit', async () => {
-  if (process.version.split('.')[0] === 'v10') {
-    // The audits give different results on Node 10, for some reason
-    return
-  }
+const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
+
+// The audits give different results on Node 10, for some reason
+skipOnNode10('audit', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
