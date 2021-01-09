@@ -9,7 +9,7 @@ export function cliOptionsTypes () {
   return R.omit(['long'], list.cliOptionsTypes())
 }
 
-export const help = list.help()
+export const help = list.help
 
 export function handler (
   opts: list.ListCommandOptions,
