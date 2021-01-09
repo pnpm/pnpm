@@ -37,7 +37,7 @@
     "@pnpm/logger": "^3.2.3",
     "@types/ramda": "^0.27.34",
     "tempy": "^1.0.0",
-    "write-yaml-file": "^4.1.1",
+    "write-yaml-file": "^4.1.3",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {

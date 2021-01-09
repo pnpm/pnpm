@@ -75,7 +75,7 @@ async function _read (
   let lockfile: Lockfile
   let hadConflicts!: boolean
   try {
-    lockfile = yaml.safeLoad(lockfileRawContent) as Lockfile
+    lockfile = yaml.load(lockfileRawContent) as Lockfile
     hadConflicts = false
   } catch (err) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {

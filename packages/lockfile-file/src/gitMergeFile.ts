@@ -10,8 +10,8 @@ const MERGE_CONFLICT_OURS = '<<<<<<<'
 export function autofixMergeConflicts (fileContent: string) {
   const { ours, theirs } = parseMergeFile(fileContent)
   return mergeLockfileChanges(
-    yaml.safeLoad(ours) as Lockfile,
-    yaml.safeLoad(theirs) as Lockfile
+    yaml.load(ours) as Lockfile,
+    yaml.load(theirs) as Lockfile
   )
 }
 

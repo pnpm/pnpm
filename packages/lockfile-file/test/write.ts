@@ -1,5 +1,4 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
 import {
   readCurrentLockfile,
   readWantedLockfile,
@@ -140,7 +139,7 @@ test('write does not use yaml anchors/aliases', async () => {
   expect(lockfileContent).not.toMatch('*')
 })
 
-test('writeLockfiles() fails with meaningful error, when an invalid lockfile object is passed in', async () => {
+test('writeLockfiles() does not fail if the lockfile has undefined properties', async () => {
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {
@@ -176,10 +175,10 @@ test('writeLockfiles() fails with meaningful error, when an invalid lockfile obj
       },
     },
   }
-  await expect(() => writeLockfiles({
+  await writeLockfiles({
     currentLockfile: wantedLockfile,
     currentLockfileDir: projectPath,
     wantedLockfile,
     wantedLockfileDir: projectPath,
-  })).rejects.toThrow(new PnpmError('LOCKFILE_STRINGIFY', 'Failed to stringify the lockfile object. Undefined value at: packages./is-negative/1.0.0.dependencies'))
+  })
 })

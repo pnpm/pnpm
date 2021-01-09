@@ -1,4 +1,3 @@
-import PnpmError from '@pnpm/error'
 import logger from './logger'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
@@ -64,37 +63,7 @@ function writeLockfile (
 
 function yamlStringify (lockfile: Lockfile, forceSharedFormat: boolean) {
   const normalizedLockfile = normalizeLockfile(lockfile, forceSharedFormat)
-  try {
-    return yaml.safeDump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
-  } catch (err) {
-    if (err.message.includes('[object Undefined]')) {
-      const brokenValuePath = findBrokenRecord(normalizedLockfile)
-      if (brokenValuePath) {
-        throw new PnpmError('LOCKFILE_STRINGIFY', `Failed to stringify the lockfile object. Undefined value at: ${brokenValuePath}`)
-      }
-    }
-    throw err
-  }
-}
-
-function findBrokenRecord (obj: Object): string | null {
-  for (let [key, value] of Object.entries(obj)) {
-    if (key === '.') key = '[.]'
-    switch (typeof value) {
-    case 'undefined': {
-      return key
-    }
-    case 'object': {
-      const brokenKey = findBrokenRecord(value)
-      if (!brokenKey) break
-      if (brokenKey.startsWith('[')) {
-        return `${key}${brokenKey}`
-      }
-      return `${key}.${brokenKey}`
-    }
-    }
-  }
-  return null
+  return yaml.dump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
 function isEmptyLockfile (lockfile: Lockfile) {

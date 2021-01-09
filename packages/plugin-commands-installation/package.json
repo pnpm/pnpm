@@ -52,7 +52,7 @@
     "tempy": "^1.0.0",
     "write-json-file": "^4.3.0",
     "write-pkg": "4.0.0",
-    "write-yaml-file": "^4.1.1"
+    "write-yaml-file": "^4.1.3"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.4.44",
