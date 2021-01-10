@@ -271,16 +271,12 @@ export default async (opts: HeadlessOptions) => {
 
     let newHoistedDependencies!: HoistedDependencies
     if (opts.hoistPattern != null || opts.publicHoistPattern != null) {
+      // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
+      // pnpm is comparing the current lockfile to the wanted one and they should much.
+      // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
       const hoistLockfile = {
         ...filteredLockfile,
-        packages: {
-          ...filteredLockfile.packages,
-        },
-      }
-      if (hoistLockfile.packages) {
-        for (const skippedDepPath of Array.from(skipped)) {
-          delete hoistLockfile.packages[skippedDepPath]
-        }
+        packages: R.omit(Array.from(skipped), filteredLockfile.packages),
       }
       newHoistedDependencies = await hoist({
         lockfile: hoistLockfile,
