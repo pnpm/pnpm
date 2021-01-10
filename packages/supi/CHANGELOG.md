@@ -1,5 +1,19 @@
 # supi
 
+## 0.43.26
+
+### Patch Changes
+
+- f40bc5927: New option added: enableModulesDir. When `false`, pnpm will not write any files to the modules directory. This is useful for when you want to mount the modules directory with FUSE.
+- 672c27cfe: Don't create broken symlinks to skipped optional dependencies, when hoisting. This issue was already fixed in pnpm v5.13.7 for the case when the lockfile is up-to-date. This fixes the same issue for cases when the lockfile need updates. For instance, when adding a new package.
+- Updated dependencies [1e4a3a17a]
+- Updated dependencies [f40bc5927]
+- Updated dependencies [d5ef7958a]
+  - @pnpm/lockfile-file@3.1.3
+  - @pnpm/headless@14.6.0
+  - @pnpm/get-context@3.3.3
+  - @pnpm/lockfile-to-pnp@0.3.15
+
 ## 0.43.25
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 3.1.3
+
+### Patch Changes
+
+- 1e4a3a17a: Update js-yaml to version 4.
+
 ## 3.1.2
 
 ### Patch Changes

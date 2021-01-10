@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-listing
 
+## 2.0.43
+
+### Patch Changes
+
+- af1769017: Fix the help of the ll command.
+- Updated dependencies [f40bc5927]
+  - @pnpm/config@11.11.0
+  - @pnpm/cli-utils@0.4.45
+  - @pnpm/list@5.0.19
+
 ## 2.0.42
 
 ### Patch Changes

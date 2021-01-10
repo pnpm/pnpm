@@ -1,5 +1,20 @@
 # pnpm
 
+## 5.15.0
+
+### Minor Changes
+
+- Allow to specify the shell target when configuring autocompletion with `pnpm install-completion`. For instance: `pnpm install-completion zsh`.
+- New option added: `enable-modules-dir`. When `false`, pnpm will not write any files to the modules directory (node_modules). This is useful for when the modules directory is mounted with filesystem in userspace (FUSE). There is an experimental CLI that allows to mount a modules directory with FUSE: [@pnpm/mount-modules](https://www.npmjs.com/package/@pnpm/mount-modules).
+
+### Patch Changes
+
+- Fixed a performance regression that was caused by [#3032](https://github.com/pnpm/pnpm/pull/3032) and shipped in pnpm v5.13.7
+
+  The performance of repeat `pnpm install` execution was in some cases significantly slower.
+
+- Don't create broken symlinks to skipped optional dependencies, when hoisting. This issue was already fixed in pnpm v5.13.7 for the case when the lockfile is up-to-date. This fixes the same issue for cases when the lockfile needs updates. For instance, when adding a new package.
+
 ## 5.14.3
 
 ### Patch Changes

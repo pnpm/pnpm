@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.11.0
+
+### Minor Changes
+
+- f40bc5927: New option added: enableModulesDir. When `false`, pnpm will not write any files to the modules directory. This is useful for when you want to mount the modules directory with FUSE.
+
 ## 11.10.2
 
 ### Patch Changes

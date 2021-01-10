@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 3.5.9
+
+### Patch Changes
+
+- Updated dependencies [f40bc5927]
+- Updated dependencies [672c27cfe]
+  - @pnpm/config@11.11.0
+  - supi@0.43.26
+  - @pnpm/outdated@7.2.21
+  - @pnpm/cli-utils@0.4.45
+  - @pnpm/plugin-commands-rebuild@2.2.16
+  - @pnpm/store-connection-manager@0.3.57
+  - @pnpm/find-workspace-packages@2.3.31
+  - @pnpm/filter-workspace-packages@2.3.3
+
 ## 3.5.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 5.0.19
+
+### Patch Changes
+
+- dependencies-hierarchy@9.0.15
+
 ## 5.0.18
 
 ### Patch Changes

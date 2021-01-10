@@ -1,5 +1,18 @@
 # @pnpm/headless
 
+## 14.6.0
+
+### Minor Changes
+
+- f40bc5927: New option added: enableModulesDir. When `false`, pnpm will not write any files to the modules directory. This is useful for when you want to mount the modules directory with FUSE.
+
+### Patch Changes
+
+- d5ef7958a: Fixed a performance regression that was caused by [#3032](https://github.com/pnpm/pnpm/pull/3032).
+- Updated dependencies [1e4a3a17a]
+  - @pnpm/lockfile-file@3.1.3
+  - @pnpm/lockfile-to-pnp@0.3.15
+
 ## 14.5.15
 
 ### Patch Changes
