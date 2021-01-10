@@ -729,7 +729,7 @@ importers:
       '@pnpm/logger': 3.2.3
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-projects-context': 'link:../read-projects-context'
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/fs-extra': 9.0.6
       '@types/mz': 2.7.3
@@ -770,7 +770,7 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:1.1.5'
       '@pnpm/read-projects-context': 'workspace:4.0.12'
       '@pnpm/store-controller-types': 'workspace:9.2.0'
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@pnpm/symlink-dependency': 'workspace:3.0.12'
       '@pnpm/test-fixtures': 'workspace:*'
       '@pnpm/types': 'workspace:6.3.1'
@@ -1230,7 +1230,7 @@ importers:
       '@pnpm/cafs': 'link:../cafs'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
       hyperdrive-schemas: 2.0.0
@@ -1250,7 +1250,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.21'
       '@pnpm/logger': ^3.2.3
       '@pnpm/mount-modules': 'link:'
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@pnpm/types': 'workspace:6.3.1'
       '@types/mz': ^2.7.3
       dependency-path: 'workspace:5.1.0'
@@ -1367,7 +1367,7 @@ importers:
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
       ramda: 0.27.1
@@ -1390,7 +1390,7 @@ importers:
       '@pnpm/modules-yaml': 'workspace:8.0.5'
       '@pnpm/outdated': 'link:'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.5'
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@pnpm/types': 'workspace:6.3.1'
       '@types/ramda': ^0.27.34
       '@types/semver': ^7.3.4
@@ -1858,7 +1858,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/semver-diff': 1.0.2
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@zkochan/table': 1.0.0
       chalk: 4.1.0
       lru-cache: 6.0.0
@@ -1897,7 +1897,7 @@ importers:
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': 'workspace:0.0.16'
       '@pnpm/semver-diff': ^1.0.2
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@pnpm/types': 'workspace:6.3.1'
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.3
@@ -1924,7 +1924,7 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/sort-packages': 'link:../sort-packages'
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       cp-file: 9.0.0
@@ -1964,7 +1964,7 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.1.0'
       '@pnpm/run-npm': 'workspace:2.0.3'
       '@pnpm/sort-packages': 'workspace:1.0.15'
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@pnpm/types': 'workspace:6.3.1'
       '@types/cross-spawn': ^6.0.2
       '@types/mz': ^2.7.3
@@ -2133,7 +2133,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/server': 'link:../server'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@zkochan/diable': 1.0.2
       delay: 4.4.0
       get-port: 5.1.1
@@ -2161,7 +2161,7 @@ importers:
       '@pnpm/plugin-commands-server': 'link:'
       '@pnpm/server': 'workspace:9.0.6'
       '@pnpm/store-connection-manager': 'workspace:0.3.56'
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.3
       '@types/ramda': ^0.27.34
@@ -2189,7 +2189,7 @@ importers:
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@pnpm/types': 'link:../types'
       archy: 1.0.0
       dependency-path: 'link:../dependency-path'
@@ -2231,7 +2231,7 @@ importers:
       '@pnpm/prepare': 'workspace:0.0.16'
       '@pnpm/store-connection-manager': 'workspace:0.3.56'
       '@pnpm/store-controller-types': 'workspace:9.2.0'
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@pnpm/types': 'workspace:6.3.1'
       '@types/archy': 0.0.31
       '@types/ramda': ^0.27.34
@@ -2730,7 +2730,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:../server'
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@zkochan/diable': 1.0.2
       delay: 4.4.0
       dir-is-case-sensitive: 1.0.2
@@ -2748,7 +2748,7 @@ importers:
       '@pnpm/package-store': 'workspace:10.1.15'
       '@pnpm/server': 'workspace:9.0.6'
       '@pnpm/store-connection-manager': 'link:'
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@types/mz': ^2.7.3
       '@zkochan/diable': ^1.0.2
       delay: ^4.4.0
@@ -2823,7 +2823,7 @@ importers:
       '@pnpm/logger': 3.2.3
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/store-path': 4.0.3
+      '@pnpm/store-path': 4.0.4
       '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/fs-extra': 9.0.6
       '@types/graceful-fs': 4.1.4
@@ -2891,7 +2891,7 @@ importers:
       '@pnpm/resolve-dependencies': 'workspace:18.2.5'
       '@pnpm/resolver-base': 'workspace:7.1.0'
       '@pnpm/store-controller-types': 'workspace:9.2.0'
-      '@pnpm/store-path': ^4.0.3
+      '@pnpm/store-path': ^4.0.4
       '@pnpm/symlink-dependency': 'workspace:3.0.12'
       '@pnpm/test-fixtures': 'workspace:*'
       '@pnpm/types': 'workspace:6.3.1'
@@ -4309,19 +4309,19 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-JyAtKNsJCE0k6ZpkAF6wFQ7Ib5jflJcTXGpwOp9cipFI2v+2XNn2JUglxsg/JFPZvEdjkoW8VwxeDNMY7Pg8JQ==
-  /@pnpm/store-path/4.0.3:
+  /@pnpm/store-path/4.0.4:
     dependencies:
       '@zkochan/rimraf': 1.0.0
       can-link: 1.0.2
       mz: 2.7.0
       path-absolute: 1.0.1
       path-temp: 2.0.0
-      root-link-target: 2.0.0
+      root-link-target: 3.0.0
       touch: 3.1.0
     engines:
       node: '>=10.12'
     resolution:
-      integrity: sha512-f2efYa5hp5m92xtoPC6bcEfhl7+q0SjaLpY+QxqAM6uXBoldEdplE3Tu/c4ncTi9c0GH3AxzgZHyGtOw9lVOnw==
+      integrity: sha512-9WmjZfJS+UTrAotwYqS8sD3WfDdADtOfm1W8J2w0IY7GUrHnth2DsrrUx76OZv3mScBEE9ni2tLuDp+c4/YzTw==
   /@pnpm/tabtab/0.1.1:
     dependencies:
       debug: 4.3.1
@@ -12806,16 +12806,16 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==
-  /root-link-target/2.0.0:
+  /root-link-target/3.0.0:
     dependencies:
       can-link: 1.0.2
       graceful-fs: 4.2.4
       next-path: 1.0.0
       path-temp: 2.0.0
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-4+sIB6u7zOK1bgYaLVdCNQ0/+LGiRRjogygO3xbXpT232ow2xlnP5CYhPxT3W8AQxD5KG+u/mIF8bDRgcch0xA==
+      integrity: sha512-JQoydA1hPR0oIwPFn+459HmsAZJ4mzALh6Plo8oSz0W1byqCbs/0dWj1zUJVUniWLeN0bc9wzWSoVOd1FePrTg==
   /rsvp/4.8.5:
     dev: true
     engines:

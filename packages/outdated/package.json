@@ -44,7 +44,7 @@
     "@pnpm/matcher": "workspace:1.0.3",
     "@pnpm/modules-yaml": "workspace:8.0.5",
     "@pnpm/pick-registry-for-package": "workspace:1.0.5",
-    "@pnpm/store-path": "^4.0.3",
+    "@pnpm/store-path": "^4.0.4",
     "@pnpm/types": "workspace:6.3.1",
     "dependency-path": "workspace:5.1.0",
     "ramda": "^0.27.1",
