@@ -502,7 +502,6 @@ test('should recreate node_modules with hoisting', async () => {
 
 test('hoisting should not create a broken symlink to a skipped optional dependency', async () => {
   const project = prepareEmpty()
-  console.log(process.cwd())
 
   await install({
     optionalDependencies: {
@@ -522,4 +521,9 @@ test('hoisting should not create a broken symlink to a skipped optional dependen
   }, await testDefaults({ publicHoistPattern: '*' }))
 
   await project.hasNot('dep-of-optional-pkg')
+
+  const rootModules = assertProject(process.cwd())
+  const currentLockfile = await rootModules.readCurrentLockfile()
+  const wantedLockfile = await rootModules.readLockfile()
+  expect(currentLockfile).toStrictEqual(wantedLockfile)
 })
