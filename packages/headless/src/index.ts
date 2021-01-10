@@ -223,11 +223,6 @@ export default async (opts: HeadlessOptions) => {
       pnpmVersion: opts.currentEngine.pnpmVersion,
     } as LockfileToDepGraphOptions
   )
-  if (filteredLockfile.packages) {
-    for (const skippedDepPath of Array.from(skipped)) {
-      delete filteredLockfile.packages[skippedDepPath]
-    }
-  }
   if (opts.enablePnp) {
     const importerNames = R.fromPairs(
       opts.projects.map(({ manifest, id }) => [id, manifest.name ?? id])
@@ -276,8 +271,15 @@ export default async (opts: HeadlessOptions) => {
 
     let newHoistedDependencies!: HoistedDependencies
     if (opts.hoistPattern != null || opts.publicHoistPattern != null) {
+      // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
+      // pnpm is comparing the current lockfile to the wanted one and they should much.
+      // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
+      const hoistLockfile = {
+        ...filteredLockfile,
+        packages: R.omit(Array.from(skipped), filteredLockfile.packages),
+      }
       newHoistedDependencies = await hoist({
-        lockfile: filteredLockfile,
+        lockfile: hoistLockfile,
         lockfileDir,
         privateHoistedModulesDir: hoistedModulesDir,
         privateHoistPattern: opts.hoistPattern ?? [],
