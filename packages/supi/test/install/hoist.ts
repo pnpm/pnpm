@@ -502,28 +502,27 @@ test('should recreate node_modules with hoisting', async () => {
 
 test('hoisting should not create a broken symlink to a skipped optional dependency', async () => {
   const project = prepareEmpty()
+  const rootModules = assertProject(process.cwd())
 
-  await install({
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
     optionalDependencies: {
       'not-compatible-with-any-os': '*',
     },
-  }, await testDefaults({ publicHoistPattern: '*' }))
+  }
+
+  await install(manifest, await testDefaults({ publicHoistPattern: '*' }))
 
   await project.hasNot('dep-of-optional-pkg')
+  expect(await rootModules.readCurrentLockfile()).toStrictEqual(await rootModules.readLockfile())
 
   // Verifying the same with headless installation
   await rimraf('node_modules')
 
-  await install({
-    optionalDependencies: {
-      'not-compatible-with-any-os': '*',
-    },
-  }, await testDefaults({ publicHoistPattern: '*' }))
+  await install(manifest, await testDefaults({ publicHoistPattern: '*' }))
 
   await project.hasNot('dep-of-optional-pkg')
-
-  const rootModules = assertProject(process.cwd())
-  const currentLockfile = await rootModules.readCurrentLockfile()
-  const wantedLockfile = await rootModules.readLockfile()
-  expect(currentLockfile).toStrictEqual(wantedLockfile)
+  expect(await rootModules.readCurrentLockfile()).toStrictEqual(await rootModules.readLockfile())
 })
