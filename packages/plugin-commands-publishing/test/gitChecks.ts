@@ -48,7 +48,7 @@ test('publish: fails git check if branch is not on master', async () => {
       dir: process.cwd(),
     }, [])
   ).rejects.toThrow(
-    new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'main'.")
+    new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'master/main'.")
   )
 })
 
