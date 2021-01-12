@@ -351,8 +351,6 @@ async function resolveChildren (
     ).length
   )
   const wantedDependencies = getNonDevWantedDependencies(parentPkg.pkg)
-  workspacePackages = workspacePackages && ctx.linkWorkspacePackagesDepth > parentDepth
-    ? workspacePackages : undefined
   const children = await resolveDependencies(ctx, preferredVersions, wantedDependencies,
     {
       currentDepth: parentDepth + 1,
