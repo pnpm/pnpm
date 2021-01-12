@@ -81,7 +81,7 @@ function canWriteToDirAndExists (dir: string) {
   try {
     return canWriteToDir(dir)
   } catch (err) {
-    if (err.code !== 'ENOENT') throw err
+    if (err.code !== 'ENOENT' && err.code !== 'EROFS') throw err
     return false
   }
 }
