@@ -114,7 +114,7 @@ Do you want to continue?`,
       } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
       if (!confirm) {
-        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('/')}'.`, {
+        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('|')}'.`, {
           hint: GIT_CHECKS_HINT,
         })
       }
