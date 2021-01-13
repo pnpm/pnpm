@@ -975,6 +975,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
 })
 
 test('do not resolve a subdependency from the workspace by default', async () => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   preparePackages([
     {
       location: 'project',

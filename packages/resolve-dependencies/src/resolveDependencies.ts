@@ -117,7 +117,6 @@ export interface ChildrenByParentDepPath {
 }
 
 export interface ResolutionContext {
-  alwaysTryWorkspacePackages?: boolean
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
@@ -587,7 +586,7 @@ async function resolveDependency (
   let pkgResponse!: PackageResponse
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
-      alwaysTryWorkspacePackages: ctx.alwaysTryWorkspacePackages,
+      alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPackageId: currentPkg.pkgId,
       currentResolution: currentPkg.resolution,
       defaultTag: ctx.defaultTag,

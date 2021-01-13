@@ -75,7 +75,6 @@ export default async function<T> (
 
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
-    alwaysTryWorkspacePackages: (opts.linkWorkspacePackagesDepth ?? -1) >= 0,
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
