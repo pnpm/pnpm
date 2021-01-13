@@ -18,6 +18,7 @@ const OPTIONAL_DEPENDENCIES = chalk.cyanBright('optionalDependencies:')
 const UNSAVED_DEPENDENCIES = chalk.cyanBright('not saved (you should add these dependencies to package.json if you need them):')
 
 const highlighted = chalk.bold
+const boldHighlighted = highlighted.underline
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const fixture = path.join(fixtures, 'fixture')
@@ -33,7 +34,7 @@ test('list all deps of a package that has an external lockfile', async () => {
     lockfileDir: path.join(fixtureWithExternalLockfile, '..'),
   })).toBe(`${LEGEND}
 
-pkg@1.0.0 ${fixtureWithExternalLockfile}
+${boldHighlighted(`pkg@1.0.0 ${fixtureWithExternalLockfile}`)}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}`)
@@ -47,12 +48,12 @@ test('print legend only once', async () => {
     lockfileDir: workspaceWith2Pkgs,
   })).toBe(`${LEGEND}
 
-bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}
+${boldHighlighted(`bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}`)}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}
 
-foo@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/foo')}
+${boldHighlighted(`foo@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/foo')}`)}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}`)
@@ -61,7 +62,7 @@ is-positive ${VERSION_CLR('1.0.0')}`)
 test('list with default parameters', async () => {
   expect(await list([fixture], { lockfileDir: fixture })).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}
@@ -76,7 +77,7 @@ ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
 test('list with default parameters in pkg that has no name and version', async () => {
   expect(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDir: fixtureWithNoPkgNameAndNoVersion })).toBe(`${LEGEND}
 
-${fixtureWithNoPkgNameAndNoVersion}
+${boldHighlighted(fixtureWithNoPkgNameAndNoVersion)}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}
@@ -91,7 +92,7 @@ ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
 test('list with default parameters in pkg that has no version', async () => {
   expect(await list([fixtureWithNoPkgVersion], { lockfileDir: fixtureWithNoPkgVersion })).toBe(`${LEGEND}
 
-fixture ${fixtureWithNoPkgVersion}
+${boldHighlighted(`fixture ${fixtureWithNoPkgVersion}`)}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}
@@ -111,7 +112,7 @@ test('list dev only', async () => {
     })
   ).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEV_DEPENDENCIES}
 ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}`
@@ -126,7 +127,7 @@ test('list prod only', async () => {
     })
   ).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}`
@@ -142,7 +143,7 @@ test('list prod only with depth 2', async () => {
     })
   ).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}
@@ -163,7 +164,7 @@ write-json-file ${VERSION_CLR('2.3.0')}
 test('list with depth 1', async () => {
   expect(await list([fixture], { depth: 1, lockfileDir: fixture })).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}
@@ -182,7 +183,7 @@ ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
 })
 
 test('list with depth -1', async () => {
-  expect(await list([fixture], { depth: -1, lockfileDir: fixture })).toBe(`fixture@1.0.0 ${fixture}`)
+  expect(await list([fixture], { depth: -1, lockfileDir: fixture })).toBe(`${boldHighlighted(`fixture@1.0.0 ${fixture}`)}`)
 })
 
 test('list with depth 1 and selected packages', async () => {
@@ -190,7 +191,7 @@ test('list with depth 1 and selected packages', async () => {
     await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], [fixture], { depth: 1, lockfileDir: fixture })
   ).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}
@@ -205,7 +206,7 @@ ${highlighted(OPTIONAL_DEP_CLR('is-negative') + ' ' + VERSION_CLR('2.1.0'))}`
 test('list in long format', async () => {
   expect(await list([fixture], { long: true, lockfileDir: fixture })).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 write-json-file ${VERSION_CLR('2.3.0')}
@@ -413,7 +414,7 @@ ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-json-fil
 })
 
 test('print empty', async () => {
-  expect(await list([emptyFixture], { lockfileDir: emptyFixture })).toBe(`${LEGEND}\n\nempty@1.0.0 ${emptyFixture}`)
+  expect(await list([emptyFixture], { lockfileDir: emptyFixture })).toBe(`${LEGEND}\n\n${boldHighlighted(`empty@1.0.0 ${emptyFixture}`)}`)
 })
 
 test("don't print empty", async () => {
@@ -449,7 +450,7 @@ test('unsaved dependencies are marked', async () => {
     }
   )).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${UNSAVED_DEPENDENCIES}
 ${NOT_SAVED_DEP_CLR('foo')} ${VERSION_CLR('1.0.0')}`)
@@ -574,7 +575,7 @@ test('write long lists in columns', async () => {
     }
   )).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}` + '\n' +
     cliColumns([
@@ -642,7 +643,7 @@ test('sort list items', async () => {
     }
   )).toBe(`${LEGEND}
 
-fixture@1.0.0 ${fixture}
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 foo ${VERSION_CLR('1.0.0')}
@@ -655,7 +656,7 @@ test('peer dependencies are marked', async () => {
   const output = await list([fixture], { depth: 1, lockfileDir: fixture })
   expect(output).toBe(`${LEGEND}
 
-with-peer@1.0.0 ${fixture}
+${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 ajv ${VERSION_CLR('6.10.2')}
@@ -672,7 +673,7 @@ test('peer dependencies are marked when searching', async () => {
   const output = await listForPackages(['ajv'], [fixture], { depth: 1, lockfileDir: fixture })
   expect(output).toBe(`${LEGEND}
 
-with-peer@1.0.0 ${fixture}
+${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 ${highlighted(`ajv ${VERSION_CLR('6.10.2')}`)}

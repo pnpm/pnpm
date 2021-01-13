@@ -60,7 +60,7 @@ async function renderTreeForPackage (
     label += ' '
   }
   label += pkg.path
-  let output = `${label}\n`
+  let output = `${chalk.bold.underline(label)}\n`
   const useColumns = opts.depth === 0 && !opts.long && !opts.search
   for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
     if (pkg[dependenciesField]?.length) {
