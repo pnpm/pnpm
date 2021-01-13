@@ -24,7 +24,7 @@ const CREDENTIALS = [
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ]
 
-test('publish: fails git check if branch is not on master', async () => {
+test('publish: fails git check if branch is not on master or main', async () => {
   prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',

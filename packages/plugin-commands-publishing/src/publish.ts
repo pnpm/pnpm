@@ -6,7 +6,7 @@ import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import runNpm from '@pnpm/run-npm'
 import { ProjectManifest } from '@pnpm/types'
 import { prompt } from 'enquirer'
-import { getCurrentBranch, getDefaultBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
+import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
@@ -102,8 +102,7 @@ export async function handler (
         hint: GIT_CHECKS_HINT,
       })
     }
-    const configuredBranch = opts.publishBranch ?? await getDefaultBranch()
-    const branches = configuredBranch ? [configuredBranch] : ['master', 'main']
+    const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
     const currentBranch = await getCurrentBranch()
     if (!branches.includes(currentBranch)) {
       const { confirm } = await prompt({

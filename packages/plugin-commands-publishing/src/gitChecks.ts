@@ -16,11 +16,6 @@ export async function getCurrentBranch () {
   return stdout
 }
 
-export async function getDefaultBranch () {
-  const { stdout } = await execa('git', ['config', 'init.defaultBranch'])
-  return stdout
-}
-
 export async function isWorkingTreeClean () {
   try {
     const { stdout: status } = await execa('git', ['status', '--porcelain'])

@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-publishing": minor
+"@pnpm/plugin-commands-publishing": patch
 ---
 
-add default publish branch main or default branch in git config
+add 'main' to default publish branch
