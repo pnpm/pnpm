@@ -975,6 +975,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
 })
 
 test('do not resolve a subdependency from the workspace by default', async () => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   preparePackages([
     {
       location: 'project',
@@ -1161,4 +1162,77 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   )
   expect(wantedLockfile.packages['/abc-parent-with-ab/1.0.0'].dependencies?.['peer-a']).toBe('link:peer-a')
   expect(wantedLockfile.packages['/abc/1.0.0_peer-a@1.0.1+peer-b@1.0.0'].dependencies?.['peer-a']).toBe('link:peer-a')
+})
+
+test('resolve a subdependency from the workspace, when it uses the workspace protocol', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        pnpm: {
+          overrides: {
+            'dep-of-pkg-with-1-dep': 'workspace:*',
+          },
+        },
+      },
+    },
+    {
+      location: 'project',
+      package: { name: 'project' },
+    },
+    {
+      location: 'dep-of-pkg-with-1-dep',
+      package: { name: 'dep-of-pkg-with-1-dep' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project',
+        version: '1.0.0',
+
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'dep-of-pkg-with-1-dep',
+        version: '100.1.0',
+      },
+      mutation: 'install',
+      rootDir: path.resolve('dep-of-pkg-with-1-dep'),
+    },
+  ]
+  const workspacePackages = {
+    'dep-of-pkg-with-1-dep': {
+      '100.1.0': {
+        dir: path.resolve('dep-of-pkg-with-1-dep'),
+        manifest: {
+          name: 'dep-of-pkg-with-1-dep',
+          version: '100.1.0',
+        },
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: -1, workspacePackages }))
+
+  const project = assertProject(process.cwd())
+
+  const wantedLockfile = await project.readLockfile()
+  expect(wantedLockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('link:dep-of-pkg-with-1-dep')
+
+  await rimraf('node_modules')
+
+  // Testing that headless installation does not fail with links in subdeps
+  await mutateModules(importers, await testDefaults({
+    frozenLockfile: true,
+    workspacePackages,
+  }))
 })
