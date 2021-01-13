@@ -24,7 +24,7 @@ const CREDENTIALS = [
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ]
 
-test('publish: fails git check if branch is not on master', async () => {
+test('publish: fails git check if branch is not on master or main', async () => {
   prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
@@ -48,7 +48,7 @@ test('publish: fails git check if branch is not on master', async () => {
       dir: process.cwd(),
     }, [])
   ).rejects.toThrow(
-    new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'master'.")
+    new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'master|main'.")
   )
 })
 

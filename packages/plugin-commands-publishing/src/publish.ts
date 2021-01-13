@@ -102,18 +102,18 @@ export async function handler (
         hint: GIT_CHECKS_HINT,
       })
     }
-    const branch = opts.publishBranch ?? 'master'
+    const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
     const currentBranch = await getCurrentBranch()
-    if (currentBranch !== branch) {
+    if (!branches.includes(currentBranch)) {
       const { confirm } = await prompt({
-        message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branch}". \
+        message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
 Do you want to continue?`,
         name: 'confirm',
         type: 'confirm',
       } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
       if (!confirm) {
-        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branch}'.`, {
+        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('|')}'.`, {
           hint: GIT_CHECKS_HINT,
         })
       }
