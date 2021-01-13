@@ -18,7 +18,7 @@ const OPTIONAL_DEPENDENCIES = chalk.cyanBright('optionalDependencies:')
 const UNSAVED_DEPENDENCIES = chalk.cyanBright('not saved (you should add these dependencies to package.json if you need them):')
 
 const highlighted = chalk.bold
-const boldHighlighted = chalk.bold.underline
+const boldHighlighted = highlighted.underline
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const fixture = path.join(fixtures, 'fixture')
