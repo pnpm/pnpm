@@ -105,7 +105,7 @@ export async function handler (
     const configuredBranch = opts.publishBranch ?? await getDefaultBranch()
     const branches = configuredBranch ? [configuredBranch] : ['master', 'main']
     const currentBranch = await getCurrentBranch()
-    if (branches.includes(currentBranch)) {
+    if (!branches.includes(currentBranch)) {
       const { confirm } = await prompt({
         message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
 Do you want to continue?`,
