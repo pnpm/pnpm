@@ -1672,7 +1672,7 @@ importers:
       load-json-file: ^6.2.0
       ncp: ^2.0.0
       render-help: ^1.0.1
-      supi: workspace:0.43.26
+      supi: workspace:0.43.27
       tempy: ^1.0.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1794,7 +1794,7 @@ importers:
       read-yaml-file: ^2.0.0
       render-help: ^1.0.1
       sinon: ^9.2.2
-      supi: workspace:0.43.26
+      supi: workspace:0.43.27
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
       write-json-file: ^4.3.0
@@ -1830,9 +1830,9 @@ importers:
       '@pnpm/constants': workspace:4.1.0
       '@pnpm/error': workspace:1.4.0
       '@pnpm/filter-workspace-packages': workspace:2.3.3
-      '@pnpm/list': workspace:5.0.19
+      '@pnpm/list': workspace:5.0.20
       '@pnpm/logger': ^3.2.3
-      '@pnpm/plugin-commands-installation': workspace:3.5.9
+      '@pnpm/plugin-commands-installation': workspace:3.5.10
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': workspace:0.0.16
       '@pnpm/types': workspace:6.3.1
@@ -1893,7 +1893,7 @@ importers:
       '@pnpm/matcher': workspace:1.0.3
       '@pnpm/modules-yaml': workspace:8.0.5
       '@pnpm/outdated': workspace:7.2.21
-      '@pnpm/plugin-commands-installation': workspace:3.5.9
+      '@pnpm/plugin-commands-installation': workspace:3.5.10
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': workspace:0.0.16
       '@pnpm/semver-diff': ^1.0.2
@@ -2362,11 +2362,11 @@ importers:
       '@pnpm/modules-yaml': workspace:8.0.5
       '@pnpm/parse-cli-args': workspace:3.2.2
       '@pnpm/plugin-commands-audit': workspace:2.0.35
-      '@pnpm/plugin-commands-import': workspace:1.0.91
-      '@pnpm/plugin-commands-installation': workspace:3.5.9
-      '@pnpm/plugin-commands-listing': workspace:2.0.43
+      '@pnpm/plugin-commands-import': workspace:1.0.92
+      '@pnpm/plugin-commands-installation': workspace:3.5.10
+      '@pnpm/plugin-commands-listing': workspace:2.0.44
       '@pnpm/plugin-commands-outdated': workspace:3.0.39
-      '@pnpm/plugin-commands-publishing': workspace:2.3.9
+      '@pnpm/plugin-commands-publishing': workspace:2.3.10
       '@pnpm/plugin-commands-rebuild': workspace:2.2.16
       '@pnpm/plugin-commands-script-runners': workspace:2.5.11
       '@pnpm/plugin-commands-server': workspace:2.0.58
@@ -2888,7 +2888,7 @@ importers:
       '@pnpm/read-package-json': workspace:3.1.8
       '@pnpm/read-project-manifest': workspace:1.1.5
       '@pnpm/remove-bins': workspace:1.0.9
-      '@pnpm/resolve-dependencies': workspace:18.2.5
+      '@pnpm/resolve-dependencies': workspace:18.2.6
       '@pnpm/resolver-base': workspace:7.1.0
       '@pnpm/store-controller-types': workspace:9.2.0
       '@pnpm/store-path': ^4.0.4

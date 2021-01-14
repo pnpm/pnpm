@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 18.2.6
+
+### Patch Changes
+
+- e665f5105: The workspace protocol should work in subdependencies.
+
 ## 18.2.5
 
 ### Patch Changes

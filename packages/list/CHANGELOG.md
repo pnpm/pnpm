@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 5.0.20
+
+### Patch Changes
+
+- f1dc3c872: format package name in ls comand
+
 ## 5.0.19
 
 ### Patch Changes

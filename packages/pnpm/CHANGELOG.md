@@ -1,5 +1,29 @@
 # pnpm
 
+## 5.15.1
+
+### Patch Changes
+
+- Finding the global directory location should not fail when one of the possible locations is in a read-only filesystem [#2794](https://github.com/pnpm/pnpm/issues/2794).
+
+- Don't ask for confirmation, when publishing happens on a branch name `"main"` [#2995](https://github.com/pnpm/pnpm/issues/2995).
+
+- Highlight the project names in the output of the `pnpm list` command [#3024](https://github.com/pnpm/pnpm/issues/3024).
+
+- It should be possible to use the workspace protocol with version specs inside `pnpm.overrides` [#3029](https://github.com/pnpm/pnpm/issues/3029).
+
+  For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "overrides": {
+        "foo": "workspace:*"
+      }
+    }
+  }
+  ```
+
 ## 5.15.0
 
 ### Minor Changes

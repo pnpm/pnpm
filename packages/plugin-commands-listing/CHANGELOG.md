@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-listing
 
+## 2.0.44
+
+### Patch Changes
+
+- Updated dependencies [f1dc3c872]
+  - @pnpm/list@5.0.20
+
 ## 2.0.43
 
 ### Patch Changes

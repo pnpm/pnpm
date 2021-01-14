@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.3.10
+
+### Patch Changes
+
+- 6af60416c: add 'main' to default publish branch
+
 ## 2.3.9
 
 ### Patch Changes
