@@ -627,3 +627,26 @@ test('dir is resolved to real path', async () => {
   })
   expect(config.dir).toBe(realDir)
 })
+
+test('warn user unknown settings in npmrc', async () => {
+  const tmp = tempy.directory()
+
+  process.chdir(tmp)
+  const npmrc = [
+    'typo-setting=true',
+    'mistake-setting=false',
+  ].join('\n')
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toStrictEqual([
+    'Your .npmrc file contains unknown setting: typo-setting, mistake-setting',
+  ])
+})
