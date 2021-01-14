@@ -365,12 +365,13 @@ test('keeping existing specs untouched when adding new dependency', async () => 
 
 test('forcing', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
+  const storeDir = path.resolve('store')
+  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false, storeDir }))
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
-  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false, force: true }))
+  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false, force: true, storeDir }))
 
   const distPathExists = await exists(distPath)
   expect(distPathExists).toBeTruthy()
@@ -378,12 +379,13 @@ test('forcing', async () => {
 
 test('argumentless forcing', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
+  const storeDir = path.resolve('store')
+  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false, storeDir }))
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
-  await install(manifest, await testDefaults({ fastUnpack: false, force: true }))
+  await install(manifest, await testDefaults({ fastUnpack: false, force: true, storeDir }))
 
   const distPathExists = await exists(distPath)
   expect(distPathExists).toBeTruthy()
@@ -404,14 +406,15 @@ test('no forcing', async () => {
 
 test('refetch package to store if it has been modified', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
+  const storeDir = path.resolve('store')
+  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false, storeDir }))
 
   const distPathInStore = await project.resolve('magic-hook', '2.0.0', 'dist')
   await rimraf(distPathInStore)
   await rimraf('node_modules')
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
 
-  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false, storeDir }))
 
   const distPathExists = await exists(distPath)
   expect(distPathExists).toBeTruthy()
@@ -632,12 +635,12 @@ test('should not update subdep when depth is smaller than depth of package', asy
 test('should install dependency in second project', async () => {
   const project1 = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
+  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, storeDir: '../store' }))
   expect(project1.requireModule('pkg-with-1-dep')().name).toEqual('dep-of-pkg-with-1-dep')
 
   const project2 = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
+  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, storeDir: '../store' }))
 
   expect(project2.requireModule('pkg-with-1-dep')().name).toEqual('dep-of-pkg-with-1-dep')
 })
@@ -694,10 +697,11 @@ test('should throw error when trying to install using a different virtual store 
 test('lockfile locks npm dependencies', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
+  const storeDir = path.resolve('store')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true, reporter }))
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true, reporter, storeDir }))
 
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -720,7 +724,7 @@ test('lockfile locks npm dependencies', async () => {
   await rimraf('node_modules')
 
   reporter.resetHistory()
-  await install(manifest, await testDefaults({ reporter }))
+  await install(manifest, await testDefaults({ reporter, storeDir }))
 
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -1198,6 +1202,7 @@ test('memory consumption is under control on huge package with many peer depende
 
 test('installing with no symlinks with PnP', async () => {
   const project = prepareEmpty()
+  const storeDir = path.resolve('store')
 
   await addDependenciesToPackage(
     {
@@ -1208,6 +1213,7 @@ test('installing with no symlinks with PnP', async () => {
     await testDefaults({
       enablePnp: true,
       fastUnpack: false,
+      storeDir,
       symlink: false,
     })
   )

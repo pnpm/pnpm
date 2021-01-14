@@ -1,4 +1,3 @@
-import * as path from 'path'
 import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -6,6 +5,9 @@ import { StoreController } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import { InstallOptions } from 'supi'
+import tempy = require('tempy')
+
+const DEFAULT_STORE_DIR = tempy.directory()
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -34,7 +36,7 @@ export default async function testDefaults<T> (
   } &
   T
   > {
-  let storeDir = opts?.storeDir ?? path.resolve('.store')
+  let storeDir = opts?.storeDir ?? DEFAULT_STORE_DIR
   storeDir = await storePath(opts?.prefix ?? process.cwd(), storeDir)
   const authConfig = { registry }
   const { resolve, fetchers } = createClient({
