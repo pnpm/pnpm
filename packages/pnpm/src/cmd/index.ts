@@ -90,6 +90,7 @@ const rcOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
 const aliasToFullName: Map<string, string> = new Map()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
+let allRcOptionsTypes: Record<string, unknown> = {}
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -104,6 +105,7 @@ for (let i = 0; i < commands.length; i++) {
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
   }
+
   for (const commandName of commandNames) {
     handlerByCommandName[commandName] = handler as Command
     helpByCommandName[commandName] = help
@@ -113,6 +115,7 @@ for (let i = 0; i < commands.length; i++) {
     if (completion) {
       completionByCommandName[commandName] = completion
     }
+    allRcOptionsTypes = { ...allRcOptionsTypes, ...rcOptionsTypes() }
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -151,4 +154,4 @@ export function getCommandFullName (commandName: string) {
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { shorthandsByCommandName }
+export { shorthandsByCommandName, allRcOptionsTypes }
