@@ -187,7 +187,11 @@ export default async (
     'workspace-prefix': opts.workspaceDir,
   })
 
-  const settingKeys = Object.keys(npmConfig?.sources?.project?.data ?? {})
+  const settingKeys = [
+    ...Object.keys(npmConfig?.sources?.project?.data ?? {}),
+    ...Object.keys(npmConfig?.sources?.workspace?.data ?? {}),
+    ...Object.keys(npmConfig?.sources?.user?.data ?? {}),
+  ]
   const rcOptions = Object.keys(rcOptionsTypes)
   const unknownKeys = []
   for (const key of settingKeys) {
