@@ -112,6 +112,13 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   if (lockfileToSave.overrides && R.isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
   }
+  if (lockfileToSave.neverBuiltDependencies) {
+    if (R.isEmpty(lockfileToSave.neverBuiltDependencies)) {
+      delete lockfileToSave.neverBuiltDependencies
+    } else {
+      lockfileToSave.neverBuiltDependencies = lockfileToSave.neverBuiltDependencies.sort()
+    }
+  }
   return lockfileToSave
 }
 
