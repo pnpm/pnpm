@@ -1,5 +1,6 @@
 import packageManager from '@pnpm/cli-meta'
 import getConfig, { CliOptions } from '@pnpm/config'
+import { formatWarn } from '@pnpm/default-reporter'
 
 export default async function (
   cliOptions: CliOptions,
@@ -24,7 +25,7 @@ export default async function (
   }
 
   if (warnings.length > 0) {
-    console.log(warnings.join('\n'))
+    console.log(warnings.map((warning) => formatWarn(warning)).join('\n'))
   }
 
   return config

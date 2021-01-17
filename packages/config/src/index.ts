@@ -187,25 +187,11 @@ export default async (
     'workspace-prefix': opts.workspaceDir,
   })
 
-  const settingKeys = [
-    ...Object.keys(npmConfig?.sources?.project?.data ?? {}),
-    ...Object.keys(npmConfig?.sources?.workspace?.data ?? {}),
-    ...Object.keys(npmConfig?.sources?.user?.data ?? {}),
-  ]
-  const rcOptions = Object.keys(rcOptionsTypes)
-  const unknownKeys = []
-  for (const key of settingKeys) {
-    if (!rcOptions.includes(key)) {
-      unknownKeys.push(key)
-    }
-  }
-  if (unknownKeys.length) {
-    warnings.push(`Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`)
-  }
-
   delete cliOptions.prefix
 
   process.execPath = originalExecPath
+
+  const rcOptions = Object.keys(rcOptionsTypes)
 
   const pnpmConfig: ConfigWithDeprecatedSettings = R.fromPairs([
     ...rcOptions.map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
@@ -405,6 +391,21 @@ export default async (
     pnpmConfig.noProxy = getProcessEnv('no_proxy')
   }
   pnpmConfig.enablePnp = pnpmConfig['nodeLinker'] === 'pnp'
+
+  const settingKeys = Object.keys({
+    ...npmConfig?.sources?.workspace?.data,
+    ...npmConfig?.sources?.project?.data,
+  })
+  const unknownKeys = []
+  for (const key of settingKeys) {
+    if (!rcOptions.includes(key) && !key.startsWith('//')) {
+      unknownKeys.push(key)
+    }
+  }
+  if (unknownKeys.length) {
+    warnings.push(`Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`)
+  }
+
   return { config: pnpmConfig, warnings }
 }
 

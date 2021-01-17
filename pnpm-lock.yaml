@@ -168,6 +168,7 @@ importers:
     dependencies:
       '@pnpm/cli-meta': link:../cli-meta
       '@pnpm/config': link:../config
+      '@pnpm/default-reporter': link:../default-reporter
       '@pnpm/error': link:../error
       '@pnpm/manifest-utils': link:../manifest-utils
       '@pnpm/package-is-installable': link:../package-is-installable
@@ -183,6 +184,7 @@ importers:
       '@pnpm/cli-meta': workspace:1.0.1
       '@pnpm/cli-utils': 'link:'
       '@pnpm/config': workspace:11.11.0
+      '@pnpm/default-reporter': workspace:7.9.15
       '@pnpm/error': workspace:1.4.0
       '@pnpm/logger': ^3.2.3
       '@pnpm/manifest-utils': workspace:1.1.4

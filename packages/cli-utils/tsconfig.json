@@ -16,6 +16,9 @@
       "path": "../config"
     },
     {
+      "path": "../default-reporter"
+    },
+    {
       "path": "../error"
     },
     {
