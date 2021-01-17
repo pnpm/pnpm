@@ -19,7 +19,6 @@ import semver = require('semver')
 export default function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
-    overrides?: Record<string, string>
     linkWorkspacePackages: boolean
     wantedLockfile: Lockfile
     workspacePackages: WorkspacePackages
@@ -32,7 +31,7 @@ export default function allProjectsAreUpToDate (
     manifestsByDir,
     workspacePackages: opts.workspacePackages,
   })
-  return R.equals(opts.wantedLockfile.overrides ?? {}, opts.overrides ?? {}) && pEvery(projects, (project) => {
+  return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
     return !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(project.manifest, project.id) &&

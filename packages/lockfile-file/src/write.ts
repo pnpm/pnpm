@@ -73,8 +73,9 @@ function isEmptyLockfile (lockfile: Lockfile) {
 type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
 
 function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
+  let lockfileToSave!: LockfileFile
   if (!forceSharedFormat && R.equals(R.keys(lockfile.importers), ['.'])) {
-    const lockfileToSave: LockfileFile = {
+    lockfileToSave = {
       ...lockfile,
       ...lockfile.importers['.'],
     }
@@ -87,9 +88,8 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
     if (R.isEmpty(lockfileToSave.packages) || !lockfileToSave.packages) {
       delete lockfileToSave.packages
     }
-    return lockfileToSave
   } else {
-    const lockfileToSave = {
+    lockfileToSave = {
       ...lockfile,
       importers: R.keys(lockfile.importers).reduce((acc, alias) => {
         const importer = lockfile.importers[alias]
@@ -108,8 +108,11 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
     if (R.isEmpty(lockfileToSave.packages) || !lockfileToSave.packages) {
       delete lockfileToSave.packages
     }
-    return lockfileToSave
   }
+  if (lockfileToSave.overrides && R.isEmpty(lockfileToSave.overrides)) {
+    delete lockfileToSave.overrides
+  }
+  return lockfileToSave
 }
 
 export default async function writeLockfiles (
