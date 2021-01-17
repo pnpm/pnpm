@@ -1,0 +1,16 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "sources"
+  },
+  "include": [
+    "sources/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../yarnpkg-fslib"
+    }
+  ]
+}

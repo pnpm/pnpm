@@ -1,7 +1,7 @@
 {
   "name": "@yarnpkg/fslib",
   "version": "2.4.0",
-  "license": "BSD-2-Clause",
+  "license": "MIT",
   "main": "./sources/index.ts",
   "sideEffects": false,
   "dependencies": {
@@ -13,21 +13,27 @@
     "prepack": "run build:compile \"$(pwd)\"",
     "release": "yarn npm publish",
     "test:fslib": "run test:unit packages/yarnpkg-fslib",
-    "test:watch:fslib": "run test:unit --watch packages/yarnpkg-fslib"
+    "test:watch:fslib": "run test:unit --watch packages/yarnpkg-fslib",
+    "test": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "prepublishOnly": "pnpm run compile"
   },
   "publishConfig": {
     "main": "./lib/index.js",
     "typings": "./lib/index.d.ts"
   },
   "files": [
-    "/lib/**/*"
+    "lib",
+    "!*.map"
   ],
-  "repository": {
-    "type": "git",
-    "url": "ssh://git@github.com/yarnpkg/berry.git",
-    "directory": "packages/yarnpkg-fslib"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/yarnpkg-fslib",
   "engines": {
-    "node": ">=10.19.0"
-  }
+    "node": ">=10.16"
+  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/yarnpkg-fslib#readme"
 }

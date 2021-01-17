@@ -47,10 +47,11 @@ async function updateTSConfig (
     if (!spec.startsWith('link:') || spec.length === 5) continue
     references.push({ path: spec.substr(5) })
   }
+  const srcDir = manifest.name?.startsWith('@yarnpkg/') ? 'sources' : 'src'
   await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
     extends: './tsconfig.json',
     include: [
-      'src/**/*.ts',
+      `${srcDir}/**/*.ts`,
       'test/**/*.ts',
       '../../typings/**/*.d.ts',
     ],
@@ -59,7 +60,7 @@ async function updateTSConfig (
     ...tsConfig,
     compilerOptions: {
       ...tsConfig['compilerOptions'],
-      rootDir: 'src',
+      rootDir: srcDir,
     },
     references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
   }

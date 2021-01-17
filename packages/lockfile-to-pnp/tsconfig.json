@@ -26,6 +26,9 @@
     },
     {
       "path": "../types"
+    },
+    {
+      "path": "../yarnpkg-pnp"
     }
   ]
 }

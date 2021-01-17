@@ -1,10 +1,10 @@
 {
   "name": "@yarnpkg/pnp",
   "version": "2.3.2",
-  "license": "BSD-2-Clause",
+  "license": "MIT",
   "main": "./sources/index.ts",
   "dependencies": {
-    "@types/node": "^13.7.0",
+    "@types/node": "13.7.0",
     "@yarnpkg/fslib": "workspace:^2.4.0",
     "tslib": "^1.13.0"
   },
@@ -21,21 +21,27 @@
     "postpack": "rm -rf lib",
     "prepack": "run build:compile packages/yarnpkg-pnp --emitDeclarationOnly && run build:pnp",
     "release": "yarn npm publish",
-    "update-local": "run build:pnp:hook"
+    "update-local": "run build:pnp:hook",
+    "test": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "prepublishOnly": "pnpm run compile"
   },
   "publishConfig": {
     "main": "./lib/index.js",
     "types": "./lib/index.d.ts"
   },
   "files": [
-    "/lib/**/*"
+    "lib",
+    "!*.map"
   ],
-  "repository": {
-    "type": "git",
-    "url": "ssh://git@github.com/yarnpkg/berry.git",
-    "directory": "packages/yarnpkg-pnp"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/yarnpkg-pnp",
   "engines": {
-    "node": ">=10.19.0"
-  }
+    "node": ">=10.16"
+  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/yarnpkg-pnp#readme"
 }

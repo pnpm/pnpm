@@ -10,7 +10,7 @@ importers:
       '@pnpm/registry-mock': 2.2.2
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.20
-      '@types/node': 12.19.13
+      '@types/node': 13.7.0
       c8: 7.4.0
       cross-env: 7.0.3
       eslint: 7.17.0
@@ -38,7 +38,7 @@ importers:
       '@pnpm/registry-mock': ^2.2.2
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.19
-      '@types/node': ^12.19.9
+      '@types/node': 13.7.0
       c8: ^7.3.5
       cross-env: ^7.0.3
       eslint: ^7.16.0
@@ -3047,25 +3047,30 @@ importers:
     dependencies:
       '@yarnpkg/libzip': 2.2.1
       tslib: 1.14.1
+    devDependencies:
+      '@yarnpkg/fslib': 'link:'
     specifiers:
+      '@yarnpkg/fslib': 'link:'
       '@yarnpkg/libzip': ^2.2.1
       tslib: ^1.13.0
   packages/yarnpkg-pnp:
     dependencies:
-      '@types/node': 13.13.39
+      '@types/node': 13.7.0
       '@yarnpkg/fslib': link:../yarnpkg-fslib
       tslib: 1.14.1
     devDependencies:
       '@yarnpkg/builder': 2.1.3_79767c4a453931913dae65a170de24f3
       '@yarnpkg/libzip': 2.2.1
+      '@yarnpkg/pnp': 'link:'
       typescript: 4.1.0-beta
       webpack: 5.15.0_webpack-cli@4.3.1
       webpack-cli: 4.3.1_webpack@5.15.0
     specifiers:
-      '@types/node': ^13.7.0
+      '@types/node': 13.7.0
       '@yarnpkg/builder': ^2.1.3
       '@yarnpkg/fslib': workspace:^2.4.0
       '@yarnpkg/libzip': ^2.2.1
+      '@yarnpkg/pnp': 'link:'
       tslib: ^1.13.0
       typescript: 4.1.0-beta
       webpack: ^5.1.1
@@ -4684,8 +4689,12 @@ packages:
     resolution:
       integrity: sha512-qdixo2f0U7z6m0UJUugTJqVF94GNDkdgQhfBtMs8t5898JE7G/D2kJYw4rc1nzjIPLVAsDkY2MdABnLAP5lM1w==
   /@types/node/13.13.39:
+    dev: true
     resolution:
       integrity: sha512-wct+WgRTTkBm2R3vbrFOqyZM5w0g+D8KnhstG9463CJBVC3UVZHMToge7iMBR1vDl/I+NWFHUeK9X+JcF0rWKw==
+  /@types/node/13.7.0:
+    resolution:
+      integrity: sha512-GnZbirvmqZUzMgkFn70c74OQpTTUcCzlhQliTzYjQMqg+hVKcDnxdL19Ne3UdYzdMA/+W3eb646FWn/ZaT1NfQ==
   /@types/node/14.14.20:
     resolution:
       integrity: sha512-Y93R97Ouif9JEOWPIUyU+eyIdyRqQR0I8Ez1dzku4hDx34NWh4HbtIc3WNzwB1Y9ULvNGeu5B8h8bVL5cAk4/A==
