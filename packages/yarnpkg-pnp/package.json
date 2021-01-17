@@ -1,0 +1,41 @@
+{
+  "name": "@yarnpkg/pnp",
+  "version": "2.3.2",
+  "license": "BSD-2-Clause",
+  "main": "./sources/index.ts",
+  "dependencies": {
+    "@types/node": "^13.7.0",
+    "@yarnpkg/fslib": "workspace:^2.4.0",
+    "tslib": "^1.13.0"
+  },
+  "devDependencies": {
+    "@yarnpkg/builder": "^2.1.3",
+    "@yarnpkg/libzip": "^2.2.1",
+    "typescript": "4.1.0-beta",
+    "webpack": "^5.1.1",
+    "webpack-cli": "^4.0.0-beta.8"
+  },
+  "scripts": {
+    "build:pnp:hook": "webpack-cli --config webpack.config.hook.js",
+    "build:pnp": "webpack-cli --config webpack.config.pkg.js",
+    "postpack": "rm -rf lib",
+    "prepack": "run build:compile packages/yarnpkg-pnp --emitDeclarationOnly && run build:pnp",
+    "release": "yarn npm publish",
+    "update-local": "run build:pnp:hook"
+  },
+  "publishConfig": {
+    "main": "./lib/index.js",
+    "types": "./lib/index.d.ts"
+  },
+  "files": [
+    "/lib/**/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "ssh://git@github.com/yarnpkg/berry.git",
+    "directory": "packages/yarnpkg-pnp"
+  },
+  "engines": {
+    "node": ">=10.19.0"
+  }
+}
