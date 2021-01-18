@@ -41,8 +41,8 @@ export default function filterByImporters (
   }, { ...lockfile.importers })
 
   return {
+    ...lockfile,
     importers,
-    lockfileVersion: lockfile.lockfileVersion,
     packages,
   }
 }

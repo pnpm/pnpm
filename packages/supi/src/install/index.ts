@@ -175,6 +175,8 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
+    const needsFullResolution = !R.equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {})
+    ctx.wantedLockfile.overrides = overrides
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
@@ -184,18 +186,21 @@ export async function mutateModules (
       installsOnly &&
       (
         frozenLockfile ||
+        !needsFullResolution &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(ctx.projects, {
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
-          overrides,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: opts.workspacePackages,
         })
       )
     ) {
+      if (needsFullResolution) {
+        throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot perform a frozen installation because the lockfile needs updates')
+      }
       if (!ctx.existsWantedLockfile) {
         if (ctx.projects.some((project) => pkgHasDependencies(project.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
@@ -428,6 +433,7 @@ export async function mutateModules (
       ...opts,
       currentLockfileIsUpToDate: !ctx.existsWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
+      needsFullResolution,
       overrides,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
@@ -573,6 +579,7 @@ async function installInContext (
   ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
     makePartialCurrentLockfile: boolean
+    needsFullResolution: boolean
     overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
@@ -599,15 +606,6 @@ async function installInContext (
         delete ctx.wantedLockfile.importers[wantedImporter]
       }
     }
-  }
-  const overridesChanged = !R.equals(opts.overrides ?? {}, ctx.wantedLockfile.overrides ?? {})
-  if (!R.isEmpty(opts.overrides ?? {})) {
-    ctx.wantedLockfile.overrides = opts.overrides
-  } else {
-    delete ctx.wantedLockfile.overrides
-    // We were only setting the resolutions field in pnpm v5.10.0, which was never latest,
-    // so we can probably remove this line safely in future pnpm versions.
-    delete ctx.wantedLockfile['resolutions']
   }
 
   await Promise.all(
@@ -637,7 +635,7 @@ async function installInContext (
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
-    overridesChanged ||
+    opts.needsFullResolution ||
     ctx.lockfileHadConflicts
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,

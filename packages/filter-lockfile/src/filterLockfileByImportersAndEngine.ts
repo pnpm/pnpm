@@ -67,8 +67,8 @@ export default function filterByImportersAndEngine (
   }, { ...lockfile.importers })
 
   return {
+    ...lockfile,
     importers,
-    lockfileVersion: lockfile.lockfileVersion,
     packages,
   }
 }
