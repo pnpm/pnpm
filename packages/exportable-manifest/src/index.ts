@@ -22,9 +22,7 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
 ])
 
 export default async function makePublishManifest (dir: string, originalManifest: ProjectManifest) {
-  const publishManifest = {
-    ...originalManifest,
-  }
+  const publishManifest = R.omit(['pnpm'], originalManifest)
   for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
     const deps = await makePublishDependencies(dir, originalManifest[depsField])
     if (deps) {
