@@ -44,7 +44,7 @@
     "right-pad": "^1.0.1",
     "rxjs": "^7.0.0",
     "semver": "^7.3.4",
-    "stacktracey": "^1.2.127",
+    "stacktracey": "^2.0.0",
     "string-length": "^4.0.1",
     "strip-ansi": "^6.0.0"
   },
