@@ -22,11 +22,11 @@ export default function filterLockfile (
     pairs = pairs.filter(([depPath, pkg]) => !pkg.optional)
   }
   return {
+    ...lockfile,
     importers: Object.keys(lockfile.importers).reduce((acc, importerId) => {
       acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
       return acc
     }, {}),
-    lockfileVersion: lockfile.lockfileVersion,
     packages: R.fromPairs(pairs),
   }
 }

@@ -180,13 +180,13 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
-      !needsFullResolution &&
       !ctx.lockfileHadConflicts &&
       !opts.lockfileOnly &&
       !opts.update &&
       installsOnly &&
       (
         frozenLockfile ||
+        !needsFullResolution &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
         ctx.existsWantedLockfile &&
@@ -198,6 +198,9 @@ export async function mutateModules (
         })
       )
     ) {
+      if (needsFullResolution) {
+        throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot perform a frozen installation because the lockfile needs updates')
+      }
       if (!ctx.existsWantedLockfile) {
         if (ctx.projects.some((project) => pkgHasDependencies(project.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
