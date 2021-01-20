@@ -72,7 +72,7 @@ function isEmptyLockfile (lockfile: Lockfile) {
 
 type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
 
-function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
+export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   let lockfileToSave!: LockfileFile
   if (!forceSharedFormat && R.equals(R.keys(lockfile.importers), ['.'])) {
     lockfileToSave = {
