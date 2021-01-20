@@ -180,7 +180,7 @@ export function handler (
       'Running this command will add the dependency to the workspace root, ' +
       'which might not be what you want - if you really meant it, ' +
       'make it explicit by running this command again with the -w flag (or --workspace-root). ' +
-      'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to false.'
+      'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
     )
   }
 
