@@ -37,7 +37,7 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/prepare": "workspace:0.0.16",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "^0.27.34",
+    "@types/ramda": "^0.27.35",
     "@types/semver": "^7.3.4",
     "@types/sinon": "^9.0.9",
     "execa": "^5.0.0",

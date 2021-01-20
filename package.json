@@ -41,7 +41,7 @@
     "ts-jest": "^26.4.4",
     "ts-node": "^9.1.1",
     "typescript": "^4.1.3",
-    "verdaccio": "^4.10.0",
+    "verdaccio": "^4.11.0",
     "yarn": "^1.22.10",
     "yarnhook": "^0.5.1"
   },

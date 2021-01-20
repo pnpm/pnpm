@@ -40,7 +40,7 @@
     "@pnpm/types": "workspace:6.3.1",
     "@types/lru-cache": "^5.1.0",
     "@types/mz": "^2.7.3",
-    "@types/ramda": "^0.27.34",
+    "@types/ramda": "^0.27.35",
     "@types/wrap-ansi": "^3.0.0",
     "@types/zkochan__table": "npm:@types/table@^5.0.0",
     "mz": "^2.7.0",

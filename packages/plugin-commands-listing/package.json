@@ -38,7 +38,7 @@
     "@pnpm/plugin-commands-installation": "workspace:3.5.10",
     "@pnpm/prepare": "workspace:0.0.16",
     "@types/mz": "^2.7.3",
-    "@types/ramda": "^0.27.34",
+    "@types/ramda": "^0.27.35",
     "execa": "^5.0.0",
     "mz": "^2.7.0",
     "strip-ansi": "^6.0.0",

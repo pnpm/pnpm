@@ -35,10 +35,10 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
-    "@types/js-yaml": "^3.12.5",
+    "@types/js-yaml": "^4.0.0",
     "@types/mz": "^2.7.3",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.34",
+    "@types/ramda": "^0.27.35",
     "@types/write-file-atomic": "^3.0.1",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.1.3",
