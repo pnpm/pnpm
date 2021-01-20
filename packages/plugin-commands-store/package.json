@@ -40,7 +40,7 @@
     "@types/archy": "0.0.31",
     "@types/ramda": "^0.27.34",
     "@types/sinon": "^9.0.9",
-    "@types/ssri": "^6.0.3",
+    "@types/ssri": "^7.1.0",
     "@zkochan/rimraf": "^1.0.0",
     "execa": "^5.0.0",
     "load-json-file": "^6.2.0",

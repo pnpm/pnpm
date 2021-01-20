@@ -51,7 +51,7 @@
     "@types/mz": "^2.7.3",
     "@types/retry": "^0.12.0",
     "@types/rimraf": "^3.0.0",
-    "@types/ssri": "^6.0.3",
+    "@types/ssri": "^7.1.0",
     "cp-file": "^9.0.0",
     "nock": "12.0.3",
     "tempy": "^1.0.0"

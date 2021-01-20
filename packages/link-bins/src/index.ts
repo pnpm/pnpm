@@ -174,8 +174,8 @@ async function getBinNodePaths (target: string): Promise<string[]> {
   const targetRealPath = await fs.realpath(target)
 
   return R.union(
-    Module._nodeModulePaths(targetRealPath),
-    Module._nodeModulePaths(target)
+    Module['_nodeModulePaths'](targetRealPath),
+    Module['_nodeModulePaths'](target)
   )
 }
 

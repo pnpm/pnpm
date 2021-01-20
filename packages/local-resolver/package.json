@@ -43,7 +43,7 @@
   "devDependencies": {
     "@types/graceful-fs": "^4.1.4",
     "@types/normalize-path": "^3.0.0",
-    "@types/ssri": "^6.0.3"
+    "@types/ssri": "^7.1.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

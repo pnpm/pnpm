@@ -32,8 +32,8 @@
   "devDependencies": {
     "@types/concat-stream": "^1.6.0",
     "@types/mz": "^2.7.3",
-    "@types/node": "^12.19.9",
-    "@types/ssri": "^6.0.3",
+    "@types/node": "^14.14.22",
+    "@types/ssri": "^7.1.0",
     "@types/tar-stream": "^2.1.0",
     "tempy": "^1.0.0"
   },

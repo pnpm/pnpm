@@ -61,7 +61,7 @@
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.34",
-    "@types/ssri": "^6.0.3",
+    "@types/ssri": "^7.1.0",
     "delay": "^4.4.0",
     "ncp": "^2.0.0",
     "nock": "12.0.3",

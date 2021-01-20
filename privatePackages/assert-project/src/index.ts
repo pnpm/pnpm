@@ -14,7 +14,8 @@ export { isExecutable, Modules }
 export type RawLockfile = Lockfile & Partial<ProjectSnapshot>
 
 export interface Project {
-  requireModule: NodeRequireFunction
+  // eslint-disable-next-line
+  requireModule: (moduleName: string) => any
   has: (pkgName: string, modulesDir?: string) => Promise<void>
   hasNot: (pkgName: string, modulesDir?: string) => Promise<void>
   getStorePath: () => Promise<string>

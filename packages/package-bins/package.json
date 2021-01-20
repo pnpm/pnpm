@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@types/graceful-fs": "^4.1.4",
-    "@types/node": "^12.19.9"
+    "@types/node": "^14.14.22"
   },
   "funding": "https://opencollective.com/pnpm"
 }
