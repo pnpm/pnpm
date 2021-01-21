@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "5.0.20",
+  "version": "5.0.21",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -42,7 +42,7 @@
     "archy": "^1.0.0",
     "chalk": "^4.1.0",
     "cli-columns": "^3.1.2",
-    "dependencies-hierarchy": "workspace:9.0.15",
+    "dependencies-hierarchy": "workspace:9.0.16",
     "p-limit": "^3.1.0",
     "ramda": "^0.27.1",
     "semver": "^7.3.4"

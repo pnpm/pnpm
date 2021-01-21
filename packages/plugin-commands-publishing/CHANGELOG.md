@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.3.11
+
+### Patch Changes
+
+- Updated dependencies [c854f8547]
+  - @pnpm/exportable-manifest@1.2.0
+
 ## 2.3.10
 
 ### Patch Changes

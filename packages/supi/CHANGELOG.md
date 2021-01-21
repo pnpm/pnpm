@@ -1,5 +1,20 @@
 # supi
 
+## 0.43.28
+
+### Patch Changes
+
+- af897c324: Resolution should never be skipped if the overrides were updated.
+- af897c324: Installation should fail if the overrides in the lockfile don't match the ones in the package.json and the frozenLockfile option is on.
+- Updated dependencies [af897c324]
+- Updated dependencies [af897c324]
+  - @pnpm/filter-lockfile@4.0.16
+  - @pnpm/lockfile-file@3.1.4
+  - @pnpm/headless@14.6.1
+  - @pnpm/modules-cleaner@10.0.19
+  - @pnpm/get-context@3.3.4
+  - @pnpm/lockfile-to-pnp@0.3.16
+
 ## 0.43.27
 
 ### Patch Changes

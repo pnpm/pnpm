@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 3.1.4
+
+### Patch Changes
+
+- af897c324: An empty overrides field should be removed from the lockfile before saving.
+
 ## 3.1.3
 
 ### Patch Changes

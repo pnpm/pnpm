@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.36
+
+### Patch Changes
+
+- Updated dependencies [af897c324]
+  - @pnpm/lockfile-file@3.1.4
+  - @pnpm/audit@1.1.22
+
 ## 2.0.35
 
 ### Patch Changes

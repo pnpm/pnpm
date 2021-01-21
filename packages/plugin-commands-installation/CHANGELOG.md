@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 3.5.11
+
+### Patch Changes
+
+- b653866c8: Fix the error message that happens when trying to add a new dependency to the root of a workspace.
+- Updated dependencies [af897c324]
+- Updated dependencies [af897c324]
+  - supi@0.43.28
+  - @pnpm/outdated@7.2.22
+  - @pnpm/plugin-commands-rebuild@2.2.17
+
 ## 3.5.10
 
 ### Patch Changes

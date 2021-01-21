@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 4.0.16
+
+### Patch Changes
+
+- af897c324: Include all the properties of the filtered lockfile.
+
 ## 4.0.15
 
 ### Patch Changes

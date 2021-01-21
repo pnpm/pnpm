@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.64
+
+### Patch Changes
+
+- @pnpm/get-context@3.3.4
+
 ## 2.0.63
 
 ### Patch Changes

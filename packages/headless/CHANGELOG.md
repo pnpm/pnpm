@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 14.6.1
+
+### Patch Changes
+
+- Updated dependencies [af897c324]
+- Updated dependencies [af897c324]
+  - @pnpm/filter-lockfile@4.0.16
+  - @pnpm/lockfile-file@3.1.4
+  - @pnpm/modules-cleaner@10.0.19
+  - @pnpm/lockfile-to-pnp@0.3.16
+
 ## 14.6.0
 
 ### Minor Changes

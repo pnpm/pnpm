@@ -1,5 +1,14 @@
 # pnpm
 
+## 5.15.2
+
+### Patch Changes
+
+- The lockfile's content should not "flicker" if some dependency's version is specified with build metadata [#2928](https://github.com/pnpm/pnpm/issues/2928).
+- If `pnpm.overrides` were modified, the resolution stage may never be skipped [#3079](https://github.com/pnpm/pnpm/pull/3079).
+- The `pnpm` section of options is not included in the published version of a `package.json` [#3081](https://github.com/pnpm/pnpm/pull/3081).
+- Fix the error message that happens when trying to add a new dependency to the root of a workspace [#3082](https://github.com/pnpm/pnpm/pull/3082).
+
 ## 5.15.1
 
 ### Patch Changes

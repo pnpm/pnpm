@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 1.2.0
+
+### Minor Changes
+
+- c854f8547: Remove the "pnpm" property that stores pnpm settings from the manifest.
+
 ## 1.1.0
 
 ### Minor Changes
