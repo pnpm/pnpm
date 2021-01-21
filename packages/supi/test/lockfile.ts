@@ -1242,3 +1242,25 @@ packages:
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies['dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/2928
+test('build metadata is always ignored in versions and the lockfile is not flickering because of them', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({},
+    [
+      '@monorepolint/cli@0.5.0-alpha.51',
+    ], await testDefaults({ lockfileOnly: true }))
+
+  const depPath = '/@monorepolint/core/0.5.0-alpha.51'
+  const initialLockfile = await project.readLockfile()
+  const initialPkgEntry = initialLockfile.packages[depPath]
+  expect(initialPkgEntry?.resolution).toStrictEqual({
+    integrity: 'sha512-ihFonHDppOZyG717OW6Bamd37mI2gQHjd09buTjbKhRX8NAHsTbRUKwp39ZYVI5AYgLF1eDlLpgOY4dHy2xGQw==',
+  })
+
+  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ lockfileOnly: true }))
+
+  const updatedLockfile = await project.readLockfile()
+  expect(initialPkgEntry).toStrictEqual(updatedLockfile.packages[depPath])
+})
