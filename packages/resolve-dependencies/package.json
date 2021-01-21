@@ -44,7 +44,7 @@
     "@pnpm/types": "workspace:6.3.1",
     "dependency-path": "workspace:5.1.0",
     "encode-registry": "^3.0.0",
-    "get-npm-tarball-url": "^2.0.1",
+    "get-npm-tarball-url": "^2.0.2",
     "import-from": "^3.0.0",
     "path-exists": "^4.0.0",
     "ramda": "^0.27.1",
