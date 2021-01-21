@@ -150,7 +150,7 @@ test('fail on invalid YAML', async () => {
 
   expect(err).toBeTruthy()
   expect(err['code']).toBe('ERR_PNPM_YAML_PARSE')
-  expect(err.message).toMatch(/^missed comma between flow collection entries \(3:3\)/)
+  expect(err.message).toMatch(/^missed comma between flow collection entries at line 3, column 3:/)
 })
 
 test('preserve trailing new line at the end of package.json', async () => {
