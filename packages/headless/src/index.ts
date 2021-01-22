@@ -50,6 +50,7 @@ import packageIsInstallable from '@pnpm/package-is-installable'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
+  FetchPackageToStoreFunction,
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
@@ -592,13 +593,19 @@ async function lockfileToDepGraph (
           requester: opts.lockfileDir,
           status: 'resolved',
         })
-        let fetchResponse = opts.storeController.fetchPackage({
-          force: false,
-          lockfileDir: opts.lockfileDir,
-          pkgId: packageId,
-          resolution,
-        })
-        if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+        let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
+        try {
+          fetchResponse = opts.storeController.fetchPackage({
+            force: false,
+            lockfileDir: opts.lockfileDir,
+            pkgId: packageId,
+            resolution,
+          })
+          if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+        } catch (err) {
+          if (pkgSnapshot.optional) return
+          throw err
+        }
         fetchResponse.files() // eslint-disable-line
           .then(({ fromStore }) => {
             progressLogger.debug({
@@ -741,7 +748,13 @@ function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
-      const filesResponse = await depNode.fetchingFiles()
+      let filesResponse!: PackageFilesResponse
+      try {
+        filesResponse = await depNode.fetchingFiles()
+      } catch (err) {
+        if (depNode.optional) return
+        throw err
+      }
 
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

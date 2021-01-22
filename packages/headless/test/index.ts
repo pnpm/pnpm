@@ -233,6 +233,28 @@ test('not installing optional deps', async () => {
   await project.has('pkg-with-good-optional')
 })
 
+test('skipping optional dependency if it cannot be fetched', async () => {
+  const prefix = path.join(fixtures, 'has-nonexistent-optional-dep')
+  const reporter = sinon.spy()
+
+  await headless(await testDefaults({
+    lockfileDir: prefix,
+    reporter,
+  }, {
+    retry: {
+      retries: 0,
+    },
+  }))
+
+  const project = assertProject(prefix)
+  expect(project.requireModule('is-positive')).toBeTruthy()
+  expect(project.requireModule('rimraf')).toBeTruthy()
+  expect(project.requireModule('is-negative')).toBeTruthy()
+
+  expect(await project.readCurrentLockfile()).toBeTruthy()
+  expect(await project.readModulesManifest()).toBeTruthy()
+})
+
 test('run pre/postinstall scripts', async () => {
   const prefix = path.join(fixtures, 'deps-have-lifecycle-scripts')
   const outputJsonPath = path.join(prefix, 'output.json')
