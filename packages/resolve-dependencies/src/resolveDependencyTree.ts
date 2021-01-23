@@ -53,6 +53,7 @@ export interface ResolveDependenciesOptions {
   hooks: {
     readPackage?: ReadPackageHook
   }
+  neverBuiltDependencies?: Set<string>
   nodeVersion: string
   registries: Registries
   pnpmVersion: string
@@ -85,6 +86,7 @@ export default async function<T> (
     forceFullResolution: opts.forceFullResolution,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
     lockfileDir: opts.lockfileDir,
+    neverBuiltDependencies: opts.neverBuiltDependencies ?? new Set(),
     nodeVersion: opts.nodeVersion,
     outdatedDependencies: {} as {[pkgId: string]: string},
     pendingNodes: [] as PendingNode[],

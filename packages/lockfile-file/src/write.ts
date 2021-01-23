@@ -72,7 +72,7 @@ function isEmptyLockfile (lockfile: Lockfile) {
 
 type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
 
-function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
+export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   let lockfileToSave!: LockfileFile
   if (!forceSharedFormat && R.equals(R.keys(lockfile.importers), ['.'])) {
     lockfileToSave = {
@@ -111,6 +111,13 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   }
   if (lockfileToSave.overrides && R.isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
+  }
+  if (lockfileToSave.neverBuiltDependencies) {
+    if (R.isEmpty(lockfileToSave.neverBuiltDependencies)) {
+      delete lockfileToSave.neverBuiltDependencies
+    } else {
+      lockfileToSave.neverBuiltDependencies = lockfileToSave.neverBuiltDependencies.sort()
+    }
   }
   return lockfileToSave
 }

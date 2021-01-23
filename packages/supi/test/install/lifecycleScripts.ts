@@ -432,3 +432,29 @@ test('scripts have access to unlisted bins when hoisting is used', async () => {
 
   expect(project.requireModule('pkg-that-calls-unlisted-dep-in-hooks/output.json')).toStrictEqual(['Hello world!'])
 })
+
+test('selectively ignore scripts in some dependencies', async () => {
+  const project = prepareEmpty()
+  const neverBuiltDependencies = ['pre-and-postinstall-scripts-example']
+  const manifest = await addDependenciesToPackage({ pnpm: { neverBuiltDependencies } },
+    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    await testDefaults({ fastUnpack: false })
+  )
+
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
+  expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
+  expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+
+  await rimraf('node_modules')
+
+  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true }))
+
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
+})

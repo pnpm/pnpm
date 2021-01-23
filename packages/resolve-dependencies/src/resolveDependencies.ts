@@ -128,6 +128,7 @@ export interface ResolutionContext {
   currentLockfile: Lockfile
   linkWorkspacePackagesDepth: number
   lockfileDir: string
+  neverBuiltDependencies: Set<string>
   storeController: StoreController
   // the IDs of packages that are not installable
   skipped: Set<string>
@@ -786,6 +787,7 @@ async function resolveDependency (
       depPath,
       force: ctx.force,
       hasBin,
+      neverBuiltDependencies: ctx.neverBuiltDependencies,
       pkg,
       pkgResponse,
       prepare,
@@ -838,6 +840,7 @@ function getResolvedPackage (
     depPath: string
     force: boolean
     hasBin: boolean
+    neverBuiltDependencies: Set<string>
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
@@ -871,7 +874,8 @@ function getResolvedPackage (
     peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
-    requiresBuild: options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild),
+    requiresBuild: options.neverBuiltDependencies.has(options.pkg.name)
+      ? false : (options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild)),
     resolution: options.pkgResponse.body.resolution,
     version: options.pkg.version,
   }

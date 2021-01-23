@@ -83,6 +83,7 @@ export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'nam
 
 export type ProjectManifest = BaseManifest & {
   pnpm?: {
+    neverBuiltDependencies?: string[]
     overrides?: Record<string, string>
   }
   private?: boolean

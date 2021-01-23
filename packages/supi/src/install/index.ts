@@ -148,6 +148,7 @@ export async function mutateModules (
   const overrides = rootProjectManifest
     ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
+  const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
   if (!R.isEmpty(overrides ?? {})) {
     const versionsOverrider = createVersionsOverrider(overrides!)
     if (opts.hooks.readPackage) {
@@ -175,8 +176,10 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
-    const needsFullResolution = !R.equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {})
+    const needsFullResolution = !R.equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
+      !R.equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())
     ctx.wantedLockfile.overrides = overrides
+    ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
@@ -434,6 +437,7 @@ export async function mutateModules (
       currentLockfileIsUpToDate: !ctx.existsWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       needsFullResolution,
+      neverBuiltDependencies,
       overrides,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
@@ -580,6 +584,7 @@ async function installInContext (
   opts: StrictInstallOptions & {
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
+    neverBuiltDependencies: string[]
     overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
@@ -667,6 +672,7 @@ async function installInContext (
       hooks: opts.hooks,
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
+      neverBuiltDependencies: new Set(opts.neverBuiltDependencies),
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       preferWorkspacePackages: opts.preferWorkspacePackages,

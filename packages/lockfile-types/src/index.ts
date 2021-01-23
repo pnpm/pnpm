@@ -2,6 +2,7 @@ export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
   lockfileVersion: number
   packages?: PackageSnapshots
+  neverBuiltDependencies?: string[]
   overrides?: Record<string, string>
 }
 
