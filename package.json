@@ -63,6 +63,10 @@
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
       "http-errors": "^1.7.3",
       "table@^6.0.3": "6.0.4"
-    }
+    },
+    "neverBuiltDependencies": [
+      "core-js",
+      "level"
+    ]
   }
 }
