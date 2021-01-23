@@ -3,7 +3,7 @@
 
 If you have a question that is not answered in our FAQ: https://pnpm.js.org/en/faq
 then it is best to ask it in our Discord chatroom:
-https://discord.gg/mThkzAT
+https://bit.ly/pnpm-discord-invite
 
 If your issue is a bug, please follow the format below:
 -->
