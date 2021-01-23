@@ -15,7 +15,7 @@
     "dist",
     "bin"
   ],
-  "dependencies": {
+  "optionalDependencies": {
     "node-gyp": "^7.1.2",
     "update-notifier": "^5.0.1"
   },

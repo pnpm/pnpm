@@ -1,8 +1,13 @@
 import packageManager from '@pnpm/cli-meta'
 import chalk = require('chalk')
-import updateNotifier = require('update-notifier')
 
-export default function () {
+export default async function () {
+  let updateNotifier
+  try {
+    updateNotifier = (await import('update-notifier')).default
+  } catch (err) {
+    return
+  }
   const notifier = updateNotifier({ pkg: packageManager })
   const update = notifier.update
 
