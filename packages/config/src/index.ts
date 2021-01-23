@@ -398,7 +398,7 @@ export default async (
   })
   const unknownKeys = []
   for (const key of settingKeys) {
-    if (!rcOptions.includes(key) && !key.startsWith('//')) {
+    if (!rcOptions.includes(key) && !key.startsWith('//') && !(key.startsWith('@') && key.endsWith(':registry'))) {
       unknownKeys.push(key)
     }
   }

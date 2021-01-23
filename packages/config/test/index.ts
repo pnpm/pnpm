@@ -636,6 +636,7 @@ test('warn user unknown settings in npmrc', async () => {
     'typo-setting=true',
     'mistake-setting=false',
     '//foo.bar:_authToken=aaa',
+    '@qar:registry=https://registry.example.org/',
   ].join('\n')
   await fs.writeFile('.npmrc', npmrc, 'utf8')
 
