@@ -124,7 +124,7 @@ export default async function run (inputArgv: string[]) {
   //   1. on CI environments
   //   2. when in the middle of an actual update
   if (!isCI && !selfUpdate) {
-    checkForUpdates()
+    await checkForUpdates()
   }
 
   const reporterType: ReporterType = (() => {

@@ -134,3 +134,13 @@ test('exit code from plugin is used to end the process', () => {
   expect(result.status).toBe(1)
   expect(result.stdout.toString()).toMatch(/is-positive/)
 })
+
+test('the bundled CLI is independent', async () => {
+  const project = prepare()
+
+  await fs.copyFile(path.join(__dirname, '../dist/pnpm.js'), 'pnpm.js')
+
+  await execa('node', ['./pnpm.js', 'add', 'is-positive'])
+
+  await project.has('is-positive')
+})
