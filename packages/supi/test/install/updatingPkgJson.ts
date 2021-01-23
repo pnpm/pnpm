@@ -25,7 +25,7 @@ test("don't override existing spec in package.json on named installation", async
     dependencies: {
       'is-negative': '^1.0.0', // this will be updated
       'is-positive': '^2.0.0', // this will be kept as no newer version is available from the range
-      sec: 'sindresorhus/sec',
+      sec: 'sindresorhus/sec#main',
     },
   }, ['is-positive'], await testDefaults())
   manifest = await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults())
@@ -37,7 +37,7 @@ test("don't override existing spec in package.json on named installation", async
   expect(manifest.dependencies).toStrictEqual({
     'is-negative': '^1.0.1',
     'is-positive': '^2.0.0',
-    sec: 'github:sindresorhus/sec',
+    sec: 'github:sindresorhus/sec#main',
   })
 })
 
