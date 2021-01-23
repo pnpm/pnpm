@@ -86,10 +86,10 @@ const commands: Array<{
 const handlerByCommandName: Record<string, Command> = {}
 const helpByCommandName: Record<string, () => string> = {}
 const cliOptionsTypesByCommandName: Record<string, () => Object> = {}
-const rcOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
 const aliasToFullName: Map<string, string> = new Map()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
+const rcOptionsTypes: Record<string, unknown> = {}
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -108,11 +108,11 @@ for (let i = 0; i < commands.length; i++) {
     handlerByCommandName[commandName] = handler as Command
     helpByCommandName[commandName] = help
     cliOptionsTypesByCommandName[commandName] = cliOptionsTypes
-    rcOptionsTypesByCommandName[commandName] = rcOptionsTypes
     shorthandsByCommandName[commandName] = shorthands ?? {}
     if (completion) {
       completionByCommandName[commandName] = completion
     }
+    Object.assign(rcOptionsTypes, rcOptionsTypes())
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -141,14 +141,9 @@ export function getCliOptionsTypes (commandName: string) {
   return cliOptionsTypesByCommandName[commandName]?.() || {}
 }
 
-export function getRCOptionsTypes (commandName: string | null) {
-  if (!commandName) return {}
-  return rcOptionsTypesByCommandName[commandName]?.() ?? {}
-}
-
 export function getCommandFullName (commandName: string) {
   return aliasToFullName.get(commandName) ??
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { shorthandsByCommandName }
+export { shorthandsByCommandName, rcOptionsTypes }

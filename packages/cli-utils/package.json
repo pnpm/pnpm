@@ -35,6 +35,7 @@
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.1",
     "@pnpm/config": "workspace:11.11.1",
+    "@pnpm/default-reporter": "workspace:7.9.16",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/manifest-utils": "workspace:1.1.4",
     "@pnpm/package-is-installable": "workspace:4.0.18",

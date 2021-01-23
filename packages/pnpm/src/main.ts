@@ -12,7 +12,7 @@ import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import checkForUpdates from './checkForUpdates'
-import pnpmCmds, { getRCOptionsTypes } from './cmd'
+import pnpmCmds, { rcOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
 import './logging/fileLogger'
 import parseCliArgs from './parseCliArgs'
@@ -91,7 +91,7 @@ export default async function run (inputArgv: string[]) {
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
-      rcOptionsTypes: getRCOptionsTypes(cmd),
+      rcOptionsTypes,
       workspaceDir,
     }) as typeof config
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true

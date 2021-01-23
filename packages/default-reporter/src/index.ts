@@ -6,8 +6,11 @@ import { map, mergeAll } from 'rxjs/operators'
 import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
+import formatWarn from './reporterForClient/utils/formatWarn'
 import reporterForServer from './reporterForServer'
 import createDiffer = require('ansi-diff')
+
+export { formatWarn }
 
 export default function (
   opts: {
