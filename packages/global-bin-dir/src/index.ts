@@ -31,14 +31,14 @@ function pickBestGlobalBinDir (
   const noWriteAccessDirs = [] as string[]
   for (const dir of dirs) {
     const lowCaseDir = dir.toLowerCase()
-    if (
+    if ((
       isUnderDir('node', lowCaseDir) ||
       isUnderDir('nodejs', lowCaseDir) ||
       isUnderDir('npm', lowCaseDir) ||
       isUnderDir('pnpm', lowCaseDir) ||
       knownCandidates.some((candidate) => areDirsEqual(candidate, dir)) ||
       dirHasNodeRelatedCommand(dir)
-    ) {
+    ) && !isUnderDir('_npx', lowCaseDir)) {
       if (canWriteToDirAndExists(dir)) return dir
       noWriteAccessDirs.push(dir)
     }

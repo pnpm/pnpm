@@ -41,10 +41,12 @@ const userGlobalBin = makePath('usr', 'local', 'bin')
 const nodeGlobalBin = makePath('home', 'z', '.nvs', 'node', '12.0.0', 'x64', 'bin')
 const npmGlobalBin = makePath('home', 'z', '.npm')
 const pnpmGlobalBin = makePath('home', 'z', '.pnpm')
+const npxGlobalBin = makePath('home', 'z', '.npm', '_npx', '123')
 const otherDir = makePath('some', 'dir')
 const currentExecDir = makePath('current', 'exec')
 const dirWithTrailingSlash = `${makePath('current', 'slash')}${path.sep}`
 process.env[FAKE_PATH] = [
+  npxGlobalBin,
   userGlobalBin,
   nodeGlobalBin,
   npmGlobalBin,
