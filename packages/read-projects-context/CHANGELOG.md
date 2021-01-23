@@ -1,5 +1,16 @@
 # @pnpm/read-projects-context
 
+## 4.0.15
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-file@3.2.0
+  - @pnpm/types@6.4.0
+  - @pnpm/modules-yaml@8.0.6
+  - @pnpm/normalize-registries@1.0.6
+
 ## 4.0.14
 
 ### Patch Changes

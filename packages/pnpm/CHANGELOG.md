@@ -1,5 +1,23 @@
 # pnpm
 
+## 5.16.0-0
+
+### Minor Changes
+
+- Allow to ignore the builds of specific dependencies [#3080](https://github.com/pnpm/pnpm/pull/3080).
+
+  The list of dependencies that should never be built, is specified through the `pnpm.neverBuiltDependencies` of `package.json`. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "neverBuiltDependencies": ["fsevents", "level"]
+    }
+  }
+  ```
+
+- Print warnings if unknown settings are found in `.npmrc` [#3074](https://github.com/pnpm/pnpm/pull/3074).
+
 ## 5.15.3
 
 ### Patch Changes

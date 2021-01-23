@@ -1,5 +1,16 @@
 # @pnpm/assert-project
 
+## 2.1.15
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-types@2.2.0
+  - @pnpm/types@6.4.0
+  - @pnpm/modules-yaml@8.0.6
+  - @pnpm/assert-store@1.0.15
+
 ## 2.1.14
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/read-project-manifest
 
+## 1.1.6
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/types@6.4.0
+  - @pnpm/write-project-manifest@1.1.6
+
 ## 1.1.5
 
 ### Patch Changes

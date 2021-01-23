@@ -1,5 +1,29 @@
 # @pnpm/resolve-dependencies
 
+## 18.3.0
+
+### Minor Changes
+
+- 9ad8c27bf: New option added for ignore scripts in specified dependencies: `neverBuiltDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-types@2.2.0
+  - @pnpm/types@6.4.0
+  - @pnpm/lockfile-utils@2.0.22
+  - @pnpm/prune-lockfile@2.0.19
+  - @pnpm/core-loggers@5.0.3
+  - dependency-path@5.1.1
+  - @pnpm/manifest-utils@1.1.5
+  - @pnpm/npm-resolver@10.2.2
+  - @pnpm/package-is-installable@4.0.19
+  - @pnpm/pick-registry-for-package@1.0.6
+  - @pnpm/read-package-json@3.1.9
+  - @pnpm/resolver-base@7.1.1
+  - @pnpm/store-controller-types@9.2.1
+
 ## 18.2.6
 
 ### Patch Changes

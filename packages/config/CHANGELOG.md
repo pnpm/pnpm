@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 11.12.0
+
+### Minor Changes
+
+- 548f28df9: print warnings if unknown settings are found in .npmrc
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/types@6.4.0
+
 ## 11.11.1
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 3.5.13
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [548f28df9]
+- Updated dependencies [548f28df9]
+  - supi@0.44.0
+  - @pnpm/types@6.4.0
+  - @pnpm/cli-utils@0.4.47
+  - @pnpm/config@11.12.0
+  - @pnpm/outdated@7.2.23
+  - @pnpm/find-workspace-packages@2.3.33
+  - @pnpm/manifest-utils@1.1.5
+  - @pnpm/package-store@10.1.16
+  - @pnpm/plugin-commands-rebuild@2.2.19
+  - @pnpm/pnpmfile@0.1.21
+  - @pnpm/resolver-base@7.1.1
+  - @pnpm/sort-packages@1.0.16
+  - @pnpm/store-connection-manager@0.3.59
+  - @pnpm/filter-workspace-packages@2.3.5
+
 ## 3.5.12
 
 ### Patch Changes

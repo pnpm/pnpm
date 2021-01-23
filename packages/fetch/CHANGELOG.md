@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 2.1.10
+
+### Patch Changes
+
+- @pnpm/core-loggers@5.0.3
+
 ## 2.1.9
 
 ### Patch Changes

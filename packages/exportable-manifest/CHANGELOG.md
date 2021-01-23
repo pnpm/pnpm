@@ -1,5 +1,13 @@
 # @pnpm/exportable-manifest
 
+## 1.2.1
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/types@6.4.0
+  - @pnpm/read-project-manifest@1.1.6
+
 ## 1.2.0
 
 ### Minor Changes

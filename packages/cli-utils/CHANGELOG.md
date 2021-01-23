@@ -1,5 +1,19 @@
 # @pnpm/cli-utils
 
+## 0.4.47
+
+### Patch Changes
+
+- 548f28df9: Format the printed warnings.
+- Updated dependencies [548f28df9]
+- Updated dependencies [548f28df9]
+  - @pnpm/default-reporter@7.10.0
+  - @pnpm/config@11.12.0
+  - @pnpm/cli-meta@1.0.1
+  - @pnpm/manifest-utils@1.1.5
+  - @pnpm/package-is-installable@4.0.19
+  - @pnpm/read-project-manifest@1.1.6
+
 ## 0.4.46
 
 ### Patch Changes

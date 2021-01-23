@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 6.4.0
+
+### Minor Changes
+
+- 9ad8c27bf: Allow to ignore builds of specified dependencies throught the `pnpm.neverBuiltDependencies` field in `package.json`.
+
 ## 6.3.1
 
 ### Patch Changes

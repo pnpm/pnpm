@@ -1,5 +1,20 @@
 # @pnpm/outdated
 
+## 7.2.23
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-file@3.2.0
+  - @pnpm/types@6.4.0
+  - @pnpm/lockfile-utils@2.0.22
+  - dependency-path@5.1.1
+  - @pnpm/manifest-utils@1.1.5
+  - @pnpm/modules-yaml@8.0.6
+  - @pnpm/pick-registry-for-package@1.0.6
+  - @pnpm/client@2.0.20
+
 ## 7.2.22
 
 ### Patch Changes

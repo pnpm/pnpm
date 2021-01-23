@@ -1,5 +1,11 @@
 # @pnpm/lockfile-types
 
+## 2.2.0
+
+### Minor Changes
+
+- 9ad8c27bf: Add optional neverBuiltDependencies property to the lockfile object.
+
 ## 2.1.1
 
 ### Patch Changes

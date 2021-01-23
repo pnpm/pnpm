@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 9.6.3
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/types@6.4.0
+  - @pnpm/core-loggers@5.0.3
+  - @pnpm/read-package-json@3.1.9
+
 ## 9.6.2
 
 ### Patch Changes

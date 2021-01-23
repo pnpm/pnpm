@@ -1,5 +1,16 @@
 # @pnpm/lockfile-utils
 
+## 2.0.22
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-types@2.2.0
+  - @pnpm/types@6.4.0
+  - dependency-path@5.1.1
+  - @pnpm/resolver-base@7.1.1
+
 ## 2.0.21
 
 ### Patch Changes
