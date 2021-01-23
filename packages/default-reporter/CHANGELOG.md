@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 7.9.16
+
+### Patch Changes
+
+- @pnpm/config@11.11.1
+
 ## 7.9.15
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/global-bin-dir
 
+## 1.2.6
+
+### Patch Changes
+
+- 941c5e8de: `npx pnpm install --global pnpm` should not install pnpm to the temporary directory of npx.
+
 ## 1.2.5
 
 ### Patch Changes

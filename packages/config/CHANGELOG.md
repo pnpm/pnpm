@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 11.11.1
+
+### Patch Changes
+
+- Updated dependencies [941c5e8de]
+  - @pnpm/global-bin-dir@1.2.6
+
 ## 11.11.0
 
 ### Minor Changes

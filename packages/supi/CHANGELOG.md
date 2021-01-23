@@ -1,5 +1,13 @@
 # supi
 
+## 0.43.29
+
+### Patch Changes
+
+- Updated dependencies [1c851f2a6]
+  - @pnpm/headless@14.6.2
+  - @pnpm/lockfile-to-pnp@0.3.17
+
 ## 0.43.28
 
 ### Patch Changes

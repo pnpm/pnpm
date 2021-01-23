@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.2.18
+
+### Patch Changes
+
+- @pnpm/config@11.11.1
+- @pnpm/cli-utils@0.4.46
+- @pnpm/store-connection-manager@0.3.58
+- @pnpm/find-workspace-packages@2.3.32
+
 ## 2.2.17
 
 ### Patch Changes

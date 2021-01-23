@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.15.3
+
+### Patch Changes
+
+- A failing optional dependency should not cause a crash of headless installation [#3090](https://github.com/pnpm/pnpm/issues/3090).
+- `npx pnpm install --global pnpm` should not install pnpm to the temporary directory of npx [#2873](https://github.com/pnpm/pnpm/issues/2873).
+
 ## 5.15.2
 
 ### Patch Changes

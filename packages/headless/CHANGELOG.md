@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 14.6.2
+
+### Patch Changes
+
+- 1c851f2a6: A failing optional dependency should not cause a crash of headless installation.
+  - @pnpm/lockfile-to-pnp@0.3.17
+
 ## 14.6.1
 
 ### Patch Changes

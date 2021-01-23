@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.3.17
+
+### Patch Changes
+
+- @pnpm/config@11.11.1
+
 ## 0.3.16
 
 ### Patch Changes

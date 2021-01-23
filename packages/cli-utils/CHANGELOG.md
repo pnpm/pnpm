@@ -1,5 +1,11 @@
 # @pnpm/cli-utils
 
+## 0.4.46
+
+### Patch Changes
+
+- @pnpm/config@11.11.1
+
 ## 0.4.45
 
 ### Patch Changes
