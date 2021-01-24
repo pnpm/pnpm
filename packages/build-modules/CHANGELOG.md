@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 5.2.7
+
+### Patch Changes
+
+- Updated dependencies [9a9bc67d2]
+  - @pnpm/lifecycle@9.6.4
+
 ## 5.2.6
 
 ### Patch Changes

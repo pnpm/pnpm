@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 18.3.1
+
+### Patch Changes
+
+- 7578a5ad4: The lockfile needs to be updated when the value of neverBuiltDependencies changes.
+
 ## 18.3.0
 
 ### Minor Changes

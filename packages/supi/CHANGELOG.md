@@ -1,5 +1,17 @@
 # supi
 
+## 0.44.1
+
+### Patch Changes
+
+- 9a9bc67d2: Don't crash if the CLI manifest is not found.
+- Updated dependencies [7578a5ad4]
+- Updated dependencies [9a9bc67d2]
+  - @pnpm/resolve-dependencies@18.3.1
+  - @pnpm/lifecycle@9.6.4
+  - @pnpm/build-modules@5.2.7
+  - @pnpm/headless@14.6.4
+
 ## 0.44.0
 
 ### Minor Changes

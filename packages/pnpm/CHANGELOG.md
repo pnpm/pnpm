@@ -1,6 +1,6 @@
 # pnpm
 
-## 5.16.0-0
+## 5.16.0-1
 
 ### Minor Changes
 
@@ -17,6 +17,10 @@
   ```
 
 - Print warnings if unknown settings are found in `.npmrc` [#3074](https://github.com/pnpm/pnpm/pull/3074).
+
+- pnpm can now be executed using its single bundled CLI file [#3096](https://github.com/pnpm/pnpm/pull/3096).
+
+- When pnpm crashes because the Node.js version is unsupported, the error message will now contain a link to the compatibility page of the pnpm documentation website.
 
 ## 5.15.3
 

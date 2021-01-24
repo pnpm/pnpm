@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.2.20
+
+### Patch Changes
+
+- Updated dependencies [9a9bc67d2]
+  - @pnpm/lifecycle@9.6.4
+
 ## 2.2.19
 
 ### Patch Changes

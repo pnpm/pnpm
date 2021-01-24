@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "14.6.3",
+  "version": "14.6.4",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -69,13 +69,13 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:5.2.6",
+    "@pnpm/build-modules": "workspace:5.2.7",
     "@pnpm/constants": "workspace:4.1.0",
     "@pnpm/core-loggers": "workspace:5.0.3",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/filter-lockfile": "workspace:4.0.17",
     "@pnpm/hoist": "workspace:4.0.22",
-    "@pnpm/lifecycle": "workspace:9.6.3",
+    "@pnpm/lifecycle": "workspace:9.6.4",
     "@pnpm/link-bins": "workspace:5.3.21",
     "@pnpm/lockfile-file": "workspace:3.2.0",
     "@pnpm/lockfile-to-pnp": "workspace:0.3.18",

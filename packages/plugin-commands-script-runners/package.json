@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "2.5.13",
+  "version": "2.5.14",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -50,7 +50,7 @@
     "@pnpm/common-cli-options-help": "workspace:0.3.0",
     "@pnpm/config": "workspace:11.12.0",
     "@pnpm/error": "workspace:1.4.0",
-    "@pnpm/lifecycle": "workspace:9.6.3",
+    "@pnpm/lifecycle": "workspace:9.6.4",
     "@pnpm/sort-packages": "workspace:1.0.16",
     "@pnpm/types": "workspace:6.4.0",
     "p-limit": "^3.1.0",

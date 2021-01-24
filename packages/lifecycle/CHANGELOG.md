@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 9.6.4
+
+### Patch Changes
+
+- 9a9bc67d2: It should be possible to run pnpm using only its bundled file.
+
 ## 9.6.3
 
 ### Patch Changes
