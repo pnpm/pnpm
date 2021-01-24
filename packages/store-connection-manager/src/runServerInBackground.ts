@@ -1,7 +1,9 @@
+import PnpmError from '@pnpm/error'
 import diable = require('@zkochan/diable')
 
-const pnpm = require.main!.filename
-
 export default (storePath: string) => {
-  return diable.daemonize(pnpm, ['server', 'start', '--store-dir', storePath], { stdio: 'inherit' })
+  if (!require.main) {
+    throw new PnpmError('CANNOT_START_SERVER', 'pnpm server cannot be started when pnpm is streamed to Node.js')
+  }
+  return diable.daemonize(require.main.filename, ['server', 'start', '--store-dir', storePath], { stdio: 'inherit' })
 }

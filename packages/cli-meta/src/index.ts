@@ -7,15 +7,19 @@ const defaultManifest = {
   version: '0.0.0',
 }
 let pkgJson
-try {
-  pkgJson = {
-    ...defaultManifest,
-    ...loadJsonFile.sync<DependencyManifest>(
-      path.join(path.dirname(require.main!.filename), '../package.json')
-    ),
-  }
-} catch (err) {
+if (!require.main) {
   pkgJson = defaultManifest
+} else {
+  try {
+    pkgJson = {
+      ...defaultManifest,
+      ...loadJsonFile.sync<DependencyManifest>(
+        path.join(path.dirname(require.main.filename), '../package.json')
+      ),
+    }
+  } catch (err) {
+    pkgJson = defaultManifest
+  }
 }
 
 const packageManager = {
