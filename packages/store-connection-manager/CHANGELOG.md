@@ -1,5 +1,13 @@
 # @pnpm/store-connection-manager
 
+## 0.3.60
+
+### Patch Changes
+
+- 43de80034: Don't fail when the code is executed through piping to Node's stdin.
+- Updated dependencies [43de80034]
+  - @pnpm/cli-meta@1.0.2
+
 ## 0.3.59
 
 ### Patch Changes
