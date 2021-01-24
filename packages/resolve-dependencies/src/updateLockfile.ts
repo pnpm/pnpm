@@ -146,7 +146,11 @@ function toLockfileDependency (
   if (pkg.hasBin) {
     result['hasBin'] = true
   }
-  if (opts.prevSnapshot) {
+  if (pkg.requiresBuild !== undefined) {
+    if (pkg.requiresBuild) {
+      result['requiresBuild'] = true
+    }
+  } else if (opts.prevSnapshot) {
     if (opts.prevSnapshot.requiresBuild) {
       result['requiresBuild'] = opts.prevSnapshot.requiresBuild
     }
@@ -156,10 +160,6 @@ function toLockfileDependency (
   } else if (pkg.prepare) {
     result['prepare'] = true
     result['requiresBuild'] = true
-  } else if (pkg.requiresBuild !== undefined) {
-    if (pkg.requiresBuild) {
-      result['requiresBuild'] = true
-    }
   } else {
     pendingRequiresBuilds.push(opts.depPath)
   }

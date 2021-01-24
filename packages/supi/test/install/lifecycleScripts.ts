@@ -458,3 +458,36 @@ test('selectively ignore scripts in some dependencies', async () => {
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
 })
+
+test('lockfile is updated if neverBuiltDependencies is changed', async () => {
+  const project = prepareEmpty()
+  const manifest = await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    await testDefaults({ fastUnpack: false })
+  )
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.neverBuiltDependencies).toBeFalsy()
+    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+  }
+
+  const neverBuiltDependencies = ['pre-and-postinstall-scripts-example']
+  manifest.pnpm = { neverBuiltDependencies }
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults())
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
+    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+  }
+})
