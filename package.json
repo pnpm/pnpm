@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "bump": "changeset version",
+    "bump": "changeset version && pnpm install",
     "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
     "prepare": "pnpm --dir=verdaccio install && pnpm --dir=fixtures run prepareFixtures",
