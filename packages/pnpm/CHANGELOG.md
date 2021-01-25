@@ -1,6 +1,6 @@
 # pnpm
 
-## 5.16.0-2
+## 5.16.0
 
 ### Minor Changes
 
@@ -21,6 +21,8 @@
 - pnpm can now be executed using its single bundled CLI file [#3096](https://github.com/pnpm/pnpm/pull/3096).
 
 - When pnpm crashes because the Node.js version is unsupported, the error message will now contain a link to the compatibility page of the pnpm documentation website.
+
+- `pnpm pubish -r` prints an info message if there are no pending packages to be published.
 
 ## 5.15.3
 

@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-import
 
+## 1.0.98
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.4.49
+
 ## 1.0.97
 
 ### Patch Changes

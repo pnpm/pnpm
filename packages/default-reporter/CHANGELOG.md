@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 7.10.1
+
+### Patch Changes
+
+- 4420f9f4e: Substitute pretty-time with pretty-ms.
+
 ## 7.10.0
 
 ### Minor Changes

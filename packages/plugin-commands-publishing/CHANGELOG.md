@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.4.0
+
+### Minor Changes
+
+- ff6129041: feat: print an info message when there's nothing new to publish recursively
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.4.49
+
 ## 2.3.15
 
 ### Patch Changes
