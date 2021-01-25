@@ -1936,6 +1936,7 @@ importers:
       write-json-file: 4.3.0
     devDependencies:
       '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
+      '@pnpm/logger': 3.2.3
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/cross-spawn': 6.0.2
@@ -1956,6 +1957,7 @@ importers:
       '@pnpm/exportable-manifest': workspace:1.2.1
       '@pnpm/filter-workspace-packages': workspace:2.3.6
       '@pnpm/lifecycle': workspace:9.6.4
+      '@pnpm/logger': ^3.2.3
       '@pnpm/pick-registry-for-package': workspace:1.0.6
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': workspace:0.0.17

@@ -1,4 +1,5 @@
 import { readProjects } from '@pnpm/filter-workspace-packages'
+import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -113,4 +114,58 @@ test('recursive publish', async () => {
     const { stdout } = await execa('npm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
     expect(stdout.toString().includes('next: 2.0.0')).toBeTruthy()
   }
+})
+
+test('print info when no packages are published', async () => {
+  preparePackages([
+    // This will not be published because is-positive@1.0.0 is in the registry
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    // This will not be published because it is a private package
+    {
+      name: 'i-am-private',
+      version: '1.0.0',
+
+      private: true,
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    // Package with no name is skipped
+    {
+      location: 'no-name',
+      package: {
+        scripts: {
+          prepublishOnly: 'exit 1',
+        },
+      },
+    },
+  ])
+
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+
+  const reporter = jest.fn()
+  streamParser.on('data', reporter)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    dryRun: true,
+    recursive: true,
+  }, [])
+
+  streamParser.removeListener('data', reporter)
+  expect(reporter).toBeCalledWith(expect.objectContaining({
+    level: 'info',
+    message: 'There are no new packages that should be published',
+    name: 'pnpm',
+    prefix: process.cwd(),
+  }))
 })

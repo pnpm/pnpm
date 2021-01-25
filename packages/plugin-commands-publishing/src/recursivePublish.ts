@@ -1,5 +1,6 @@
 import { createResolver } from '@pnpm/client'
 import { Config } from '@pnpm/config'
+import logger from '@pnpm/logger'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import sortPackages from '@pnpm/sort-packages'
@@ -73,6 +74,7 @@ export default async function (
   }
   const chunks = sortPackages(opts.selectedProjectsGraph)
   const tag = opts.tag ?? 'latest'
+  let noPackagePublished = true
   for (const chunk of chunks) {
     for (const pkgDir of chunk) {
       if (!publishedPkgDirs.has(pkgDir)) continue
@@ -93,7 +95,14 @@ export default async function (
         gitChecks: false,
         recursive: false,
       }, [pkg.dir])
+      noPackagePublished = false
     }
+  }
+  if (noPackagePublished) {
+    logger.info({
+      message: 'There are no new packages that should be published',
+      prefix: opts.dir,
+    })
   }
 }
 
