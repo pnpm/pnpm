@@ -39,7 +39,6 @@
     "normalize-path": "^3.0.0",
     "pretty-bytes": "^5.5.0",
     "pretty-ms": "^7.0.1",
-    "pretty-time": "^1.1.0",
     "ramda": "^0.27.1",
     "right-pad": "^1.0.1",
     "rxjs": "^6.6.3",
@@ -51,7 +50,6 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
     "@types/normalize-path": "^3.0.0",
-    "@types/pretty-time": "^1.1.0",
     "@types/ramda": "^0.27.35",
     "@types/semver": "^7.3.4",
     "delay": "^4.4.0",

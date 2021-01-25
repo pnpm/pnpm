@@ -8,7 +8,7 @@ import {
 } from './outputConstants'
 import chalk = require('chalk')
 import path = require('path')
-import prettyTime = require('pretty-time')
+import prettyTime = require('pretty-ms')
 import stripAnsi = require('strip-ansi')
 
 const NODE_MODULES = `${path.sep}node_modules${path.sep}`
@@ -89,6 +89,10 @@ export default (
   return Rx.from(lifecyclePushStream)
 }
 
+function toNano (time: [number, number]) {
+  return (time[0] + (time[1] / 1e9)) * 1e3
+}
+
 function renderCollapsedScriptOutput (
   log: LifecycleLog,
   messageCache: {
@@ -111,7 +115,7 @@ function renderCollapsedScriptOutput (
     updateMessageCache(log, messageCache, opts)
     return `${messageCache.label}...`
   }
-  const time = prettyTime(process.hrtime(messageCache.startTime))
+  const time = prettyTime(toNano(process.hrtime(messageCache.startTime)))
   if (log['exitCode'] === 0) {
     return `${messageCache.label}, done in ${time}`
   }
@@ -179,7 +183,7 @@ function updateMessageCache (
     const maxLineWidth = opts.maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
     messageCache.script = `${prefix}$ ${cutLine(log['script'], maxLineWidth)}`
   } else if (opts.exit) {
-    const time = prettyTime(process.hrtime(messageCache.startTime))
+    const time = prettyTime(toNano(process.hrtime(messageCache.startTime)))
     if (log['exitCode'] === 0) {
       messageCache.status = formatIndentedStatus(chalk.magentaBright(`Done in ${time}`))
     } else {
