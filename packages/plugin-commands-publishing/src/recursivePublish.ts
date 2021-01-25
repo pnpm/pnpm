@@ -1,5 +1,6 @@
 import { createResolver } from '@pnpm/client'
 import { Config } from '@pnpm/config'
+import logger from '@pnpm/logger'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import sortPackages from '@pnpm/sort-packages'
@@ -64,6 +65,13 @@ export default async function (
     }, pkg.manifest.name, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
+  if (publishedPkgDirs.size === 0) {
+    logger.info({
+      message: 'There are no new packages that should be published',
+      prefix: opts.dir,
+    })
+    return
+  }
   const appendedArgs = []
   if (opts.cliOptions['access']) {
     appendedArgs.push(`--access=${opts.cliOptions['access'] as string}`)
