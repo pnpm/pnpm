@@ -65,6 +65,13 @@ export default async function (
     }, pkg.manifest.name, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
+  if (publishedPkgDirs.size === 0) {
+    logger.info({
+      message: 'There are no new packages that should be published',
+      prefix: opts.dir,
+    })
+    return
+  }
   const appendedArgs = []
   if (opts.cliOptions['access']) {
     appendedArgs.push(`--access=${opts.cliOptions['access'] as string}`)
@@ -74,7 +81,6 @@ export default async function (
   }
   const chunks = sortPackages(opts.selectedProjectsGraph)
   const tag = opts.tag ?? 'latest'
-  let noPackagePublished = true
   for (const chunk of chunks) {
     for (const pkgDir of chunk) {
       if (!publishedPkgDirs.has(pkgDir)) continue
@@ -95,14 +101,7 @@ export default async function (
         gitChecks: false,
         recursive: false,
       }, [pkg.dir])
-      noPackagePublished = false
     }
-  }
-  if (noPackagePublished) {
-    logger.info({
-      message: 'There are no new packages that should be published',
-      prefix: opts.dir,
-    })
   }
 }
 
