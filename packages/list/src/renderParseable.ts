@@ -13,7 +13,7 @@ export default async function (
     search: boolean
   }
 ) {
-  return pkgs.map((pkg) => renderParseableForPackage(pkg, opts)).join('\n')
+  return pkgs.map((pkg) => renderParseableForPackage(pkg, opts)).filter(p => p.length !== 0).join('\n')
 }
 
 function renderParseableForPackage (
