@@ -26,6 +26,7 @@ const fixtureWithNoPkgNameAndNoVersion = path.join(fixtures, 'fixture-with-no-pk
 const fixtureWithNoPkgVersion = path.join(fixtures, 'fixture-with-no-pkg-version')
 const fixtureWithExternalLockfile = path.join(fixtures, 'fixture-with-external-shrinkwrap', 'pkg')
 const workspaceWith2Pkgs = path.join(fixtures, 'workspace-with-2-pkgs')
+const workspaceWithDifferentDeps = path.join(fixtures, 'workspace-with-different-deps')
 const emptyFixture = path.join(fixtures, 'empty')
 const fixtureWithAliasedDep = path.join(fixtures, 'with-aliased-dep')
 
@@ -364,6 +365,23 @@ test('parseable list with depth 1 and dev only', async () => {
     })
   ).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0')}`
+  )
+})
+
+test('parseable list with depth 1 without unnecessary empty newlines', async () => {
+  expect(await listForPackages(
+    ['is-positive'],
+    [
+      path.join(workspaceWithDifferentDeps, 'packages/bar'),
+      path.join(workspaceWithDifferentDeps, 'packages/foo'),
+    ], {
+      alwaysPrintRootPackage: false,
+      lockfileDir: workspaceWithDifferentDeps,
+      depth: 1,
+      reportAs: 'parseable',
+    }
+  )).toBe(`${path.join(workspaceWithDifferentDeps, 'packages/bar')}
+${path.join(workspaceWithDifferentDeps, 'packages/bar', 'node_modules/.pnpm/is-positive@3.1.0')}`
   )
 })
 
