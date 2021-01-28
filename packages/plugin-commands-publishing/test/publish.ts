@@ -2,6 +2,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { DEFAULT_OPTS } from './utils'
+import execa = require('execa')
 import path = require('path')
 import crossSpawn = require('cross-spawn')
 import fs = require('mz/fs')
@@ -598,4 +599,26 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
 
   expect(await exists('package.json')).toBeTruthy()
   expect(await exists('output.json')).toBeFalsy()
+})
+
+test('publish: with specified publish branch name', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.2',
+  })
+
+  const branch = 'some-random-publish-branch'
+  await execa('git', ['init'])
+  await execa('git', ['checkout', '-b', branch])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
+  await execa('git', ['add', '*'])
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', '--publish-branch', branch, ...CREDENTIALS] },
+    dir: process.cwd(),
+    publishBranch: branch,
+  }, [])
 })
