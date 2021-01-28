@@ -395,7 +395,7 @@ export default async (
   const settingKeys = Object.keys({
     ...npmConfig?.sources?.workspace?.data,
     ...npmConfig?.sources?.project?.data,
-  })
+  }).filter(key => key.trim() !== '')
   const unknownKeys = []
   for (const key of settingKeys) {
     if (!rcOptions.includes(key) && !key.startsWith('//') && !(key.startsWith('@') && key.endsWith(':registry'))) {

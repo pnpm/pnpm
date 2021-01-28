@@ -634,6 +634,7 @@ test('warn user unknown settings in npmrc', async () => {
   process.chdir(tmp)
   const npmrc = [
     'typo-setting=true',
+    ' ',
     'mistake-setting=false',
     '//foo.bar:_authToken=aaa',
     '@qar:registry=https://registry.example.org/',
