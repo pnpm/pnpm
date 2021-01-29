@@ -4,5 +4,6 @@
   "commit": false,
   "linked": [],
   "access": "public",
-  "baseBranch": "main"
+  "baseBranch": "main",
+  "bumpVersionsWithWorkspaceProtocolOnly": true
 }
