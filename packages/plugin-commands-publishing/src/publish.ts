@@ -170,7 +170,7 @@ Do you want to continue?`,
       if (index !== -1) {
         // If --publish-branch follows with another cli option, only remove this argument
         // otherwise remove the following argument as well
-        if (args[index + 1] && args[index + 1].startsWith('--')) {
+        if (args[index + 1]?.startsWith('-')) {
           args.splice(index, 1)
         } else {
           args.splice(index, 2)
