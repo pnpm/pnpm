@@ -164,7 +164,20 @@ Do you want to continue?`,
           'prepack',
         ], publishManifest)
       }
-      const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...opts.argv.original.slice(1)])
+
+      const args = opts.argv.original.slice(1)
+      const index = args.indexOf('--publish-branch')
+      if (index !== -1) {
+        // If --publish-branch follows with another cli option, only remove this argument
+        // otherwise remove the following argument as well
+        if (args[index + 1]?.startsWith('-')) {
+          args.splice(index, 1)
+        } else {
+          args.splice(index, 2)
+        }
+      }
+
+      const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...args])
       if (!opts.ignoreScripts) {
         await _runScriptsIfPresent([
           'publish',
