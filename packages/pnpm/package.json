@@ -17,7 +17,7 @@
   ],
   "optionalDependencies": {
     "node-gyp": "^7.1.2",
-    "update-notifier": "^5.0.1"
+    "update-notifier": "^5.1.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -74,9 +74,9 @@
     "chalk": "^4.1.0",
     "cross-spawn": "^7.0.3",
     "deep-require-cwd": "1.0.0",
-    "delay": "^4.4.0",
+    "delay": "^4.4.1",
     "dir-is-case-sensitive": "^1.0.2",
-    "esbuild": "^0.8.33",
+    "esbuild": "^0.8.38",
     "execa": "^5.0.0",
     "exists-link": "2.0.0",
     "graceful-fs": "^4.2.4",
