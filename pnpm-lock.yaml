@@ -1183,10 +1183,12 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 1.0.0
       dependency-path: link:../dependency-path
+      mz: 2.7.0
       ramda: 0.27.1
     devDependencies:
       '@pnpm/logger': 3.2.3
       '@pnpm/modules-cleaner': 'link:'
+      '@types/mz': 2.7.3
       '@types/ramda': 0.27.36
     specifiers:
       '@pnpm/core-loggers': workspace:5.0.3
@@ -1199,9 +1201,11 @@ importers:
       '@pnpm/remove-bins': workspace:1.0.11
       '@pnpm/store-controller-types': workspace:9.2.1
       '@pnpm/types': workspace:6.4.0
+      '@types/mz': ^2.7.3
       '@types/ramda': ^0.27.35
       '@zkochan/rimraf': ^1.0.0
       dependency-path: workspace:5.1.1
+      mz: ^2.7.0
       ramda: ^0.27.1
   packages/modules-yaml:
     dependencies:

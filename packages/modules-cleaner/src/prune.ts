@@ -20,6 +20,7 @@ import {
 } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import removeDirectDependency from './removeDirectDependency'
+import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import R = require('ramda')
@@ -42,6 +43,7 @@ export default async function prune (
     wantedLockfile: Lockfile
     currentLockfile: Lockfile
     pruneStore?: boolean
+    pruneVirtualStore?: boolean
     registries: Registries
     skipped: Set<string>
     virtualStoreDir: string
@@ -114,8 +116,9 @@ export default async function prune (
     removed: orphanPkgIds.size,
   })
 
-  if (!opts.dryRun && orphanDepPaths.length) {
+  if (!opts.dryRun) {
     if (
+      orphanDepPaths.length &&
       opts.currentLockfile.packages &&
       (opts.hoistedModulesDir != null || opts.publicHoistedModulesDir != null)
     ) {
@@ -140,22 +143,42 @@ export default async function prune (
       }))
     }
 
-    await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-      const pathToRemove = path.join(opts.virtualStoreDir, depPathToFilename(orphanDepPath, opts.lockfileDir))
-      removalLogger.debug(pathToRemove)
-      try {
-        await rimraf(pathToRemove)
-      } catch (err) {
-        logger.warn({
-          error: err,
-          message: `Failed to remove "${pathToRemove}"`,
-          prefix: opts.lockfileDir,
-        })
+    if (opts.pruneVirtualStore !== false) {
+      const _tryRemovePkg = tryRemovePkg.bind(null, opts.lockfileDir, opts.virtualStoreDir)
+      await Promise.all(
+        orphanDepPaths
+          .map((orphanDepPath) => depPathToFilename(orphanDepPath, opts.lockfileDir))
+          .map((orphanDepPath) => _tryRemovePkg(orphanDepPath))
+      )
+      const neededPkgs: Set<string> = new Set()
+      for (const depPath of Object.keys(opts.wantedLockfile.packages ?? {})) {
+        if (opts.skipped.has(depPath)) continue
+        neededPkgs.add(depPathToFilename(depPath, opts.lockfileDir))
       }
-    }))
+      const availablePkgs = await fs.readdir(opts.virtualStoreDir)
+      await Promise.all(
+        availablePkgs
+          .filter((availablePkg) => !neededPkgs.has(availablePkg))
+          .map((orphanDepPath) => _tryRemovePkg(orphanDepPath))
+      )
+    }
   }
 
   return new Set(orphanDepPaths)
+}
+
+async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDir: string) {
+  const pathToRemove = path.join(virtualStoreDir, pkgDir)
+  removalLogger.debug(pathToRemove)
+  try {
+    await rimraf(pathToRemove)
+  } catch (err) {
+    logger.warn({
+      error: err,
+      message: `Failed to remove "${pathToRemove}"`,
+      prefix: lockfileDir,
+    })
+  }
 }
 
 function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: string]: string } {

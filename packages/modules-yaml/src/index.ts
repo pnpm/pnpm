@@ -20,6 +20,7 @@ export interface Modules {
   layoutVersion: number
   packageManager: string
   pendingBuilds: string[]
+  prunedAt?: string // nullable for backward compatibility
   registries?: Registries // nullable for backward compatibility
   shamefullyHoist?: boolean // for backward compatibility
   publicHoistPattern?: string[]
