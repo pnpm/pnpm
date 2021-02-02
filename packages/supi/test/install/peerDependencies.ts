@@ -250,7 +250,6 @@ test('top peer dependency is linked on subsequent install', async () => {
 
 test('top peer dependency is linked on subsequent install. Reverse order', async () => {
   prepareEmpty()
-  console.log(process.cwd())
 
   const manifest = await addDependenciesToPackage({}, ['abc-parent-with-ab@1.0.0'], await testDefaults())
 
@@ -364,7 +363,7 @@ test('scoped peer dependency is linked', async () => {
   prepareEmpty()
   await addDependenciesToPackage({}, ['for-testing-scoped-peers'], await testDefaults())
 
-  const pkgVariation = path.resolve('node_modules/.pnpm/@having/scoped-peer@1.0.0_@scoped+peer@1.0.0/node_modules')
+  const pkgVariation = path.resolve('node_modules/.pnpm/@having#scoped-peer@1.0.0_@scoped+peer@1.0.0/node_modules')
   await okFile(path.join(pkgVariation, '@having', 'scoped-peer'))
   await okFile(path.join(pkgVariation, '@scoped', 'peer'))
 })
@@ -851,10 +850,10 @@ test('local tarball dependency with peer dependency', async () => {
     'foo@100.0.0',
   ], await testDefaults({ reporter }))
 
-  const localPkgDirs = await fs.readdir('node_modules/.pnpm/local')
+  const integrityLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
+    .filter((dir) => dir.startsWith('local#'))
 
-  expect(localPkgDirs.length).toBe(1)
-  expect(localPkgDirs[0].endsWith('_bar@100.0.0+foo@100.0.0')).toBeTruthy()
+  expect(integrityLocalPkgDirs.length).toBe(1)
 
   await rimraf('node_modules')
 
@@ -867,7 +866,11 @@ test('local tarball dependency with peer dependency', async () => {
     },
   ], await testDefaults())
 
-  expect(await fs.readdir('node_modules/.pnpm/local')).toStrictEqual(localPkgDirs)
+  {
+    const updatedLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
+      .filter((dir) => dir.startsWith('local#'))
+    expect(updatedLocalPkgDirs).toStrictEqual(integrityLocalPkgDirs)
+  }
 })
 
 test('peer dependency that is resolved by a dev dependency', async () => {

@@ -1,4 +1,5 @@
 import { Registries } from '@pnpm/types'
+import crypto = require('crypto')
 import encodeRegistry = require('encode-registry')
 import normalize = require('normalize-path')
 import path = require('path')
@@ -130,6 +131,14 @@ export function parse (dependencyPath: string) {
 }
 
 export function depPathToFilename (depPath: string, lockfileDir: string) {
+  const filename = depPathToFilenameUnescaped(depPath, lockfileDir).replace(/\//g, '#')
+  if (filename.length > 120) {
+    return `${filename.substring(0, 50)}_${crypto.createHash('md5').update(filename).digest('hex')}`
+  }
+  return filename
+}
+
+function depPathToFilenameUnescaped (depPath: string, lockfileDir: string) {
   if (depPath.indexOf('file:') !== 0) {
     if (depPath.startsWith('/')) {
       depPath = depPath.substring(1)
@@ -139,6 +148,5 @@ export function depPathToFilename (depPath: string, lockfileDir: string) {
   }
 
   const absolutePath = normalize(path.join(lockfileDir, depPath.slice(5)))
-  const lastSlash = absolutePath.lastIndexOf('/')
-  return `local/${encodeURIComponent(absolutePath.substr(0, lastSlash + 1))}${absolutePath.substr(lastSlash + 1)}`
+  return `local#${absolutePath}`
 }
