@@ -120,9 +120,11 @@ test('resolve()', () => {
 
 test('depPathToFilename()', () => {
   expect(depPathToFilename('/foo/1.0.0', process.cwd())).toBe('foo@1.0.0')
-  expect(depPathToFilename('/@foo/bar/1.0.0', process.cwd())).toBe('@foo/bar@1.0.0')
-  expect(depPathToFilename('github.com/something/foo/0000', process.cwd())).toBe('github.com/something/foo@0000')
+  expect(depPathToFilename('/@foo/bar/1.0.0', process.cwd())).toBe('@foo#bar@1.0.0')
+  expect(depPathToFilename('github.com/something/foo/0000', process.cwd())).toBe('github.com#something#foo@0000')
 
   const filename = depPathToFilename('file:./test/foo-1.0.0.tgz_foo@2.0.0', process.cwd())
-  expect(filename).toMatch(/%2Ffoo-1.0.0.tgz_foo@2.0.0$/)
+  expect(filename).toMatch(/^local#.*#foo-1\.0\.0\.tgz_foo@2\.0\.0$/)
+
+  expect(depPathToFilename('abcd/'.repeat(200), process.cwd())).toBe('abcd#abcd#abcd#abcd#abcd#abcd#abcd#abcd#abcd#abcd#_36cae148b21d1f0b46577e42f8f4dbae')
 })
