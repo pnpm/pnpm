@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 5.0.23
+
+### Patch Changes
+
+- c70f36678: Remove redundant empty lines when run `pnpm why --parseable`
+
 ## 5.0.22
 
 ### Patch Changes

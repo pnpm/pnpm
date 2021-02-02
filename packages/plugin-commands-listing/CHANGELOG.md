@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-listing
 
+## 2.0.50
+
+### Patch Changes
+
+- c70f36678: Remove redundant empty lines when run `pnpm why --parseable`
+- Updated dependencies [c70f36678]
+- Updated dependencies [bff84dbca]
+  - @pnpm/list@5.0.23
+  - @pnpm/config@11.12.1
+  - @pnpm/cli-utils@0.4.50
+
 ## 2.0.49
 
 ### Patch Changes

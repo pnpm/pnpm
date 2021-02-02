@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.16.1
+
+### Patch Changes
+
+- Remove redundant empty lines when run `pnpm why --parseable` [#3101](https://github.com/pnpm/pnpm/pull/3101).
+- `pnpm publish --publish-branch=<branch>` does not fail [#2996](https://github.com/pnpm/pnpm/issues/2996).
+- Don't print warnings when `.npmrc` contains empty lines with whitespaces [#3105](https://github.com/pnpm/pnpm/pull/3105).
+
 ## 5.16.0
 
 ### Minor Changes

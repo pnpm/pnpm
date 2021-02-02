@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.4.1
+
+### Patch Changes
+
+- cc39fc8ad: fix: remove --publish-branch with branch name to npm publish args
+- Updated dependencies [bff84dbca]
+  - @pnpm/config@11.12.1
+  - @pnpm/cli-utils@0.4.50
+
 ## 2.4.0
 
 ### Minor Changes

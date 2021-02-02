@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.12.1
+
+### Patch Changes
+
+- bff84dbca: fix: remove empty keys from config key check
+
 ## 11.12.0
 
 ### Minor Changes
