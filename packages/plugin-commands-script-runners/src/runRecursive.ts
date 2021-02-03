@@ -18,7 +18,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'scriptShell'
 | 'shellEmulator'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
 }
@@ -32,9 +32,11 @@ export default async (
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
   }
   let hasCommand = 0
-  const packageChunks = opts.sort
+
+  const sortedPackageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
     : [Object.keys(opts.selectedProjectsGraph).sort()]
+  const packageChunks = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 
   const result = {
     fails: [],

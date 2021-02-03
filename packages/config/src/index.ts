@@ -177,6 +177,7 @@ export default async (
     'shared-workspace-shrinkwrap': true,
     'shell-emulator': false,
     shrinkwrap: npmDefaults.shrinkwrap,
+    reverse: false,
     sort: true,
     'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
