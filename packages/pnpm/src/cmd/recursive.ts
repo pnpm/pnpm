@@ -90,6 +90,10 @@ Convenient to use in a multi-package repository.',
             name: '--link-workspace-packages',
           },
           {
+            description: 'Reverse the order that packages get ordered in. Disabled by default.',
+            name: '--reverse',
+          },
+          {
             description: 'Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.',
             name: '--sort',
           },

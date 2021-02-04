@@ -4,11 +4,11 @@ import PnpmError from '@pnpm/error'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
-import existsInDir from './existsInDir'
 import {
   PARALLEL_OPTION_HELP,
   shorthands as runShorthands,
 } from './run'
+import existsInDir from './existsInDir'
 import execa = require('execa')
 import pLimit = require('p-limit')
 import R = require('ramda')

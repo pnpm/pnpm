@@ -9,10 +9,10 @@ import {
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
+import path = require('path')
 import execa = require('execa')
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
-import path = require('path')
 import writeYamlFile = require('write-yaml-file')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
