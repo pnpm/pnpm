@@ -8,9 +8,9 @@ jobs:
       fail-fast: false
       matrix:
         node: 
-          - '10.16'
-          - '12'
+          - '12.17'
           - '14'
+          - '15'
         platform:
           - ubuntu-latest
           - windows-latest
