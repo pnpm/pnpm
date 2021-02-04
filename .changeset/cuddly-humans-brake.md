@@ -93,4 +93,4 @@
 "@pnpm-private/updater": minor
 ---
 
-Node.js 10 support is dropped. At least Node.js 12.13 is required for the package to work.
+Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
