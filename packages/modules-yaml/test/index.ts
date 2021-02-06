@@ -18,6 +18,7 @@ test('write() and read()', async () => {
     packageManager: 'pnpm@2',
     pendingBuilds: [],
     publicHoistPattern: [],
+    prunedAt: new Date().toUTCString(),
     registries: {
       default: 'https://registry.npmjs.org/',
     },
