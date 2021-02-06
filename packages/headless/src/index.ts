@@ -404,7 +404,7 @@ export default async (opts: HeadlessOptions) => {
       pendingBuilds: opts.pendingBuilds,
       publicHoistPattern: opts.publicHoistPattern,
       prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
-        ? new Date().toString() : opts.prunedAt,
+        ? new Date().toUTCString() : opts.prunedAt,
       registries: opts.registries,
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,

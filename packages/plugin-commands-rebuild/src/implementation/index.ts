@@ -171,6 +171,7 @@ export async function rebuild (
   }
 
   await writeModulesYaml(ctx.rootModulesDir, {
+    prunedAt: new Date().toUTCString(),
     ...ctx.modulesFile,
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,

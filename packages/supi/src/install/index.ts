@@ -140,7 +140,7 @@ export async function mutateModules (
   const ctx = await getContext(projects, opts)
   const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
-    : false
+    : true
   const rootProjectManifest = ctx.projects.find(({ id }) => id === '.')?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly hear.
@@ -869,9 +869,9 @@ async function installInContext (
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           publicHoistPattern: ctx.publicHoistPattern,
-          prunedAt: opts.pruneVirtualStore || ctx.modulesFile?.prunedAt == null
-            ? new Date().toString()
-            : ctx.modulesFile?.prunedAt,
+          prunedAt: opts.pruneVirtualStore || ctx.modulesFile == null
+            ? new Date().toUTCString()
+            : ctx.modulesFile.prunedAt,
           registries: ctx.registries,
           skipped: Array.from(ctx.skipped),
           storeDir: ctx.storeDir,
