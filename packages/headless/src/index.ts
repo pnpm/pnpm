@@ -403,7 +403,8 @@ export default async (opts: HeadlessOptions) => {
       packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
       pendingBuilds: opts.pendingBuilds,
       publicHoistPattern: opts.publicHoistPattern,
-      prunedAt: opts.pruneVirtualStore ? (new Date()).toString() : opts.prunedAt,
+      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
+        ? new Date().toString() : opts.prunedAt,
       registries: opts.registries,
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,

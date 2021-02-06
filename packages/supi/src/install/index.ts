@@ -465,7 +465,7 @@ export async function mutateModules (
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number) {
-  return ((Date.now() - (new Date(prunedAt)).valueOf()) / (1000 * 60)) > maxAgeInMinutes
+  return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
 }
 
 async function isExternalLink (storeDir: string, modules: string, pkgName: string) {
@@ -870,7 +870,7 @@ async function installInContext (
           pendingBuilds: ctx.pendingBuilds,
           publicHoistPattern: ctx.publicHoistPattern,
           prunedAt: opts.pruneVirtualStore || ctx.modulesFile?.prunedAt == null
-            ? (new Date()).toString()
+            ? new Date().toString()
             : ctx.modulesFile?.prunedAt,
           registries: ctx.registries,
           skipped: Array.from(ctx.skipped),
