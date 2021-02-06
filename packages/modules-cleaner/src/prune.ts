@@ -155,7 +155,7 @@ export default async function prune (
         if (opts.skipped.has(depPath)) continue
         neededPkgs.add(depPathToFilename(depPath, opts.lockfileDir))
       }
-      const availablePkgs = await fs.readdir(opts.virtualStoreDir)
+      const availablePkgs = await readVirtualStoreDir(opts.virtualStoreDir, opts.lockfileDir)
       await Promise.all(
         availablePkgs
           .filter((availablePkg) => !neededPkgs.has(availablePkg))
@@ -165,6 +165,21 @@ export default async function prune (
   }
 
   return new Set(orphanDepPaths)
+}
+
+async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string) {
+  try {
+    return await fs.readdir(virtualStoreDir)
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      logger.warn({
+        error: err,
+        message: `Failed to read virtualStoreDir at "${virtualStoreDir}"`,
+        prefix: lockfileDir,
+      })
+    }
+    return []
+  }
 }
 
 async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDir: string) {
