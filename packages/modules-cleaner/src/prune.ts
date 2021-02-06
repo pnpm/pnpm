@@ -114,47 +114,45 @@ export default async function prune (
     removed: orphanPkgIds.size,
   })
 
-  if (!opts.dryRun) {
-    if (orphanDepPaths.length) {
-      if (
-        opts.currentLockfile.packages &&
-        (opts.hoistedModulesDir != null || opts.publicHoistedModulesDir != null)
-      ) {
-        const prefix = path.join(opts.virtualStoreDir, '../..')
-        await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-          if (opts.hoistedDependencies[orphanDepPath]) {
-            await Promise.all(Object.entries(opts.hoistedDependencies[orphanDepPath]).map(([alias, hoistType]) => {
-              const modulesDir = hoistType === 'public'
-                ? opts.publicHoistedModulesDir! : opts.hoistedModulesDir!
-              if (!modulesDir) return
-              return removeDirectDependency({
-                name: alias,
-              }, {
-                binsDir: path.join(modulesDir, '.bin'),
-                modulesDir,
-                muteLogs: true,
-                rootDir: prefix,
-              })
-            }))
-          }
-          delete opts.hoistedDependencies[orphanDepPath]
-        }))
-      }
-
+  if (!opts.dryRun && orphanDepPaths.length) {
+    if (
+      opts.currentLockfile.packages &&
+      (opts.hoistedModulesDir != null || opts.publicHoistedModulesDir != null)
+    ) {
+      const prefix = path.join(opts.virtualStoreDir, '../..')
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        const pathToRemove = path.join(opts.virtualStoreDir, depPathToFilename(orphanDepPath, opts.lockfileDir))
-        removalLogger.debug(pathToRemove)
-        try {
-          await rimraf(pathToRemove)
-        } catch (err) {
-          logger.warn({
-            error: err,
-            message: `Failed to remove "${pathToRemove}"`,
-            prefix: opts.lockfileDir,
-          })
+        if (opts.hoistedDependencies[orphanDepPath]) {
+          await Promise.all(Object.entries(opts.hoistedDependencies[orphanDepPath]).map(([alias, hoistType]) => {
+            const modulesDir = hoistType === 'public'
+              ? opts.publicHoistedModulesDir! : opts.hoistedModulesDir!
+            if (!modulesDir) return
+            return removeDirectDependency({
+              name: alias,
+            }, {
+              binsDir: path.join(modulesDir, '.bin'),
+              modulesDir,
+              muteLogs: true,
+              rootDir: prefix,
+            })
+          }))
         }
+        delete opts.hoistedDependencies[orphanDepPath]
       }))
     }
+
+    await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
+      const pathToRemove = path.join(opts.virtualStoreDir, depPathToFilename(orphanDepPath, opts.lockfileDir))
+      removalLogger.debug(pathToRemove)
+      try {
+        await rimraf(pathToRemove)
+      } catch (err) {
+        logger.warn({
+          error: err,
+          message: `Failed to remove "${pathToRemove}"`,
+          prefix: opts.lockfileDir,
+        })
+      }
+    }))
   }
 
   return new Set(orphanDepPaths)
