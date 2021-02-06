@@ -119,6 +119,7 @@ export interface Config {
   symlink: boolean
   enablePnp?: boolean
   enableModulesDir: boolean
+  modulesCacheMaxAge: number
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean
