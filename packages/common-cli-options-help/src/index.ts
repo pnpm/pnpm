@@ -57,7 +57,7 @@ export const UNIVERSAL_OPTIONS = [
 export const FILTERING = {
   list: [
     {
-      description: 'Restricts the scope to package names matching the given pattern. E.g.: foo, @bar/*',
+      description: 'Restricts the scope to package names matching the given pattern. E.g.: foo, "@bar/*"',
       name: '--filter <pattern>',
     },
     {
@@ -69,7 +69,7 @@ export const FILTERING = {
       name: '--filter <pattern>^...',
     },
     {
-      description: 'Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, ...@bar/*',
+      description: 'Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, "...@bar/*"',
       name: '--filter ...<pattern>',
     },
     {
@@ -85,19 +85,19 @@ export const FILTERING = {
       name: '--filter .',
     },
     {
-      description: 'Includes all projects that are under the specified directory. It may be used with "..." to select dependents/dependencies as well. It also may be combined with [<since>]. For instance, all changed projects inside a directory: {packages}[origin/master]',
+      description: 'Includes all projects that are under the specified directory. It may be used with "..." to select dependents/dependencies as well. It also may be combined with "[<since>]". For instance, all changed projects inside a directory: "{packages}[origin/master]"',
       name: '--filter {<dir>}',
     },
     {
-      description: 'Includes all packages changed since the specified commit/branch. E.g.: [master], [HEAD~2]. It may be used together with "...". So, for instance, ...[HEAD~1] selects all packages changed in the last commit and their dependents',
-      name: '--filter [<since>]',
+      description: 'Includes all packages changed since the specified commit/branch. E.g.: "[master]", "[HEAD~2]". It may be used together with "...". So, for instance, "...[HEAD~1]" selects all packages changed in the last commit and their dependents',
+      name: '--filter "[<since>]"',
     },
     {
-      description: 'If a selector starts with !, it means the packages matching the selector must be excluded. E.g., "pnpm --filter !foo" selects all packages except "foo"',
+      description: 'If a selector starts with ! (or \\! in zsh), it means the packages matching the selector must be excluded. E.g., "pnpm --filter !foo" selects all packages except "foo"',
       name: '--filter !<selector>',
     },
     {
-      description: 'Defines files related to tests. Useful with the changed since filter. When selecting only changed packages and their dependent packages, the dependent packages will be ignored in case a package has changes only in tests. Usage example: pnpm --filter=...[origin/master] --test-pattern=test/* test',
+      description: 'Defines files related to tests. Useful with the changed since filter. When selecting only changed packages and their dependent packages, the dependent packages will be ignored in case a package has changes only in tests. Usage example: pnpm --filter="...[origin/master]" --test-pattern="test/*" test',
       name: '--test-pattern <pattern>',
     },
   ],
