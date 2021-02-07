@@ -2309,7 +2309,6 @@ importers:
       esbuild: 0.8.42
       execa: 5.0.0
       exists-link: 2.0.0
-      graceful-fs: 4.2.4
       is-ci: 2.0.0
       is-windows: 1.0.2
       load-json-file: 6.2.0
@@ -2339,6 +2338,7 @@ importers:
       write-pkg: 4.0.0
       write-yaml-file: 4.1.3
     optionalDependencies:
+      graceful-fs: 4.2.4
       node-gyp: 7.1.2
       update-notifier: 5.1.0
     specifiers:
