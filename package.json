@@ -58,7 +58,8 @@
       "@nodelib/fs.walk@^1.1.0": "1.1.1",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
       "http-errors": "^1.7.3",
-      "table@^6.0.3": "6.0.4"
+      "table@^6.0.3": "6.0.4",
+      "graceful-fs": "4.2.4"
     },
     "neverBuiltDependencies": [
       "core-js",
