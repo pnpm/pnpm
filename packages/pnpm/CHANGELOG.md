@@ -1,6 +1,6 @@
 # pnpm
 
-## 5.17.0
+## 5.17.1
 
 ### Minor Changes
 
