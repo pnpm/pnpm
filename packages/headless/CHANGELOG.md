@@ -1,5 +1,18 @@
 # @pnpm/headless
 
+## 14.6.6
+
+### Patch Changes
+
+- Updated dependencies [ad113645b]
+  - @pnpm/read-project-manifest@1.1.7
+  - @pnpm/link-bins@5.3.22
+  - @pnpm/lockfile-to-pnp@0.3.20
+  - @pnpm/build-modules@5.2.8
+  - @pnpm/hoist@4.0.23
+  - @pnpm/modules-cleaner@10.0.21
+  - @pnpm/package-requester@12.2.2
+
 ## 14.6.5
 
 ### Patch Changes

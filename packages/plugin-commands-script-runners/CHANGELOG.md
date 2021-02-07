@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 2.6.0
+
+### Minor Changes
+
+- c4cc62506: Add '--reverse' flag for reversing the order of package executions during 'recursive run'
+
+### Patch Changes
+
+- Updated dependencies [c4cc62506]
+  - @pnpm/config@11.13.0
+  - @pnpm/cli-utils@0.4.51
+
 ## 2.5.17
 
 ### Patch Changes

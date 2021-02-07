@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.13.0
+
+### Minor Changes
+
+- c4cc62506: Add '--reverse' flag for reversing the order of package executions during 'recursive run'
+
 ## 11.12.1
 
 ### Patch Changes

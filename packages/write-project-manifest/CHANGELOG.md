@@ -1,5 +1,11 @@
 # @pnpm/write-project-manifest
 
+## 1.1.7
+
+### Patch Changes
+
+- ad113645b: pin graceful-fs to v4.2.4
+
 ## 1.1.6
 
 ### Patch Changes

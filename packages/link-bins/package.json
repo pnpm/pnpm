@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "5.3.21",
+  "version": "5.3.22",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,10 +34,10 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/link-bins#readme",
   "dependencies": {
     "@pnpm/error": "workspace:1.4.0",
-    "@pnpm/package-bins": "workspace:4.0.10",
+    "@pnpm/package-bins": "workspace:4.0.11",
     "@pnpm/read-modules-dir": "workspace:2.0.3",
     "@pnpm/read-package-json": "workspace:3.1.9",
-    "@pnpm/read-project-manifest": "workspace:1.1.6",
+    "@pnpm/read-project-manifest": "workspace:1.1.7",
     "@pnpm/types": "workspace:6.4.0",
     "@zkochan/cmd-shim": "^5.0.0",
     "is-subdir": "^1.1.1",

@@ -1,5 +1,11 @@
 # @pnpm/package-bins
 
+## 4.0.11
+
+### Patch Changes
+
+- ad113645b: pin graceful-fs to v4.2.4
+
 ## 4.0.10
 
 ### Patch Changes

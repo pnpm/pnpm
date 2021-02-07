@@ -1,5 +1,13 @@
 # @pnpm/local-resolver
 
+## 5.1.3
+
+### Patch Changes
+
+- ad113645b: pin graceful-fs to v4.2.4
+- Updated dependencies [ad113645b]
+  - @pnpm/read-project-manifest@1.1.7
+
 ## 5.1.2
 
 ### Patch Changes

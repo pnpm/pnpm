@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 8.2.8
+
+### Patch Changes
+
+- ad113645b: pin graceful-fs to v4.2.4
+
 ## 8.2.7
 
 ### Patch Changes
