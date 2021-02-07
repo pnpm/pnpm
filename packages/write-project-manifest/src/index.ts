@@ -27,7 +27,7 @@ export default async function writeProjectManifest (
   const trailingNewline = opts?.insertFinalNewline === false ? '' : '\n'
 
   const json = (fileType === 'json5' ? JSON5 : JSON)
-    .stringify(manifest, null, opts?.indent ?? '\t')
+    .stringify(manifest, undefined, opts?.indent ?? '\t')
 
   return writeFileAtomic(filePath, `${json}${trailingNewline}`)
 }
