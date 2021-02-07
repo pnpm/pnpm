@@ -1,5 +1,12 @@
 # find-packages
 
+## 7.0.24
+
+### Patch Changes
+
+- Updated dependencies [ad113645b]
+  - @pnpm/read-project-manifest@1.1.7
+
 ## 7.0.23
 
 ### Patch Changes

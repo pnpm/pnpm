@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.17.0
+
+### Minor Changes
+
+- New '--reverse' CLI option added for reversing the order of package executions during `pnpm -r run` [#2985](https://github.com/pnpm/pnpm/issues/2985).
+
 ## 5.16.1
 
 ### Patch Changes

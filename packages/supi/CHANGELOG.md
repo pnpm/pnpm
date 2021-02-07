@@ -1,5 +1,21 @@
 # supi
 
+## 0.44.3
+
+### Patch Changes
+
+- ad113645b: pin graceful-fs to v4.2.4
+- Updated dependencies [ad113645b]
+  - @pnpm/read-project-manifest@1.1.7
+  - @pnpm/link-bins@5.3.22
+  - @pnpm/remove-bins@1.0.11
+  - @pnpm/headless@14.6.6
+  - @pnpm/lockfile-to-pnp@0.3.20
+  - @pnpm/build-modules@5.2.8
+  - @pnpm/hoist@4.0.23
+  - @pnpm/modules-cleaner@10.0.21
+  - @pnpm/package-requester@12.2.2
+
 ## 0.44.2
 
 ### Patch Changes
