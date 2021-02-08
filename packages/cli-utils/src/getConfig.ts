@@ -9,6 +9,7 @@ export default async function (
     globalDirShouldAllowWrite?: boolean
     rcOptionsTypes: Record<string, unknown>
     workspaceDir: string | undefined
+    checkUnknownSetting?: boolean
   }
 ) {
   const { config, warnings } = await getConfig({
@@ -17,6 +18,7 @@ export default async function (
     packageManager,
     rcOptionsTypes: opts.rcOptionsTypes,
     workspaceDir: opts.workspaceDir,
+    checkUnknownSetting: opts.checkUnknownSetting,
   })
   config.cliOptions = cliOptions
 
