@@ -47,7 +47,7 @@ test('start: run "node server.js" by default', async () => {
 
   const result = execPnpmSync(['start'])
 
-  expect((result.stdout as Buffer).toString('utf8')).toBe('Hello world!')
+  expect((result.stdout as Buffer).toString('utf8')).toBe('Hello world!\n')
 })
 
 test('install-test: install dependencies and runs tests', async () => {
