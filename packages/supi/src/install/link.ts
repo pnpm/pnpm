@@ -51,6 +51,7 @@ export default async function linkPackages (
     makePartialCurrentLockfile: boolean
     outdatedDependencies: {[pkgId: string]: string}
     pruneStore: boolean
+    pruneVirtualStore: boolean
     registries: Registries
     rootModulesDir: string
     sideEffectsCacheRead: boolean
@@ -97,6 +98,7 @@ export default async function linkPackages (
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     pruneStore: opts.pruneStore,
+    pruneVirtualStore: opts.pruneVirtualStore,
     publicHoistedModulesDir: (opts.publicHoistPattern && opts.rootModulesDir) ?? undefined,
     registries: opts.registries,
     skipped: opts.skipped,

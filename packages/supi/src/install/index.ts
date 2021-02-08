@@ -138,6 +138,9 @@ export async function mutateModules (
   opts['forceNewModules'] = installsOnly
   opts['autofixMergeConflicts'] = !opts.frozenLockfile
   const ctx = await getContext(projects, opts)
+  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
+    ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
+    : true
   const rootProjectManifest = ctx.projects.find(({ id }) => id === '.')?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly hear.
@@ -240,6 +243,8 @@ export async function mutateModules (
               pruneDirectDependencies?: boolean
             }>,
             pruneStore: opts.pruneStore,
+            prunedAt: ctx.modulesFile?.prunedAt,
+            pruneVirtualStore,
             publicHoistPattern: ctx.publicHoistPattern,
             rawConfig: opts.rawConfig,
             registries: opts.registries,
@@ -439,6 +444,7 @@ export async function mutateModules (
       needsFullResolution,
       neverBuiltDependencies,
       overrides,
+      pruneVirtualStore,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
     })
@@ -456,6 +462,10 @@ export async function mutateModules (
 
     return result
   }
+}
+
+function cacheExpired (prunedAt: string, maxAgeInMinutes: number) {
+  return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
 }
 
 async function isExternalLink (storeDir: string, modules: string, pkgName: string) {
@@ -588,6 +598,7 @@ async function installInContext (
     overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
+    pruneVirtualStore: boolean
     currentLockfileIsUpToDate: boolean
   }
 ) {
@@ -720,6 +731,7 @@ async function installInContext (
         makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
         outdatedDependencies,
         pruneStore: opts.pruneStore,
+        pruneVirtualStore: opts.pruneVirtualStore,
         publicHoistPattern: ctx.publicHoistPattern,
         registries: ctx.registries,
         rootModulesDir: ctx.rootModulesDir,
@@ -857,6 +869,9 @@ async function installInContext (
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           publicHoistPattern: ctx.publicHoistPattern,
+          prunedAt: opts.pruneVirtualStore || ctx.modulesFile == null
+            ? new Date().toUTCString()
+            : ctx.modulesFile.prunedAt,
           registries: ctx.registries,
           skipped: Array.from(ctx.skipped),
           storeDir: ctx.storeDir,

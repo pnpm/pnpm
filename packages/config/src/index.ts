@@ -51,6 +51,7 @@ export const types = Object.assign({
   'lockfile-directory': String, // TODO: deprecate
   'lockfile-only': Boolean,
   loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
+  'modules-cache-max-age': Number,
   'modules-dir': String,
   'network-concurrency': Number,
   'node-linker': ['pnp'],
@@ -157,6 +158,7 @@ export default async (
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,
+    'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'package-lock': npmDefaults['package-lock'],
     pending: false,
     'prefer-workspace-packages': false,

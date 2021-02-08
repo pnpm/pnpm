@@ -37,10 +37,12 @@
     "@pnpm/types": "workspace:6.4.0",
     "@zkochan/rimraf": "^1.0.0",
     "dependency-path": "workspace:5.1.1",
+    "mz": "^2.7.0",
     "ramda": "^0.27.1"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
+    "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.35"
   },
   "bugs": {

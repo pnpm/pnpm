@@ -89,6 +89,7 @@ export interface HeadlessOptions {
     pruneDirectDependencies?: boolean
     rootDir: string
   }>
+  prunedAt?: string
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
   publicHoistPattern?: string[]
@@ -113,6 +114,7 @@ export interface HeadlessOptions {
     version: string
   }
   pruneStore: boolean
+  pruneVirtualStore?: boolean
   wantedLockfile?: Lockfile
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
@@ -178,6 +180,7 @@ export default async (opts: HeadlessOptions) => {
         include: opts.include,
         lockfileDir,
         pruneStore: opts.pruneStore,
+        pruneVirtualStore: opts.pruneVirtualStore,
         publicHoistedModulesDir: (opts.publicHoistPattern && publicHoistedModulesDir) ?? undefined,
         registries: opts.registries,
         skipped,
@@ -400,6 +403,8 @@ export default async (opts: HeadlessOptions) => {
       packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
       pendingBuilds: opts.pendingBuilds,
       publicHoistPattern: opts.publicHoistPattern,
+      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
+        ? new Date().toUTCString() : opts.prunedAt,
       registries: opts.registries,
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,

@@ -20,7 +20,7 @@ test('remove unreferenced packages', async () => {
   const storeDir = path.resolve('store')
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
-  await execa('node', [pnpmBin, 'remove', 'is-negative', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
+  await execa('node', [pnpmBin, 'remove', 'is-negative', '--store-dir', storeDir, '--config.modules-cache-max-age=0'], { env: { npm_config_registry: REGISTRY } })
 
   await project.storeHas('is-negative', '2.1.0')
 

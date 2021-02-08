@@ -20,6 +20,7 @@ export interface Modules {
   layoutVersion: number
   packageManager: string
   pendingBuilds: string[]
+  prunedAt: string
   registries?: Registries // nullable for backward compatibility
   shamefullyHoist?: boolean // for backward compatibility
   publicHoistPattern?: string[]
@@ -73,6 +74,9 @@ export async function read (modulesDir: string): Promise<Modules | null> {
       }
     }
     break
+  }
+  if (!modules.prunedAt) {
+    modules.prunedAt = new Date().toUTCString()
   }
   return modules
 }
