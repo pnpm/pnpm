@@ -647,9 +647,20 @@ test('warn user unknown settings in npmrc', async () => {
       name: 'pnpm',
       version: '1.0.0',
     },
+    checkUnknownSetting: true,
   })
 
   expect(warnings).toStrictEqual([
     'Your .npmrc file contains unknown setting: typo-setting, mistake-setting',
   ])
+
+  const { warnings: noWarnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(noWarnings).toStrictEqual([])
 })

@@ -109,6 +109,7 @@ export default async (
     }
     rcOptionsTypes?: Record<string, unknown>
     workspaceDir?: string | undefined
+    checkUnknownSetting?: boolean
   }
 ): Promise<{ config: Config, warnings: string[] }> => {
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
@@ -395,18 +396,20 @@ export default async (
   }
   pnpmConfig.enablePnp = pnpmConfig['nodeLinker'] === 'pnp'
 
-  const settingKeys = Object.keys({
-    ...npmConfig?.sources?.workspace?.data,
-    ...npmConfig?.sources?.project?.data,
-  }).filter(key => key.trim() !== '')
-  const unknownKeys = []
-  for (const key of settingKeys) {
-    if (!rcOptions.includes(key) && !key.startsWith('//') && !(key.startsWith('@') && key.endsWith(':registry'))) {
-      unknownKeys.push(key)
+  if (opts.checkUnknownSetting) {
+    const settingKeys = Object.keys({
+      ...npmConfig?.sources?.workspace?.data,
+      ...npmConfig?.sources?.project?.data,
+    }).filter(key => key.trim() !== '')
+    const unknownKeys = []
+    for (const key of settingKeys) {
+      if (!rcOptions.includes(key) && !key.startsWith('//') && !(key.startsWith('@') && key.endsWith(':registry'))) {
+        unknownKeys.push(key)
+      }
     }
-  }
-  if (unknownKeys.length) {
-    warnings.push(`Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`)
+    if (unknownKeys.length) {
+      warnings.push(`Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`)
+    }
   }
 
   return { config: pnpmConfig, warnings }
