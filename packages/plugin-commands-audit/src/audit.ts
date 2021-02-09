@@ -141,7 +141,7 @@ export async function handler (
 }
 
 function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number) {
-  if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found'
+  if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
       .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
