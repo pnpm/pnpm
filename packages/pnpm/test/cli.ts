@@ -1,5 +1,5 @@
 import prepare from '@pnpm/prepare'
-import { promises as fs } from 'fs'
+import { createReadStream, promises as fs } from 'fs'
 import {
   execPnpm,
   execPnpmSync,
@@ -152,7 +152,7 @@ test('the bundled CLI can be executed from stdin', async () => {
 
   const nodeProcess = execa('node', ['-', 'add', 'is-positive'])
 
-  fs.createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
+  createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
 
   await nodeProcess
 

@@ -5,7 +5,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import writeProjectManifest from '@pnpm/write-project-manifest'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import { promises as fs } from 'fs'
+import { promises as fs, readFileSync } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import {
   execPnpm,
@@ -182,7 +182,7 @@ test('lockfile compatibility', async () => {
 
     proc.on('close', (code: number) => {
       if (code > 0) return reject(new Error(`Exit code ${code}`))
-      const wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
+      const wrap = JSON.parse(readFileSync('npm-shrinkwrap.json', 'utf-8'))
       expect(wrap.dependencies.rimraf.version).toBe('2.5.1')
       resolve()
     })
