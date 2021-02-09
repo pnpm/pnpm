@@ -7,9 +7,9 @@ import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import { depPathToFilename } from 'dependency-path'
+import { promises as fs, statSync } from 'fs'
 import path = require('path')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import nock = require('nock')
 import normalize = require('normalize-path')
@@ -417,7 +417,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const files = await fetchResult.files()
 
-    ino1 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
+    ino1 = statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
@@ -429,7 +429,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const files = await fetchResult.files()
 
-    ino2 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
+    ino2 = statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()

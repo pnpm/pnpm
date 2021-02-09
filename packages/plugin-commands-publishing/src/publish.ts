@@ -6,13 +6,13 @@ import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import runNpm from '@pnpm/run-npm'
 import { ProjectManifest } from '@pnpm/types'
 import { prompt } from 'enquirer'
+import { promises as fs } from 'fs'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
 import fg = require('fast-glob')
-import fs = require('mz/fs')
 import R = require('ramda')
 import realpathMissing = require('realpath-missing')
 import renderHelp = require('render-help')

@@ -1,8 +1,8 @@
 import pnpmLogger, { globalWarn } from '@pnpm/logger'
+import { promises as fs } from 'fs'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import makeEmptyDir = require('make-empty-dir')
-import fs = require('mz/fs')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 

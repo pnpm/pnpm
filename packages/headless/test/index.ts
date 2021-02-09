@@ -14,12 +14,12 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
+import { promises as fs, writeFileSync } from 'fs'
 import testDefaults from './utils/testDefaults'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import isWindows = require('is-windows')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import exists = require('path-exists')
 import sinon = require('sinon')
 import tempy = require('tempy')
@@ -673,7 +673,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
   const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
-  fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
+  writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(lockfileDir, 'node_modules'))
   await headless(opts)

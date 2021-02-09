@@ -25,9 +25,10 @@ import {
   HoistedDependencies,
   Registries,
 } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import path = require('path')
-import fs = require('mz/fs')
 import pLimit = require('p-limit')
+import pathExists = require('path-exists')
 import R = require('ramda')
 
 const brokenModulesLogger = logger('_broken_node_modules')
@@ -361,7 +362,7 @@ async function selectNewFromWantedDeps (
           prevDep &&
           depNode.resolution['integrity'] === prevDep.resolution['integrity']
         ) {
-          if (await fs.exists(depNode.dir)) {
+          if (await pathExists(depNode.dir)) {
             return
           }
           brokenModulesLogger.debug({

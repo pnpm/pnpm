@@ -1,4 +1,5 @@
 import prepare from '@pnpm/prepare'
+import { createReadStream, promises as fs } from 'fs'
 import {
   execPnpm,
   execPnpmSync,
@@ -7,7 +8,6 @@ import {
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
-import fs = require('mz/fs')
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
@@ -152,7 +152,7 @@ test('the bundled CLI can be executed from stdin', async () => {
 
   const nodeProcess = execa('node', ['-', 'add', 'is-positive'])
 
-  fs.createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
+  createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
 
   await nodeProcess
 

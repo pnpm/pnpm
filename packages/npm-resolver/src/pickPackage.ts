@@ -2,13 +2,13 @@ import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { VersionSelectors } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import { RegistryPackageSpec } from './parsePref'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
 import path = require('path')
 import getRegistryName = require('encode-registry')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import pLimit = require('p-limit')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')

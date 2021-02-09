@@ -16,8 +16,7 @@
     "@pnpm/logger": "^3.2.3"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
-    "@types/mz": "^2.7.3"
+    "@pnpm/logger": "^3.2.3"
   },
   "directories": {
     "test": "test"
@@ -41,7 +40,6 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:5.0.3",
     "@pnpm/types": "workspace:6.4.0",
-    "mz": "^2.7.0",
     "symlink-dir": "^4.1.0"
   },
   "funding": "https://opencollective.com/pnpm"

@@ -8,12 +8,12 @@ import prepare, {
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import { execPnpm, execPnpmSync, execPnpxSync } from '../utils'
 import path = require('path')
 import execa = require('execa')
 import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
 import exists = require('path-exists')
 import symlink = require('symlink-dir')
 import tempy = require('tempy')

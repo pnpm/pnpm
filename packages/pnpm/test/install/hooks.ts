@@ -1,5 +1,6 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
+import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import {
   addDistTag,
@@ -7,7 +8,6 @@ import {
   execPnpmSync,
 } from '../utils'
 import path = require('path')
-import fs = require('mz/fs')
 import writeYamlFile = require('write-yaml-file')
 
 test('readPackage hook', async () => {

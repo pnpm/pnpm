@@ -1,7 +1,7 @@
 import { execPnpm } from './utils'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import prepare from '@pnpm/prepare'
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
 import path = require('path')
 import exists = require('path-exists')
 import PATH = require('path-name')

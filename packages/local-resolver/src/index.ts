@@ -7,7 +7,7 @@ import {
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import parsePref from './parsePref'
-import fs = require('graceful-fs')
+import fs = require('fs')
 import ssri = require('ssri')
 
 /**

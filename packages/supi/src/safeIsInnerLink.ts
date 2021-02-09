@@ -1,8 +1,8 @@
 import logger from '@pnpm/logger'
+import { promises as fs } from 'fs'
 import path = require('path')
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
-import fs = require('mz/fs')
 
 export default async function safeIsInnerLink (
   projectModulesDir: string,

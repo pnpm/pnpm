@@ -3,10 +3,10 @@ import { install, link } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import assertProject, { isExecutable } from '@pnpm/assert-project'
 import { copyFixture } from '@pnpm/test-fixtures'
+import { promises as fs } from 'fs'
 import { DEFAULT_OPTS } from './utils'
 import path = require('path')
 import PATH = require('path-name')
-import fs = require('mz/fs')
 import writePkg = require('write-pkg')
 
 test('linking multiple packages', async () => {

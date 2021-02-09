@@ -3,6 +3,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -14,7 +15,6 @@ import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
-import fs = require('mz/fs')
 import exists = require('path-exists')
 import sinon = require('sinon')
 

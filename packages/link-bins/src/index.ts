@@ -4,11 +4,11 @@ import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependencyManifest } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import Module = require('module')
 import cmdShim = require('@zkochan/cmd-shim')
 import isSubdir = require('is-subdir')
 import isWindows = require('is-windows')
-import fs = require('mz/fs')
 import normalizePath = require('normalize-path')
 import pSettle = require('p-settle')
 import path = require('path')

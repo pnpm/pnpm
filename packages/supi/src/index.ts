@@ -1,6 +1,3 @@
-// Patch the global fs module here at the app level
-import './fs/gracefulify'
-
 export { PackageManifest } from '@pnpm/types'
 export * from './api'
 

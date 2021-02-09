@@ -20,7 +20,7 @@ import {
 } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import removeDirectDependency from './removeDirectDependency'
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import R = require('ramda')

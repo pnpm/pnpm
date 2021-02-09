@@ -5,11 +5,11 @@ import { add, install, remove, update } from '@pnpm/plugin-commands-installation
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 import path = require('path')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 

@@ -26,7 +26,6 @@
     "@zkochan/rimraf": "^1.0.0",
     "load-json-file": "^6.2.0",
     "make-empty-dir": "^1.0.0",
-    "mz": "^2.7.0",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-temp": "^2.0.0",
@@ -38,7 +37,6 @@
   "devDependencies": {
     "@pnpm/client": "workspace:2.0.21",
     "@pnpm/logger": "^3.2.3",
-    "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.35",
     "@types/ssri": "^7.1.0",
     "tempy": "^1.0.0"

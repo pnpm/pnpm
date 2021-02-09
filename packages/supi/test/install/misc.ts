@@ -12,6 +12,7 @@ import {
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import {
   addDependenciesToPackage,
   install,
@@ -28,7 +29,6 @@ import deepRequireCwd = require('deep-require-cwd')
 import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
-import fs = require('mz/fs')
 import exists = require('path-exists')
 import semver = require('semver')
 import sinon = require('sinon')

@@ -4,7 +4,7 @@ import PnpmError from '@pnpm/error'
 import prepare from '@pnpm/prepare'
 
 import './findBestGlobalPrefixOnWindows'
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
 import path = require('path')
 import symlinkDir = require('symlink-dir')
 import tempy = require('tempy')
