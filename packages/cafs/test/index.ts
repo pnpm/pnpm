@@ -1,8 +1,8 @@
+import { createReadStream, promises as fs } from 'fs'
 import createCafs, {
   checkFilesIntegrity,
   getFilePathInCafs,
 } from '../src'
-import fs = require('mz/fs')
 import path = require('path')
 import tempy = require('tempy')
 
@@ -11,7 +11,7 @@ describe('cafs', () => {
     const dest = tempy.directory()
     const cafs = createCafs(dest)
     const filesIndex = await cafs.addFilesFromTarball(
-      fs.createReadStream(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
+      createReadStream(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
     )
     expect(Object.keys(filesIndex)).toHaveLength(121)
     const pkgFile = filesIndex['package.json']
@@ -58,7 +58,7 @@ test('file names are normalized when unpacking a tarball', async () => {
   console.log(dest)
   const cafs = createCafs(dest)
   const filesIndex = await cafs.addFilesFromTarball(
-    fs.createReadStream(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
+    createReadStream(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
     'LICENSE',

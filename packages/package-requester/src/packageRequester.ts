@@ -33,7 +33,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
-import * as fs from 'mz/fs'
+import { createReadStream, promises as fs } from 'fs'
 import PQueue from 'p-queue'
 import safeDeferredPromise from './safeDeferredPromise'
 import path = require('path')
@@ -527,7 +527,7 @@ async function tarballIsUpToDate (
   if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
 
   const tarball = path.join(lockfileDir, resolution.tarball.slice(5))
-  const tarballStream = fs.createReadStream(tarball)
+  const tarballStream = createReadStream(tarball)
   try {
     return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
   } catch (err) {

@@ -8,14 +8,25 @@ import {
   serverConnectionInfoDir,
 } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
+import {
+  close as _close,
+  closeSync,
+  open as _open,
+  promises as fs,
+  unlinkSync,
+  write as _write,
+} from 'fs'
+import { promisify } from 'util'
 import path = require('path')
 import Diable = require('@zkochan/diable')
 import getPort = require('get-port')
 import isWindows = require('is-windows')
-import fs = require('mz/fs')
 import onExit = require('signal-exit')
 
 const storeServerLogger = logger('store-server')
+const write = promisify(_write)
+const close = promisify(_close)
+const open = promisify(_open)
 
 export default async (
   opts: CreateStoreControllerOptions & {
@@ -40,9 +51,9 @@ export default async (
   // Open server.json with exclusive write access to ensure only one process can successfully
   // start the server. Note: NFS does not support exclusive writing, but do we really care?
   // Source: https://github.com/moxystudio/node-proper-lockfile#user-content-comparison
-  let fd: number|null
+  let fd: number | null
   try {
-    fd = await fs.open(serverJsonPath, 'wx')
+    fd = await open(serverJsonPath, 'wx')
   } catch (error) {
     if (error.code !== 'EEXIST') {
       throw error
@@ -58,13 +69,13 @@ export default async (
     }
     if (fd !== null) {
       try {
-        fs.closeSync(fd)
+        closeSync(fd)
       } catch (error) {
         storeServerLogger.error(error, 'Got error while closing file descriptor of server.json, but the process is already exiting')
       }
     }
     try {
-      fs.unlinkSync(serverJsonPath)
+      unlinkSync(serverJsonPath)
     } catch (error) {
       if (error.code !== 'ENOENT') {
         storeServerLogger.error(error, 'Got error unlinking server.json, but the process is already exiting')
@@ -97,12 +108,12 @@ export default async (
   const serverJsonBuffer = Buffer.from(serverJsonStr, 'utf8')
   // fs.write on NodeJS 4 requires the parameters offset and length to be set:
   // https://nodejs.org/docs/latest-v4.x/api/fs.html#fs_fs_write_fd_buffer_offset_length_position_callback
-  await fs.write(fd, serverJsonBuffer, 0, serverJsonBuffer.byteLength)
+  await write(fd, serverJsonBuffer, 0, serverJsonBuffer.byteLength)
 
   const fdForClose = fd
   // Set fd to null so we only attempt to close it once.
   fd = null
-  await fs.close(fdForClose)
+  await close(fdForClose)
 }
 
 async function getServerOptions (

@@ -56,11 +56,12 @@ import {
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import path = require('path')
 import dp = require('dependency-path')
-import fs = require('mz/fs')
 import pLimit = require('p-limit')
 import pathAbsolute = require('path-absolute')
+import pathExists = require('path-exists')
 import R = require('ramda')
 import realpathMissing = require('realpath-missing')
 
@@ -584,7 +585,7 @@ async function lockfileToDepGraph (
           currentPackages[depPath] && R.equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
           R.equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
         ) {
-          if (await fs.exists(dir)) {
+          if (await pathExists(dir)) {
             return
           }
 

@@ -5,6 +5,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import writeProjectManifest from '@pnpm/write-project-manifest'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
+import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import {
   execPnpm,
@@ -15,7 +16,6 @@ import rimraf = require('@zkochan/rimraf')
 import crossSpawn = require('cross-spawn')
 import isWindows = require('is-windows')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import exists = require('path-exists')
 import semver = require('semver')
 

@@ -7,7 +7,7 @@ import readImporterManifest from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from 'dependency-path'
 import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
 import normalizePath = require('normalize-path')
 import path = require('path')
 import R = require('ramda')

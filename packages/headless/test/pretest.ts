@@ -1,5 +1,5 @@
+import { promises as fs } from 'fs'
 import path = require('path')
-import fs = require('mz/fs')
 import rimrafModule = require('rimraf')
 
 const fixtures = path.join(__dirname, 'fixtures')

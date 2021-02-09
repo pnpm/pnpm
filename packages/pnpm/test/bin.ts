@@ -1,7 +1,7 @@
 import { tempDir } from '@pnpm/prepare'
+import { promises as fs } from 'fs'
 import { execPnpmSync } from './utils'
 import path = require('path')
-import fs = require('mz/fs')
 import PATH = require('path-name')
 
 test('pnpm bin', async () => {

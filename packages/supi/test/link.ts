@@ -3,6 +3,7 @@ import { isExecutable } from '@pnpm/assert-project'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import { promises as fs } from 'fs'
 import {
   addDependenciesToPackage,
   install,
@@ -12,7 +13,6 @@ import {
 } from 'supi'
 import { testDefaults } from './utils'
 import path = require('path')
-import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import exists = require('path-exists')
 import sinon = require('sinon')

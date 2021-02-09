@@ -23,12 +23,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
-  "dependencies": {
-    "mz": "^2.7.0"
-  },
-  "devDependencies": {
-    "@types/mz": "^2.7.3"
-  },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

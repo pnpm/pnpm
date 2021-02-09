@@ -2,9 +2,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
+import { promises as fs } from 'fs'
 
 import execa = require('execa')
-import fs = require('mz/fs')
 import path = require('path')
 import stripAnsi = require('strip-ansi')
 import writeYamlFile = require('write-yaml-file')

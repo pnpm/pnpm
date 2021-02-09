@@ -2,9 +2,9 @@ import logger from './logger'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { promises as fs } from 'fs'
 import rimraf = require('@zkochan/rimraf')
 import yaml = require('js-yaml')
-import fs = require('mz/fs')
 import path = require('path')
 import R = require('ramda')
 import writeFileAtomicCB = require('write-file-atomic')

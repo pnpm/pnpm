@@ -1,7 +1,7 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
 import { execPnpmSync } from './utils'
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
 import path = require('path')
 import isWindows = require('is-windows')
 

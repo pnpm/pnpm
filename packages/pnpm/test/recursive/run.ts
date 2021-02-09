@@ -1,6 +1,6 @@
 import { execPnpm } from '../utils'
 import { preparePackages } from '@pnpm/prepare'
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
 import path = require('path')
 import writeYamlFile = require('write-yaml-file')
 

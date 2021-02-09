@@ -1,7 +1,7 @@
 import { ProjectManifest } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import path = require('path')
 import JSON5 = require('json5')
-import fs = require('mz/fs')
 import writeFileAtomic = require('write-file-atomic')
 import writeYamlFile = require('write-yaml-file')
 

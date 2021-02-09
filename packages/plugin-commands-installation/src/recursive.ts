@@ -19,6 +19,7 @@ import {
   ProjectManifest,
   ProjectsGraph,
 } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import {
   addDependenciesToPackage,
   install,
@@ -34,7 +35,6 @@ import path = require('path')
 import camelcaseKeys = require('camelcase-keys')
 import isSubdir = require('is-subdir')
 import mem = require('mem')
-import fs = require('mz/fs')
 import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import readIniFile = require('read-ini-file')

@@ -47,10 +47,8 @@
     "@pnpm/lockfile-types": "workspace:2.2.0",
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/types": "workspace:6.4.0",
-    "@types/mz": "^2.7.3",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",
-    "mz": "^2.7.0",
     "path-exists": "^4.0.0",
     "read-yaml-file": "^2.0.0",
     "write-pkg": "4.0.0"

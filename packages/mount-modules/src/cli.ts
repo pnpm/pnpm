@@ -1,7 +1,7 @@
 import getStorePath from '@pnpm/store-path'
 import createFuseHandlers from './createFuseHandlers'
+import { promises as fs } from 'fs'
 import Fuse = require('fuse-native')
-import fs = require('mz/fs')
 import path = require('path')
 
 ;(async () => { /* eslint-disable-line */

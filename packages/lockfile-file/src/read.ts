@@ -4,13 +4,13 @@ import {
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import { LockfileBreakingChangeError } from './errors'
 import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import logger from './logger'
 import yaml = require('js-yaml')
 import path = require('path')
 import stripBom = require('strip-bom')
-import fs = require('mz/fs')
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,

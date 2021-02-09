@@ -6,10 +6,10 @@ import {
 } from 'supi'
 import { prepareEmpty } from '@pnpm/prepare'
 import { LifecycleLog } from '@pnpm/core-loggers'
+import { promises as fs } from 'fs'
 import { testDefaults } from '../utils'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import exists = require('path-exists')
 import PATH = require('path-name')
 import sinon = require('sinon')

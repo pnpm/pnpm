@@ -1,7 +1,7 @@
 import createClient from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import createStore from '@pnpm/package-store'
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
 
 type CreateResolverOptions = Pick<Config,
 | 'fetchRetries'

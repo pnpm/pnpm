@@ -3,9 +3,9 @@ import { promisify } from 'util'
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
+import { promises as fs } from 'fs'
 import path = require('path')
 import isWindows = require('is-windows')
-import fs = require('mz/fs')
 import ncpcb = require('ncp')
 import normalizePath = require('normalize-path')
 import exists = require('path-exists')

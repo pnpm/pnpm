@@ -6,6 +6,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
+import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -19,7 +20,6 @@ import {
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import nock = require('nock')
 import exists = require('path-exists')
 import R = require('ramda')

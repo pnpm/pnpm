@@ -1,6 +1,7 @@
 import readYamlFile from 'read-yaml-file'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
+import { promises as fs } from 'fs'
 import {
   execPnpm,
   execPnpmSync,
@@ -10,7 +11,6 @@ import {
 import path = require('path')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
-import fs = require('mz/fs')
 import writeYamlFile = require('write-yaml-file')
 
 const skipOnWindows = isWindows() ? test.skip : test

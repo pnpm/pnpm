@@ -1,6 +1,6 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { execPnpm } from '../utils'
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
 import writeYamlFile = require('write-yaml-file')
 
 test('hoist the dependency graph', async () => {

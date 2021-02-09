@@ -3,11 +3,11 @@ import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import fetch from 'node-fetch'
+import fs = require('fs')
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import isPortReachable = require('is-port-reachable')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
@@ -203,7 +203,7 @@ test('disable server upload', async () => {
   }
   expect(thrown).toBeTruthy()
 
-  expect(await fs.exists(filesIndexFile)).toBeFalsy()
+  expect(fs.existsSync(filesIndexFile)).toBeFalsy()
 
   await server.close()
   await storeCtrl.close()

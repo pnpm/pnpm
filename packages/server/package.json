@@ -37,13 +37,11 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-requester": "workspace:12.2.2",
     "@pnpm/package-store": "workspace:10.1.17",
-    "@types/mz": "^2.7.3",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "^8.3.0",
     "@zkochan/rimraf": "^1.0.0",
     "is-port-reachable": "3.0.0",
     "load-json-file": "^6.2.0",
-    "mz": "^2.7.0",
     "node-fetch": "^2.6.1",
     "tempy": "^1.0.0"
   },

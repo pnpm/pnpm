@@ -1,11 +1,11 @@
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import { promises as fs } from 'fs'
 import { DEFAULT_OPTS } from './utils'
 import execa = require('execa')
 import path = require('path')
 import crossSpawn = require('cross-spawn')
-import fs = require('mz/fs')
 import exists = require('path-exists')
 import writeYamlFile = require('write-yaml-file')
 

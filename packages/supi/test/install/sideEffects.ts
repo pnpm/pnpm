@@ -1,14 +1,14 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { addDependenciesToPackage } from 'supi'
 import { PackageFilesIndex } from '@pnpm/cafs'
+import { promises as fs } from 'fs'
+import { addDependenciesToPackage } from 'supi'
 import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import isWindows = require('is-windows')
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import exists = require('path-exists')
 import writeJsonFile = require('write-json-file')
 

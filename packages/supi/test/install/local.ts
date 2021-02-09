@@ -2,6 +2,7 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { copyFixture, pathToLocalPkg } from '@pnpm/test-fixtures'
+import { promises as fs } from 'fs'
 import {
   addDependenciesToPackage,
   install,
@@ -10,7 +11,6 @@ import {
 import { testDefaults } from '../utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
 import normalizePath = require('normalize-path')
 import symlinkDir = require('symlink-dir')
 

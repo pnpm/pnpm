@@ -3,10 +3,10 @@ import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { promises as fs } from 'fs'
 import { DEFAULT_OPTS } from './utils'
 import crossSpawn = require('cross-spawn')
 import execa = require('execa')
-import fs = require('mz/fs')
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,

@@ -1,9 +1,9 @@
 import PnpmError from '@pnpm/error'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { promises as fs } from 'fs'
 import { DEFAULT_OPTS } from './utils'
 import execa = require('execa')
-import fs = require('mz/fs')
 import tempy = require('tempy')
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))

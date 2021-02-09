@@ -21,7 +21,6 @@
     "concat-stream": "^2.0.0",
     "decompress-maybe": "^1.0.0",
     "get-stream": "^6.0.0",
-    "mz": "^2.7.0",
     "p-limit": "^3.1.0",
     "path-temp": "^2.0.0",
     "rename-overwrite": "^3.0.0",
@@ -31,7 +30,6 @@
   },
   "devDependencies": {
     "@types/concat-stream": "^1.6.0",
-    "@types/mz": "^2.7.3",
     "@types/node": "^14.14.22",
     "@types/ssri": "^7.1.0",
     "@types/tar-stream": "^2.1.0",

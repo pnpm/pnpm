@@ -4,9 +4,9 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
+import { promises as fs } from 'fs'
 import { DEFAULT_OPTS } from './utils'
 import path = require('path')
-import fs = require('mz/fs')
 import stripAnsi = require('strip-ansi')
 import writeYamlFile = require('write-yaml-file')
 

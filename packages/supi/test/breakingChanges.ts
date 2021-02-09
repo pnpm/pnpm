@@ -1,12 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { promises as fs } from 'fs'
 import { addDependenciesToPackage, install } from 'supi'
 import { testDefaults } from './utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
 import isCI = require('is-ci')
-import fs = require('mz/fs')
 
 test('fail on non-compatible node_modules', async () => {
   prepareEmpty()

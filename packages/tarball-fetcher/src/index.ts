@@ -16,7 +16,7 @@ import createDownloader, {
   TarballIntegrityError,
 } from './createDownloader'
 import path = require('path')
-import fs = require('mz/fs')
+import fs = require('fs')
 import ssri = require('ssri')
 
 export { BadTarballError } from './errorTypes'

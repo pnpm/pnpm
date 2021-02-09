@@ -1,8 +1,8 @@
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { constants, promises as fs } from 'fs'
 import importIndexedDir, { ImportFile } from '../fs/importIndexedDir'
 import path = require('path')
-import fs = require('mz/fs')
 import pLimit = require('p-limit')
 import exists = require('path-exists')
 
@@ -99,7 +99,7 @@ async function clonePkg (
 }
 
 async function cloneFile (from: string, to: string) {
-  await fs.copyFile(from, to, fs.constants.COPYFILE_FICLONE_FORCE)
+  await fs.copyFile(from, to, constants.COPYFILE_FICLONE_FORCE)
 }
 
 async function hardlinkPkg (

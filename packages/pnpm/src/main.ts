@@ -23,11 +23,6 @@ process
   .once('SIGINT', () => process.exit(0))
   .once('SIGTERM', () => process.exit(0))
 
-// Patch the global fs module here at the app level
-import fs = require('fs')
-import gfs = require('graceful-fs')
-
-gfs.gracefulify(fs)
 loudRejection()
 import isCI = require('is-ci')
 import path = require('path')
