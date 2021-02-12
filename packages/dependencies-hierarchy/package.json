@@ -41,8 +41,8 @@
     "@pnpm/types": "workspace:6.4.0",
     "dependency-path": "workspace:5.1.1",
     "normalize-path": "^3.0.0",
-    "realpath-missing": "^1.0.0",
-    "resolve-link-target": "^1.0.1"
+    "realpath-missing": "^1.1.0",
+    "resolve-link-target": "^2.0.0"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:4.1.0",

@@ -21,7 +21,7 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-store": "workspace:10.1.17",
     "@pnpm/read-projects-context": "workspace:4.0.15",
-    "@pnpm/store-path": "^4.0.4",
+    "@pnpm/store-path": "5.0.0-0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.5",
     "@types/ramda": "^0.27.35",
@@ -92,7 +92,7 @@
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
     "ramda": "^0.27.1",
-    "realpath-missing": "^1.0.0"
+    "realpath-missing": "^1.1.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

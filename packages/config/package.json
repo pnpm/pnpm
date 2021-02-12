@@ -39,14 +39,14 @@
     "camelcase": "^6.2.0",
     "is-subdir": "^1.1.1",
     "ramda": "^0.27.1",
-    "realpath-missing": "^1.0.0",
+    "realpath-missing": "^1.1.0",
     "which": "^2.0.2"
   },
   "devDependencies": {
     "@pnpm/prepare": "workspace:0.0.17",
     "@types/ramda": "^0.27.35",
     "@types/which": "^2.0.0",
-    "symlink-dir": "^4.1.0",
+    "symlink-dir": "^4.2.0",
     "tempy": "^1.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

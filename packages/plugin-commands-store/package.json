@@ -61,11 +61,11 @@
     "@pnpm/pick-registry-for-package": "workspace:1.0.6",
     "@pnpm/store-connection-manager": "workspace:0.3.62",
     "@pnpm/store-controller-types": "workspace:9.2.1",
-    "@pnpm/store-path": "^4.0.4",
+    "@pnpm/store-path": "5.0.0-0",
     "@pnpm/types": "workspace:6.4.0",
     "archy": "^1.0.0",
     "dependency-path": "workspace:5.1.1",
-    "dint": "^5.0.0",
+    "dint": "^5.1.0",
     "p-filter": "^2.1.0",
     "ramda": "^0.27.1",
     "render-help": "^1.0.1"

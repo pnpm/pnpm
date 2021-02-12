@@ -38,10 +38,10 @@
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/package-store": "workspace:10.1.17",
     "@pnpm/server": "workspace:9.0.7",
-    "@pnpm/store-path": "^4.0.4",
+    "@pnpm/store-path": "5.0.0-0",
     "@zkochan/diable": "^1.0.2",
     "delay": "^4.4.1",
-    "dir-is-case-sensitive": "^1.0.2"
+    "dir-is-case-sensitive": "^2.0.0"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.2.3"

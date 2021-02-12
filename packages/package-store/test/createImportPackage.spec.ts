@@ -2,10 +2,10 @@ import path = require('path')
 
 const fsMock = { promises: {} as any } as any // eslint-disable-line
 jest.mock('fs', () => {
-  const { access, constants, mkdir, readdir } = jest.requireActual('fs')
+  const { access, constants, promises } = jest.requireActual('fs')
   fsMock.constants = constants
-  fsMock.mkdir = mkdir
-  fsMock.readdir = readdir
+  fsMock.promises.mkdir = promises.mkdir
+  fsMock.promises.readdir = promises.readdir
   fsMock.access = access
   return fsMock
 })

@@ -42,7 +42,7 @@
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/server": "workspace:9.0.7",
     "@pnpm/store-connection-manager": "workspace:0.3.62",
-    "@pnpm/store-path": "^4.0.4",
+    "@pnpm/store-path": "5.0.0-0",
     "@zkochan/diable": "^1.0.2",
     "delay": "^4.4.1",
     "get-port": "^5.1.1",

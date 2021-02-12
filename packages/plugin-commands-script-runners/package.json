@@ -40,7 +40,7 @@
     "@zkochan/rimraf": "^1.0.0",
     "execa": "^5.0.0",
     "is-windows": "^1.0.2",
-    "write-yaml-file": "^4.1.3"
+    "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.4.51",
@@ -54,7 +54,7 @@
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "ramda": "^0.27.1",
-    "realpath-missing": "^1.0.0",
+    "realpath-missing": "^1.1.0",
     "render-help": "^1.0.1"
   },
   "peerDependencies": {
