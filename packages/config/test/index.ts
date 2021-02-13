@@ -1,13 +1,12 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import prepare from '@pnpm/prepare'
+import prepare, { prepareEmpty } from '@pnpm/prepare'
 
 import './findBestGlobalPrefixOnWindows'
 import { promises as fs } from 'fs'
 import path = require('path')
 import symlinkDir = require('symlink-dir')
-import tempy = require('tempy')
 
 // To override any local settings,
 // we force the default values of config
@@ -137,9 +136,8 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
 })
 
 test('when using --global, link-workspace-packages, shared-workspace-shrinwrap and lockfile-directory are false even if it is set to true in a .npmrc file', async () => {
-  const tmp = tempy.directory()
+  prepareEmpty()
 
-  process.chdir(tmp)
   const npmrc = [
     'link-workspace-packages=true',
     'shared-workspace-lockfile=true',
@@ -221,9 +219,8 @@ test('registries in current directory\'s .npmrc have bigger priority then global
 })
 
 test('filter is read from .npmrc as an array', async () => {
-  const tmp = tempy.directory()
+  prepareEmpty()
 
-  process.chdir(tmp)
   await fs.writeFile('.npmrc', 'filter=foo bar...', 'utf8')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
@@ -276,9 +273,7 @@ test('throw error if --save-optional is used with --save-peer', async () => {
 })
 
 test('extraBinPaths', async () => {
-  const tmp = tempy.directory()
-
-  process.chdir(tmp)
+  prepareEmpty()
 
   {
     const { config } = await getConfig({
@@ -438,9 +433,8 @@ test('normalizing the value of public-hoist-pattern', async () => {
 })
 
 test.skip('rawLocalConfig in a workspace', async () => {
-  const tmp = tempy.directory()
+  prepareEmpty()
 
-  process.chdir(tmp)
   const workspaceDir = process.cwd()
   await fs.writeFile('.npmrc', 'hoist-pattern=*', 'utf8')
   await fs.mkdir('package')
@@ -488,9 +482,8 @@ test.skip('rawLocalConfig in a workspace', async () => {
 })
 
 test.skip('rawLocalConfig', async () => {
-  const tmp = tempy.directory()
+  prepareEmpty()
 
-  process.chdir(tmp)
   await fs.writeFile('.npmrc', 'modules-dir=modules', 'utf8')
 
   const { config } = await getConfig({
@@ -613,10 +606,10 @@ test('respects test-pattern', async () => {
 })
 
 test('dir is resolved to real path', async () => {
-  const tmpDir = tempy.directory()
-  const realDir = path.join(tmpDir, 'real-path')
+  prepareEmpty()
+  const realDir = path.resolve('real-path')
   await fs.mkdir(realDir)
-  const symlink = path.join(tmpDir, 'symlink')
+  const symlink = path.resolve('symlink')
   await symlinkDir(realDir, symlink)
   const { config } = await getConfig({
     cliOptions: { dir: symlink },
@@ -629,9 +622,8 @@ test('dir is resolved to real path', async () => {
 })
 
 test('warn user unknown settings in npmrc', async () => {
-  const tmp = tempy.directory()
+  prepareEmpty()
 
-  process.chdir(tmp)
   const npmrc = [
     'typo-setting=true',
     ' ',

@@ -240,7 +240,6 @@ importers:
       '@types/ramda': 0.27.38
       '@types/which': 2.0.0
       symlink-dir: 4.2.0
-      tempy: 1.0.0
     specifiers:
       '@pnpm/config': 'link:'
       '@pnpm/constants': workspace:4.1.0
@@ -256,7 +255,6 @@ importers:
       ramda: ^0.27.1
       realpath-missing: ^1.1.0
       symlink-dir: ^4.2.0
-      tempy: ^1.0.0
       which: ^2.0.2
   packages/constants:
     devDependencies:
@@ -2958,7 +2956,6 @@ importers:
     dependencies:
       '@pnpm/assert-project': link:../assert-project
       '@pnpm/types': link:../../packages/types
-      tempy: 1.0.0
       write-json5-file: 3.1.0
       write-pkg: 4.0.0
       write-yaml-file: 4.2.0
@@ -2970,7 +2967,6 @@ importers:
       '@pnpm/assert-project': workspace:*
       '@pnpm/types': workspace:6.4.0
       '@types/node': ^14.14.22
-      tempy: ^1.0.0
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
       write-json5-file: ^3.1.0
