@@ -807,7 +807,7 @@ importers:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/types': link:../types
-      '@zkochan/npm-lifecycle': 4.1.2
+      '@zkochan/npm-lifecycle': 4.2.0
       path-exists: 4.0.0
       run-groups: 3.0.1
     devDependencies:
@@ -823,7 +823,7 @@ importers:
       '@pnpm/read-package-json': workspace:3.1.9
       '@pnpm/types': workspace:6.4.0
       '@types/rimraf': ^3.0.0
-      '@zkochan/npm-lifecycle': ^4.1.1
+      '@zkochan/npm-lifecycle': ^4.2.0
       json-append: 1.1.1
       load-json-file: ^6.2.0
       path-exists: ^4.0.0
@@ -4857,11 +4857,10 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-nF6cxXu/3x0gbIGZdiajpL6diySPoU5T5Mh0TXSjHp2shZoqtZgRj3zdIc/pkd6kKAWaktFvOFFo5kTqwne/tg==
-  /@zkochan/npm-lifecycle/4.1.2:
+  /@zkochan/npm-lifecycle/4.2.0:
     dependencies:
       '@yarnpkg/shell': 2.4.1
       byline: 5.0.0
-      graceful-fs: 4.2.4
       node-gyp: 7.1.2
       resolve-from: 5.0.0
       slide: 1.1.6
@@ -4872,7 +4871,7 @@ packages:
     engines:
       node: '>=10.19'
     resolution:
-      integrity: sha512-/J9cuY/dqBx+EKw4uPilACaE0EHXkpXxBSO1rpSEek2YBiJy0DQ/Ranihqy77+Tu60Qyybz1GX8nIMWrFL+/pg==
+      integrity: sha512-H35v8HmGYq7WAncJq4ndy0g6KPRh/XpcpZKPiqhymXE9p8rvybWC59zlDDlvDd9s0/oV+cmwo0u0qJYTiEOeyQ==
   /@zkochan/npm-package-arg/1.0.2:
     dependencies:
       hosted-git-info: 2.8.8
