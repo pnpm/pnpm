@@ -4,14 +4,14 @@ import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import fs = require('fs')
 import path = require('path')
-import tempy = require('tempy')
 import writePkg = require('write-pkg')
 
 export { Modules, Project }
 export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'
 
-// the testing folder should be outside of the project to avoid lookup in the project's node_modules
-const tmpPath = tempy.directory()
+// The testing folder should be outside of the project to avoid lookup in the project's node_modules
+// Not using the OS temp directory due to issues on Windows CI.
+const tmpPath = path.join(__dirname, `../../../../pnpm_tmp/${Math.random()}`)
 
 let dirNumber = 0
 
