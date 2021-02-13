@@ -69,7 +69,7 @@ export default async function prune (
     ])
     if (pruneDirectDependencies) {
       if (allCurrentPackages.size > 0) {
-        const newPkgsSet = new Set(wantedPkgs.map(([depName]) => depName))
+        const newPkgsSet = new Set<string>(wantedPkgs.map(([depName]) => depName))
         for (const currentPackage of Array.from(allCurrentPackages)) {
           if (!newPkgsSet.has(currentPackage)) {
             depsToRemove.add(currentPackage)
