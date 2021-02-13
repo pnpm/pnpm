@@ -34,8 +34,10 @@ jobs:
       run: git branch -f main origin/main
     - name: install pnpm
       run: |
-        npm install pnpm@next -g
+        npm install --global pnpm@next
         pnpm --version
+    - name: Install npm v6
+      run: pnpm add --global npm@6
     - name: pnpm install
       run: pnpm install
     - name: run tests (main)
