@@ -72,9 +72,9 @@ test('publish: package with package.json5 running publish from different folder'
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS, 'project'] },
+    argv: { original: ['publish', ...CREDENTIALS, './project'] },
     dir: process.cwd(),
-  }, ['project'])
+  }, ['./project'])
 
   expect(await exists('project/package.json5')).toBeTruthy()
   expect(await exists('project/package.json')).toBeFalsy()
