@@ -43,6 +43,8 @@
     "@types/sinon": "^9.0.9",
     "cross-spawn": "^7.0.3",
     "execa": "^5.0.0",
+    "is-ci": "^2.0.0",
+    "is-windows": "^1.0.2",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0"
