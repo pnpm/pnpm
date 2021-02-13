@@ -2,6 +2,9 @@ import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 import ncpCB from 'ncp'
+import { fileURLToPath } from 'url'
+
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 
 const ncp = promisify(ncpCB)
 
@@ -12,7 +15,7 @@ export async function copyFixture (fixtureName: string, dest: string) {
 }
 
 export function pathToLocalPkg (pkgName: string) {
-  let dir = __dirname
+  let dir = DIRNAME
   const { root } = path.parse(dir)
   while (true) {
     const checkDir = path.join(dir, 'fixtures', pkgName)

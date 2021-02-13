@@ -15,7 +15,7 @@
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
-    "_test": "jest",
+    "_test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
@@ -37,7 +37,7 @@
     "@pnpm/exportable-manifest": "workspace:1.2.2",
     "@pnpm/find-workspace-dir": "workspace:2.0.0",
     "@pnpm/lockfile-file": "workspace:3.2.1",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@pnpm/prune-lockfile": "workspace:2.0.19",
     "@pnpm/read-project-manifest": "workspace:1.1.7",
     "@pnpm/types": "workspace:6.4.0",

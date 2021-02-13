@@ -23,6 +23,7 @@
     "@commitlint/cli": "^12.0.1",
     "@commitlint/config-conventional": "^12.0.1",
     "@commitlint/prompt-cli": "^12.0.1",
+    "@jest/globals": "^27.0.0-next.1",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "^0.0.0",
     "@pnpm/registry-mock": "^2.4.0",
@@ -62,5 +63,6 @@
       "core-js",
       "level"
     ]
-  }
+  },
+  "type": "module"
 }

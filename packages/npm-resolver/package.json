@@ -13,7 +13,7 @@
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
-    "_test": "jest",
+    "_test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/npm-resolver#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0-0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:5.0.3",
@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:2.1.11",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@types/lru-cache": "^5.1.0",
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "^7.3.4",
@@ -65,5 +65,6 @@
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

@@ -6,7 +6,8 @@
   "typings": "lib/index.d.ts",
   "files": [
     "lib",
-    "!*.map"
+    "!*.map",
+    "requireMain.cjs"
   ],
   "engines": {
     "node": ">=12.17"
@@ -33,5 +34,6 @@
   "dependencies": {
     "load-json-file": "^6.2.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

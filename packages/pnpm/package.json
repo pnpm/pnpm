@@ -35,7 +35,7 @@
     "@pnpm/find-workspace-dir": "workspace:2.0.0",
     "@pnpm/find-workspace-packages": "workspace:2.3.42",
     "@pnpm/lockfile-types": "workspace:2.2.0",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/parse-cli-args": "workspace:3.2.2",
     "@pnpm/pick-registry-for-package": "workspace:1.1.0",
@@ -147,13 +147,13 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle:pnpm": "esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --external:update-notifier --external:node-gyp",
-    "bundle:pnpx": "esbuild lib/pnpx.js --bundle --platform=node --outfile=dist/pnpx.cjs",
+    "bundle:pnpm": "esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --format=iife --external:node-gyp",
+    "bundle:pnpx": "esbuild lib/pnpx.js --bundle --platform=node --outfile=dist/pnpx.cjs --format=iife",
     "bundle": "pnpm bundle:pnpm && pnpm bundle:pnpx",
     "start": "pnpm tsc -- --watch",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
-    "test:jest": "jest",
+    "test:jest": "NODE_OPTIONS=--experimental-vm-modules jest",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7780 pnpm run test:e2e",
@@ -165,5 +165,6 @@
   "publishconfig": {
     "tag": "next"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

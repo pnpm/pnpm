@@ -1,1 +1,2 @@
-module.exports = require('../../jest.config.js')
+import jest from '../../jest.config.js'
+export default jest

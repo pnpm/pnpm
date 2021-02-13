@@ -1,6 +1,6 @@
-const config = require('../../jest.config.js')
+import config from '../../jest.config.js'
 
-module.exports = {
+export default {
   ...config,
   testPathIgnorePatterns: [
     '<rootDir>/test/utils/distTags.ts',
@@ -12,4 +12,3 @@ module.exports = {
   ],
   maxWorkers: 1,
 }
-

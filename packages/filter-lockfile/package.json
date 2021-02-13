@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
-    "_test": "jest",
+    "_test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
@@ -31,10 +31,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/filter-lockfile#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0-0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@types/ramda": "^0.27.35",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0",
@@ -51,5 +51,6 @@
     "dependency-path": "workspace:5.1.1",
     "ramda": "^0.27.1"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

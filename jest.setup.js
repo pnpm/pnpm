@@ -1,1 +1,3 @@
-jest.retryTimes(1);
+import { jest } from '@jest/globals'
+
+jest.retryTimes(1)

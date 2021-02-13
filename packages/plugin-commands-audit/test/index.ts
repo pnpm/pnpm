@@ -1,6 +1,9 @@
 import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
 import stripAnsi from 'strip-ansi'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
 

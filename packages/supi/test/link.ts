@@ -106,7 +106,7 @@ test('relative link is not rewritten by argumentless install', async () => {
 
   await install(manifest, opts)
 
-  expect(project.requireModule('hello-world-js-bin/package.json').isLocal).toBeTruthy()
+  expect((await project.requireModule('hello-world-js-bin/package.json')).isLocal).toBeTruthy()
 })
 
 test('relative link is rewritten by named installation to regular dependency', async () => {
@@ -147,7 +147,7 @@ test('relative link is rewritten by named installation to regular dependency', a
 
   expect(manifest.dependencies).toStrictEqual({ 'hello-world-js-bin': '^1.0.0' })
 
-  expect(project.requireModule('hello-world-js-bin/package.json').isLocal).toBeFalsy()
+  expect((await project.requireModule('hello-world-js-bin/package.json')).isLocal).toBeFalsy()
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile.dependencies['hello-world-js-bin']).toBe('1.0.0')

@@ -13,12 +13,12 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0-0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:2.0.24",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@pnpm/package-store": "workspace:11.0.3",
     "@pnpm/prepare": "workspace:0.0.18",
     "@pnpm/read-projects-context": "workspace:4.0.16",
@@ -57,9 +57,9 @@
     "commitmsg": "commitlint -e",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
-    "test:jest": "jest",
+    "test:jest": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
-    "_test": "ts-node test/pretest && cross-env PNPM_REGISTRY_MOCK_PORT=7770 pnpm run test:e2e",
+    "_test": "node --loader=ts-node/esm test/pretest.ts && cross-env PNPM_REGISTRY_MOCK_PORT=7770 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
@@ -94,5 +94,6 @@
     "ramda": "^0.27.1",
     "realpath-missing": "^1.1.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

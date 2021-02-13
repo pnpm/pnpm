@@ -1,10 +1,12 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import rimrafModule from 'rimraf'
+import { fileURLToPath } from 'url'
 
-const fixtures = path.join(__dirname, 'fixtures')
-const workspaceFixture = path.join(__dirname, 'workspace-fixture')
-const workspaceFixture2 = path.join(__dirname, 'workspace-fixture2')
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
+const fixtures = path.join(DIRNAME, 'fixtures')
+const workspaceFixture = path.join(DIRNAME, 'workspace-fixture')
+const workspaceFixture2 = path.join(DIRNAME, 'workspace-fixture2')
 
 removeModules()
   .then(() => console.log('Done'))

@@ -126,7 +126,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   expect(
-    project.requireModule('.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json').version
+    (await project.requireModule('.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json')).version
   ).toBe('0.3.4') // react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules
 
   const lockfile = await project.readLockfile()

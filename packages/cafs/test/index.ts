@@ -5,6 +5,9 @@ import createCafs, {
   checkFilesIntegrity,
   getFilePathInCafs,
 } from '../src'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 describe('cafs', () => {
   it('unpack', async () => {

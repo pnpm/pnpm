@@ -6,6 +6,9 @@ import PnpmError from '@pnpm/error'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 
 import symlinkDir from 'symlink-dir'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // To override any local settings,
 // we force the default values of config

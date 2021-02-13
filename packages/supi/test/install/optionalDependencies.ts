@@ -25,7 +25,7 @@ test('skip failing optional dependencies', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['pkg-with-failing-optional-dependency@1.0.1'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('pkg-with-failing-optional-dependency')
+  const m = await project.requireModule('pkg-with-failing-optional-dependency')
   expect(m(-1)).toBeTruthy()
 })
 

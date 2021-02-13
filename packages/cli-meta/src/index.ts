@@ -1,20 +1,22 @@
 import path from 'path'
 import { DependencyManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
+// @ts-ignore
+import requireMain from '../requireMain.cjs'
 
 const defaultManifest = {
   name: 'unknown',
   version: '0.0.0',
 }
 let pkgJson
-if (require.main == null) {
+if (requireMain == null) {
   pkgJson = defaultManifest
 } else {
   try {
     pkgJson = {
       ...defaultManifest,
       ...loadJsonFile.sync<DependencyManifest>(
-        path.join(path.dirname(require.main.filename), '../package.json')
+        path.join(path.dirname(requireMain.filename), '../package.json')
       ),
     }
   } catch (err) {

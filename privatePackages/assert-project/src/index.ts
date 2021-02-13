@@ -15,7 +15,7 @@ export type RawLockfile = Lockfile & Partial<ProjectSnapshot>
 
 export interface Project {
   // eslint-disable-next-line
-  requireModule: (moduleName: string) => any
+  requireModule: (moduleName: string) => Promise<any>
   dir: () => string
   has: (pkgName: string, modulesDir?: string) => Promise<void>
   hasNot: (pkgName: string, modulesDir?: string) => Promise<void>
@@ -84,9 +84,8 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
   const notOk = (value: any) => expect(value).toBeFalsy()
   return {
     dir: () => projectPath,
-    requireModule (pkgName: string) {
-      // eslint-disable-next-line
-      return require(path.join(modules, pkgName))
+    async requireModule (pkgName: string) {
+      return (await import(path.join(modules, pkgName))).default
     },
     async has (pkgName: string, _modulesDir?: string) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules

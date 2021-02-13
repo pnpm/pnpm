@@ -15,7 +15,7 @@
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "pretest": "ncp test/fixtures test/fixtures_for_testing",
     "posttest": "rimraf test/fixtures_for_testing",
-    "_test": "pnpm pretest && jest && pnpm posttest",
+    "_test": "pnpm pretest && NODE_OPTIONS=--experimental-vm-modules jest && pnpm posttest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json --project . --fix",
@@ -40,7 +40,7 @@
     "@pnpm/read-project-manifest": "workspace:1.1.7",
     "@pnpm/types": "workspace:6.4.0",
     "@zkochan/cmd-shim": "^5.0.0",
-    "is-subdir": "^1.1.1",
+    "is-subdir": "^1.2.0",
     "is-windows": "^1.0.2",
     "normalize-path": "^3.0.0",
     "p-settle": "^4.1.1",
@@ -56,5 +56,6 @@
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

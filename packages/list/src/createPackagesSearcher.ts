@@ -3,7 +3,7 @@ import { SearchFunction } from 'dependencies-hierarchy'
 import npa from '@zkochan/npm-package-arg'
 import semver from 'semver'
 
-export default function createPatternSearcher (queries: string[]) {
+export default function createPatternSearcher(queries: string[]) {
   const searchers: SearchFunction[] = queries
     .map(parseSearchQuery)
     .map((packageSelector) => search.bind(null, packageSelector))

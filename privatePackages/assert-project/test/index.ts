@@ -1,13 +1,16 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
 import assertProject from '../src'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 test('assertProject()', async () => {
   const project = assertProject(path.join(__dirname, '../../..'))
 
   await project.has('rimraf')
   await project.hasNot('sfdsff3g34')
-  expect(typeof project.requireModule('rimraf')).toBe('function')
+  expect(typeof (await project.requireModule('rimraf')).default).toBe('function')
   await project.isExecutable('.bin/rimraf')
 })
 

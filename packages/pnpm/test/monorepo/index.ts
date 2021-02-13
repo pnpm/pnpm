@@ -548,8 +548,8 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
-  expect(projects['is-positive'].requireModule('is-negative')).toBeTruthy()
-  expect(projects['project-1'].requireModule('is-positive/package.json').author).toBeFalsy()
+  expect(await projects['is-positive'].requireModule('is-negative')).toBeTruthy()
+  expect((await projects['project-1'].requireModule('is-positive/package.json')).author).toBeFalsy()
 
   const sharedLockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   expect(sharedLockfile.importers['project-1']!.devDependencies!['is-positive']).toBe('link:../is-positive')
@@ -1128,10 +1128,10 @@ test('dependencies of workspace projects are built during headless installation'
   await execPnpm(['recursive', 'install', '--frozen-lockfile'])
 
   {
-    const generatedByPreinstall = projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+    const generatedByPreinstall = await projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
     expect(typeof generatedByPreinstall).toBe('function')
 
-    const generatedByPostinstall = projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+    const generatedByPostinstall = await projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
     expect(typeof generatedByPostinstall).toBe('function')
   }
 })

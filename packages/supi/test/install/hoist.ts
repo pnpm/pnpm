@@ -104,7 +104,7 @@ test('should not override root packages with hoisted dependencies', async () => 
   // this installs express@4.16.2, that depends on debug 2.6.9, but we don't want to flatten debug@2.6.9
   await addDependenciesToPackage(manifest, ['express@4.16.2'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
+  expect((await project.requireModule('debug/package.json')).version).toEqual('3.1.0')
 })
 
 test('should rehoist when uninstalling a package', async () => {
@@ -122,8 +122,8 @@ test('should rehoist when uninstalling a package', async () => {
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
-  expect(project.requireModule('.pnpm/node_modules/debug/package.json').version).toEqual('2.6.9')
-  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
+  expect((await project.requireModule('.pnpm/node_modules/debug/package.json')).version).toEqual('2.6.9')
+  expect((await project.requireModule('express/package.json')).version).toEqual('4.16.0')
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
@@ -140,8 +140,8 @@ test('should rehoist after running a general install', async () => {
     },
   }, await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
-  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
+  expect((await project.requireModule('debug/package.json')).version).toEqual('3.1.0')
+  expect((await project.requireModule('express/package.json')).version).toEqual('4.16.0')
 
   await project.hasNot('.pnpm/node_modules/debug') // debug not hoisted because it is a direct dep
 
@@ -167,7 +167,7 @@ test('should not override aliased dependencies', async () => {
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
   await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  expect(project.requireModule('debug/package.json').version).toEqual('1.0.0')
+  expect((await project.requireModule('debug/package.json')).version).toEqual('1.0.0')
 })
 
 test('hoistPattern=* throws exception when executed on node_modules installed w/o the option', async () => {
@@ -270,8 +270,8 @@ test('should rehoist after pruning', async () => {
     },
   }, await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
-  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
+  expect((await project.requireModule('debug/package.json')).version).toEqual('3.1.0')
+  expect((await project.requireModule('express/package.json')).version).toEqual('4.16.0')
 
   await project.hasNot('.pnpm/node_modules/debug') // debug is not hoisted because it is a direct dep
   // read this module path because we can't use requireModule again, as it is cached

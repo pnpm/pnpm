@@ -36,6 +36,7 @@ export default (
     if (!name || !version) {
       throw new Error(`Couldn't get tarball URL from dependency path ${depPath}`)
     }
+    // @ts-ignore
     return getNpmTarballUrl(name, version, { registry })
   }
   /* eslint-enable @typescript-eslint/dot-notation */

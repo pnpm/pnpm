@@ -12,6 +12,9 @@ import cpFile from 'cp-file'
 import nock from 'nock'
 import ssri from 'ssri'
 import tempy from 'tempy'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const cafsDir = tempy.directory()
 const cafs = createCafs(cafsDir)

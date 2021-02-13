@@ -12,7 +12,7 @@
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "pretty-test": "ts-node test | tap-diff",
     "just-test-preview": "ts-node test --type-check",
-    "_test": "jest",
+    "_test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
@@ -49,7 +49,7 @@
     "strip-ansi": "^6.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.35",
     "@types/semver": "^7.3.4",
@@ -58,5 +58,6 @@
     "normalize-newline": "3.0.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/default-reporter#readme",
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

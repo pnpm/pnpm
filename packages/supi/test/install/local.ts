@@ -18,7 +18,7 @@ test('scoped modules from a directory', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, [`file:${pathToLocalPkg('local-scoped-pkg')}`], await testDefaults())
 
-  const m = project.requireModule('@scope/local-scoped-pkg')
+  const m = await project.requireModule('@scope/local-scoped-pkg')
 
   expect(m()).toBe('@scope/local-scoped-pkg')
 })
@@ -32,7 +32,7 @@ test('local file', async () => {
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
-  const m = project.requireModule('local-pkg')
+  const m = await project.requireModule('local-pkg')
 
   expect(m).toBeTruthy()
 
@@ -56,7 +56,7 @@ test('local file via link:', async () => {
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
-  const m = project.requireModule('local-pkg')
+  const m = await project.requireModule('local-pkg')
 
   expect(m).toBeTruthy()
 
@@ -82,7 +82,7 @@ test('local file with symlinked node_modules', async () => {
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
-  const m = project.requireModule('local-pkg')
+  const m = await project.requireModule('local-pkg')
 
   expect(m).toBeTruthy()
 
@@ -101,7 +101,7 @@ test('package with a broken symlink', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, [pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('has-broken-symlink')
+  const m = await project.requireModule('has-broken-symlink')
 
   expect(m).toBeTruthy()
 })
@@ -110,7 +110,7 @@ test('tarball local package', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({}, [pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('tar-pkg')
+  const m = await project.requireModule('tar-pkg')
 
   expect(m()).toBe('tar-pkg')
 
@@ -140,7 +140,7 @@ test('tarball local package from project directory', async () => {
     },
   }, await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('tar-pkg')
+  const m = await project.requireModule('tar-pkg')
 
   expect(m()).toBe('tar-pkg')
 

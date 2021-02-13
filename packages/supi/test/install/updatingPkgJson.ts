@@ -31,8 +31,8 @@ test("don't override existing spec in package.json on named installation", async
   manifest = await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults())
   manifest = await addDependenciesToPackage(manifest, ['sec'], await testDefaults())
 
-  expect(project.requireModule('is-positive/package.json').version).toBe('2.0.0')
-  expect(project.requireModule('is-negative/package.json').version).toBe('1.0.1')
+  expect((await project.requireModule('is-positive/package.json')).version).toBe('2.0.0')
+  expect((await project.requireModule('is-negative/package.json')).version).toBe('1.0.1')
 
   expect(manifest.dependencies).toStrictEqual({
     'is-negative': '^1.0.1',
@@ -45,7 +45,7 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['@rstacruz/tap-spec'], await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
-  const m = project.requireModule('@rstacruz/tap-spec')
+  const m = await project.requireModule('@rstacruz/tap-spec')
   expect(typeof m).toBe('function')
 
   expect(manifest.devDependencies).toStrictEqual({ '@rstacruz/tap-spec': '^4.1.1' })

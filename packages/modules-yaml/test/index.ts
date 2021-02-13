@@ -4,6 +4,9 @@ import { read, write } from '@pnpm/modules-yaml'
 import readYamlFile from 'read-yaml-file'
 import isWindows from 'is-windows'
 import tempy from 'tempy'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 test('write() and read()', async () => {
   const modulesDir = tempy.directory()

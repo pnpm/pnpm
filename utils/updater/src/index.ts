@@ -94,14 +94,14 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     scripts = {
       ...(manifest.scripts as Record<string, string>),
       'registry-mock': 'registry-mock',
-      'test:jest': 'jest',
+      'test:jest': 'NODE_OPTIONS=--experimental-vm-modules jest',
 
       'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:jest',
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
     scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
     if (manifest.name === '@pnpm/headless') {
-      scripts._test = `ts-node test/pretest && ${scripts._test}`
+      scripts._test = `node --loader=ts-node/esm test/pretest.ts && ${scripts._test}`
     }
     break
   }
@@ -109,7 +109,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (await exists(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
-        _test: 'jest',
+        _test: 'NODE_OPTIONS=--experimental-vm-modules jest',
         test: 'pnpm run compile && pnpm run _test',
       }
     } else {
@@ -165,9 +165,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (manifest.bin) {
       files.push('bin')
     }
+    if (manifest.name === '@pnpm/cli-meta') {
+      files.push('requireMain.cjs')
+    }
   }
   return {
     ...manifest,
+    type: 'module',
     author: 'Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)',
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',

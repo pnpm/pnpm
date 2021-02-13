@@ -1,6 +1,6 @@
-const config = require('../../jest.config')
+import config from '../../jest.config.js'
 
-module.exports = {
+export default {
   ...config,
   modulePathIgnorePatterns: ['\/fixtures\/.*'],
 }

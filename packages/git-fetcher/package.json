@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "scripts": {
-    "_test": "jest",
+    "_test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
@@ -40,5 +40,6 @@
     "@pnpm/types": "workspace:6.4.0",
     "p-defer": "^3.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }
