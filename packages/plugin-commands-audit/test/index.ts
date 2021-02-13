@@ -69,7 +69,7 @@ test('audit: no vulnerabilities', async () => {
     },
   })
 
-  expect(stripAnsi(output)).toBe('No known vulnerabilities found')
+  expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
   expect(exitCode).toBe(0)
 })
 
