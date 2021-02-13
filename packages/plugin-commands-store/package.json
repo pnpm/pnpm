@@ -14,7 +14,7 @@
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
-    "test:jest": "jest",
+    "test:jest": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7779 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/lockfile-file": "workspace:3.2.1",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@pnpm/prepare": "workspace:0.0.18",
     "@types/archy": "0.0.31",
     "@types/ramda": "^0.27.35",
@@ -71,7 +71,8 @@
     "render-help": "^1.0.1"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0-0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

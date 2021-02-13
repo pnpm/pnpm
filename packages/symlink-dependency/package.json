@@ -13,10 +13,10 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0-0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0-0"
   },
   "directories": {
     "test": "test"
@@ -42,5 +42,6 @@
     "@pnpm/types": "workspace:6.4.0",
     "symlink-dir": "^4.2.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

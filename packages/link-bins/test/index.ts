@@ -10,6 +10,9 @@ import ncpcb from 'ncp'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import tempy from 'tempy'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const ncp = promisify(ncpcb)
 

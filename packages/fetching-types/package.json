@@ -31,5 +31,6 @@
   "dependencies": {
     "@types/node-fetch": "^2.5.7",
     "@zkochan/retry": "^0.2.0"
-  }
+  },
+  "type": "module"
 }

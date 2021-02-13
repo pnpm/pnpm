@@ -31,5 +31,6 @@
     "@pnpm/types": "workspace:6.4.0",
     "graph-sequencer": "2.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

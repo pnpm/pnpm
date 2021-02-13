@@ -4,13 +4,13 @@
   "version": "6.0.0-alpha.4",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bin": {
-    "pnpm": "bin/pnpm.js",
-    "pnpx": "bin/pnpx.js"
+    "pnpm": "bin/pnpm.cjs",
+    "pnpx": "bin/pnpx.cjs"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "main": "bin/pnpm.js",
+  "main": "bin/pnpm.cjs",
   "files": [
     "dist",
     "bin"
@@ -35,7 +35,7 @@
     "@pnpm/find-workspace-dir": "workspace:2.0.0",
     "@pnpm/find-workspace-packages": "workspace:2.3.40",
     "@pnpm/lockfile-types": "workspace:2.2.0",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/parse-cli-args": "workspace:3.2.2",
     "@pnpm/plugin-commands-audit": "workspace:3.0.3",
@@ -145,13 +145,13 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle:pnpm": "esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.js --external:update-notifier --external:node-gyp",
-    "bundle:pnpx": "esbuild lib/pnpx.js --bundle --platform=node --outfile=dist/pnpx.js",
+    "bundle:pnpm": "esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --external:update-notifier --external:node-gyp",
+    "bundle:pnpx": "esbuild lib/pnpx.js --bundle --platform=node --outfile=dist/pnpx.cjs",
     "bundle": "pnpm bundle:pnpm && pnpm bundle:pnpx",
     "start": "pnpm tsc -- --watch",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
-    "test:jest": "jest",
+    "test:jest": "NODE_OPTIONS=--experimental-vm-modules jest",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7780 pnpm run test:e2e",
@@ -163,5 +163,6 @@
   "publishconfig": {
     "tag": "next"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

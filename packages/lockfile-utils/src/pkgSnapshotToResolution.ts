@@ -3,7 +3,7 @@ import { PackageSnapshot } from '@pnpm/lockfile-types'
 import { Resolution } from '@pnpm/resolver-base'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import getNpmTarballUrl from 'get-npm-tarball-url'
+import { default as getNpmTarballUrl } from 'get-npm-tarball-url'
 import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 
 export default (
@@ -36,7 +36,8 @@ export default (
     if (!name || !version) {
       throw new Error(`Couldn't get tarball URL from dependency path ${depPath}`)
     }
-    return getNpmTarballUrl(name, version, { registry })
+    // @ts-ignore
+    return getNpmTarballUrl.default(name, version, { registry })
   }
   /* eslint-enable @typescript-eslint/dot-notation */
 }

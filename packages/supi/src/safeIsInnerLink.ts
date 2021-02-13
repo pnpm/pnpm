@@ -4,7 +4,7 @@ import logger from '@pnpm/logger'
 import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
 
-export default async function safeIsInnerLink (
+export default async function safeIsInnerLink(
   projectModulesDir: string,
   depName: string,
   opts: {

@@ -3,6 +3,9 @@ import path from 'path'
 import runLifecycleHook, { runPostinstallHooks } from '@pnpm/lifecycle'
 import loadJsonFile from 'load-json-file'
 import rimraf from 'rimraf'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const fixtures = path.join(__dirname, 'fixtures')
 const rootModulesDir = path.join(__dirname, '..', 'node_modules')

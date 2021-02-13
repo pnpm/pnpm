@@ -82,7 +82,8 @@ export default function (
   opts = opts || {}
 
   const networkConcurrency = opts.networkConcurrency ?? 16
-  const requestsQueue = new PQueue({
+  // @ts-ignore
+  const requestsQueue = new PQueue.default({
     concurrency: networkConcurrency,
   })
   requestsQueue['counter'] = 0 // eslint-disable-line

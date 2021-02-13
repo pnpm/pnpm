@@ -26,5 +26,6 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "prepublishOnly": "pnpm run compile"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

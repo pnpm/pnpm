@@ -1,6 +1,6 @@
 import path from 'path'
 
-export function pathToLocalPkg (pkgName: string) {
+export function pathToLocalPkg(pkgName: string) {
   return path.join(__dirname, '../../../../fixtures', pkgName)
 }
 

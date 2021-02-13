@@ -31,5 +31,6 @@
     "@pnpm/error": "workspace:1.4.0",
     "find-up": "^5.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

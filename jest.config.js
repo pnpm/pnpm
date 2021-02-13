@@ -1,7 +1,12 @@
-const path = require('path')
+import path from 'path'
 
-module.exports = {
-  preset: 'ts-jest',
+export default {
+  preset: 'ts-jest/presets/default-esm',
+  globals: {
+    'ts-jest': {
+      useESM: true,
+    },
+  },
   testMatch: ["**/test/**/*.[jt]s?(x)"],
   testEnvironment: 'node',
   collectCoverage: true,

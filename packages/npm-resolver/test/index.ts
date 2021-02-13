@@ -10,6 +10,9 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import exists from 'path-exists'
 import tempy from 'tempy'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const isPositiveMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive.json'))

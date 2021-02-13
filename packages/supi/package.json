@@ -13,7 +13,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0-0"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:5.2.10",
@@ -51,7 +51,7 @@
     "dependency-path": "workspace:5.1.1",
     "graph-sequencer": "2.0.0",
     "is-inner-link": "^4.0.0",
-    "is-subdir": "^1.1.1",
+    "is-subdir": "^1.2.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",
     "p-every": "^2.0.0",
@@ -69,7 +69,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:2.1.0",
     "@pnpm/client": "workspace:2.0.23",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@pnpm/package-store": "workspace:11.0.1",
     "@pnpm/prepare": "workspace:0.0.18",
     "@pnpm/store-path": "5.0.0-0",
@@ -140,7 +140,7 @@
     "commitmsg": "commitlint -e",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
-    "test:jest": "jest",
+    "test:jest": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
     "test-with-preview": "preview && pnpm run test:e2e",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=4873 pnpm run test:e2e",
@@ -148,5 +148,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

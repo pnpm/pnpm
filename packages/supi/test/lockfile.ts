@@ -126,7 +126,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   expect(
-    project.requireModule('.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json').version
+    (await project.requireModule('.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json')).version
   ).toBe('0.3.4') // react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules
 
   const lockfile = await project.readLockfile()
@@ -1179,26 +1179,15 @@ test('a lockfile with merge conflicts is autofixed', async () => {
 importers:
   .:
     dependencies:
-<<<<<<< HEAD
       dep-of-pkg-with-1-dep: 100.0.0
-=======
-      dep-of-pkg-with-1-dep: 100.1.0
->>>>>>> next
     specifiers:
       dep-of-pkg-with-1-dep: '>100.0.0'
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
-<<<<<<< HEAD
   /dep-of-pkg-with-1-dep/100.0.0:
     dev: false
     resolution:
       integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}
-=======
-  /dep-of-pkg-with-1-dep/100.1.0:
-    dev: false
-    resolution:
-      integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.1.0')}
->>>>>>> next`, 'utf8')
 
   await install({
     dependencies: {

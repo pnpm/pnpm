@@ -2,6 +2,7 @@
 import { promisify } from 'util'
 import { promises as fs, statSync } from 'fs'
 import path from 'path'
+import { jest } from '@jest/globals'
 import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import createClient from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
@@ -14,6 +15,9 @@ import ncpCB from 'ncp'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import tempy from 'tempy'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')

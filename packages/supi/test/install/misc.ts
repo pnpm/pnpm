@@ -143,7 +143,7 @@ test('no dependencies (lodash)', async () => {
     } as ProjectManifest,
   } as PackageManifestLog)).toBeTruthy()
 
-  const m = project.requireModule('lodash')
+  const m = await project.requireModule('lodash')
   expect(typeof m).toBe('function')
   expect(typeof m.clone).toBe('function')
 })
@@ -166,7 +166,7 @@ test('scoped package with custom registry', async () => {
     registry: 'http://localhost:9999/',
   }))
 
-  const m = project.requireModule('@scoped/peer/package.json')
+  const m = await project.requireModule('@scoped/peer/package.json')
   expect(m).toBeTruthy()
 })
 
@@ -259,15 +259,15 @@ test('multiple scoped modules (@rstacruz/...)', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], await testDefaults({ fastUnpack: false }))
 
-  expect(typeof project.requireModule('@rstacruz/tap-spec')).toBe('function')
-  expect(typeof project.requireModule('@rstacruz/travis-encrypt')).toBe('function')
+  expect(typeof (await project.requireModule('@rstacruz/tap-spec'))).toBe('function')
+  expect(typeof (await project.requireModule('@rstacruz/travis-encrypt'))).toBe('function')
 })
 
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['test-pnpm-issue219@1.0.2'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('test-pnpm-issue219')
+  const m = await project.requireModule('test-pnpm-issue219')
   expect(m).toBe('test-pnpm-issue219,@zkochan/test-pnpm-issue219')
 })
 
@@ -338,7 +338,7 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
   // store should be pruned to have this removed
   await project.storeHas('flatten', '1.0.2')
 
-  const m = project.requireModule('magic-hook/package.json')
+  const m = await project.requireModule('magic-hook/package.json')
   expect(m.version).toBe('0.1.0')
 })
 
@@ -449,7 +449,7 @@ test('circular deps', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['circular-deps-1-of-2'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('circular-deps-1-of-2/mirror')
+  const m = await project.requireModule('circular-deps-1-of-2/mirror')
 
   expect(m()).toEqual('circular-deps-1-of-2')
 
@@ -465,7 +465,7 @@ test('concurrent circular deps', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['es6-iterator@2.0.0'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('es6-iterator')
+  const m = await project.requireModule('es6-iterator')
 
   expect(m).toBeTruthy()
   expect(await exists(path.resolve('node_modules/.pnpm/es6-iterator@2.0.0/node_modules/es5-ext'))).toBeTruthy()
@@ -481,7 +481,7 @@ test('concurrent installation of the same packages', async () => {
   // of babek-core
   await addDependenciesToPackage({}, ['babel-core@6.21.0'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('babel-core')
+  const m = await project.requireModule('babel-core')
 
   expect(m).toBeTruthy()
 })
@@ -490,7 +490,7 @@ test('big with dependencies and circular deps (babel-preset-2015)', async () => 
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['babel-preset-es2015@6.3.13'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('babel-preset-es2015')
+  const m = await project.requireModule('babel-preset-es2015')
   expect(typeof m).toEqual('object')
 })
 
@@ -545,7 +545,7 @@ test('compiled modules (ursa@0.9.1)', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['ursa@0.9.1'], await testDefaults())
 
-  const m = project.requireModule('ursa')
+  const m = await project.requireModule('ursa')
   expect(typeof m).toEqual('object')
 })
 
@@ -635,13 +635,13 @@ test('should install dependency in second project', async () => {
   const project1 = prepareEmpty()
 
   await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
-  expect(project1.requireModule('pkg-with-1-dep')().name).toEqual('dep-of-pkg-with-1-dep')
+  expect((await project1.requireModule('pkg-with-1-dep'))().name).toEqual('dep-of-pkg-with-1-dep')
 
   const project2 = prepareEmpty()
 
   await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
 
-  expect(project2.requireModule('pkg-with-1-dep')().name).toEqual('dep-of-pkg-with-1-dep')
+  expect((await project2.requireModule('pkg-with-1-dep'))().name).toEqual('dep-of-pkg-with-1-dep')
 })
 
 test('should throw error when trying to install using a different store then the previous one', async () => {
@@ -737,7 +737,7 @@ test('lockfile locks npm dependencies', async () => {
     status: 'found_in_store',
   } as ProgressLog)).toBeTruthy()
 
-  const m = project.requireModule('.pnpm/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
+  const m = await project.requireModule('.pnpm/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 
   expect(m.version).toEqual('100.0.0')
 })
@@ -746,7 +746,7 @@ test('self-require should work', async () => {
 
   await addDependenciesToPackage({}, ['uses-pkg-with-self-usage'], await testDefaults({ fastUnpack: false }))
 
-  expect(project.requireModule('uses-pkg-with-self-usage')).toBeTruthy()
+  expect(await project.requireModule('uses-pkg-with-self-usage')).toBeTruthy()
 })
 
 test('install on project with lockfile and no node_modules', async () => {
@@ -802,7 +802,7 @@ test('rewrites node_modules created by npm', async () => {
 
   const manifest = await install({}, await testDefaults())
 
-  const m = project.requireModule('rimraf')
+  const m = await project.requireModule('rimraf')
   expect(typeof m).toEqual('function')
   await project.isExecutable('.bin/rimraf')
 
@@ -1160,7 +1160,7 @@ test('ignore files in node_modules', async () => {
     await testDefaults({ fastUnpack: false, reporter })
   )
 
-  const m = project.requireModule('lodash')
+  const m = await project.requireModule('lodash')
   expect(typeof m).toEqual('function')
   expect(typeof m.clone).toEqual('function')
   expect(await fs.readFile('node_modules/foo', 'utf8')).toEqual('x')

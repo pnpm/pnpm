@@ -14,7 +14,7 @@
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
-    "_test": "jest",
+    "_test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-requester#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0-0"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:2.1.0",
@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:2.0.23",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0-0",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.35",
@@ -67,5 +67,6 @@
     "normalize-path": "^3.0.0",
     "tempy": "^1.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "type": "module"
 }

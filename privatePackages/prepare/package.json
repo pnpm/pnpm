@@ -22,5 +22,6 @@
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"
-  }
+  },
+  "type": "module"
 }
