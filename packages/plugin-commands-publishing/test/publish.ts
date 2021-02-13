@@ -111,7 +111,9 @@ test('pack packages with workspace LICENSE if no own LICENSE is present', async 
 
   crossSpawn.sync(pnpmBin, ['add', '../project-1/project-1-1.0.0.tgz', '../project-2/project-2-1.0.0.tgz'])
 
+  expect(await exists('node_modules/project-1/LICENSE')).toBeTruthy()
   expect(await fs.readFile('node_modules/project-1/LICENSE', 'utf8')).toBe('workspace license')
+  expect(await exists('node_modules/project-2/LICENSE')).toBeTruthy()
   expect(await fs.readFile('node_modules/project-2/LICENSE', 'utf8')).toBe('project-2 license')
 
   process.chdir('..')
