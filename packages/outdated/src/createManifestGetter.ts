@@ -34,7 +34,7 @@ export async function getManifest (
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},
     projectDir: opts.dir,
-    registry: pickRegistryForPackage(opts.registries, packageName),
+    registry: pickRegistryForPackage(opts.registries, packageName, pref),
   })
   return resolution?.manifest ?? null
 }
