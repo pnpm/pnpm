@@ -94,7 +94,7 @@ export default async function (
             '--tag',
             tag,
             '--registry',
-            pickRegistryForPackage(opts.registries, pkg.manifest.name!, tag),
+            pickRegistryForPackage(opts.registries, pkg.manifest.name!),
             ...appendedArgs,
           ],
         },

@@ -35,7 +35,7 @@ export default async function (
         lockfileDir: prefix,
         preferredVersions: {},
         projectDir: prefix,
-        registry: (dep.alias && pickRegistryForPackage(registries, dep.alias, '')) ?? registries.default,
+        registry: (dep.alias && pickRegistryForPackage(registries, dep.alias)) ?? registries.default,
       })
       await pkgResponse.files!()
       globalInfo(`+ ${pkgResponse.body.id}`)
