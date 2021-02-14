@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-import",
-  "version": "1.0.100",
+  "version": "1.0.101",
   "description": "The import command",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -41,15 +41,15 @@
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.51",
+    "@pnpm/cli-utils": "workspace:0.5.0",
     "@pnpm/constants": "workspace:4.1.0",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/read-project-manifest": "workspace:1.1.7",
-    "@pnpm/store-connection-manager": "workspace:0.3.62",
+    "@pnpm/store-connection-manager": "workspace:0.3.63",
     "@zkochan/rimraf": "^1.0.0",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.1",
-    "supi": "workspace:0.44.3"
+    "supi": "workspace:0.44.4"
   },
   "funding": "https://opencollective.com/pnpm"
 }

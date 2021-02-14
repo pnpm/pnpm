@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 18.3.2
+
+### Patch Changes
+
+- 249c068dd: fix scoped registry for aliased dependency
+- Updated dependencies [249c068dd]
+  - @pnpm/pick-registry-for-package@1.1.0
+
 ## 18.3.1
 
 ### Patch Changes

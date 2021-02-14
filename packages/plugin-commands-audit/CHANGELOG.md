@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-audit
 
+## 2.0.43
+
+### Patch Changes
+
+- 0c11e1a07: Audit output should always have a new line at the end.
+- Updated dependencies [cb040ae18]
+  - @pnpm/cli-utils@0.5.0
+  - @pnpm/config@11.14.0
+
 ## 2.0.42
 
 ### Patch Changes
