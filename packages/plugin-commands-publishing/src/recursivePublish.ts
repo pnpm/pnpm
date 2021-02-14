@@ -94,7 +94,7 @@ export default async function (
             '--tag',
             tag,
             '--registry',
-            pickRegistryForPackage(opts.registries, pkg.manifest.name!),
+            pickRegistryForPackage(opts.registries, pkg.manifest.name!, tag),
             ...appendedArgs,
           ],
         },
@@ -120,7 +120,7 @@ async function isAlreadyPublished (
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
-      registry: pickRegistryForPackage(opts.registries, pkgName),
+      registry: pickRegistryForPackage(opts.registries, pkgName, pkgVersion),
     })
     return true
   } catch (err) {
