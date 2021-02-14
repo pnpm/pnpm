@@ -1,5 +1,11 @@
 # @pnpm/pick-registry-for-package
 
+## 1.1.0
+
+### Minor Changes
+
+- 249c068dd: add pref to pick registry
+
 ## 1.0.6
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 0.3.1
+
+### Patch Changes
+
+- a5e9d903c: Update help for filters. Some of the filtering patterns should be escaped in zsh.
+
 ## 0.3.0
 
 ### Minor Changes

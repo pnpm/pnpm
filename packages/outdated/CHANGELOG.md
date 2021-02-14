@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 7.2.25
+
+### Patch Changes
+
+- 249c068dd: add pref to pick registries
+- Updated dependencies [249c068dd]
+  - @pnpm/pick-registry-for-package@1.1.0
+
 ## 7.2.24
 
 ### Patch Changes

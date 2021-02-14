@@ -1,5 +1,17 @@
 # @pnpm/cli-utils
 
+## 0.5.0
+
+### Minor Changes
+
+- cb040ae18: add option to check unknown settings
+
+### Patch Changes
+
+- Updated dependencies [cb040ae18]
+  - @pnpm/config@11.14.0
+  - @pnpm/default-reporter@7.10.4
+
 ## 0.4.51
 
 ### Patch Changes

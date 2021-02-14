@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.14.0
+
+### Minor Changes
+
+- cb040ae18: add option to check unknown settings
+
 ## 11.13.0
 
 ### Minor Changes

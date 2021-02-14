@@ -1,5 +1,14 @@
 # pnpm
 
+## 5.17.2
+
+### Patch Changes
+
+- Only display unknown settings warning, when `pnpm install` is executed [#3130](https://github.com/pnpm/pnpm/pull/3130).
+- Update help for the filter option. Some of the filtering patterns should be escaped in Zsh.
+- Audit output should always have a new line at the end [#3134](https://github.com/pnpm/pnpm/pull/3134).
+- Return the correct registry for an aliased scoped dependency [#3103](https://github.com/pnpm/pnpm/pull/3134).
+
 ## 5.17.1
 
 ### Minor Changes
