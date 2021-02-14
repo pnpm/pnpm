@@ -120,7 +120,7 @@ async function isAlreadyPublished (
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
-      registry: pickRegistryForPackage(opts.registries, pkgName),
+      registry: pickRegistryForPackage(opts.registries, pkgName, pkgVersion),
     })
     return true
   } catch (err) {
