@@ -1,9 +1,9 @@
+import crypto from 'crypto'
+import path from 'path'
 import { Registries } from '@pnpm/types'
-import crypto = require('crypto')
-import encodeRegistry = require('encode-registry')
-import normalize = require('normalize-path')
-import path = require('path')
-import semver = require('semver')
+import encodeRegistry from 'encode-registry'
+import normalize from 'normalize-path'
+import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string) {
   return dependencyPath[0] !== '/'

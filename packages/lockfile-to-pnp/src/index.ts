@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import getConfigs from '@pnpm/config'
 import { Lockfile, readWantedLockfile } from '@pnpm/lockfile-file'
 import {
@@ -7,10 +9,8 @@ import readImporterManifest from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from 'dependency-path'
 import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
-import { promises as fs } from 'fs'
-import normalizePath = require('normalize-path')
-import path = require('path')
-import R = require('ramda')
+import normalizePath from 'normalize-path'
+import * as R from 'ramda'
 
 export async function lockfileToPnp (lockfileDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })

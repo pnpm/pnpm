@@ -1,5 +1,5 @@
+import chalk from 'chalk'
 import getUpdateChoices from '../../lib/update/getUpdateChoices'
-import chalk = require('chalk')
 
 test('getUpdateChoices()', () => {
   expect(

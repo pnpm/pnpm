@@ -1,11 +1,11 @@
+import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { preparePackages } from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
+import execa from 'execa'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
-import path = require('path')
-import execa = require('execa')
-import writeYamlFile = require('write-yaml-file')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 

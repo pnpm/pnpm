@@ -1,3 +1,4 @@
+import path from 'path'
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -7,10 +8,9 @@ import runLifecycleHooks, {
 } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
+import pLimit from 'p-limit'
+import realpathMissing from 'realpath-missing'
 import existsInDir from './existsInDir'
-import path = require('path')
-import pLimit = require('p-limit')
-import realpathMissing = require('realpath-missing')
 
 export type RecursiveRunOpts = Pick<Config,
 | 'unsafePerm'
@@ -52,7 +52,7 @@ export default async (
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   for (const chunk of packageChunks) {
-    await Promise.all(chunk.map((prefix: string) =>
+    await Promise.all(chunk.map(async (prefix: string) =>
       limitRun(async () => {
         const pkg = opts.selectedProjectsGraph[prefix]
         if (

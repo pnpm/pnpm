@@ -14,7 +14,7 @@ const RENAMED_OPTIONS = {
   store: 'store-dir',
 }
 
-export default function parseCliArgs (inputArgv: string[]) {
+export default async function parseCliArgs (inputArgv: string[]) {
   return parseCliArgsLib({
     fallbackCommand: 'run',
     getCommandLongName: getCommandFullName,

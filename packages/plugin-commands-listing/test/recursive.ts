@@ -1,14 +1,14 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { promises as fs } from 'fs'
+import stripAnsi from 'strip-ansi'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
-import path = require('path')
-import stripAnsi = require('strip-ansi')
-import writeYamlFile = require('write-yaml-file')
 
 test('recursive list', async () => {
   preparePackages([

@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
@@ -6,11 +8,9 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import resolveLinkTarget from 'resolve-link-target'
 import { addDistTag, testDefaults } from '../utils'
-import fs = require('fs')
-import rimraf = require('@zkochan/rimraf')
-import path = require('path')
-import resolveLinkTarget = require('resolve-link-target')
 
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()

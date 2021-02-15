@@ -1,4 +1,4 @@
-import encodeRegistry = require('encode-registry')
+import encodeRegistry from 'encode-registry'
 
 export default function createPkgId (
   registry: string,

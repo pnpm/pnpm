@@ -1,15 +1,15 @@
+import path from 'path'
 import { LifecycleLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
+import chalk from 'chalk'
+import prettyTime from 'pretty-ms'
+import stripAnsi from 'strip-ansi'
 import { EOL } from '../constants'
 import formatPrefix, { formatPrefixNoTrim } from './utils/formatPrefix'
 import {
   hlValue,
 } from './outputConstants'
-import chalk = require('chalk')
-import path = require('path')
-import prettyTime = require('pretty-ms')
-import stripAnsi = require('strip-ansi')
 
 const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 

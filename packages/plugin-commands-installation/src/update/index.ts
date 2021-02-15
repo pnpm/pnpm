@@ -9,12 +9,12 @@ import { types as allTypes } from '@pnpm/config'
 import matcher from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { prompt } from 'enquirer'
+import chalk from 'chalk'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import { InstallCommandOptions } from '../install'
 import installDeps from '../installDeps'
 import getUpdateChoices from './getUpdateChoices'
-import chalk = require('chalk')
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -78,7 +78,7 @@ export const shorthands = {
 
 export const commandNames = ['update', 'up', 'upgrade']
 
-export const completion: CompletionFunc = (cliOpts) => {
+export const completion: CompletionFunc = async (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
@@ -154,7 +154,7 @@ export type UpdateCommandOptions = InstallCommandOptions & {
   latest?: boolean
 }
 
-export function handler (
+export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ) {
@@ -229,7 +229,7 @@ async function interactiveUpdate (
   return update(updateDependencies, opts)
 }
 
-function update (
+async function update (
   dependencies: string[],
   opts: UpdateCommandOptions
 ) {

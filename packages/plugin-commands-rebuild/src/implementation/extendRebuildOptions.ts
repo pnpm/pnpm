@@ -1,9 +1,9 @@
+import path from 'path'
 import { LogBase } from '@pnpm/logger'
 import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 
 export interface StrictRebuildOptions {
   childConcurrency: number

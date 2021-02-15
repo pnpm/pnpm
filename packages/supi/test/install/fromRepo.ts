@@ -1,14 +1,14 @@
+import path from 'path'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
 } from 'supi'
+import isCI from 'is-ci'
+import exists from 'path-exists'
+import sinon from 'sinon'
 import { testDefaults } from '../utils'
-import path = require('path')
-import isCI = require('is-ci')
-import exists = require('path-exists')
-import sinon = require('sinon')
 
 test('from a github repo', async () => {
   const project = prepareEmpty()

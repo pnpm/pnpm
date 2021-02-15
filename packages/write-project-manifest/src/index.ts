@@ -1,9 +1,9 @@
-import { ProjectManifest } from '@pnpm/types'
 import { promises as fs } from 'fs'
-import path = require('path')
-import JSON5 = require('json5')
-import writeFileAtomic = require('write-file-atomic')
-import writeYamlFile = require('write-yaml-file')
+import path from 'path'
+import { ProjectManifest } from '@pnpm/types'
+import JSON5 from 'json5'
+import writeFileAtomic from 'write-file-atomic'
+import writeYamlFile from 'write-yaml-file'
 
 const YAML_FORMAT = {
   noCompatMode: true,

@@ -1,6 +1,6 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { DependencyManifest, ProjectManifest } from '@pnpm/types'
-import lifecycle = require('@zkochan/npm-lifecycle')
+import lifecycle from '@zkochan/npm-lifecycle'
 
 function noop () {} // eslint-disable-line:no-empty
 

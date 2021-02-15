@@ -1,11 +1,11 @@
 import { FetchingProgressLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map, startWith } from 'rxjs/operators'
+import prettyBytes from 'pretty-bytes'
 import {
   hlPkgId,
   hlValue,
 } from './outputConstants'
-import prettyBytes = require('pretty-bytes')
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 

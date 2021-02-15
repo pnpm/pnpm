@@ -1,4 +1,4 @@
-import pShare = require('promise-share')
+import pShare from 'promise-share'
 
 export default function safeDeferredPromise<T> () {
   let _resolve!: (v: T) => void

@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import nock = require('nock')
+import nock from 'nock'
 
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})

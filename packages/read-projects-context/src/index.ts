@@ -1,9 +1,9 @@
+import path from 'path'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
 import normalizeRegistries from '@pnpm/normalize-registries'
 import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
-import path = require('path')
-import realpathMissing = require('realpath-missing')
+import realpathMissing from 'realpath-missing'
 
 export interface ProjectOptions {
   binsDir?: string

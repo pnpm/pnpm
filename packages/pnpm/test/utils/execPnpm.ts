@@ -1,8 +1,8 @@
 import { ChildProcess as NodeChildProcess } from 'child_process'
+import path from 'path'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import isWindows = require('is-windows')
-import path = require('path')
-import crossSpawn = require('cross-spawn')
+import isWindows from 'is-windows'
+import crossSpawn from 'cross-spawn'
 
 const binDir = path.join(__dirname, '../..', isWindows() ? 'lib' : 'bin')
 const pnpmBinLocation = path.join(binDir, 'pnpm.js')

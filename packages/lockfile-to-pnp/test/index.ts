@@ -1,5 +1,5 @@
-import { lockfileToPackageRegistry } from '../lib'
-import path = require('path')
+import path from 'path'
+import { lockfileToPackageRegistry } from '@pnpm/lockfile-to-pnp'
 
 test('lockfileToPackageRegistry', () => {
   const packageRegistry = lockfileToPackageRegistry({

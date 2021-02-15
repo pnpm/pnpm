@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -21,16 +22,15 @@ import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { ProjectManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import runGroups from 'run-groups'
+import npa from '@zkochan/npm-package-arg'
+import graphSequencer from 'graph-sequencer'
+import pLimit from 'p-limit'
+import * as R from 'ramda'
+import semver from 'semver'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
 } from './extendRebuildOptions'
-import path = require('path')
-import npa = require('@zkochan/npm-package-arg')
-import graphSequencer = require('graph-sequencer')
-import pLimit = require('p-limit')
-import R = require('ramda')
-import semver = require('semver')
 
 export { RebuildOptions }
 
@@ -310,7 +310,7 @@ async function _rebuild (
     Object
       .keys(pkgSnapshots)
       .filter((depPath) => !packageIsIndependent(pkgSnapshots[depPath]))
-      .map((depPath) => limitLinking(() => {
+      .map(async (depPath) => limitLinking(async () => {
         const pkgSnapshot = pkgSnapshots[depPath]
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
@@ -318,7 +318,7 @@ async function _rebuild (
         return linkBins(modules, binPath, { warn })
       }))
   )
-  await Promise.all(ctx.projects.map(({ rootDir }) => limitLinking(() => {
+  await Promise.all(ctx.projects.map(async ({ rootDir }) => limitLinking(async () => {
     const modules = path.join(rootDir, 'node_modules')
     const binPath = path.join(modules, '.bin')
     return linkBins(modules, binPath, {

@@ -1,5 +1,5 @@
+import path from 'path'
 import getBinsFromPkg from '@pnpm/package-bins'
-import path = require('path')
 
 test('getBinsFromPkg()', async () => {
   expect(

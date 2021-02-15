@@ -1,8 +1,8 @@
-import { execPnpm } from '../utils'
-import { preparePackages } from '@pnpm/prepare'
 import { promises as fs } from 'fs'
-import path = require('path')
-import writeYamlFile = require('write-yaml-file')
+import path from 'path'
+import { preparePackages } from '@pnpm/prepare'
+import writeYamlFile from 'write-yaml-file'
+import { execPnpm } from '../utils'
 
 test('pnpm recursive run finds bins from the root of the workspace', async () => {
   preparePackages([

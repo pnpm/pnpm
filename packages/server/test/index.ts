@@ -1,18 +1,18 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import fs from 'fs'
+import path from 'path'
 import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import fetch from 'node-fetch'
-import fs = require('fs')
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import isPortReachable = require('is-port-reachable')
-import loadJsonFile = require('load-json-file')
-import tempy = require('tempy')
+import rimraf from '@zkochan/rimraf'
+import loadJsonFile from 'load-json-file'
+import tempy from 'tempy'
+import isPortReachable from 'is-port-reachable'
 
 const registry = 'https://registry.npmjs.org/'
 
-function createStoreController (storeDir?: string) {
+async function createStoreController (storeDir?: string) {
   if (!storeDir) {
     storeDir = tempy.directory()
   }

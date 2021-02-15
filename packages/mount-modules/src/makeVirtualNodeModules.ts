@@ -1,9 +1,9 @@
+import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import * as dp from 'dependency-path'
-import normalize = require('normalize-path')
-import path = require('path')
+import normalize from 'normalize-path'
 
 type DirEntry = {
   entryType: 'index'

@@ -1,9 +1,9 @@
+import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import writeJsonFile from 'write-json-file'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import writeJsonFile = require('write-json-file')
 
 test('repeat install with corrupted `store.json` should work', async () => {
   const project = prepareEmpty()

@@ -1,10 +1,10 @@
-import pnpmLogger, { globalWarn } from '@pnpm/logger'
 import { promises as fs } from 'fs'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import makeEmptyDir = require('make-empty-dir')
-import pathTemp = require('path-temp')
-import renameOverwrite = require('rename-overwrite')
+import path from 'path'
+import pnpmLogger, { globalWarn } from '@pnpm/logger'
+import rimraf from '@zkochan/rimraf'
+import makeEmptyDir from 'make-empty-dir'
+import pathTemp from 'path-temp'
+import renameOverwrite from 'rename-overwrite'
 
 const filenameConflictsLogger = pnpmLogger('_filename-conflicts')
 
@@ -53,7 +53,7 @@ async function tryImportIndexedDir (importFile: ImportFile, newDir: string, file
   await Promise.all(
     Array.from(alldirs)
       .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
-      .map((dir) => fs.mkdir(path.join(newDir, dir), { recursive: true }))
+      .map(async (dir) => fs.mkdir(path.join(newDir, dir), { recursive: true }))
   )
   await Promise.all(
     Object.entries(filenames)

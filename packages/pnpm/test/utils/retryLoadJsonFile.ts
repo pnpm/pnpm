@@ -1,7 +1,7 @@
-import retry = require('@zkochan/retry')
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
+import * as retry from '@zkochan/retry'
 
-export default <T>(filePath: string): Promise<T> => {
+export default async <T>(filePath: string): Promise<T> => {
   const operation = retry.operation({})
 
   return new Promise<T>((resolve, reject) => {

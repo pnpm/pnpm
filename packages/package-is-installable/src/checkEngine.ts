@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import semver = require('semver')
+import semver from 'semver'
 
 export class UnsupportedEngineError extends PnpmError {
   public wanted: WantedEngine

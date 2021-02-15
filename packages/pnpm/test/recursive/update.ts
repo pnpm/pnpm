@@ -1,8 +1,8 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { promises as fs } from 'fs'
 import { execPnpm } from '../utils'
-import path = require('path')
 
 // TODO: This should work if the settings are passed through CLI
 test.skip('recursive update --latest should update deps with correct specs', async () => {

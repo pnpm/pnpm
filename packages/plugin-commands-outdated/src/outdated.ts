@@ -14,16 +14,16 @@ import {
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import { table } from '@zkochan/table'
-import outdatedRecursive from './recursive'
+import chalk from 'chalk'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
+import stripAnsi from 'strip-ansi'
+import wrapAnsi from 'wrap-ansi'
 import {
   DEFAULT_COMPARATORS,
   OutdatedWithVersionDiff,
 } from './utils'
-import chalk = require('chalk')
-import R = require('ramda')
-import renderHelp = require('render-help')
-import stripAnsi = require('strip-ansi')
-import wrapAnsi = require('wrap-ansi')
+import outdatedRecursive from './recursive'
 
 export function rcOptionsTypes () {
   return {
@@ -111,7 +111,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
-export const completion: CompletionFunc = (cliOpts) => {
+export const completion: CompletionFunc = async (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 

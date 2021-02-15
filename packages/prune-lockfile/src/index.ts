@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile-types'
 import { PackageManifest } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
-import R = require('ramda')
+import * as R from 'ramda'
 
 export * from '@pnpm/lockfile-types'
 

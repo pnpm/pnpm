@@ -1,3 +1,4 @@
+import path from 'path'
 import pnpmExec from '@pnpm/exec'
 import exportableManifest from '@pnpm/exportable-manifest'
 import {
@@ -9,9 +10,8 @@ import {
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import path = require('path')
-import R = require('ramda')
-import renameOverwrite = require('rename-overwrite')
+import * as R from 'ramda'
+import renameOverwrite from 'rename-overwrite'
 
 export default async function (lockfileDir: string, projectDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })

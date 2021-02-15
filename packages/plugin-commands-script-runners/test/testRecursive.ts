@@ -1,9 +1,9 @@
+import path from 'path'
 import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
 import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
+import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
-import path = require('path')
-import execa = require('execa')
 
 test('pnpm recursive test', async () => {
   preparePackages([

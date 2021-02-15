@@ -11,8 +11,8 @@ import {
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
-import isCI = require('is-ci')
-import R = require('ramda')
+import isCI from 'is-ci'
+import * as R from 'ramda'
 
 export interface PnpmContext {
   currentLockfile: Lockfile

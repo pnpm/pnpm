@@ -1,3 +1,4 @@
+import path from 'path'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
@@ -6,7 +7,6 @@ import {
   mutateModules,
 } from 'supi'
 import { testDefaults } from '../utils'
-import path = require('path')
 
 test('the modules cache is pruned when it expires', async () => {
   const project = prepareEmpty()

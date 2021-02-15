@@ -1,10 +1,10 @@
-import globalBinDir from '../src/index'
 
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { sync as _canWriteToDir } from 'can-write-to-dir'
 
-import path = require('path')
-import isWindows = require('is-windows')
+import isWindows from 'is-windows'
+import globalBinDir from '../src/index'
 
 const makePath =
   isWindows()

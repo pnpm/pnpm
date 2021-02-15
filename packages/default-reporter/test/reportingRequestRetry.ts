@@ -4,7 +4,7 @@ import {
   createStreamParser,
 } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
-import chalk = require('chalk')
+import chalk from 'chalk'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 

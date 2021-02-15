@@ -1,4 +1,4 @@
-import path = require('path')
+import path from 'path'
 
 const fsMock = { promises: {} as any } as any // eslint-disable-line
 jest.mock('fs', () => {

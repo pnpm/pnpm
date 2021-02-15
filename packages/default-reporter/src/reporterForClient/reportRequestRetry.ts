@@ -1,8 +1,8 @@
 import { RequestRetryLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
+import prettyMilliseconds from 'pretty-ms'
 import formatWarn from './utils/formatWarn'
-import prettyMilliseconds = require('pretty-ms')
 
 export default (
   requestRetry$: Rx.Observable<RequestRetryLog>

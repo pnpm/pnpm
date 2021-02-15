@@ -1,3 +1,4 @@
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import {
   FetchFromRegistry,
@@ -12,23 +13,22 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
-import createPkgId from './createNpmPkgId'
-import fromRegistry, { RegistryResponseError } from './fetch'
-import parsePref, {
-  RegistryPackageSpec,
-} from './parsePref'
+import LRU from 'lru-cache'
+import normalize from 'normalize-path'
+import pMemoize from 'p-memoize'
+import semver from 'semver'
+import ssri from 'ssri'
 import pickPackage, {
   PackageInRegistry,
   PackageMeta,
   PackageMetaCache,
   PickPackageOptions,
 } from './pickPackage'
-import path = require('path')
-import LRU = require('lru-cache')
-import normalize = require('normalize-path')
-import pMemoize = require('p-memoize')
-import semver = require('semver')
-import ssri = require('ssri')
+import parsePref, {
+  RegistryPackageSpec,
+} from './parsePref'
+import fromRegistry, { RegistryResponseError } from './fetch'
+import createPkgId from './createNpmPkgId'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta

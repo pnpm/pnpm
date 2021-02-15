@@ -1,8 +1,8 @@
+import path from 'path'
 import { Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
-import path = require('path')
 
 export default async (
   opts: Pick<Config, 'dir' | 'storeDir'>

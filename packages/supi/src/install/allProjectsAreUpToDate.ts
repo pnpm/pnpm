@@ -1,3 +1,4 @@
+import path from 'path'
 import { ProjectOptions } from '@pnpm/get-context'
 import {
   Lockfile,
@@ -12,11 +13,10 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import pEvery from 'p-every'
-import path = require('path')
-import R = require('ramda')
-import semver = require('semver')
+import * as R from 'ramda'
+import semver from 'semver'
 
-export default function allProjectsAreUpToDate (
+export default async function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
     linkWorkspacePackages: boolean

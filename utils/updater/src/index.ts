@@ -1,11 +1,11 @@
+import fs from 'fs'
+import path from 'path'
 import { readWantedLockfile, Lockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
-import fs = require('fs')
-import isSubdir = require('is-subdir')
-import normalizePath = require('normalize-path')
-import path = require('path')
-import exists = require('path-exists')
-import writeJsonFile = require('write-json-file')
+import isSubdir from 'is-subdir'
+import normalizePath from 'normalize-path'
+import exists from 'path-exists'
+import writeJsonFile from 'write-json-file'
 
 export default async (workspaceDir: string) => {
   const pkgsDir = path.join(workspaceDir, 'packages')

@@ -1,12 +1,12 @@
 /// <reference path="../../../typings/index.d.ts" />
+import { promises as fs } from 'fs'
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { promises as fs } from 'fs'
-import path = require('path')
-import stripAnsi = require('strip-ansi')
+import stripAnsi from 'strip-ansi'
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')

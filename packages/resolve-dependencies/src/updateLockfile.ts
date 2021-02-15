@@ -12,8 +12,8 @@ import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import * as R from 'ramda'
 import depPathToRef from './depPathToRef'
-import { DependenciesGraph } from '.'
 import { ResolvedPackage } from './resolveDependencies'
+import { DependenciesGraph } from '.'
 
 export default function (
   depGraph: DependenciesGraph,

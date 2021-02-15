@@ -1,5 +1,5 @@
+import * as R from 'ramda'
 import * as list from './list'
-import R = require('ramda')
 
 export const commandNames = ['ll', 'la']
 
@@ -11,7 +11,7 @@ export function cliOptionsTypes () {
 
 export const help = list.help
 
-export function handler (
+export async function handler (
   opts: list.ListCommandOptions,
   params: string[]
 ) {

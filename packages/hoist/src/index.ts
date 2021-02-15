@@ -1,3 +1,4 @@
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import linkBins, { WarnFunction } from '@pnpm/link-bins'
 import {
@@ -10,8 +11,7 @@ import matcher from '@pnpm/matcher'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import path = require('path')
-import R = require('ramda')
+import * as R from 'ramda'
 
 export default async function hoistByLockfile (
   opts: {
@@ -131,7 +131,7 @@ async function getDependencies (
 
   return (
     await Promise.all(
-      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1))
+      nextSteps.map(async (nextStep) => getDependencies(nextStep, depth + 1))
     )
   ).reduce((acc, deps) => [...acc, ...deps], deps)
 }

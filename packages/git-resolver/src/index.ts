@@ -1,7 +1,7 @@
 import { ResolveResult } from '@pnpm/resolver-base'
+import git from 'graceful-git'
+import semver from 'semver'
 import parsePref, { HostedPackageSpec } from './parsePref'
-import git = require('graceful-git')
-import semver = require('semver')
 
 export { HostedPackageSpec }
 

@@ -1,3 +1,13 @@
+import {
+  close as _close,
+  closeSync,
+  open as _open,
+  promises as fs,
+  unlinkSync,
+  write as _write,
+} from 'fs'
+import { promisify } from 'util'
+import path from 'path'
 import packageManager from '@pnpm/cli-meta'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
@@ -8,20 +18,10 @@ import {
   serverConnectionInfoDir,
 } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
-import {
-  close as _close,
-  closeSync,
-  open as _open,
-  promises as fs,
-  unlinkSync,
-  write as _write,
-} from 'fs'
-import { promisify } from 'util'
-import path = require('path')
-import Diable = require('@zkochan/diable')
-import getPort = require('get-port')
-import isWindows = require('is-windows')
-import onExit = require('signal-exit')
+import Diable from '@zkochan/diable'
+import getPort from 'get-port'
+import isWindows from 'is-windows'
+import onExit from 'signal-exit'
 
 const storeServerLogger = logger('store-server')
 const write = promisify(_write)

@@ -18,8 +18,8 @@
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json --project .",
-    "prepublishOnly": "pnpm run tsc",
-    "test": "pnpm run tsc",
-    "tsc": "rimraf lib && tsc"
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile",
+    "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"
   }
 }

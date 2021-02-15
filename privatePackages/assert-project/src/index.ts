@@ -1,13 +1,13 @@
+import path from 'path'
 import assertStore from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { Modules, read as readModules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
+import exists from 'path-exists'
+import writePkg from 'write-pkg'
 import isExecutable from './isExecutable'
-import path = require('path')
-import exists = require('path-exists')
-import writePkg = require('write-pkg')
 
 export { isExecutable, Modules }
 
@@ -83,6 +83,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
   const notOk = (value: any) => expect(value).toBeFalsy()
   return {
     requireModule (pkgName: string) {
+      // eslint-disable-next-line
       return require(path.join(modules, pkgName))
     },
     async has (pkgName: string, _modulesDir?: string) {
@@ -128,7 +129,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
         throw err
       }
     },
-    isExecutable (pathToExe: string) {
+    async isExecutable (pathToExe: string) {
       return isExecutable(ok, path.join(modules, pathToExe))
     },
     async readCurrentLockfile () {
@@ -139,7 +140,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
         throw err
       }
     },
-    readModulesManifest: () => readModules(modules),
+    readModulesManifest: async () => readModules(modules),
     async readLockfile () {
       try {
         return await readYamlFile(path.join(projectPath, WANTED_LOCKFILE)) // eslint-disable-line
@@ -148,7 +149,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
         throw err
       }
     },
-    writePackageJson (pkgJson: object) {
+    async writePackageJson (pkgJson: object) {
       return writePkg(projectPath, pkgJson as any) // eslint-disable-line
     },
   }

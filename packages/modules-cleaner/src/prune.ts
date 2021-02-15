@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import {
   removalLogger,
   statsLogger,
@@ -19,11 +21,9 @@ import {
   Registries,
 } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
+import rimraf from '@zkochan/rimraf'
+import * as R from 'ramda'
 import removeDirectDependency from './removeDirectDependency'
-import { promises as fs } from 'fs'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import R = require('ramda')
 
 export default async function prune (
   importers: Array<{
@@ -80,7 +80,7 @@ export default async function prune (
       }
     }
 
-    return Promise.all(Array.from(depsToRemove).map((depName) => {
+    return Promise.all(Array.from(depsToRemove).map(async (depName) => {
       return removeDirectDependency({
         dependenciesField: currentImporter.devDependencies?.[depName] != null && 'devDependencies' ||
           currentImporter.optionalDependencies?.[depName] != null && 'optionalDependencies' ||
@@ -148,7 +148,7 @@ export default async function prune (
       await Promise.all(
         orphanDepPaths
           .map((orphanDepPath) => depPathToFilename(orphanDepPath, opts.lockfileDir))
-          .map((orphanDepPath) => _tryRemovePkg(orphanDepPath))
+          .map(async (orphanDepPath) => _tryRemovePkg(orphanDepPath))
       )
       const neededPkgs: Set<string> = new Set()
       for (const depPath of Object.keys(opts.wantedLockfile.packages ?? {})) {
@@ -159,7 +159,7 @@ export default async function prune (
       await Promise.all(
         availablePkgs
           .filter((availablePkg) => !neededPkgs.has(availablePkg))
-          .map((orphanDepPath) => _tryRemovePkg(orphanDepPath))
+          .map(async (orphanDepPath) => _tryRemovePkg(orphanDepPath))
       )
     }
   }

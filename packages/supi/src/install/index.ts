@@ -1,3 +1,4 @@
+import path from 'path'
 import buildModules, { linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
   LAYOUT_VERSION,
@@ -44,6 +45,11 @@ import {
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
+import rimraf from '@zkochan/rimraf'
+import isInnerLink from 'is-inner-link'
+import pFilter from 'p-filter'
+import pLimit from 'p-limit'
+import * as R from 'ramda'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
@@ -59,12 +65,6 @@ import getWantedDependencies, {
   WantedDependency,
 } from './getWantedDependencies'
 import linkPackages from './link'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import isInnerLink = require('is-inner-link')
-import pFilter = require('p-filter')
-import pLimit = require('p-limit')
-import R = require('ramda')
 
 export type DependenciesMutation = (
   {
@@ -322,7 +322,7 @@ export async function mutateModules (
         const packageDirs = await readModulesDirs(project.modulesDir)
         const externalPackages = await pFilter(
           packageDirs!,
-          (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir)
+          async (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir)
         )
         const allDeps = getAllDependenciesFromManifest(project.manifest)
         const packagesToInstall: string[] = []
@@ -628,7 +628,7 @@ async function installInContext (
     projects
       .map(async (project) => {
         if (project.mutation !== 'uninstallSome') return
-        const _removeDeps = (manifest: ProjectManifest) => removeDeps(manifest, project.dependencyNames, { prefix: project.rootDir, saveType: project.targetDependenciesField })
+        const _removeDeps = async (manifest: ProjectManifest) => removeDeps(manifest, project.dependencyNames, { prefix: project.rootDir, saveType: project.targetDependenciesField })
         project.manifest = await _removeDeps(project.manifest)
         if (project.originalManifest) {
           project.originalManifest = await _removeDeps(project.originalManifest)
@@ -662,7 +662,7 @@ async function installInContext (
     virtualStoreDir: ctx.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
-  const projectsToResolve = await Promise.all(projects.map((project) => _toResolveImporter(project)))
+  const projectsToResolve = await Promise.all(projects.map(async (project) => _toResolveImporter(project)))
   let {
     dependenciesGraph,
     dependenciesByProjectId,
@@ -856,7 +856,7 @@ async function installInContext (
           ...lockfileOpts,
         })
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile, lockfileOpts),
-      (() => {
+      (async () => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
@@ -971,6 +971,6 @@ async function linkAllBins (
   }
 ) {
   return R.unnest(await Promise.all(
-    depNodes.map(depNode => limitLinking(() => linkBinsOfDependencies(depNode, depGraph, opts)))
+    depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   ))
 }

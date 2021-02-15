@@ -1,10 +1,10 @@
+import path from 'path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { map, skip, take } from 'rxjs/operators'
-import path = require('path')
-import chalk = require('chalk')
-import normalizeNewline = require('normalize-newline')
+import chalk from 'chalk'
+import normalizeNewline from 'normalize-newline'
 
 const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']

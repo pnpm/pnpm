@@ -1,10 +1,10 @@
+import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { addDependenciesToPackage, install } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import RegClient from 'anonymous-npm-registry-client'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import RegClient = require('anonymous-npm-registry-client')
 
 test('a package that need authentication', async () => {
   const project = prepareEmpty()

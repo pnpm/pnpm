@@ -3,7 +3,7 @@ import {
   DEPENDENCIES_FIELDS,
   ProjectManifest,
 } from '@pnpm/types'
-import R = require('ramda')
+import * as R from 'ramda'
 
 export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) => {
   const importer = lockfile.importers[importerId]

@@ -2,8 +2,8 @@ import PnpmError from '@pnpm/error'
 import { why } from '@pnpm/plugin-commands-listing'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import execa = require('execa')
-import stripAnsi = require('strip-ansi')
+import execa from 'execa'
+import stripAnsi from 'strip-ansi'
 
 test('`pnpm why` should fail if no package name was provided', async () => {
   prepare()

@@ -1,15 +1,15 @@
-import logger from './logger'
+import { promises as fs } from 'fs'
+import path from 'path'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { promises as fs } from 'fs'
-import rimraf = require('@zkochan/rimraf')
-import yaml = require('js-yaml')
-import path = require('path')
-import R = require('ramda')
-import writeFileAtomicCB = require('write-file-atomic')
+import rimraf from '@zkochan/rimraf'
+import yaml from 'js-yaml'
+import * as R from 'ramda'
+import writeFileAtomicCB from 'write-file-atomic'
+import logger from './logger'
 
-function writeFileAtomic (filename: string, data: string) {
+async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => err ? reject(err) : resolve()))
 }
 
@@ -20,7 +20,7 @@ const LOCKFILE_YAML_FORMAT = {
   sortKeys: true,
 }
 
-export function writeWantedLockfile (
+export async function writeWantedLockfile (
   pkgPath: string,
   wantedLockfile: Lockfile,
   opts?: {
@@ -41,7 +41,7 @@ export async function writeCurrentLockfile (
   return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
 }
 
-function writeLockfile (
+async function writeLockfile (
   lockfileFilename: string,
   pkgPath: string,
   wantedLockfile: Lockfile,

@@ -16,7 +16,7 @@
 
 ```ts
 import writeProjectManifest from '@pnpm/write-project-manifest'
-import path = require('path')
+import path from 'path'
 
 (async () => await writeProjectManifest(path.resolve('package.yaml'), { name: 'foo', version: '1.0.0' }))()
 ```

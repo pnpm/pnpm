@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   PackageFileInfo,
@@ -10,11 +11,10 @@ import {
   ImportPackageFunction,
   StoreController,
 } from '@pnpm/store-controller-types'
+import loadJsonFile from 'load-json-file'
+import writeJsonFile from 'write-json-file'
 import createImportPackage from './createImportPackage'
 import prune from './prune'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import writeJsonFile = require('write-json-file')
 
 export default async function (
   resolve: ResolveFunction,

@@ -9,15 +9,15 @@ import {
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 
-import pLimit = require('p-limit')
-import pShare = require('promise-share')
-import uuid = require('uuid')
+import pLimit from 'p-limit'
+import pShare from 'promise-share'
+import uuid from 'uuid'
 
 export type StoreServerController = StoreController & {
   stop: () => Promise<void>
 }
 
-export default function (
+export default async function (
   initOpts: {
     remotePrefix: string
     concurrency?: number
@@ -30,7 +30,7 @@ export default function (
     resolve({
       close: async () => { },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
-      importPackage: (to: string, opts: {
+      importPackage: async (to: string, opts: {
         filesResponse: PackageFilesResponse
         force: boolean
       }) => {
@@ -82,7 +82,7 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
   })
 }
 
-function requestPackage (
+async function requestPackage (
   remotePrefix: string,
   limitedFetch: (url: string, body: object) => any, // eslint-disable-line
   wantedDependency: WantedDependency,

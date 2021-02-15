@@ -1,4 +1,6 @@
 /// <reference path="../../../typings/index.d.ts" />
+import { promises as fs } from 'fs'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import {
@@ -8,12 +10,10 @@ import {
 } from '@pnpm/plugin-commands-script-runners'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { promises as fs } from 'fs'
+import execa from 'execa'
+import isWindows from 'is-windows'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
-import path = require('path')
-import execa = require('execa')
-import isWindows = require('is-windows')
-import writeYamlFile = require('write-yaml-file')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 

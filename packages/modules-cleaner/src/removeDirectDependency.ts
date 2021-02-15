@@ -1,9 +1,9 @@
+import path from 'path'
 import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import { removeBin, removeBinsOfDependency } from '@pnpm/remove-bins'
 import { DependenciesField } from '@pnpm/types'
-import path = require('path')
 
 export default async function removeDirectDependency (
   dependency: {

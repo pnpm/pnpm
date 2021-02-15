@@ -1,12 +1,12 @@
+import path from 'path'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackage } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
+import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
 } from './utils'
-import path = require('path')
-import writeYamlFile = require('write-yaml-file')
 
 test('update <dep>', async () => {
   const project = prepare()

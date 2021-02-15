@@ -1,15 +1,15 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import _createResolveFromNpm, {
   RegistryResponseError,
   NoMatchingVersionError,
 } from '@pnpm/npm-resolver'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import nock = require('nock')
-import exists = require('path-exists')
-import tempy = require('tempy')
+import loadJsonFile from 'load-json-file'
+import nock from 'nock'
+import exists from 'path-exists'
+import tempy from 'tempy'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const isPositiveMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive.json'))
@@ -21,7 +21,7 @@ const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', '
 
 const registry = 'https://registry.npmjs.org/'
 
-const delay = (time: number) => new Promise<void>((resolve) => setTimeout(() => resolve(), time))
+const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(() => resolve(), time))
 
 const fetch = createFetchFromRegistry({})
 const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
@@ -86,7 +86,7 @@ test('relative workspace protocol is skipped', async () => {
   expect(resolveResult).toBe(null)
 })
 
-test('dry run', async (done) => {
+test('dry run', async () => {
   nock(registry)
     .get('/is-positive')
     .reply(200, isPositiveMeta)
@@ -113,10 +113,8 @@ test('dry run', async (done) => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  setTimeout(async () => {
-    expect(await exists(path.join(storeDir, resolveResult!.id, '..', 'index.json'))).toBeFalsy()
-    done()
-  }, 500)
+  await delay(500)
+  expect(await exists(path.join(storeDir, resolveResult!.id, '..', 'index.json'))).toBeFalsy()
 })
 
 test('resolve to latest when no pref specified', async () => {

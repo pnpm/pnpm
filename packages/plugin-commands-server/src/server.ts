@@ -3,11 +3,11 @@ import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import start from './start'
 import status from './status'
 import stop from './stop'
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 export const rcOptionsTypes = cliOptionsTypes
 

@@ -2,7 +2,7 @@ import * as logs from '@pnpm/core-loggers'
 import { PackageManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
-import R = require('ramda')
+import * as R from 'ramda'
 
 export interface PackageDiff {
   added: boolean

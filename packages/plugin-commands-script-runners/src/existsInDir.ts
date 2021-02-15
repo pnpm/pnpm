@@ -1,5 +1,5 @@
-import path = require('path')
-import exists = require('path-exists')
+import path from 'path'
+import exists from 'path-exists'
 
 export default async (entityName: string, dir: string) => {
   const entityPath = path.join(dir, entityName)

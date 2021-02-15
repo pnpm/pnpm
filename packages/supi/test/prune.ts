@@ -1,3 +1,4 @@
+import path from 'path'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
@@ -7,9 +8,8 @@ import {
   link,
   mutateModules,
 } from 'supi'
+import sinon from 'sinon'
 import { testDefaults } from './utils'
-import path = require('path')
-import sinon = require('sinon')
 
 test('prune removes extraneous packages', async () => {
   const project = prepareEmpty()

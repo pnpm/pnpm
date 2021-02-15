@@ -1,4 +1,4 @@
-import replaceString = require('replace-string')
+import replaceString from 'replace-string'
 
 // The only reason package IDs are encoded is to avoid '>' signs.
 // Otherwise, it would be impossible to split the node ID back to package IDs reliably.

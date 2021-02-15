@@ -1,14 +1,14 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import assertProject from '../src'
-import path = require('path')
 
 test('assertProject()', async () => {
   const project = assertProject(path.join(__dirname, '../../..'))
 
-  await project.has('tape')
+  await project.has('rimraf')
   await project.hasNot('sfdsff3g34')
-  expect(typeof project.requireModule('tape')).toBe('function')
-  await project.isExecutable('.bin/tape')
+  expect(typeof project.requireModule('rimraf')).toBe('function')
+  await project.isExecutable('.bin/rimraf')
 })
 
 test('assertProject() store functions', async () => {

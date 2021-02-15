@@ -1,21 +1,21 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
+import fs from 'fs'
+import path from 'path'
 import {
   addDependenciesToPackage,
   install,
   link,
   mutateModules,
 } from 'supi'
+import { prepareEmpty } from '@pnpm/prepare'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import exists from 'path-exists'
+import sinon from 'sinon'
+import writeJsonFile from 'write-json-file'
+import isInnerLink from 'is-inner-link'
 import {
   addDistTag,
   testDefaults,
 } from './utils'
-import fs = require('fs')
-import isInnerLink = require('is-inner-link')
-import path = require('path')
-import exists = require('path-exists')
-import sinon = require('sinon')
-import writeJsonFile = require('write-json-file')
 
 test('unlink 1 package that exists in package.json', async () => {
   const project = prepareEmpty()

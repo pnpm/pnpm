@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -28,14 +29,13 @@ import {
   DependencyManifest,
   ProjectManifest,
 } from '@pnpm/types'
+import normalize from 'normalize-path'
+import pathAbsolute from 'path-absolute'
+import * as R from 'ramda'
 import {
   extendOptions,
   LinkOptions,
 } from './options'
-import path = require('path')
-import normalize = require('normalize-path')
-import pathAbsolute = require('path-absolute')
-import R = require('ramda')
 
 export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,

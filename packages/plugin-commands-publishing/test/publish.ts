@@ -1,15 +1,15 @@
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import prepare, { preparePackages } from '@pnpm/prepare'
-import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { promises as fs } from 'fs'
+import path from 'path'
+import execa from 'execa'
+import isCI from 'is-ci'
+import isWindows from 'is-windows'
+import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import prepare, { preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import exists from 'path-exists'
+import crossSpawn from 'cross-spawn'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
-import execa = require('execa')
-import isCI = require('is-ci')
-import isWindows = require('is-windows')
-import path = require('path')
-import crossSpawn = require('cross-spawn')
-import exists = require('path-exists')
-import writeYamlFile = require('write-yaml-file')
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 

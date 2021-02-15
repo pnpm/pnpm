@@ -1,8 +1,8 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import createResolveFromGit from '@pnpm/git-resolver'
-import git = require('graceful-git')
-import path = require('path')
-import isWindows = require('is-windows')
+import git from 'graceful-git'
+import isWindows from 'is-windows'
 
 const resolveFromGit = createResolveFromGit({})
 

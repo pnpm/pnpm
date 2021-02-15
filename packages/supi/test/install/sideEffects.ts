@@ -1,16 +1,16 @@
-import { ENGINE_NAME } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { PackageFilesIndex } from '@pnpm/cafs'
 import { promises as fs } from 'fs'
+import path from 'path'
 import { addDependenciesToPackage } from 'supi'
+import { PackageFilesIndex } from '@pnpm/cafs'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { prepareEmpty } from '@pnpm/prepare'
+import { ENGINE_NAME } from '@pnpm/constants'
+import rimraf from '@zkochan/rimraf'
+import isWindows from 'is-windows'
+import loadJsonFile from 'load-json-file'
+import exists from 'path-exists'
+import writeJsonFile from 'write-json-file'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import isWindows = require('is-windows')
-import loadJsonFile = require('load-json-file')
-import exists = require('path-exists')
-import writeJsonFile = require('write-json-file')
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 const skipOnWindows = isWindows() ? test.skip : test

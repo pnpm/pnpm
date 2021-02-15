@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import path = require('path')
+import path from 'path'
 
 const dirs = new Set()
 

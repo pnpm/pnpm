@@ -1,6 +1,6 @@
+import path from 'path'
 import { DependencyManifest } from '@pnpm/types'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 
 const defaultManifest = {
   name: 'unknown',

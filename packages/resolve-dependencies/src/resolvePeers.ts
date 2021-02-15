@@ -1,21 +1,21 @@
+import crypto from 'crypto'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { Dependencies } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
-import {
-  createNodeId,
-  splitNodeId,
-} from './nodeIdUtils'
+import importFrom from 'import-from'
+import * as R from 'ramda'
+import semver from 'semver'
 import {
   DependenciesTree,
   DependenciesTreeNode,
   ResolvedPackage,
 } from './resolveDependencies'
-import crypto = require('crypto')
-import importFrom = require('import-from')
-import path = require('path')
-import R = require('ramda')
-import semver = require('semver')
+import {
+  createNodeId,
+  splitNodeId,
+} from './nodeIdUtils'
 
 export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging

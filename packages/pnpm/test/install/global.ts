@@ -1,12 +1,12 @@
+import path from 'path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
+import isWindows from 'is-windows'
+import exists from 'path-exists'
 import {
   addDistTag,
   execPnpm,
 } from '../utils'
-import path = require('path')
-import isWindows = require('is-windows')
-import exists = require('path-exists')
 
 test('global installation', async () => {
   prepare()
@@ -57,7 +57,7 @@ test('always install latest when doing global installation without spec', async 
   process.chdir(globalPrefix)
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  expect(require(path.resolve('node_modules', 'peer-c', 'package.json')).version).toBe('2.0.0')
+  expect((await import(path.resolve('node_modules', 'peer-c', 'package.json'))).default.version).toBe('2.0.0')
 })
 
 test('run lifecycle events of global packages in correct working directory', async () => {

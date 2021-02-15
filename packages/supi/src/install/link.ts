@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { ENGINE_NAME } from '@pnpm/constants'
 import {
   progressLogger,
@@ -25,11 +27,9 @@ import {
   HoistedDependencies,
   Registries,
 } from '@pnpm/types'
-import { promises as fs } from 'fs'
-import path = require('path')
-import pLimit = require('p-limit')
-import pathExists = require('path-exists')
-import R = require('ramda')
+import pLimit from 'p-limit'
+import pathExists from 'path-exists'
+import * as R from 'ramda'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -179,7 +179,7 @@ export default async function linkPackages (
               prefix: rootDir,
             })
           }),
-        ...opts.linkedDependenciesByProjectId[id].map((linkedDependency) => {
+        ...opts.linkedDependenciesByProjectId[id].map(async (linkedDependency) => {
           const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
           return symlinkDirectRootDependency(depLocation, modulesDir, linkedDependency.alias, {
             fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
@@ -327,7 +327,7 @@ async function linkNewPackages (
 
   const newPkgs = R.props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
-  await Promise.all(newPkgs.map((depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+  await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
     !opts.symlink
       ? Promise.resolve()
@@ -378,7 +378,7 @@ async function selectNewFromWantedDeps (
 
 const limitLinking = pLimit(16)
 
-function linkAllPkgs (
+async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
@@ -434,7 +434,7 @@ async function linkAllModules (
           Object.keys(childrenToLink)
             .map(async (childAlias) => {
               if (childrenToLink[childAlias].startsWith('link:')) {
-                await limitLinking(() => symlinkDependency(path.resolve(opts.lockfileDir, childrenToLink[childAlias].substr(5)), modules, childAlias))
+                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childrenToLink[childAlias].substr(5)), modules, childAlias))
                 return
               }
               const pkg = depGraph[childrenToLink[childAlias]]
@@ -446,7 +446,7 @@ async function linkAllModules (
                 })
                 return
               }
-              await limitLinking(() => symlinkDependency(pkg.dir, modules, childAlias))
+              await limitLinking(async () => symlinkDependency(pkg.dir, modules, childAlias))
             })
         )
       })

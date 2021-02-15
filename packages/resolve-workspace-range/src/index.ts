@@ -1,4 +1,4 @@
-import semver = require('semver')
+import semver from 'semver'
 
 export default function (range: string, versions: string[]) {
   if (range === '*') {

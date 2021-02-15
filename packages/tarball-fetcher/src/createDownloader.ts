@@ -1,4 +1,5 @@
 import { IncomingMessage } from 'http'
+import urlLib from 'url'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError, { FetchError } from '@pnpm/error'
 import {
@@ -8,9 +9,8 @@ import {
 } from '@pnpm/fetcher-base'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
+import ssri from 'ssri'
 import { BadTarballError } from './errorTypes'
-import urlLib = require('url')
-import ssri = require('ssri')
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
@@ -84,7 +84,7 @@ export default (
     ...gotOpts.retry,
   }
 
-  return function download (url: string, opts: {
+  return async function download (url: string, opts: {
     auth?: {
       authHeaderValue: string | undefined
       alwaysAuth: boolean | undefined
@@ -101,7 +101,7 @@ export default (
     const shouldAuth = opts.auth && (
       opts.auth.alwaysAuth === true ||
       !opts.registry ||
-      urlLib.parse(url).host === urlLib.parse(opts.registry).host
+      new urlLib.URL(url).host === new urlLib.URL(opts.registry).host
     )
 
     const op = retry.operation(retryOpts)
@@ -207,7 +207,7 @@ async function safeCheckStream (stream: any, integrity: string, url: string): Pr
   }
 }
 
-function waitTillClosed (
+async function waitTillClosed (
   opts: {
     stream: NodeJS.EventEmitter
     size: null | number

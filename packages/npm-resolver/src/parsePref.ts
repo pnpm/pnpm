@@ -1,5 +1,5 @@
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
-import getVersionSelectorType = require('version-selector-type')
+import getVersionSelectorType from 'version-selector-type'
 
 export interface RegistryPackageSpec {
   type: 'tag' | 'version' | 'range'

@@ -1,12 +1,12 @@
 import { types as allTypes } from '@pnpm/config'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import {
   handler as run,
   IF_PRESENT_OPTION,
   IF_PRESENT_OPTION_HELP,
   RunOpts,
 } from './run'
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return {

@@ -1,8 +1,8 @@
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import * as micromatch from 'micromatch'
-import path = require('path')
-import execa = require('execa')
-import findUp = require('find-up')
+import execa from 'execa'
+import findUp from 'find-up'
 
 type ChangeType = 'source' | 'test'
 

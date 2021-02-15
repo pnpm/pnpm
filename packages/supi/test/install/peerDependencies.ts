@@ -1,9 +1,10 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
-import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -11,12 +12,11 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import exists from 'path-exists'
+import sinon from 'sinon'
+import deepRequireCwd from 'deep-require-cwd'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import deepRequireCwd = require('deep-require-cwd')
-import exists = require('path-exists')
-import sinon = require('sinon')
 
 test("don't fail when peer dependency is fetched from GitHub", async () => {
   prepareEmpty()

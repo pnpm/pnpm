@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   existsWantedLockfile,
   readCurrentLockfile,
@@ -5,8 +6,7 @@ import {
   writeCurrentLockfile,
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
-import path = require('path')
-import tempy = require('tempy')
+import tempy from 'tempy'
 
 process.chdir(__dirname)
 

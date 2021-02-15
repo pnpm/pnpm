@@ -1,9 +1,6 @@
 import { promisify } from 'util'
-import { isExecutable } from '@pnpm/assert-project'
-import { RootLog } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
-import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import { promises as fs } from 'fs'
+import path from 'path'
 import {
   addDependenciesToPackage,
   install,
@@ -11,13 +8,16 @@ import {
   linkFromGlobal,
   linkToGlobal,
 } from 'supi'
+import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import { prepareEmpty } from '@pnpm/prepare'
+import { RootLog } from '@pnpm/core-loggers'
+import { isExecutable } from '@pnpm/assert-project'
+import exists from 'path-exists'
+import sinon from 'sinon'
+import writeJsonFile from 'write-json-file'
+import ncpCB from 'ncp'
+import symlink from 'symlink-dir'
 import { testDefaults } from './utils'
-import path = require('path')
-import ncpCB = require('ncp')
-import exists = require('path-exists')
-import sinon = require('sinon')
-import symlink = require('symlink-dir')
-import writeJsonFile = require('write-json-file')
 
 const ncp = promisify(ncpCB.ncp)
 

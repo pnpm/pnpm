@@ -2,8 +2,8 @@
 import createCafs from '@pnpm/cafs'
 import createFetcher from '@pnpm/git-fetcher'
 import { DependencyManifest } from '@pnpm/types'
-import pDefer = require('p-defer')
-import tempy = require('tempy')
+import pDefer from 'p-defer'
+import tempy from 'tempy'
 
 test('fetch', async () => {
   const cafsDir = tempy.directory()

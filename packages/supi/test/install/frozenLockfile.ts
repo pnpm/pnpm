@@ -1,3 +1,4 @@
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
@@ -5,9 +6,8 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
+import sinon from 'sinon'
 import { testDefaults } from '../utils'
-import path = require('path')
-import sinon = require('sinon')
 
 test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {
   prepareEmpty()

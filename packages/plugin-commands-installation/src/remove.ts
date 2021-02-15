@@ -15,10 +15,10 @@ import { DependenciesField } from '@pnpm/types'
 import {
   mutateModules,
 } from 'supi'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import getSaveType from './getSaveType'
 import recursive from './recursive'
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -118,7 +118,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 // This way we avoid the confusion about whether "pnpm r" means remove, run, or recursive.
 export const commandNames = ['remove', 'uninstall', 'rm', 'un']
 
-export const completion: CompletionFunc = (cliOpts, params) => {
+export const completion: CompletionFunc = async (cliOpts, params) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 

@@ -1,14 +1,14 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
+import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
   execPnpmSync,
 } from '../utils'
-import path = require('path')
-import writeYamlFile = require('write-yaml-file')
 
 test('readPackage hook', async () => {
   const project = prepare()

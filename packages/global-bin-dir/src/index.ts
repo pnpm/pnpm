@@ -1,8 +1,8 @@
+import fs from 'fs'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { sync as canWriteToDir } from 'can-write-to-dir'
-import fs = require('fs')
-import path = require('path')
-import PATH = require('path-name')
+import PATH from 'path-name'
 
 export default function (
   knownCandidates: string[] = [],
