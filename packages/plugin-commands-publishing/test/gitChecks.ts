@@ -1,21 +1,21 @@
-import PnpmError from '@pnpm/error'
-import prepare from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { promises as fs } from 'fs'
-import { DEFAULT_OPTS } from './utils'
-import execa = require('execa')
-import tempy = require('tempy')
-
-jest.mock('enquirer', () => ({ prompt: jest.fn() }))
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import prepare from '@pnpm/prepare'
+import PnpmError from '@pnpm/error'
+import execa from 'execa'
+import tempy from 'tempy'
 
 // eslint-disable-next-line
 import * as enquirer from 'enquirer'
 
 // eslint-disable-next-line
-const prompt = enquirer.prompt as any
+import { publish } from '@pnpm/plugin-commands-publishing'
+import { DEFAULT_OPTS } from './utils'
+
+jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
 // eslint-disable-next-line
-import { publish } from '@pnpm/plugin-commands-publishing'
+const prompt = enquirer.prompt as any
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,

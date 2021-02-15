@@ -1,5 +1,5 @@
 import packageManager from '@pnpm/cli-meta'
-import renderHelp = require('render-help')
+import renderHelp from 'render-help'
 
 export default function (helpByCommandName: Record<string, () => string>) {
   return function (opts: {}, params: string[]) {

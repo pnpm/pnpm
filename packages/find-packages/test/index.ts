@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import findPackages from 'find-packages'
-import path = require('path')
 
 const fixtures = path.join(__dirname, 'fixtures')
 

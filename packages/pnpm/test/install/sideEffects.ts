@@ -1,9 +1,9 @@
+import { existsSync, promises as fs } from 'fs'
+import path from 'path'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { existsSync, promises as fs } from 'fs'
+import rimraf from '@zkochan/rimraf'
 import { execPnpm } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 

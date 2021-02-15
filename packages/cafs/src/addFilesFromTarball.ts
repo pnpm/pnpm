@@ -1,8 +1,8 @@
 import { Duplex, PassThrough } from 'stream'
 import { DeferredManifestPromise, FilesIndex, FileWriteResult } from '@pnpm/fetcher-base'
+import decompress from 'decompress-maybe'
+import tar from 'tar-stream'
 import { parseJsonStream } from './parseJson'
-import decompress = require('decompress-maybe')
-import tar = require('tar-stream')
 
 export default async function (
   addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<FileWriteResult>,

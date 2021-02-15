@@ -5,8 +5,8 @@ import prepare, { prepareEmpty } from '@pnpm/prepare'
 
 import './findBestGlobalPrefixOnWindows'
 import { promises as fs } from 'fs'
-import path = require('path')
-import symlinkDir = require('symlink-dir')
+import path from 'path'
+import symlinkDir from 'symlink-dir'
 
 // To override any local settings,
 // we force the default values of config
@@ -622,7 +622,7 @@ test('dir is resolved to real path', async () => {
 })
 
 test('warn user unknown settings in npmrc', async () => {
-  prepareEmpty()
+  prepare()
 
   const npmrc = [
     'typo-setting=true',

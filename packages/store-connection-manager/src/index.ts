@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import packageManager from '@pnpm/cli-meta'
 import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -6,11 +8,9 @@ import { StoreController } from '@pnpm/package-store'
 import { connectStoreController } from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import delay from 'delay'
-import { promises as fs } from 'fs'
 import createNewStoreController, { CreateNewStoreControllerOptions } from './createNewStoreController'
 import runServerInBackground from './runServerInBackground'
 import serverConnectionInfoDir from './serverConnectionInfoDir'
-import path = require('path')
 
 export { createNewStoreController, serverConnectionInfoDir }
 

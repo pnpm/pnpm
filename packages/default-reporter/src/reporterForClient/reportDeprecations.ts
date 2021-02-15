@@ -1,9 +1,9 @@
 import { DeprecationLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
+import chalk from 'chalk'
 import formatWarn from './utils/formatWarn'
 import { zoomOut } from './utils/zooming'
-import chalk = require('chalk')
 
 export default (
   deprecation$: Rx.Observable<DeprecationLog>,

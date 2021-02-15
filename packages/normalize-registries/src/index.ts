@@ -1,5 +1,5 @@
 import { Registries } from '@pnpm/types'
-import normalizeRegistryUrl = require('normalize-registry-url')
+import normalizeRegistryUrl from 'normalize-registry-url'
 
 export const DEFAULT_REGISTRIES = {
   default: 'https://registry.npmjs.org/',

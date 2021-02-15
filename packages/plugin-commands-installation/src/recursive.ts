@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import {
   RecursiveSummary,
   throwOnCommandFail,
@@ -19,7 +21,6 @@ import {
   ProjectManifest,
   ProjectsGraph,
 } from '@pnpm/types'
-import { promises as fs } from 'fs'
 import {
   addDependenciesToPackage,
   install,
@@ -27,17 +28,16 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
-import getPinnedVersion from './getPinnedVersion'
-import getSaveType from './getSaveType'
-import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
+import camelcaseKeys from 'camelcase-keys'
+import isSubdir from 'is-subdir'
+import mem from 'mem'
+import pFilter from 'p-filter'
+import pLimit from 'p-limit'
+import readIniFile from 'read-ini-file'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import path = require('path')
-import camelcaseKeys = require('camelcase-keys')
-import isSubdir = require('is-subdir')
-import mem = require('mem')
-import pFilter = require('p-filter')
-import pLimit = require('p-limit')
-import readIniFile = require('read-ini-file')
+import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
+import getSaveType from './getSaveType'
+import getPinnedVersion from './getPinnedVersion'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -136,7 +136,7 @@ export default async function recursive (
 
   async function getImporters () {
     const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>
-    await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
+    await Promise.all(chunks.map(async (prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
@@ -253,7 +253,7 @@ export default async function recursive (
     if (opts.save !== false) {
       await Promise.all(
         mutatedPkgs
-          .map(({ manifest }, index) => writeProjectManifests[index](manifest))
+          .map(async ({ manifest }, index) => writeProjectManifests[index](manifest))
       )
     }
     return true
@@ -264,7 +264,7 @@ export default async function recursive (
     : Object.keys(opts.selectedProjectsGraph).sort()
 
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
-  await Promise.all(pkgPaths.map((rootDir: string) =>
+  await Promise.all(pkgPaths.map(async (rootDir: string) =>
     limitInstallation(async () => {
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
       try {
@@ -315,7 +315,7 @@ export default async function recursive (
         default:
           action = currentInput.length === 0
             ? install
-            : (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+            : async (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
           break
         }
 
@@ -386,7 +386,7 @@ export default async function recursive (
   return true
 }
 
-function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+async function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
   return mutateModules(
     [
       {
@@ -399,7 +399,7 @@ function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable-line 
   )
 }
 
-function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
   return mutateModules(
     [
       {

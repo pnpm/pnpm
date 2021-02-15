@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
+import renderHelp from 'render-help'
 import * as run from './run'
-import renderHelp = require('render-help')
 
 export const commandNames = ['test', 't', 'tst']
 
@@ -31,7 +31,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
-export function handler (
+export async function handler (
   opts: run.RunOpts,
   params: string[] = []
 ) {

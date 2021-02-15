@@ -1,7 +1,7 @@
-import childProcess = require('child_process')
-import path = require('path')
-import spawn = require('cross-spawn')
-import PATH = require('path-name')
+import childProcess from 'child_process'
+import path from 'path'
+import spawn from 'cross-spawn'
+import PATH from 'path-name'
 
 export default function runNpm (npmPath: string | undefined, args: string[]) {
   const npm = npmPath ?? 'npm'

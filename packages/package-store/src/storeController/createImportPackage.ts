@@ -1,10 +1,10 @@
-import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import { globalInfo, globalWarn } from '@pnpm/logger'
 import { constants, promises as fs } from 'fs'
+import path from 'path'
+import { globalInfo, globalWarn } from '@pnpm/logger'
+import { packageImportMethodLogger } from '@pnpm/core-loggers'
+import pLimit from 'p-limit'
+import exists from 'path-exists'
 import importIndexedDir, { ImportFile } from '../fs/importIndexedDir'
-import path = require('path')
-import pLimit = require('p-limit')
-import exists = require('path-exists')
 
 const limitLinking = pLimit(16)
 
@@ -20,7 +20,7 @@ export default (
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
 ): ImportFunction => {
   const importPackage = createImportPackage(packageImportMethod)
-  return (to, opts) => limitLinking(() => importPackage(to, opts))
+  return async (to, opts) => limitLinking(async () => importPackage(to, opts))
 }
 
 function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
@@ -50,7 +50,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
 function createAutoImporter (): ImportFunction {
   let auto = initialAuto
 
-  return (to, opts) => auto(to, opts)
+  return async (to, opts) => auto(to, opts)
 
   async function initialAuto (
     to: string,

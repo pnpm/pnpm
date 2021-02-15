@@ -1,14 +1,14 @@
 /// <reference path="../../../typings/index.d.ts" />
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
+import execa from 'execa'
+import exists from 'path-exists'
+import sinon from 'sinon'
 import { DEFAULT_OPTS } from './utils'
-import execa = require('execa')
-import path = require('path')
-import exists = require('path-exists')
-import sinon = require('sinon')
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')

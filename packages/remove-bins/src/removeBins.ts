@@ -1,12 +1,12 @@
+import path from 'path'
 import {
   removalLogger,
 } from '@pnpm/core-loggers'
 import binify from '@pnpm/package-bins'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependencyManifest } from '@pnpm/types'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import isWindows = require('is-windows')
+import rimraf from '@zkochan/rimraf'
+import isWindows from 'is-windows'
 
 async function removeOnWin (cmd: string) {
   removalLogger.debug(cmd)
@@ -17,7 +17,7 @@ async function removeOnWin (cmd: string) {
   ])
 }
 
-function removeOnNonWin (p: string) {
+async function removeOnNonWin (p: string) {
   removalLogger.debug(p)
   return rimraf(p)
 }

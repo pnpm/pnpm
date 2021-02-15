@@ -3,12 +3,12 @@ import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { map, mergeAll } from 'rxjs/operators'
+import createDiffer from 'ansi-diff'
 import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
 import formatWarn from './reporterForClient/utils/formatWarn'
 import reporterForServer from './reporterForServer'
-import createDiffer = require('ansi-diff')
 
 export { formatWarn }
 

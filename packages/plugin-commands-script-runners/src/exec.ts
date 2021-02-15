@@ -4,15 +4,15 @@ import PnpmError from '@pnpm/error'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
+import execa from 'execa'
+import pLimit from 'p-limit'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
+import existsInDir from './existsInDir'
 import {
   PARALLEL_OPTION_HELP,
   shorthands as runShorthands,
 } from './run'
-import existsInDir from './existsInDir'
-import execa = require('execa')
-import pLimit = require('p-limit')
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -77,7 +77,7 @@ export async function handler (
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   for (const chunk of chunks) {
-    await Promise.all(chunk.map((prefix: string) =>
+    await Promise.all(chunk.map(async (prefix: string) =>
       limitRun(async () => {
         try {
           const pnpPath = workspacePnpPath ?? await existsPnp(prefix)

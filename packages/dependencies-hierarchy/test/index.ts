@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import dh, { PackageNode } from 'dependencies-hierarchy'
-import path = require('path')
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const generalFixture = path.join(fixtures, 'general')

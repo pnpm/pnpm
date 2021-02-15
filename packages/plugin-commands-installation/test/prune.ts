@@ -1,8 +1,8 @@
+import path from 'path'
 import { install, link, prune } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
-import path = require('path')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 

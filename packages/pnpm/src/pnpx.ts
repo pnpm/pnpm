@@ -1,7 +1,7 @@
+import path from 'path'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
-import path = require('path')
-import npx = require('@zkochan/libnpx/index')
-import PATH = require('path-name')
+import npx from '@zkochan/libnpx/index'
+import PATH from 'path-name'
 
 const PNPM_PATH = path.join(__dirname, 'pnpm.js')
 

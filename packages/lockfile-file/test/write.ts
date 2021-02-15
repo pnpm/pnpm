@@ -1,13 +1,13 @@
+import fs from 'fs'
+import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   readCurrentLockfile,
   readWantedLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile-file'
-import fs = require('fs')
-import path = require('path')
-import tempy = require('tempy')
-import yaml = require('yaml-tag')
+import tempy from 'tempy'
+import yaml from 'yaml-tag'
 
 test('writeLockfiles()', async () => {
   const projectPath = tempy.directory()

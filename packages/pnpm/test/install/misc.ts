@@ -1,3 +1,5 @@
+import { promises as fs, readFileSync } from 'fs'
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -5,19 +7,17 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import writeProjectManifest from '@pnpm/write-project-manifest'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import { promises as fs, readFileSync } from 'fs'
 import readYamlFile from 'read-yaml-file'
+import rimraf from '@zkochan/rimraf'
+import isWindows from 'is-windows'
+import loadJsonFile from 'load-json-file'
+import exists from 'path-exists'
+import semver from 'semver'
+import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
   execPnpmSync,
 } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import crossSpawn = require('cross-spawn')
-import isWindows = require('is-windows')
-import loadJsonFile = require('load-json-file')
-import exists = require('path-exists')
-import semver = require('semver')
 
 const skipOnWindows = isWindows() ? test.skip : test
 

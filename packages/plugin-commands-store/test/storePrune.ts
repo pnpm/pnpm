@@ -1,15 +1,15 @@
+import fs from 'fs'
+import path from 'path'
 import assertStore from '@pnpm/assert-store'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import fs = require('fs')
-import rimraf = require('@zkochan/rimraf')
-import execa = require('execa')
-import path = require('path')
-import R = require('ramda')
-import sinon = require('sinon')
-import ssri = require('ssri')
+import rimraf from '@zkochan/rimraf'
+import execa from 'execa'
+import * as R from 'ramda'
+import sinon from 'sinon'
+import ssri from 'ssri'
 
 const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`

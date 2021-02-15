@@ -1,11 +1,11 @@
 import { promisify } from 'util'
-import fs = require('fs')
-import path = require('path')
-import ncpCB = require('ncp')
+import fs from 'fs'
+import path from 'path'
+import ncpCB from 'ncp'
 
 const ncp = promisify(ncpCB)
 
-export function copyFixture (fixtureName: string, dest: string) {
+export async function copyFixture (fixtureName: string, dest: string) {
   const fixturePath = pathToLocalPkg(fixtureName)
   if (!fixturePath) throw new Error(`${fixtureName} not found`)
   return ncp(fixturePath, dest)

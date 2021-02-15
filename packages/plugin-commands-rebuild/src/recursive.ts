@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   RecursiveSummary,
   throwOnCommandFail,
@@ -10,12 +11,11 @@ import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { Project, ProjectManifest } from '@pnpm/types'
+import camelcaseKeys from 'camelcase-keys'
+import mem from 'mem'
+import pLimit from 'p-limit'
+import readIniFile from 'read-ini-file'
 import { rebuild as rebuildAll, RebuildOptions, rebuildPkgs } from './implementation'
-import path = require('path')
-import camelcaseKeys = require('camelcase-keys')
-import mem = require('mem')
-import pLimit = require('p-limit')
-import readIniFile = require('read-ini-file')
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'hoistPattern'
@@ -79,7 +79,7 @@ export default async function recursive (
 
   async function getImporters () {
     const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>
-    await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
+    await Promise.all(chunks.map(async (prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
@@ -114,7 +114,7 @@ export default async function recursive (
   }
   const limitRebuild = pLimit(opts.workspaceConcurrency ?? 4)
   for (const chunk of chunks) {
-    await Promise.all(chunk.map((rootDir: string) =>
+    await Promise.all(chunk.map(async (rootDir: string) =>
       limitRebuild(async () => {
         try {
           if (opts.ignoredPackages?.has(rootDir)) {

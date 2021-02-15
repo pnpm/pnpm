@@ -1,12 +1,12 @@
+import { createReadStream, promises as fs } from 'fs'
+import path from 'path'
 import {
   DeferredManifestPromise,
   FilesIndex,
   FileWriteResult,
 } from '@pnpm/fetcher-base'
-import { createReadStream, promises as fs } from 'fs'
+import pLimit from 'p-limit'
 import { parseJsonBuffer } from './parseJson'
-import path = require('path')
-import pLimit = require('p-limit')
 
 const limit = pLimit(20)
 

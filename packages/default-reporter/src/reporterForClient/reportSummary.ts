@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   DeprecationLog,
   PackageManifestLog,
@@ -7,6 +8,9 @@ import {
 import { Config } from '@pnpm/config'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
+import chalk from 'chalk'
+import * as R from 'ramda'
+import semver from 'semver'
 import { EOL } from '../constants'
 import getPkgsDiff, {
   PackageDiff,
@@ -16,10 +20,6 @@ import {
   ADDED_CHAR,
   REMOVED_CHAR,
 } from './outputConstants'
-import chalk = require('chalk')
-import path = require('path')
-import R = require('ramda')
-import semver = require('semver')
 
 export default (
   log$: {

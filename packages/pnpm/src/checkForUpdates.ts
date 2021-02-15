@@ -1,5 +1,5 @@
 import packageManager from '@pnpm/cli-meta'
-import chalk = require('chalk')
+import chalk from 'chalk'
 
 export default async function () {
   let updateNotifier

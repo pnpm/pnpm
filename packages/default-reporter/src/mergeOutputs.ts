@@ -1,6 +1,6 @@
-import { EOL } from './constants'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll, scan } from 'rxjs/operators'
+import { EOL } from './constants'
 
 export default function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>>): Rx.Observable<string> {
   let blockNo = 0

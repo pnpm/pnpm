@@ -1,17 +1,17 @@
-import readYamlFile from 'read-yaml-file'
-import { Lockfile } from '@pnpm/lockfile-types'
-import prepare, { preparePackages } from '@pnpm/prepare'
 import { promises as fs } from 'fs'
+import path from 'path'
+import prepare, { preparePackages } from '@pnpm/prepare'
+import { Lockfile } from '@pnpm/lockfile-types'
+import readYamlFile from 'read-yaml-file'
+import isCI from 'is-ci'
+import isWindows from 'is-windows'
+import writeYamlFile from 'write-yaml-file'
 import {
   execPnpm,
   execPnpmSync,
   retryLoadJsonFile,
   spawnPnpm,
 } from '../utils'
-import path = require('path')
-import isCI = require('is-ci')
-import isWindows = require('is-windows')
-import writeYamlFile = require('write-yaml-file')
 
 const skipOnWindows = isWindows() ? test.skip : test
 

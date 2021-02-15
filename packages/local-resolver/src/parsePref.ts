@@ -1,7 +1,7 @@
+import os from 'os'
+import path from 'path'
 import PnpmError from '@pnpm/error'
-import os = require('os')
-import normalize = require('normalize-path')
-import path = require('path')
+import normalize from 'normalize-path'
 
 // eslint-disable-next-line
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']

@@ -1,12 +1,12 @@
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
 import dh from 'dependencies-hierarchy'
+import * as R from 'ramda'
 import createPackagesSearcher from './createPackagesSearcher'
 import renderJson from './renderJson'
 import renderParseable from './renderParseable'
 import renderTree from './renderTree'
 import { PackageDependencyHierarchy } from './types'
-import R = require('ramda')
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,

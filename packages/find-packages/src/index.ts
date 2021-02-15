@@ -1,8 +1,8 @@
+import path from 'path'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
 import { ProjectManifest } from '@pnpm/types'
-import path = require('path')
-import fastGlob = require('fast-glob')
-import pFilter = require('p-filter')
+import fastGlob from 'fast-glob'
+import pFilter from 'p-filter'
 
 const DEFAULT_IGNORE = [
   '**/node_modules/**',

@@ -1,12 +1,12 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { promises as fs } from 'fs'
 import { addDependenciesToPackage, install } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import isCI from 'is-ci'
 import { testDefaults } from './utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import isCI = require('is-ci')
 
 test('fail on non-compatible node_modules', async () => {
   prepareEmpty()

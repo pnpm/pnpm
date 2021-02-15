@@ -1,12 +1,12 @@
+import { promises as fs } from 'fs'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { promises as fs } from 'fs'
+import execa from 'execa'
+import crossSpawn from 'cross-spawn'
 import { DEFAULT_OPTS } from './utils'
-import crossSpawn = require('cross-spawn')
-import execa = require('execa')
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,

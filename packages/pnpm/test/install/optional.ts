@@ -1,6 +1,6 @@
 import prepare from '@pnpm/prepare'
+import deepRequireCwd from 'deep-require-cwd'
 import { execPnpm } from '../utils'
-import deepRequireCwd = require('deep-require-cwd')
 
 test('installing optional dependencies when --no-optional is not used', async () => {
   const project = prepare({

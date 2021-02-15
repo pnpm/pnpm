@@ -1,8 +1,8 @@
-import { DependencyManifest, PackageBin } from '@pnpm/types'
 import { promises as fs } from 'fs'
-import path = require('path')
-import isSubdir = require('is-subdir')
-import pFilter = require('p-filter')
+import path from 'path'
+import { DependencyManifest, PackageBin } from '@pnpm/types'
+import isSubdir from 'is-subdir'
+import pFilter from 'p-filter'
 
 export interface Command {
   name: string

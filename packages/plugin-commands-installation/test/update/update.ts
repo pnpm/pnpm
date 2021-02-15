@@ -1,11 +1,11 @@
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
+import loadJsonFile from 'load-json-file'
 import { DEFAULT_OPTS } from '../utils'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
 
 test('update with "*" pattern', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })

@@ -1,7 +1,7 @@
-import prepare, { preparePackages } from '@pnpm/prepare'
-import { execPnpm } from '../utils'
 import { promises as fs } from 'fs'
-import writeYamlFile = require('write-yaml-file')
+import prepare, { preparePackages } from '@pnpm/prepare'
+import writeYamlFile from 'write-yaml-file'
+import { execPnpm } from '../utils'
 
 test('hoist the dependency graph', async () => {
   const project = prepare()

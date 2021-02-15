@@ -1,5 +1,5 @@
 import * as path from 'path'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { promises as fs } from 'fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import PnpmError from '@pnpm/error'
 import {
@@ -12,7 +12,7 @@ import {
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
-import { promises as fs } from 'fs'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   install,
@@ -20,19 +20,19 @@ import {
   UnexpectedStoreError,
   UnexpectedVirtualStoreDirError,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import execa from 'execa'
+import isCI from 'is-ci'
+import isWindows from 'is-windows'
+import exists from 'path-exists'
+import semver from 'semver'
+import sinon from 'sinon'
+import deepRequireCwd from 'deep-require-cwd'
+import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
-import rimraf = require('@zkochan/rimraf')
-import deepRequireCwd = require('deep-require-cwd')
-import execa = require('execa')
-import isCI = require('is-ci')
-import isWindows = require('is-windows')
-import exists = require('path-exists')
-import semver = require('semver')
-import sinon = require('sinon')
-import writeYamlFile = require('write-yaml-file')
 
 const IS_WINDOWS = isWindows()
 

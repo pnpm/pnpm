@@ -1,10 +1,10 @@
-import prepare, { preparePackages } from '@pnpm/prepare'
-import { PackageManifest } from '@pnpm/types'
 import { promises as fs } from 'fs'
+import path from 'path'
+import { PackageManifest } from '@pnpm/types'
+import prepare, { preparePackages } from '@pnpm/prepare'
+import loadJsonFile from 'load-json-file'
+import writeYamlFile from 'write-yaml-file'
 import { execPnpm } from './utils'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import writeYamlFile = require('write-yaml-file')
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
   const project = prepare()

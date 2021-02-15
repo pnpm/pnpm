@@ -1,12 +1,12 @@
-import { PackageDependencyHierarchy } from './types'
-import getPkgInfo from './getPkgInfo'
+import path from 'path'
 import { PackageNode } from 'dependencies-hierarchy'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import path = require('path')
-import archy = require('archy')
-import chalk = require('chalk')
-import cliColumns = require('cli-columns')
-import R = require('ramda')
+import archy from 'archy'
+import chalk from 'chalk'
+import cliColumns from 'cli-columns'
+import * as R from 'ramda'
+import getPkgInfo from './getPkgInfo'
+import { PackageDependencyHierarchy } from './types'
 
 const sortPackages = R.sortBy(R.path(['name']) as (pkg: object) => R.Ord)
 
@@ -27,7 +27,7 @@ export default async function (
   }
 ) {
   const output = (
-    await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))
+    await Promise.all(packages.map(async (pkg) => renderTreeForPackage(pkg, opts)))
   )
     .filter(Boolean)
     .join('\n\n')
@@ -90,7 +90,7 @@ async function renderTreeForPackage (
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string
 
-export function toArchyTree (
+export async function toArchyTree (
   getPkgColor: GetPkgColor,
   entryNodes: PackageNode[],
   opts: {

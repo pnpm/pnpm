@@ -1,3 +1,4 @@
+import path from 'path'
 import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
@@ -6,7 +7,6 @@ import {
   Registries,
 } from '@pnpm/types'
 import { ReporterFunction } from '../types'
-import path = require('path')
 
 interface StrictLinkOptions {
   binsDir: string

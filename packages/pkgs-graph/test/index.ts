@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/local.d.ts"/>
 import createPkgGraph from 'pkgs-graph'
-import pathResolve = require('better-path-resolve')
+import pathResolve from 'better-path-resolve'
 
 const BAR1_PATH = pathResolve('/zkochan/src/bar')
 const FOO1_PATH = pathResolve('/zkochan/src/foo')

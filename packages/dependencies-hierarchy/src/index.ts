@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   getLockfileImporterId,
   Lockfile,
@@ -17,10 +18,9 @@ import readModulesDir from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from 'dependency-path'
-import path = require('path')
-import normalizePath = require('normalize-path')
-import realpathMissing = require('realpath-missing')
-import resolveLinkTarget = require('resolve-link-target')
+import normalizePath from 'normalize-path'
+import realpathMissing from 'realpath-missing'
+import resolveLinkTarget from 'resolve-link-target'
 
 export type SearchFunction = (pkg: { name: string, version: string }) => boolean
 

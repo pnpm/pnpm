@@ -1,9 +1,9 @@
 import { URL } from 'url'
-import HttpAgent = require('agentkeepalive')
-import createHttpProxyAgent = require('http-proxy-agent')
-import HttpsProxyAgent = require('https-proxy-agent')
-import LRU = require('lru-cache')
-import SocksProxyAgent = require('socks-proxy-agent')
+import HttpAgent from 'agentkeepalive'
+import createHttpProxyAgent from 'http-proxy-agent'
+import HttpsProxyAgent from 'https-proxy-agent'
+import LRU from 'lru-cache'
+import SocksProxyAgent from 'socks-proxy-agent'
 
 const HttpsAgent = HttpAgent.HttpsAgent
 

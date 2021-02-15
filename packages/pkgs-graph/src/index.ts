@@ -1,7 +1,7 @@
+import path from 'path'
 import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
-import path = require('path')
-import npa = require('@zkochan/npm-package-arg')
-import R = require('ramda')
+import npa from '@zkochan/npm-package-arg'
+import * as R from 'ramda'
 
 export interface Manifest {
   name?: string

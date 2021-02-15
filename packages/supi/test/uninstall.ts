@@ -1,4 +1,5 @@
 import { promisify } from 'util'
+import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageManifestLog,
@@ -16,13 +17,12 @@ import {
   link,
   mutateModules,
 } from 'supi'
+import exists from 'path-exists'
+import sinon from 'sinon'
+import writeJsonFile from 'write-json-file'
+import existsSymlink from 'exists-link'
+import ncpCB from 'ncp'
 import { testDefaults } from './utils'
-import path = require('path')
-import existsSymlink = require('exists-link')
-import ncpCB = require('ncp')
-import exists = require('path-exists')
-import sinon = require('sinon')
-import writeJsonFile = require('write-json-file')
 
 const ncp = promisify(ncpCB.ncp)
 

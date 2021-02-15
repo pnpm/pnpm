@@ -1,8 +1,8 @@
+import path from 'path'
 import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
-import path = require('path')
-import isWindows = require('is-windows')
-import writeYamlFile = require('write-yaml-file')
+import isWindows from 'is-windows'
+import writeYamlFile from 'write-yaml-file'
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
 // thinks that it is an extraneous package.
@@ -87,7 +87,7 @@ const YAML_OPTS = {
   sortKeys: true,
 }
 
-export function write (
+export async function write (
   modulesDir: string,
   modules: Modules & { registries: Registries }
 ) {

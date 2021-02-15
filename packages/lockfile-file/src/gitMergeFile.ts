@@ -1,6 +1,6 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import mergeLockfileChanges from '@pnpm/merge-lockfile-changes'
-import yaml = require('js-yaml')
+import yaml from 'js-yaml'
 
 const MERGE_CONFLICT_PARENT = '|||||||'
 const MERGE_CONFLICT_END = '>>>>>>>'
@@ -16,7 +16,7 @@ export function autofixMergeConflicts (fileContent: string) {
 }
 
 function parseMergeFile (fileContent: string) {
-  const lines = fileContent.split(/[\n\r]+/g) as string[]
+  const lines = fileContent.split(/[\n\r]+/g)
   let state: 'top' | 'ours' | 'theirs' | 'parent' = 'top'
   const ours = []
   const theirs = []

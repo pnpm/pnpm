@@ -1,3 +1,4 @@
+import path from 'path'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
@@ -7,9 +8,8 @@ import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest, PackageManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
-import path = require('path')
-import graphSequencer = require('graph-sequencer')
-import R = require('ramda')
+import graphSequencer from 'graph-sequencer'
+import * as R from 'ramda'
 
 export default async (
   depGraph: DependenciesGraph,
@@ -55,7 +55,7 @@ export default async (
     }
 
     return chunk.map((depPath: string) =>
-      () => buildDependency(depPath, depGraph, buildDepOpts)
+      async () => buildDependency(depPath, depGraph, buildDepOpts)
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)

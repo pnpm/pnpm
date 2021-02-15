@@ -6,8 +6,8 @@ import { AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import fetchFromGit from '@pnpm/git-fetcher'
 import createTarballFetcher from '@pnpm/tarball-fetcher'
-import getCredentialsByURI = require('credentials-by-uri')
-import mem = require('mem')
+import getCredentialsByURI from 'credentials-by-uri'
+import mem from 'mem'
 
 export { ResolveFunction }
 

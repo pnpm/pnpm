@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
@@ -6,25 +8,23 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
-import { promises as fs } from 'fs'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import loadJsonFile from 'load-json-file'
+import nock from 'nock'
+import exists from 'path-exists'
+import * as R from 'ramda'
+import sinon from 'sinon'
+import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   testDefaults,
 } from './utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import loadJsonFile = require('load-json-file')
-import nock = require('nock')
-import exists = require('path-exists')
-import R = require('ramda')
-import sinon = require('sinon')
-import writeYamlFile = require('write-yaml-file')
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -321,7 +321,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   // })
 
   const pkgs = ['foo', 'bar', 'qar']
-  await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
+  await Promise.all(pkgs.map(async (pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
 
   let manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ save: true, reporter }))
   // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
@@ -335,7 +335,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/foo'))).version).toBe('100.0.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/bar'))).version).toBe('100.0.0')
 
-  await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
+  await Promise.all(pkgs.map(async (pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))

@@ -1,3 +1,4 @@
+import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
@@ -7,13 +8,12 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import exists from 'path-exists'
+import * as R from 'ramda'
+import sinon from 'sinon'
+import writeYamlFile from 'write-yaml-file'
 import { addDistTag, testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import exists = require('path-exists')
-import R = require('ramda')
-import sinon = require('sinon')
-import writeYamlFile = require('write-yaml-file')
 
 test('install only the dependencies of the specified importer', async () => {
   const projects = preparePackages([

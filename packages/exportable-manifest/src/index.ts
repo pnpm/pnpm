@@ -1,8 +1,8 @@
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
-import path = require('path')
-import R = require('ramda')
+import * as R from 'ramda'
 
 // property keys that are copied from publishConfig into the manifest
 const PUBLISH_CONFIG_WHITELIST = new Set([

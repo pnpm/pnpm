@@ -14,7 +14,7 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import semver = require('semver')
+import semver from 'semver'
 
 export * from './createManifestGetter'
 

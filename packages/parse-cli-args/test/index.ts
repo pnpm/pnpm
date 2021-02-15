@@ -1,7 +1,7 @@
+import os from 'os'
 import PnpmError from '@pnpm/error'
 import parseCliArgs from '@pnpm/parse-cli-args'
-import os = require('os')
-import tempy = require('tempy')
+import tempy from 'tempy'
 
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,

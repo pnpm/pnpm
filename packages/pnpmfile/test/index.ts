@@ -1,5 +1,5 @@
+import path from 'path'
 import { requirePnpmfile, BadReadPackageHookError } from '@pnpm/pnpmfile'
-import path = require('path')
 
 test('ignoring a pnpmfile that exports undefined', () => {
   const pnpmfile = requirePnpmfile(path.join(__dirname, 'pnpmfiles/undefined.js'), __dirname)

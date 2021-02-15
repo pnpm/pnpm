@@ -1,3 +1,4 @@
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -7,7 +8,6 @@ import {
   addDistTag,
   testDefaults,
 } from '../utils'
-import path = require('path')
 
 test('preserve subdeps on update', async () => {
   const project = prepareEmpty()

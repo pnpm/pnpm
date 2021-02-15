@@ -3,9 +3,9 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { mutateModules } from 'supi'
+import renderHelp from 'render-help'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
 import recursive from './recursive'
-import renderHelp = require('render-help')
 
 export { cliOptionsTypes, rcOptionsTypes }
 

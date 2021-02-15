@@ -1,11 +1,11 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import {
   DependencyType,
   rootLogger,
 } from '@pnpm/core-loggers'
 import { DependenciesField } from '@pnpm/types'
-import { promises as fs } from 'fs'
-import path = require('path')
-import symlinkDir = require('symlink-dir')
+import symlinkDir from 'symlink-dir'
 
 const DEP_TYPE_BY_DEPS_FIELD_NAME = {
   dependencies: 'prod',

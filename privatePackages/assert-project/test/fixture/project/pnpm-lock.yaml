@@ -1,6 +1,6 @@
 dependencies:
   is-positive: 3.1.0
-lockfileVersion: 5.1
+lockfileVersion: 5.2
 packages:
   /is-positive/3.1.0:
     dev: false

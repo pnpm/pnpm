@@ -1,5 +1,5 @@
+import path from 'path'
 import readPkg from './readPkg'
-import path = require('path')
 
 export default async function getPkgInfo (
   pkg: {

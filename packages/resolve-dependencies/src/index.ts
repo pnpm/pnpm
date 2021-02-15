@@ -1,3 +1,4 @@
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   packageManifestLogger,
@@ -18,6 +19,7 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
+import * as R from 'ramda'
 import depPathToRef from './depPathToRef'
 import resolveDependencyTree, {
   Importer,
@@ -32,8 +34,6 @@ import resolvePeers, {
 } from './resolvePeers'
 import updateLockfile from './updateLockfile'
 import updateProjectManifest from './updateProjectManifest'
-import path = require('path')
-import R = require('ramda')
 
 export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 
@@ -176,7 +176,7 @@ export default async function (
   const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
 
   // waiting till package requests are finished
-  const waitTillAllFetchingsFinish = () => Promise.all(R.values(resolvedPackagesByDepPath).map(({ finishing }) => finishing()))
+  const waitTillAllFetchingsFinish = async () => Promise.all(R.values(resolvedPackagesByDepPath).map(async ({ finishing }) => finishing()))
 
   return {
     dependenciesByProjectId,
@@ -190,7 +190,7 @@ export default async function (
   }
 }
 
-function finishLockfileUpdates (
+async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
   newLockfile: Lockfile

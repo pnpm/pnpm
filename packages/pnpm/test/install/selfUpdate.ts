@@ -1,12 +1,12 @@
+import path from 'path'
 import prepare from '@pnpm/prepare'
+import isWindows from 'is-windows'
+import pathExists from 'path-exists'
 import {
   execPnpm,
   retryLoadJsonFile,
   spawnPnpm,
 } from '../utils'
-import isWindows = require('is-windows')
-import path = require('path')
-import pathExists = require('path-exists')
 
 const skipOnWindows = isWindows() ? test.skip : test
 

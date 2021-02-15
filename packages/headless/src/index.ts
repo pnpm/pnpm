@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import buildModules from '@pnpm/build-modules'
 import {
   ENGINE_NAME,
@@ -56,14 +58,12 @@ import {
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
-import { promises as fs } from 'fs'
-import path = require('path')
-import dp = require('dependency-path')
-import pLimit = require('p-limit')
-import pathAbsolute = require('path-absolute')
-import pathExists = require('path-exists')
-import R = require('ramda')
-import realpathMissing = require('realpath-missing')
+import * as dp from 'dependency-path'
+import pLimit from 'p-limit'
+import pathAbsolute from 'path-absolute'
+import pathExists from 'path-exists'
+import * as R from 'ramda'
+import realpathMissing from 'realpath-missing'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -254,7 +254,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   if (opts.enableModulesDir !== false) {
-    await Promise.all(depNodes.map((depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+    await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
     await Promise.all([
       opts.symlink === false
         ? Promise.resolve()
@@ -434,7 +434,7 @@ export default async (opts: HeadlessOptions) => {
   }
 }
 
-function linkBinsOfImporter (
+async function linkBinsOfImporter (
   { modulesDir, binsDir, rootDir }: {
     binsDir: string
     modulesDir: string
@@ -448,7 +448,7 @@ function linkBinsOfImporter (
   })
 }
 
-function linkRootPackages (
+async function linkRootPackages (
   lockfile: Lockfile,
   opts: {
     registries: Registries
@@ -743,7 +743,7 @@ export interface DependenciesGraph {
 
 const limitLinking = pLimit(16)
 
-function linkAllPkgs (
+async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
@@ -780,7 +780,7 @@ function linkAllPkgs (
   )
 }
 
-function linkAllBins (
+async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
     optional: boolean
@@ -789,7 +789,7 @@ function linkAllBins (
 ) {
   return Promise.all(
     R.values(depGraph)
-      .map((depNode) => limitLinking(async () => {
+      .map(async (depNode) => limitLinking(async () => {
         const childrenToLink = opts.optional
           ? depNode.children
           : Object.keys(depNode.children)
@@ -858,7 +858,7 @@ async function linkAllModules (
                 })
                 return
               }
-              await limitLinking(() => symlinkDependency(childrenToLink[alias], depNode.modules, alias))
+              await limitLinking(async () => symlinkDependency(childrenToLink[alias], depNode.modules, alias))
             })
         )
       })

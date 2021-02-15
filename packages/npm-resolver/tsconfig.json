@@ -1,7 +1,6 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "allowSyntheticDefaultImports": false,
     "outDir": "lib",
     "rootDir": "src"
   },

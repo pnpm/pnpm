@@ -1,8 +1,8 @@
-import { URL } from 'url'
+import url, { URL } from 'url'
 import fetch from '@pnpm/fetch'
-import url = require('url')
-import git = require('graceful-git')
-import HostedGit = require('hosted-git-info')
+
+import git from 'graceful-git'
+import HostedGit from 'hosted-git-info'
 
 export type HostedPackageSpec = ({
   fetchSpec: string

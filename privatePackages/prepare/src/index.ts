@@ -1,10 +1,10 @@
+import fs from 'fs'
+import path from 'path'
 import assertProject, { Modules, Project } from '@pnpm/assert-project'
 import { ProjectManifest } from '@pnpm/types'
 import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import fs = require('fs')
-import path = require('path')
-import writePkg = require('write-pkg')
+import writePkg from 'write-pkg'
 
 export { Modules, Project }
 export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'

@@ -2,9 +2,9 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import { handler as list, ListCommandOptions } from './list'
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -85,7 +85,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
-export function handler (
+export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ) {

@@ -1,11 +1,11 @@
-import path = require('path')
+import path from 'path'
 
 jest.mock('fuse-native', () => ({ ENOENT: -2 }))
 
 // eslint-disable-next-line
 import createFuseHandlers, { createFuseHandlersFromLockfile } from '../src/createFuseHandlers'
 // eslint-disable-next-line
-import Fuse = require('fuse-native')
+import Fuse from 'fuse-native'
 
 describe('FUSE handlers', () => {
   let handlers: ReturnType<typeof createFuseHandlersFromLockfile>

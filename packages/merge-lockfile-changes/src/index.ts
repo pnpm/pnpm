@@ -1,6 +1,6 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import R = require('ramda')
-import semver = require('semver')
+import * as R from 'ramda'
+import semver from 'semver'
 
 export default function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
   const newLockfile: Lockfile = {

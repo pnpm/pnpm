@@ -1,8 +1,8 @@
 import PnpmError from '@pnpm/error'
 import { VersionSelectors } from '@pnpm/resolver-base'
+import semver from 'semver'
 import { RegistryPackageSpec } from './parsePref'
 import { PackageInRegistry, PackageMeta } from './pickPackage'
-import semver = require('semver')
 
 export default function (
   spec: RegistryPackageSpec,

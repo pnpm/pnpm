@@ -1,4 +1,4 @@
-import { IncomingMessage, Server, ServerResponse } from 'http'
+import http, { IncomingMessage, Server, ServerResponse } from 'http'
 import { globalInfo } from '@pnpm/logger'
 import {
   RequestPackageOptions,
@@ -7,7 +7,6 @@ import {
   WantedDependency,
 } from '@pnpm/store-controller-types'
 import locking from './lock'
-import http = require('http')
 
 interface RequestBody {
   msgId: string
@@ -147,7 +146,7 @@ export default function (
           break
         }
         const uploadBody = (await bodyPromise) as any // eslint-disable-line @typescript-eslint/no-explicit-any
-        await lock(uploadBody.builtPkgLocation, () => store.upload(uploadBody.builtPkgLocation, uploadBody.opts))
+        await lock(uploadBody.builtPkgLocation, async () => store.upload(uploadBody.builtPkgLocation, uploadBody.opts))
         res.end(JSON.stringify('OK'))
         break
       }
@@ -185,7 +184,7 @@ export default function (
 
   return { close }
 
-  function close () {
+  async function close () {
     listener.close()
     return store.close()
   }

@@ -1,4 +1,6 @@
 /// <reference path="../../../typings/index.d.ts" />
+import { promises as fs, writeFileSync } from 'fs'
+import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -14,16 +16,14 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
-import { promises as fs, writeFileSync } from 'fs'
+import rimraf from '@zkochan/rimraf'
+import isWindows from 'is-windows'
+import loadJsonFile from 'load-json-file'
+import exists from 'path-exists'
+import sinon from 'sinon'
+import tempy from 'tempy'
+import writeJsonFile from 'write-json-file'
 import testDefaults from './utils/testDefaults'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import isWindows = require('is-windows')
-import loadJsonFile = require('load-json-file')
-import exists = require('path-exists')
-import sinon = require('sinon')
-import tempy = require('tempy')
-import writeJsonFile = require('write-json-file')
 
 const fixtures = path.join(__dirname, 'fixtures')
 const skipOnWindows = isWindows() ? test.skip : test
@@ -53,7 +53,7 @@ test('installing a simple project', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: require(path.join(prefix, 'package.json')),
+    updated: await loadJsonFile(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 15,
@@ -488,7 +488,7 @@ test('installing with hoistPattern=*', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: require(path.join(prefix, 'package.json')),
+    updated: await loadJsonFile(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 17,
@@ -545,7 +545,7 @@ test('installing with publicHoistPattern=*', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: require(path.join(prefix, 'package.json')),
+    updated: await loadJsonFile(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 17,

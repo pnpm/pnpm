@@ -2,7 +2,7 @@ import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
-import R = require('ramda')
+import * as R from 'ramda'
 
 export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
   const allOutdatedPkgs = mergeOutdatedPkgs(outdatedPkgsOfProjects)

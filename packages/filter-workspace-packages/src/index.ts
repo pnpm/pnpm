@@ -1,10 +1,10 @@
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
+import isSubdir from 'is-subdir'
+import * as R from 'ramda'
 import getChangedPkgs from './getChangedPackages'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
-import isSubdir = require('is-subdir')
-import R = require('ramda')
 
 export { parsePackageSelector, PackageSelector }
 
@@ -54,7 +54,7 @@ export async function filterPackages<T> (
   return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)
 }
 
-export function filterPkgsBySelectorObjects<T> (
+export async function filterPkgsBySelectorObjects<T> (
   pkgs: Array<Package & T>,
   packageSelectors: PackageSelector[],
   opts: {

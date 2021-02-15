@@ -1,13 +1,13 @@
-import prepare from '@pnpm/prepare'
 import { createReadStream, promises as fs } from 'fs'
+import path from 'path'
+import prepare from '@pnpm/prepare'
+import rimraf from '@zkochan/rimraf'
+import execa from 'execa'
 import {
   execPnpm,
   execPnpmSync,
   execPnpxSync,
 } from './utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import execa = require('execa')
 
 const fixtures = path.join(__dirname, '../../../fixtures')
 const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')

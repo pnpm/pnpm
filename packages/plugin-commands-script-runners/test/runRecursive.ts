@@ -1,12 +1,12 @@
+import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
 import PnpmError from '@pnpm/error'
+import rimraf from '@zkochan/rimraf'
+import execa from 'execa'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import execa = require('execa')
-import writeYamlFile = require('write-yaml-file')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 

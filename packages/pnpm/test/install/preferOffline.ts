@@ -1,10 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
+import rimraf from '@zkochan/rimraf'
 import {
   addDistTag,
   execPnpm,
 } from '../utils'
-import rimraf = require('@zkochan/rimraf')
 
 test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async () => {
   const project = prepare()

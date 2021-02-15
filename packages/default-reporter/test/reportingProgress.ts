@@ -10,8 +10,8 @@ import logger, {
   createStreamParser,
 } from '@pnpm/logger'
 import { map, skip, take } from 'rxjs/operators'
-import chalk = require('chalk')
-import normalizeNewline = require('normalize-newline')
+import chalk from 'chalk'
+import normalizeNewline from 'normalize-newline'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const hlValue = chalk.cyanBright

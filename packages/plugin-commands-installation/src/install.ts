@@ -3,10 +3,10 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import isCI from 'is-ci'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import installDeps from './installDeps'
-import isCI = require('is-ci')
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -288,7 +288,7 @@ export type InstallCommandOptions = Pick<Config,
   workspace?: boolean
 } & Partial<Pick<Config, 'preferWorkspacePackages'>>
 
-export function handler (
+export async function handler (
   opts: InstallCommandOptions
 ) {
   const include = {

@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   docsUrl,
   getConfig,
@@ -19,13 +20,12 @@ import {
   linkToGlobal,
   WorkspacePackages,
 } from 'supi'
-import getSaveType from './getSaveType'
+import pLimit from 'p-limit'
+import pathAbsolute from 'path-absolute'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import * as installCommand from './install'
-import path = require('path')
-import pLimit = require('p-limit')
-import pathAbsolute = require('path-absolute')
-import R = require('ramda')
-import renderHelp = require('render-help')
+import getSaveType from './getSaveType'
 
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
@@ -142,7 +142,7 @@ export async function handler (
   }
 
   await Promise.all(
-    pkgPaths.map((dir) => installLimit(async () => {
+    pkgPaths.map(async (dir) => installLimit(async () => {
       const s = await createOrConnectStoreControllerCached(storeControllerCache, opts)
       const config = await getConfig(
         { ...opts.cliOptions, dir: dir },

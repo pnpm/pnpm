@@ -1,12 +1,12 @@
+import path from 'path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   install,
   MutatedProject,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
 
 test('installing to a custom modules directory', async () => {
   const project = prepareEmpty()

@@ -1,3 +1,4 @@
+import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
@@ -7,10 +8,9 @@ import {
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { install, InstallOptions } from 'supi'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import loadJsonFile = require('load-json-file')
-import renderHelp = require('render-help')
+import rimraf from '@zkochan/rimraf'
+import loadJsonFile from 'load-json-file'
+import renderHelp from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 

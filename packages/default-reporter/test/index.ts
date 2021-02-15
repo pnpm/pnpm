@@ -1,4 +1,5 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import { Config } from '@pnpm/config'
 import {
   deprecationLogger,
@@ -15,10 +16,9 @@ import logger, {
   createStreamParser,
 } from '@pnpm/logger'
 import { map, skip, take } from 'rxjs/operators'
-import chalk = require('chalk')
-import normalizeNewline = require('normalize-newline')
-import path = require('path')
-import R = require('ramda')
+import chalk from 'chalk'
+import normalizeNewline from 'normalize-newline'
+import * as R from 'ramda'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')

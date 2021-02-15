@@ -1,6 +1,6 @@
+import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
-import path = require('path')
-import stripAnsi = require('strip-ansi')
+import stripAnsi from 'strip-ansi'
 
 const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
 

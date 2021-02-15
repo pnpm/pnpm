@@ -1,5 +1,5 @@
+import chalk from 'chalk'
 import { formatUnknownOptionsError } from '../src/formatError'
-import chalk = require('chalk')
 
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
 
