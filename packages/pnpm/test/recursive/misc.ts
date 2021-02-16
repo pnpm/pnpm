@@ -166,10 +166,10 @@ test('recursive installation of packages with hooks', async () => {
       return pkg
     }
   `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('../project-2')
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('..')
 
@@ -213,13 +213,13 @@ test('recursive installation of packages in workspace ignores hooks in packages'
       return pkg
     }
   `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('../project-2')
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('..')
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     module.exports = { hooks: { readPackage } }
     function readPackage (pkg) {
       pkg.dependencies = pkg.dependencies || {}
@@ -239,7 +239,7 @@ test('recursive installation of packages in workspace ignores hooks in packages'
   /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
-test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile is used', async () => {
+test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile is used', async () => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
   const projects = preparePackages([
@@ -270,10 +270,10 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
       return pkg
     }
   `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('../project-2')
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('..')
 

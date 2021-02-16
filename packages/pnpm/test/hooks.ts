@@ -18,7 +18,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
       return pkg
       }
   `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
   await execPnpm(['add', 'is-positive@1.0.0'])
   let pkg: PackageManifest = await loadJsonFile(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
@@ -59,7 +59,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
         return pkg
       }
     `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])

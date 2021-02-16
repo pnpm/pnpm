@@ -65,7 +65,7 @@ export default (pnpmFilePath: string, prefix: string) => {
     return pnpmfile
   } catch (err) {
     if (err instanceof SyntaxError) {
-      console.error(chalk.red('A syntax error in the pnpmfile.js\n'))
+      console.error(chalk.red('A syntax error in the .pnpmfile.cjs\n'))
       console.error(err)
       process.exit(1)
     }
