@@ -73,5 +73,7 @@ test('prune removes dev dependencies', async () => {
   })
 
   await project.has('is-positive')
+  await project.has('.pnpm/is-positive@1.0.0')
   await project.hasNot('is-negative')
+  await project.hasNot('.pnpm/is-negative@1.0.0')
 })

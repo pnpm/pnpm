@@ -62,6 +62,7 @@ export async function handler (
       devDependencies: opts.dev !== false,
       optionalDependencies: opts.optional !== false,
     },
+    modulesCacheMaxAge: 0,
     pruneStore: true,
     storeController: store.ctrl,
     storeDir: store.dir,
