@@ -727,7 +727,7 @@ test('installing in a workspace', async () => {
 test('installing with no symlinks but with PnP', async () => {
   const prefix = path.join(fixtures, 'simple')
   await rimraf(path.join(prefix, 'node_modules'))
-  await rimraf(path.join(prefix, '.pnp.js'))
+  await rimraf(path.join(prefix, '.pnp.cjs'))
 
   await headless(await testDefaults({
     enablePnp: true,
@@ -741,13 +741,13 @@ test('installing with no symlinks but with PnP', async () => {
   const project = assertProject(prefix)
   expect(await project.readCurrentLockfile()).toBeTruthy()
   expect(await project.readModulesManifest()).toBeTruthy()
-  expect(await exists(path.join(prefix, '.pnp.js'))).toBeTruthy()
+  expect(await exists(path.join(prefix, '.pnp.cjs'))).toBeTruthy()
 })
 
 test('installing with no modules directory', async () => {
   const prefix = path.join(fixtures, 'simple')
   await rimraf(path.join(prefix, 'node_modules'))
-  await rimraf(path.join(prefix, '.pnp.js'))
+  await rimraf(path.join(prefix, '.pnp.cjs'))
 
   await headless(await testDefaults({
     enableModulesDir: false,

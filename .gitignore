@@ -6,7 +6,7 @@ npm-debug.log*
 # Dependency directory
 **/node_modules/**
 _node_modules
-.pnp.js
+.pnp.cjs
 
 # Coverage directory used by tools like istanbul
 coverage

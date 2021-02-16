@@ -22,7 +22,7 @@ const STAT_DEFAULT = {
 
 export default async function createFuseHandlers (lockfileDir: string, cafsDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (!lockfile) throw new Error('Cannot generate a .pnp.js without a lockfile')
+  if (!lockfile) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
   return createFuseHandlersFromLockfile(lockfile, lockfileDir, cafsDir)
 }
 

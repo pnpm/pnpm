@@ -48,7 +48,7 @@ export default async (
     opts.workspaceConcurrency === 1 ||
     packageChunks.length === 1 && packageChunks[0].length === 1
   ) ? 'inherit' : 'pipe'
-  const existsPnp = existsInDir.bind(null, '.pnp.js')
+  const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   for (const chunk of packageChunks) {

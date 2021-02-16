@@ -351,7 +351,7 @@ export default async (opts: HeadlessOptions) => {
       }
       let extraEnv: Record<string, string> | undefined
       if (opts.enablePnp) {
-        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.js'))
+        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
       await buildModules(graph, Array.from(directNodes), {
         childConcurrency: opts.childConcurrency,

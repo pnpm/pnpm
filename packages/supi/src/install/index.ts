@@ -451,7 +451,7 @@ export async function mutateModules (
 
     if (!opts.ignoreScripts) {
       if (opts.enablePnp) {
-        scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.js'))
+        scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
       await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepublish', 'prepare'],
         projectsToBeInstalled,
@@ -775,7 +775,7 @@ async function installInContext (
 
       let extraEnv: Record<string, string> | undefined
       if (opts.enablePnp) {
-        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.js'))
+        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
       await buildModules(dependenciesGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,

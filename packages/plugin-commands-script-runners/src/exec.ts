@@ -73,7 +73,7 @@ export async function handler (
   const chunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
     : [Object.keys(opts.selectedProjectsGraph).sort()]
-  const existsPnp = existsInDir.bind(null, '.pnp.js')
+  const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   for (const chunk of chunks) {

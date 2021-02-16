@@ -164,7 +164,7 @@ so you may run "pnpm -w ${scriptName}"`,
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
-  const existsPnp = existsInDir.bind(null, '.pnp.js')
+  const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && await existsPnp(opts.workspaceDir)) ??
     await existsPnp(dir)
   if (pnpPath) {
