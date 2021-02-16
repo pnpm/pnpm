@@ -1217,7 +1217,7 @@ test('installing with no symlinks with PnP', async () => {
 
   expect(await project.readCurrentLockfile()).toBeTruthy()
   expect(await project.readModulesManifest()).toBeTruthy()
-  expect(await exists(path.resolve('.pnp.js'))).toBeTruthy()
+  expect(await exists(path.resolve('.pnp.cjs'))).toBeTruthy()
 })
 
 test('installing with no modules directory', async () => {
