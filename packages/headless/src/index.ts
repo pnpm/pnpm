@@ -121,6 +121,7 @@ export interface HeadlessOptions {
   pendingBuilds: string[]
   skipped: Set<string>
   enableModulesDir?: boolean
+  powerShellShim?: boolean
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -359,6 +360,7 @@ export default async (opts: HeadlessOptions) => {
         extraEnv,
         lockfileDir,
         optional: opts.include.optionalDependencies,
+        powerShellShim: opts.powerShellShim,
         rawConfig: opts.rawConfig,
         rootModulesDir: virtualStoreDir,
         scriptShell: opts.scriptShell,
@@ -370,10 +372,14 @@ export default async (opts: HeadlessOptions) => {
       })
     }
 
-    await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
+    await linkAllBins(graph, {
+      powerShellShim: opts.powerShellShim,
+      optional: opts.include.optionalDependencies,
+      warn,
+    })
     await Promise.all(opts.projects.map(async (project) => {
       if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
-        await linkBinsOfImporter(project)
+        await linkBinsOfImporter({ ...project, powerShellShim: opts.powerShellShim })
       } else {
         const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
         await linkBinsOfPackages(
@@ -387,7 +393,7 @@ export default async (opts: HeadlessOptions) => {
           )
             .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
           project.binsDir,
-          { warn: (message: string) => logger.info({ message, prefix: project.rootDir }) }
+          { powerShellShim: opts.powerShellShim, warn: (message: string) => logger.info({ message, prefix: project.rootDir }) }
         )
       }
     }))
@@ -435,15 +441,17 @@ export default async (opts: HeadlessOptions) => {
 }
 
 async function linkBinsOfImporter (
-  { modulesDir, binsDir, rootDir }: {
+  { modulesDir, binsDir, powerShellShim, rootDir }: {
     binsDir: string
     modulesDir: string
+    powerShellShim?: boolean
     rootDir: string
   }
 ) {
   const warn = (message: string) => logger.info({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
+    powerShellShim,
     warn,
   })
 }
@@ -784,6 +792,7 @@ async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
     optional: boolean
+    powerShellShim?: boolean
     warn: (message: string) => void
   }
 ) {
@@ -804,7 +813,7 @@ async function linkAllBins (
         const pkgSnapshots = R.props<string, DependenciesGraphNode>(R.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
-          await linkBins(depNode.modules, binPath, { warn: opts.warn })
+          await linkBins(depNode.modules, binPath, { powerShellShim: opts.powerShellShim, warn: opts.warn })
         } else {
           const pkgs = await Promise.all(
             pkgSnapshots
@@ -815,13 +824,13 @@ async function linkAllBins (
               }))
           )
 
-          await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
+          await linkBinsOfPackages(pkgs, binPath, { powerShellShim: opts.powerShellShim, warn: opts.warn })
         }
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
           const bundledModules = path.join(depNode.dir, 'node_modules')
-          await linkBins(bundledModules, binPath, { warn: opts.warn })
+          await linkBins(bundledModules, binPath, { powerShellShim: opts.powerShellShim, warn: opts.warn })
         }
       }))
   )

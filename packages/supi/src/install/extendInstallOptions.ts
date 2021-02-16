@@ -23,6 +23,7 @@ export interface StrictInstallOptions {
   lockfileOnly: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean
+  powerShellShim: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
   scriptShell?: string
@@ -146,6 +147,7 @@ const defaults = async (opts: InstallOptions) => {
     workspacePackages: {},
     enableModulesDir: true,
     modulesCacheMaxAge: 7 * 24 * 60,
+    powerShellShim: false,
   } as StrictInstallOptions
 }
 

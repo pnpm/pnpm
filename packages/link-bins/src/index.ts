@@ -16,7 +16,6 @@ import * as R from 'ramda'
 
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
-const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
 
 export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
@@ -27,6 +26,7 @@ export default async (
   binsDir: string,
   opts: {
     allowExoticManifests?: boolean
+    powerShellShim?: boolean
     warn: WarnFunction
   }
 ): Promise<string[]> => {
@@ -58,6 +58,7 @@ export async function linkBinsOfPackages (
   }>,
   binsTarget: string,
   opts: {
+    powerShellShim?: boolean
     warn: WarnFunction
   }
 ): Promise<string[]> {
@@ -81,6 +82,7 @@ async function linkBins (
   }>,
   binsDir: string,
   opts: {
+    powerShellShim?: boolean
     warn: WarnFunction
   }
 ): Promise<string[]> {
@@ -90,7 +92,7 @@ async function linkBins (
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = R.partition(({ ownName }) => ownName, allCmds)
 
-  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd: Command) => linkBin(cmd, binsDir)))
+  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd: Command) => linkBin(cmd, binsDir, opts)))
 
   const usedNames = R.fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as R.KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd: Command & {pkgName: string}) => {
@@ -99,7 +101,7 @@ async function linkBins (
       return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
-    return linkBin(cmd, binsDir)
+    return linkBin(cmd, binsDir, opts)
   }))
 
   // We want to create all commands that we can create before throwing an exception
@@ -153,7 +155,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }))
 }
 
-async function linkBin (cmd: Command, binsDir: string) {
+async function linkBin (cmd: Command, binsDir: string, opts: { powerShellShim?: boolean }) {
   const externalBinPath = path.join(binsDir, cmd.name)
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
@@ -165,7 +167,7 @@ async function linkBin (cmd: Command, binsDir: string) {
     nodePath = R.union(nodePath, await getBinNodePaths(binsParentDir))
   }
   return cmdShim(cmd.path, externalBinPath, {
-    createPwshFile: POWER_SHELL_IS_SUPPORTED,
+    createPwshFile: opts.powerShellShim,
     nodePath,
   })
 }

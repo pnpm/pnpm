@@ -59,6 +59,7 @@ export const types = Object.assign({
   offline: Boolean,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   pnpmfile: String,
+  'powershell-shim': Boolean,
   'prefer-frozen-lockfile': Boolean,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
@@ -162,6 +163,7 @@ export default async (
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'package-lock': npmDefaults['package-lock'],
     pending: false,
+    'powershell-shim': false,
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [
       // Packages like @types/node, @babel/types

@@ -21,6 +21,7 @@ export default async (
     extraEnv?: Record<string, string>
     lockfileDir: string
     optional: boolean
+    powerShellShim?: boolean
     rawConfig: object
     unsafePerm: boolean
     userAgent: string
@@ -69,6 +70,7 @@ async function buildDependency (
     extraEnv?: Record<string, string>
     lockfileDir: string
     optional: boolean
+    powerShellShim?: boolean
     rawConfig: object
     rootModulesDir: string
     scriptShell?: string
@@ -185,6 +187,7 @@ export async function linkBinsOfDependencies (
   depGraph: DependenciesGraph,
   opts: {
     optional: boolean
+    powerShellShim?: boolean
     warn: (message: string) => void
   }
 ) {
@@ -220,11 +223,12 @@ export async function linkBinsOfDependencies (
       })
   )
 
-  await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
+  const linkBinsOpts = { powerShellShim: opts.powerShellShim, warn: opts.warn }
+  await linkBinsOfPackages(pkgs, binPath, linkBinsOpts)
 
   // link also the bundled dependencies` bins
   if (depNode.hasBundledDependencies) {
     const bundledModules = path.join(depNode.dir, 'node_modules')
-    await linkBins(bundledModules, binPath, { warn: opts.warn })
+    await linkBins(bundledModules, binPath, linkBinsOpts)
   }
 }
