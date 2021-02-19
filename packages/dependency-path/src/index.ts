@@ -148,5 +148,5 @@ function depPathToFilenameUnescaped (depPath: string, lockfileDir: string) {
   }
 
   const absolutePath = normalize(path.join(lockfileDir, depPath.slice(5)))
-  return `local#${absolutePath}`
+  return `local#${absolutePath.replace(':', '#')}`
 }

@@ -125,6 +125,7 @@ test('depPathToFilename()', () => {
 
   const filename = depPathToFilename('file:./test/foo-1.0.0.tgz_foo@2.0.0', process.cwd())
   expect(filename).toMatch(/^local#.*#foo-1\.0\.0\.tgz_foo@2\.0\.0$/)
+  expect(filename).not.toContain(':')
 
   expect(depPathToFilename('abcd/'.repeat(200), process.cwd())).toBe('abcd#abcd#abcd#abcd#abcd#abcd#abcd#abcd#abcd#abcd#_36cae148b21d1f0b46577e42f8f4dbae')
 })
