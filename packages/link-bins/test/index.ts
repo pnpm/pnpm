@@ -55,6 +55,16 @@ test('linkBins()', async () => {
   }
 })
 
+test('linkBins() creates a powershell shim', async () => {
+  const binTarget = tempy.directory()
+  const warn = jest.fn()
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { powerShellShim: true, warn })
+
+  expect(warn).not.toHaveBeenCalled()
+  expect(await fs.readdir(binTarget)).toContain('simple.ps1')
+})
+
 test('linkBins() finds exotic manifests', async () => {
   const binTarget = tempy.directory()
   const warn = jest.fn()
