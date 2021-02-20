@@ -5,18 +5,18 @@ import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 
-export default function requireHooks (
+export default async function requireHooks (
   prefix: string,
   opts: {
     globalPnpmfile?: string
     pnpmfile?: string
   }
 ) {
-  const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
+  const globalPnpmfile = opts.globalPnpmfile && await requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
   let globalHooks = globalPnpmfile?.hooks
 
-  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix) ||
-    requirePnpmfile(path.join(prefix, 'pnpmfile.js'), prefix)
+  const pnpmFile = opts.pnpmfile && await requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix) ||
+    await requirePnpmfile(path.join(prefix, 'pnpmfile.js'), prefix)
   let hooks = pnpmFile?.hooks
 
   if (!globalHooks && !hooks) return {}

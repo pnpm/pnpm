@@ -3,6 +3,7 @@ import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
 import fs = require('fs')
 import chalk = require('chalk')
+import requireOrImport from '../requireOrImport.js'
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -24,9 +25,9 @@ class PnpmFileFailError extends PnpmError {
   }
 }
 
-export default (pnpmFilePath: string, prefix: string) => {
+export default async (pnpmFilePath: string, prefix: string) => {
   try {
-    const pnpmfile = require(pnpmFilePath) // eslint-disable-line
+    const pnpmfile = await requireOrImport(pnpmFilePath)
     logger.info({
       message: `Using hooks from: ${pnpmFilePath}`,
       prefix,
