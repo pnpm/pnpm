@@ -112,7 +112,7 @@ test('recursive publish', async () => {
 
   {
     const { stdout } = await execa('npm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
-    expect(stdout.toString().includes('next: 2.0.0')).toBeTruthy()
+    expect(stdout.toString()).toContain('next: 2.0.0')
   }
 })
 

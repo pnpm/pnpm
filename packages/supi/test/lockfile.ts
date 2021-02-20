@@ -55,7 +55,7 @@ test('lockfile has correct format', async () => {
   expect(lockfile.dependencies).toBeTruthy()
   expect(lockfile.dependencies['pkg-with-1-dep']).toBe('100.0.0')
   expect(lockfile.dependencies).toHaveProperty(['@rstacruz/tap-spec'])
-  expect(lockfile.dependencies['is-negative'].includes('/')).toBeTruthy() // has not shortened tarball from the non-standard registry
+  expect(lockfile.dependencies['is-negative']).toContain('/') // has not shortened tarball from the non-standard registry
 
   expect(lockfile.packages).toBeTruthy() // has packages field
   expect(lockfile.packages).toHaveProperty([id])
@@ -861,7 +861,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers.project.dependencies).toBeTruthy()
     expect(lockfile.importers.project.dependencies!['pkg-with-1-dep']).toBe('100.0.0')
     expect(lockfile.importers.project.dependencies!['@zkochan/foo']).toBeTruthy()
-    expect(lockfile.importers.project.dependencies!['is-negative'].includes('/')).toBeTruthy()
+    expect(lockfile.importers.project.dependencies!['is-negative']).toContain('/')
 
     expect(lockfile.packages![id].dependencies).toHaveProperty(['dep-of-pkg-with-1-dep'])
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
@@ -889,7 +889,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers.project.specifiers).toBeTruthy()
     expect(lockfile.importers.project.dependencies!['pkg-with-1-dep']).toBe('100.0.0')
     expect(lockfile.importers.project.dependencies).toHaveProperty(['@zkochan/foo'])
-    expect(lockfile.importers.project.dependencies!['is-negative'].includes('/')).toBeTruthy()
+    expect(lockfile.importers.project.dependencies!['is-negative']).toContain('/')
 
     expect(lockfile.packages).toHaveProperty([id])
     expect(lockfile.packages![id].dependencies).toBeTruthy()

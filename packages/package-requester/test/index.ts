@@ -642,7 +642,7 @@ test('refetch package to store if it has been modified', async () => {
 
   streamParser.removeListener('data', reporter)
 
-  expect((await fs.readFile(indexJsFile, 'utf8')).includes('// foobar')).toBeFalsy()
+  expect(await fs.readFile(indexJsFile, 'utf8')).not.toContain('// foobar')
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',

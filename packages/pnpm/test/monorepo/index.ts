@@ -1202,11 +1202,11 @@ test('pnpx sees the bins from the root of the workspace', async () => {
 
   const result = execPnpxSync(['print-version'])
 
-  expect(result.stdout.toString().includes('2.0.0')).toBeTruthy()
+  expect(result.stdout.toString()).toContain('2.0.0')
 
   process.chdir('../project-2')
 
-  expect(execPnpxSync(['print-version']).stdout.toString().includes('1.0.0')).toBeTruthy()
+  expect(execPnpxSync(['print-version']).stdout.toString()).toContain('1.0.0')
 })
 
 test('root package is included when not specified', async () => {
