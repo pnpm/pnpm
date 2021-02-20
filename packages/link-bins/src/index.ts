@@ -74,11 +74,14 @@ export async function linkBinsOfPackages (
   return linkBins(allCmds, binsTarget, opts)
 }
 
+type CommandInfo = Command & {
+  ownName: boolean
+  pkgName: string
+  makePowerShellShim: boolean
+}
+
 async function linkBins (
-  allCmds: Array<Command & {
-    ownName: boolean
-    pkgName: string
-  }>,
+  allCmds: CommandInfo[],
   binsDir: string,
   opts: {
     warn: WarnFunction
@@ -90,10 +93,10 @@ async function linkBins (
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = R.partition(({ ownName }) => ownName, allCmds)
 
-  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd: Command) => linkBin(cmd, binsDir)))
+  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir)))
 
   const usedNames = R.fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as R.KeyValuePair<string, string>))
-  const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd: Command & {pkgName: string}) => {
+  const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
     if (usedNames[cmd.name]) {
       opts.warn(`Cannot link binary '${cmd.name}' of '${cmd.pkgName}' to '${binsDir}': binary of '${usedNames[cmd.name]}' is already linked`, 'BINARIES_CONFLICT')
       return Promise.resolve(undefined)
@@ -123,7 +126,7 @@ async function getPackageBins (
     warn: WarnFunction
   },
   target: string
-) {
+): Promise<CommandInfo[]> {
   const manifest = opts.allowExoticManifests
     ? (await safeReadProjectManifestOnly(target) as DependencyManifest) : await safeReadPkgJson(target)
 
@@ -144,16 +147,17 @@ async function getPackageBins (
   return getPackageBinsFromManifest(manifest, target)
 }
 
-async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string) {
+async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string): Promise<CommandInfo[]> {
   const cmds = await binify(manifest, pkgDir)
   return cmds.map((cmd) => ({
     ...cmd,
     ownName: cmd.name === manifest.name,
     pkgName: manifest.name,
+    makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
   }))
 }
 
-async function linkBin (cmd: Command, binsDir: string) {
+async function linkBin (cmd: CommandInfo, binsDir: string) {
   const externalBinPath = path.join(binsDir, cmd.name)
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
@@ -165,7 +169,7 @@ async function linkBin (cmd: Command, binsDir: string) {
     nodePath = R.union(nodePath, await getBinNodePaths(binsParentDir))
   }
   return cmdShim(cmd.path, externalBinPath, {
-    createPwshFile: POWER_SHELL_IS_SUPPORTED,
+    createPwshFile: cmd.makePowerShellShim,
     nodePath,
   })
 }

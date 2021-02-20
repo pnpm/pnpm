@@ -59,6 +59,17 @@ test('linkBins()', async () => {
   }
 })
 
+test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => {
+  const binTarget = tempy.directory()
+  const warn = jest.fn()
+
+  await linkBins(path.join(fixtures, 'pnpm-cli/node_modules'), binTarget, { warn })
+
+  const bins = await fs.readdir(binTarget)
+  expect(bins).toContain('pnpm')
+  expect(bins).not.toContain('pnpm.ps1')
+})
+
 test('linkBins() finds exotic manifests', async () => {
   const binTarget = tempy.directory()
   const warn = jest.fn()
