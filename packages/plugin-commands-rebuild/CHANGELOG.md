@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.2.26
+
+### Patch Changes
+
+- Updated dependencies [a78e5c47f]
+  - @pnpm/link-bins@5.3.23
+
 ## 2.2.25
 
 ### Patch Changes

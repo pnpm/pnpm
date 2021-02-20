@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-listing
 
+## 2.0.53
+
+### Patch Changes
+
+- 6fecef4cc: Implement shorthands for "--dev" & "--prod" options of `why` command
+
 ## 2.0.52
 
 ### Patch Changes

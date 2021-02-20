@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 5.3.23
+
+### Patch Changes
+
+- a78e5c47f: Don't create a PowerShell command shim for pnpm commands.
+
 ## 5.3.22
 
 ### Patch Changes

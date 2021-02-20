@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.17.3
+
+### Patch Changes
+
+- Turn off warnings about settings.
+- The `-P/-D` shorthand options should work with the `pnpm why` command.
+- `pnpm add --global pnpm` does not create PowerShell command shims for the pnpm CLI.
+
 ## 5.17.2
 
 ### Patch Changes

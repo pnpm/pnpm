@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "4.0.23",
+  "version": "4.0.24",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:4.1.0",
-    "@pnpm/link-bins": "workspace:5.3.22",
+    "@pnpm/link-bins": "workspace:5.3.23",
     "@pnpm/lockfile-types": "workspace:2.2.0",
     "@pnpm/lockfile-utils": "workspace:2.0.22",
     "@pnpm/lockfile-walker": "workspace:3.0.9",
