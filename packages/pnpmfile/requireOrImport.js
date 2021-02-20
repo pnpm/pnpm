@@ -1,4 +1,4 @@
-import libUrl from 'url';
+import libUrl = require('url');
 
 async function esmFileLoader(filePath) {
   try {
@@ -16,10 +16,10 @@ async function requireOrImportPnpmfile (pnpmfilePath) {
     return require(pnpmfilePath);
   } catch (err) {
     if (err.code === 'ERR_REQUIRE_ESM') {
-      return esmFileLoader(pnpmfilePath);
+      return await esmFileLoader(pnpmfilePath);
     }
     throw err;
    }
 }
 
-export default requireOrImportPnpmfile;
+module.exports = requireOrImportPnpmfile;
