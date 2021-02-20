@@ -1,9 +1,9 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
-import fs from 'fs'
-import chalk from 'chalk'
 import requireOrImport from '../requireOrImport.js'
+import fs = require('fs')
+import chalk = require('chalk')
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
