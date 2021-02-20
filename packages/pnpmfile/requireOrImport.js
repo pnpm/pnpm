@@ -1,6 +1,6 @@
 import libUrl from 'url';
 
-async function esmFileLoader(filePath) => {
+async function esmFileLoader(filePath) {
   try {
     const result = await import(libUrl.pathToFileURL(filePath));
     return result.default ? result.default : result;
