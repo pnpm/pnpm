@@ -346,7 +346,7 @@ skipOnWindows('print server status', async () => {
 
   expect(result.status).toBe(0)
   const output = result.stdout.toString()
-  expect(output.includes('process id: ')).toBeTruthy()
+  expect(output).toContain('process id: ')
 
   await execPnpm(['server', 'stop'])
 })
@@ -358,5 +358,5 @@ test('fail if no store server is running and --use-running-store-server flag is 
 
   expect(result.status).toBe(1)
   const output = result.stdout.toString()
-  expect(output.includes('No store server is running.')).toBeTruthy()
+  expect(output).toContain('No store server is running.')
 })

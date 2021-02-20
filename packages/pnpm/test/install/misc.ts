@@ -34,7 +34,7 @@ test('bin files are found by lifecycle scripts', () => {
   const result = execPnpmSync(['install'])
 
   expect(result.status).toBe(0)
-  expect(result.stdout.toString().includes('Hello world!')).toBeTruthy()
+  expect(result.stdout.toString()).toContain('Hello world!')
 })
 
 skipOnWindows('create a "node_modules/.pnpm-debug.log" file when the command fails', async () => {
@@ -199,7 +199,7 @@ test('top-level packages should find the plugins they use', async () => {
   await execPnpm(['install', 'pkg-that-uses-plugins', 'plugin-example'])
 
   const result = crossSpawn.sync('npm', ['test'])
-  expect(result.stdout.toString().includes('My plugin is plugin-example')).toBeTruthy()
+  expect(result.stdout.toString()).toContain('My plugin is plugin-example')
   expect(result.status).toBe(0)
 })
 
@@ -227,7 +227,7 @@ test('run js bin file', async () => {
   await execPnpm(['install', 'hello-world-js-bin'])
 
   const result = crossSpawn.sync('npm', ['test'])
-  expect(result.stdout.toString().includes('Hello world!'))
+  expect(result.stdout.toString()).toContain('Hello world!')
   expect(result.status).toBe(0)
 })
 
@@ -249,7 +249,7 @@ test('`pnpm add` should fail if no package name was provided', () => {
   const { status, stdout } = execPnpmSync(['add'])
 
   expect(status).toBe(1)
-  expect(stdout.toString().includes('`pnpm add` requires the package name')).toBeTruthy()
+  expect(stdout.toString()).toContain('`pnpm add` requires the package name')
 })
 
 test('`pnpm recursive add` should fail if no package name was provided', () => {
@@ -258,7 +258,7 @@ test('`pnpm recursive add` should fail if no package name was provided', () => {
   const { status, stdout } = execPnpmSync(['recursive', 'add'])
 
   expect(status).toBe(1)
-  expect(stdout.toString().includes('`pnpm add` requires the package name')).toBeTruthy()
+  expect(stdout.toString()).toContain('`pnpm add` requires the package name')
 })
 
 test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
@@ -274,7 +274,7 @@ test('install should fail if the used pnpm version does not satisfy the pnpm ver
   const { status, stdout } = execPnpmSync(['install'])
 
   expect(status).toBe(1)
-  expect(stdout.toString().includes('Your pnpm version is incompatible with')).toBeTruthy()
+  expect(stdout.toString()).toContain('Your pnpm version is incompatible with')
 })
 
 test('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
@@ -290,7 +290,7 @@ test('engine-strict=false: install should not fail if the used Node version does
   const { status, stdout } = execPnpmSync(['install'])
 
   expect(status).toBe(0)
-  expect(stdout.toString().includes('Unsupported engine')).toBeTruthy()
+  expect(stdout.toString()).toContain('Unsupported engine')
 })
 
 test('engine-strict=true: install should fail if the used Node version does not satisfy the Node version specified in engines', async () => {
@@ -306,7 +306,7 @@ test('engine-strict=true: install should fail if the used Node version does not 
   const { status, stdout } = execPnpmSync(['install', '--engine-strict'])
 
   expect(status).toBe(1)
-  expect(stdout.toString().includes('Your Node version is incompatible with')).toBeTruthy()
+  expect(stdout.toString()).toContain('Your Node version is incompatible with')
 })
 
 test('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace projects', async () => {
@@ -339,7 +339,7 @@ test('recursive install should fail if the used pnpm version does not satisfy th
   const { status, stdout } = execPnpmSync(['recursive', 'install'])
 
   expect(status).toBe(1)
-  expect(stdout.toString().includes('Your pnpm version is incompatible with')).toBeTruthy()
+  expect(stdout.toString()).toContain('Your pnpm version is incompatible with')
 })
 
 test('engine-strict=true: recursive install should fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async () => {
@@ -372,7 +372,7 @@ test('engine-strict=true: recursive install should fail if the used Node version
   const { status, stdout } = execPnpmSync(['recursive', 'install', '--engine-strict'])
 
   expect(status).toBe(1)
-  expect(stdout.toString().includes('Your Node version is incompatible with')).toBeTruthy()
+  expect(stdout.toString()).toContain('Your Node version is incompatible with')
 })
 
 test('engine-strict=false: recursive install should not fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async () => {
@@ -405,7 +405,7 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
   const { status, stdout } = execPnpmSync(['recursive', 'install'])
 
   expect(status).toBe(0)
-  expect(stdout.toString().includes('Unsupported engine')).toBeTruthy()
+  expect(stdout.toString()).toContain('Unsupported engine')
 })
 
 test('using a custom virtual-store-dir location', async () => {

@@ -31,7 +31,7 @@ test('lifecycle script runs with the correct user agent', () => {
 
   expect(result.status).toBe(0)
   const expectedUserAgentPrefix = `${pnpmPkg.name}/${pnpmPkg.version} `
-  expect(result.stdout.toString().includes(expectedUserAgentPrefix)).toBeTruthy()
+  expect(result.stdout.toString()).toContain(expectedUserAgentPrefix)
 })
 
 test('preinstall is executed before general installation', () => {
@@ -44,7 +44,7 @@ test('preinstall is executed before general installation', () => {
   const result = execPnpmSync(['install'])
 
   expect(result.status).toBe(0)
-  expect(result.stdout.toString().includes('Hello world!')).toBeTruthy()
+  expect(result.stdout.toString()).toContain('Hello world!')
 })
 
 test('postinstall is executed after general installation', () => {
@@ -57,7 +57,7 @@ test('postinstall is executed after general installation', () => {
   const result = execPnpmSync(['install'])
 
   expect(result.status).toBe(0)
-  expect(result.stdout.toString().includes('Hello world!')).toBeTruthy()
+  expect(result.stdout.toString()).toContain('Hello world!')
 })
 
 test('postinstall is not executed after named installation', () => {
@@ -70,7 +70,7 @@ test('postinstall is not executed after named installation', () => {
   const result = execPnpmSync(['install', 'is-negative'])
 
   expect(result.status).toBe(0)
-  expect(!result.stdout.toString().includes('Hello world!')).toBeTruthy()
+  expect(result.stdout.toString()).not.toContain('Hello world!')
 })
 
 test('prepare is not executed after installation with arguments', () => {
@@ -83,7 +83,7 @@ test('prepare is not executed after installation with arguments', () => {
   const result = execPnpmSync(['install', 'is-negative'])
 
   expect(result.status).toBe(0)
-  expect(!result.stdout.toString().includes('Hello world!')).toBeTruthy()
+  expect(result.stdout.toString()).not.toContain('Hello world!')
 })
 
 test('prepare is executed after argumentless installation', () => {
@@ -96,7 +96,7 @@ test('prepare is executed after argumentless installation', () => {
   const result = execPnpmSync(['install'])
 
   expect(result.status).toBe(0)
-  expect(result.stdout.toString().includes('Hello world!')).toBeTruthy()
+  expect(result.stdout.toString()).toContain('Hello world!')
 })
 
 test('lifecycle events have proper npm_config_argv', async () => {

@@ -20,5 +20,5 @@ test('pnpm bin -g', async () => {
   const result = execPnpmSync(['bin', '-g'])
 
   expect(result.status).toStrictEqual(0)
-  expect(process.env[PATH]!.includes(result.stdout.toString())).toBeTruthy()
+  expect(process.env[PATH]!).toContain(result.stdout.toString())
 })

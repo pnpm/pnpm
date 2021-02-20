@@ -227,7 +227,7 @@ test('prints meaningful error when there is syntax error in pnpmfile.js', async 
 
   const proc = execPnpmSync(['install', 'pkg-with-1-dep'])
 
-  expect(proc.stderr.toString().includes('SyntaxError: Invalid regular expression: missing /')).toBeTruthy()
+  expect(proc.stderr.toString()).toContain('SyntaxError: Invalid regular expression: missing /')
   expect(proc.status).toBe(1)
 })
 
@@ -238,7 +238,7 @@ test('fails when pnpmfile.js requires a non-existend module', async () => {
 
   const proc = execPnpmSync(['install', 'pkg-with-1-dep'])
 
-  expect(proc.stdout.toString().includes('Error during pnpmfile execution')).toBeTruthy()
+  expect(proc.stdout.toString()).toContain('Error during pnpmfile execution')
   expect(proc.status).toBe(1)
 })
 
