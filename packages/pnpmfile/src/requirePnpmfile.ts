@@ -77,8 +77,8 @@ export default (pnpmFilePath: string, prefix: string) => {
 }
 
 function pnpmFileExistsSync (pnpmFilePath: string) {
-  const pnpmFileRealName = pnpmFilePath.endsWith('.js')
+  const pnpmFileRealName = pnpmFilePath.endsWith('.cjs')
     ? pnpmFilePath
-    : `${pnpmFilePath}.js`
+    : `${pnpmFilePath}.cjs`
   return fs.existsSync(pnpmFileRealName)
 }
