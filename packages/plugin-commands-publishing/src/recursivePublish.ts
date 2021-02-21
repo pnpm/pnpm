@@ -20,6 +20,7 @@ Partial<Pick<Config,
 | 'tag'
 | 'ca'
 | 'cert'
+| 'force'
 | 'dryRun'
 | 'extraBinPaths'
 | 'fetchRetries'
@@ -57,6 +58,7 @@ export default async function (
   })) as unknown as ResolveFunction
   const pkgsToPublish = await pFilter(pkgs, async (pkg) => {
     if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private) return false
+    if (opts.force) return true
     return !(await isAlreadyPublished({
       dir: pkg.dir,
       lockfileDir: opts.lockfileDir ?? pkg.dir,
