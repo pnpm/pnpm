@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pnpmfile",
   "version": "0.1.21",
-  "description": "Reading a pnpmfile.js",
+  "description": "Reading a .pnpmfile.cjs",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [

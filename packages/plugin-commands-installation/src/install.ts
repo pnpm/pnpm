@@ -160,7 +160,7 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--child-concurrency <number>',
           },
           {
-            description: 'Disable pnpm hooks defined in pnpmfile.js',
+            description: 'Disable pnpm hooks defined in .pnpmfile.cjs',
             name: '--ignore-pnpmfile',
           },
           {

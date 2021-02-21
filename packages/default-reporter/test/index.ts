@@ -858,7 +858,7 @@ test('install: print hook message', (done) => {
   })
 
   hookLogger.debug({
-    from: '/home/jane/repo/pnpmfile.js',
+    from: '/home/jane/repo/.pnpmfile.cjs',
     hook: 'readPackage',
     message: 'foo',
     prefix: '/home/jane/repo',
@@ -885,7 +885,7 @@ test('recursive: print hook message', (done) => {
   })
 
   hookLogger.debug({
-    from: '/home/jane/repo/pnpmfile.js',
+    from: '/home/jane/repo/.pnpmfile.cjs',
     hook: 'readPackage',
     message: 'foo',
     prefix: '/home/jane/repo/pkg-1',

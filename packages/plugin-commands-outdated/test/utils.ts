@@ -31,7 +31,7 @@ export const DEFAULT_OPTS = {
   networkConcurrency: 16,
   offline: false,
   pending: false,
-  pnpmfile: './pnpmfile.js',
+  pnpmfile: './.pnpmfile.cjs',
   proxy: undefined,
   rawConfig: { registry: REGISTRY },
   rawLocalConfig: {},

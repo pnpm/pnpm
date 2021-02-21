@@ -31,7 +31,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: 'pnpmfile.js',
+  pnpmfile: '.pnpmfile.cjs',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {

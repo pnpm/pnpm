@@ -13,7 +13,7 @@ import {
 test('readPackage hook', async () => {
   const project = prepare()
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -38,7 +38,7 @@ test('readPackage hook', async () => {
 test('readPackage hook makes installation fail if it does not return the modified package manifests', async () => {
   prepare()
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -80,7 +80,7 @@ test('readPackage hook from custom location', async () => {
 test('readPackage hook from global pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../pnpmfile.js', `
+  await fs.writeFile('../.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -97,7 +97,7 @@ test('readPackage hook from global pnpmfile', async () => {
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js')])
+  await execPnpm(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', '.pnpmfile.cjs')])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -105,7 +105,7 @@ test('readPackage hook from global pnpmfile', async () => {
 test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../pnpmfile.js', `
+  await fs.writeFile('../.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -120,7 +120,7 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
     }
   `, 'utf8')
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -137,7 +137,7 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js')])
+  await execPnpm(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', '.pnpmfile.cjs')])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
   await project.storeHas('is-positive', '1.0.0')
@@ -163,7 +163,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
       return pkg
     }
   `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
@@ -198,7 +198,7 @@ test('readPackage hook during update', async () => {
     },
   })
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -220,10 +220,10 @@ test('readPackage hook during update', async () => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('prints meaningful error when there is syntax error in pnpmfile.js', async () => {
+test('prints meaningful error when there is syntax error in .pnpmfile.cjs', async () => {
   prepare()
 
-  await fs.writeFile('pnpmfile.js', '/boom', 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', '/boom', 'utf8')
 
   const proc = execPnpmSync(['install', 'pkg-with-1-dep'])
 
@@ -231,10 +231,10 @@ test('prints meaningful error when there is syntax error in pnpmfile.js', async 
   expect(proc.status).toBe(1)
 })
 
-test('fails when pnpmfile.js requires a non-existend module', async () => {
+test('fails when .pnpmfile.cjs requires a non-existend module', async () => {
   prepare()
 
-  await fs.writeFile('pnpmfile.js', 'module.exports = require("./this-does-node-exist")', 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
 
   const proc = execPnpmSync(['install', 'pkg-with-1-dep'])
 
@@ -242,10 +242,10 @@ test('fails when pnpmfile.js requires a non-existend module', async () => {
   expect(proc.status).toBe(1)
 })
 
-test('ignore pnpmfile.js when --ignore-pnpmfile is used', async () => {
+test('ignore .pnpmfile.cjs when --ignore-pnpmfile is used', async () => {
   const project = prepare()
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -266,14 +266,14 @@ test('ignore pnpmfile.js when --ignore-pnpmfile is used', async () => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test('ignore pnpmfile.js during update when --ignore-pnpmfile is used', async () => {
+test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async () => {
   const project = prepare({
     dependencies: {
       'pkg-with-1-dep': '*',
     },
   })
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -297,7 +297,7 @@ test('ignore pnpmfile.js during update when --ignore-pnpmfile is used', async ()
 test('pnpmfile: pass log function to readPackage hook', async () => {
   const project = prepare()
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -335,7 +335,7 @@ test('pnpmfile: pass log function to readPackage hook', async () => {
 test('pnpmfile: pass log function to readPackage hook of global and local pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../pnpmfile.js', `
+  await fs.writeFile('../.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -351,7 +351,7 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
     }
   `, 'utf8')
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -369,7 +369,7 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  const proc = execPnpmSync(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js'), '--reporter', 'ndjson'])
+  const proc = execPnpmSync(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', '.pnpmfile.cjs'), '--reporter', 'ndjson'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
   await project.storeHas('is-positive', '1.0.0')
@@ -399,7 +399,7 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
 test('pnpmfile: run afterAllResolved hook', async () => {
   prepare()
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -429,7 +429,7 @@ test('pnpmfile: run afterAllResolved hook', async () => {
 test('readPackage hook normalizes the package manifest', async () => {
   prepare()
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -454,7 +454,7 @@ test('readPackage hook overrides project package', async () => {
     name: 'test-read-package-hook',
   })
 
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -494,7 +494,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
-  await fs.writeFile('pnpmfile.js', `
+  await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {

@@ -716,7 +716,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
       return pkg
     }
   `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store'])
