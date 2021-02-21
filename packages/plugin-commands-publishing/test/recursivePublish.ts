@@ -4,8 +4,10 @@ import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { ProjectManifest } from '@pnpm/types'
 import execa from 'execa'
 import crossSpawn from 'cross-spawn'
+import loadJsonFile from 'load-json-file'
 import { DEFAULT_OPTS } from './utils'
 
 const CREDENTIALS = [
@@ -168,4 +170,32 @@ test('print info when no packages are published', async () => {
     name: 'pnpm',
     prefix: process.cwd(),
   }))
+})
+
+test('packages are released even if their current version is published, when force=true', async () => {
+  preparePackages([
+    // This version is already in the registry
+    {
+      name: 'is-positive',
+      version: '3.1.0',
+
+      scripts: {
+        prepublishOnly: 'pnpm version major',
+      },
+    },
+  ])
+
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    force: true,
+    dir: process.cwd(),
+    dryRun: true,
+    recursive: true,
+  }, [])
+
+  const manifest = await loadJsonFile<ProjectManifest>('is-positive/package.json')
+  expect(manifest.version).toBe('4.0.0')
 })

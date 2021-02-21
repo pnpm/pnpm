@@ -36,6 +36,7 @@ export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
     'dry-run': Boolean,
+    force: Boolean,
     json: Boolean,
     recursive: Boolean,
   }
@@ -74,6 +75,10 @@ export function help () {
           {
             description: 'Ignores any publish related lifecycle scripts (prepublishOnly, postpublish, and the like)',
             name: '--ignore-scripts',
+          },
+          {
+            description: 'Packages are proceeded to be published even if their current version is already in the registry. This is useful when a "prepublishOnly" script bumps the version of the package before it is published',
+            name: '--force',
           },
         ],
       },

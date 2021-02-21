@@ -1874,6 +1874,7 @@ importers:
       execa: 5.0.0
       is-ci: 2.0.0
       is-windows: 1.0.2
+      load-json-file: 6.2.0
       path-exists: 4.0.0
       tempy: 1.0.0
       write-yaml-file: 4.2.0
@@ -1906,6 +1907,7 @@ importers:
       fast-glob: ^3.2.4
       is-ci: ^2.0.0
       is-windows: ^1.0.2
+      load-json-file: ^6.2.0
       p-filter: ^2.1.0
       path-exists: ^4.0.0
       ramda: ^0.27.1
