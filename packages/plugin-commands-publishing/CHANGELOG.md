@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.5.0
+
+### Minor Changes
+
+- `pnpm publish -r --force` publishes packages even if their current version is already in the registry.
+
 ## 2.4.3
 
 ### Patch Changes

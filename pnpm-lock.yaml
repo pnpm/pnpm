@@ -1695,7 +1695,7 @@ importers:
       '@pnpm/package-store': workspace:10.1.17
       '@pnpm/parse-wanted-dependency': workspace:1.0.0
       '@pnpm/plugin-commands-installation': 'link:'
-      '@pnpm/plugin-commands-rebuild': workspace:2.2.25
+      '@pnpm/plugin-commands-rebuild': workspace:2.2.26
       '@pnpm/pnpmfile': workspace:0.1.21
       '@pnpm/prepare': workspace:0.0.17
       '@pnpm/resolver-base': workspace:7.1.1
@@ -2284,8 +2284,8 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:3.5.19
       '@pnpm/plugin-commands-listing': workspace:2.0.52
       '@pnpm/plugin-commands-outdated': workspace:3.0.47
-      '@pnpm/plugin-commands-publishing': workspace:2.4.3
-      '@pnpm/plugin-commands-rebuild': workspace:2.2.25
+      '@pnpm/plugin-commands-publishing': workspace:2.5.0
+      '@pnpm/plugin-commands-rebuild': workspace:2.2.26
       '@pnpm/plugin-commands-script-runners': workspace:2.6.1
       '@pnpm/plugin-commands-server': workspace:2.0.65
       '@pnpm/plugin-commands-store': workspace:2.0.71
