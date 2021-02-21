@@ -2364,7 +2364,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:3.5.20
       '@pnpm/plugin-commands-listing': workspace:2.0.53
       '@pnpm/plugin-commands-outdated': workspace:3.0.47
-      '@pnpm/plugin-commands-publishing': workspace:2.4.3
+      '@pnpm/plugin-commands-publishing': workspace:2.5.0
       '@pnpm/plugin-commands-rebuild': workspace:2.2.26
       '@pnpm/plugin-commands-script-runners': workspace:2.6.1
       '@pnpm/plugin-commands-server': workspace:2.0.65

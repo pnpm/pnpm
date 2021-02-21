@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.18.0
+
+### Minor Changes
+
+- `pnpm publish -r --force` should try to publish packages even if their current version is already in the registry.
+
 ## 5.17.3
 
 ### Patch Changes
