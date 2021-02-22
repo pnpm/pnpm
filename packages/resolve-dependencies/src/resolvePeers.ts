@@ -24,6 +24,7 @@ export interface GenericDependenciesGraphNode {
   children: {[alias: string]: string}
   depth: number
   peerDependencies?: Dependencies
+  transitivePeerDependencies: Set<string>
   installable: boolean
   isBuilt?: boolean
   isPure: boolean
@@ -253,11 +254,15 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
     const dir = path.join(modules, resolvedPackage.name)
 
-    const unknownPeers = Object.keys(unknownResolvedPeersOfChildren)
+    const transitivePeerDependencies = new Set<string>()
+    const unknownPeers = [
+      ...Object.keys(unknownResolvedPeersOfChildren),
+      ...missingPeersOfChildren,
+    ]
     if (unknownPeers.length) {
       for (const unknownPeer of unknownPeers) {
         if (!peerDependencies[unknownPeer]) {
-          peerDependencies[unknownPeer] = '*'
+          transitivePeerDependencies.add(unknownPeer)
         }
       }
     }
@@ -275,6 +280,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       isPure,
       modules,
       peerDependencies,
+      transitivePeerDependencies,
     }
   }
   return { resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers }

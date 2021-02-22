@@ -180,6 +180,7 @@ export interface ResolvedPackage {
   version: string
   peerDependencies: Dependencies
   peerDependenciesMeta?: PeerDependenciesMeta
+  transitivePeerDependencies: Set<string>
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
@@ -872,6 +873,7 @@ function getResolvedPackage (
     optionalDependencies: new Set(R.keys(options.pkg.optionalDependencies)),
     peerDependencies: peerDependencies ?? {},
     peerDependenciesMeta: options.pkg.peerDependenciesMeta,
+    transitivePeerDependencies: new Set(options.dependencyLockfile?.transitivePeerDependencies ?? []),
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     requiresBuild: options.neverBuiltDependencies.has(options.pkg.name)

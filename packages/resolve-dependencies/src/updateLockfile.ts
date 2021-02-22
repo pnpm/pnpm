@@ -113,6 +113,9 @@ function toLockfileDependency (
   if (!R.isEmpty(pkg.peerDependencies ?? {})) {
     result['peerDependencies'] = pkg.peerDependencies
   }
+  if (pkg.transitivePeerDependencies.size) {
+    result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies)
+  }
   if (pkg.peerDependenciesMeta) {
     const normalizedPeerDependenciesMeta = {}
     for (const peer of Object.keys(pkg.peerDependenciesMeta)) {
