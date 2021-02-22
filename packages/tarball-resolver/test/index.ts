@@ -14,6 +14,19 @@ test('tarball from npm registry', async () => {
   })
 })
 
+test('tarball from URL that contain port number', async () => {
+  const resolutionResult = await resolveFromTarball({ pref: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz' })
+
+  expect(resolutionResult).toStrictEqual({
+    id: '@buildserver.mycompany.com+81/my-private-package-0.1.6.tgz',
+    normalizedPref: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
+    resolution: {
+      tarball: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
+    },
+    resolvedVia: 'url',
+  })
+})
+
 test('tarball not from npm registry', async () => {
   const resolutionResult = await resolveFromTarball({ pref: 'https://github.com/hegemonic/taffydb/tarball/master' })
 

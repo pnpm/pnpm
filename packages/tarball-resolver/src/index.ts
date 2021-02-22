@@ -10,7 +10,7 @@ export default async function resolveTarball (
   if (isRepository(wantedDependency.pref)) return null
 
   return {
-    id: `@${wantedDependency.pref.replace(/^.*:\/\/(git@)?/, '')}`,
+    id: `@${wantedDependency.pref.replace(/^.*:\/\/(git@)?/, '').replace(':', '+')}`,
     normalizedPref: wantedDependency.pref,
     resolution: {
       tarball: wantedDependency.pref,
