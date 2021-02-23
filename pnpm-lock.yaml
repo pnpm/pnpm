@@ -7,7 +7,7 @@ importers:
       '@commitlint/prompt-cli': 11.0.0
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.0
-      '@pnpm/registry-mock': 2.3.0
+      '@pnpm/registry-mock': 2.4.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.20
       '@types/node': 14.14.31
@@ -34,7 +34,7 @@ importers:
       '@commitlint/prompt-cli': ^11.0.0
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': ^0.0.0
-      '@pnpm/registry-mock': ^2.3.0
+      '@pnpm/registry-mock': ^2.4.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.19
       '@types/node': ^14.14.22
@@ -4184,7 +4184,7 @@ packages:
       node: '>=10.16'
     resolution:
       integrity: sha512-tj8ExXZeDcMmMUj7D292ETe/RiEirr1X1wpT6Zy85z2MrFYoG9jfCJpps40OdZBNZBhxbuKtGPWKVSgXD0yrVw==
-  /@pnpm/registry-mock/2.3.0:
+  /@pnpm/registry-mock/2.4.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -4198,7 +4198,7 @@ packages:
       node: '>=10.13'
     hasBin: true
     resolution:
-      integrity: sha512-539rFHzTiEiqTbxo5GUH9x/eaM8l1gwNjWUrLr3xu87RVqXkdkhtwHJptkBsBi6AvbHSMk3kttN8HG9ukawaPw==
+      integrity: sha512-05Bnp7idlP6vj5NzKv1qiVIByL69Pgrsav4wIkRowQzw4BjdizU22tjlLJhK9Fo4Ra6SGdqDQqFrzlQ2QICHGA==
   /@pnpm/self-installer/2.1.0:
     dev: false
     engines:
