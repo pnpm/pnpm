@@ -43,7 +43,7 @@
     "@types/sinon": "^9.0.9",
     "cross-spawn": "^7.0.3",
     "execa": "^5.0.0",
-    "is-ci": "^2.0.0",
+    "is-ci": "^3.0.0",
     "is-windows": "^1.0.2",
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",

@@ -44,7 +44,7 @@
     "@pnpm/store-connection-manager": "workspace:0.3.63",
     "@pnpm/store-path": "5.0.0-0",
     "@zkochan/diable": "^1.0.2",
-    "delay": "^4.4.1",
+    "delay": "^5.0.0",
     "get-port": "^5.1.1",
     "is-windows": "^1.0.2",
     "process-exists": "^4.0.0",
