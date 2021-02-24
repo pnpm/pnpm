@@ -51,7 +51,7 @@ export default function (
 
 function toLockfileDependency (
   pendingRequiresBuilds: string[],
-  pkg: ResolvedPackage,
+  pkg: ResolvedPackage & { transitivePeerDependencies: Set<string> },
   opts: {
     depPath: string
     registry: string
