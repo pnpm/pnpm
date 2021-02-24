@@ -35,7 +35,7 @@
     "@pnpm/constants": "workspace:4.1.0",
     "@pnpm/filter-workspace-packages": "workspace:2.3.10",
     "@pnpm/logger": "^3.2.3",
-    "@pnpm/plugin-commands-installation": "workspace:3.5.20",
+    "@pnpm/plugin-commands-installation": "workspace:3.5.21",
     "@pnpm/prepare": "workspace:0.0.17",
     "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.35",

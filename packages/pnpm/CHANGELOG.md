@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.18.1
+
+### Patch Changes
+
+- The ID of a tarball dependency should not contain colons, when the URL has a port. The colon should be escaped with a plus sign[#3182](https://github.com/pnpm/pnpm/issues/3182).
+
+
 ## 5.18.0
 
 ### Minor Changes

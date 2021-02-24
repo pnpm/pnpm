@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 11.0.19
+
+### Patch Changes
+
+- Updated dependencies [a00ee0035]
+  - @pnpm/tarball-resolver@4.0.8
+
 ## 11.0.18
 
 ### Patch Changes

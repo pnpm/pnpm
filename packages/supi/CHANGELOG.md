@@ -1,5 +1,14 @@
 # supi
 
+## 0.44.6
+
+### Patch Changes
+
+- Updated dependencies [27a40321c]
+  - @pnpm/get-context@3.3.6
+  - @pnpm/headless@14.6.9
+  - @pnpm/package-requester@12.2.2
+
 ## 0.44.5
 
 ### Patch Changes

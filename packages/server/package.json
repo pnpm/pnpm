@@ -33,10 +33,10 @@
     "@pnpm/logger": "^3.2.3"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:2.0.21",
+    "@pnpm/client": "workspace:2.0.22",
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-requester": "workspace:12.2.2",
-    "@pnpm/package-store": "workspace:10.1.17",
+    "@pnpm/package-store": "workspace:10.1.18",
     "@types/mz": "^2.7.3",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "^8.3.0",

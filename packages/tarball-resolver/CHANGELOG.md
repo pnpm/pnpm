@@ -1,5 +1,11 @@
 # @pnpm/tarball-resolver
 
+## 4.0.8
+
+### Patch Changes
+
+- a00ee0035: The ID of a tarball dependency should not contain colons, when the URL has a port. The colon should be escaped with a plus sign.
+
 ## 4.0.7
 
 ### Patch Changes

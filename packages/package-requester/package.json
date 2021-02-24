@@ -55,7 +55,7 @@
     "ssri": "6.0.1"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:2.0.21",
+    "@pnpm/client": "workspace:2.0.22",
     "@pnpm/logger": "^3.2.3",
     "@types/mz": "^2.7.3",
     "@types/ncp": "^2.0.4",
