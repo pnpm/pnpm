@@ -963,7 +963,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     specifiers: {
       foobarqar: '1.0.1',
     },
-  })
+  }, { lineWidth: 1000 })
 
   await mutateModules([
     {
@@ -1053,7 +1053,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     specifiers: {
       'parent-of-pkg-with-1-dep': '1.0.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   await mutateModules([
     {

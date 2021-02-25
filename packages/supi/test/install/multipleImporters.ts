@@ -651,7 +651,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
     },
-  })
+  }, { lineWidth: 1000 })
 
   await mutateModules([
     {
@@ -744,7 +744,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
     },
-  })
+  }, { lineWidth: 1000 })
 
   await mutateModules([
     {
