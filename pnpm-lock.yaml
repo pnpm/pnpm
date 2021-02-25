@@ -26,7 +26,7 @@ importers:
       ts-jest: 26.5.2_jest@26.6.3+typescript@4.1.5
       ts-node: 9.1.1_typescript@4.1.5
       typescript: 4.1.5
-      verdaccio: 4.11.0
+      verdaccio: 4.11.1
       yarn: 1.22.10
     specifiers:
       '@changesets/cli': ^2.14.0
@@ -272,7 +272,7 @@ importers:
       pretty-ms: 7.0.1
       ramda: 0.27.1
       right-pad: 1.0.1
-      rxjs: 6.6.3
+      rxjs: 6.6.6
       semver: 7.3.4
       stacktracey: 1.2.127
       string-length: 4.0.1
@@ -2149,7 +2149,7 @@ importers:
       deep-require-cwd: 1.0.0
       delay: 5.0.0
       dir-is-case-sensitive: 2.0.0
-      esbuild: 0.8.51
+      esbuild: 0.8.52
       execa: 5.0.0
       exists-link: 2.0.0
       is-ci: 3.0.0
@@ -3985,7 +3985,7 @@ packages:
       pretty-ms: 7.0.1
       ramda: 0.27.1
       right-pad: 1.0.1
-      rxjs: 6.6.3
+      rxjs: 6.6.6
       semver: 7.3.4
       stacktracey: 1.2.127
       string-length: 4.0.1
@@ -4130,7 +4130,7 @@ packages:
       read-yaml-file: 2.1.0
       rimraf: 3.0.2
       tempy: 0.6.0
-      verdaccio: 4.11.0
+      verdaccio: 4.11.1
       write-yaml-file: 4.2.0
     dev: true
     engines:
@@ -5844,9 +5844,9 @@ packages:
   /browserslist/4.16.3:
     resolution: {integrity: sha512-vIyhWmIkULaq04Gt93txdh+j02yX/JzlyhLYbV3YQCn/zvES3JnY7TifHHvvr1w5hTDluNKMkV05cs4vy8Q7sw==}
     dependencies:
-      caniuse-lite: 1.0.30001191
-      colorette: 1.2.1
-      electron-to-chromium: 1.3.673
+      caniuse-lite: 1.0.30001192
+      colorette: 1.2.2
+      electron-to-chromium: 1.3.674
       escalade: 3.1.1
       node-releases: 1.1.71
     dev: true
@@ -6051,8 +6051,8 @@ packages:
     engines:
       node: '>=10.13'
 
-  /caniuse-lite/1.0.30001191:
-    resolution: {integrity: sha512-xJJqzyd+7GCJXkcoBiQ1GuxEiOBCLQ0aVW9HMekifZsAVGdj5eJ4mFB9fEhSHipq9IOk/QXFJUiIr9lZT+EsGw==}
+  /caniuse-lite/1.0.30001192:
+    resolution: {integrity: sha512-63OrUnwJj5T1rUmoyqYTdRWBqFFxZFlyZnRRjDR8NSUQFB6A+j/uBORU/SyJ5WzDLg4SPiZH40hQCBNdZ/jmAw==}
     dev: true
 
   /capture-exit/2.0.0:
@@ -6308,8 +6308,8 @@ packages:
   /color-name/1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==}
 
-  /colorette/1.2.1:
-    resolution: {integrity: sha512-puCDz0CzydiSYOrnXpz/PKd69zRrribezjtE9yd4zvytoRc8+RY/KJPvtPFKZS3E3wP6neGyMe0vOTlHO5L3Pw==}
+  /colorette/1.2.2:
+    resolution: {integrity: sha512-MKGMzyfeuutC/ZJ1cba9NqcNpfeqMUcYmyF1ZFY6/Cn7CNSAKx6a+s48sqLqyAiZuaP2TcqMhoo+dlwFnVxT9w==}
     dev: true
 
   /colors/0.6.2:
@@ -7118,8 +7118,8 @@ packages:
     resolution: {integrity: sha1-WQxhFWsK4vTwJVcyoViyZrxWsh0=}
     dev: true
 
-  /electron-to-chromium/1.3.673:
-    resolution: {integrity: sha512-ms+QR2ckfrrpEAjXweLx6kNCbpAl66DcW//3BZD4BV5KhUgr0RZRce1ON/9J3QyA3JO28nzgb5Xv8DnPr05ILg==}
+  /electron-to-chromium/1.3.674:
+    resolution: {integrity: sha512-DBmEKRVYLZAoQSW+AmLcTF5Bpwhk4RUkobtzXVDlfPPYIlbsH3Jfg3QbBjAfFcRARzMIo4YiMhp3N+RnMuo1Eg==}
     dev: true
 
   /emittery/0.7.2:
@@ -7241,8 +7241,8 @@ packages:
       es6-promise: 4.2.8
     dev: false
 
-  /esbuild/0.8.51:
-    resolution: {integrity: sha512-MVIom8fgL1+B6iGqWtrG7QJ1gqd64BycxounlsX1kR/IcIITaSlTo7gghKpg4a+bnxkpo0dwcikuvk4MVSA9ww==}
+  /esbuild/0.8.52:
+    resolution: {integrity: sha512-b5KzFweLLXoXQwdC/e2+Z80c8uo2M5MgP7yQEEebkFw6In4T9CvYcNoM2ElvJt8ByO04zAZUV0fZkXmXoi2s9A==}
     dev: true
     hasBin: true
     requiresBuild: true
@@ -12792,8 +12792,8 @@ packages:
     resolution: {integrity: sha1-Gc5QLKVyZl87ZHsQk5+X/RYV8QI=}
     dev: true
 
-  /rxjs/6.6.3:
-    resolution: {integrity: sha512-trsQc+xYYXZ3urjOiJOuCOa5N3jAZ3eiSpQB5hIT8zGlL2QfnHLJ2r7GMkBGuIausdJN1OneaI6gQlsqNHHmZQ==}
+  /rxjs/6.6.6:
+    resolution: {integrity: sha512-/oTwee4N4iWzAMAL9xdGKjkEHmIwupR3oXbQjCKywF1BeFohswF3vZdogbmEF6pZkOsXTzWkrZszrWpQTByYVg==}
     dependencies:
       tslib: 1.14.1
     engines:
@@ -14345,8 +14345,8 @@ packages:
     engines:
       node: '>=8'
 
-  /verdaccio/4.11.0:
-    resolution: {integrity: sha512-9mNILk0MLcd1e2EHhHVQHaiAIqYxr828Bu9ZDDXBEEA1jRNDqkwqdqr2zFfaTb0rRAfAqiorq/VvB4pNyJXWHQ==}
+  /verdaccio/4.11.1:
+    resolution: {integrity: sha512-xlu61MWAWztdEsGM2vUbv5fUv+E4GWTZ9rTYU/uc1+X3EURMLEHDdFBZR7qe0abfB3Kj59GATNEtQNQ2KvqNDA==}
     dependencies:
       '@verdaccio/commons-api': 9.7.1
       '@verdaccio/local-storage': 9.7.4
