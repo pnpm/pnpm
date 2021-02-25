@@ -51,7 +51,7 @@ export default function (
 
 function toLockfileDependency (
   pendingRequiresBuilds: string[],
-  pkg: ResolvedPackage,
+  pkg: ResolvedPackage & { transitivePeerDependencies: Set<string> },
   opts: {
     depPath: string
     registry: string
@@ -112,6 +112,9 @@ function toLockfileDependency (
   }
   if (!R.isEmpty(pkg.peerDependencies ?? {})) {
     result['peerDependencies'] = pkg.peerDependencies
+  }
+  if (pkg.transitivePeerDependencies.size) {
+    result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies)
   }
   if (pkg.peerDependenciesMeta) {
     const normalizedPeerDependenciesMeta = {}

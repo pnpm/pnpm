@@ -201,6 +201,7 @@ test('warning is not reported if the peer dependency can be required from a node
 
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
   prepareEmpty()
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
 
   const reporter = sinon.spy()
 
@@ -250,6 +251,47 @@ test('top peer dependency is linked on subsequent install', async () => {
   expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@1.0.0/node_modules/abc-parent-with-ab'))).toBeTruthy()
 })
 
+test('top peer dependency is linked on subsequent install, through transitive peer', async () => {
+  prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent@1.0.0'], await testDefaults())
+
+  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults())
+
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-grand-parent@1.0.0_peer-c@1.0.0/node_modules/abc-grand-parent'))).toBeTruthy()
+})
+
+test('the list of transitive peer dependencies is kept up to date', async () => {
+  const project = prepareEmpty()
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent@1.0.0', 'peer-c@1.0.0'], await testDefaults())
+
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.1.0', distTag: 'latest' })
+
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-grand-parent@1.0.0_peer-c@1.0.0/node_modules/abc-grand-parent'))).toBeTruthy()
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packages['/abc-grand-parent/1.0.0_peer-c@1.0.0'].transitivePeerDependencies).toStrictEqual(['peer-c'])
+  }
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ update: true, depth: Infinity }))
+
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-grand-parent@1.0.0/node_modules/abc-grand-parent'))).toBeTruthy()
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packages['/abc-grand-parent/1.0.0'].transitivePeerDependencies).toBeFalsy()
+  }
+})
+
 test('top peer dependency is linked on subsequent install. Reverse order', async () => {
   prepareEmpty()
 
@@ -268,6 +310,7 @@ async function okFile (filename: string) {
 
 // This usecase was failing. See https://github.com/pnpm/supi/issues/15
 test('peer dependencies are linked when running one named installation', async () => {
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 

@@ -78,6 +78,7 @@ export interface PackageSnapshot {
       optional: true
     }
   }
+  transitivePeerDependencies?: string[]
   bundledDependencies?: string[]
   engines?: {
     node: string

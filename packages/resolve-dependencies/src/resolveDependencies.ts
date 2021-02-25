@@ -430,7 +430,13 @@ function getDepsToResolve (
     const infoFromLockfile = getInfoFromLockfile(wantedLockfile, options.registries, reference, wantedDependency.alias)
     if (
       !proceedAll &&
-      (infoFromLockfile?.dependencyLockfile?.peerDependencies != null || !infoFromLockfile)
+      (
+        !infoFromLockfile ||
+        infoFromLockfile.dependencyLockfile != null && (
+          infoFromLockfile.dependencyLockfile.peerDependencies != null ||
+          infoFromLockfile.dependencyLockfile.transitivePeerDependencies?.length
+        )
+      )
     ) {
       if (infoFromLockfile?.dependencyLockfile?.peerDependencies) {
         Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
