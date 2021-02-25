@@ -53,6 +53,7 @@
     "js-yaml": "^4.0.0",
     "normalize-path": "^3.0.0",
     "ramda": "^0.27.1",
+    "sort-keys": "^4.2.0",
     "strip-bom": "^4.0.0",
     "write-file-atomic": "^3.0.3"
   },

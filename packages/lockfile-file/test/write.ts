@@ -54,6 +54,9 @@ test('writeLockfiles()', async () => {
   })
   expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
   expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+
+  // Verifying the formatting of the lockfile
+  expect(fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')).toMatchSnapshot()
 })
 
 test('writeLockfiles() when no specifiers but dependencies present', async () => {
