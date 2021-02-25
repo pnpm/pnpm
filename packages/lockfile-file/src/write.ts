@@ -15,6 +15,7 @@ async function writeFileAtomic (filename: string, data: string) {
 }
 
 const LOCKFILE_YAML_FORMAT = {
+  blankLines: true,
   lineWidth: 1000,
   noCompatMode: true,
   noRefs: true,

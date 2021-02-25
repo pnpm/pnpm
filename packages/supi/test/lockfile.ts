@@ -107,7 +107,7 @@ test('lockfile with scoped package', async () => {
     specifiers: {
       '@types/semver': '^5.3.31',
     },
-  })
+  }, { lineWidth: 1000 })
 
   await install({
     dependencies: {
@@ -135,7 +135,7 @@ test('fail when shasum from lockfile does not match with the actual one', async 
     specifiers: {
       'is-negative': '2.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   try {
     await install({
@@ -194,7 +194,7 @@ test('lockfile removed when no deps in package.json', async () => {
     specifiers: {
       'is-negative': '2.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   await install({}, await testDefaults())
 
@@ -233,7 +233,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   const reporter = sinon.spy()
   await install({
@@ -291,7 +291,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   const reporter = sinon.spy()
 
@@ -385,7 +385,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   lockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies!['dep-of-pkg-with-1-dep'] = '100.1.0'
 
-  await writeYamlFile(WANTED_LOCKFILE, lockfile)
+  await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
 
   await install(manifest, await testDefaults())
 
@@ -697,7 +697,7 @@ test('lockfile is ignored when lockfile = false', async () => {
     specifiers: {
       'is-negative': '2.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   const reporter = sinon.spy()
 
@@ -957,7 +957,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
         },
       },
     },
-  })
+  }, { lineWidth: 1000 })
 
   pkg2 = await addDependenciesToPackage(
     pkg2,
@@ -1017,7 +1017,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
   const initialLockfile = await project.readLockfile()
-  await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 })
+  await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 }, { lineWidth: 1000 })
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
@@ -1074,7 +1074,7 @@ test('broken lockfile is fixed even if it seems like up-to-date at first. Unless
     const lockfile = await project.readLockfile()
     expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
     delete lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0']
-    await writeYamlFile(WANTED_LOCKFILE, lockfile)
+    await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
   let err!: PnpmError
