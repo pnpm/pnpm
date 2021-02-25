@@ -4,19 +4,22 @@ exports[`writeLockfiles() 1`] = `
 "dependencies:
   is-negative: 1.0.0
   is-positive: 1.0.0
+
 lockfileVersion: 5.3
+
 packages:
+
   /is-negative/1.0.0:
-    resolution:
-      integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=
+    resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
     dependencies:
       is-positive: 2.0.0
+
   /is-positive/1.0.0:
-    resolution:
-      integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=
+    resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
+
   /is-positive/2.0.0:
-    resolution:
-      integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=
+    resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
+
 specifiers:
   is-negative: ^1.0.0
   is-positive: ^1.0.0
