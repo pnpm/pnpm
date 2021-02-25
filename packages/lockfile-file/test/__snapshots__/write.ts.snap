@@ -4,7 +4,7 @@ exports[`writeLockfiles() 1`] = `
 "dependencies:
   is-negative: 1.0.0
   is-positive: 1.0.0
-lockfileVersion: 5.2
+lockfileVersion: 5.3
 packages:
   /is-negative/1.0.0:
     resolution:
