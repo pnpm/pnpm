@@ -142,7 +142,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
   }
   const files: string[] = []
-  if (manifest.name === 'pnpm') {
+  if (manifest.name === 'pnpm' || manifest.name?.endsWith('/pnpm')) {
     files.push('dist')
     files.push('bin')
   } else {
