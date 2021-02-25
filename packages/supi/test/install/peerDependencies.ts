@@ -261,7 +261,7 @@ test('top peer dependency is linked on subsequent install, through transitive pe
   expect(await exists(path.resolve('node_modules/.pnpm/abc-grand-parent@1.0.0_peer-c@1.0.0/node_modules/abc-grand-parent'))).toBeTruthy()
 })
 
-test('transitive peers are removed when the subdependency does not rely on them anymore', async () => {
+test('the list of transitive peer dependencies is kept up to date', async () => {
   const project = prepareEmpty()
   await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
 
