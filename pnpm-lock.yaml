@@ -942,7 +942,7 @@ importers:
       '@pnpm/merge-lockfile-changes': link:../merge-lockfile-changes
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 1.0.0
-      js-yaml: /@zkochan/js-yaml/0.0.1
+      js-yaml: /@zkochan/js-yaml/0.0.2
       normalize-path: 3.0.0
       ramda: 0.27.1
       sort-keys: 4.2.0
@@ -971,7 +971,7 @@ importers:
       '@types/ramda': ^0.27.35
       '@types/write-file-atomic': ^3.0.1
       '@zkochan/rimraf': ^1.0.0
-      js-yaml: npm:@zkochan/js-yaml@0.0.1
+      js-yaml: npm:@zkochan/js-yaml@0.0.2
       normalize-path: ^3.0.0
       ramda: ^0.27.1
       sort-keys: ^4.2.0
@@ -3038,7 +3038,7 @@ overrides:
   graceful-fs: 4.2.4
   http-errors: ^1.7.3
   istanbul-reports: npm:@zkochan/istanbul-reports
-  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.1
+  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.2
   table@^6.0.3: 6.0.4
 packages:
   /@arcanis/slice-ansi/1.0.2:
@@ -4868,12 +4868,12 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==
-  /@zkochan/js-yaml/0.0.1:
+  /@zkochan/js-yaml/0.0.2:
     dependencies:
       argparse: 2.0.1
     hasBin: true
     resolution:
-      integrity: sha512-+mc2rjw5RJfXp9CoZPze7t4TA2RSNjiUGsocGg5WTAn3J/Ft/Xcd2PzHLIbSee6YnTzYMTLF5NsKl3sv/8RAew==
+      integrity: sha512-rKya/3lsmDGQ/RJgaEZsfgVsD4zLfFqon/NXoejW1OhDSp5I+RU7sHbdj7VF8BZ+PIlTKuUUpYGXC6yQJx/PvQ==
   /@zkochan/libnpx/11.0.3:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
@@ -12340,7 +12340,7 @@ packages:
       integrity: sha512-k1KSHstyNvNq5mE6gGdqKuPEmlCYxvXMFgYdCuhzh4G3UCZynAzObU2fPpaOJ8Xd/AIUWZ1jkEwEljLVH3xkow==
   /read-yaml-file/2.1.0:
     dependencies:
-      js-yaml: /@zkochan/js-yaml/0.0.1
+      js-yaml: /@zkochan/js-yaml/0.0.2
       strip-bom: 4.0.0
     engines:
       node: '>=10.13'
@@ -14737,7 +14737,7 @@ packages:
       integrity: sha512-v2UQ+50TNf2rNHJ8NyWttfm/EJUBWMJcx6ZTYZr6Qp52uuegWw/lBkCtCbnYZEmPRNL61m+u67dAmGxo+HTULA==
   /write-yaml-file/4.2.0:
     dependencies:
-      js-yaml: /@zkochan/js-yaml/0.0.1
+      js-yaml: /@zkochan/js-yaml/0.0.2
       write-file-atomic: 3.0.3
     engines:
       node: '>=10.13'

@@ -61,7 +61,7 @@
       "http-errors": "^1.7.3",
       "table@^6.0.3": "6.0.4",
       "graceful-fs": "4.2.4",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.1"
+      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.2"
     },
     "neverBuiltDependencies": [
       "core-js",
