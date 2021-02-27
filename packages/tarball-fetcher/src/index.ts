@@ -1,3 +1,5 @@
+import path from 'path'
+import fs from 'fs'
 import PnpmError from '@pnpm/error'
 import {
   Cafs,
@@ -11,13 +13,11 @@ import {
   GetCredentials,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import ssri from 'ssri'
 import createDownloader, {
   DownloadFunction,
   TarballIntegrityError,
 } from './createDownloader'
-import path = require('path')
-import fs = require('mz/fs')
-import ssri = require('ssri')
 
 export { BadTarballError } from './errorTypes'
 

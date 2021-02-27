@@ -69,6 +69,7 @@ export interface StrictInstallOptions {
   dir: string
   symlink: boolean
   enableModulesDir: boolean
+  modulesCacheMaxAge: number
 
   hoistPattern: string[] | undefined
   forceHoistPattern: boolean
@@ -144,6 +145,7 @@ const defaults = async (opts: InstallOptions) => {
     verifyStoreIntegrity: true,
     workspacePackages: {},
     enableModulesDir: true,
+    modulesCacheMaxAge: 7 * 24 * 60,
   } as StrictInstallOptions
 }
 

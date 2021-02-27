@@ -1,8 +1,8 @@
+import path from 'path'
 import { ContextLog, PackageImportMethodLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
-import normalize = require('normalize-path')
-import path = require('path')
+import normalize from 'normalize-path'
 
 export default (
   log$: {

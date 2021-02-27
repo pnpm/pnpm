@@ -1,3 +1,4 @@
+import path from 'path'
 import assertStore from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -6,10 +7,9 @@ import {
   addDependenciesToPackage,
   install,
 } from 'supi'
+import exists from 'path-exists'
+import sinon from 'sinon'
 import { addDistTag, testDefaults } from '../utils'
-import path = require('path')
-import exists = require('path-exists')
-import sinon = require('sinon')
 
 test('install with lockfileOnly = true', async () => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')

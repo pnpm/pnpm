@@ -1,4 +1,6 @@
 /// <reference path="../../../typings/index.d.ts" />
+import fs from 'fs'
+import path from 'path'
 import createCafs from '@pnpm/cafs'
 import PnpmError, { FetchError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
@@ -6,12 +8,10 @@ import createFetcher, {
   BadTarballError,
   TarballIntegrityError,
 } from '@pnpm/tarball-fetcher'
-import path = require('path')
-import cpFile = require('cp-file')
-import fs = require('mz/fs')
-import nock = require('nock')
-import ssri = require('ssri')
-import tempy = require('tempy')
+import cpFile from 'cp-file'
+import nock from 'nock'
+import ssri from 'ssri'
+import tempy from 'tempy'
 
 const cafsDir = tempy.directory()
 const cafs = createCafs(cafsDir)

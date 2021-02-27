@@ -1,5 +1,5 @@
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import RegClient = require('anonymous-npm-registry-client')
+import RegClient from 'anonymous-npm-registry-client'
 
 export async function add (pkg: string, version: string, distTag: string) {
   const client = new RegClient()

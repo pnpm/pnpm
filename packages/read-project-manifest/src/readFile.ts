@@ -1,16 +1,14 @@
-import { promisify } from 'util'
+import { promises as fs } from 'fs'
 import { ProjectManifest } from '@pnpm/types'
-import fs = require('graceful-fs')
-import JSON5 = require('json5')
-import parseJson = require('parse-json')
-import stripBom = require('strip-bom')
-const readFile = promisify(fs.readFile)
+import JSON5 from 'json5'
+import parseJson from 'parse-json'
+import stripBom from 'strip-bom'
 
 export async function readJson5File (filePath: string) {
   const text = await readFileWithoutBom(filePath)
   try {
     return {
-      data: JSON5.parse(text) as ProjectManifest,
+      data: JSON5.parse(text),
       text,
     }
   } catch (err) {
@@ -34,5 +32,5 @@ export async function readJsonFile (filePath: string) {
 }
 
 async function readFileWithoutBom (path: string) {
-  return stripBom(await readFile(path, 'utf8'))
+  return stripBom(await fs.readFile(path, 'utf8'))
 }

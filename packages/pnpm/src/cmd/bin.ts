@@ -1,6 +1,6 @@
 import { types as allTypes } from '@pnpm/config'
-import R = require('ramda')
-import renderHelp = require('render-help')
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 

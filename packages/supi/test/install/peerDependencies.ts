@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -10,13 +12,11 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import exists from 'path-exists'
+import sinon from 'sinon'
+import deepRequireCwd from 'deep-require-cwd'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import deepRequireCwd = require('deep-require-cwd')
-import fs = require('mz/fs')
-import exists = require('path-exists')
-import sinon = require('sinon')
 
 test("don't fail when peer dependency is fetched from GitHub", async () => {
   prepareEmpty()
@@ -51,7 +51,9 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 // Covers https://github.com/pnpm/pnpm/issues/1133
 test('nothing is needlessly removed from node_modules', async () => {
   prepareEmpty()
-  const opts = await testDefaults()
+  const opts = await testDefaults({
+    modulesCacheMaxAge: 0,
+  })
   const manifest = await addDependenciesToPackage({}, ['using-ajv', 'ajv-keywords@1.5.0'], opts)
 
   expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
@@ -199,6 +201,7 @@ test('warning is not reported if the peer dependency can be required from a node
 
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
   prepareEmpty()
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
 
   const reporter = sinon.spy()
 
@@ -248,13 +251,53 @@ test('top peer dependency is linked on subsequent install', async () => {
   expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@1.0.0/node_modules/abc-parent-with-ab'))).toBeTruthy()
 })
 
+test('top peer dependency is linked on subsequent install, through transitive peer', async () => {
+  prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent@1.0.0'], await testDefaults())
+
+  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults())
+
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-grand-parent@1.0.0_peer-c@1.0.0/node_modules/abc-grand-parent'))).toBeTruthy()
+})
+
+test('the list of transitive peer dependencies is kept up to date', async () => {
+  const project = prepareEmpty()
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent@1.0.0', 'peer-c@1.0.0'], await testDefaults())
+
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.1.0', distTag: 'latest' })
+
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-grand-parent@1.0.0_peer-c@1.0.0/node_modules/abc-grand-parent'))).toBeTruthy()
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packages['/abc-grand-parent/1.0.0_peer-c@1.0.0'].transitivePeerDependencies).toStrictEqual(['peer-c'])
+  }
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ update: true, depth: Infinity }))
+
+  expect(await exists(path.resolve('node_modules/.pnpm/abc-grand-parent@1.0.0/node_modules/abc-grand-parent'))).toBeTruthy()
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packages['/abc-grand-parent/1.0.0'].transitivePeerDependencies).toBeFalsy()
+  }
+})
+
 test('top peer dependency is linked on subsequent install. Reverse order', async () => {
   prepareEmpty()
-  console.log(process.cwd())
 
   const manifest = await addDependenciesToPackage({}, ['abc-parent-with-ab@1.0.0'], await testDefaults())
 
-  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults({ modulesCacheMaxAge: 0 }))
 
   expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0/node_modules/abc-parent-with-ab'))).toBeFalsy()
   expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@1.0.0/node_modules/abc-parent-with-ab'))).toBeTruthy()
@@ -267,6 +310,7 @@ async function okFile (filename: string) {
 
 // This usecase was failing. See https://github.com/pnpm/supi/issues/15
 test('peer dependencies are linked when running one named installation', async () => {
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 
@@ -364,7 +408,7 @@ test('scoped peer dependency is linked', async () => {
   prepareEmpty()
   await addDependenciesToPackage({}, ['for-testing-scoped-peers'], await testDefaults())
 
-  const pkgVariation = path.resolve('node_modules/.pnpm/@having/scoped-peer@1.0.0_@scoped+peer@1.0.0/node_modules')
+  const pkgVariation = path.resolve('node_modules/.pnpm/@having#scoped-peer@1.0.0_@scoped+peer@1.0.0/node_modules')
   await okFile(path.join(pkgVariation, '@having', 'scoped-peer'))
   await okFile(path.join(pkgVariation, '@scoped', 'peer'))
 })
@@ -851,10 +895,10 @@ test('local tarball dependency with peer dependency', async () => {
     'foo@100.0.0',
   ], await testDefaults({ reporter }))
 
-  const localPkgDirs = await fs.readdir('node_modules/.pnpm/local')
+  const integrityLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
+    .filter((dir) => dir.startsWith('local#'))
 
-  expect(localPkgDirs.length).toBe(1)
-  expect(localPkgDirs[0].endsWith('_bar@100.0.0+foo@100.0.0')).toBeTruthy()
+  expect(integrityLocalPkgDirs.length).toBe(1)
 
   await rimraf('node_modules')
 
@@ -867,7 +911,11 @@ test('local tarball dependency with peer dependency', async () => {
     },
   ], await testDefaults())
 
-  expect(await fs.readdir('node_modules/.pnpm/local')).toStrictEqual(localPkgDirs)
+  {
+    const updatedLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
+      .filter((dir) => dir.startsWith('local#'))
+    expect(updatedLocalPkgDirs).toStrictEqual(integrityLocalPkgDirs)
+  }
 })
 
 test('peer dependency that is resolved by a dev dependency', async () => {

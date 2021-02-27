@@ -11,29 +11,24 @@ import { filterPackages } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
+import chalk from 'chalk'
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { rcOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
 import './logging/fileLogger'
 import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
-import chalk = require('chalk')
+import isCI from 'is-ci'
+import path from 'path'
+import * as R from 'ramda'
+import stripAnsi from 'strip-ansi'
+import which from 'which'
 
 process
   .once('SIGINT', () => process.exit(0))
   .once('SIGTERM', () => process.exit(0))
 
-// Patch the global fs module here at the app level
-import fs = require('fs')
-import gfs = require('graceful-fs')
-
-gfs.gracefulify(fs)
 loudRejection()
-import isCI = require('is-ci')
-import path = require('path')
-import R = require('ramda')
-import stripAnsi = require('strip-ansi')
-import which = require('which')
 
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',
@@ -88,12 +83,13 @@ export default async function run (inputArgv: string[]) {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
+    const checkUnknownSetting = cmd === 'install'
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       rcOptionsTypes,
       workspaceDir,
-      checkUnknownSetting: false,
+      checkUnknownSetting,
     }) as typeof config
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv

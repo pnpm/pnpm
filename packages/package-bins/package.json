@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
@@ -32,12 +32,10 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-bins#readme",
   "dependencies": {
     "@pnpm/types": "workspace:6.4.0",
-    "graceful-fs": "4.2.4",
     "is-subdir": "^1.1.1",
     "p-filter": "^2.1.0"
   },
   "devDependencies": {
-    "@types/graceful-fs": "^4.1.4",
     "@types/node": "^14.14.22"
   },
   "funding": "https://opencollective.com/pnpm"

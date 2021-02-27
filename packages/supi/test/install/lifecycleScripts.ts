@@ -1,18 +1,18 @@
 import * as path from 'path'
+import { promises as fs } from 'fs'
+import { LifecycleLog } from '@pnpm/core-loggers'
+import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
 } from 'supi'
-import { prepareEmpty } from '@pnpm/prepare'
-import { LifecycleLog } from '@pnpm/core-loggers'
+import rimraf from '@zkochan/rimraf'
+import loadJsonFile from 'load-json-file'
+import exists from 'path-exists'
+import PATH from 'path-name'
+import sinon from 'sinon'
 import { testDefaults } from '../utils'
-import rimraf = require('@zkochan/rimraf')
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import exists = require('path-exists')
-import PATH = require('path-name')
-import sinon = require('sinon')
 
 test('run pre/postinstall scripts', async () => {
   const project = prepareEmpty()

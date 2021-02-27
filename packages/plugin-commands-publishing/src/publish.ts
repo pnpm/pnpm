@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -6,17 +8,15 @@ import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import runNpm from '@pnpm/run-npm'
 import { ProjectManifest } from '@pnpm/types'
 import { prompt } from 'enquirer'
-import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
+import rimraf from '@zkochan/rimraf'
+import cpFile from 'cp-file'
+import fg from 'fast-glob'
+import * as R from 'ramda'
+import realpathMissing from 'realpath-missing'
+import renderHelp from 'render-help'
+import writeJsonFile from 'write-json-file'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import cpFile = require('cp-file')
-import fg = require('fast-glob')
-import fs = require('mz/fs')
-import R = require('ramda')
-import realpathMissing = require('realpath-missing')
-import renderHelp = require('render-help')
-import writeJsonFile = require('write-json-file')
+import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -237,7 +237,7 @@ export async function fakeRegularManifest (
     await writeProjectManifest(manifest, true)
   }
   await Promise.all(
-    copiedLicenses.map((copiedLicense) => fs.unlink(copiedLicense))
+    copiedLicenses.map(async (copiedLicense) => fs.unlink(copiedLicense))
   )
 }
 

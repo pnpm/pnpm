@@ -1,12 +1,12 @@
+import os from 'os'
 import { Config } from '@pnpm/config'
 import { Log, RegistryLog } from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
+import * as Rx from 'rxjs'
+import { filter, map } from 'rxjs/operators'
 import reportError from '../reportError'
 import formatWarn from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
-import * as Rx from 'rxjs'
-import { filter, map } from 'rxjs/operators'
-import os = require('os')
 
 // eslint-disable:object-literal-sort-keys
 const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {

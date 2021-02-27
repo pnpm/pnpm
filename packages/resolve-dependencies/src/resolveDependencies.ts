@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   deprecationLogger,
   progressLogger,
@@ -37,6 +38,9 @@ import {
   Registries,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import exists from 'path-exists'
+import * as R from 'ramda'
+import semver from 'semver'
 import encodePkgId from './encodePkgId'
 import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
 import {
@@ -45,10 +49,6 @@ import {
   splitNodeId,
 } from './nodeIdUtils'
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
-import path = require('path')
-import exists = require('path-exists')
-import R = require('ramda')
-import semver = require('semver')
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -230,7 +230,7 @@ export default async function resolveDependencies (
   const postponedResolutionsQueue = [] as Array<(preferredVersions: PreferredVersions) => Promise<void>>
   const pkgAddresses = (
     await Promise.all(
-      extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
+      extendedWantedDeps.map(async (extendedWantedDep) => resolveDependenciesOfDependency(
         postponedResolutionsQueue,
         ctx,
         preferredVersions,
@@ -250,7 +250,7 @@ export default async function resolveDependencies (
     }
     newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
   }
-  await Promise.all(postponedResolutionsQueue.map((postponedResolution) => postponedResolution(newPreferredVersions)))
+  await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions)))
 
   return pkgAddresses
 }
@@ -430,7 +430,13 @@ function getDepsToResolve (
     const infoFromLockfile = getInfoFromLockfile(wantedLockfile, options.registries, reference, wantedDependency.alias)
     if (
       !proceedAll &&
-      (infoFromLockfile?.dependencyLockfile?.peerDependencies != null || !infoFromLockfile)
+      (
+        !infoFromLockfile ||
+        infoFromLockfile.dependencyLockfile != null && (
+          infoFromLockfile.dependencyLockfile.peerDependencies != null ||
+          infoFromLockfile.dependencyLockfile.transitivePeerDependencies?.length
+        )
+      )
     ) {
       if (infoFromLockfile?.dependencyLockfile?.peerDependencies) {
         Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {

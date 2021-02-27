@@ -3,8 +3,8 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { InstallOptions, mutateModules } from 'supi'
-import R = require('ramda')
-import renderHelp = require('render-help')
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -62,6 +62,7 @@ export async function handler (
       devDependencies: opts.dev !== false,
       optionalDependencies: opts.optional !== false,
     },
+    modulesCacheMaxAge: 0,
     pruneStore: true,
     storeController: store.ctrl,
     storeDir: store.dir,

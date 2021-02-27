@@ -1,26 +1,26 @@
+import path from 'path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import globalBinDir from '@pnpm/global-bin-dir'
 import camelcase from 'camelcase'
+import loadNpmConf from '@zkochan/npm-conf'
+import npmTypes from '@zkochan/npm-conf/lib/types'
+import * as R from 'ramda'
+import realpathMissing from 'realpath-missing'
+import whichcb from 'which'
+import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
+import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import {
   Config,
   ConfigWithDeprecatedSettings,
   UniversalOptions,
 } from './Config'
-import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
-import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
-import path = require('path')
-import loadNpmConf = require('@zkochan/npm-conf')
-import npmTypes = require('@zkochan/npm-conf/lib/types')
-import R = require('ramda')
-import realpathMissing = require('realpath-missing')
-import whichcb = require('which')
 
 export { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
 
-function which (cmd: string) {
+async function which (cmd: string) {
   return new Promise<string>((resolve, reject) => {
     whichcb(cmd, (err, resolvedPath) => err ? reject(err) : resolve(resolvedPath!))
   })
@@ -51,6 +51,7 @@ export const types = Object.assign({
   'lockfile-directory': String, // TODO: deprecate
   'lockfile-only': Boolean,
   loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
+  'modules-cache-max-age': Number,
   'modules-dir': String,
   'network-concurrency': Number,
   'node-linker': ['pnp'],
@@ -158,6 +159,7 @@ export default async (
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,
+    'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'package-lock': npmDefaults['package-lock'],
     pending: false,
     'prefer-workspace-packages': false,

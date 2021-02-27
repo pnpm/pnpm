@@ -1,3 +1,4 @@
+import path from 'path'
 import buildModules, { linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
   LAYOUT_VERSION,
@@ -44,6 +45,11 @@ import {
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
+import rimraf from '@zkochan/rimraf'
+import isInnerLink from 'is-inner-link'
+import pFilter from 'p-filter'
+import pLimit from 'p-limit'
+import * as R from 'ramda'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
@@ -59,12 +65,6 @@ import getWantedDependencies, {
   WantedDependency,
 } from './getWantedDependencies'
 import linkPackages from './link'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import isInnerLink = require('is-inner-link')
-import pFilter = require('p-filter')
-import pLimit = require('p-limit')
-import R = require('ramda')
 
 export type DependenciesMutation = (
   {
@@ -138,6 +138,9 @@ export async function mutateModules (
   opts['forceNewModules'] = installsOnly
   opts['autofixMergeConflicts'] = !opts.frozenLockfile
   const ctx = await getContext(projects, opts)
+  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
+    ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
+    : true
   const rootProjectManifest = ctx.projects.find(({ id }) => id === '.')?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly hear.
@@ -240,6 +243,8 @@ export async function mutateModules (
               pruneDirectDependencies?: boolean
             }>,
             pruneStore: opts.pruneStore,
+            prunedAt: ctx.modulesFile?.prunedAt,
+            pruneVirtualStore,
             publicHoistPattern: ctx.publicHoistPattern,
             rawConfig: opts.rawConfig,
             registries: opts.registries,
@@ -317,7 +322,7 @@ export async function mutateModules (
         const packageDirs = await readModulesDirs(project.modulesDir)
         const externalPackages = await pFilter(
           packageDirs!,
-          (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir)
+          async (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir)
         )
         const allDeps = getAllDependenciesFromManifest(project.manifest)
         const packagesToInstall: string[] = []
@@ -439,13 +444,14 @@ export async function mutateModules (
       needsFullResolution,
       neverBuiltDependencies,
       overrides,
+      pruneVirtualStore,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
     })
 
     if (!opts.ignoreScripts) {
       if (opts.enablePnp) {
-        scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.js'))
+        scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
       await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepublish', 'prepare'],
         projectsToBeInstalled,
@@ -456,6 +462,10 @@ export async function mutateModules (
 
     return result
   }
+}
+
+function cacheExpired (prunedAt: string, maxAgeInMinutes: number) {
+  return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
 }
 
 async function isExternalLink (storeDir: string, modules: string, pkgName: string) {
@@ -588,6 +598,7 @@ async function installInContext (
     overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
+    pruneVirtualStore: boolean
     currentLockfileIsUpToDate: boolean
   }
 ) {
@@ -617,7 +628,7 @@ async function installInContext (
     projects
       .map(async (project) => {
         if (project.mutation !== 'uninstallSome') return
-        const _removeDeps = (manifest: ProjectManifest) => removeDeps(manifest, project.dependencyNames, { prefix: project.rootDir, saveType: project.targetDependenciesField })
+        const _removeDeps = async (manifest: ProjectManifest) => removeDeps(manifest, project.dependencyNames, { prefix: project.rootDir, saveType: project.targetDependenciesField })
         project.manifest = await _removeDeps(project.manifest)
         if (project.originalManifest) {
           project.originalManifest = await _removeDeps(project.originalManifest)
@@ -651,7 +662,7 @@ async function installInContext (
     virtualStoreDir: ctx.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
-  const projectsToResolve = await Promise.all(projects.map((project) => _toResolveImporter(project)))
+  const projectsToResolve = await Promise.all(projects.map(async (project) => _toResolveImporter(project)))
   let {
     dependenciesGraph,
     dependenciesByProjectId,
@@ -720,6 +731,7 @@ async function installInContext (
         makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
         outdatedDependencies,
         pruneStore: opts.pruneStore,
+        pruneVirtualStore: opts.pruneVirtualStore,
         publicHoistPattern: ctx.publicHoistPattern,
         registries: ctx.registries,
         rootModulesDir: ctx.rootModulesDir,
@@ -763,7 +775,7 @@ async function installInContext (
 
       let extraEnv: Record<string, string> | undefined
       if (opts.enablePnp) {
-        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.js'))
+        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
       await buildModules(dependenciesGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
@@ -844,7 +856,7 @@ async function installInContext (
           ...lockfileOpts,
         })
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile, lockfileOpts),
-      (() => {
+      (async () => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
@@ -857,6 +869,9 @@ async function installInContext (
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           publicHoistPattern: ctx.publicHoistPattern,
+          prunedAt: opts.pruneVirtualStore || ctx.modulesFile == null
+            ? new Date().toUTCString()
+            : ctx.modulesFile.prunedAt,
           registries: ctx.registries,
           skipped: Array.from(ctx.skipped),
           storeDir: ctx.storeDir,
@@ -956,6 +971,6 @@ async function linkAllBins (
   }
 ) {
   return R.unnest(await Promise.all(
-    depNodes.map(depNode => limitLinking(() => linkBinsOfDependencies(depNode, depGraph, opts)))
+    depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   ))
 }

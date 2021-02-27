@@ -1,13 +1,13 @@
+import fs from 'fs'
+import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   readCurrentLockfile,
   readWantedLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile-file'
-import fs = require('fs')
-import path = require('path')
-import tempy = require('tempy')
-import yaml = require('yaml-tag')
+import tempy from 'tempy'
+import yaml from 'yaml-tag'
 
 test('writeLockfiles()', async () => {
   const projectPath = tempy.directory()
@@ -54,6 +54,9 @@ test('writeLockfiles()', async () => {
   })
   expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
   expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+
+  // Verifying the formatting of the lockfile
+  expect(fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')).toMatchSnapshot()
 })
 
 test('writeLockfiles() when no specifiers but dependencies present', async () => {

@@ -1,6 +1,6 @@
-import path = require('path')
-import fs = require('mz/fs')
-import rimrafModule = require('rimraf')
+import { promises as fs } from 'fs'
+import path from 'path'
+import rimrafModule from 'rimraf'
 
 const fixtures = path.join(__dirname, 'fixtures')
 const workspaceFixture = path.join(__dirname, 'workspace-fixture')
@@ -19,9 +19,9 @@ async function removeModules () {
     workspaceFixture2,
   ]
     .map((dir) => path.join(dir, 'node_modules'))
-  await Promise.all(dirsToRemove.map((dir) => rimraf(dir)))
+  await Promise.all(dirsToRemove.map(async (dir) => rimraf(dir)))
 }
 
-function rimraf (dir: string) {
+async function rimraf (dir: string) {
   return new Promise<void>((resolve, reject) => rimrafModule(dir, err => err ? reject(err) : resolve()))
 }

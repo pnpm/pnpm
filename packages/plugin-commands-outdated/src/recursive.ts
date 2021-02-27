@@ -9,6 +9,8 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
+import chalk from 'chalk'
+import * as R from 'ramda'
 import {
   getCellWidth,
   OutdatedCommandOptions,
@@ -19,8 +21,6 @@ import {
   toOutdatedWithVersionDiff,
 } from './outdated'
 import { DEFAULT_COMPARATORS } from './utils'
-import chalk = require('chalk')
-import R = require('ramda')
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,

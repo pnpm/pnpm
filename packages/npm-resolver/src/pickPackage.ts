@@ -1,17 +1,17 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { VersionSelectors } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
-import { RegistryPackageSpec } from './parsePref'
-import pickPackageFromMeta from './pickPackageFromMeta'
+import getRegistryName from 'encode-registry'
+import loadJsonFile from 'load-json-file'
+import pLimit from 'p-limit'
+import pathTemp from 'path-temp'
+import renameOverwrite from 'rename-overwrite'
 import toRaw from './toRaw'
-import path = require('path')
-import getRegistryName = require('encode-registry')
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import pLimit = require('p-limit')
-import pathTemp = require('path-temp')
-import renameOverwrite = require('rename-overwrite')
+import pickPackageFromMeta from './pickPackageFromMeta'
+import { RegistryPackageSpec } from './parsePref'
 
 export interface PackageMeta {
   'dist-tag': { [name: string]: string }
@@ -80,7 +80,7 @@ export default async (
 
   let metaCachedInStore: PackageMeta | null | undefined
   if (ctx.offline === true || ctx.preferOffline) {
-    metaCachedInStore = await limit(() => loadMeta(pkgMirror))
+    metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
     if (ctx.offline) {
       if (metaCachedInStore) return {
@@ -103,7 +103,7 @@ export default async (
   }
 
   if (spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore ?? await limit(() => loadMeta(pkgMirror))
+    metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
     if (metaCachedInStore?.versions?.[spec.fetchSpec]) {

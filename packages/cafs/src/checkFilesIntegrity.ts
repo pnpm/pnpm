@@ -1,11 +1,11 @@
+import { createReadStream, promises as fs } from 'fs'
 import { DeferredManifestPromise } from '@pnpm/fetcher-base'
 import { PackageFileInfo } from '@pnpm/store-controller-types'
-import { parseJsonBuffer } from './parseJson'
+import rimraf from '@zkochan/rimraf'
+import pLimit from 'p-limit'
+import ssri from 'ssri'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
-import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
-import pLimit = require('p-limit')
-import ssri = require('ssri')
+import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
@@ -23,7 +23,7 @@ export default async function (
   let verified = true
   await Promise.all(
     Object.keys(pkgIndex)
-      .map((f) =>
+      .map(async (f) =>
         limit(async () => {
           const fstat = pkgIndex[f]
           if (!fstat.integrity) {
@@ -77,7 +77,7 @@ export async function verifyFileIntegrity (
 ) {
   try {
     if (expectedFile.size > MAX_BULK_SIZE && !deferredManifest) {
-      const ok = Boolean(await ssri.checkStream(fs.createReadStream(filename), expectedFile.integrity))
+      const ok = Boolean(await ssri.checkStream(createReadStream(filename), expectedFile.integrity))
       if (!ok) {
         await rimraf(filename)
       }

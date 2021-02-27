@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import diable = require('@zkochan/diable')
+import diable from '@zkochan/diable'
 
 export default (storePath: string) => {
   if (!require.main) {

@@ -1,14 +1,14 @@
+import path from 'path'
 import { toOutput$ } from '@pnpm/default-reporter'
 import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
 import { map, take } from 'rxjs/operators'
-import path = require('path')
-import chalk = require('chalk')
-import loadJsonFile = require('load-json-file')
-import normalizeNewline = require('normalize-newline')
-import StackTracey = require('stacktracey')
+import chalk from 'chalk'
+import loadJsonFile from 'load-json-file'
+import normalizeNewline from 'normalize-newline'
+import StackTracey from 'stacktracey'
 
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
 

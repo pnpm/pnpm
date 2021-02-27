@@ -1,8 +1,8 @@
+import fs from 'fs'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
-import fs = require('fs')
-import chalk = require('chalk')
+import chalk from 'chalk'
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -65,7 +65,7 @@ export default (pnpmFilePath: string, prefix: string) => {
     return pnpmfile
   } catch (err) {
     if (err instanceof SyntaxError) {
-      console.error(chalk.red('A syntax error in the pnpmfile.js\n'))
+      console.error(chalk.red('A syntax error in the .pnpmfile.cjs\n'))
       console.error(err)
       process.exit(1)
     }
@@ -77,8 +77,8 @@ export default (pnpmFilePath: string, prefix: string) => {
 }
 
 function pnpmFileExistsSync (pnpmFilePath: string) {
-  const pnpmFileRealName = pnpmFilePath.endsWith('.js')
+  const pnpmFileRealName = pnpmFilePath.endsWith('.cjs')
     ? pnpmFilePath
-    : `${pnpmFilePath}.js`
+    : `${pnpmFilePath}.cjs`
   return fs.existsSync(pnpmFileRealName)
 }

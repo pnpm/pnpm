@@ -1,10 +1,10 @@
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { promises as fs } from 'fs'
+import path from 'path'
 import { PackageManifest } from '@pnpm/types'
+import prepare, { preparePackages } from '@pnpm/prepare'
+import loadJsonFile from 'load-json-file'
+import writeYamlFile from 'write-yaml-file'
 import { execPnpm } from './utils'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import writeYamlFile = require('write-yaml-file')
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
   const project = prepare()
@@ -18,7 +18,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
       return pkg
       }
   `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
   await execPnpm(['add', 'is-positive@1.0.0'])
   let pkg: PackageManifest = await loadJsonFile(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
@@ -59,7 +59,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
         return pkg
       }
     `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])

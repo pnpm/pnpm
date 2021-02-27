@@ -1,15 +1,15 @@
+import path from 'path'
 import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from 'dependency-path'
+import dint from 'dint'
+import loadJsonFile from 'load-json-file'
+import pFilter from 'p-filter'
 import extendOptions, {
   StoreStatusOptions,
 } from './extendStoreStatusOptions'
-import path = require('path')
-import dint = require('dint')
-import loadJsonFile = require('load-json-file')
-import pFilter = require('p-filter')
 
 export default async function (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts?.reporter

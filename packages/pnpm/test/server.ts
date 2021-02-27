@@ -1,24 +1,24 @@
 import { ChildProcess } from 'child_process'
 import { Readable } from 'stream'
 import { promisify } from 'util'
+import path from 'path'
+import prepare from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import delay, { ClearablePromise } from 'delay'
+import pDefer, { DeferredPromise } from 'p-defer'
+import isWindows from 'is-windows'
+
+import killcb from 'tree-kill'
+import writeJsonFile from 'write-json-file'
+import byline from 'byline'
+import pAny from 'p-any'
+import pathExists from 'path-exists'
 import {
   execPnpm,
   execPnpmSync,
   retryLoadJsonFile,
   spawnPnpm,
 } from './utils'
-import prepare from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import delay, { ClearablePromise } from 'delay'
-import { DeferredPromise } from 'p-defer'
-import path = require('path')
-import byline = require('byline')
-import isWindows = require('is-windows')
-import pAny = require('p-any')
-import pDefer = require('p-defer')
-import pathExists = require('path-exists')
-import killcb = require('tree-kill')
-import writeJsonFile = require('write-json-file')
 
 const skipOnWindows = isWindows() ? test.skip : test
 
@@ -247,7 +247,7 @@ async function testParallelServerStart (
         await stopRemainingServers()
       }
     })
-    completedPromise = completedPromise.then(() => item.running.promise)
+    completedPromise = completedPromise.then(async () => item.running.promise)
   }
 
   const timeoutMillis = options.timeoutMillis ?? 10000

@@ -1,3 +1,4 @@
+import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -8,12 +9,11 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import exists from 'path-exists'
+import sinon from 'sinon'
+import deepRequireCwd from 'deep-require-cwd'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import deepRequireCwd = require('deep-require-cwd')
-import exists = require('path-exists')
-import sinon = require('sinon')
 
 test('successfully install optional dependency with subdependencies', async () => {
   prepareEmpty()

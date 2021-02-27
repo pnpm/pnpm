@@ -1,16 +1,16 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import yaml from 'js-yaml'
+import stripBom from 'strip-bom'
 import { LockfileBreakingChangeError } from './errors'
 import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import logger from './logger'
-import yaml = require('js-yaml')
-import path = require('path')
-import stripBom = require('strip-bom')
-import fs = require('mz/fs')
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,
@@ -23,7 +23,7 @@ export async function readCurrentLockfile (
   return (await _read(lockfilePath, virtualStoreDir, opts)).lockfile
 }
 
-export function readWantedLockfileAndAutofixConflicts (
+export async function readWantedLockfileAndAutofixConflicts (
   pkgPath: string,
   opts: {
     wantedVersion?: number

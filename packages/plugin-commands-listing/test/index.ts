@@ -1,13 +1,13 @@
 /// <reference path="../../../typings/index.d.ts" />
+import { promises as fs } from 'fs'
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 
-import execa = require('execa')
-import fs = require('mz/fs')
-import path = require('path')
-import stripAnsi = require('strip-ansi')
-import writeYamlFile = require('write-yaml-file')
+import execa from 'execa'
+import stripAnsi from 'strip-ansi'
+import writeYamlFile from 'write-yaml-file'
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 

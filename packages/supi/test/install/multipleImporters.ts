@@ -1,3 +1,4 @@
+import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
@@ -7,13 +8,12 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import exists from 'path-exists'
+import * as R from 'ramda'
+import sinon from 'sinon'
+import writeYamlFile from 'write-yaml-file'
 import { addDistTag, testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import exists = require('path-exists')
-import R = require('ramda')
-import sinon = require('sinon')
-import writeYamlFile = require('write-yaml-file')
 
 test('install only the dependencies of the specified importer', async () => {
   const projects = preparePackages([
@@ -247,6 +247,7 @@ test('dependencies of other importers are not pruned when installing for a subse
   await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
     dir: path.resolve('project-1'),
     lockfileDir: process.cwd(),
+    modulesCacheMaxAge: 0,
   }))
 
   await projects['project-1'].has('is-positive')
@@ -312,7 +313,10 @@ test('dependencies of other importers are not pruned when (headless) installing 
     lockfileDir: process.cwd(),
     lockfileOnly: true,
   }))
-  await mutateModules(importers.slice(0, 1), await testDefaults({ frozenLockfile: true }))
+  await mutateModules(importers.slice(0, 1), await testDefaults({
+    frozenLockfile: true,
+    modulesCacheMaxAge: 0,
+  }))
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
@@ -647,7 +651,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
     },
-  })
+  }, { lineWidth: 1000 })
 
   await mutateModules([
     {
@@ -740,7 +744,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
     },
-  })
+  }, { lineWidth: 1000 })
 
   await mutateModules([
     {
@@ -963,7 +967,10 @@ test('remove dependencies of a project that was removed from the workspace (duri
     await project.has('.pnpm/is-negative@1.0.0')
   }
 
-  await mutateModules(importers.slice(0, 1), await testDefaults({ preferFrozenLockfile: false }))
+  await mutateModules(importers.slice(0, 1), await testDefaults({
+    preferFrozenLockfile: false,
+    modulesCacheMaxAge: 0,
+  }))
   {
     const currentLockfile = await project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1'])

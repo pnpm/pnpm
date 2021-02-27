@@ -21,10 +21,9 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-store": "workspace:10.1.18",
     "@pnpm/read-projects-context": "workspace:4.0.15",
-    "@pnpm/store-path": "^4.0.4",
+    "@pnpm/store-path": "5.0.0-0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.5",
-    "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.35",
     "@types/rimraf": "^3.0.0",
     "@types/sinon": "^9.0.9",
@@ -32,7 +31,6 @@
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",
     "load-json-file": "^6.2.0",
-    "mz": "^2.7.0",
     "npm-run-all": "^4.1.5",
     "sinon": "^9.2.2",
     "tempy": "^1.0.0",
@@ -49,7 +47,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/headless",
   "scripts": {
@@ -94,7 +92,7 @@
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
     "ramda": "^0.27.1",
-    "realpath-missing": "^1.0.0"
+    "realpath-missing": "^1.1.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

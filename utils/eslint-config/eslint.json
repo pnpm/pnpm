@@ -22,7 +22,7 @@
     "@typescript-eslint/no-explicit-any": "error",
     "no-return-await": "error",
     "@typescript-eslint/return-await": "off",
-    "@typescript-eslint/no-require-imports": "off",
+    "@typescript-eslint/no-require-imports": "error",
     "@typescript-eslint/no-unused-expressions": "error",
     "@typescript-eslint/no-use-before-define": "error",
     "@typescript-eslint/no-var-requires": "error",

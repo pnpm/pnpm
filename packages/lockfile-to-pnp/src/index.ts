@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import getConfigs from '@pnpm/config'
 import { Lockfile, readWantedLockfile } from '@pnpm/lockfile-file'
 import {
@@ -7,14 +9,12 @@ import readImporterManifest from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from 'dependency-path'
 import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
-import fs = require('mz/fs')
-import normalizePath = require('normalize-path')
-import path = require('path')
-import R = require('ramda')
+import normalizePath from 'normalize-path'
+import * as R from 'ramda'
 
 export async function lockfileToPnp (lockfileDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (!lockfile) throw new Error('Cannot generate a .pnp.js without a lockfile')
+  if (!lockfile) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
   const importerNames: { [importerId: string]: string } = {}
   await Promise.all(
     Object.keys(lockfile.importers)
@@ -54,7 +54,7 @@ export async function writePnpFile (
     packageRegistry,
     shebang: undefined,
   })
-  await fs.writeFile(path.join(opts.lockfileDir, '.pnp.js'), loaderFile, 'utf8')
+  await fs.writeFile(path.join(opts.lockfileDir, '.pnp.cjs'), loaderFile, 'utf8')
 }
 
 export function lockfileToPackageRegistry (

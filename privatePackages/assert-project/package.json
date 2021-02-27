@@ -32,14 +32,12 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-project",
   "scripts": {
-    "commit": "commit",
-    "commitmsg": "commitlint -e",
     "lint": "tslint -c ../../tslint.json --project .",
     "lint-test": "tslint -c tslint.json --project test",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc",
+    "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
+    "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm run tsc && jest"
+    "test": "pnpm run compile && jest"
   },
   "dependencies": {
     "@pnpm/assert-store": "workspace:*",
@@ -47,12 +45,10 @@
     "@pnpm/lockfile-types": "workspace:2.2.0",
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/types": "workspace:6.4.0",
-    "@types/mz": "^2.7.3",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",
-    "mz": "^2.7.0",
     "path-exists": "^4.0.0",
-    "read-yaml-file": "^2.0.0",
+    "read-yaml-file": "^2.1.0",
     "write-pkg": "4.0.0"
   }
 }

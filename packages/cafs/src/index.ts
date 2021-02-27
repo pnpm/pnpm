@@ -1,5 +1,11 @@
+import { promises as fs, Stats } from 'fs'
+import path from 'path'
 import { PackageFileInfo } from '@pnpm/store-controller-types'
 import { FileWriteResult } from '@pnpm/fetcher-base'
+import getStream from 'get-stream'
+import pathTemp from 'path-temp'
+import renameOverwrite from 'rename-overwrite'
+import ssri from 'ssri'
 import addFilesFromDir from './addFilesFromDir'
 import addFilesFromTarball from './addFilesFromTarball'
 import checkFilesIntegrity, {
@@ -13,12 +19,6 @@ import getFilePathInCafs, {
   modeIsExecutable,
 } from './getFilePathInCafs'
 import writeFile from './writeFile'
-import fs = require('mz/fs')
-import path = require('path')
-import getStream = require('get-stream')
-import pathTemp = require('path-temp')
-import renameOverwrite = require('rename-overwrite')
-import ssri = require('ssri')
 
 export {
   checkFilesIntegrity,
@@ -112,7 +112,7 @@ async function writeBufferToCafs (
 }
 
 async function existsSame (filename: string, integrity: ssri.IntegrityLike) {
-  let existingFile: fs.Stats | undefined
+  let existingFile: Stats | undefined
   try {
     existingFile = await fs.stat(filename)
   } catch (err) {

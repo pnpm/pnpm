@@ -1,7 +1,7 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from 'supi'
+import rimraf from '@zkochan/rimraf'
 import { testDefaults } from './utils'
-import rimraf = require('@zkochan/rimraf')
 
 test('offline installation fails when package meta not found in local registry mirror', async () => {
   prepareEmpty()

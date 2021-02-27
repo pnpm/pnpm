@@ -4,7 +4,7 @@ import {
   pruneLockfile,
   pruneSharedLockfile,
 } from '@pnpm/prune-lockfile'
-import yaml = require('yaml-tag')
+import yaml from 'yaml-tag'
 
 const DEFAULT_OPTS = {
   warn (msg: string) {

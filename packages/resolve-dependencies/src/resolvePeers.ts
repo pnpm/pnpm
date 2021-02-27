@@ -1,21 +1,21 @@
+import crypto from 'crypto'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { Dependencies } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
-import {
-  createNodeId,
-  splitNodeId,
-} from './nodeIdUtils'
+import importFrom from 'import-from'
+import * as R from 'ramda'
+import semver from 'semver'
 import {
   DependenciesTree,
   DependenciesTreeNode,
   ResolvedPackage,
 } from './resolveDependencies'
-import crypto = require('crypto')
-import importFrom = require('import-from')
-import path = require('path')
-import R = require('ramda')
-import semver = require('semver')
+import {
+  createNodeId,
+  splitNodeId,
+} from './nodeIdUtils'
 
 export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
@@ -24,6 +24,7 @@ export interface GenericDependenciesGraphNode {
   children: {[alias: string]: string}
   depth: number
   peerDependencies?: Dependencies
+  transitivePeerDependencies: Set<string>
   installable: boolean
   isBuilt?: boolean
   isPure: boolean
@@ -253,11 +254,15 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
     const dir = path.join(modules, resolvedPackage.name)
 
-    const unknownPeers = Object.keys(unknownResolvedPeersOfChildren)
+    const transitivePeerDependencies = new Set<string>()
+    const unknownPeers = [
+      ...Object.keys(unknownResolvedPeersOfChildren),
+      ...missingPeersOfChildren,
+    ]
     if (unknownPeers.length) {
       for (const unknownPeer of unknownPeers) {
         if (!peerDependencies[unknownPeer]) {
-          peerDependencies[unknownPeer] = '*'
+          transitivePeerDependencies.add(unknownPeer)
         }
       }
     }
@@ -275,6 +280,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       isPure,
       modules,
       peerDependencies,
+      transitivePeerDependencies,
     }
   }
   return { resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers }

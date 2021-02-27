@@ -10,7 +10,7 @@ export type LockedFunc<T> = (key: string, fn: () => Promise<T>) => Promise<T>
 export default function lock<T> (): LockedFunc<T> {
   const locks: CachedPromises<T> = {}
 
-  return (key: string, fn: () => Promise<T>): Promise<T> => {
+  return async (key: string, fn: () => Promise<T>): Promise<T> => {
     if (locks[key]) return locks[key]
     locks[key] = fn()
     fn()

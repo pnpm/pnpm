@@ -1,10 +1,10 @@
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import tempy = require('tempy')
+import loadJsonFile from 'load-json-file'
+import tempy from 'tempy'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -20,7 +20,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: 'pnpmfile.js',
+  pnpmfile: '.pnpmfile.cjs',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {

@@ -1,5 +1,5 @@
 import * as path from 'path'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { promises as fs } from 'fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import PnpmError from '@pnpm/error'
 import {
@@ -12,6 +12,7 @@ import {
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   install,
@@ -19,20 +20,19 @@ import {
   UnexpectedStoreError,
   UnexpectedVirtualStoreDirError,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import execa from 'execa'
+import isCI from 'is-ci'
+import isWindows from 'is-windows'
+import exists from 'path-exists'
+import semver from 'semver'
+import sinon from 'sinon'
+import deepRequireCwd from 'deep-require-cwd'
+import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
-import rimraf = require('@zkochan/rimraf')
-import deepRequireCwd = require('deep-require-cwd')
-import execa = require('execa')
-import isCI = require('is-ci')
-import isWindows = require('is-windows')
-import fs = require('mz/fs')
-import exists = require('path-exists')
-import semver = require('semver')
-import sinon = require('sinon')
-import writeYamlFile = require('write-yaml-file')
 
 const IS_WINDOWS = isWindows()
 
@@ -963,7 +963,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     specifiers: {
       foobarqar: '1.0.1',
     },
-  })
+  }, { lineWidth: 1000 })
 
   await mutateModules([
     {
@@ -1053,7 +1053,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     specifiers: {
       'parent-of-pkg-with-1-dep': '1.0.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   await mutateModules([
     {
@@ -1217,7 +1217,7 @@ test('installing with no symlinks with PnP', async () => {
 
   expect(await project.readCurrentLockfile()).toBeTruthy()
   expect(await project.readModulesManifest()).toBeTruthy()
-  expect(await exists(path.resolve('.pnp.js'))).toBeTruthy()
+  expect(await exists(path.resolve('.pnp.cjs'))).toBeTruthy()
 })
 
 test('installing with no modules directory', async () => {

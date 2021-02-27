@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "scripts": {
     "start": "pnpm run tsc -- --watch",
@@ -44,20 +44,18 @@
     "@pnpm/types": "workspace:6.4.0",
     "dependency-path": "workspace:5.1.1",
     "load-json-file": "^6.2.0",
-    "mz": "^2.7.0",
     "p-defer": "^3.0.0",
     "p-limit": "^3.1.0",
     "p-queue": "^6.6.2",
     "path-temp": "^2.0.0",
     "promise-share": "^1.0.0",
     "ramda": "^0.27.1",
-    "rename-overwrite": "^3.0.0",
+    "rename-overwrite": "^3.1.0",
     "ssri": "6.0.1"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:2.0.22",
     "@pnpm/logger": "^3.2.3",
-    "@types/mz": "^2.7.3",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.35",

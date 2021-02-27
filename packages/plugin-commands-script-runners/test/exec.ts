@@ -1,12 +1,12 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { exec } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
+import rimraf from '@zkochan/rimraf'
+import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import execa = require('execa')
-import fs = require('mz/fs')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 

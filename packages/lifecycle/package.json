@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
@@ -38,7 +38,7 @@
     "@pnpm/core-loggers": "workspace:5.0.3",
     "@pnpm/read-package-json": "workspace:3.1.9",
     "@pnpm/types": "workspace:6.4.0",
-    "@zkochan/npm-lifecycle": "^4.1.1",
+    "@zkochan/npm-lifecycle": "^4.2.0",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"
   },

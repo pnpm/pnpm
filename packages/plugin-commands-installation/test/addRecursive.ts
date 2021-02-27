@@ -1,10 +1,10 @@
+import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
-import path = require('path')
 
 test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async () => {
   const projects = preparePackages([

@@ -1,6 +1,5 @@
-import { IntegrityLike } from 'ssri'
-import path = require('path')
-import ssri = require('ssri')
+import path from 'path'
+import ssri, { IntegrityLike } from 'ssri'
 
 export const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 

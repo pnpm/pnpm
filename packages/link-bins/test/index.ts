@@ -1,15 +1,15 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import { promisify } from 'util'
+import { promises as fs } from 'fs'
+import path from 'path'
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
-import path = require('path')
-import isWindows = require('is-windows')
-import fs = require('mz/fs')
-import ncpcb = require('ncp')
-import normalizePath = require('normalize-path')
-import exists = require('path-exists')
-import tempy = require('tempy')
+import isWindows from 'is-windows'
+import ncpcb from 'ncp'
+import normalizePath from 'normalize-path'
+import exists from 'path-exists'
+import tempy from 'tempy'
 
 const ncp = promisify(ncpcb)
 
@@ -140,7 +140,7 @@ test('linkBinsOfPackages()', async () => {
     [
       {
         location: path.join(simpleFixture, 'node_modules/simple'),
-        manifest: await import(path.join(simpleFixture, 'node_modules/simple/package.json')),
+        manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
       },
     ],
     binTarget,
@@ -189,11 +189,11 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
     [
       {
         location: path.join(modulesPath, 'bar'),
-        manifest: await import(path.join(modulesPath, 'bar', 'package.json')),
+        manifest: (await import(path.join(modulesPath, 'bar', 'package.json'))).default,
       },
       {
         location: path.join(modulesPath, 'foo'),
-        manifest: await import(path.join(modulesPath, 'foo', 'package.json')),
+        manifest: (await import(path.join(modulesPath, 'foo', 'package.json'))).default,
       },
     ],
     binTarget,

@@ -1,5 +1,5 @@
-import path = require('path')
-import fs = require('mz/fs')
+import { promises as fs } from 'fs'
+import path from 'path'
 
 const dirs = new Set()
 

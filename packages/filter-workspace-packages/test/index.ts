@@ -2,14 +2,14 @@ import { promisify } from 'util'
 import PnpmError from '@pnpm/error'
 import filterWorkspacePackages, { PackageGraph } from '@pnpm/filter-workspace-packages'
 import './parsePackageSelector'
-import fs = require('fs')
-import execa = require('execa')
-import isCI = require('is-ci')
-import isWindows = require('is-windows')
-import path = require('path')
-import R = require('ramda')
-import tempy = require('tempy')
-import touchCB = require('touch')
+import fs from 'fs'
+import execa from 'execa'
+import isCI from 'is-ci'
+import isWindows from 'is-windows'
+import path from 'path'
+import * as R from 'ramda'
+import tempy from 'tempy'
+import touchCB from 'touch'
 
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)

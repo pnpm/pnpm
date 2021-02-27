@@ -1,5 +1,7 @@
 /// <reference path="../../../typings/index.d.ts" />
 import { promisify } from 'util'
+import { promises as fs, statSync } from 'fs'
+import path from 'path'
 import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import createClient from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
@@ -7,13 +9,11 @@ import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import { depPathToFilename } from 'dependency-path'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import ncpCB = require('ncp')
-import nock = require('nock')
-import normalize = require('normalize-path')
-import tempy = require('tempy')
+import loadJsonFile from 'load-json-file'
+import ncpCB from 'ncp'
+import nock from 'nock'
+import normalize from 'normalize-path'
+import tempy from 'tempy'
 
 const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
@@ -417,7 +417,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const files = await fetchResult.files()
 
-    ino1 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
+    ino1 = statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
@@ -429,7 +429,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const files = await fetchResult.files()
 
-    ino2 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
+    ino2 = statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()

@@ -1,14 +1,14 @@
+import fs from 'fs'
 import { getFilePathInCafs, getFilePathByModeInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import { Lockfile, readWantedLockfile, PackageSnapshot } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import * as schemas from 'hyperdrive-schemas'
+import loadJsonFile from 'load-json-file'
+import Fuse from 'fuse-native'
 import * as cafsExplorer from './cafsExplorer'
 import makeVirtualNodeModules from './makeVirtualNodeModules'
-import fs = require('fs')
-import loadJsonFile = require('load-json-file')
-import Fuse = require('fuse-native')
 
 const TIME = new Date()
 const STAT_DEFAULT = {
@@ -22,7 +22,7 @@ const STAT_DEFAULT = {
 
 export default async function createFuseHandlers (lockfileDir: string, cafsDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (!lockfile) throw new Error('Cannot generate a .pnp.js without a lockfile')
+  if (!lockfile) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
   return createFuseHandlersFromLockfile(lockfile, lockfileDir, cafsDir)
 }
 

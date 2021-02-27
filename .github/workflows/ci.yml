@@ -8,9 +8,9 @@ jobs:
       fail-fast: false
       matrix:
         node: 
-          - '10.16'
-          - '12'
+          - '12.17'
           - '14'
+          - '15'
         platform:
           - ubuntu-latest
           - windows-latest
@@ -34,7 +34,7 @@ jobs:
       run: git branch -f main origin/main
     - name: install pnpm
       run: |
-        npm install --global pnpm@next
+        npm install --global pnpm@dev
         pnpm --version
     - name: Install npm v6
       run: pnpm add --global npm@6

@@ -1,8 +1,8 @@
+import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from 'supi'
+import exists from 'path-exists'
 import { testDefaults } from '../utils'
-import path = require('path')
-import exists = require('path-exists')
 
 test('production install (with --production flag)', async () => {
   const project = prepareEmpty()

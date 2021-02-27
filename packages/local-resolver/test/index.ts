@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import resolveFromLocal from '@pnpm/local-resolver'
-import path = require('path')
 
 test('resolve directory', async () => {
   const resolveResult = await resolveFromLocal({ pref: '..' }, { projectDir: __dirname })

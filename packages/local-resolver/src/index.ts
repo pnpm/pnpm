@@ -1,3 +1,4 @@
+import fs from 'fs'
 import PnpmError from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
@@ -6,9 +7,8 @@ import {
   TarballResolution,
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
+import ssri from 'ssri'
 import parsePref from './parsePref'
-import fs = require('graceful-fs')
-import ssri = require('ssri')
 
 /**
  * Resolves a package hosted on the local filesystem

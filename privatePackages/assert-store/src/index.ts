@@ -1,7 +1,7 @@
+import path from 'path'
 import { getFilePathInCafs } from '@pnpm/cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import path = require('path')
-import exists = require('path-exists')
+import exists from 'path-exists'
 
 export default (
   storePath: string | Promise<string>,

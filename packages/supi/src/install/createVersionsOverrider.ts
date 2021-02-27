@@ -1,6 +1,6 @@
 import { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import parseWantedDependency from '@pnpm/parse-wanted-dependency'
-import semver = require('semver')
+import semver from 'semver'
 
 export default function (overrides: Record<string, string>): ReadPackageHook {
   const genericVersionOverrides = [] as VersionOverride[]

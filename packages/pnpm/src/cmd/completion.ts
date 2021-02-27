@@ -1,12 +1,12 @@
 import { Completion, CompletionFunc } from '@pnpm/command'
 import { split as splitCmd } from 'split-cmd'
+import tabtab from '@pnpm/tabtab'
 import {
   currentTypedWordType,
   getLastOption,
 } from '../getOptionType'
 import parseCliArgs from '../parseCliArgs'
 import complete from './complete'
-import tabtab = require('@pnpm/tabtab')
 
 export default function (
   opts: {

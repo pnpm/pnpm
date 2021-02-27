@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
@@ -20,7 +21,6 @@ import getSaveType from './getSaveType'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import path = require('path')
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -141,7 +141,7 @@ when running add/update with the --workspace option')
   let workspacePackages!: WorkspacePackages
 
   if (opts.workspaceDir) {
-    workspacePackages = arrayOfWorkspacePackagesToMap(allProjects!)
+    workspacePackages = arrayOfWorkspacePackagesToMap(allProjects)
   }
 
   const store = await createOrConnectStoreController(opts)

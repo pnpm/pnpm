@@ -6,7 +6,7 @@
   "bin": "bin/mount-modules.js",
   "typings": "lib/index.d.ts",
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "files": [
     "lib",
@@ -38,19 +38,17 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
-    "@types/mz": "^2.7.3",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:2.0.5",
     "@pnpm/lockfile-file": "workspace:3.2.0",
     "@pnpm/lockfile-utils": "workspace:2.0.22",
-    "@pnpm/store-path": "^4.0.4",
+    "@pnpm/store-path": "5.0.0-0",
     "@pnpm/types": "workspace:6.4.0",
     "dependency-path": "workspace:5.1.1",
     "hyperdrive-schemas": "^2.0.0",
     "load-json-file": "^6.2.0",
-    "mz": "^2.7.0",
     "normalize-path": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm",

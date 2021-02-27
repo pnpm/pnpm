@@ -1,19 +1,19 @@
-import { Stats } from 'fs'
+import fs, { Stats } from 'fs'
 import { promisify } from 'util'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { ProjectManifest } from '@pnpm/types'
 import writeProjectManifest from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
+
+import detectIndent from 'detect-indent'
+import equal from 'fast-deep-equal'
+import isWindows from 'is-windows'
+import sortKeys from 'sort-keys'
 import {
   readJson5File,
   readJsonFile,
 } from './readFile'
-import fs = require('fs')
-import detectIndent = require('detect-indent')
-import equal = require('fast-deep-equal')
-import isWindows = require('is-windows')
-import path = require('path')
-import sortKeys = require('sort-keys')
 
 const stat = promisify(fs.stat)
 
@@ -116,7 +116,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   return {
     fileName: 'package.json',
     manifest: null,
-    writeProjectManifest: (manifest: ProjectManifest) => writeProjectManifest(filePath, manifest),
+    writeProjectManifest: async (manifest: ProjectManifest) => writeProjectManifest(filePath, manifest),
   }
 }
 
@@ -183,7 +183,7 @@ function createManifestWriter (
   }
 ): (WriteProjectManifest) {
   const initialManifest = normalize(JSON.parse(JSON.stringify(opts.initialManifest)))
-  return (updatedManifest: ProjectManifest, force?: boolean) => {
+  return async (updatedManifest: ProjectManifest, force?: boolean) => {
     updatedManifest = normalize(updatedManifest)
     if (force === true || !equal(initialManifest, updatedManifest)) {
       return writeProjectManifest(opts.manifestPath, updatedManifest, {

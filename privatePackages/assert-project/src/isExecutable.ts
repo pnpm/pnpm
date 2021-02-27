@@ -1,7 +1,7 @@
+import { promises as fs } from 'fs'
 import { promisify } from 'util'
-import isWindows = require('is-windows')
-import isexeCB = require('isexe')
-import fs = require('mz/fs')
+import isWindows from 'is-windows'
+import isexeCB from 'isexe'
 
 const IS_WINDOWS = isWindows()
 const isexe = promisify(isexeCB)

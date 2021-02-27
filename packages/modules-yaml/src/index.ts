@@ -1,8 +1,8 @@
+import path from 'path'
 import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
-import path = require('path')
-import isWindows = require('is-windows')
-import writeYamlFile = require('write-yaml-file')
+import isWindows from 'is-windows'
+import writeYamlFile from 'write-yaml-file'
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
 // thinks that it is an extraneous package.
@@ -20,6 +20,7 @@ export interface Modules {
   layoutVersion: number
   packageManager: string
   pendingBuilds: string[]
+  prunedAt: string
   registries?: Registries // nullable for backward compatibility
   shamefullyHoist?: boolean // for backward compatibility
   publicHoistPattern?: string[]
@@ -74,6 +75,9 @@ export async function read (modulesDir: string): Promise<Modules | null> {
     }
     break
   }
+  if (!modules.prunedAt) {
+    modules.prunedAt = new Date().toUTCString()
+  }
   return modules
 }
 
@@ -83,7 +87,7 @@ const YAML_OPTS = {
   sortKeys: true,
 }
 
-export function write (
+export async function write (
   modulesDir: string,
   modules: Modules & { registries: Registries }
 ) {

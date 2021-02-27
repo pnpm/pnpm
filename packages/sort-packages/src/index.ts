@@ -1,5 +1,5 @@
 import { ProjectsGraph } from '@pnpm/types'
-import graphSequencer = require('graph-sequencer')
+import graphSequencer from 'graph-sequencer'
 
 export default function sortPackages (pkgGraph: ProjectsGraph): string[][] {
   const keys = Object.keys(pkgGraph)

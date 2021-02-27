@@ -1,13 +1,17 @@
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { promises as fs } from 'fs'
+import path from 'path'
+import execa from 'execa'
+import isCI from 'is-ci'
+import isWindows from 'is-windows'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import prepare, { preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import exists from 'path-exists'
+import crossSpawn from 'cross-spawn'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
-import execa = require('execa')
-import path = require('path')
-import crossSpawn = require('cross-spawn')
-import fs = require('mz/fs')
-import exists = require('path-exists')
-import writeYamlFile = require('write-yaml-file')
+
+const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -80,7 +84,7 @@ test('publish: package with package.json5 running publish from different folder'
   expect(await exists('project/package.json')).toBeFalsy()
 })
 
-test('pack packages with workspace LICENSE if no own LICENSE is present', async () => {
+skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is present', async () => {
   preparePackages([
     {
       name: 'project-1',

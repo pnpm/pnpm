@@ -1,9 +1,9 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
+import isWindows from 'is-windows'
 import { execPnpmSync } from './utils'
-import fs = require('mz/fs')
-import path = require('path')
-import isWindows = require('is-windows')
 
 test('pnpm root', async () => {
   tempDir()

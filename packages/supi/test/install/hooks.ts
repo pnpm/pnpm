@@ -5,11 +5,11 @@ import {
   addDependenciesToPackage,
   PackageManifest,
 } from 'supi'
+import sinon from 'sinon'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
-import sinon = require('sinon')
 
 test('readPackage, afterAllResolved hooks', async () => {
   const project = prepareEmpty()

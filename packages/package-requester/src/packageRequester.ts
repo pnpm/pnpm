@@ -1,3 +1,5 @@
+import { createReadStream, promises as fs } from 'fs'
+import path from 'path'
 import createCafs, {
   checkFilesIntegrity as _checkFilesIntegrity,
   FileType,
@@ -33,17 +35,15 @@ import {
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
-import * as fs from 'mz/fs'
 import PQueue from 'p-queue'
+import loadJsonFile from 'load-json-file'
+import pDefer from 'p-defer'
+import pathTemp from 'path-temp'
+import pShare from 'promise-share'
+import * as R from 'ramda'
+import renameOverwrite from 'rename-overwrite'
+import ssri from 'ssri'
 import safeDeferredPromise from './safeDeferredPromise'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import pDefer = require('p-defer')
-import pathTemp = require('path-temp')
-import pShare = require('promise-share')
-import R = require('ramda')
-import renameOverwrite = require('rename-overwrite')
-import ssri = require('ssri')
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -139,7 +139,7 @@ async function resolveAndFetch (
   //
   // The resolution step is never skipped for local dependencies.
   if (!skipResolution || options.skipFetch === true || pkgId?.startsWith('file:')) {
-    const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
+    const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
       lockfileDir: options.lockfileDir,
@@ -337,7 +337,7 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(
-      result.files.then(({ filesIndex }) => {
+      result.files.then(async ({ filesIndex }) => {
         const { integrity, mode } = filesIndex['package.json']
         const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
         return readBundledManifest(manifestPath)
@@ -428,7 +428,7 @@ function fetchToStore (
           .then((manifest) => bundledManifest.resolve(pickBundledManifest(manifest)))
           .catch(bundledManifest.reject)
       }
-      const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(
+      const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
         opts.pkgId,
         opts.resolution,
         {
@@ -527,7 +527,7 @@ async function tarballIsUpToDate (
   if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
 
   const tarball = path.join(lockfileDir, resolution.tarball.slice(5))
-  const tarballStream = fs.createReadStream(tarball)
+  const tarballStream = createReadStream(tarball)
   try {
     return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
   } catch (err) {

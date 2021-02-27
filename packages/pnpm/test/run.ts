@@ -1,7 +1,7 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { execPnpm, execPnpmSync } from './utils'
-import path = require('path')
-import fs = require('mz/fs')
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 

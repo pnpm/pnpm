@@ -1,4 +1,4 @@
-import chalk = require('chalk')
+import chalk from 'chalk'
 
 export function formatUnknownOptionsError (unknownOptions: Map<string, string[]>) {
   let output = chalk.bgRed.black('\u2009ERROR\u2009')

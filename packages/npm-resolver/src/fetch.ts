@@ -1,3 +1,4 @@
+import url from 'url'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError, {
   FetchError,
@@ -5,9 +6,8 @@ import PnpmError, {
   FetchErrorResponse,
 } from '@pnpm/error'
 import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
-import { PackageMeta } from './pickPackage'
 import * as retry from '@zkochan/retry'
-import url = require('url')
+import { PackageMeta } from './pickPackage'
 
 interface RegistryResponse {
   status: number
@@ -94,5 +94,5 @@ function toUri (pkgName: string, registry: string) {
     encodedName = encodeURIComponent(pkgName)
   }
 
-  return url.resolve(registry, encodedName)
+  return new url.URL(encodedName, registry).toString()
 }

@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -7,12 +9,10 @@ import {
   install,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import normalizePath from 'normalize-path'
+import symlinkDir from 'symlink-dir'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
-import normalizePath = require('normalize-path')
-import symlinkDir = require('symlink-dir')
 
 test('scoped modules from a directory', async () => {
   const project = prepareEmpty()

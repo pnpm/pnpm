@@ -70,7 +70,7 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
   }
 }
 
-class ResponseError extends Error {
+export class ResponseError extends Error {
   public res: Response
   public code: number
   public status: number
@@ -91,5 +91,3 @@ class ResponseError extends Error {
     this.url = res.url
   }
 }
-
-exports.ResponseError = ResponseError

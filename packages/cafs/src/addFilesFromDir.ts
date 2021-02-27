@@ -1,12 +1,12 @@
+import { createReadStream, promises as fs } from 'fs'
+import path from 'path'
 import {
   DeferredManifestPromise,
   FilesIndex,
   FileWriteResult,
 } from '@pnpm/fetcher-base'
+import pLimit from 'p-limit'
 import { parseJsonBuffer } from './parseJson'
-import path = require('path')
-import fs = require('mz/fs')
-import pLimit = require('p-limit')
 
 const limit = pLimit(20)
 
@@ -56,7 +56,7 @@ async function _retrieveFileIntegrities (
             const buffer = await fs.readFile(fullPath)
             return cafs.addBuffer(buffer, stat.mode)
           }
-          return cafs.addStream(fs.createReadStream(fullPath), stat.mode)
+          return cafs.addStream(createReadStream(fullPath), stat.mode)
         })
         index[relativePath] = {
           mode: stat.mode,

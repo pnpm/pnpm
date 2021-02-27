@@ -1,6 +1,6 @@
 import { pack } from '@pnpm/plugin-commands-publishing'
 import prepare from '@pnpm/prepare'
-import exists = require('path-exists')
+import exists from 'path-exists'
 
 test('pack: package with package.json', async () => {
   prepare({

@@ -1,4 +1,4 @@
-import escapeStringRegexp = require('escape-string-regexp')
+import escapeStringRegexp from 'escape-string-regexp'
 
 export default function matcher (patterns: string[] | string) {
   if (typeof patterns === 'string') return matcherFromPattern(patterns)

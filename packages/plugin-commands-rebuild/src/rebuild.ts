@@ -6,13 +6,13 @@ import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import {
   rebuild,
   rebuildPkgs,
 } from './implementation'
 import recursive from './recursive'
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return {

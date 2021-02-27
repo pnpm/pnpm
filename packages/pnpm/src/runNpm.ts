@@ -1,7 +1,7 @@
 import packageManager from '@pnpm/cli-meta'
 import getConfig, { types as allTypes } from '@pnpm/config'
 import runNpm from '@pnpm/run-npm'
-import R = require('ramda')
+import * as R from 'ramda'
 
 export default async function run (args: string[]) {
   const { config } = await getConfig({

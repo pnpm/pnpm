@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
@@ -6,12 +8,10 @@ import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
+import loadJsonFile from 'load-json-file'
+import writeJsonFile from 'write-json-file'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import writeJsonFile = require('write-json-file')
-import writeYamlFile = require('write-yaml-file')
 
 test('recursive add/remove', async () => {
   const projects = preparePackages([

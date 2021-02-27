@@ -1,9 +1,9 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import { read, write } from '@pnpm/modules-yaml'
 import readYamlFile from 'read-yaml-file'
-import path = require('path')
-import isWindows = require('is-windows')
-import tempy = require('tempy')
+import isWindows from 'is-windows'
+import tempy from 'tempy'
 
 test('write() and read()', async () => {
   const modulesDir = tempy.directory()
@@ -18,6 +18,7 @@ test('write() and read()', async () => {
     packageManager: 'pnpm@2',
     pendingBuilds: [],
     publicHoistPattern: [],
+    prunedAt: new Date().toUTCString(),
     registries: {
       default: 'https://registry.npmjs.org/',
     },

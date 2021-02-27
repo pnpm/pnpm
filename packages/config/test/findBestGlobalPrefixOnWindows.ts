@@ -1,4 +1,4 @@
-import findBestGlobalPrefixOnWindows from '../src/findBestGlobalPrefixOnWindows'
+import findBestGlobalPrefixOnWindows from '../lib/findBestGlobalPrefixOnWindows'
 
 test('findBestGlobalPrefixOnWindows()', () => {
   if (process.platform !== 'win32') {

@@ -38,7 +38,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "funding": "https://opencollective.com/pnpm"
 }

@@ -1,17 +1,17 @@
+import { createReadStream, promises as fs } from 'fs'
+import path from 'path'
+import tempy from 'tempy'
 import createCafs, {
   checkFilesIntegrity,
   getFilePathInCafs,
 } from '../src'
-import fs = require('mz/fs')
-import path = require('path')
-import tempy = require('tempy')
 
 describe('cafs', () => {
   it('unpack', async () => {
     const dest = tempy.directory()
     const cafs = createCafs(dest)
     const filesIndex = await cafs.addFilesFromTarball(
-      fs.createReadStream(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
+      createReadStream(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
     )
     expect(Object.keys(filesIndex)).toHaveLength(121)
     const pkgFile = filesIndex['package.json']
@@ -25,7 +25,7 @@ describe('cafs', () => {
   it('replaces an already existing file, if the integrity of it was broken', async () => {
     const storeDir = tempy.directory()
     const srcDir = path.join(__dirname, 'fixtures/one-file')
-    const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
+    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     let filesIndex = await addFiles()
     const { integrity } = await filesIndex['foo.txt'].writeResult
@@ -55,10 +55,9 @@ describe('checkFilesIntegrity()', () => {
 
 test('file names are normalized when unpacking a tarball', async () => {
   const dest = tempy.directory()
-  console.log(dest)
   const cafs = createCafs(dest)
   const filesIndex = await cafs.addFilesFromTarball(
-    fs.createReadStream(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
+    createReadStream(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
     'LICENSE',

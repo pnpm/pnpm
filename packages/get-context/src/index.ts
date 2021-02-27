@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
@@ -14,15 +16,13 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
+import rimraf from '@zkochan/rimraf'
+import pathAbsolute from 'path-absolute'
+import * as R from 'ramda'
 import checkCompatibility from './checkCompatibility'
 import UnexpectedStoreError from './checkCompatibility/UnexpectedStoreError'
 import UnexpectedVirtualStoreDirError from './checkCompatibility/UnexpectedVirtualStoreDirError'
 import readLockfileFile from './readLockfiles'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
-import pathAbsolute = require('path-absolute')
-import R = require('ramda')
 
 export { UnexpectedStoreError, UnexpectedVirtualStoreDirError }
 

@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
@@ -9,15 +11,13 @@ import prepare, {
 } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
+import execa from 'execa'
+import rimraf from '@zkochan/rimraf'
+import exists from 'path-exists'
+import tempy from 'tempy'
+import symlink from 'symlink-dir'
+import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync, execPnpxSync } from '../utils'
-import path = require('path')
-import execa = require('execa')
-import rimraf = require('@zkochan/rimraf')
-import fs = require('mz/fs')
-import exists = require('path-exists')
-import symlink = require('symlink-dir')
-import tempy = require('tempy')
-import writeYamlFile = require('write-yaml-file')
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -716,7 +716,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
       return pkg
     }
   `
-  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store'])

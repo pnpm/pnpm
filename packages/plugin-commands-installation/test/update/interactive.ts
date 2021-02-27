@@ -1,10 +1,10 @@
+import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
-import path = require('path')
-import chalk = require('chalk')
+import chalk from 'chalk'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
@@ -31,7 +31,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: 'pnpmfile.js',
+  pnpmfile: '.pnpmfile.cjs',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {

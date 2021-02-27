@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import renderHelp = require('render-help')
+import renderHelp from 'render-help'
 
 export const rcOptionsTypes = () => ({})
 export const cliOptionsTypes = () => ({})

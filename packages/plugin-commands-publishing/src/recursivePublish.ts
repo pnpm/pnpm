@@ -6,8 +6,8 @@ import { ResolveFunction } from '@pnpm/resolver-base'
 import sortPackages from '@pnpm/sort-packages'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
+import pFilter from 'p-filter'
 import { handler as publish } from './publish'
-import pFilter = require('p-filter')
 
 export type PublishRecursiveOpts = Required<Pick<Config,
 | 'cliOptions'

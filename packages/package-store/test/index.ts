@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
-import tempy = require('tempy')
+import tempy from 'tempy'
 
 describe('store.importPackage()', () => {
   it('selects import method automatically', async () => {
@@ -33,7 +33,7 @@ describe('store.importPackage()', () => {
       force: false,
     })
     expect(typeof importMethod).toBe('string')
-    expect(typeof require(importTo)).toBe('function')
+    expect(typeof (await import(importTo)).default).toBe('function')
   })
 
   it('uses copying', async () => {
@@ -66,6 +66,6 @@ describe('store.importPackage()', () => {
       force: false,
     })
     expect(importMethod).toBe('copy')
-    expect(typeof require(importTo)).toBe('function')
+    expect(typeof (await import(importTo)).default).toBe('function')
   })
 })

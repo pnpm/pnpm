@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts",
@@ -31,7 +31,6 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
     "@types/is-ci": "^2.0.0",
-    "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.35"
   },
   "peerDependencies": {
@@ -47,7 +46,6 @@
     "@pnpm/types": "workspace:6.4.0",
     "@zkochan/rimraf": "^1.0.0",
     "is-ci": "^3.0.0",
-    "mz": "^2.7.0",
     "path-absolute": "^1.0.1",
     "ramda": "^0.27.1"
   },

@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "files": [
     "lib",
@@ -36,7 +36,6 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
     "@pnpm/types": "workspace:6.4.0",
-    "@types/mz": "^2.7.3",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.35",
     "rimraf": "^3.0.2"
@@ -48,7 +47,6 @@
     "@pnpm/read-project-manifest": "workspace:1.1.7",
     "@yarnpkg/pnp": "^2.3.2",
     "dependency-path": "workspace:5.1.1",
-    "mz": "^2.7.0",
     "normalize-path": "^3.0.0",
     "ramda": "^0.27.1"
   },

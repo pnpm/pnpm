@@ -1,10 +1,10 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { PackageFilesIndex } from '@pnpm/cafs'
 import { globalInfo } from '@pnpm/logger'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import ssri = require('ssri')
+import rimraf from '@zkochan/rimraf'
+import loadJsonFile from 'load-json-file'
+import ssri from 'ssri'
 
 const BIG_ONE = BigInt(1) as unknown
 

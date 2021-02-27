@@ -1,12 +1,12 @@
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import { copyFixture } from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, mutateModules } from 'supi'
+import rimraf from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
 
 test.skip('subsequent installation uses same lockfile directory by default', async () => {
   prepareEmpty()

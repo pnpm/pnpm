@@ -1,18 +1,18 @@
+import { promises as fs } from 'fs'
+import Module from 'module'
+import path from 'path'
 import PnpmError from '@pnpm/error'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependencyManifest } from '@pnpm/types'
-import Module = require('module')
-import cmdShim = require('@zkochan/cmd-shim')
-import isSubdir = require('is-subdir')
-import isWindows = require('is-windows')
-import fs = require('mz/fs')
-import normalizePath = require('normalize-path')
-import pSettle = require('p-settle')
-import path = require('path')
-import R = require('ramda')
+import cmdShim from '@zkochan/cmd-shim'
+import isSubdir from 'is-subdir'
+import isWindows from 'is-windows'
+import normalizePath from 'normalize-path'
+import pSettle from 'p-settle'
+import * as R from 'ramda'
 
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
@@ -66,7 +66,7 @@ export async function linkBinsOfPackages (
   const allCmds = R.unnest(
     (await Promise.all(
       pkgs
-        .map((pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
+        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
@@ -93,10 +93,10 @@ async function linkBins (
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = R.partition(({ ownName }) => ownName, allCmds)
 
-  const results1 = await pSettle(cmdsWithOwnName.map((cmd) => linkBin(cmd, binsDir)))
+  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir)))
 
   const usedNames = R.fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as R.KeyValuePair<string, string>))
-  const results2 = await pSettle(cmdsWithOtherNames.map((cmd) => {
+  const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
     if (usedNames[cmd.name]) {
       opts.warn(`Cannot link binary '${cmd.name}' of '${cmd.pkgName}' to '${binsDir}': binary of '${usedNames[cmd.name]}' is already linked`, 'BINARIES_CONFLICT')
       return Promise.resolve(undefined)

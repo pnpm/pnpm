@@ -1,13 +1,13 @@
 /// <reference path="../../../typings/index.d.ts" />
 import { promisify } from 'util'
+import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import PnpmError from '@pnpm/error'
 import { importCommand } from '@pnpm/plugin-commands-import'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import path = require('path')
-import ncpCB = require('ncp')
-import tempy = require('tempy')
+import tempy from 'tempy'
+import ncpCB from 'ncp'
 
 const ncp = promisify(ncpCB)
 

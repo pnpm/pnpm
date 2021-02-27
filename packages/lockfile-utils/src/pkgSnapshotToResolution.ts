@@ -1,10 +1,10 @@
+import url from 'url'
 import { PackageSnapshot } from '@pnpm/lockfile-types'
 import { Resolution } from '@pnpm/resolver-base'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
-import url = require('url')
 
 export default (
   depPath: string,
@@ -23,7 +23,7 @@ export default (
   if (!pkgSnapshot.resolution['tarball']) {
     tarball = getTarball(registry)
   } else {
-    tarball = url.resolve(registry, pkgSnapshot.resolution['tarball'])
+    tarball = new url.URL(pkgSnapshot.resolution['tarball'], registry).toString()
   }
   return {
     ...pkgSnapshot.resolution,

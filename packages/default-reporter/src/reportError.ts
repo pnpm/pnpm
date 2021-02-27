@@ -1,10 +1,10 @@
 import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
+import chalk from 'chalk'
+import * as R from 'ramda'
+import StackTracey from 'stacktracey'
 import { EOL } from './constants'
-import chalk = require('chalk')
-import R = require('ramda')
-import StackTracey = require('stacktracey')
 
 StackTracey.maxColumnWidths = {
   callee: 25,

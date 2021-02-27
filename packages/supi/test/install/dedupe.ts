@@ -1,7 +1,7 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from 'supi'
+import pnpmRegistryMock from '@pnpm/registry-mock'
 import { testDefaults } from '../utils'
-import pnpmRegistryMock = require('@pnpm/registry-mock')
 
 const addDistTag = pnpmRegistryMock.addDistTag
 

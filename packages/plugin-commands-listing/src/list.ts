@@ -3,9 +3,9 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import { IncludedDependencies } from '@pnpm/types'
+import * as R from 'ramda'
+import renderHelp from 'render-help'
 import listRecursive from './recursive'
-import R = require('ramda')
-import renderHelp = require('render-help')
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -124,7 +124,7 @@ export type ListCommandOptions = Pick<Config,
   recursive?: boolean
 }
 
-export function handler (
+export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ) {
@@ -146,7 +146,7 @@ export function handler (
   })
 }
 
-export function render (
+export async function render (
   prefixes: string[],
   params: string[],
   opts: {

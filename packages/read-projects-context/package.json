@@ -12,7 +12,7 @@
   "keywords": [],
   "license": "MIT",
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.2.3"
@@ -31,7 +31,7 @@
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/normalize-registries": "workspace:1.0.6",
     "@pnpm/types": "workspace:6.4.0",
-    "realpath-missing": "^1.0.0"
+    "realpath-missing": "^1.1.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3"

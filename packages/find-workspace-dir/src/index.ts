@@ -1,6 +1,6 @@
+import path from 'path'
 import PnpmError from '@pnpm/error'
-import path = require('path')
-import findUp = require('find-up')
+import findUp from 'find-up'
 
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 

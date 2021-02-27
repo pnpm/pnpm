@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   docsUrl,
   readProjectManifestOnly,
@@ -12,12 +13,11 @@ import runLifecycleHooks, {
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { ProjectManifest } from '@pnpm/types'
-import existsInDir from './existsInDir'
+import * as R from 'ramda'
+import realpathMissing from 'realpath-missing'
+import renderHelp from 'render-help'
 import runRecursive, { RecursiveRunOpts } from './runRecursive'
-import path = require('path')
-import R = require('ramda')
-import realpathMissing = require('realpath-missing')
-import renderHelp = require('render-help')
+import existsInDir from './existsInDir'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
@@ -164,7 +164,7 @@ so you may run "pnpm -w ${scriptName}"`,
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
-  const existsPnp = existsInDir.bind(null, '.pnp.js')
+  const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && await existsPnp(opts.workspaceDir)) ??
     await existsPnp(dir)
   if (pnpPath) {

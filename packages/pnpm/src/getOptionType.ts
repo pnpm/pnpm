@@ -1,5 +1,5 @@
-import nopt = require('nopt')
-import R = require('ramda')
+import nopt from 'nopt'
+import * as R from 'ramda'
 
 export interface CompletionCtx {
   last: string

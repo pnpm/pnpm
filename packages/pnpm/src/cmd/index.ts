@@ -15,6 +15,7 @@ import {
 } from '@pnpm/plugin-commands-script-runners'
 import { server } from '@pnpm/plugin-commands-server'
 import { store } from '@pnpm/plugin-commands-store'
+import * as R from 'ramda'
 import { PnpmOptions } from '../types'
 import * as bin from './bin'
 import createCompletion from './completion'
@@ -22,7 +23,6 @@ import createHelp from './help'
 import * as installTest from './installTest'
 import * as recursive from './recursive'
 import * as root from './root'
-import R = require('ramda')
 
 export const GLOBAL_OPTIONS = R.pick([
   'color',

@@ -1,8 +1,8 @@
+import path from 'path'
 import { install, link, prune } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
-import path = require('path')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -18,7 +18,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: 'pnpmfile.js',
+  pnpmfile: '.pnpmfile.cjs',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
@@ -73,5 +73,7 @@ test('prune removes dev dependencies', async () => {
   })
 
   await project.has('is-positive')
+  await project.has('.pnpm/is-positive@1.0.0')
   await project.hasNot('is-negative')
+  await project.hasNot('.pnpm/is-negative@1.0.0')
 })

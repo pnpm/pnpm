@@ -24,7 +24,7 @@
     "@commitlint/prompt-cli": "^11.0.0",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "^0.0.0",
-    "@pnpm/registry-mock": "^2.3.0",
+    "@pnpm/registry-mock": "^2.4.0",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "^26.0.19",
     "@types/node": "^14.14.22",
@@ -60,7 +60,8 @@
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
       "http-errors": "^1.7.3",
       "table@^6.0.3": "6.0.4",
-      "graceful-fs": "4.2.4"
+      "graceful-fs": "4.2.4",
+      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.2"
     },
     "neverBuiltDependencies": [
       "core-js",

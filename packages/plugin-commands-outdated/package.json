@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=10.16"
+    "node": ">=12.17"
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
@@ -39,11 +39,9 @@
     "@pnpm/prepare": "workspace:0.0.17",
     "@pnpm/types": "workspace:6.4.0",
     "@types/lru-cache": "^5.1.0",
-    "@types/mz": "^2.7.3",
     "@types/ramda": "^0.27.35",
     "@types/wrap-ansi": "^3.0.0",
     "@types/zkochan__table": "npm:@types/table@^5.0.0",
-    "mz": "^2.7.0",
     "strip-ansi": "^6.0.0"
   },
   "dependencies": {
@@ -59,7 +57,7 @@
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/outdated": "workspace:7.2.26",
     "@pnpm/semver-diff": "^1.0.2",
-    "@pnpm/store-path": "^4.0.4",
+    "@pnpm/store-path": "5.0.0-0",
     "@zkochan/table": "^1.0.0",
     "chalk": "^4.1.0",
     "lru-cache": "^6.0.0",

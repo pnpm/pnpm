@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
@@ -12,19 +14,17 @@ import {
   install,
   mutateModules,
 } from 'supi'
+import rimraf from '@zkochan/rimraf'
+import loadJsonFile from 'load-json-file'
+import nock from 'nock'
+import exists from 'path-exists'
+import * as R from 'ramda'
+import sinon from 'sinon'
+import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   testDefaults,
 } from './utils'
-import path = require('path')
-import rimraf = require('@zkochan/rimraf')
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import nock = require('nock')
-import exists = require('path-exists')
-import R = require('ramda')
-import sinon = require('sinon')
-import writeYamlFile = require('write-yaml-file')
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -107,7 +107,7 @@ test('lockfile with scoped package', async () => {
     specifiers: {
       '@types/semver': '^5.3.31',
     },
-  })
+  }, { lineWidth: 1000 })
 
   await install({
     dependencies: {
@@ -135,7 +135,7 @@ test('fail when shasum from lockfile does not match with the actual one', async 
     specifiers: {
       'is-negative': '2.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   try {
     await install({
@@ -194,7 +194,7 @@ test('lockfile removed when no deps in package.json', async () => {
     specifiers: {
       'is-negative': '2.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   await install({}, await testDefaults())
 
@@ -233,7 +233,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   const reporter = sinon.spy()
   await install({
@@ -291,7 +291,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   const reporter = sinon.spy()
 
@@ -321,7 +321,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   // })
 
   const pkgs = ['foo', 'bar', 'qar']
-  await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
+  await Promise.all(pkgs.map(async (pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
 
   let manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ save: true, reporter }))
   // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
@@ -335,7 +335,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/foo'))).version).toBe('100.0.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/bar'))).version).toBe('100.0.0')
 
-  await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
+  await Promise.all(pkgs.map(async (pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
@@ -385,7 +385,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   lockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies!['dep-of-pkg-with-1-dep'] = '100.1.0'
 
-  await writeYamlFile(WANTED_LOCKFILE, lockfile)
+  await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
 
   await install(manifest, await testDefaults())
 
@@ -697,7 +697,7 @@ test('lockfile is ignored when lockfile = false', async () => {
     specifiers: {
       'is-negative': '2.1.0',
     },
-  })
+  }, { lineWidth: 1000 })
 
   const reporter = sinon.spy()
 
@@ -957,7 +957,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
         },
       },
     },
-  })
+  }, { lineWidth: 1000 })
 
   pkg2 = await addDependenciesToPackage(
     pkg2,
@@ -1017,7 +1017,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
   const initialLockfile = await project.readLockfile()
-  await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 })
+  await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 }, { lineWidth: 1000 })
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
@@ -1074,7 +1074,7 @@ test('broken lockfile is fixed even if it seems like up-to-date at first. Unless
     const lockfile = await project.readLockfile()
     expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
     delete lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0']
-    await writeYamlFile(WANTED_LOCKFILE, lockfile)
+    await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
   let err!: PnpmError

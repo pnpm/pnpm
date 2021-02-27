@@ -1,8 +1,8 @@
-import PnpmError from '@pnpm/error'
 import { promisify } from 'util'
+import path from 'path'
+import PnpmError from '@pnpm/error'
 import { PackageManifest } from '@pnpm/types'
-import path = require('path')
-import readPackageManifestCB = require('read-package-json')
+import readPackageManifestCB from 'read-package-json'
 
 const readPackageManifest = promisify<string, PackageManifest>(readPackageManifestCB)
 
@@ -15,7 +15,7 @@ export default async function readPkg (pkgPath: string): Promise<PackageManifest
   }
 }
 
-export function fromDir (pkgPath: string): Promise<PackageManifest> {
+export async function fromDir (pkgPath: string): Promise<PackageManifest> {
   return readPkg(path.join(pkgPath, 'package.json'))
 }
 
@@ -28,6 +28,6 @@ export async function safeReadPackage (pkgPath: string): Promise<PackageManifest
   }
 }
 
-export function safeReadPackageFromDir (pkgPath: string): Promise<PackageManifest | null> {
+export async function safeReadPackageFromDir (pkgPath: string): Promise<PackageManifest | null> {
   return safeReadPackage(path.join(pkgPath, 'package.json'))
 }

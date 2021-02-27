@@ -1,9 +1,9 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import { promisify } from 'util'
+import fs from 'fs'
+import path from 'path'
 import writeProjectManifest from '@pnpm/write-project-manifest'
-import fs = require('fs')
-import path = require('path')
-import tempy = require('tempy')
+import tempy from 'tempy'
 
 const readFile = promisify(fs.readFile)
 

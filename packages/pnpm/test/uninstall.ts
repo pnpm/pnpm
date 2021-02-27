@@ -1,10 +1,10 @@
-import { execPnpm } from './utils'
+import { promises as fs } from 'fs'
+import path from 'path'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import prepare from '@pnpm/prepare'
-import fs = require('mz/fs')
-import path = require('path')
-import exists = require('path-exists')
-import PATH = require('path-name')
+import exists from 'path-exists'
+import PATH from 'path-name'
+import { execPnpm } from './utils'
 
 test('uninstall package and remove from appropriate property', async () => {
   const project = prepare()

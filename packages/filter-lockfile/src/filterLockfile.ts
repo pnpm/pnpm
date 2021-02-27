@@ -1,7 +1,7 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
+import * as R from 'ramda'
 import filterImporter from './filterImporter'
-import R = require('ramda')
 
 export default function filterLockfile (
   lockfile: Lockfile,

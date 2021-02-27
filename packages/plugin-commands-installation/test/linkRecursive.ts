@@ -1,10 +1,10 @@
+import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install, unlink } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
+import exists from 'path-exists'
 import { DEFAULT_OPTS } from './utils'
-import path = require('path')
-import exists = require('path-exists')
 
 test('recursive linking/unlinking', async () => {
   const projects = preparePackages([
