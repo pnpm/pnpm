@@ -21,10 +21,8 @@ export interface Config {
   rawConfig: Record<string, any>, // eslint-disable-line
   dryRun?: boolean // This option might be not supported ever
   global?: boolean
-  globalDir: string
   dir: string
-  bin?: string
-  npmGlobalBinDir: string
+  bin: string
   ignoreScripts?: boolean
   save?: boolean
   saveProd?: boolean

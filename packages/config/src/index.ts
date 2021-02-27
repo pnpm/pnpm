@@ -5,6 +5,9 @@ import globalBinDir from '@pnpm/global-bin-dir'
 import camelcase from 'camelcase'
 import loadNpmConf from '@zkochan/npm-conf'
 import npmTypes from '@zkochan/npm-conf/lib/types'
+import { sync as canWriteToDir } from 'can-write-to-dir'
+import fs from 'fs'
+import os from 'os'
 import * as R from 'ramda'
 import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
@@ -221,16 +224,6 @@ export default async (
     default: normalizeRegistry(pnpmConfig.rawConfig.registry),
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
-  const npmGlobalPrefix: string = pnpmConfig.globalDir ?? pnpmConfig.rawConfig['pnpm-prefix'] ??
-    (
-      process.platform !== 'win32'
-        ? npmConfig.globalPrefix
-        : findBestGlobalPrefixOnWindows(npmConfig.globalPrefix, process.env)
-    )
-  pnpmConfig.npmGlobalBinDir = process.platform === 'win32'
-    ? npmGlobalPrefix
-    : path.resolve(npmGlobalPrefix, 'bin')
-  pnpmConfig.globalDir = pnpmConfig.globalDir ? npmGlobalPrefix : path.join(npmGlobalPrefix, 'pnpm-global')
   pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
@@ -252,14 +245,25 @@ export default async (
     : pnpmConfig['sharedWorkspaceLockfile']
 
   if (cliOptions['global']) {
+    const npmGlobalPrefix: string = pnpmConfig['globalDir'] ??
+      (
+        process.platform !== 'win32'
+          ? npmConfig.globalPrefix
+          : findBestGlobalPrefixOnWindows(npmConfig.globalPrefix, process.env)
+      )
+    const npmGlobalBinDir = process.platform === 'win32'
+      ? npmGlobalPrefix
+      : path.resolve(npmGlobalPrefix, 'bin')
+    const globalDir = pnpmConfig['globalDir']
+      ? npmGlobalPrefix : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), 'pnpm-global')
     pnpmConfig.save = true
-    pnpmConfig.dir = path.join(pnpmConfig.globalDir, LAYOUT_VERSION.toString())
+    pnpmConfig.dir = path.join(globalDir, LAYOUT_VERSION.toString())
     pnpmConfig.bin = cliOptions.dir
       ? (
         process.platform === 'win32'
           ? cliOptions.dir : path.resolve(cliOptions.dir, 'bin')
       )
-      : globalBinDir([pnpmConfig.npmGlobalBinDir], { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+      : globalBinDir([npmGlobalBinDir], { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
     pnpmConfig.saveProd = true
@@ -419,4 +423,19 @@ function getProcessEnv (env: string) {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+function firstWithWriteAccess (dirs: string[]) {
+  const first = dirs.find((dir) => {
+    try {
+      fs.mkdirSync(dir, { recursive: true })
+      return canWriteToDir(dir)
+    } catch {
+      return false
+    }
+  })
+  if (first == null) {
+    throw new PnpmError('NO_SUITABLE_GLOBAL_DIR', `pnpm has no write access to global direcotry. Tried locations: ${dirs.join(', ')}`)
+  }
+  return first
 }

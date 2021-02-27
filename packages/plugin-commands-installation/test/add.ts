@@ -13,6 +13,7 @@ const DEFAULT_OPTIONS = {
     original: [],
   },
   bail: false,
+  bin: 'node_modules/.bin',
   cliOptions: {},
   include: {
     dependencies: true,

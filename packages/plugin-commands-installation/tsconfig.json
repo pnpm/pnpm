@@ -46,9 +46,6 @@
       "path": "../find-workspace-packages"
     },
     {
-      "path": "../global-bin-dir"
-    },
-    {
       "path": "../lockfile-types"
     },
     {

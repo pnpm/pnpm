@@ -24,12 +24,11 @@ test('linking multiple packages', async () => {
   console.log('linking linked-foo to global package')
   const linkOpts = {
     ...DEFAULT_OPTS,
-    npmGlobalBinDir: path.join(globalDir, 'bin'),
-    globalDir,
+    bin: path.join(globalDir, 'bin'),
+    dir: globalDir,
   }
   await link.handler({
     ...linkOpts,
-    dir: process.cwd(),
   })
 
   process.chdir('..')
@@ -37,7 +36,6 @@ test('linking multiple packages', async () => {
 
   await link.handler({
     ...linkOpts,
-    dir: process.cwd(),
   }, ['linked-foo', '../linked-bar'])
 
   await project.has('linked-foo')
@@ -64,9 +62,8 @@ test('link global bin', async function () {
 
   await link.handler({
     ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    npmGlobalBinDir: globalBin,
-    globalDir,
+    bin: globalBin,
+    dir: globalDir,
   })
   process.env[PATH] = oldPath
 
@@ -87,7 +84,6 @@ test('relative link', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    npmGlobalBinDir: '',
   }, [`../${linkedPkgName}`])
 
   await project.isExecutable('.bin/hello-world-js-bin')
@@ -119,7 +115,6 @@ test('absolute link', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    npmGlobalBinDir: '',
   }, [linkedPkgPath])
 
   await project.isExecutable('.bin/hello-world-js-bin')
@@ -173,7 +168,6 @@ test('link --production', async () => {
     ...DEFAULT_OPTS,
     cliOptions: { production: true },
     dir: process.cwd(),
-    npmGlobalBinDir: '',
   }, ['../source'])
 
   await projects['source'].has('is-positive')

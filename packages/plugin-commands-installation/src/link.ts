@@ -10,7 +10,6 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
-import globalBinDir from '@pnpm/global-bin-dir'
 import { StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
@@ -74,17 +73,17 @@ export function help () {
 
 export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
+  | 'bin'
   | 'cliOptions'
   | 'engineStrict'
-  | 'npmGlobalBinDir'
   | 'saveDev'
   | 'saveOptional'
   | 'saveProd'
   | 'workspaceDir'
-  > & Partial<Pick<Config, 'globalDir' | 'linkWorkspacePackages'>>,
+  > & Partial<Pick<Config, 'linkWorkspacePackages'>>,
   params?: string[]
 ) {
-  const cwd = opts?.dir ?? process.cwd()
+  const cwd = process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()
   let workspacePackagesArr
@@ -106,12 +105,12 @@ export async function handler (
 
   // pnpm link
   if (!params || !params.length) {
-    const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.globalDir!, opts)
+    const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
-      // A temporary workaround. global bin/prefix are always defined when --global is set
-      globalBin: globalBinDir([linkOpts.npmGlobalBinDir]),
-      globalDir: linkOpts.globalDir!,
+      dir: cwd,
+      globalBin: linkOpts.bin,
+      globalDir: linkOpts.dir,
       manifest: manifest ?? {},
     })
     await writeProjectManifest(newManifest)
@@ -137,7 +136,7 @@ export async function handler (
     } else {
       globalPkgNames = pkgNames
     }
-    const globalPkgPath = pathAbsolute(opts.globalDir!)
+    const globalPkgPath = pathAbsolute(opts.dir)
     globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
   }
 
