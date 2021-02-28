@@ -1,6 +1,6 @@
-import findBestGlobalPrefixOnWindows from '../lib/findBestGlobalPrefixOnWindows'
+import findBestGlobalPrefix from '../lib/findBestGlobalPrefix'
 
-test('findBestGlobalPrefixOnWindows()', () => {
+test('findBestGlobalPrefix()', () => {
   if (process.platform !== 'win32') {
     // skipping on non-windows
     return
@@ -13,24 +13,24 @@ test('findBestGlobalPrefixOnWindows()', () => {
 
   expect(
     // keep npm global prefix if is inside AppData\Local
-    findBestGlobalPrefixOnWindows('C:\\Users\\Imre\\AppData\\Local\\nvs\\default', env)).toEqual(
+    findBestGlobalPrefix('C:\\Users\\Imre\\AppData\\Local\\nvs\\default', env)).toEqual(
     'C:\\Users\\Imre\\AppData\\Local\\nvs\\default'
   )
 
   expect(
     // keep npm global prefix if is inside AppData\Roaming
-    findBestGlobalPrefixOnWindows('C:\\Users\\Imre\\AppData\\Roaming\\nvs\\default', env)).toEqual(
+    findBestGlobalPrefix('C:\\Users\\Imre\\AppData\\Roaming\\nvs\\default', env)).toEqual(
     'C:\\Users\\Imre\\AppData\\Roaming\\nvs\\default'
   )
 
   expect(
     // prefer location in AppData\Roaming
-    findBestGlobalPrefixOnWindows('C:\\foo', env)).toEqual(
+    findBestGlobalPrefix('C:\\foo', env)).toEqual(
     'C:\\Users\\Imre\\AppData\\Roaming\\npm'
   )
 
   expect(
-    findBestGlobalPrefixOnWindows('C:\\foo', {})).toEqual(
+    findBestGlobalPrefix('C:\\foo', {})).toEqual(
     'C:\\foo'
   )
 })

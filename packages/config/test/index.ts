@@ -3,7 +3,6 @@ import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 
-import './findBestGlobalPrefixOnWindows'
 import { promises as fs } from 'fs'
 import path from 'path'
 import symlinkDir from 'symlink-dir'

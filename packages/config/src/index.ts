@@ -11,7 +11,7 @@ import * as R from 'ramda'
 import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
-import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
+import findBestGlobalPrefix from './findBestGlobalPrefix'
 import {
   Config,
   ConfigWithDeprecatedSettings,
@@ -244,9 +244,7 @@ export default async (
     : pnpmConfig['sharedWorkspaceLockfile']
 
   if (cliOptions['global']) {
-    const npmGlobalPrefix: string = process.platform !== 'win32'
-      ? npmConfig.globalPrefix
-      : findBestGlobalPrefixOnWindows(npmConfig.globalPrefix, process.env)
+    const npmGlobalPrefix: string = findBestGlobalPrefix(npmConfig.globalPrefix, process.env)
     const globalDirRoot = pnpmConfig['globalDir']
       ? pnpmConfig['globalDir'] : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), 'pnpm-global')
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
