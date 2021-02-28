@@ -1,6 +1,7 @@
 import path from 'path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
+import { promises as fs } from 'fs'
 import isWindows from 'is-windows'
 import exists from 'path-exists'
 import {
@@ -11,6 +12,7 @@ import {
 test('global installation', async () => {
   prepare()
   const global = path.resolve('..', 'global')
+  await fs.mkdir(global)
 
   const env = { NPM_CONFIG_PREFIX: global }
   if (process.env.APPDATA) env['APPDATA'] = global
@@ -44,6 +46,7 @@ test('always install latest when doing global installation without spec', async 
   await addDistTag('peer-c', '2.0.0', 'latest')
 
   const global = path.resolve('..', 'global')
+  await fs.mkdir(global)
 
   const env = { NPM_CONFIG_PREFIX: global }
 
@@ -68,6 +71,7 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   prepare()
   const global = path.resolve('..', 'global')
+  await fs.mkdir(global)
 
   const env = { NPM_CONFIG_PREFIX: global }
   if (process.env.APPDATA) env['APPDATA'] = global

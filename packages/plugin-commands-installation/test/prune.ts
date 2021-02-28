@@ -11,6 +11,7 @@ const DEFAULT_OPTIONS = {
     original: [],
   },
   bail: false,
+  bin: 'node_modules/.bin',
   cliOptions: {},
   include: {
     dependencies: true,
@@ -36,7 +37,6 @@ test('prune removes external link that is not in package.json', async () => {
   await link.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
-    npmGlobalBinDir: process.cwd(),
     storeDir,
   }, ['./local'])
 

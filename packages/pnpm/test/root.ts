@@ -20,6 +20,7 @@ test('pnpm root -g', async () => {
   tempDir()
 
   const global = path.resolve('global')
+  await fs.mkdir(global)
 
   const env = { NPM_CONFIG_PREFIX: global }
   if (process.env.APPDATA) env['APPDATA'] = global

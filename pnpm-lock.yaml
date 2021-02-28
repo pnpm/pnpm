@@ -240,6 +240,7 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/npm-conf': 2.0.2
       camelcase: 6.2.0
+      can-write-to-dir: 1.1.0
       is-subdir: 1.2.0
       ramda: 0.27.1
       realpath-missing: 1.1.0
@@ -261,6 +262,7 @@ importers:
       '@types/which': ^2.0.0
       '@zkochan/npm-conf': 2.0.2
       camelcase: ^6.2.0
+      can-write-to-dir: ^1.1.0
       is-subdir: ^1.1.1
       ramda: ^0.27.1
       realpath-missing: ^1.1.0
@@ -703,7 +705,7 @@ importers:
     specifiers:
       '@pnpm/error': workspace:1.4.0
       '@pnpm/global-bin-dir': 'link:'
-      can-write-to-dir: ^1.0.1
+      can-write-to-dir: ^1.1.0
       is-windows: ^1.0.2
       path-name: ^1.0.0
 
@@ -1689,7 +1691,6 @@ importers:
       '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
       '@pnpm/find-workspace-dir': link:../find-workspace-dir
       '@pnpm/find-workspace-packages': link:../find-workspace-packages
-      '@pnpm/global-bin-dir': link:../global-bin-dir
       '@pnpm/manifest-utils': link:../manifest-utils
       '@pnpm/outdated': link:../outdated
       '@pnpm/package-store': link:../package-store
@@ -1751,7 +1752,6 @@ importers:
       '@pnpm/filter-workspace-packages': workspace:2.3.10
       '@pnpm/find-workspace-dir': workspace:2.0.0
       '@pnpm/find-workspace-packages': workspace:2.3.38
-      '@pnpm/global-bin-dir': workspace:1.2.6
       '@pnpm/lockfile-types': workspace:2.2.0
       '@pnpm/logger': ^3.2.3
       '@pnpm/manifest-utils': workspace:1.1.5
@@ -6271,6 +6271,7 @@ packages:
     resolution: {integrity: sha512-PYRx9toaBwM5kk+GTFuijayF5omWa/ToRCSlMUe2YA2Ki8+j0vOc+Hoe1bf7C5l1lQA2y3tE2t+PeQ4XiTlibg==}
     dependencies:
       path-temp: 2.0.0
+    dev: true
     engines:
       node: '>=10.13'
 
