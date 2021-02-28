@@ -91,7 +91,7 @@
     "path-exists": "^4.0.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "workspace:5.2.0",
-    "ps-list": "^6.3.0",
+    "ps-list": "^7.2.0",
     "ramda": "^0.27.1",
     "read-yaml-file": "^2.1.0",
     "render-help": "^1.0.1",
@@ -158,7 +158,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client yarn --dest dist",
     "postpublish": "publish-packed",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp node_modules/ps-list/fastlist.exe dist/fastlist.exe"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor"
   },
   "publishconfig": {
     "tag": "next"
