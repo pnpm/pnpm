@@ -6,7 +6,6 @@ import camelcase from 'camelcase'
 import loadNpmConf from '@zkochan/npm-conf'
 import npmTypes from '@zkochan/npm-conf/lib/types'
 import { sync as canWriteToDir } from 'can-write-to-dir'
-import fs from 'fs'
 import os from 'os'
 import * as R from 'ramda'
 import realpathMissing from 'realpath-missing'
@@ -245,25 +244,23 @@ export default async (
     : pnpmConfig['sharedWorkspaceLockfile']
 
   if (cliOptions['global']) {
-    const npmGlobalPrefix: string = pnpmConfig['globalDir'] ??
-      (
-        process.platform !== 'win32'
-          ? npmConfig.globalPrefix
-          : findBestGlobalPrefixOnWindows(npmConfig.globalPrefix, process.env)
-      )
+    const npmGlobalPrefix: string = process.platform !== 'win32'
+      ? npmConfig.globalPrefix
+      : findBestGlobalPrefixOnWindows(npmConfig.globalPrefix, process.env)
+    const globalDirRoot = pnpmConfig['globalDir']
+      ? pnpmConfig['globalDir'] : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), 'pnpm-global')
+    pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
+
     const npmGlobalBinDir = process.platform === 'win32'
       ? npmGlobalPrefix
       : path.resolve(npmGlobalPrefix, 'bin')
-    const globalDir = pnpmConfig['globalDir']
-      ? npmGlobalPrefix : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), 'pnpm-global')
-    pnpmConfig.save = true
-    pnpmConfig.dir = path.join(globalDir, LAYOUT_VERSION.toString())
     pnpmConfig.bin = cliOptions.dir
       ? (
         process.platform === 'win32'
           ? cliOptions.dir : path.resolve(cliOptions.dir, 'bin')
       )
       : globalBinDir([npmGlobalBinDir], { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+    pnpmConfig.save = true
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
     pnpmConfig.saveProd = true
@@ -426,14 +423,7 @@ function getProcessEnv (env: string) {
 }
 
 function firstWithWriteAccess (dirs: string[]) {
-  const first = dirs.find((dir) => {
-    try {
-      fs.mkdirSync(dir, { recursive: true })
-      return canWriteToDir(dir)
-    } catch {
-      return false
-    }
-  })
+  const first = dirs.find((dir) => dir.includes('_npx') || canWriteToDir(dir))
   if (first == null) {
     throw new PnpmError('NO_SUITABLE_GLOBAL_DIR', `pnpm has no write access to global direcotry. Tried locations: ${dirs.join(', ')}`)
   }

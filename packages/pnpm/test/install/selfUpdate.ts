@@ -1,5 +1,6 @@
 import path from 'path'
 import prepare from '@pnpm/prepare'
+import { promises as fs } from 'fs'
 import isWindows from 'is-windows'
 import pathExists from 'path-exists'
 import {
@@ -21,6 +22,7 @@ skipOnWindows('self-update stops the store server', async () => {
   expect(serverJson.connectionOptions).toBeTruthy()
 
   const global = path.resolve('global')
+  await fs.mkdir(global)
 
   const env = { NPM_CONFIG_PREFIX: global }
   if (process.env.APPDATA) env['APPDATA'] = global
