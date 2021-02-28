@@ -32,12 +32,9 @@ jobs:
         node-version: ${{ matrix.node }}
     - name: checkout main
       run: git branch -f main origin/main
-    - name: install pnpm
+    - name: install pnpm and npm
       run: |
-        npm install --global pnpm@dev
-        pnpm --version
-    - name: Install npm v6
-      run: pnpm add --global npm@6
+        curl -L https://pnpm.js.org/pnpm.js | node - add --global pnpm@dev npm@6
     - name: pnpm install
       run: pnpm install
     - name: run tests (main)
