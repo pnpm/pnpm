@@ -14,7 +14,7 @@ importers:
       '@types/node': 14.14.31
       c8: 7.6.0
       cross-env: 7.0.3
-      eslint: 7.20.0
+      eslint: 7.21.0
       husky: 4.3.8
       jest: 26.6.3_ts-node@9.1.1
       lcov-result-merger: 3.1.0
@@ -695,7 +695,7 @@ importers:
   packages/global-bin-dir:
     dependencies:
       '@pnpm/error': link:../error
-      can-write-to-dir: 1.0.1
+      can-write-to-dir: 1.1.0
       path-name: 1.0.0
     devDependencies:
       '@pnpm/global-bin-dir': 'link:'
@@ -2301,7 +2301,7 @@ importers:
       deep-require-cwd: 1.0.0
       delay: 5.0.0
       dir-is-case-sensitive: 2.0.0
-      esbuild: 0.8.52
+      esbuild: 0.8.53
       execa: 5.0.0
       exists-link: 2.0.0
       is-ci: 3.0.0
@@ -3831,8 +3831,8 @@ packages:
     engines:
       node: '>=v10.22.0'
 
-  /@eslint/eslintrc/0.3.0:
-    resolution: {integrity: sha512-1JTKgrOKAHVivSvOYw+sJOunkBjUOvjqWk1DPja7ZFhIS2mX/4EgTT8M7eTK9jrKhL/FvXXEbQwIs3pg1xp3dg==}
+  /@eslint/eslintrc/0.4.0:
+    resolution: {integrity: sha512-2ZPCc+uNbjV5ERJr+aKSPRwZgKd2z11x0EgLvb1PURmUrn9QNRXFqje0Ldq454PfAVyaJYyrDvvIKSFP4NnBog==}
     dependencies:
       ajv: 6.12.6
       debug: 4.3.1
@@ -3841,7 +3841,6 @@ packages:
       ignore: 4.0.6
       import-fresh: 3.3.0
       js-yaml: 3.14.1
-      lodash: 4.17.21
       minimatch: 3.0.4
       strip-json-comments: 3.1.1
     dev: true
@@ -4267,7 +4266,7 @@ packages:
     resolution: {integrity: sha512-xHTzK9WlCfvoNQwmFsTcPKRMguhrClXc/9f1ywrBRpHDRfZzcIX8hh3ZNr1kKL5CBeMM/Db2mDfpqo9hs+UuXQ==}
     dependencies:
       '@pnpm/error': 1.4.0
-      can-write-to-dir: 1.0.1
+      can-write-to-dir: 1.1.0
       path-name: 1.0.0
     dev: true
     engines:
@@ -6268,10 +6267,9 @@ packages:
     engines:
       node: '>=10'
 
-  /can-write-to-dir/1.0.1:
-    resolution: {integrity: sha512-+xkVeHLG9kQY/HRzu8uMSkr8Im1i9XoWGihxmB/VTJqHGCsGTFF3ebH+sBcI1urqnN8fqTjRgtag65m8x46DPg==}
+  /can-write-to-dir/1.1.0:
+    resolution: {integrity: sha512-PYRx9toaBwM5kk+GTFuijayF5omWa/ToRCSlMUe2YA2Ki8+j0vOc+Hoe1bf7C5l1lQA2y3tE2t+PeQ4XiTlibg==}
     dependencies:
-      graceful-fs: 4.2.4
       path-temp: 2.0.0
     engines:
       node: '>=10.13'
@@ -7435,7 +7433,7 @@ packages:
       function-bind: 1.1.1
       get-intrinsic: 1.1.1
       has: 1.0.3
-      has-symbols: 1.0.1
+      has-symbols: 1.0.2
       is-callable: 1.2.3
       is-negative-zero: 2.0.1
       is-regex: 1.1.2
@@ -7466,8 +7464,8 @@ packages:
       es6-promise: 4.2.8
     dev: false
 
-  /esbuild/0.8.52:
-    resolution: {integrity: sha512-b5KzFweLLXoXQwdC/e2+Z80c8uo2M5MgP7yQEEebkFw6In4T9CvYcNoM2ElvJt8ByO04zAZUV0fZkXmXoi2s9A==}
+  /esbuild/0.8.53:
+    resolution: {integrity: sha512-GIaYGdMukH58hu+lf07XWAeESBYFAsz8fXnrylHDCbBXKOSNtFmoYA8PhSeSF+3/qzeJ0VjzV9AkLURo5yfu3g==}
     dev: true
     hasBin: true
     requiresBuild: true
@@ -7658,11 +7656,11 @@ packages:
     engines:
       node: '>=10'
 
-  /eslint/7.20.0:
-    resolution: {integrity: sha512-qGi0CTcOGP2OtCQBgWZlQjcTuP0XkIpYFj25XtRTQSHC+umNnp7UMshr2G8SLsRFYDdAPFeHOsiteadmMH02Yw==}
+  /eslint/7.21.0:
+    resolution: {integrity: sha512-W2aJbXpMNofUp0ztQaF40fveSsJBjlSCSWpy//gzfTvwC+USs/nceBrKmlJOiM8r1bLwP2EuYkCqArn/6QTIgg==}
     dependencies:
       '@babel/code-frame': 7.12.11
-      '@eslint/eslintrc': 0.3.0
+      '@eslint/eslintrc': 0.4.0
       ajv: 6.12.6
       chalk: 4.1.0
       cross-spawn: 7.0.3
@@ -8416,7 +8414,7 @@ packages:
     dependencies:
       function-bind: 1.1.1
       has: 1.0.3
-      has-symbols: 1.0.1
+      has-symbols: 1.0.2
 
   /get-npm-tarball-url/2.0.2:
     resolution: {integrity: sha512-2dPhgT0K4pVyciTqdS0gr9nEwyCQwt9ql1/t5MCUMvcjWjAysjGJgT7Sx4n6oq3tFBjBN238mxX4RfTjT3838Q==}
@@ -8771,8 +8769,8 @@ packages:
     engines:
       node: '>=0.10.0'
 
-  /has-symbols/1.0.1:
-    resolution: {integrity: sha512-PLcsoqu++dmEIZB+6totNFKq/7Do+Z0u4oT0zKOJNl3lYK6vGwwu2hjHs+68OEZbTjiUE9bgOABXbP/GvrS0Kg==}
+  /has-symbols/1.0.2:
+    resolution: {integrity: sha512-chXa79rL/UC2KlX17jo3vRGz0azaWEx5tGqZg5pO3NUyEJVB17dMruQlzCCOfUvElghKcm5194+BCRvi2Rv/Gw==}
     engines:
       node: '>= 0.4'
 
@@ -9400,7 +9398,7 @@ packages:
     resolution: {integrity: sha512-axvdhb5pdhEVThqJzYXwMlVuZwC+FF2DpcOhTS+y/8jVq4trxyPgfcwIxIKiyeuLlSQYKkmUaPQJ8ZE4yNKXDg==}
     dependencies:
       call-bind: 1.0.2
-      has-symbols: 1.0.1
+      has-symbols: 1.0.2
     engines:
       node: '>= 0.4'
 
@@ -9439,7 +9437,7 @@ packages:
   /is-symbol/1.0.3:
     resolution: {integrity: sha512-OwijhaRSgqvhm/0ZdAcXNZt9lYdKFpcRDT5ULUuYXPoT794UNOdU+gpT6Rzo7b4V2HUl/op6GqY894AZwv9faQ==}
     dependencies:
-      has-symbols: 1.0.1
+      has-symbols: 1.0.2
     engines:
       node: '>= 0.4'
 
@@ -11478,7 +11476,7 @@ packages:
     dependencies:
       call-bind: 1.0.2
       define-properties: 1.1.3
-      has-symbols: 1.0.1
+      has-symbols: 1.0.2
       object-keys: 1.1.1
     engines:
       node: '>= 0.4'
@@ -12956,7 +12954,7 @@ packages:
     resolution: {integrity: sha1-vURYp561YbdUiq7ArDdT70Kf5ws=}
     dependencies:
       any-promise: 1.3.0
-      rimraf: 2.7.1
+      rimraf: 2.4.5
     dev: true
 
   /rimraf/2.4.5:
