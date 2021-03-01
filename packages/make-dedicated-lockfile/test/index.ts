@@ -1,7 +1,7 @@
 import { promisify } from 'util'
 import path from 'path'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
-import tempy from 'tempy'
+import { tempDir } from '@pnpm/prepare'
 import ncpCB from 'ncp'
 import makeDedicatedLockfile from '../lib'
 
@@ -10,7 +10,7 @@ const ncp = promisify(ncpCB)
 const fixture = path.join(__dirname, 'fixture')
 
 test('makeDedicatedLockfile()', async () => {
-  const tmp = tempy.directory()
+  const tmp = tempDir()
   await ncp(fixture, tmp)
   const projectDir = path.join(tmp, 'packages/is-negative')
   await makeDedicatedLockfile(tmp, projectDir)
