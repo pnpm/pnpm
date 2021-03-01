@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.18.2
+
+### Patch Changes
+
+- `pnpm audit` should work with the `--no-optional`, `--dev`, and `--prod` options [#3152](https://github.com/pnpm/pnpm/issues/3152).
+
 ## 5.18.1
 
 ### Patch Changes

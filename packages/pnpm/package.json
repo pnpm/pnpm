@@ -38,7 +38,7 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/parse-cli-args": "workspace:3.2.2",
-    "@pnpm/plugin-commands-audit": "workspace:2.0.43",
+    "@pnpm/plugin-commands-audit": "workspace:3.0.0",
     "@pnpm/plugin-commands-import": "workspace:1.0.103",
     "@pnpm/plugin-commands-installation": "workspace:3.5.21",
     "@pnpm/plugin-commands-listing": "workspace:2.0.53",
