@@ -104,7 +104,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             shortAlias: '-g',
           },
           {
-            description: 'How deep should levels of dependencies be inspected. 0 is default, which means top-level dependencies',
+            description: 'How deep should levels of dependencies be inspected. Infinity is default. 0 would mean top-level dependencies only',
             name: '--depth <number>',
           },
           {
@@ -238,12 +238,14 @@ async function update (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  const depth = opts.depth ?? Infinity
   return installDeps({
     ...opts,
     allowNew: false,
+    depth,
     includeDirect,
     update: true,
-    updateMatching: dependencies.length && dependencies.every(dep => !dep.substring(1).includes('@')) && opts.depth && opts.depth > 0 && !opts.latest
+    updateMatching: dependencies.length && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
       ? matcher(dependencies) : undefined,
     updatePackageManifest: opts.save !== false,
   }, dependencies)
