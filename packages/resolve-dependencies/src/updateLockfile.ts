@@ -114,7 +114,7 @@ function toLockfileDependency (
     result['peerDependencies'] = pkg.peerDependencies
   }
   if (pkg.transitivePeerDependencies.size) {
-    result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies)
+    result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
   if (pkg.peerDependenciesMeta) {
     const normalizedPeerDependenciesMeta = {}
