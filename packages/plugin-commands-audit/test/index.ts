@@ -8,11 +8,6 @@ const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
 skipOnNode10('audit', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
-    include: {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
-    },
     registries: {
       default: 'https://registry.npmjs.org/',
     },
@@ -24,11 +19,8 @@ skipOnNode10('audit', async () => {
 test('audit --dev', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
-    include: {
-      dependencies: false,
-      devDependencies: true,
-      optionalDependencies: false,
-    },
+    dev: true,
+    production: false,
     registries: {
       default: 'https://registry.npmjs.org/',
     },
@@ -42,11 +34,6 @@ test('audit --audit-level', async () => {
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
-    include: {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
-    },
     registries: {
       default: 'https://registry.npmjs.org/',
     },
@@ -59,11 +46,6 @@ test('audit --audit-level', async () => {
 test('audit: no vulnerabilities', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
-    include: {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
-    },
     registries: {
       default: 'https://registry.npmjs.org/',
     },
@@ -76,11 +58,6 @@ test('audit: no vulnerabilities', async () => {
 test('audit --json', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
-    include: {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
-    },
     json: true,
     registries: {
       default: 'https://registry.npmjs.org/',
@@ -96,11 +73,7 @@ test.skip('audit does not exit with code 1 if the found vulnerabilities are havi
   const { output, exitCode } = await audit.handler({
     auditLevel: 'high',
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
-    include: {
-      dependencies: false,
-      devDependencies: true,
-      optionalDependencies: false,
-    },
+    dev: true,
     registries: {
       default: 'https://registry.npmjs.org/',
     },
