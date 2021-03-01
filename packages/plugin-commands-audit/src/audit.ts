@@ -4,7 +4,7 @@ import { Config, types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
-import { IncludedDependencies, Registries } from '@pnpm/types'
+import { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import * as R from 'ramda'
@@ -90,18 +90,22 @@ export function help () {
 export async function handler (
   opts: Pick<UniversalOptions, 'dir'> & {
     auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
-    include: IncludedDependencies
     json?: boolean
     lockfileDir?: string
     registries: Registries
-  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor'>
+  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor' | 'production' | 'dev' | 'optional'>
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
   if (!lockfile) {
     throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
   }
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
   const auditReport = await audit(lockfile, {
-    include: opts.include,
+    include,
     registry: opts.registries.default,
     retry: {
       factor: opts.fetchRetryFactor,
