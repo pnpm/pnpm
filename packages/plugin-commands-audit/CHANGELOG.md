@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-audit
 
+## 3.0.0
+
+### Major Changes
+
+- 5175460a0: Filter dependency types via the `dev`/`production`/`optional` options instead of the `included` option.
+
 ## 2.0.43
 
 ### Patch Changes
