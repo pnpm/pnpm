@@ -48,7 +48,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
       : path.join(storeDir, pkgPath, 'integrity.json')
     const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, opts.dir), 'node_modules', name), files)) === false
-  })
+  }, { concurrency: 8 })
 
   if (reporter && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)

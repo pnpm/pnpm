@@ -40,7 +40,19 @@ test('CLI does not fail when store status does not find modified packages', asyn
   prepare()
   const storeDir = tempy.directory()
 
-  await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
+  await execa('node', [
+    pnpmBin,
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+    'add',
+    'eslint@3.4.0',
+    'gulp@4.0.2',
+    'highcharts@5.0.10',
+    'is-positive@3.1.0',
+    'react@15.4.1',
+    'webpack@5.24.2',
+  ])
   // store status does not fail on not installed optional dependencies
   await execa('node', [pnpmBin, 'add', 'not-compatible-with-any-os', '--save-optional', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
