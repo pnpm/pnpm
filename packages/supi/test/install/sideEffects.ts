@@ -140,7 +140,7 @@ test.skip('readonly side effects cache', async () => {
   expect(await exists(path.join(opts2.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`))).toBeFalsy()
 })
 
-test('uploading errors do not interrupt installation', async () => {
+skipOnWindows('uploading errors do not interrupt installation', async () => {
   prepareEmpty()
 
   const opts = await testDefaults({

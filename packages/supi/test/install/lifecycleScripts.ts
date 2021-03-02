@@ -6,6 +6,7 @@ import {
 } from 'supi'
 import { prepareEmpty } from '@pnpm/prepare'
 import { LifecycleLog } from '@pnpm/core-loggers'
+import isWindows from 'is-windows'
 import { testDefaults } from '../utils'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
@@ -13,6 +14,8 @@ import fs = require('mz/fs')
 import exists = require('path-exists')
 import PATH = require('path-name')
 import sinon = require('sinon')
+
+const testOnNonWindows = isWindows() ? test.skip : test
 
 test('run pre/postinstall scripts', async () => {
   const project = prepareEmpty()
@@ -251,7 +254,7 @@ test("reports child's close event", async () => {
   } as LifecycleLog)).toBeTruthy()
 })
 
-test('lifecycle scripts have access to node-gyp', async () => {
+testOnNonWindows('lifecycle scripts have access to node-gyp', async () => {
   prepareEmpty()
 
   // `npm test` adds node-gyp to the PATH
