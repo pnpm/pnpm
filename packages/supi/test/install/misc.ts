@@ -36,6 +36,8 @@ import {
 
 const IS_WINDOWS = isWindows()
 
+const testOnNonWindows = IS_WINDOWS ? test.skip : test
+
 test('spec not specified in package.json.dependencies', async () => {
   const project = prepareEmpty()
 
@@ -555,7 +557,7 @@ test('bin specified in the directories property linked to .bin folder', async ()
   await project.isExecutable('.bin/pkg-with-directories-bin')
 })
 
-test('building native addons', async () => {
+testOnNonWindows('building native addons', async () => {
   const project = prepareEmpty()
 
   await addDependenciesToPackage({}, ['diskusage@1.1.3'], await testDefaults({ fastUnpack: false }))

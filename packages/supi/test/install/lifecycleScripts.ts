@@ -8,11 +8,14 @@ import {
   mutateModules,
 } from 'supi'
 import rimraf from '@zkochan/rimraf'
+import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import PATH from 'path-name'
 import sinon from 'sinon'
 import { testDefaults } from '../utils'
+
+const testOnNonWindows = isWindows() ? test.skip : test
 
 test('run pre/postinstall scripts', async () => {
   const project = prepareEmpty()
@@ -251,7 +254,7 @@ test("reports child's close event", async () => {
   } as LifecycleLog)).toBeTruthy()
 })
 
-test('lifecycle scripts have access to node-gyp', async () => {
+testOnNonWindows('lifecycle scripts have access to node-gyp', async () => {
   prepareEmpty()
 
   // `npm test` adds node-gyp to the PATH
