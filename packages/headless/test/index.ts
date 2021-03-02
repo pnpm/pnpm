@@ -10,6 +10,7 @@ import {
 import headless from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import { tempDir } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -22,7 +23,6 @@ import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import exists = require('path-exists')
 import sinon = require('sinon')
-import tempy = require('tempy')
 import writeJsonFile = require('write-json-file')
 
 const fixtures = path.join(__dirname, 'fixtures')
@@ -285,7 +285,7 @@ test('run pre/postinstall scripts', async () => {
 })
 
 test('orphan packages are removed', async () => {
-  const projectDir = tempy.directory()
+  const projectDir = tempDir()
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
@@ -323,7 +323,7 @@ test('orphan packages are removed', async () => {
 })
 
 test('available packages are used when node_modules is not clean', async () => {
-  const projectDir = tempy.directory()
+  const projectDir = tempDir()
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
@@ -360,7 +360,7 @@ test('available packages are used when node_modules is not clean', async () => {
 })
 
 test('available packages are relinked during forced install', async () => {
-  const projectDir = tempy.directory()
+  const projectDir = tempDir()
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
@@ -397,7 +397,7 @@ test('available packages are relinked during forced install', async () => {
 })
 
 test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async () => {
-  const projectDir = tempy.directory()
+  const projectDir = tempDir()
 
   const simpleDir = path.join(fixtures, 'simple')
   await fs.copyFile(path.join(simpleDir, 'package.json'), path.join(projectDir, 'package.json'))
@@ -434,7 +434,7 @@ test('installing local directory dependency', async () => {
 })
 
 test('installing using passed in lockfile files', async () => {
-  const prefix = tempy.directory()
+  const prefix = tempDir()
 
   const simplePkgPath = path.join(fixtures, 'simple')
   await fs.copyFile(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
@@ -578,7 +578,7 @@ test('installing with publicHoistPattern=*', async () => {
 })
 
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
-  const lockfileDir = tempy.directory()
+  const lockfileDir = tempDir()
   await copyFixture('pkg-with-external-lockfile', lockfileDir)
   const prefix = path.join(lockfileDir, 'pkg')
 

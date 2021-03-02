@@ -13,6 +13,9 @@
       "path": "../../privatePackages/assert-project"
     },
     {
+      "path": "../../privatePackages/prepare"
+    },
+    {
       "path": "../../privatePackages/test-fixtures"
     },
     {
