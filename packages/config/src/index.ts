@@ -3,6 +3,7 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import globalBinDir from '@pnpm/global-bin-dir'
 import camelcase from 'camelcase'
+import fs from 'fs'
 import loadNpmConf from '@zkochan/npm-conf'
 import npmTypes from '@zkochan/npm-conf/lib/types'
 import { sync as canWriteToDir } from 'can-write-to-dir'
@@ -421,7 +422,19 @@ function getProcessEnv (env: string) {
 }
 
 function firstWithWriteAccess (dirs: string[]) {
-  const first = dirs.find((dir) => dir.includes('_npx') || canWriteToDir(dir))
+  const first = dirs.find((dir) => {
+    try {
+      return canWriteToDir(dir)
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err
+    }
+    try {
+      fs.mkdirSync(dir, { recursive: true })
+      return true
+    } catch (err) {
+      return false
+    }
+  })
   if (first == null) {
     throw new PnpmError('NO_SUITABLE_GLOBAL_DIR', `pnpm has no write access to global direcotry. Tried locations: ${dirs.join(', ')}`)
   }
