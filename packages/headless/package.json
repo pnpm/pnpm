@@ -20,6 +20,7 @@
     "@pnpm/client": "workspace:2.0.22",
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-store": "workspace:10.1.18",
+    "@pnpm/prepare": "workspace:0.0.17",
     "@pnpm/read-projects-context": "workspace:4.0.15",
     "@pnpm/store-path": "5.0.0-0",
     "@pnpm/test-fixtures": "workspace:*",
