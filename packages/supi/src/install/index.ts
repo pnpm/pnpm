@@ -136,7 +136,6 @@ export async function mutateModules (
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
   opts['forceNewModules'] = installsOnly
-  opts['autofixMergeConflicts'] = !opts.frozenLockfile
   const ctx = await getContext(projects, opts)
   const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)

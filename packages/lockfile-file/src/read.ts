@@ -4,6 +4,7 @@ import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import yaml from 'js-yaml'
@@ -79,7 +80,7 @@ async function _read (
     hadConflicts = false
   } catch (err) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
-      throw err
+      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${err.message as string}`)
     }
     hadConflicts = true
     lockfile = autofixMergeConflicts(lockfileRawContent)

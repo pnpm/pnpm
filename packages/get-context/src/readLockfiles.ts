@@ -23,9 +23,9 @@ export interface PnpmContext {
 
 export default async function (
   opts: {
-    autofixMergeConflicts: boolean
     force: boolean
     forceSharedLockfile: boolean
+    frozenLockfile: boolean
     projects: Array<{
       id: string
       rootDir: string
@@ -52,13 +52,21 @@ export default async function (
   const fileReads = [] as Array<Promise<Lockfile | undefined | null>>
   let lockfileHadConflicts: boolean = false
   if (opts.useLockfile) {
-    if (opts.autofixMergeConflicts) {
+    if (!opts.frozenLockfile) {
       fileReads.push(
-        readWantedLockfileAndAutofixConflicts(opts.lockfileDir, lockfileOpts)
-          .then(({ lockfile, hadConflicts }) => {
+        (async () => {
+          try {
+            const { lockfile, hadConflicts } = await readWantedLockfileAndAutofixConflicts(opts.lockfileDir, lockfileOpts)
             lockfileHadConflicts = hadConflicts
             return lockfile
-          })
+          } catch (err) {
+            logger.warn({
+              message: `Ignoring broken lockfile at ${opts.lockfileDir}: ${err.message as string}`,
+              prefix: opts.lockfileDir,
+            })
+            return undefined
+          }
+        })()
       )
     } else {
       fileReads.push(readWantedLockfile(opts.lockfileDir, lockfileOpts))
@@ -72,7 +80,19 @@ export default async function (
     }
     fileReads.push(Promise.resolve(undefined))
   }
-  fileReads.push(readCurrentLockfile(opts.virtualStoreDir, lockfileOpts))
+  fileReads.push(
+    (async () => {
+      try {
+        return await readCurrentLockfile(opts.virtualStoreDir, lockfileOpts)
+      } catch (err) {
+        logger.warn({
+          message: `Ignoring broken lockfile at ${opts.virtualStoreDir}: ${err.message as string}`,
+          prefix: opts.lockfileDir,
+        })
+        return undefined
+      }
+    })()
+  )
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   const files = await Promise.all<Lockfile | null | undefined>(fileReads)
   const sopts = { lockfileVersion: LOCKFILE_VERSION }
