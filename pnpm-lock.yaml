@@ -23,10 +23,10 @@ importers:
       rimraf: 3.0.2
       shx: 0.3.3
       syncpack: 5.7.11
-      ts-jest: 26.5.2_jest@26.6.3+typescript@4.1.5
+      ts-jest: 26.5.3_jest@26.6.3+typescript@4.1.5
       ts-node: 9.1.1_typescript@4.1.5
       typescript: 4.1.5
-      verdaccio: 4.11.1
+      verdaccio: 4.11.2
       yarn: 1.22.10
     specifiers:
       '@changesets/cli': ^2.14.0
@@ -2303,7 +2303,7 @@ importers:
       deep-require-cwd: 1.0.0
       delay: 5.0.0
       dir-is-case-sensitive: 2.0.0
-      esbuild: 0.8.54
+      esbuild: 0.8.55
       execa: 5.0.0
       exists-link: 2.0.0
       is-ci: 3.0.0
@@ -3919,11 +3919,11 @@ packages:
     engines:
       node: '>= 10.14.2'
     transitivePeerDependencies:
-      - ts-node
-      - supports-color
       - bufferutil
-      - utf-8-validate
       - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
 
   /@jest/environment/26.6.2:
     resolution: {integrity: sha512-nFy+fHl28zUrRsCeMB61VDThV1pVTtlEokBRgqPrcT1JNq4yRNIyTHfyht6PqtUvY9IsuLGTrbG8kPXjSZIZwA==}
@@ -4027,11 +4027,11 @@ packages:
     engines:
       node: '>= 10.14.2'
     transitivePeerDependencies:
-      - ts-node
-      - supports-color
       - bufferutil
-      - utf-8-validate
       - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
 
   /@jest/transform/26.6.2:
     resolution: {integrity: sha512-E9JjhUgNzvuQ+vVAL21vlyfy12gP0GhazGgJC4h6qUt1jSdUXGWJ1wfu/X7Sd8etSgxV4ovT1pb9v5D6QW4XgA==}
@@ -4352,7 +4352,7 @@ packages:
       read-yaml-file: 2.1.0
       rimraf: 3.0.2
       tempy: 0.6.0
-      verdaccio: 4.11.1
+      verdaccio: 4.11.2
       write-yaml-file: 4.2.0
     dev: true
     engines:
@@ -4360,8 +4360,8 @@ packages:
     hasBin: true
     transitivePeerDependencies:
       - bufferutil
-      - utf-8-validate
       - canvas
+      - utf-8-validate
 
   /@pnpm/self-installer/2.1.0:
     resolution: {integrity: sha512-bfMgLFmg33kY1XBPBgdkbpld6fSeyt6iAlXbIMioArHd1t58EAMFmM2cYZQt4I2MguUpLRDlZwOpYYmirDHhsg==}
@@ -4936,8 +4936,8 @@ packages:
     dev: true
     transitivePeerDependencies:
       - bufferutil
-      - utf-8-validate
       - canvas
+      - utf-8-validate
 
   /@verdaccio/streams/9.7.2:
     resolution: {integrity: sha512-SoCG1btVFPxOcrs8w9wLJCfe8nfE6EaEXCXyRwGbh+Sr3NLEG0R8JOugGJbuSE+zIRuUs5JaUKjzSec+JKLvZw==}
@@ -6075,9 +6075,9 @@ packages:
   /browserslist/4.16.3:
     resolution: {integrity: sha512-vIyhWmIkULaq04Gt93txdh+j02yX/JzlyhLYbV3YQCn/zvES3JnY7TifHHvvr1w5hTDluNKMkV05cs4vy8Q7sw==}
     dependencies:
-      caniuse-lite: 1.0.30001194
+      caniuse-lite: 1.0.30001196
       colorette: 1.2.2
-      electron-to-chromium: 1.3.679
+      electron-to-chromium: 1.3.681
       escalade: 3.1.1
       node-releases: 1.1.71
     dev: true
@@ -6281,8 +6281,8 @@ packages:
     engines:
       node: '>=10.13'
 
-  /caniuse-lite/1.0.30001194:
-    resolution: {integrity: sha512-iDUOH+oFeBYk5XawYsPtsx/8fFpndAPUQJC7gBTfxHM8xw5nOZv7ceAD4frS1MKCLUac7QL5wdAJiFQlDRjXlA==}
+  /caniuse-lite/1.0.30001196:
+    resolution: {integrity: sha512-CPvObjD3ovWrNBaXlAIGWmg2gQQuJ5YhuciUOjPRox6hIQttu8O+b51dx6VIpIY9ESd2d0Vac1RKpICdG4rGUg==}
     dev: true
 
   /capture-exit/2.0.0:
@@ -7344,8 +7344,8 @@ packages:
     resolution: {integrity: sha1-WQxhFWsK4vTwJVcyoViyZrxWsh0=}
     dev: true
 
-  /electron-to-chromium/1.3.679:
-    resolution: {integrity: sha512-PNF7JSPAEa/aV2nQLvflRcnIMy31EOuCY87Jbdz0KsUf8O/eFNGpuwgQn2DmyJkKzfQb0zrieanRGWvf/4H+BA==}
+  /electron-to-chromium/1.3.681:
+    resolution: {integrity: sha512-W6uYvSUTHuyX2DZklIESAqx57jfmGjUkd7Z3RWqLdj9Mmt39ylhBuvFXlskQnvBHj0MYXIeQI+mjiwVddZLSvA==}
     dev: true
 
   /emittery/0.7.2:
@@ -7469,8 +7469,8 @@ packages:
       es6-promise: 4.2.8
     dev: false
 
-  /esbuild/0.8.54:
-    resolution: {integrity: sha512-DJH38OiTgXJxFb/EhHrCrY8eGmtdkTtWymHpN9IYN9AF+4jykT0dQArr7wzFejpVbaB0TMIq2+vfNRWr3LXpvw==}
+  /esbuild/0.8.55:
+    resolution: {integrity: sha512-mM/s7hjYe5mQR+zAWOM5JVrCtYCke182E9l1Bbs6rG5EDP3b1gZF9sHZka53PD/iNt6OccymVZRWkTtBfcKW4w==}
     dev: true
     hasBin: true
     requiresBuild: true
@@ -8707,8 +8707,8 @@ packages:
     dev: false
     hasBin: true
 
-  /handlebars/4.7.6:
-    resolution: {integrity: sha512-1f2BACcBfiwAfStCKZNrUCgqNZkGsAT7UM3kkYtXuLo0KnaVfjKOyf7PRzB6++aK9STyT1Pd2ZCPe3EGOXleXA==}
+  /handlebars/4.7.7:
+    resolution: {integrity: sha512-aAcXm5OAfE/8IXkcZvCepKU3VzW1/39Fb5ZuqMtgI/hT8X2YgoMvBY5dLhq/cpOvw7Lk1nK/UF71aLG/ZnVYRA==}
     dependencies:
       minimist: 1.2.5
       neo-async: 2.6.2
@@ -9610,11 +9610,11 @@ packages:
       node: '>= 10.14.2'
     hasBin: true
     transitivePeerDependencies:
-      - ts-node
-      - supports-color
       - bufferutil
-      - utf-8-validate
       - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
 
   /jest-config/26.6.3_ts-node@9.1.1:
     resolution: {integrity: sha512-t5qdIj/bCj2j7NFVHb2nFB4aUdfucDn3JRKgrZnplb8nieAirAzRSHP8uDEd+qV6ygzg9Pz4YG7UTJf94LPSyg==}
@@ -9647,10 +9647,10 @@ packages:
       ts-node:
         optional: true
     transitivePeerDependencies:
-      - supports-color
       - bufferutil
-      - utf-8-validate
       - canvas
+      - supports-color
+      - utf-8-validate
 
   /jest-diff/26.6.2:
     resolution: {integrity: sha512-6m+9Z3Gv9wN0WFVasqjCL/06+EFCMTqDEUl/b87HYK2rAPTyfz4ZIuSlPhY51PIQRWx5TaxeF1qmXKe9gfN3sA==}
@@ -9698,8 +9698,8 @@ packages:
       node: '>= 10.14.2'
     transitivePeerDependencies:
       - bufferutil
-      - utf-8-validate
       - canvas
+      - utf-8-validate
 
   /jest-environment-node/26.6.2:
     resolution: {integrity: sha512-zhtMio3Exty18dy8ee8eJ9kjnRyZC1N4C1Nt/VShN1apyXc8rWGtJ9lI7vqiWcyyXS4BVSEn9lxAM2D+07/Tag==}
@@ -9767,11 +9767,11 @@ packages:
     engines:
       node: '>= 10.14.2'
     transitivePeerDependencies:
-      - ts-node
-      - supports-color
       - bufferutil
-      - utf-8-validate
       - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
 
   /jest-leak-detector/26.6.2:
     resolution: {integrity: sha512-i4xlXpsVSMeKvg2cEKdfhh0H39qlJlP5Ex1yQxwF9ubahboQYMgTtz5oML35AVA3B4Eu+YsmwaiKVev9KCvLxg==}
@@ -9889,11 +9889,11 @@ packages:
     engines:
       node: '>= 10.14.2'
     transitivePeerDependencies:
-      - ts-node
-      - supports-color
       - bufferutil
-      - utf-8-validate
       - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
 
   /jest-runtime/26.6.3_ts-node@9.1.1:
     resolution: {integrity: sha512-lrzyR3N8sacTAMeonbqpnSka1dHNux2uk0qqDXVkMv2c/A3wYnvQ4EXuI013Y6+gSKSCxdaczvf4HF0mVXHRdw==}
@@ -9930,11 +9930,11 @@ packages:
       node: '>= 10.14.2'
     hasBin: true
     transitivePeerDependencies:
-      - ts-node
-      - supports-color
       - bufferutil
-      - utf-8-validate
       - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
 
   /jest-serializer/26.6.2:
     resolution: {integrity: sha512-S5wqyz0DXnNJPd/xfIzZ5Xnp1HrJWBczg8mMfMpN78OJ5eDxXyf+Ygld9wX1DnUWbIbhM1YDY95NjR4CBXkb2g==}
@@ -10029,11 +10029,11 @@ packages:
       node: '>= 10.14.2'
     hasBin: true
     transitivePeerDependencies:
-      - ts-node
-      - supports-color
       - bufferutil
-      - utf-8-validate
       - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
 
   /js-tokens/4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -12787,7 +12787,7 @@ packages:
   /request-promise-core/1.1.4_request@2.88.2:
     resolution: {integrity: sha512-TTbAfBBRdWD7aNNOoVOBH4pN/KigV6LyapYNNlAPA8JwbovRti1E88m3sYAwsLi5ryhPKsE9APwnjFTgdUjTpw==}
     dependencies:
-      lodash: 4.17.20
+      lodash: 4.17.21
       request: 2.88.2
     dev: true
     engines:
@@ -12983,7 +12983,7 @@ packages:
     resolution: {integrity: sha1-vURYp561YbdUiq7ArDdT70Kf5ws=}
     dependencies:
       any-promise: 1.3.0
-      rimraf: 2.7.1
+      rimraf: 2.4.5
     dev: true
 
   /rimraf/2.4.5:
@@ -14160,10 +14160,9 @@ packages:
     engines:
       node: '>=0.10.0'
 
-  /ts-jest/26.5.2_jest@26.6.3+typescript@4.1.5:
-    resolution: {integrity: sha512-bwyJ2zJieSugf7RB+o8fgkMeoMVMM2KPDE0UklRLuACxjwJsOrZNo6chrcScmK33YavPSwhARffy8dZx5LJdUQ==}
+  /ts-jest/26.5.3_jest@26.6.3+typescript@4.1.5:
+    resolution: {integrity: sha512-nBiiFGNvtujdLryU7MiMQh1iPmnZ/QvOskBbD2kURiI1MwqvxlxNnaAB/z9TbslMqCsSbu5BXvSSQPc5tvHGeA==}
     dependencies:
-      '@types/jest': 26.0.20
       bs-logger: 0.2.6
       buffer-from: 1.1.1
       fast-json-stable-stringify: 2.1.0
@@ -14227,8 +14226,8 @@ packages:
       tslint-eslint-rules: 5.4.0
     dev: true
     transitivePeerDependencies:
-      - typescript
       - tslint
+      - typescript
 
   /tslint-eslint-rules/5.4.0:
     resolution: {integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==}
@@ -14597,8 +14596,8 @@ packages:
     engines:
       node: '>=8'
 
-  /verdaccio/4.11.1:
-    resolution: {integrity: sha512-xlu61MWAWztdEsGM2vUbv5fUv+E4GWTZ9rTYU/uc1+X3EURMLEHDdFBZR7qe0abfB3Kj59GATNEtQNQ2KvqNDA==}
+  /verdaccio/4.11.2:
+    resolution: {integrity: sha512-8GmeOmRtr0dbGTSsLAw7zrF64q880pfopXeTQHri3YHKUgl4RDkBuYjGaX1pyha7+g8mb1bGk9ZSq0QuQM4q6w==}
     dependencies:
       '@verdaccio/commons-api': 9.7.1
       '@verdaccio/local-storage': 9.7.4
@@ -14615,13 +14614,13 @@ packages:
       dayjs: 1.10.3
       envinfo: 7.7.3
       express: 4.17.1
-      handlebars: 4.7.6
+      handlebars: 4.7.7
       http-errors: 1.8.0
       js-yaml: 3.14.1
       JSONStream: 1.3.5
       jsonwebtoken: 8.5.1
       kleur: 4.1.3
-      lodash: 4.17.20
+      lodash: 4.17.21
       lunr-mutable-indexes: 2.3.2
       marked: 1.2.7
       mime: 2.5.0
@@ -14640,8 +14639,8 @@ packages:
     hasBin: true
     transitivePeerDependencies:
       - bufferutil
-      - utf-8-validate
       - canvas
+      - utf-8-validate
 
   /verror/1.10.0:
     resolution: {integrity: sha1-OhBcoXBTr1XW4nDB+CiGguGNpAA=}
