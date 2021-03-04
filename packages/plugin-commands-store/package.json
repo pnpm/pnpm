@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "2.0.72",
+  "version": "2.0.73",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-store#readme",
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:3.2.0",
+    "@pnpm/lockfile-file": "workspace:3.2.1",
     "@pnpm/logger": "^3.2.3",
     "@pnpm/prepare": "workspace:0.0.17",
     "@types/archy": "0.0.31",
@@ -54,7 +54,7 @@
     "@pnpm/cli-utils": "workspace:0.5.0",
     "@pnpm/config": "workspace:11.14.0",
     "@pnpm/error": "workspace:1.4.0",
-    "@pnpm/get-context": "workspace:3.3.6",
+    "@pnpm/get-context": "workspace:4.0.0",
     "@pnpm/lockfile-utils": "workspace:2.0.22",
     "@pnpm/normalize-registries": "workspace:1.0.6",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",

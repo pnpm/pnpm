@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 3.2.1
+
+### Patch Changes
+
+- 51e1456dd: Throw a standard pnpm error object on broken lockfile error. The error code is `ERR_PNPM_BROKEN_LOCKFILE`.
+
 ## 3.2.0
 
 ### Minor Changes
