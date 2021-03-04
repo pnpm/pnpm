@@ -136,7 +136,6 @@ export async function mutateModules (
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
   opts['forceNewModules'] = installsOnly
-  opts['autofixMergeConflicts'] = !opts.frozenLockfile
   const ctx = await getContext(projects, opts)
   const rootProjectManifest = ctx.projects.find(({ id }) => id === '.')?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,

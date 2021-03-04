@@ -67,10 +67,10 @@ interface HookOptions {
 export default async function getContext<T> (
   projects: Array<ProjectOptions & HookOptions & T>,
   opts: {
-    autofixMergeConflicts?: boolean
     force: boolean
     forceNewModules?: boolean
     forceSharedLockfile: boolean
+    frozenLockfile?: boolean
     extraBinPaths: string[]
     lockfileDir: string
     modulesDir?: string
@@ -162,9 +162,9 @@ export default async function getContext<T> (
     storeDir: opts.storeDir,
     virtualStoreDir,
     ...await readLockfileFile({
-      autofixMergeConflicts: opts.autofixMergeConflicts === true,
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
+      frozenLockfile: opts.frozenLockfile === true,
       lockfileDir: opts.lockfileDir,
       projects: importersContext.projects,
       registry: opts.registries.default,
@@ -353,7 +353,6 @@ export interface PnpmSingleContext {
 export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
-    autofixMergeConflicts?: boolean
     force: boolean
     forceNewModules?: boolean
     forceSharedLockfile: boolean
@@ -462,9 +461,9 @@ export async function getContextForSingleImporter (
     storeDir,
     virtualStoreDir,
     ...await readLockfileFile({
-      autofixMergeConflicts: opts.autofixMergeConflicts === true,
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
+      frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
       projects: [{ id: importerId, rootDir: opts.dir }],
       registry: opts.registries.default,

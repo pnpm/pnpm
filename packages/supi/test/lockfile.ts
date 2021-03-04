@@ -1243,6 +1243,112 @@ packages:
   expect(lockfile.dependencies['dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
 
+test('a lockfile with duplicate keys is fixed', async () => {
+  const project = prepareEmpty()
+
+  await fs.writeFile(WANTED_LOCKFILE, `\
+importers:
+  .:
+    dependencies:
+      dep-of-pkg-with-1-dep: 100.0.0
+    specifiers:
+      dep-of-pkg-with-1-dep: '100.0.0'
+lockfileVersion: ${LOCKFILE_VERSION}
+packages:
+  /dep-of-pkg-with-1-dep/100.0.0:
+    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+    dev: false
+    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+`, 'utf8')
+
+  const reporter = jest.fn()
+  await install({
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '100.0.0',
+    },
+  }, await testDefaults({ reporter }))
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.dependencies['dep-of-pkg-with-1-dep']).toBe('100.0.0')
+
+  expect(reporter).toBeCalledWith(expect.objectContaining({
+    level: 'warn',
+    name: 'pnpm',
+    prefix: process.cwd(),
+    message: expect.stringMatching(/^Ignoring broken lockfile at .* duplicated mapping key/),
+  }))
+})
+
+test('a lockfile with duplicate keys is causes an exception, when frozenLockfile is true', async () => {
+  prepareEmpty()
+
+  await fs.writeFile(WANTED_LOCKFILE, `\
+importers:
+  .:
+    dependencies:
+      dep-of-pkg-with-1-dep: 100.0.0
+    specifiers:
+      dep-of-pkg-with-1-dep: '100.0.0'
+lockfileVersion: ${LOCKFILE_VERSION}
+packages:
+  /dep-of-pkg-with-1-dep/100.0.0:
+    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+    dev: false
+    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+`, 'utf8')
+
+  await expect(
+    install({
+      dependencies: {
+        'dep-of-pkg-with-1-dep': '100.0.0',
+      },
+    }, await testDefaults({ frozenLockfile: true }))
+  ).rejects.toThrow(/^The lockfile at .* is broken: duplicated mapping key/)
+})
+
+test('a broken private lockfile is ignored', async () => {
+  prepareEmpty()
+
+  const manifest = await install({
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '100.0.0',
+    },
+  }, await testDefaults())
+
+  await fs.writeFile('node_modules/.pnpm/lock.yaml', `\
+importers:
+  .:
+    dependencies:
+      dep-of-pkg-with-1-dep: 100.0.0
+    specifiers:
+      dep-of-pkg-with-1-dep: '100.0.0'
+lockfileVersion: ${LOCKFILE_VERSION}
+packages:
+  /dep-of-pkg-with-1-dep/100.0.0:
+    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+    dev: false
+    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+`, 'utf8')
+
+  const reporter = jest.fn()
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      mutation: 'install',
+      manifest,
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ reporter }))
+
+  expect(reporter).toBeCalledWith(expect.objectContaining({
+    level: 'warn',
+    name: 'pnpm',
+    prefix: process.cwd(),
+    message: expect.stringMatching(/^Ignoring broken lockfile at .* duplicated mapping key/),
+  }))
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/2928
 test('build metadata is always ignored in versions and the lockfile is not flickering because of them', async () => {
   await addDistTag('@monorepolint/core', '0.5.0-alpha.51', 'latest')
