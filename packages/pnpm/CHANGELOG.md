@@ -1,5 +1,40 @@
 # pnpm
 
+## 6.0.0-alpha.3
+
+### Major Changes
+
+- Node.js v10 support is dropped. At least Node.js v12.17 is required for the package to work.
+
+- The lockfile version is bumped to v5.3. Changes in the new format:
+  - Blank lines added between package/project entries to improve readability and decrease merge issues.
+  - The `resolution` field is now always written in a single line and is always the first key in the package objects.
+  - A new field is added to the package objects: `transitivePeerDependencies`.
+
+- The layout of the virtual store directory has changed (`node_modules/.pnpm`) to allow keeping cache in it:
+  - All packages inside the virtual store directory are on the same depth. Instead of subdirectories, one directory is used with `#` instead of slashes.
+  - New setting added: `modules-cache-max-age`. The default value of the setting is 10080 (7 days in seconds). `modules-cache-max-age` is the time in minutes after which pnpm should remove the orphan packages from `node_modules`.
+
+- `pnpmfile.js` renamed to `.pnpmfile.cjs` in order to force CommonJS.
+
+- `.pnp.js` renamed to `.pnp.cjs` in order to force CommonJS.
+
+- The `pnpm-prefix` setting is removed. Use `global-dir` to specify a custom location for the globally installed packages.
+
+- The default depth of an update is `Infinity`, not `0`.
+
+- The `--global` option should be used when linking from/to the global modules directory.
+
+  Linking a package to the global directory:
+
+  - pnpm v4: `pnpm link`
+  - pnpm v5: `pnpm link --global`
+
+  Linking a package from the global directory:
+
+  - pnpm v4: `pnpm link foo`
+  - pnpm v5: `pnpm link --global foo`
+
 ## 5.18.3
 
 ### Patch Changes
