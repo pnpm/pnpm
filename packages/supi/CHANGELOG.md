@@ -1,5 +1,16 @@
 # supi
 
+## 0.44.7
+
+### Patch Changes
+
+- Updated dependencies [51e1456dd]
+- Updated dependencies [51e1456dd]
+  - @pnpm/lockfile-file@3.2.1
+  - @pnpm/get-context@4.0.0
+  - @pnpm/headless@14.6.10
+  - @pnpm/lockfile-to-pnp@0.3.22
+
 ## 0.44.6
 
 ### Patch Changes

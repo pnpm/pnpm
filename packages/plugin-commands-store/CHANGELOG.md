@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.73
+
+### Patch Changes
+
+- 5ea3a1e79: Avoid the "too many open files error" on `pnpm store status` command.
+  Limit the concurrency of verifying dependency contents.
+- Updated dependencies [51e1456dd]
+  - @pnpm/get-context@4.0.0
+
 ## 2.0.72
 
 ### Patch Changes

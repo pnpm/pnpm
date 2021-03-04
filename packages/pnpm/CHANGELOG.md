@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.18.3
+
+### Patch Changes
+
+- Broken lockfiles are ignore unless `pnpm install --frozen-lockfile` is used [#1395](https://github.com/pnpm/pnpm/issues/1395).
+- Fixed occasional "Too many open file" error on `pnpm store status` [#3185](https://github.com/pnpm/pnpm/issues/3185).
+
 ## 5.18.2
 
 ### Patch Changes

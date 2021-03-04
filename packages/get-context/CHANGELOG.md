@@ -1,5 +1,19 @@
 # @pnpm/get-context
 
+## 4.0.0
+
+### Major Changes
+
+- 51e1456dd: `opts.autofixMergeConflicts` is replaced with `opts.frozenLockfile`.
+
+  When `opts.frozenLockfile` is `false`, broken lockfiles are ignored and merge conflicts are automatically resolved.
+
+### Patch Changes
+
+- Updated dependencies [51e1456dd]
+  - @pnpm/lockfile-file@3.2.1
+  - @pnpm/read-projects-context@4.0.16
+
 ## 3.3.6
 
 ### Patch Changes
