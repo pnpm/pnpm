@@ -136,8 +136,7 @@ const defaults = async (opts: InstallOptions) => {
     tag: 'latest',
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
-      !(process.getuid && process.setuid &&
-        process.getgid && process.setgid) ||
+      !process.setgid ||
       process.getuid() !== 0,
     update: false,
     useLockfile: true,

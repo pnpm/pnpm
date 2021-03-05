@@ -62,8 +62,7 @@ const defaults = async (opts: RebuildOptions) => {
     storeDir: opts.storeDir,
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
-      !(process.getuid && process.setuid &&
-        process.getgid && process.setgid) ||
+      !process.setgid ||
       process.getuid() !== 0,
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
