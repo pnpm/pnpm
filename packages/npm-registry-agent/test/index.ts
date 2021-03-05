@@ -10,7 +10,10 @@ jest.mock('https-proxy-agent', () => mockHttpAgent('https-proxy'))
 
 function mockHttpAgent (type: string) {
   return function Agent (opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    return Object.assign({}, opts, { __type: type })
+    return {
+      ...opts,
+      __type: type,
+    }
   }
 }
 
@@ -48,9 +51,10 @@ test('all expected options passed down to HttpsAgent', () => {
 })
 
 test('all expected options passed down to proxy agent', () => {
-  const opts = Object.assign({
+  const opts = {
     httpsProxy: 'https://user:pass@my.proxy:1234/foo',
-  }, OPTS)
+    ...OPTS,
+  }
   expect(agent('https://foo.com/bar', opts)).toEqual({
     __type: 'https-proxy',
     auth: 'user:pass',

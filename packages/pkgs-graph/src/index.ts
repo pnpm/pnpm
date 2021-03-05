@@ -47,10 +47,11 @@ export default function<T> (pkgs: Array<Package & T>, opts?: {
   return { graph, unmatched }
 
   function createNode (pkg: Package): string[] {
-    const dependencies = Object.assign({},
-      pkg.manifest.devDependencies,
-      pkg.manifest.optionalDependencies,
-      pkg.manifest.dependencies)
+    const dependencies = {
+      ...pkg.manifest.devDependencies,
+      ...pkg.manifest.optionalDependencies,
+      ...pkg.manifest.dependencies,
+    }
 
     return Object.keys(dependencies)
       .map(depName => {
