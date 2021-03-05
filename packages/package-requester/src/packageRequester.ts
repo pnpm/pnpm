@@ -162,16 +162,14 @@ async function resolveAndFetch (
       options.currentResolution['integrity'] !== resolveResult.resolution['integrity'] // eslint-disable-line @typescript-eslint/dot-notation
     )
 
-    if (!skipResolution || forceFetch) {
-      updated = pkgId !== resolveResult.id || !resolution || forceFetch
-      // Keep the lockfile resolution when possible
-      // to keep the original shasum.
-      if (updated) {
-        resolution = resolveResult.resolution
-      }
-      pkgId = resolveResult.id
-      normalizedPref = resolveResult.normalizedPref
+    updated = pkgId !== resolveResult.id || !resolution || forceFetch
+    // Keep the lockfile resolution when possible
+    // to keep the original shasum.
+    if (updated) {
+      resolution = resolveResult.resolution
     }
+    pkgId = resolveResult.id
+    normalizedPref = resolveResult.normalizedPref
   }
 
   const id = pkgId as string
