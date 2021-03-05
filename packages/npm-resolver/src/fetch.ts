@@ -16,7 +16,7 @@ interface RegistryResponse {
 }
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
-const semvarRegex = new RegExp(/(.*)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/)
+const semverRegex = new RegExp(/(.*)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/)
 
 export class RegistryResponseError extends FetchError {
   public readonly pkgName: string
@@ -29,7 +29,7 @@ export class RegistryResponseError extends FetchError {
     let hint: string | undefined
     if (response.status === 404) {
       hint = `${pkgName} is not in the npm registry, or you have no permission to fetch it.`
-      const matched = pkgName.match(semvarRegex)
+      const matched = pkgName.match(semverRegex)
       if (matched) {
         hint += ` Did you mean ${matched[1]}?`
       }
