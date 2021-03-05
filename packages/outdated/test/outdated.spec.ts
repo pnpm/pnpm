@@ -19,7 +19,7 @@ async function getLatestManifest (packageName: string) {
       name: 'pkg-with-1-dep',
       version: '1.0.0',
     },
-  })[packageName] || null
+  })[packageName] ?? null
 }
 
 test('outdated()', async () => {
