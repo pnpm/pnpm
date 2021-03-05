@@ -2280,7 +2280,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/run-npm': link:../run-npm
-      '@pnpm/tabtab': 0.1.1
+      '@pnpm/tabtab': 0.1.2
       '@pnpm/types': link:../types
       '@pnpm/write-project-manifest': link:../write-project-manifest
       '@types/byline': 4.2.32
@@ -2303,7 +2303,7 @@ importers:
       deep-require-cwd: 1.0.0
       delay: 5.0.0
       dir-is-case-sensitive: 2.0.0
-      esbuild: 0.8.55
+      esbuild: 0.8.56
       execa: 5.0.0
       exists-link: 2.0.0
       is-ci: 3.0.0
@@ -2369,7 +2369,7 @@ importers:
       '@pnpm/read-package-json': workspace:3.1.9
       '@pnpm/read-project-manifest': workspace:1.1.7
       '@pnpm/run-npm': workspace:2.0.3
-      '@pnpm/tabtab': ^0.1.1
+      '@pnpm/tabtab': ^0.1.2
       '@pnpm/types': workspace:6.4.0
       '@pnpm/write-project-manifest': workspace:1.1.7
       '@types/byline': ^4.2.32
@@ -4388,8 +4388,8 @@ packages:
     engines:
       node: '>=10.12'
 
-  /@pnpm/tabtab/0.1.1:
-    resolution: {integrity: sha512-T2YxUGspEq2nC5g7075n8A0we6weR9m6aEvZu9aCml6yEw1eXvpLa1GGhch/WHQVj1c/LzDM4rOEWl9kAObq4A==}
+  /@pnpm/tabtab/0.1.2:
+    resolution: {integrity: sha512-AYg+Vir0D0rigS9/O7M+v80J4WpTbl68pElNIQ9K5IYxfJ5h3Zk0NJI7bVciV/xbHj3SalmaE6Il8GbPOlKo7g==}
     dependencies:
       debug: 4.3.1
       enquirer: 2.3.6
@@ -6816,15 +6816,15 @@ packages:
   /cpy-cli/3.1.1:
     resolution: {integrity: sha512-HCpNdBkQy3rw+uARLuIf0YurqsMXYzBa9ihhSAuxYJcNIrqrSq3BstPfr0cQN38AdMrQiO9Dp4hYy7GtGJsLPg==}
     dependencies:
-      cpy: 8.1.1
+      cpy: 8.1.2
       meow: 6.1.1
     dev: true
     engines:
       node: '>=8'
     hasBin: true
 
-  /cpy/8.1.1:
-    resolution: {integrity: sha512-vqHT+9o67sMwJ5hUd/BAOYeemkU+MuFRsK2c36Xc3eefQpAsp1kAsyDxEDcc5JS1+y9l/XHPrIsVTcyGGmkUUQ==}
+  /cpy/8.1.2:
+    resolution: {integrity: sha512-dmC4mUesv0OYH2kNFEidtf/skUwv4zePmGeepjyyJ0qTo5+8KhA1o99oIAwVVLzQMAeDJml74d6wPPKb6EZUTg==}
     dependencies:
       arrify: 2.0.1
       cp-file: 7.0.0
@@ -7469,8 +7469,8 @@ packages:
       es6-promise: 4.2.8
     dev: false
 
-  /esbuild/0.8.55:
-    resolution: {integrity: sha512-mM/s7hjYe5mQR+zAWOM5JVrCtYCke182E9l1Bbs6rG5EDP3b1gZF9sHZka53PD/iNt6OccymVZRWkTtBfcKW4w==}
+  /esbuild/0.8.56:
+    resolution: {integrity: sha512-PTMdAWK3JI2MNW811znGssGP5GR44tQPr++VQ1rPP0n8Z1cTKbCPD3S/kXPLr3ZZDIwAaVm08fuFym6Rp8l/0A==}
     dev: true
     hasBin: true
     requiresBuild: true
