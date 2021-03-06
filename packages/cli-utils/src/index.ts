@@ -8,4 +8,4 @@ export * from './readProjectManifest'
 export * from './recursiveSummary'
 export * from './style'
 
-export const docsUrl = (cmd: string) => `https://pnpm.js.org/en/cli/${cmd}`
+export const docsUrl = (cmd: string) => `https://pnpm.js.org/cli/${cmd}`
