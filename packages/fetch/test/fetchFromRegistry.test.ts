@@ -64,7 +64,7 @@ test('switch to the correct agent for requests on redirect from http: to https:'
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
 
   // We can test this on any endpoint that redirects from http: to https:
-  const { status } = await fetchFromRegistry('http://pnpm.js.org/css/main.css')
+  const { status } = await fetchFromRegistry('http://pnpm.js.org/pnpm.js')
 
   expect(status).toEqual(200)
 })
