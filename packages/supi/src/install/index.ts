@@ -277,9 +277,10 @@ export async function mutateModules (
           // A broken lockfile may be caused by a badly resolved Git conflict
           logger.warn({
             error,
-            message: 'The lockfile is broken! Resolution step will be performed to fix it.',
+            message: error.message,
             prefix: ctx.lockfileDir,
           })
+          logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
         }
       }
     }
@@ -923,9 +924,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     opts.update = true
     logger.warn({
       error,
-      message: 'The lockfile is broken! A full installation will be performed in an attempt to fix it.',
+      message: error.message,
       prefix: ctx.lockfileDir,
     })
+    logger.error(new PnpmError(error.code, 'The lockfile is broken! A full installation will be performed in an attempt to fix it.'))
     return _installInContext(projects, ctx, opts)
   }
 }

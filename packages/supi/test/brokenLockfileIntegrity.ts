@@ -132,7 +132,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
     level: 'warn',
     name: 'pnpm',
     prefix: process.cwd(),
-    message: 'The lockfile is broken! A full installation will be performed in an attempt to fix it.',
+    message: expect.stringMatching(/Got unexpected checksum/),
   }))
   {
     const lockfile = await project.readLockfile()
