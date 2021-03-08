@@ -139,7 +139,7 @@ async function resolveAndFetch (
   // When we don't fetch, the only way to get the package's manifest is via resolving it.
   //
   // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || pkgId?.startsWith('file:')) {
+  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:'))) {
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
@@ -164,11 +164,7 @@ async function resolveAndFetch (
     )
 
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
-    // Keep the lockfile resolution when possible
-    // to keep the original shasum.
-    if (updated) {
-      resolution = resolveResult.resolution
-    }
+    resolution = resolveResult.resolution
     pkgId = resolveResult.id
     normalizedPref = resolveResult.normalizedPref
   }
