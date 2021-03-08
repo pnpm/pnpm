@@ -116,36 +116,6 @@ test('lockfile with scoped package', async () => {
   }, await testDefaults({ frozenLockfile: true }))
 })
 
-test('fail when shasum from lockfile does not match with the actual one', async () => {
-  prepareEmpty()
-
-  await writeYamlFile(WANTED_LOCKFILE, {
-    dependencies: {
-      'is-negative': '2.1.0',
-    },
-    lockfileVersion: LOCKFILE_VERSION,
-    packages: {
-      '/is-negative/2.1.0': {
-        resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp10=',
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
-        },
-      },
-    },
-    specifiers: {
-      'is-negative': '2.1.0',
-    },
-  }, { lineWidth: 1000 })
-
-  await expect(
-    install({
-      dependencies: {
-        'is-negative': '2.1.0',
-      },
-    }, await testDefaults({ frozenLockfile: true }, {}, { retry: { retries: 0 } }))
-  ).rejects.toThrowError(/Got unexpected checksum/)
-})
-
 test("lockfile doesn't lock subdependencies that don't satisfy the new specs", async () => {
   const project = prepareEmpty()
 
