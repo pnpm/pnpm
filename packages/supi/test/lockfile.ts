@@ -137,16 +137,13 @@ test('fail when shasum from lockfile does not match with the actual one', async 
     },
   }, { lineWidth: 1000 })
 
-  try {
-    await install({
+  await expect(
+    install({
       dependencies: {
         'is-negative': '2.1.0',
       },
-    }, await testDefaults({}, {}, { fetchRetries: 0 }))
-    throw new Error('installation should have failed')
-  } catch (err) {
-    expect(err.code).toBe('ERR_PNPM_TARBALL_INTEGRITY')
-  }
+    }, await testDefaults({ frozenLockfile: true }, {}, { retry: { retries: 0 } }))
+  ).rejects.toThrowError(/Got unexpected checksum/)
 })
 
 test("lockfile doesn't lock subdependencies that don't satisfy the new specs", async () => {
