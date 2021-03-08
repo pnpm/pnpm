@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-server",
-  "version": "2.0.66",
+  "version": "2.0.67",
   "description": "Commands for controlling the store server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.2",
-    "@pnpm/cli-utils": "workspace:0.5.0",
+    "@pnpm/cli-utils": "workspace:0.5.1",
     "@pnpm/common-cli-options-help": "workspace:0.3.1",
     "@pnpm/config": "workspace:11.14.0",
     "@pnpm/error": "workspace:1.4.0",

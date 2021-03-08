@@ -35,6 +35,13 @@
   - pnpm v4: `pnpm link foo`
   - pnpm v5: `pnpm link --global foo`
 
+## 5.18.4
+
+### Patch Changes
+
+- Links to docs updated. The docs now lead to the versioned `5.x` docs, not the current ones.
+- The command prompts should work when selecting shell target in `pnpm install-completion` [#3221](https://github.com/pnpm/pnpm/issues/3221).
+
 ## 5.18.3
 
 ### Patch Changes
@@ -53,7 +60,6 @@
 ### Patch Changes
 
 - The ID of a tarball dependency should not contain colons, when the URL has a port. The colon should be escaped with a plus sign[#3182](https://github.com/pnpm/pnpm/issues/3182).
-
 
 ## 5.18.0
 
