@@ -2,6 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import path from 'path'
+import R from 'ramda'
 import {
   addDependenciesToPackage,
   mutateModules,
@@ -23,10 +24,11 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     await testDefaults({ lockfileOnly: true })
   )
 
-  const lockfile = await project.readLockfile()
+  const corruptedLockfile = await project.readLockfile()
+  const correctLockfile = R.clone(corruptedLockfile)
   // breaking the lockfile
-  lockfile.packages['/pkg-with-1-dep/100.0.0'].resolution['integrity'] = lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].resolution['integrity']
-  await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+  corruptedLockfile.packages['/pkg-with-1-dep/100.0.0'].resolution['integrity'] = corruptedLockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].resolution['integrity']
+  await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await expect(mutateModules([
     {
@@ -46,8 +48,10 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     },
   ], await testDefaults())
 
+  expect(await project.readLockfile()).toStrictEqual(correctLockfile)
+
   // Breaking the lockfile again
-  await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+  await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await rimraf('node_modules')
 
@@ -59,6 +63,8 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
       rootDir: process.cwd(),
     },
   ], await testDefaults({ preferFrozenLockfile: false }))
+
+  expect(await project.readLockfile()).toStrictEqual(correctLockfile)
 })
 
 test('installation breaks if the lockfile contains the wrong checksum and the store is clean', async () => {
