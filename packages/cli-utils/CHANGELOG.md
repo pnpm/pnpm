@@ -1,5 +1,11 @@
 # @pnpm/cli-utils
 
+## 0.5.1
+
+### Patch Changes
+
+- 3be2b1773: Fix URL to CLI docs.
+
 ## 0.5.0
 
 ### Minor Changes

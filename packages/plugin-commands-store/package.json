@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "2.0.73",
+  "version": "2.0.74",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:2.0.5",
-    "@pnpm/cli-utils": "workspace:0.5.0",
+    "@pnpm/cli-utils": "workspace:0.5.1",
     "@pnpm/config": "workspace:11.14.0",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/get-context": "workspace:4.0.0",

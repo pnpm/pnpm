@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-server
 
+## 2.0.67
+
+### Patch Changes
+
+- Updated dependencies [3be2b1773]
+  - @pnpm/cli-utils@0.5.1
+
 ## 2.0.66
 
 ### Patch Changes

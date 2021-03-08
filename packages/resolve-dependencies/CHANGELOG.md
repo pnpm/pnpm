@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 18.3.3
+
+### Patch Changes
+
+- ef1588413: `requestPackage()` should always return the resolution of the updated package.
+
 ## 18.3.2
 
 ### Patch Changes
