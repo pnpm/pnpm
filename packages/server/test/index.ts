@@ -84,11 +84,13 @@ test('fetchPackage', async () => {
     fetchRawManifest: true,
     force: false,
     lockfileDir: process.cwd(),
-    pkgId,
-    resolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    pkg: {
+      id: pkgId,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
     },
   })
 

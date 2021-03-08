@@ -9,6 +9,7 @@ import createCafs, {
   PackageFilesIndex,
 } from '@pnpm/cafs'
 import { fetchingProgressLogger } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import {
   Cafs,
   DeferredManifestPromise,
@@ -126,8 +127,8 @@ async function resolveAndFetch (
   let latest: string | undefined
   let manifest: DependencyManifest | undefined
   let normalizedPref: string | undefined
-  let resolution = options.currentResolution as Resolution
-  let pkgId = options.currentPackageId
+  let resolution = options.currentPkg?.resolution as Resolution
+  let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
   let forceFetch = false
   let updated = false
@@ -138,7 +139,7 @@ async function resolveAndFetch (
   // When we don't fetch, the only way to get the package's manifest is via resolving it.
   //
   // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || pkgId?.startsWith('file:')) {
+  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:'))) {
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
@@ -157,17 +158,13 @@ async function resolveAndFetch (
     // If the integrity of a local tarball dependency has changed,
     // the local tarball should be unpacked, so a fetch to the store should be forced
     forceFetch = Boolean(
-      options.currentResolution &&
+      options.currentPkg?.resolution &&
       pkgId?.startsWith('file:') &&
-      options.currentResolution['integrity'] !== resolveResult.resolution['integrity'] // eslint-disable-line @typescript-eslint/dot-notation
+      options.currentPkg?.resolution['integrity'] !== resolveResult.resolution['integrity'] // eslint-disable-line @typescript-eslint/dot-notation
     )
 
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
-    // Keep the lockfile resolution when possible
-    // to keep the original shasum.
-    if (updated) {
-      resolution = resolveResult.resolution
-    }
+    resolution = resolveResult.resolution
     pkgId = resolveResult.id
     normalizedPref = resolveResult.normalizedPref
   }
@@ -212,8 +209,11 @@ async function resolveAndFetch (
     fetchRawManifest: updated || !manifest,
     force: forceFetch,
     lockfileDir: options.lockfileDir,
-    pkgId: id,
-    resolution: resolution,
+    pkg: {
+      ...R.pick(['name', 'version'], manifest ?? options.currentPkg ?? {}),
+      id,
+      resolution,
+    },
   })
 
   return {
@@ -260,11 +260,15 @@ function fetchToStore (
     verifyStoreIntegrity: boolean
   },
   opts: {
+    pkg: {
+      name?: string
+      version?: string
+      id: string
+      resolution: Resolution
+    }
     fetchRawManifest?: boolean
     force: boolean
-    pkgId: string
     lockfileDir: string
-    resolution: Resolution
   }
 ): {
     bundledManifest?: () => Promise<BundledManifest>
@@ -272,28 +276,28 @@ function fetchToStore (
     files: () => Promise<PackageFilesResponse>
     finishing: () => Promise<void>
   } {
-  const targetRelative = depPathToFilename(opts.pkgId, opts.lockfileDir)
+  const targetRelative = depPathToFilename(opts.pkg.id, opts.lockfileDir)
   const target = path.join(ctx.storeDir, targetRelative)
 
-  if (!ctx.fetchingLocker.has(opts.pkgId)) {
+  if (!ctx.fetchingLocker.has(opts.pkg.id)) {
     const bundledManifest = pDefer<BundledManifest>()
     const files = pDefer<PackageFilesResponse>()
     const finishing = pDefer<undefined>()
-    const filesIndexFile = opts.resolution['integrity']
-      ? ctx.getFilePathInCafs(opts.resolution['integrity'], 'index')
+    const filesIndexFile = opts.pkg.resolution['integrity']
+      ? ctx.getFilePathInCafs(opts.pkg.resolution['integrity'], 'index')
       : path.join(target, 'integrity.json')
 
     doFetchToStore(filesIndexFile, bundledManifest, files, finishing) // eslint-disable-line
 
     if (opts.fetchRawManifest) {
-      ctx.fetchingLocker.set(opts.pkgId, {
+      ctx.fetchingLocker.set(opts.pkg.id, {
         bundledManifest: removeKeyOnFail(bundledManifest.promise),
         files: removeKeyOnFail(files.promise),
         filesIndexFile,
         finishing: removeKeyOnFail(finishing.promise),
       })
     } else {
-      ctx.fetchingLocker.set(opts.pkgId, {
+      ctx.fetchingLocker.set(opts.pkg.id, {
         files: removeKeyOnFail(files.promise),
         filesIndexFile,
         finishing: removeKeyOnFail(finishing.promise),
@@ -312,13 +316,13 @@ function fetchToStore (
         return
       }
 
-      const tmp = ctx.fetchingLocker.get(opts.pkgId)
+      const tmp = ctx.fetchingLocker.get(opts.pkg.id)
 
       // If fetching failed then it was removed from the cache.
       // It is OK. In that case there is no need to update it.
       if (!tmp) return
 
-      ctx.fetchingLocker.set(opts.pkgId, {
+      ctx.fetchingLocker.set(opts.pkg.id, {
         ...tmp,
         files: Promise.resolve({
           ...cache,
@@ -327,11 +331,11 @@ function fetchToStore (
       })
     })
       .catch(() => {
-        ctx.fetchingLocker.delete(opts.pkgId)
+        ctx.fetchingLocker.delete(opts.pkg.id)
       })
   }
 
-  const result = ctx.fetchingLocker.get(opts.pkgId)!
+  const result = ctx.fetchingLocker.get(opts.pkg.id)!
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(
@@ -354,7 +358,7 @@ function fetchToStore (
     try {
       return await p
     } catch (err) {
-      ctx.fetchingLocker.delete(opts.pkgId)
+      ctx.fetchingLocker.delete(opts.pkg.id)
       throw err
     }
   }
@@ -366,13 +370,13 @@ function fetchToStore (
     finishing: pDefer.DeferredPromise<void>
   ) {
     try {
-      const isLocalTarballDep = opts.pkgId.startsWith('file:')
+      const isLocalTarballDep = opts.pkg.id.startsWith('file:')
 
       if (
         !opts.force &&
         (
           !isLocalTarballDep ||
-          await tarballIsUpToDate(opts.resolution as any, target, opts.lockfileDir) // eslint-disable-line
+          await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
         )
       ) {
         let pkgFilesIndex
@@ -387,6 +391,17 @@ function fetchToStore (
           const manifest = opts.fetchRawManifest
             ? safeDeferredPromise<DependencyManifest>()
             : undefined
+          if (
+            pkgFilesIndex.name != null && opts.pkg.name != null && pkgFilesIndex.name !== opts.pkg.name ||
+            pkgFilesIndex.version != null && opts.pkg.version != null && pkgFilesIndex.version !== opts.pkg.version
+          ) {
+            /* eslint-disable @typescript-eslint/restrict-template-expressions */
+            throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', `\
+Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
+This means that the lockfile is broken. Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
+Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
+            /* eslint-enable @typescript-eslint/restrict-template-expressions */
+          }
           const verified = await ctx.checkFilesIntegrity(pkgFilesIndex.files, manifest)
           if (verified) {
             files.resolve({
@@ -427,22 +442,22 @@ function fetchToStore (
           .catch(bundledManifest.reject)
       }
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
-        opts.pkgId,
-        opts.resolution,
+        opts.pkg.id,
+        opts.pkg.resolution,
         {
           lockfileDir: opts.lockfileDir,
           manifest: fetchManifest,
           onProgress: (downloaded) => {
             fetchingProgressLogger.debug({
               downloaded,
-              packageId: opts.pkgId,
+              packageId: opts.pkg.id,
               status: 'in_progress',
             })
           },
           onStart: (size, attempt) => {
             fetchingProgressLogger.debug({
               attempt,
-              packageId: opts.pkgId,
+              packageId: opts.pkg.id,
               size,
               status: 'started',
             })
@@ -471,11 +486,15 @@ function fetchToStore (
             }
           })
       )
-      await writeJsonFile(filesIndexFile, { files: integrity })
+      await writeJsonFile(filesIndexFile, {
+        name: opts.pkg.name,
+        version: opts.pkg.version,
+        files: integrity,
+      })
 
-      if (isLocalTarballDep && opts.resolution['integrity']) { // eslint-disable-line @typescript-eslint/dot-notation
+      if (isLocalTarballDep && opts.pkg.resolution['integrity']) { // eslint-disable-line @typescript-eslint/dot-notation
         await fs.mkdir(target, { recursive: true })
-        await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // eslint-disable-line @typescript-eslint/dot-notation
+        await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.pkg.resolution['integrity'], 'utf8') // eslint-disable-line @typescript-eslint/dot-notation
       }
 
       files.resolve({

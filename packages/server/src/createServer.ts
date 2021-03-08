@@ -2,7 +2,6 @@ import http, { IncomingMessage, Server, ServerResponse } from 'http'
 import { globalInfo } from '@pnpm/logger'
 import {
   RequestPackageOptions,
-  Resolution,
   StoreController,
   WantedDependency,
 } from '@pnpm/store-controller-types'
@@ -95,7 +94,7 @@ export default function (
       case '/fetchPackage': {
         try {
           body = await bodyPromise
-          const pkgResponse = store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
+          const pkgResponse = store.fetchPackage(body.options as any) // eslint-disable-line
             if (pkgResponse['bundledManifest']) { // eslint-disable-line
               rawManifestPromises[body.msgId] = pkgResponse['bundledManifest'] // eslint-disable-line
           }

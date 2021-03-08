@@ -178,7 +178,7 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
-    const needsFullResolution = !R.equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
+    let needsFullResolution = !R.equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
       !R.equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())
     ctx.wantedLockfile.overrides = overrides
     ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
@@ -260,7 +260,15 @@ export async function mutateModules (
           })
           return projects
         } catch (error) {
-          if (frozenLockfile || error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY') throw error
+          if (
+            frozenLockfile ||
+            error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' && error.code !== 'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE'
+          ) throw error
+          if (error.code === 'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE') {
+            needsFullResolution = true
+            // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
+            opts.update = true
+          }
           // A broken lockfile may be caused by a badly resolved Git conflict
           logger.warn({
             error,
@@ -587,7 +595,7 @@ export type ImporterToUpdate = {
   wantedDependencies: Array<WantedDependency & { isNew?: Boolean, updateSpec?: Boolean }>
 } & DependenciesMutation
 
-async function installInContext (
+type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
@@ -600,7 +608,9 @@ async function installInContext (
     pruneVirtualStore: boolean
     currentLockfileIsUpToDate: boolean
   }
-) {
+) => Promise<Array<{ rootDir: string, manifest: ProjectManifest }>>
+
+const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
     logger.warn({
       message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
@@ -896,6 +906,25 @@ async function installInContext (
   await opts.storeController.close()
 
   return projectsToResolve.map(({ manifest, rootDir }) => ({ rootDir, manifest }))
+}
+
+const installInContext: InstallFunction = async (projects, ctx, opts) => {
+  try {
+    return await _installInContext(projects, ctx, opts)
+  } catch (error) {
+    if (
+      error.code !== 'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE'
+    ) throw error
+    opts.needsFullResolution = true
+    // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
+    opts.update = true
+    logger.warn({
+      error,
+      message: 'The lockfile is broken! pnpm will attempt to fix it.',
+      prefix: ctx.lockfileDir,
+    })
+    return _installInContext(projects, ctx, opts)
+  }
 }
 
 async function toResolveImporter (

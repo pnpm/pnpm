@@ -50,8 +50,12 @@ export interface FetchPackageToStoreOptions {
   fetchRawManifest?: boolean
   force: boolean
   lockfileDir: string
-  pkgId: string
-  resolution: Resolution
+  pkg: {
+    id: string
+    name?: string
+    version?: string
+    resolution: Resolution
+  }
 }
 
 export type ImportPackageFunction = (
@@ -83,8 +87,12 @@ export type RequestPackageFunction = (
 
 export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
-  currentPackageId?: string
-  currentResolution?: Resolution
+  currentPkg?: {
+    id?: string
+    name?: string
+    version?: string
+    resolution?: Resolution
+  }
   defaultTag?: string
   downloadPriority: number
   projectDir: string

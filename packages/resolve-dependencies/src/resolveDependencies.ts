@@ -492,6 +492,8 @@ function referenceSatisfiesWantedSpec (
 interface InfoFromLockfile {
   dependencyLockfile?: PackageSnapshot
   depPath: string
+  name?: string
+  version?: string
   pkgId: string
   resolution?: Resolution
 }
@@ -531,6 +533,7 @@ function getInfoFromLockfile (
     }
 
     return {
+      ...nameVerFromPkgSnapshot(depPath, dependencyLockfile),
       dependencyLockfile,
       depPath,
       pkgId: packageIdFromSnapshot(depPath, dependencyLockfile, registries),
@@ -548,6 +551,8 @@ interface ResolveDependencyOptions {
   currentDepth: number
   currentPkg?: {
     depPath?: string
+    name?: string
+    version?: string
     pkgId?: string
     resolution?: Resolution
     dependencyLockfile?: PackageSnapshot
@@ -580,7 +585,7 @@ async function resolveDependency (
         ctx.virtualStoreDir,
         dp.depPathToFilename(currentPkg.depPath, ctx.prefix),
         'node_modules',
-        nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile).name,
+        currentPkg.name!,
         'package.json'
       )
     )
@@ -594,8 +599,12 @@ async function resolveDependency (
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
-      currentPackageId: currentPkg.pkgId,
-      currentResolution: currentPkg.resolution,
+      currentPkg: currentPkg ? {
+        name: currentPkg.name,
+        version: currentPkg.version,
+        id: currentPkg.pkgId,
+        resolution: currentPkg.resolution,
+      } : undefined,
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
