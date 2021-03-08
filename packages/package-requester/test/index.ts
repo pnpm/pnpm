@@ -112,11 +112,15 @@ test('request package but skip fetching, when resolution is already available', 
 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-    currentPackageId: 'registry.npmjs.org/is-positive/1.0.0',
-    currentResolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    currentPkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: 'registry.npmjs.org/is-positive/1.0.0',
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
     },
     downloadPriority: 0,
     lockfileDir: projectDir,
@@ -162,7 +166,6 @@ test('refetch local tarball if its integrity has changed', async () => {
   const storeDir = tempy.directory()
   const pkgId = `file:${normalize(tarballRelativePath)}`
   const requestPackageOpts = {
-    currentPackageId: pkgId,
     downloadPriority: 0,
     lockfileDir: projectDir,
     preferredVersions: {},
@@ -180,9 +183,14 @@ test('refetch local tarball if its integrity has changed', async () => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      currentResolution: {
-        integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
-        tarball,
+      currentPkg: {
+        name: '@pnpm/package-requester',
+        version: '0.8.1',
+        id: pkgId,
+        resolution: {
+          integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+          tarball,
+        },
       },
     }) as PackageResponse & {
       files: () => Promise<PackageFilesResponse>
@@ -207,9 +215,14 @@ test('refetch local tarball if its integrity has changed', async () => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      currentResolution: {
-        integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
-        tarball,
+      currentPkg: {
+        name: '@pnpm/package-requester',
+        version: '0.8.1',
+        id: pkgId,
+        resolution: {
+          integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+          tarball,
+        },
       },
     })
     await response.files!()
@@ -228,9 +241,14 @@ test('refetch local tarball if its integrity has changed', async () => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      currentResolution: {
-        integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
-        tarball,
+      currentPkg: {
+        name: '@pnpm/package-requester',
+        version: '0.8.1',
+        id: pkgId,
+        resolution: {
+          integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
+          tarball,
+        },
       },
     }) as PackageResponse & {
       files: () => Promise<PackageFilesResponse>
@@ -329,11 +347,15 @@ test('fetchPackageToStore()', async () => {
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
     lockfileDir: tempy.directory(),
-    pkgId,
-    resolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: pkgId,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
     },
   })
 
@@ -353,11 +375,15 @@ test('fetchPackageToStore()', async () => {
     fetchRawManifest: true,
     force: false,
     lockfileDir: tempy.directory(),
-    pkgId,
-    resolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: pkgId,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
     },
   })
 
@@ -391,21 +417,29 @@ test('fetchPackageToStore() concurrency check', async () => {
     packageRequester.fetchPackageToStore({
       force: false,
       lockfileDir: projectDir1,
-      pkgId,
-      resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          registry: 'https://registry.npmjs.org/',
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
       },
     }),
     packageRequester.fetchPackageToStore({
       force: false,
       lockfileDir: projectDir2,
-      pkgId,
-      resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          registry: 'https://registry.npmjs.org/',
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
       },
     }),
   ])
@@ -466,11 +500,15 @@ test('fetchPackageToStore() does not cache errors', async () => {
   const badRequest = packageRequester.fetchPackageToStore({
     force: false,
     lockfileDir: tempy.directory(),
-    pkgId,
-    resolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: pkgId,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
     },
   })
   await expect(badRequest.files()).rejects.toThrow()
@@ -478,11 +516,15 @@ test('fetchPackageToStore() does not cache errors', async () => {
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
     lockfileDir: tempy.directory(),
-    pkgId,
-    resolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: pkgId,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
     },
   })
   const files = await fetchResult.files()
@@ -519,11 +561,15 @@ test('always return a package manifest in the response', async () => {
 
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-      currentPackageId: 'registry.npmjs.org/is-positive/1.0.0',
-      currentResolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      currentPkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: 'registry.npmjs.org/is-positive/1.0.0',
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          registry: 'https://registry.npmjs.org/',
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
       },
       downloadPriority: 0,
       lockfileDir: projectDir,
@@ -568,15 +614,23 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
       fetchRawManifest: false,
       force: false,
       lockfileDir: tempy.directory(),
-      pkgId,
-      resolution,
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        resolution,
+      },
     }),
     packageRequester.fetchPackageToStore({
       fetchRawManifest: true,
       force: false,
       lockfileDir: tempy.directory(),
-      pkgId,
-      resolution,
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        resolution,
+      },
     }),
   ])
 
@@ -607,8 +661,12 @@ test('refetch package to store if it has been modified', async () => {
       fetchRawManifest: false,
       force: false,
       lockfileDir,
-      pkgId,
-      resolution,
+      pkg: {
+        name: 'magic-hook',
+        version: '2.0.0',
+        id: pkgId,
+        resolution,
+      },
     })
 
     const { filesIndex } = await fetchResult.files()
@@ -633,8 +691,12 @@ test('refetch package to store if it has been modified', async () => {
       fetchRawManifest: false,
       force: false,
       lockfileDir,
-      pkgId,
-      resolution,
+      pkg: {
+        name: 'magic-hook',
+        version: '2.0.0',
+        id: pkgId,
+        resolution,
+      },
     })
 
     await fetchResult.files()

@@ -20,11 +20,13 @@ describe('store.importPackage()', () => {
     const fetchResponse = storeController.fetchPackage({
       force: false,
       lockfileDir: tempy.directory(),
-      pkgId,
-      resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      pkg: {
+        id: pkgId,
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          registry: 'https://registry.npmjs.org/',
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
       },
     })
     const importTo = tempy.directory()
@@ -53,11 +55,13 @@ describe('store.importPackage()', () => {
     const fetchResponse = storeController.fetchPackage({
       force: false,
       lockfileDir: tempy.directory(),
-      pkgId,
-      resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      pkg: {
+        id: pkgId,
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          registry: 'https://registry.npmjs.org/',
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
       },
     })
     const importTo = tempy.directory()
