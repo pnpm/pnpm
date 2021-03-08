@@ -37,6 +37,7 @@
   "dependencies": {
     "@pnpm/cafs": "workspace:2.0.5",
     "@pnpm/core-loggers": "workspace:5.0.3",
+    "@pnpm/error": "workspace:1.4.0",
     "@pnpm/fetcher-base": "workspace:9.0.4",
     "@pnpm/read-package-json": "workspace:3.1.9",
     "@pnpm/resolver-base": "workspace:7.1.1",

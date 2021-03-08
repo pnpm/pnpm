@@ -11,6 +11,11 @@ const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
 export interface PackageFilesIndex {
+  // name and version are nullable for backward compatibility
+  // the intitial specs of pnpm store v3 did not require these fields.
+  name?: string
+  version?: string
+
   files: Record<string, PackageFileInfo>
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
 }

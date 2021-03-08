@@ -22,6 +22,9 @@
       "path": "../dependency-path"
     },
     {
+      "path": "../error"
+    },
+    {
       "path": "../fetcher-base"
     },
     {

@@ -1445,6 +1445,7 @@ importers:
     dependencies:
       '@pnpm/cafs': link:../cafs
       '@pnpm/core-loggers': link:../core-loggers
+      '@pnpm/error': link:../error
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/resolver-base': link:../resolver-base
@@ -1477,6 +1478,7 @@ importers:
       '@pnpm/cafs': workspace:2.0.5
       '@pnpm/client': workspace:2.0.22
       '@pnpm/core-loggers': workspace:5.0.3
+      '@pnpm/error': workspace:1.4.0
       '@pnpm/fetcher-base': workspace:9.0.4
       '@pnpm/logger': ^3.2.3
       '@pnpm/package-requester': 'link:'

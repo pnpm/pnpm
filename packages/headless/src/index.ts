@@ -604,8 +604,12 @@ async function lockfileToDepGraph (
           fetchResponse = opts.storeController.fetchPackage({
             force: false,
             lockfileDir: opts.lockfileDir,
-            pkgId: packageId,
-            resolution,
+            pkg: {
+              name: pkgName,
+              version: pkgVersion,
+              id: packageId,
+              resolution,
+            },
           })
           if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
         } catch (err) {
