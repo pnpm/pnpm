@@ -1,7 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
-import path from 'path'
 import R from 'ramda'
 import {
   addDependenciesToPackage,
@@ -84,20 +83,17 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   corruptedLockfile.packages['/pkg-with-1-dep/100.0.0'].resolution['integrity'] = 'sha512-pl8WtlGAnoIQ7gPxT187/YwhKRnsFBR4h0YY+v0FPQjT5WPuZbI9dPRaKWgKBFOqWHylJ8EyPy34V5u9YArfng=='
   await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
-  const storeDir = path.resolve('new-store')
-  const opts = await testDefaults({
-    storeDir,
-  }, {
-    retry: { retries: 0 },
-  })
-  await expect(mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], { ...opts, frozenLockfile: true })).rejects.toThrowError(/Got unexpected checksum/)
+  await expect(
+    mutateModules([
+      {
+        buildIndex: 0,
+        manifest,
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ],
+    await testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
+  ).rejects.toThrowError(/Got unexpected checksum/)
 
   await mutateModules([
     {
@@ -106,7 +102,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], opts)
+  ], await testDefaults({}, { retry: { retries: 0 } }))
 
   {
     const lockfile = await project.readLockfile()
@@ -126,7 +122,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults({ preferFrozenLockfile: false, reporter, storeDir }, { retry: { retries: 0 } }))
+  ], await testDefaults({ preferFrozenLockfile: false, reporter }, { retry: { retries: 0 } }))
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',
