@@ -1,5 +1,16 @@
 # @pnpm/cafs
 
+## 2.1.0
+
+### Minor Changes
+
+- 8d1dfa89c: New fields added to `PackageFilesIndex`: `name` and `version`.
+
+### Patch Changes
+
+- Updated dependencies [8d1dfa89c]
+  - @pnpm/store-controller-types@10.0.0
+
 ## 2.0.5
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -41,7 +41,7 @@
     "test": "pnpm run compile && jest"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:2.0.5",
+    "@pnpm/cafs": "workspace:2.1.0",
     "path-exists": "^4.0.0"
   }
 }

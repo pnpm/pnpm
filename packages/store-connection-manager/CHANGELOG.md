@@ -1,5 +1,21 @@
 # @pnpm/store-connection-manager
 
+## 1.0.0
+
+### Major Changes
+
+- 8d1dfa89c: Breaking changes to the store controller API.
+
+  The options to `requestPackage()` and `fetchPackage()` changed.
+
+### Patch Changes
+
+- Updated dependencies [8d1dfa89c]
+  - @pnpm/package-store@11.0.0
+  - @pnpm/server@10.0.0
+  - @pnpm/client@2.0.23
+  - @pnpm/config@11.14.0
+
 ## 0.3.64
 
 ### Patch Changes
