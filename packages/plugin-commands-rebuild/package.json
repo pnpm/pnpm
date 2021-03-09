@@ -39,7 +39,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "^0.27.35",
     "@types/semver": "^7.3.4",
-    "@types/sinon": "^9.0.9",
+    "@types/sinon": "^9.0.11",
     "execa": "^5.0.0",
     "path-exists": "^4.0.0",
     "sinon": "^9.2.2",
