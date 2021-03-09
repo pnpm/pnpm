@@ -42,7 +42,7 @@
     "ssri": "6.0.1"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:2.0.5",
+    "@pnpm/cafs": "workspace:2.1.0",
     "@pnpm/fetch": "workspace:2.1.10",
     "@pnpm/logger": "^3.2.3",
     "@types/retry": "^0.12.0",

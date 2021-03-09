@@ -44,7 +44,7 @@
     "which": "^2.0.2"
   },
   "devDependencies": {
-    "@pnpm/prepare": "workspace:0.0.17",
+    "@pnpm/prepare": "workspace:0.0.18",
     "@types/ramda": "^0.27.35",
     "@types/which": "^2.0.0",
     "symlink-dir": "^4.2.0"

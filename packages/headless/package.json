@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "14.6.10",
+  "version": "15.0.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -17,10 +17,10 @@
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/client": "workspace:2.0.22",
+    "@pnpm/client": "workspace:2.0.23",
     "@pnpm/logger": "^3.2.3",
-    "@pnpm/package-store": "workspace:10.1.18",
-    "@pnpm/prepare": "workspace:0.0.17",
+    "@pnpm/package-store": "workspace:11.0.0",
+    "@pnpm/prepare": "workspace:0.0.18",
     "@pnpm/read-projects-context": "workspace:4.0.16",
     "@pnpm/store-path": "5.0.0-0",
     "@pnpm/test-fixtures": "workspace:*",
@@ -68,7 +68,7 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:5.2.9",
+    "@pnpm/build-modules": "workspace:5.2.10",
     "@pnpm/constants": "workspace:4.1.0",
     "@pnpm/core-loggers": "workspace:5.0.3",
     "@pnpm/error": "workspace:1.4.0",
@@ -77,15 +77,15 @@
     "@pnpm/lifecycle": "workspace:9.6.4",
     "@pnpm/link-bins": "workspace:5.3.23",
     "@pnpm/lockfile-file": "workspace:3.2.1",
-    "@pnpm/lockfile-to-pnp": "workspace:0.3.22",
+    "@pnpm/lockfile-to-pnp": "workspace:0.3.23",
     "@pnpm/lockfile-utils": "workspace:2.0.22",
-    "@pnpm/modules-cleaner": "workspace:10.0.21",
+    "@pnpm/modules-cleaner": "workspace:10.0.22",
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/package-is-installable": "workspace:4.0.19",
-    "@pnpm/package-requester": "workspace:12.2.2",
+    "@pnpm/package-requester": "workspace:13.0.0",
     "@pnpm/read-package-json": "workspace:3.1.9",
     "@pnpm/read-project-manifest": "workspace:1.1.7",
-    "@pnpm/store-controller-types": "workspace:9.2.1",
+    "@pnpm/store-controller-types": "workspace:10.0.0",
     "@pnpm/symlink-dependency": "workspace:3.0.13",
     "@pnpm/types": "workspace:6.4.0",
     "dependency-path": "workspace:5.1.1",

@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 19.0.0
+
+### Major Changes
+
+- 8d1dfa89c: Breaking changes to the store controller API.
+
+  The options to `requestPackage()` and `fetchPackage()` changed.
+
+### Patch Changes
+
+- Updated dependencies [8d1dfa89c]
+  - @pnpm/store-controller-types@10.0.0
+
 ## 18.3.3
 
 ### Patch Changes

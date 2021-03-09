@@ -35,6 +35,13 @@
   - pnpm v4: `pnpm link foo`
   - pnpm v5: `pnpm link --global foo`
 
+## 5.18.5
+
+### Patch Changes
+
+- Verify the name and version of the package before linking it from the store ([PR #3224](https://github.com/pnpm/pnpm/pull/3224), [issue #3188](https://github.com/pnpm/pnpm/issues/3188)).
+- The lockfile should be autofixed if it contains broken integrity checksums ([PR #3228](https://github.com/pnpm/pnpm/pull/3228), [issue #3137](https://github.com/pnpm/pnpm/issues/3137)).
+
 ## 5.18.4
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # supi
 
+## 0.45.0
+
+### Minor Changes
+
+- 8d1dfa89c: Breaking changes to the store controller API.
+
+  The options to `requestPackage()` and `fetchPackage()` changed.
+
+### Patch Changes
+
+- f008425cd: Fix the lockfile if it contains invalid checksums.
+- Updated dependencies [8d1dfa89c]
+  - @pnpm/headless@15.0.0
+  - @pnpm/package-requester@13.0.0
+  - @pnpm/store-controller-types@10.0.0
+  - @pnpm/resolve-dependencies@19.0.0
+  - @pnpm/build-modules@5.2.10
+  - @pnpm/modules-cleaner@10.0.22
+  - @pnpm/lockfile-to-pnp@0.3.23
+
 ## 0.44.8
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @pnpm/headless
 
+## 15.0.0
+
+### Major Changes
+
+- 8d1dfa89c: Breaking changes to the store controller API.
+
+  The options to `requestPackage()` and `fetchPackage()` changed.
+
+### Patch Changes
+
+- Updated dependencies [8d1dfa89c]
+  - @pnpm/package-requester@13.0.0
+  - @pnpm/store-controller-types@10.0.0
+  - @pnpm/build-modules@5.2.10
+  - @pnpm/modules-cleaner@10.0.22
+  - @pnpm/lockfile-to-pnp@0.3.23
+
 ## 14.6.10
 
 ### Patch Changes

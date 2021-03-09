@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-server",
-  "version": "2.0.67",
+  "version": "2.0.68",
   "description": "Commands for controlling the store server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,12 +36,12 @@
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.2",
-    "@pnpm/cli-utils": "workspace:0.5.1",
+    "@pnpm/cli-utils": "workspace:0.5.2",
     "@pnpm/common-cli-options-help": "workspace:0.3.1",
     "@pnpm/config": "workspace:11.14.0",
     "@pnpm/error": "workspace:1.4.0",
-    "@pnpm/server": "workspace:9.0.7",
-    "@pnpm/store-connection-manager": "workspace:0.3.64",
+    "@pnpm/server": "workspace:10.0.0",
+    "@pnpm/store-connection-manager": "workspace:1.0.0",
     "@pnpm/store-path": "5.0.0-0",
     "@zkochan/diable": "^1.0.2",
     "delay": "^5.0.0",

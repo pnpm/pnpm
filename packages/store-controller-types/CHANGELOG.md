@@ -1,5 +1,13 @@
 # @pnpm/store-controller-types
 
+## 10.0.0
+
+### Major Changes
+
+- 8d1dfa89c: Breaking changes to the store controller API.
+
+  The options to `requestPackage()` and `fetchPackage()` changed.
+
 ## 9.2.1
 
 ### Patch Changes
