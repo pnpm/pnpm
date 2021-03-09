@@ -66,6 +66,11 @@ import getWantedDependencies, {
 } from './getWantedDependencies'
 import linkPackages from './link'
 
+const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
+  'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE',
+  'ERR_PNPM_TARBALL_INTEGRITY',
+])
+
 export type DependenciesMutation = (
   {
     buildIndex: number
@@ -262,9 +267,9 @@ export async function mutateModules (
         } catch (error) {
           if (
             frozenLockfile ||
-            error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' && error.code !== 'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE'
+            error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' && !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
           ) throw error
-          if (error.code === 'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE') {
+          if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
             needsFullResolution = true
             // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
             opts.update = true
@@ -272,9 +277,10 @@ export async function mutateModules (
           // A broken lockfile may be caused by a badly resolved Git conflict
           logger.warn({
             error,
-            message: 'The lockfile is broken! Resolution step will be performed to fix it.',
+            message: error.message,
             prefix: ctx.lockfileDir,
           })
+          logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
         }
       }
     }
@@ -912,17 +918,16 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
     return await _installInContext(projects, ctx, opts)
   } catch (error) {
-    if (
-      error.code !== 'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE'
-    ) throw error
+    if (!BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) throw error
     opts.needsFullResolution = true
     // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
     opts.update = true
     logger.warn({
       error,
-      message: 'The lockfile is broken! pnpm will attempt to fix it.',
+      message: error.message,
       prefix: ctx.lockfileDir,
     })
+    logger.error(new PnpmError(error.code, 'The lockfile is broken! A full installation will be performed in an attempt to fix it.'))
     return _installInContext(projects, ctx, opts)
   }
 }

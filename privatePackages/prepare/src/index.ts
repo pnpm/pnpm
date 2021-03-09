@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import assertProject, { Modules, Project } from '@pnpm/assert-project'
 import { ProjectManifest } from '@pnpm/types'
+import uniqueString from 'unique-string'
 import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import writePkg from 'write-pkg'
@@ -11,7 +12,7 @@ export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'
 
 // The testing folder should be outside of the project to avoid lookup in the project's node_modules
 // Not using the OS temp directory due to issues on Windows CI.
-const tmpPath = path.join(__dirname, `../../../../pnpm_tmp/${Math.random()}`)
+const tmpPath = path.join(__dirname, `../../../../pnpm_tmp/${uniqueString()}`)
 
 let dirNumber = 0
 
