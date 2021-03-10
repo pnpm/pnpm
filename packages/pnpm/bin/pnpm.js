@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const [major, minor] = process.version.substr(1).split('.')
-const COMPATIBILITY_PAGE = `Visit https://bit.ly/pnpmcomp to see the list of past pnpm versions with respective Node.js version support.`
+const COMPATIBILITY_PAGE = `Visit https://pnpm.js.org/r/comp to see the list of past pnpm versions with respective Node.js version support.`
 
 if (major < 12 || major == 12 && minor < 17) {
   console.log(`ERROR: This version of pnpm requires at least Node.js v12.17
