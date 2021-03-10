@@ -8,7 +8,7 @@ Fast, disk space efficient package manager:
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
 * **Works everywhere.** Supports Windows, Linux, and macOS.
-* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.js.org/en/users.html) since 2016.
+* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.js.org/users) since 2016.
   
 To quote the [Rush](https://rushjs.io/) team:
 
