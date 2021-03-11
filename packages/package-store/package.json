@@ -31,12 +31,14 @@
     "path-temp": "^2.0.0",
     "ramda": "^0.27.1",
     "rename-overwrite": "^3.1.0",
+    "sanitize-filename": "^1.6.3",
     "ssri": "6.0.1",
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:2.0.23",
     "@pnpm/logger": "^3.2.3",
+    "@pnpm/prepare": "workspace:0.0.18",
     "@types/ramda": "^0.27.35",
     "@types/ssri": "^7.1.0",
     "tempy": "^1.0.0"

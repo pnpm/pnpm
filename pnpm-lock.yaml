@@ -1523,12 +1523,14 @@ importers:
       path-temp: 2.0.0
       ramda: 0.27.1
       rename-overwrite: 3.1.0
+      sanitize-filename: 1.6.3
       ssri: 6.0.1
       write-json-file: 4.3.0
     devDependencies:
       '@pnpm/client': link:../client
       '@pnpm/logger': 3.2.3
       '@pnpm/package-store': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/ramda': 0.27.38
       '@types/ssri': 7.1.0
       tempy: 1.0.0
@@ -1540,6 +1542,7 @@ importers:
       '@pnpm/logger': ^3.2.3
       '@pnpm/package-requester': workspace:13.0.0
       '@pnpm/package-store': 'link:'
+      '@pnpm/prepare': workspace:0.0.18
       '@pnpm/resolver-base': workspace:7.1.1
       '@pnpm/store-controller-types': workspace:10.0.0
       '@pnpm/types': workspace:6.4.0
@@ -1553,6 +1556,7 @@ importers:
       path-temp: ^2.0.0
       ramda: ^0.27.1
       rename-overwrite: ^3.1.0
+      sanitize-filename: ^1.6.3
       ssri: 6.0.1
       tempy: ^1.0.0
       write-json-file: ^4.3.0
@@ -13106,6 +13110,12 @@ packages:
       node: 6.* || 8.* || >= 10.*
     hasBin: true
 
+  /sanitize-filename/1.6.3:
+    resolution: {integrity: sha512-y/52Mcy7aw3gRm7IrcGDFx/bCk4AhRh2eI9luHOQM86nZsqwiRkkq2GekHXBBD+SmPidc8i2PqtYZl+pWJ8Oeg==}
+    dependencies:
+      truncate-utf8-bytes: 1.0.2
+    dev: false
+
   /saxes/3.1.11:
     resolution: {integrity: sha512-Ydydq3zC+WYDJK1+gRxRapLIED9PWeSuuS41wqyoRmzvhhh9nc+QQrVMKJYzJFULazeGhzSV0QleN2wD3boh2g==}
     dependencies:
@@ -14188,6 +14198,12 @@ packages:
     engines:
       node: '>=0.10.0'
 
+  /truncate-utf8-bytes/1.0.2:
+    resolution: {integrity: sha1-QFkjkJWS1W94pYGENLC3hInKXys=}
+    dependencies:
+      utf8-byte-length: 1.0.4
+    dev: false
+
   /ts-jest/26.5.3_jest@26.6.3+typescript@4.2.3:
     resolution: {integrity: sha512-nBiiFGNvtujdLryU7MiMQh1iPmnZ/QvOskBbD2kURiI1MwqvxlxNnaAB/z9TbslMqCsSbu5BXvSSQPc5tvHGeA==}
     dependencies:
@@ -14542,6 +14558,10 @@ packages:
     dev: true
     engines:
       node: '>=0.10.0'
+
+  /utf8-byte-length/1.0.4:
+    resolution: {integrity: sha1-9F8VDExm7uloGGUFq5P8u4rWv2E=}
+    dev: false
 
   /util-deprecate/1.0.2:
     resolution: {integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=}
