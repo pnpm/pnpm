@@ -27,8 +27,13 @@ test('writeLockfiles()', async () => {
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
+        os: ['darwin'],
         dependencies: {
           'is-positive': '2.0.0',
+        },
+        cpu: ['x86'],
+        engines: {
+          node: '>=10',
         },
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',

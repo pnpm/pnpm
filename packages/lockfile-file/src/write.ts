@@ -63,12 +63,22 @@ async function writeLockfile (
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
 
+const ORDERED_KEYS = {
+  resolution: 1,
+  engines: 2,
+  os: 3,
+  cpu: 4,
+}
+
 function yamlStringify (lockfile: Lockfile, forceSharedFormat: boolean) {
   let normalizedLockfile = normalizeLockfile(lockfile, forceSharedFormat)
   normalizedLockfile = sortKeys(normalizedLockfile, {
     compare: (left, right) => {
-      if (left === 'resolution') return -1
-      if (right === 'resolution') return 1
+      const leftPriority = ORDERED_KEYS[left]
+      const rightPriority = ORDERED_KEYS[right]
+      if (leftPriority && rightPriority) return leftPriority - rightPriority
+      if (leftPriority) return -1
+      if (rightPriority) return 1
       return left.localeCompare(right)
     },
     deep: true,
