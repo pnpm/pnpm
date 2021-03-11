@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import pnpmLogger, { globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
+import sanitizeFilename from 'sanitize-filename'
 import makeEmptyDir from 'make-empty-dir'
 import pathTemp from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
@@ -23,22 +24,47 @@ export default async function importIndexedDir (
     try {
       await rimraf(stage)
     } catch (err) {} // eslint-disable-line:no-empty
-    if (err['code'] !== 'EEXIST') throw err
-
-    const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
-    if (Object.keys(conflictingFileNames).length === 0) throw err
-    filenameConflictsLogger.debug({
-      conflicts: conflictingFileNames,
-      writingTo: newDir,
-    })
-    globalWarn(
-      `Not all files were linked to "${path.relative(process.cwd(), newDir)}". ` +
-      'Some of the files have equal names in different case, ' +
-      'which is an issue on case-insensitive filesystems. ' +
-      `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`
-    )
-    await importIndexedDir(importFile, newDir, uniqueFileMap)
+    if (err['code'] === 'EEXIST') {
+      const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
+      if (Object.keys(conflictingFileNames).length === 0) throw err
+      filenameConflictsLogger.debug({
+        conflicts: conflictingFileNames,
+        writingTo: newDir,
+      })
+      globalWarn(
+        `Not all files were linked to "${path.relative(process.cwd(), newDir)}". ` +
+        'Some of the files have equal names in different case, ' +
+        'which is an issue on case-insensitive filesystems. ' +
+        `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`
+      )
+      await importIndexedDir(importFile, newDir, uniqueFileMap)
+      return
+    }
+    if (err['code'] === 'ENOENT') {
+      const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
+      if (invalidFilenames.length === 0) throw err
+      globalWarn(`\
+The package linked to "${path.relative(process.cwd(), newDir)}" had \
+files with invalid names: ${invalidFilenames.join(', ')}. \
+They were renamed.`)
+      await importIndexedDir(importFile, newDir, sanitizedFilenames)
+      return
+    }
+    throw err
   }
+}
+
+function sanitizeFilenames (filenames: Record<string, string>) {
+  const sanitizedFilenames: Record<string, string> = {}
+  const invalidFilenames: string[] = []
+  for (const [filename, src] of Object.entries(filenames)) {
+    const sanitizedFilename = filename.split('/').map((f) => sanitizeFilename(f)).join('/')
+    if (sanitizedFilename !== filename) {
+      invalidFilenames.push(filename)
+    }
+    sanitizedFilenames[sanitizedFilename] = src
+  }
+  return { sanitizedFilenames, invalidFilenames }
 }
 
 async function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>) {
