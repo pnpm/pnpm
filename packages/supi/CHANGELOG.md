@@ -1,5 +1,11 @@
 # supi
 
+## 0.45.1
+
+### Patch Changes
+
+- @pnpm/headless@15.0.0
+
 ## 0.45.0
 
 ### Minor Changes

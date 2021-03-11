@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 11.0.1
+
+### Patch Changes
+
+- 632352f26: Rename files with invalid names if linking fails.
+
 ## 11.0.0
 
 ### Major Changes

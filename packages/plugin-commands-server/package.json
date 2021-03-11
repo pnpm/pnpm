@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-server",
-  "version": "2.0.68",
+  "version": "2.0.69",
   "description": "Commands for controlling the store server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -41,7 +41,7 @@
     "@pnpm/config": "workspace:11.14.0",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/server": "workspace:10.0.0",
-    "@pnpm/store-connection-manager": "workspace:1.0.0",
+    "@pnpm/store-connection-manager": "workspace:1.0.1",
     "@pnpm/store-path": "5.0.0-0",
     "@zkochan/diable": "^1.0.2",
     "delay": "^5.0.0",

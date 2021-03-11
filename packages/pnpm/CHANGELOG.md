@@ -35,6 +35,13 @@
   - pnpm v4: `pnpm link foo`
   - pnpm v5: `pnpm link --global foo`
 
+## 5.18.6
+
+### Patch Changes
+
+- Escape invalid charachters in file names, when linking packages from the store ([#3232](https://github.com/pnpm/pnpm/pull/3232)).
+- Link to the compatibility page fixed.
+
 ## 5.18.5
 
 ### Patch Changes
