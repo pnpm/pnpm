@@ -4,7 +4,7 @@ Fast, disk space efficient package manager:
 
 * **Fast.** Up to 2x faster than the alternatives (see [benchmark](#benchmark)).
 * **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
-* **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
+* **[Great for monorepos](https://pnpm.js.org/workspaces).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
 * **Works everywhere.** Supports Windows, Linux, and macOS.
