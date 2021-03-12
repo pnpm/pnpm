@@ -42,7 +42,7 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 npm install -g pnpm
 ```
 
-For other installation options [visit our website](https://pnpm.js.org/en/installation).
+For other installation options [visit our website](https://pnpm.js.org/installation).
 
 ## Usage
 
@@ -58,7 +58,7 @@ Also, pnpx instead of npx:
 pnpx create-react-app my-cool-new-app
 ```
 
-For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website, or run `pnpm help`.
+For more advanced usage, read [pnpm CLI](https://pnpm.js.org/pnpm-cli) on our website, or run `pnpm help`.
 
 ## Benchmark
 
@@ -70,7 +70,7 @@ Benchmarks on an app with lots of dependencies:
 
 ## Support
 
-- [Frequently Asked Questions](https://pnpm.js.org/en/faq)
+- [Frequently Asked Questions](https://pnpm.js.org/faq)
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
 - [Chat](https://discord.gg/mThkzAT)
 - [Twitter](https://twitter.com/pnpmjs)
