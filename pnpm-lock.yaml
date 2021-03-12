@@ -983,7 +983,7 @@ importers:
       '@pnpm/merge-lockfile-changes': link:../merge-lockfile-changes
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 1.0.0
-      js-yaml: /@zkochan/js-yaml/0.0.2
+      js-yaml: /@zkochan/js-yaml/0.0.4
       normalize-path: 3.0.0
       ramda: 0.27.1
       sort-keys: 4.2.0
@@ -1012,7 +1012,7 @@ importers:
       '@types/ramda': ^0.27.35
       '@types/write-file-atomic': ^3.0.1
       '@zkochan/rimraf': ^1.0.0
-      js-yaml: npm:@zkochan/js-yaml@0.0.2
+      js-yaml: npm:@zkochan/js-yaml@0.0.4
       normalize-path: ^3.0.0
       ramda: ^0.27.1
       sort-keys: ^4.2.0
@@ -3155,7 +3155,7 @@ overrides:
   graceful-fs: 4.2.4
   http-errors: ^1.7.3
   istanbul-reports: npm:@zkochan/istanbul-reports
-  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.2
+  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.4
   table@^6.0.3: 6.0.4
 
 packages:
@@ -5036,8 +5036,8 @@ packages:
     engines:
       node: '>=8'
 
-  /@zkochan/js-yaml/0.0.2:
-    resolution: {integrity: sha512-rKya/3lsmDGQ/RJgaEZsfgVsD4zLfFqon/NXoejW1OhDSp5I+RU7sHbdj7VF8BZ+PIlTKuUUpYGXC6yQJx/PvQ==}
+  /@zkochan/js-yaml/0.0.4:
+    resolution: {integrity: sha512-2QAnTstlkKBF9fjjDE9geNQKCBIGqXsm+aZrbsbH0tXgj5k2eE0gDFZK1kx2KBRk+XvivuzypRupdGyP2xSliQ==}
     dependencies:
       argparse: 2.0.1
     hasBin: true
@@ -12603,7 +12603,7 @@ packages:
   /read-yaml-file/2.1.0:
     resolution: {integrity: sha512-UkRNRIwnhG+y7hpqnycCL/xbTk7+ia9VuVTC0S+zVbwd65DI9eUpRMfsWIGrCWxTU/mi+JW8cHQCrv+zfCbEPQ==}
     dependencies:
-      js-yaml: /@zkochan/js-yaml/0.0.2
+      js-yaml: /@zkochan/js-yaml/0.0.4
       strip-bom: 4.0.0
     engines:
       node: '>=10.13'
@@ -15043,7 +15043,7 @@ packages:
   /write-yaml-file/4.2.0:
     resolution: {integrity: sha512-LwyucHy0uhWqbrOkh9cBluZBeNVxzHjDaE9mwepZG3n3ZlbM4v3ndrFw51zW/NXYFFqP+QWZ72ihtLWTh05e4Q==}
     dependencies:
-      js-yaml: /@zkochan/js-yaml/0.0.2
+      js-yaml: /@zkochan/js-yaml/0.0.4
       write-file-atomic: 3.0.3
     engines:
       node: '>=10.13'
