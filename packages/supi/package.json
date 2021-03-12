@@ -78,7 +78,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.5",
     "@types/graceful-fs": "^4.1.4",
-    "@types/is-ci": "^2.0.0",
+    "@types/is-ci": "^3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.3",
     "@types/ncp": "^2.0.4",
