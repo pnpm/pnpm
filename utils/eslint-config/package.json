@@ -25,7 +25,7 @@
   "scripts": {},
   "dependencies": {
     "@typescript-eslint/eslint-plugin": "^4.17.0",
-    "eslint-config-standard-with-typescript": "^19.0.1",
+    "eslint-config-standard-with-typescript": "^20.0.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-promise": "^4.2.1",
