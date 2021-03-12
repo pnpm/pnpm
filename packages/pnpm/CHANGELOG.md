@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.0.0-alpha.3
+## 6.0.0-alpha.4
 
 ### Major Changes
 
@@ -8,7 +8,7 @@
 
 - The lockfile version is bumped to v5.3. Changes in the new format:
   - Blank lines added between package/project entries to improve readability and decrease merge issues.
-  - The `resolution` field is now always written in a single line and is always the first key in the package objects.
+  - The `resolution`, `engines`, `os`, and `cpu` fields are now always written in a single lines, as the first keys of the package objects.
   - A new field is added to the package objects: `transitivePeerDependencies`.
 
 - The layout of the virtual store directory has changed (`node_modules/.pnpm`) to allow keeping cache in it:
