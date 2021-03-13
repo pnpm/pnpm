@@ -42,7 +42,7 @@
     "@types/proxyquire": "^1.3.28",
     "@types/ramda": "^0.27.35",
     "@types/sinon": "^9.0.11",
-    "@types/zkochan__table": "npm:@types/table@^5.0.0",
+    "@types/zkochan__table": "npm:@types/table@^6.0.0",
     "load-json-file": "^6.2.0",
     "path-name": "^1.0.0",
     "proxyquire": "^2.1.3",

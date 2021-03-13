@@ -1633,7 +1633,7 @@ importers:
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': link:../types
       '@types/ramda': 0.27.38
-      '@types/zkochan__table': /@types/table/5.0.0
+      '@types/zkochan__table': /@types/table/6.0.0
       strip-ansi: 6.0.0
     specifiers:
       '@pnpm/audit': workspace:1.1.23
@@ -1645,7 +1645,7 @@ importers:
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': workspace:6.4.0
       '@types/ramda': ^0.27.35
-      '@types/zkochan__table': npm:@types/table@^5.0.0
+      '@types/zkochan__table': npm:@types/table@^6.0.0
       '@zkochan/table': ^1.0.0
       chalk: ^4.1.0
       ramda: ^0.27.1
@@ -1738,7 +1738,7 @@ importers:
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.38
       '@types/sinon': 9.0.11
-      '@types/zkochan__table': /@types/table/5.0.0
+      '@types/zkochan__table': /@types/table/6.0.0
       load-json-file: 6.2.0
       path-name: 1.0.0
       proxyquire: 2.1.3
@@ -1781,7 +1781,7 @@ importers:
       '@types/proxyquire': ^1.3.28
       '@types/ramda': ^0.27.35
       '@types/sinon': ^9.0.11
-      '@types/zkochan__table': npm:@types/table@^5.0.0
+      '@types/zkochan__table': npm:@types/table@^6.0.0
       '@zkochan/table': ^1.0.0
       camelcase-keys: ^6.2.2
       chalk: ^4.1.0
@@ -1880,7 +1880,7 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/ramda': 0.27.38
       '@types/wrap-ansi': 3.0.0
-      '@types/zkochan__table': /@types/table/5.0.0
+      '@types/zkochan__table': /@types/table/6.0.0
       strip-ansi: 6.0.0
     specifiers:
       '@pnpm/cli-utils': workspace:0.5.2
@@ -1905,7 +1905,7 @@ importers:
       '@types/lru-cache': ^5.1.0
       '@types/ramda': ^0.27.35
       '@types/wrap-ansi': ^3.0.0
-      '@types/zkochan__table': npm:@types/table@^5.0.0
+      '@types/zkochan__table': npm:@types/table@^6.0.0
       '@zkochan/table': ^1.0.0
       chalk: ^4.1.0
       lru-cache: ^6.0.0
@@ -4669,8 +4669,8 @@ packages:
     resolution: {integrity: sha512-RJJrrySY7A8havqpGObOB4W92QXKJo63/jFLLgpvOtsGUqbQZ9Sbgl35KMm1DjC6j7AvmmU2bIno+3IyEaemaw==}
     dev: true
 
-  /@types/table/5.0.0:
-    resolution: {integrity: sha512-fQLtGLZXor264zUPWI95WNDsZ3QV43/c0lJpR/h1hhLJumXRmHNsrvBfEzW2YMhb0EWCsn4U6h82IgwsajAuTA==}
+  /@types/table/6.0.0:
+    resolution: {integrity: sha512-RSmRiYetRzpcZcgNo4x6C1VSsPGBHCGGDO7Rbnz5esVLbGONxBP1CUcn8JhAkVzUVLO+AY8yOSkb27jvfauLyg==}
     dev: true
 
   /@types/tar-stream/2.2.0:
