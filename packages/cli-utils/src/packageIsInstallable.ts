@@ -14,7 +14,8 @@ export function packageIsInstallable (
   }
 ) {
   const pnpmVersion = packageManager.name === 'pnpm'
-    ? packageManager.stableVersion : undefined
+    ? packageManager.stableVersion
+    : undefined
   const err = checkPackage(pkgPath, pkg, { pnpmVersion })
   if (err === null) return
   if (

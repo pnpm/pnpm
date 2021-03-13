@@ -63,9 +63,11 @@ export default async function testDefaults (
       version: '1.0.0',
     },
     pendingBuilds,
-    projects: opts.projects ? opts.projects : await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-    ),
+    projects: opts.projects
+      ? opts.projects
+      : await Promise.all(
+        projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
+      ),
     rawConfig: {},
     registries: registries ?? {
       default: registry,

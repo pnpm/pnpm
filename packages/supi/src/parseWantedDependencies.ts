@@ -30,7 +30,8 @@ export default function parseWantedDependencies (
       if (alias && opts.currentPrefs[alias]) {
         if (!pref) {
           pref = (opts.currentPrefs[alias].startsWith('workspace:') && opts.updateWorkspaceDependencies === true)
-            ? 'workspace:*' : opts.currentPrefs[alias]
+            ? 'workspace:*'
+            : opts.currentPrefs[alias]
         }
         pinnedVersion = guessPinnedVersionFromExistingSpec(opts.currentPrefs[alias])
       }

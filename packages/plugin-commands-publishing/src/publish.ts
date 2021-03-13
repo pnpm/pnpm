@@ -222,7 +222,8 @@ export async function fakeRegularManifest (
   // If a workspace package has no License of its own,
   // license files from the root of the workspace are used
   const copiedLicenses: string[] = opts.dir !== opts.workspaceDir && (await findLicenses({ cwd: opts.dir })).length === 0
-    ? await copyLicenses(opts.workspaceDir, opts.dir) : []
+    ? await copyLicenses(opts.workspaceDir, opts.dir)
+    : []
 
   const { fileName, manifest, writeProjectManifest } = await readProjectManifest(opts.dir, opts)
   const publishManifest = await exportableManifest(opts.dir, manifest)

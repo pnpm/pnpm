@@ -30,7 +30,7 @@
     "@types/node": "^14.14.33",
     "c8": "^7.3.5",
     "cross-env": "^7.0.3",
-    "eslint": "^7.16.0",
+    "eslint": "^7.22.0",
     "husky": "^4.3.6",
     "jest": "^26.6.3",
     "lcov-result-merger": "^3.1.0",

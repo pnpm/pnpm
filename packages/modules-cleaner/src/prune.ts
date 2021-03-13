@@ -127,8 +127,9 @@ export default async function prune (
         if (opts.hoistedDependencies[orphanDepPath]) {
           await Promise.all(Object.entries(opts.hoistedDependencies[orphanDepPath]).map(([alias, hoistType]) => {
             const modulesDir = hoistType === 'public'
-              ? opts.publicHoistedModulesDir! : opts.hoistedModulesDir!
-            if (!modulesDir) return
+              ? opts.publicHoistedModulesDir!
+              : opts.hoistedModulesDir!
+            if (!modulesDir) return undefined
             return removeDirectDependency({
               name: alias,
             }, {

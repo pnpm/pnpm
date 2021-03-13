@@ -33,7 +33,8 @@ export class FetchError extends PnpmError {
   ) {
     const message = `GET ${request.url}: ${response.statusText} - ${response.status}`
     const authHeaderValue = request.authHeaderValue
-      ? hideAuthInformation(request.authHeaderValue) : undefined
+      ? hideAuthInformation(request.authHeaderValue)
+      : undefined
     // NOTE: For security reasons, some registries respond with 404 on authentication errors as well.
     // So we print authorization info on 404 errors as well.
     if (response.status === 401 || response.status === 403 || response.status === 404) {

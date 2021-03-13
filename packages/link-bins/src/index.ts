@@ -128,7 +128,8 @@ async function getPackageBins (
   target: string
 ): Promise<CommandInfo[]> {
   const manifest = opts.allowExoticManifests
-    ? (await safeReadProjectManifestOnly(target) as DependencyManifest) : await safeReadPkgJson(target)
+    ? (await safeReadProjectManifestOnly(target) as DependencyManifest)
+    : await safeReadPkgJson(target)
 
   if (!manifest) {
     // There's a directory in node_modules without package.json: ${target}.

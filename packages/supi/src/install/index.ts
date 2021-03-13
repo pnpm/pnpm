@@ -661,7 +661,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       !opts.update &&
       ctx.wantedLockfile.packages &&
       !R.isEmpty(ctx.wantedLockfile.packages)
-    ) ? getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages) : undefined
+    )
+      ? getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages)
+      : undefined
   )
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
@@ -971,7 +973,8 @@ async function toResolveImporter (
     const updateLocalTarballs = (dep: WantedDependency) => ({
       ...dep,
       updateDepth: opts.updateAll
-        ? opts.defaultUpdateDepth : (prefIsLocalTarball(dep.pref) ? 0 : -1),
+        ? opts.defaultUpdateDepth
+        : (prefIsLocalTarball(dep.pref) ? 0 : -1),
     })
     wantedDependencies = [
       ...project.wantedDependencies.map(

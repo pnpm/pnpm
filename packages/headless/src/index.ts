@@ -405,7 +405,8 @@ export default async (opts: HeadlessOptions) => {
       pendingBuilds: opts.pendingBuilds,
       publicHoistPattern: opts.publicHoistPattern,
       prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
-        ? new Date().toUTCString() : opts.prunedAt,
+        ? new Date().toUTCString()
+        : opts.prunedAt,
       registries: opts.registries,
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,
@@ -622,7 +623,8 @@ async function lockfileToDepGraph (
               packageId,
               requester: opts.lockfileDir,
               status: fromStore
-                ? 'found_in_store' : 'fetched',
+                ? 'found_in_store'
+                : 'fetched',
             })
           })
           .catch(() => {

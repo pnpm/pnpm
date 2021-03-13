@@ -1,13 +1,13 @@
 import path from 'path'
+import fs from 'fs'
+import os from 'os'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import globalBinDir from '@pnpm/global-bin-dir'
 import camelcase from 'camelcase'
-import fs from 'fs'
 import loadNpmConf from '@zkochan/npm-conf'
 import npmTypes from '@zkochan/npm-conf/lib/types'
 import { sync as canWriteToDir } from 'can-write-to-dir'
-import os from 'os'
 import * as R from 'ramda'
 import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
@@ -247,7 +247,8 @@ export default async (
   if (cliOptions['global']) {
     const npmGlobalPrefix: string = findBestGlobalPrefix(npmConfig.globalPrefix, process.env)
     const globalDirRoot = pnpmConfig['globalDir']
-      ? pnpmConfig['globalDir'] : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), 'pnpm-global')
+      ? pnpmConfig['globalDir']
+      : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), 'pnpm-global')
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
     const npmGlobalBinDir = process.platform === 'win32'
@@ -256,7 +257,8 @@ export default async (
     pnpmConfig.bin = cliOptions.dir
       ? (
         process.platform === 'win32'
-          ? cliOptions.dir : path.resolve(cliOptions.dir, 'bin')
+          ? cliOptions.dir
+          : path.resolve(cliOptions.dir, 'bin')
       )
       : globalBinDir([npmGlobalBinDir], { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
     pnpmConfig.save = true

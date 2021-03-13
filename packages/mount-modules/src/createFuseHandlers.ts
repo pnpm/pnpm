@@ -26,7 +26,7 @@ export default async function createFuseHandlers (lockfileDir: string, cafsDir: 
   return createFuseHandlersFromLockfile(lockfile, lockfileDir, cafsDir)
 }
 
-/* eslint-disable standard/no-callback-literal */
+/* eslint-disable node/no-callback-literal */
 export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir: string, cafsDir: string) {
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile, lockfileDir)

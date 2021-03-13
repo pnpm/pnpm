@@ -269,7 +269,8 @@ async function resolveDependenciesOfDependency (
   extendedWantedDep: ExtendedWantedDependency
 ) {
   const updateDepth = typeof extendedWantedDep.wantedDependency.updateDepth === 'number'
-    ? extendedWantedDep.wantedDependency.updateDepth : options.updateDepth
+    ? extendedWantedDep.wantedDependency.updateDepth
+    : options.updateDepth
   const updateShouldContinue = options.currentDepth <= updateDepth
   const update = (
     updateShouldContinue && (
@@ -336,10 +337,12 @@ async function resolveChildren (
   updateDepth: number,
   preferredVersions: PreferredVersions
 ) {
-  const currentResolvedDependencies = dependencyLockfile ? {
-    ...dependencyLockfile.dependencies,
-    ...dependencyLockfile.optionalDependencies,
-  } : undefined
+  const currentResolvedDependencies = dependencyLockfile
+    ? {
+      ...dependencyLockfile.dependencies,
+      ...dependencyLockfile.optionalDependencies,
+    }
+    : undefined
   const resolvedDependencies = parentPkg.updated
     ? undefined
     : currentResolvedDependencies
@@ -573,7 +576,8 @@ async function resolveDependency (
   const currentPkg = options.currentPkg ?? {}
 
   const currentLockfileContainsTheDep = currentPkg.depPath
-    ? Boolean(ctx.currentLockfile.packages?.[currentPkg.depPath]) : undefined
+    ? Boolean(ctx.currentLockfile.packages?.[currentPkg.depPath])
+    : undefined
   const depIsLinked = Boolean(
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
@@ -599,12 +603,14 @@ async function resolveDependency (
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
-      currentPkg: currentPkg ? {
-        name: currentPkg.name,
-        version: currentPkg.version,
-        id: currentPkg.pkgId,
-        resolution: currentPkg.resolution,
-      } : undefined,
+      currentPkg: currentPkg
+        ? {
+          name: currentPkg.name,
+          version: currentPkg.version,
+          id: currentPkg.pkgId,
+          resolution: currentPkg.resolution,
+        }
+        : undefined,
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
@@ -789,7 +795,8 @@ async function resolveDependency (
             packageId: pkgResponse.body.id,
             requester: ctx.lockfileDir,
             status: fetchResult.fromStore
-              ? 'found_in_store' : 'fetched',
+              ? 'found_in_store'
+              : 'fetched',
           })
         })
         .catch(() => {
@@ -890,7 +897,8 @@ function getResolvedPackage (
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     requiresBuild: options.neverBuiltDependencies.has(options.pkg.name)
-      ? false : (options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild)),
+      ? false
+      : (options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild)),
     resolution: options.pkgResponse.body.resolution,
     version: options.pkg.version,
   }

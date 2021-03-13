@@ -157,7 +157,8 @@ export default (
         }
         // In order to reduce the amount of logs, we only report the download progress of big tarballs
         const onProgress = size != null && size >= BIG_TARBALL_SIZE
-          ? opts.onProgress : undefined
+          ? opts.onProgress
+          : undefined
         let downloaded = 0
         res.body.on('data', (chunk: Buffer) => {
           downloaded += chunk.length

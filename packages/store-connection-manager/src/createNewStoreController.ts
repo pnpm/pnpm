@@ -59,7 +59,8 @@ export default async (
     strictSSL: opts.strictSsl ?? true,
     userAgent: opts.userAgent,
     maxSockets: opts.networkConcurrency != null
-      ? (opts.networkConcurrency * 3) : undefined,
+      ? (opts.networkConcurrency * 3)
+      : undefined,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
@@ -69,7 +70,8 @@ export default async (
       packageImportMethod: opts.packageImportMethod,
       storeDir: opts.storeDir,
       verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
-        ? opts.verifyStoreIntegrity : true,
+        ? opts.verifyStoreIntegrity
+        : true,
     }),
     dir: opts.storeDir,
   }

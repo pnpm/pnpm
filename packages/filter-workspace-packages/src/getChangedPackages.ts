@@ -71,7 +71,8 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
     if (changedDirs.get(dir) === 'source') continue
 
     const changeType: ChangeType = testPattern.some(pattern => micromatch.isMatch(changedFile, pattern))
-      ? 'test' : 'source'
+      ? 'test'
+      : 'source'
     changedDirs.set(dir, changeType)
   }
 

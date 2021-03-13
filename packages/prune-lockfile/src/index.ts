@@ -17,12 +17,14 @@ export function pruneSharedLockfile (
     warn?: (msg: string) => void
   }
 ) {
-  const copiedPackages = !lockfile.packages ? {} : copyPackageSnapshots(lockfile.packages, {
-    devDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {}))),
-    optionalDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
-    prodDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
-    warn: opts?.warn ?? ((msg: string) => undefined),
-  })
+  const copiedPackages = (lockfile.packages == null)
+    ? {}
+    : copyPackageSnapshots(lockfile.packages, {
+      devDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {}))),
+      optionalDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
+      prodDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
+      warn: opts?.warn ?? ((msg: string) => undefined),
+    })
 
   const prunnedLockfile: Lockfile = {
     ...lockfile,

@@ -1,7 +1,7 @@
 import path from 'path'
+import { promises as fs } from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
-import { promises as fs } from 'fs'
 import isWindows from 'is-windows'
 import exists from 'path-exists'
 import {

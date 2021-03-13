@@ -202,7 +202,8 @@ async function symlinkHoistedDependencies (
         const depLocation = path.join(modules, pkgName)
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'
-            ? opts.publicHoistedModulesDir : opts.privateHoistedModulesDir
+            ? opts.publicHoistedModulesDir
+            : opts.privateHoistedModulesDir
           await symlinkDependency(depLocation, targetDir, pkgAlias)
         }))
       }

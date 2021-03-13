@@ -47,7 +47,9 @@ export default async (
   const stdio = (
     opts.workspaceConcurrency === 1 ||
     packageChunks.length === 1 && packageChunks[0].length === 1
-  ) ? 'inherit' : 'pipe'
+  )
+    ? 'inherit'
+    : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
