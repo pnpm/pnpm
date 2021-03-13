@@ -125,7 +125,7 @@ function getProxyUri (
     return null
   }
 
-  if (!proxy.startsWith('http')) {
+  if (!proxy.startsWith('http') && !proxy.startsWith('socks')) {
     proxy = protocol + '//' + proxy
   }
 
