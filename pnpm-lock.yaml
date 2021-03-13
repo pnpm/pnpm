@@ -3111,14 +3111,12 @@ importers:
       eslint-plugin-import: 2.22.1
       eslint-plugin-node: 11.1.0
       eslint-plugin-promise: 4.3.1
-      eslint-plugin-standard: 4.1.0
     specifiers:
       '@typescript-eslint/eslint-plugin': ^4.17.0
       eslint-config-standard-with-typescript: ^20.0.0
       eslint-plugin-import: ^2.22.1
       eslint-plugin-node: ^11.1.0
       eslint-plugin-promise: ^4.2.1
-      eslint-plugin-standard: ^4.1.0
 
   utils/tsconfig:
     devDependencies:
@@ -7335,12 +7333,6 @@ packages:
     resolution: {integrity: sha512-bY2sGqyptzFBDLh/GMbAxfdJC+b0f23ME63FOE4+Jao0oZ3E1LEwFtWJX/1pGMJLiTtrSSern2CRM/g+dfc0eQ==}
     engines: {node: '>=6'}
     dev: false
-
-  /eslint-plugin-standard/4.1.0:
-    resolution: {integrity: sha512-ZL7+QRixjTR6/528YNGyDotyffm5OQst/sGxKDwGb9Uqs4In5Egi4+jbobhqJoyoCM6/7v/1A5fhQ7ScMtDjaQ==}
-    dev: false
-    peerDependencies:
-      eslint: '>=5.0.0'
 
   /eslint-scope/5.1.1:
     resolution: {integrity: sha512-2NxwbF/hZ0KpepYN0cNbo+FN6XoK7GaHlQhgx/hIZl6Va0bF45RQOOwhLIy8lQDbuCiadSLCBnH2CFYquit5bw==}
