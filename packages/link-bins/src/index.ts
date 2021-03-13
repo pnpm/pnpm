@@ -176,11 +176,12 @@ async function linkBin (cmd: CommandInfo, binsDir: string) {
 }
 
 async function getBinNodePaths (target: string): Promise<string[]> {
-  const targetRealPath = await fs.realpath(target)
+  const targetDir = path.dirname(target)
+  const targetRealPath = await fs.realpath(targetDir)
 
   return R.union(
     Module['_nodeModulePaths'](targetRealPath),
-    Module['_nodeModulePaths'](target)
+    Module['_nodeModulePaths'](targetDir)
   )
 }
 
