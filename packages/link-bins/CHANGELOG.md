@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 5.3.24
+
+### Patch Changes
+
+- 6350a3381: Don't add a non-directory to the NODE_PATH declared in the command shim.
+
 ## 5.3.23
 
 ### Patch Changes

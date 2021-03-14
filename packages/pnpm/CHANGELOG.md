@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.18.7
+
+### Patch Changes
+
+- Proxying through `socks://` should work ([#3241](https://github.com/pnpm/pnpm/issues/3241)).
+- Non-directories should not be added to `NODE_PATH` in command shims ([#3156](https://github.com/pnpm/pnpm/issues/3156)).
+
 ## 5.18.6
 
 ### Patch Changes

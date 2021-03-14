@@ -1,5 +1,17 @@
 # supi
 
+## 0.45.2
+
+### Patch Changes
+
+- Updated dependencies [6350a3381]
+  - @pnpm/link-bins@5.3.24
+  - @pnpm/build-modules@5.2.11
+  - @pnpm/headless@15.0.1
+  - @pnpm/hoist@4.0.25
+  - @pnpm/package-requester@13.0.0
+  - @pnpm/resolve-dependencies@19.0.1
+
 ## 0.45.1
 
 ### Patch Changes
