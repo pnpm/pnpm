@@ -1,5 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import agent from '@pnpm/npm-registry-agent'
+import getAgent from '@pnpm/npm-registry-agent'
+import SocksProxyAgent from 'socks-proxy-agent'
 
 jest.mock('agentkeepalive', () => {
   const MockHttp = mockHttpAgent('http')
@@ -26,7 +27,7 @@ const OPTS = {
 }
 
 test('all expected options passed down to HttpAgent', () => {
-  expect(agent('http://foo.com/bar', OPTS)).toEqual({
+  expect(getAgent('http://foo.com/bar', OPTS)).toEqual({
     __type: 'http',
     localAddress: 'localAddress',
     maxSockets: 5,
@@ -35,7 +36,7 @@ test('all expected options passed down to HttpAgent', () => {
 })
 
 test('all expected options passed down to HttpsAgent', () => {
-  expect(agent('https://foo.com/bar', OPTS)).toEqual({
+  expect(getAgent('https://foo.com/bar', OPTS)).toEqual({
     __type: 'https',
     ca: 'ca',
     cert: 'cert',
@@ -48,10 +49,11 @@ test('all expected options passed down to HttpsAgent', () => {
 })
 
 test('all expected options passed down to proxy agent', () => {
-  const opts = Object.assign({
+  const opts = {
     httpsProxy: 'https://user:pass@my.proxy:1234/foo',
-  }, OPTS)
-  expect(agent('https://foo.com/bar', opts)).toEqual({
+    ...OPTS
+  }
+  expect(getAgent('https://foo.com/bar', opts)).toEqual({
     __type: 'https-proxy',
     auth: 'user:pass',
     ca: 'ca',
@@ -65,5 +67,19 @@ test('all expected options passed down to proxy agent', () => {
     protocol: 'https:',
     rejectUnauthorized: true,
     timeout: 6,
+  })
+})
+
+test('a socks proxy', () => {
+  const opts = {
+    httpsProxy: 'socks://user:pass@my.proxy:1234/foo',
+    ...OPTS,
+  }
+  const agent = getAgent('https://foo.com/bar', opts)
+  expect(agent instanceof SocksProxyAgent).toBeTruthy()
+  expect(agent.proxy).toEqual({
+    host: 'my.proxy',
+    port: 1234,
+    type: 5,
   })
 })

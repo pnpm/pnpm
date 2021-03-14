@@ -125,8 +125,8 @@ function getProxyUri (
     return null
   }
 
-  if (!proxy.startsWith('http')) {
-    proxy = protocol + '//' + proxy
+  if (!proxy.includes('://')) {
+    proxy = `${protocol}//${proxy}`
   }
 
   const parsedProxy = (typeof proxy === 'string') ? new URL(proxy) : proxy
