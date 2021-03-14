@@ -191,7 +191,7 @@ test('prints progress beginning during recursive install', (done) => {
   })
 })
 
-test('prints progress on first download', async (done) => {
+test('prints progress on first download', (done) => {
   expect.assertions(1)
 
   const output$ = toOutput$({
@@ -230,7 +230,7 @@ test('prints progress on first download', async (done) => {
   })
 })
 
-test('moves fixed line to the end', async (done) => {
+test('moves fixed line to the end', (done) => {
   expect.assertions(1)
   const prefix = '/src/project'
   const output$ = toOutput$({
@@ -302,7 +302,7 @@ test('prints "Already up-to-date"', (done) => {
   })
 })
 
-test('prints progress of big files download', async (done) => {
+test('prints progress of big files download', (done) => {
   expect.assertions(6)
 
   const output$ = toOutput$({

@@ -3,7 +3,6 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import {
   createStreamParser,
 } from '@pnpm/logger'
-import delay from 'delay'
 import { take } from 'rxjs/operators'
 
 test('print context and import method info', (done) => {
@@ -37,7 +36,7 @@ Packages are hard linked from the content-addressable store to the virtual store
   })
 })
 
-test('do not print info if not fresh install', async (done) => {
+test('do not print info if not fresh install', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -62,7 +61,8 @@ test('do not print info if not fresh install', async (done) => {
     },
   })
 
-  await delay(10)
-  done()
-  subscription.unsubscribe()
+  setTimeout(() => {
+    done()
+    subscription.unsubscribe()
+  }, 10)
 })
