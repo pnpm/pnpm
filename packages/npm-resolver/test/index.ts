@@ -86,7 +86,7 @@ test('relative workspace protocol is skipped', async () => {
   expect(resolveResult).toBe(null)
 })
 
-test('dry run', async (done) => {
+test('dry run', async () => {
   nock(registry)
     .get('/is-positive')
     .reply(200, isPositiveMeta)
@@ -113,10 +113,9 @@ test('dry run', async (done) => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  setTimeout(async () => {
-    expect(await exists(path.join(storeDir, resolveResult!.id, '..', 'index.json'))).toBeFalsy()
-    done()
-  }, 500)
+  await delay(500)
+
+  expect(await exists(path.join(storeDir, resolveResult!.id, '..', 'index.json'))).toBeFalsy()
 })
 
 test('resolve to latest when no pref specified', async () => {

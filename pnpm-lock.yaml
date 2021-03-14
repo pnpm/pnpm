@@ -318,7 +318,6 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.38
       '@types/semver': 7.3.4
-      delay: 5.0.0
       ghooks: 2.0.4
       load-json-file: 6.2.0
       normalize-newline: 3.0.0
@@ -334,7 +333,6 @@ importers:
       '@types/semver': ^7.3.4
       ansi-diff: ^1.1.1
       chalk: ^4.1.0
-      delay: ^5.0.0
       ghooks: 2.0.4
       load-json-file: ^6.2.0
       normalize-newline: 3.0.0

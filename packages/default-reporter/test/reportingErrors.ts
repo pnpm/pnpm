@@ -56,7 +56,7 @@ ${new StackTracey(err.stack).pretty as string}`)
   })
 })
 
-test('prints no matching version error when many dist-tags exist', async (done) => {
+test('prints no matching version error when many dist-tags exist', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -82,11 +82,11 @@ If you need the full list of all 281 published versions run "$ pnpm view pnpm ve
   })
 
   const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0')
-  err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'pnpm-meta.json'))
+  err['packageMeta'] = loadJsonFile.sync(path.join(__dirname, 'pnpm-meta.json'))
   logger.error(err, err)
 })
 
-test('prints no matching version error when only the latest dist-tag exists', async (done) => {
+test('prints no matching version error when only the latest dist-tag exists', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -107,11 +107,11 @@ If you need the full list of all 4 published versions run "$ pnpm view is-positi
   })
 
   const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')
-  err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'is-positive-meta.json'))
+  err['packageMeta'] = loadJsonFile.sync(path.join(__dirname, 'is-positive-meta.json'))
   logger.error(err, err)
 })
 
-test('prints suggestions when an internet-connection related error happens', async (done) => {
+test('prints suggestions when an internet-connection related error happens', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -148,7 +148,7 @@ For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\``)
   logger.error(err, err)
 })
 
-test('prints test error', async (done) => {
+test('prints test error', (done) => {
   const output$ = toOutput$({
     context: { argv: ['run', 'test'] },
     streamParser: createStreamParser(),
@@ -170,7 +170,7 @@ test('prints test error', async (done) => {
   logger.error(err, err)
 })
 
-test('prints command error with exit code', async (done) => {
+test('prints command error with exit code', (done) => {
   const output$ = toOutput$({
     context: { argv: ['run', 'lint'] },
     streamParser: createStreamParser(),
@@ -193,7 +193,7 @@ test('prints command error with exit code', async (done) => {
   logger.error(err, err)
 })
 
-test('prints command error without exit code', async (done) => {
+test('prints command error without exit code', (done) => {
   const output$ = toOutput$({
     context: { argv: ['run', 'lint'] },
     streamParser: createStreamParser(),
@@ -215,7 +215,7 @@ test('prints command error without exit code', async (done) => {
   logger.error(err, err)
 })
 
-test('prints unsupported pnpm version error', async (done) => {
+test('prints unsupported pnpm version error', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -247,7 +247,7 @@ To check your pnpm version, run "pnpm -v".`)
   logger.error(err, err)
 })
 
-test('prints unsupported Node version error', async (done) => {
+test('prints unsupported Node version error', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -276,7 +276,7 @@ To fix this issue, install the required Node version.`)
   logger.error(err, err)
 })
 
-test('prints unsupported pnpm and Node versions error', async (done) => {
+test('prints unsupported pnpm and Node versions error', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),

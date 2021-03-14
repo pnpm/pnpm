@@ -380,7 +380,7 @@ ${ADD} bar ${versionColor('2.0.0')}
   })
 })
 
-test('prints summary when some packages fail', async (done) => {
+test('prints summary when some packages fail', (done) => {
   const output$ = toOutput$({
     context: { argv: ['run'], config: { recursive: true } as Config },
     streamParser: createStreamParser(),

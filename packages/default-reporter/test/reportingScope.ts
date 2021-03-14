@@ -3,12 +3,11 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import delay from 'delay'
 import { take } from 'rxjs/operators'
 
 const scopeLogger = logger<object>('scope')
 
-test('does not print scope of non-recursive install in a workspace', async (done) => {
+test('does not print scope of non-recursive install in a workspace', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -29,9 +28,10 @@ test('does not print scope of non-recursive install in a workspace', async (done
     },
   })
 
-  await delay(10)
-  done()
-  subscription.unsubscribe()
+  setTimeout(() => {
+    done()
+    subscription.unsubscribe()
+  }, 10)
 })
 
 test('prints scope of recursive install in a workspace when not all packages are selected', (done) => {
