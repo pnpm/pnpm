@@ -15,7 +15,7 @@ To quote the [Rush](https://rushjs.io/) team:
 > Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
-[![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://bit.ly/pnpm-discord-invite)
+[![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://pnpm.js.org/r/chat)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](#backers)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/pnpmjs)
@@ -62,7 +62,7 @@ For more advanced usage, read [pnpm CLI](https://pnpm.js.org/pnpm-cli) on our we
 
 ## Benchmark
 
-pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](https://github.com/pnpm/benchmarks-of-javascript-package-managers).
+pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](https://pnpm.js.org/r/benchmarks).
 
 Benchmarks on an app with lots of dependencies:
 
@@ -72,7 +72,7 @@ Benchmarks on an app with lots of dependencies:
 
 - [Frequently Asked Questions](https://pnpm.js.org/faq)
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
-- [Chat](https://discord.gg/mThkzAT)
+- [Chat](https://pnpm.js.org/r/chat)
 - [Twitter](https://twitter.com/pnpmjs)
 - [Awesome list](https://github.com/pnpm/awesome-pnpm)
 
