@@ -51,7 +51,7 @@ test('all expected options passed down to HttpsAgent', () => {
 test('all expected options passed down to proxy agent', () => {
   const opts = {
     httpsProxy: 'https://user:pass@my.proxy:1234/foo',
-    ...OPTS
+    ...OPTS,
   }
   expect(getAgent('https://foo.com/bar', opts)).toEqual({
     __type: 'https-proxy',
