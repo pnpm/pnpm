@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 15.0.1
+
+### Patch Changes
+
+- Updated dependencies [6350a3381]
+  - @pnpm/link-bins@5.3.24
+  - @pnpm/build-modules@5.2.11
+  - @pnpm/hoist@4.0.25
+  - @pnpm/package-requester@13.0.0
+
 ## 15.0.0
 
 ### Major Changes

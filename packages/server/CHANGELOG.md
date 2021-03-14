@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 10.0.1
+
+### Patch Changes
+
+- @pnpm/fetch@2.1.11
+
 ## 10.0.0
 
 ### Major Changes

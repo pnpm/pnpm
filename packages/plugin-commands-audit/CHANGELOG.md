@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-audit
 
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/audit@1.1.24
+
 ## 3.0.3
 
 ### Patch Changes

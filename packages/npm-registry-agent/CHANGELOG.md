@@ -1,5 +1,11 @@
 # @pnpm/npm-registry-agent
 
+## 3.1.2
+
+### Patch Changes
+
+- dd12cf6ec: Creating a proper URL for socks proxy.
+
 ## 3.1.1
 
 ### Patch Changes

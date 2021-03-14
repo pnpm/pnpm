@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-import
 
+## 1.0.108
+
+### Patch Changes
+
+- supi@0.45.2
+- @pnpm/store-connection-manager@1.0.2
+
 ## 1.0.107
 
 ### Patch Changes

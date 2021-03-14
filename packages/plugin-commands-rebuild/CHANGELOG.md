@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.2.32
+
+### Patch Changes
+
+- Updated dependencies [6350a3381]
+  - @pnpm/link-bins@5.3.24
+  - @pnpm/store-connection-manager@1.0.2
+
 ## 2.2.31
 
 ### Patch Changes

@@ -55,7 +55,7 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:2.1.10",
+    "@pnpm/fetch": "workspace:2.1.11",
     "@pnpm/logger": "^3.2.3",
     "@types/lru-cache": "^5.1.0",
     "@types/normalize-path": "^3.0.0",
