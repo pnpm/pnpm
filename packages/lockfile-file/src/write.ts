@@ -65,9 +65,30 @@ async function writeLockfile (
 
 const ORDERED_KEYS = {
   resolution: 1,
-  engines: 2,
-  os: 3,
-  cpu: 4,
+  id: 2,
+
+  name: 3,
+  version: 4,
+
+  engines: 5,
+  cpu: 6,
+  os: 7,
+
+  deprecated: 8,
+  hasBin: 9,
+  prepare: 10,
+  requiresBuild: 11,
+
+  bundleDependencies: 12,
+  peerDependencies: 13,
+  peerDependenciesMeta: 14,
+
+  dependencies: 15,
+  optionalDependencies: 16,
+
+  transitivePeerDependencies: 17,
+  dev: 18,
+  optional: 19,
 }
 
 function yamlStringify (lockfile: Lockfile, forceSharedFormat: boolean) {
