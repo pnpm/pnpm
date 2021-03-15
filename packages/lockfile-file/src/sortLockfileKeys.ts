@@ -31,13 +31,14 @@ const ORDERED_KEYS = {
 
 const ROOT_KEYS_ORDER = {
   lockfileVersion: 1,
-  overrides: 2,
-  neverBuildDependencies: 3,
+  neverBuiltDependencies: 2,
+  overrides: 3,
   specifiers: 10,
   dependencies: 11,
   optionalDependencies: 12,
   devDependencies: 13,
-  packages: 14,
+  importers: 14,
+  packages: 15,
 }
 
 function compareWithPriority (priority: Record<string, number>, left: string, right: string) {
