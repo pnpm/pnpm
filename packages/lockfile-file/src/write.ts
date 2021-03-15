@@ -6,9 +6,9 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
 import * as R from 'ramda'
-import sortKeys from 'sort-keys'
 import writeFileAtomicCB from 'write-file-atomic'
 import logger from './logger'
+import { sortLockfileKeys } from './sortLockfileKeys'
 
 async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => err ? reject(err) : resolve()))
@@ -63,47 +63,9 @@ async function writeLockfile (
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
 
-const ORDERED_KEYS = {
-  resolution: 1,
-  id: 2,
-
-  name: 3,
-  version: 4,
-
-  engines: 5,
-  cpu: 6,
-  os: 7,
-
-  deprecated: 8,
-  hasBin: 9,
-  prepare: 10,
-  requiresBuild: 11,
-
-  bundleDependencies: 12,
-  peerDependencies: 13,
-  peerDependenciesMeta: 14,
-
-  dependencies: 15,
-  optionalDependencies: 16,
-
-  transitivePeerDependencies: 17,
-  dev: 18,
-  optional: 19,
-}
-
 function yamlStringify (lockfile: Lockfile, forceSharedFormat: boolean) {
   let normalizedLockfile = normalizeLockfile(lockfile, forceSharedFormat)
-  normalizedLockfile = sortKeys(normalizedLockfile, {
-    compare: (left, right) => {
-      const leftPriority = ORDERED_KEYS[left]
-      const rightPriority = ORDERED_KEYS[right]
-      if (leftPriority && rightPriority) return leftPriority - rightPriority
-      if (leftPriority) return -1
-      if (rightPriority) return 1
-      return left.localeCompare(right)
-    },
-    deep: true,
-  })
+  normalizedLockfile = sortLockfileKeys(normalizedLockfile)
   return yaml.dump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
@@ -111,7 +73,7 @@ function isEmptyLockfile (lockfile: Lockfile) {
   return R.values(lockfile.importers).every((importer) => R.isEmpty(importer.specifiers ?? {}) && R.isEmpty(importer.dependencies ?? {}))
 }
 
-type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
+export type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
 
 export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   let lockfileToSave!: LockfileFile
