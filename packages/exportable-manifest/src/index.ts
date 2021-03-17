@@ -25,13 +25,13 @@ export default async function makePublishManifest (dir: string, originalManifest
   const publishManifest = R.omit(['pnpm'], originalManifest)
   for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
     const deps = await makePublishDependencies(dir, originalManifest[depsField])
-    if (deps) {
+    if (deps != null) {
       publishManifest[depsField] = deps
     }
   }
 
   const { publishConfig } = originalManifest
-  if (publishConfig) {
+  if (publishConfig != null) {
     Object.keys(publishConfig)
       .filter(key => PUBLISH_CONFIG_WHITELIST.has(key))
       .forEach(key => {
@@ -43,7 +43,7 @@ export default async function makePublishManifest (dir: string, originalManifest
 }
 
 async function makePublishDependencies (dir: string, dependencies: Dependencies | undefined) {
-  if (!dependencies) return dependencies
+  if (dependencies == null) return dependencies
   const publishDependencies: Dependencies = R.fromPairs(
     await Promise.all(
       Object.entries(dependencies)
@@ -62,7 +62,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   }
   if (depSpec === 'workspace:*' || depSpec.endsWith('@*')) {
     const { manifest } = await tryReadProjectManifest(path.join(dir, 'node_modules', depName))
-    if (!manifest || !manifest.version) {
+    if ((manifest == null) || !manifest.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
         `Cannot resolve workspace protocol of dependency "${depName}" ` +
@@ -76,7 +76,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
     const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.substr(10)))
-    if (!manifest || !manifest.name || !manifest.version) {
+    if ((manifest == null) || !manifest.name || !manifest.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
         `Cannot resolve workspace protocol of dependency "${depName}" ` +

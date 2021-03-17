@@ -13,12 +13,12 @@ export default function (
   ): Promise<ResolveResult | null> {
     const parsedSpec = await parsePref(wantedDependency.pref)
 
-    if (!parsedSpec) return null
+    if (parsedSpec == null) return null
 
     const commit = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish ?? 'master', parsedSpec.gitRange)
     let resolution
 
-    if (parsedSpec.hosted && !isSsh(parsedSpec.fetchSpec)) {
+    if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
       // don't use tarball for ssh url, they are likely private repo
       const hosted = parsedSpec.hosted
       // use resolved committish
@@ -30,7 +30,7 @@ export default function (
       }
     }
 
-    if (!resolution) {
+    if (resolution == null) {
       resolution = {
         commit,
         repo: parsedSpec.fetchSpec,
@@ -72,7 +72,7 @@ async function getRepoRefs (repo: string, ref: string | null) {
 }
 
 async function resolveRef (repo: string, ref: string, range?: string) {
-  if (ref.match(/^[0-9a-f]{40}$/)) {
+  if (ref.match(/^[0-9a-f]{40}$/) != null) {
     return ref
   }
   const refs = await getRepoRefs(repo, range ? null : ref)

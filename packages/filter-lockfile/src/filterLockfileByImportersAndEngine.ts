@@ -42,8 +42,8 @@ export default function filterByImportersAndEngine (
     .map(([pkgName, ref]) => dp.refToRelative(ref, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]
 
-  const packages = (lockfile.packages &&
-    pickPkgsWithAllDeps(lockfile.packages, directDepPaths, {
+  const packages = (lockfile.packages != null)
+    ? pickPkgsWithAllDeps(lockfile.packages, directDepPaths, {
       currentEngine: opts.currentEngine,
       engineStrict: opts.engineStrict,
       failOnMissingDependencies: opts.failOnMissingDependencies,
@@ -51,11 +51,12 @@ export default function filterByImportersAndEngine (
       includeIncompatiblePackages: opts.includeIncompatiblePackages === true,
       lockfileDir: opts.lockfileDir,
       skipped: opts.skipped,
-    })) ?? {}
+    })
+    : {}
 
   const importers = importerIds.reduce((acc, importerId) => {
     acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
-    if (acc[importerId].optionalDependencies) {
+    if (acc[importerId].optionalDependencies != null) {
       for (const depName of Object.keys(acc[importerId].optionalDependencies ?? {})) {
         const depPath = dp.refToRelative(acc[importerId].optionalDependencies![depName], depName)
         if (depPath && !packages[depPath]) {

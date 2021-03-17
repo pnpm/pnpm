@@ -26,7 +26,7 @@ export default async function (
         next()
         return
       }
-      if (filename === 'package.json' && manifest) {
+      if (filename === 'package.json' && (manifest != null)) {
         parseJsonStream(fileStream, manifest)
       }
       const writeResult = addStreamToCafs(fileStream, header.mode!)

@@ -21,7 +21,7 @@ export default function filterByImporters (
   }
 ): Lockfile {
   const packages = {} as PackageSnapshots
-  if (lockfile.packages) {
+  if (lockfile.packages != null) {
     pkgAllDeps(
       lockfileWalker(
         lockfile,

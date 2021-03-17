@@ -61,7 +61,7 @@ async function verifyFile (
   deferredManifest?: DeferredManifestPromise
 ) {
   const currentFile = await checkFile(filename, fstat.checkedAt)
-  if (!currentFile) return false
+  if (currentFile == null) return false
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
       await rimraf(filename)
@@ -69,7 +69,7 @@ async function verifyFile (
     }
     return verifyFileIntegrity(filename, fstat, deferredManifest)
   }
-  if (deferredManifest) {
+  if (deferredManifest != null) {
     parseJsonBuffer(await fs.readFile(filename), deferredManifest)
   }
   // If a file was not edited, we are skipping integrity check.
@@ -83,7 +83,7 @@ export async function verifyFileIntegrity (
   deferredManifest?: DeferredManifestPromise
 ) {
   try {
-    if (expectedFile.size > MAX_BULK_SIZE && !deferredManifest) {
+    if (expectedFile.size > MAX_BULK_SIZE && (deferredManifest == null)) {
       const ok = Boolean(await ssri.checkStream(createReadStream(filename), expectedFile.integrity))
       if (!ok) {
         await rimraf(filename)
@@ -94,7 +94,7 @@ export async function verifyFileIntegrity (
     const ok = Boolean(ssri.checkData(data, expectedFile.integrity))
     if (!ok) {
       await rimraf(filename)
-    } else if (deferredManifest) {
+    } else if (deferredManifest != null) {
       parseJsonBuffer(data, deferredManifest)
     }
     return ok

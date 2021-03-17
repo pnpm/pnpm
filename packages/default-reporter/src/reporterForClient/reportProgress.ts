@@ -60,7 +60,7 @@ function throttledProgressOutput (
     // Avoid logs after all resolved packages were downloaded.
     // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
     .pipe(takeWhile(([, importingDone]) => !importingDone, true))
-  if (throttle) {
+  if (throttle != null) {
     combinedProgress = combinedProgress.pipe(throttle)
   }
   return combinedProgress.pipe(map(createStatusMessage))

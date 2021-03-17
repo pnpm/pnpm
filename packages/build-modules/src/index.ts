@@ -50,7 +50,7 @@ export default async (
   const buildDepOpts = { ...opts, warn }
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => depGraph[depPath].requiresBuild && !depGraph[depPath].isBuilt)
-    if (opts.depsToBuild) {
+    if (opts.depsToBuild != null) {
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
     }
 

@@ -124,7 +124,7 @@ export default function (
             updated?: PackageManifest
           }
         ]) => {
-          if (!packageManifests['initial'] || !packageManifests['updated']) return pkgsDiff
+          if ((packageManifests['initial'] == null) || (packageManifests['updated'] == null)) return pkgsDiff
 
           const initialPackageManifest = removeOptionalFromProdDeps(packageManifests['initial'])
           const updatedPackageManifest = removeOptionalFromProdDeps(packageManifests['updated'])
@@ -164,7 +164,7 @@ export default function (
 }
 
 function removeOptionalFromProdDeps (pkg: PackageManifest): PackageManifest {
-  if (!pkg.dependencies || !pkg.optionalDependencies) return pkg
+  if ((pkg.dependencies == null) || (pkg.optionalDependencies == null)) return pkg
   for (const depName of Object.keys(pkg.dependencies)) {
     if (pkg.optionalDependencies[depName]) {
       delete pkg.dependencies[depName]

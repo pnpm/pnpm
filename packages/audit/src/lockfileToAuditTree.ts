@@ -59,7 +59,7 @@ function lockfileToAuditNode (step: LockfileWalkerStep) {
       integrity: pkgSnapshot.resolution['integrity'],
       version,
     }
-    if (Object.keys(subdeps).length) {
+    if (Object.keys(subdeps).length > 0) {
       dep.dependencies = subdeps
       dep.requires = toRequires(subdeps)
     }

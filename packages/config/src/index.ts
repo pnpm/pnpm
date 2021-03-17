@@ -25,7 +25,7 @@ const npmDefaults = loadNpmConf.defaults
 
 async function which (cmd: string) {
   return new Promise<string>((resolve, reject) => {
-    whichcb(cmd, (err, resolvedPath) => err ? reject(err) : resolve(resolvedPath!))
+    whichcb(cmd, (err, resolvedPath) => (err != null) ? reject(err) : resolve(resolvedPath!))
   })
 }
 
@@ -267,7 +267,7 @@ export default async (
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
-    if (pnpmConfig.hoistPattern && (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')) {
+    if ((pnpmConfig.hoistPattern != null) && (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')) {
       if (opts.cliOptions['hoist-pattern']) {
         throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
           'Configuration conflict. "hoist-pattern" may not be used with "global"')
@@ -359,7 +359,9 @@ export default async (
     break
   default:
     if (
-      !pnpmConfig.publicHoistPattern ||
+      (pnpmConfig.publicHoistPattern == null) ||
+        // @ts-expect-error
+        (pnpmConfig.publicHoistPattern === '') ||
         (
           Array.isArray(pnpmConfig.publicHoistPattern) &&
           pnpmConfig.publicHoistPattern.length === 1 &&
@@ -409,7 +411,7 @@ export default async (
         unknownKeys.push(key)
       }
     }
-    if (unknownKeys.length) {
+    if (unknownKeys.length > 0) {
       warnings.push(`Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`)
     }
   }

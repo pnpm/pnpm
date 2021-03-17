@@ -24,7 +24,7 @@ class RecursiveFailError extends PnpmError {
 }
 
 export function throwOnCommandFail (command: string, recursiveSummary: RecursiveSummary) {
-  if (recursiveSummary.fails.length) {
+  if (recursiveSummary.fails.length > 0) {
     throw new RecursiveFailError(command, recursiveSummary)
   }
 }

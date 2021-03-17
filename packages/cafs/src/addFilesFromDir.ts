@@ -47,7 +47,7 @@ async function _retrieveFileIntegrities (
       if (stat.isFile()) {
         const relativePath = path.relative(rootDir, fullPath)
         const writeResult = limit(async () => {
-          if (deferredManifest && rootDir === currDir && file === 'package.json') {
+          if ((deferredManifest != null) && rootDir === currDir && file === 'package.json') {
             const buffer = await fs.readFile(fullPath)
             parseJsonBuffer(buffer, deferredManifest)
             return cafs.addBuffer(buffer, stat.mode)

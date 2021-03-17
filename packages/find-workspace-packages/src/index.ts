@@ -15,7 +15,7 @@ export default async (
   }
 ) => {
   let patterns = opts?.patterns
-  if (!patterns) {
+  if (patterns == null) {
     const packagesManifest = await requirePackagesManifest(workspaceRoot)
     patterns = packagesManifest?.packages ?? undefined
   }

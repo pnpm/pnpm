@@ -94,7 +94,7 @@ export default async function getContext<T> (
   let importersContext = await readProjectsContext(projects, { lockfileDir: opts.lockfileDir, modulesDir })
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
 
-  if (importersContext.modules) {
+  if (importersContext.modules != null) {
     const { purged } = await validateModules(importersContext.modules, importersContext.projects, {
       currentHoistPattern: importersContext.currentHoistPattern,
       currentPublicHoistPattern: importersContext.currentPublicHoistPattern,
@@ -128,7 +128,7 @@ export default async function getContext<T> (
       prefix: project.rootDir,
     })
   })
-  if (opts.hooks?.readPackage) {
+  if ((opts.hooks?.readPackage) != null) {
     for (const project of importersContext.projects) {
       project.originalManifest = project.manifest
       project.manifest = opts.hooks.readPackage(R.clone(project.manifest))
@@ -211,7 +211,7 @@ async function validateModules (
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     !R.equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
   ) {
-    if (opts.forceNewModules && rootProject) {
+    if (opts.forceNewModules && (rootProject != null)) {
       await purgeModulesDirsOfImporter(opts.virtualStoreDir, rootProject)
       return { purged: true }
     }
@@ -222,7 +222,7 @@ async function validateModules (
     )
   }
   let purged = false
-  if (opts.forceHoistPattern && rootProject) {
+  if (opts.forceHoistPattern && (rootProject != null)) {
     try {
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       if (!R.equals(opts.currentHoistPattern, opts.hoistPattern || undefined)) {
@@ -245,7 +245,7 @@ async function validateModules (
         storeDir: opts.storeDir,
         virtualStoreDir: opts.virtualStoreDir,
       })
-      if (opts.lockfileDir !== project.rootDir && opts.include && modules.included) {
+      if (opts.lockfileDir !== project.rootDir && (opts.include != null) && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('INCLUDED_DEPS_CONFLICT',
@@ -261,14 +261,14 @@ async function validateModules (
       purged = true
     }
   }))
-  if (modules.registries && !R.equals(opts.registries, modules.registries)) {
+  if ((modules.registries != null) && !R.equals(opts.registries, modules.registries)) {
     if (opts.forceNewModules) {
       await Promise.all(projects.map(purgeModulesDirsOfImporter.bind(null, opts.virtualStoreDir)))
       return { purged: true }
     }
     throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate the modules directory using the new settings, run "pnpm install".`)
   }
-  if (purged && !rootProject) {
+  if (purged && (rootProject == null)) {
     await purgeModulesDirsOfImporter(opts.virtualStoreDir, {
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
       rootDir: opts.lockfileDir,
@@ -407,7 +407,7 @@ export async function getContextForSingleImporter (
   const importerId = importer.id
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
-  if (modules && !alreadyPurged) {
+  if ((modules != null) && !alreadyPurged) {
     const { purged } = await validateModules(modules, projects, {
       currentHoistPattern,
       currentPublicHoistPattern,

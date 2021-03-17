@@ -33,7 +33,7 @@ export async function tryReadProjectManifest (
     writeProjectManifest: (manifest: ProjectManifest, force?: boolean) => Promise<void>
   }> {
   const { fileName, manifest, writeProjectManifest } = await utils.tryReadProjectManifest(projectDir)
-  if (!manifest) return { fileName, manifest, writeProjectManifest }
+  if (manifest == null) return { fileName, manifest, writeProjectManifest }
   packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
   return { fileName, manifest, writeProjectManifest }
 }

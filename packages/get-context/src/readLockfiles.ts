@@ -118,8 +118,8 @@ export default async function (
   return {
     currentLockfile,
     currentLockfileIsUpToDate: R.equals(currentLockfile, wantedLockfile),
-    existsCurrentLockfile: !!files[1],
-    existsWantedLockfile: !!files[0],
+    existsCurrentLockfile: files[1] != null,
+    existsWantedLockfile: files[0] != null,
     wantedLockfile,
     lockfileHadConflicts,
   }

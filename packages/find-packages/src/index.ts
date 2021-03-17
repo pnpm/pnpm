@@ -28,7 +28,7 @@ export default async function findPkgs (root: string, opts?: Options): Promise<P
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
-  const patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
+  const patterns = normalizePatterns((opts.patterns != null) ? opts.patterns : ['.', '**'])
   const paths: string[] = await fastGlob(patterns, globOpts)
 
   if (opts.includeRoot) {

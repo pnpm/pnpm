@@ -155,23 +155,23 @@ async function dependenciesHierarchyForPackage (
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
       if (packageAbsolutePath === null) {
-        if (opts.search && !matchedSearched) return
+        if ((opts.search != null) && !matchedSearched) return
         newEntry = packageInfo
       } else {
         const relativeId = refToRelative(topDeps[alias], alias)
         if (relativeId) {
           const dependencies = getChildrenTree([relativeId], relativeId)
-          if (dependencies.length) {
+          if (dependencies.length > 0) {
             newEntry = {
               ...packageInfo,
               dependencies,
             }
-          } else if (!opts.search || matchedSearched) {
+          } else if ((opts.search == null) || matchedSearched) {
             newEntry = packageInfo
           }
         }
       }
-      if (newEntry) {
+      if (newEntry != null) {
         if (matchedSearched) {
           newEntry.searched = true
         }
@@ -202,7 +202,7 @@ async function dependenciesHierarchyForPackage (
         version,
       }
       const matchedSearched = opts.search?.(pkg)
-      if (opts.search && !matchedSearched) return
+      if ((opts.search != null) && !matchedSearched) return
       const newEntry: PackageNode = pkg
       if (matchedSearched) {
         newEntry.searched = true
@@ -264,7 +264,7 @@ function getTreeHelper (
       ...opts.currentPackages[parentId].optionalDependencies,
     }
 
-  if (!deps) return result
+  if (deps == null) return result
 
   const getChildrenTree = getTreeHelper.bind(null, dependenciesCache, {
     ...opts,
@@ -302,7 +302,7 @@ function getTreeHelper (
       } else {
         dependencies = dependenciesCache.get(packageAbsolutePath)
 
-        if (!dependencies) {
+        if (dependencies == null) {
           const children = getChildrenTree(keypath.concat([relativeId]), relativeId)
           dependencies = children.dependencies
 
@@ -314,16 +314,16 @@ function getTreeHelper (
         }
       }
 
-      if (dependencies.length) {
+      if (dependencies.length > 0) {
         newEntry = {
           ...packageInfo,
           dependencies,
         }
-      } else if (!opts.search || matchedSearched) {
+      } else if ((opts.search == null) || matchedSearched) {
         newEntry = packageInfo
       }
     }
-    if (newEntry) {
+    if (newEntry != null) {
       if (circular) {
         newEntry.circular = true
         result.circular = true

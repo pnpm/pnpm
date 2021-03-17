@@ -31,7 +31,7 @@ const gitProtocols = new Set([
 
 export default async function parsePref (pref: string): Promise<HostedPackageSpec | null> {
   const hosted = HostedGit.fromUrl(pref)
-  if (hosted) {
+  if (hosted != null) {
     return fromHostedGit(hosted)
   }
   const colonsPos = pref.indexOf(':')
@@ -155,7 +155,7 @@ function matchGitScp (spec: string) {
   //
   // ...and various combinations. The username in the beginning is *required*.
   const matched = spec.match(/^git\+ssh:\/\/([^:#]+:[^#]+(?:\.git)?)(?:#(.*))?$/i)
-  return matched && !matched[1].match(/:[0-9]+\/?.*$/i) && {
+  return (matched != null) && (matched[1].match(/:[0-9]+\/?.*$/i) == null) && {
     fetchSpec: matched[1],
     gitCommittish: matched[2],
   }

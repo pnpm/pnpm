@@ -57,7 +57,7 @@ export default function (
       redirects++
       urlObject = new URL(response.headers.get('location')!)
       if (!headers['authorization'] || originalHost === urlObject.host) continue
-      delete headers['authorization']
+      delete headers.authorization
     }
   }
 }
@@ -69,7 +69,7 @@ function getHeaders (
     userAgent?: string
   }
 ) {
-  const headers = {
+  const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
     accept: opts.fullMetadata === true ? JSON_DOC : CORGI_DOC,
   }
   if (opts.auth) {

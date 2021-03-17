@@ -138,14 +138,14 @@ async function _filterGraph<T> (
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
     }
     if (selector.namePattern) {
-      if (!entryPackages) {
+      if (entryPackages == null) {
         entryPackages = matchPackages(pkgGraph, selector.namePattern)
       } else {
         entryPackages = matchPackages(R.pick(entryPackages, pkgGraph), selector.namePattern)
       }
     }
 
-    if (!entryPackages) {
+    if (entryPackages == null) {
       throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
     }
 
@@ -172,7 +172,7 @@ async function _filterGraph<T> (
       pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !selector.excludeSelf })
     }
     if (selector.includeDependents) {
-      if (!reversedGraph) {
+      if (reversedGraph == null) {
         reversedGraph = reverseGraph(graph)
       }
       pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf })

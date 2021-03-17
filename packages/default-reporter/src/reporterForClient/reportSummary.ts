@@ -47,7 +47,7 @@ export default (
         let msg = ''
         for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly']) {
           const diffs = R.values(pkgsDiff[depType])
-          if (diffs.length) {
+          if (diffs.length > 0) {
             msg += EOL
             if (opts.pnpmConfig?.global) {
               msg += chalk.cyanBright(`${opts.cwd}:`)

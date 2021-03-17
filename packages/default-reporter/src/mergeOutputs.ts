@@ -48,7 +48,7 @@ export default function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable
     map((sections) => {
       const fixedBlocks = sections.fixedBlocks.filter(Boolean)
       const nonFixedPart = sections.blocks.filter(Boolean).join(EOL)
-      if (!fixedBlocks.length) {
+      if (fixedBlocks.length === 0) {
         return nonFixedPart
       }
       const fixedPart = fixedBlocks.join(EOL)

@@ -7,7 +7,7 @@ const defaultManifest = {
   version: '0.0.0',
 }
 let pkgJson
-if (!require.main) {
+if (require.main == null) {
   pkgJson = defaultManifest
 } else {
   try {
