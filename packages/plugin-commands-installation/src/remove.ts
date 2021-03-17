@@ -146,7 +146,7 @@ export async function handler (
   params: string[]
 ) {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
-  if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
+  if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir }, 'remove')
     return
   }

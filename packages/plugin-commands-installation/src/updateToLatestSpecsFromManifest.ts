@@ -11,7 +11,7 @@ export default function updateToLatestSpecsFromManifest (manifest: ProjectManife
       updateSpecs.push(`${depName}@${removeVersionFromSpec(depVersion)}@latest`)
     } else {
       const selector = getVerSelType(depVersion)
-      if (!selector) continue
+      if (selector == null) continue
       updateSpecs.push(`${depName}@latest`)
     }
   }
@@ -32,7 +32,7 @@ export function createLatestSpecs (specs: string[], manifest: ProjectManifest) {
       if (allDeps[selector].startsWith('npm:')) {
         return `${selector}@${removeVersionFromSpec(allDeps[selector])}@latest`
       }
-      if (!getVerSelType(allDeps[selector])) {
+      if (getVerSelType(allDeps[selector]) == null) {
         return selector
       }
       return `${selector}@latest`

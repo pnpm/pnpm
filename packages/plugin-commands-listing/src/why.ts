@@ -96,7 +96,7 @@ export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ) {
-  if (!params.length) {
+  if (params.length === 0) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
   }
   return list({

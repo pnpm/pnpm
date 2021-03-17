@@ -109,7 +109,7 @@ for (let i = 0; i < commands.length; i++) {
     helpByCommandName[commandName] = help
     cliOptionsTypesByCommandName[commandName] = cliOptionsTypes
     shorthandsByCommandName[commandName] = shorthands ?? {}
-    if (completion) {
+    if (completion != null) {
       completionByCommandName[commandName] = completion
     }
     Object.assign(rcOptionsTypes, rcOptionsTypes())

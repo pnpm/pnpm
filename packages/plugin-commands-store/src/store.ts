@@ -98,7 +98,7 @@ async function statusCmd (opts: StoreCommandOptions) {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
     storeDir: await storePath(opts.dir, opts.storeDir),
   }))
-  if (!modifiedPkgs || !modifiedPkgs.length) {
+  if (!modifiedPkgs || (modifiedPkgs.length === 0)) {
     logger.info({
       message: 'Packages in the store are untouched',
       prefix: opts.dir,

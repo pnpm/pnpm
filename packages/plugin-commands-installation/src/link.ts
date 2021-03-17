@@ -104,7 +104,7 @@ export async function handler (
   })
 
   // pnpm link
-  if (!params || !params.length) {
+  if ((params == null) || (params.length === 0)) {
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
@@ -119,7 +119,7 @@ export async function handler (
 
   const [pkgPaths, pkgNames] = R.partition((inp) => isFilespec.test(inp), params)
 
-  if (pkgNames.length) {
+  if (pkgNames.length > 0) {
     let globalPkgNames!: string[]
     if (opts.workspaceDir) {
       workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
@@ -128,7 +128,7 @@ export async function handler (
         .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
 
-      if (pkgsFoundInWorkspace.length && !linkOpts.targetDependenciesField) {
+      if ((pkgsFoundInWorkspace.length > 0) && !linkOpts.targetDependenciesField) {
         linkOpts.targetDependenciesField = 'dependencies'
       }
 

@@ -173,7 +173,7 @@ async function interactiveUpdate (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  const projects = opts.selectedProjectsGraph
+  const projects = (opts.selectedProjectsGraph != null)
     ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     : [
       {
@@ -245,7 +245,7 @@ async function update (
     depth,
     includeDirect,
     update: true,
-    updateMatching: dependencies.length && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
+    updateMatching: (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
       ? matcher(dependencies)
       : undefined,
     updatePackageManifest: opts.save !== false,

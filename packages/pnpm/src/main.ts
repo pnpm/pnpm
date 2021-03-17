@@ -165,7 +165,7 @@ export default async function run (inputArgv: string[]) {
       patterns: cliOptions['workspace-packages'],
     })
 
-    if (!allProjects.length) {
+    if (allProjects.length === 0) {
       if (!config['parseable']) {
         console.log(`No projects found in "${wsDir}"`)
       }

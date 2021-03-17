@@ -63,7 +63,7 @@ export default async function recursive (
   const workspacePackages = arrayOfWorkspacePackagesToMap(allProjects)
   const rebuildOpts = Object.assign(opts, {
     ownLifecycleHooksStdio: 'pipe',
-    pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0) &&
+    pruneLockfileImporters: ((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
       pkgs.length === allProjects.length,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -80,7 +80,7 @@ export default async function recursive (
   async function getImporters () {
     const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>
     await Promise.all(chunks.map(async (prefixes: string[], buildIndex) => {
-      if (opts.ignoredPackages) {
+      if (opts.ignoredPackages != null) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
       return Promise.all(

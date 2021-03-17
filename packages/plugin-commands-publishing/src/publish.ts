@@ -129,7 +129,7 @@ Do you want to continue?`,
       })
     }
   }
-  if (opts.recursive && opts.selectedProjectsGraph) {
+  if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     await recursivePublish({
       ...opts,
       selectedProjectsGraph: opts.selectedProjectsGraph,
@@ -137,11 +137,11 @@ Do you want to continue?`,
     })
     return
   }
-  if (params.length && params[0].endsWith('.tgz')) {
+  if ((params.length > 0) && params[0].endsWith('.tgz')) {
     runNpm(opts.npmPath, ['publish', ...params])
     return
   }
-  const dir = params.length && params[0] || process.cwd()
+  const dir = (params.length > 0) && params[0] || process.cwd()
 
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: dir,

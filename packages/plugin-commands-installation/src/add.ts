@@ -167,7 +167,7 @@ export async function handler (
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
   }
-  if (!params || !params.length) {
+  if (!params || (params.length === 0)) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
   }
   if (

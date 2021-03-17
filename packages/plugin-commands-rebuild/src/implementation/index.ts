@@ -82,13 +82,13 @@ export async function rebuildPkgs (
   maybeOpts: RebuildOptions
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(projects, opts)
 
-  if (!ctx.currentLockfile || !ctx.currentLockfile.packages) return
+  if (!ctx.currentLockfile || (ctx.currentLockfile.packages == null)) return
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
@@ -127,7 +127,7 @@ export async function rebuild (
   maybeOpts: RebuildOptions
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
@@ -137,7 +137,7 @@ export async function rebuild (
 
   if (opts.pending) {
     idsToRebuild = ctx.pendingBuilds
-  } else if (ctx.currentLockfile?.packages) {
+  } else if ((ctx.currentLockfile?.packages) != null) {
     idsToRebuild = Object.keys(ctx.currentLockfile.packages)
   }
 
@@ -165,7 +165,7 @@ export async function rebuild (
     scriptsOpts
   )
   for (const { id, manifest } of ctx.projects) {
-    if (manifest?.scripts && (!opts.pending || ctx.pendingBuilds.includes(id))) {
+    if (((manifest?.scripts) != null) && (!opts.pending || ctx.pendingBuilds.includes(id))) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)
     }
   }

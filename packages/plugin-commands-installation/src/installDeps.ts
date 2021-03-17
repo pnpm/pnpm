@@ -119,7 +119,7 @@ when running add/update with the --workspace option')
   )
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
-    if (selectedProjectsGraph) {
+    if (selectedProjectsGraph != null) {
       await recursive(allProjects,
         params,
         {
@@ -172,24 +172,24 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
-  const updateMatch = opts.update && params.length ? createMatcher(params) : null
-  if (updateMatch) {
+  const updateMatch = opts.update && (params.length > 0) ? createMatcher(params) : null
+  if (updateMatch != null) {
     params = matchDependencies(updateMatch, manifest, includeDirect)
-    if (!params.length) {
+    if (params.length === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies.')
     }
   }
 
   if (opts.update && opts.latest) {
-    if (!params || !params.length) {
+    if (!params || (params.length === 0)) {
       params = updateToLatestSpecsFromManifest(manifest, includeDirect)
     } else {
       params = createLatestSpecs(params, manifest)
     }
   }
   if (opts.workspace) {
-    if (!params || !params.length) {
+    if (!params || (params.length === 0)) {
       params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
     } else {
       params = createWorkspaceSpecs(params, workspacePackages)
@@ -258,6 +258,6 @@ when running add/update with the --workspace option')
 
 function selectProjectByDir (projects: Project[], searchedDir: string) {
   const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
-  if (!project) return undefined
+  if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }
 }

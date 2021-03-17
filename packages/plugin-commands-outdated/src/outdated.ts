@@ -161,7 +161,7 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  if (opts.recursive && opts.selectedProjectsGraph) {
+  if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return outdatedRecursive(pkgs, params, { ...opts, include })
   }
@@ -177,7 +177,7 @@ export async function handler (
     include,
   })
 
-  if (!outdatedPackages.length) return { output: '', exitCode: 0 }
+  if (outdatedPackages.length === 0) return { output: '', exitCode: 0 }
 
   if (opts.table !== false) {
     return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
@@ -253,7 +253,7 @@ export function getCellWidth (data: string[][], columnNumber: number, maxWidth: 
 }
 
 export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {
-  if (outdated.latestManifest) {
+  if (outdated.latestManifest != null) {
     return {
       ...outdated,
       ...semverDiff(outdated.wanted, outdated.latestManifest.version),
@@ -281,8 +281,8 @@ export function renderCurrent ({ current, wanted }: OutdatedPackage) {
 
 export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
   const { latestManifest, change, diff } = outdatedPkg
-  if (!latestManifest) return ''
-  if (change === null || !diff) {
+  if (latestManifest == null) return ''
+  if (change === null || (diff == null)) {
     return latestManifest.deprecated
       ? chalk.redBright.bold('Deprecated')
       : latestManifest.version
@@ -292,7 +292,7 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
 }
 
 export function renderDetails ({ latestManifest }: OutdatedPackage) {
-  if (!latestManifest) return ''
+  if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
     outputs.push(wrapAnsi(chalk.redBright(latestManifest.deprecated), 40))

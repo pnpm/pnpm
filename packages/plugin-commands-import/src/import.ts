@@ -84,7 +84,7 @@ function getAllVersionsByPackageNames (
     [packageName: string]: Set<string>
   }
 ) {
-  if (!npmPackageLock.dependencies) return
+  if (npmPackageLock.dependencies == null) return
   for (const packageName of Object.keys(npmPackageLock.dependencies)) {
     if (!versionsByPackageNames[packageName]) {
       versionsByPackageNames[packageName] = new Set()

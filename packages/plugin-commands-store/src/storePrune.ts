@@ -9,13 +9,13 @@ export default async function (
   }
 ) {
   const reporter = opts?.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   await opts.storeController.prune()
   await opts.storeController.close()
 
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 }

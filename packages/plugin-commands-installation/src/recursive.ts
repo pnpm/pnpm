@@ -116,7 +116,7 @@ export default async function recursive (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
-    pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0) &&
+    pruneLockfileImporters: ((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
       pkgs.length === allProjects.length,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -137,7 +137,7 @@ export default async function recursive (
   async function getImporters () {
     const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>
     await Promise.all(chunks.map(async (prefixes: string[], buildIndex) => {
-      if (opts.ignoredPackages) {
+      if (opts.ignoredPackages != null) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
       return Promise.all(
@@ -160,7 +160,7 @@ export default async function recursive (
     optionalDependencies: true,
   }
 
-  const updateMatch = cmdFullName === 'update' && params.length ? createMatcher(params) : null
+  const updateMatch = cmdFullName === 'update' && (params.length > 0) ? createMatcher(params) : null
 
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
@@ -178,26 +178,26 @@ export default async function recursive (
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...params]
-      if (updateMatch) {
+      if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-        if (!currentInput.length && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
+        if ((currentInput.length === 0) && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
           installOpts.pruneLockfileImporters = false
           return
         }
       }
       if (updateToLatest) {
-        if (!params || !params.length) {
+        if (!params || (params.length === 0)) {
           currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
         } else {
           currentInput = createLatestSpecs(currentInput, manifest)
-          if (!currentInput.length) {
+          if (currentInput.length === 0) {
             installOpts.pruneLockfileImporters = false
             return
           }
         }
       }
       if (opts.workspace) {
-        if (!currentInput || !currentInput.length) {
+        if (!currentInput || (currentInput.length === 0)) {
           currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
         } else {
           currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
@@ -241,7 +241,7 @@ export default async function recursive (
         } as MutatedProject)
       }
     }))
-    if (!mutatedImporters.length && cmdFullName === 'update') {
+    if ((mutatedImporters.length === 0) && cmdFullName === 'update') {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
@@ -274,20 +274,20 @@ export default async function recursive (
 
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
-        if (updateMatch) {
+        if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-          if (!currentInput.length) return
+          if (currentInput.length === 0) return
         }
         if (updateToLatest) {
-          if (!params || !params.length) {
+          if (!params || (params.length === 0)) {
             currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
-            if (!currentInput.length) return
+            if (currentInput.length === 0) return
           }
         }
         if (opts.workspace) {
-          if (!currentInput || !currentInput.length) {
+          if (!currentInput || (currentInput.length === 0)) {
             currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
           } else {
             currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
@@ -440,7 +440,7 @@ function calculateRepositoryRoot (
   for (const rootDir of projectDirs) {
     const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})+`)
     const relativePartMatch = relativePartRegExp.exec(path.relative(workspaceDir, rootDir))
-    if (relativePartMatch) {
+    if (relativePartMatch != null) {
       const relativePart = relativePartMatch[0]
       if (relativePart.length > relativeRepoRoot.length) {
         relativeRepoRoot = relativePart

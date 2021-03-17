@@ -57,7 +57,7 @@ export async function handler (
   },
   params: string[]
 ) {
-  if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
+  if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir }, 'unlink')
     return
   }
@@ -68,7 +68,7 @@ export async function handler (
     storeDir: store.dir,
   })
 
-  if (!params || !params.length) {
+  if (!params || (params.length === 0)) {
     return mutateModules([
       {
         dependencyNames: params,

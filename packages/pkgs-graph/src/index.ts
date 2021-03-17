@@ -69,7 +69,7 @@ export default function<T> (pkgs: Array<Package & T>, opts?: {
 
         if (spec.type === 'directory') {
           const matchedPkg = R.values(pkgMap).find(pkg => path.relative(pkg.dir, spec.fetchSpec) === '')
-          if (!matchedPkg) {
+          if (matchedPkg == null) {
             return ''
           }
           return matchedPkg.dir
@@ -78,7 +78,7 @@ export default function<T> (pkgs: Array<Package & T>, opts?: {
         if (spec.type !== 'version' && spec.type !== 'range') return ''
 
         const pkgs = R.values(pkgMap).filter(pkg => pkg.manifest.name === depName)
-        if (!pkgs.length) return ''
+        if (pkgs.length === 0) return ''
         const versions = pkgs.filter(({ manifest }) => manifest.version)
           .map(pkg => pkg.manifest.version) as string[]
 

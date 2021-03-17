@@ -1,6 +1,6 @@
 import path from 'path'
-import prepare from '@pnpm/prepare'
 import { promises as fs } from 'fs'
+import prepare from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import pathExists from 'path-exists'
 import {

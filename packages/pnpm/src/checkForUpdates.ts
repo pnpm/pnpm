@@ -11,7 +11,7 @@ export default async function () {
   const notifier = updateNotifier({ pkg: packageManager })
   const update = notifier.update
 
-  if (!update) {
+  if (update == null) {
     return
   }
 

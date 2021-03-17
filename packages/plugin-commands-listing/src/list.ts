@@ -134,7 +134,7 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   const depth = opts.cliOptions?.['depth'] ?? 0
-  if (opts.recursive && opts.selectedProjectsGraph) {
+  if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return listRecursive(pkgs, params, { ...opts, depth, include })
   }
@@ -168,7 +168,7 @@ export async function render (
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
-  return params.length
+  return (params.length > 0)
     ? listForPackages(params, prefixes, listOpts)
     : list(prefixes, listOpts)
 }

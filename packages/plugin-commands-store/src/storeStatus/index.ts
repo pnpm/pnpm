@@ -13,7 +13,7 @@ import extendOptions, {
 
 export default async function (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts?.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
@@ -50,7 +50,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, opts.dir), 'node_modules', name), files)) === false
   }, { concurrency: 8 })
 
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 

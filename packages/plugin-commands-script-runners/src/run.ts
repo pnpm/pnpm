@@ -247,11 +247,11 @@ function printProjectCommands (
     if (output !== '') output += '\n\n'
     output += `Commands available via "pnpm run":\n${renderCommands(otherScripts)}`
   }
-  if (!rootManifest?.scripts) {
+  if ((rootManifest?.scripts) == null) {
     return output
   }
   const rootScripts = Object.entries(rootManifest.scripts)
-  if (!rootScripts.length) {
+  if (rootScripts.length === 0) {
     return output
   }
   if (output !== '') output += '\n\n'
