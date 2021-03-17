@@ -20,7 +20,7 @@ test('readPackage, afterAllResolved hooks', async () => {
   function readPackageHook (manifest: PackageManifest) {
     switch (manifest.name) {
     case 'pkg-with-1-dep':
-      if (!manifest.dependencies) {
+      if (manifest.dependencies == null) {
         throw new Error('pkg-with-1-dep expected to have a dependencies field')
       }
       manifest.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'

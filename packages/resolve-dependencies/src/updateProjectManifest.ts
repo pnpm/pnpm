@@ -44,11 +44,13 @@ export default async function updateProjectManifest (
     importer.manifest,
     specsToUpsert
   )
-  const originalManifest = importer.originalManifest && await updateProjectManifestObject(
-    importer.rootDir,
-    importer.originalManifest,
-    specsToUpsert
-  )
+  const originalManifest = (importer.originalManifest != null)
+    ? await updateProjectManifestObject(
+      importer.rootDir,
+      importer.originalManifest,
+      specsToUpsert
+    )
+    : undefined
   return [hookedManifest, originalManifest]
 }
 
@@ -73,7 +75,7 @@ function resolvedDirectDepToSpecObject (
   if (normalizedPref) {
     pref = normalizedPref
   } else {
-    if (isNew) {
+    if (isNew === true) {
       pref = getPrefPreferSpecifiedSpec({
         alias,
         name,
@@ -105,7 +107,7 @@ function resolvedDirectDepToSpecObject (
     alias,
     peer: importer['peer'],
     pref,
-    saveType: isNew ? importer['targetDependenciesField'] : undefined,
+    saveType: (isNew === true) ? importer['targetDependenciesField'] : undefined,
   }
 }
 
@@ -123,7 +125,7 @@ function getPrefPreferSpecifiedSpec (
     const range = opts.specRaw.substr(`${opts.alias}@${prefix}`.length)
     if (range) {
       const selector = versionSelectorType(range)
-      if (selector && (selector.type === 'version' || selector.type === 'range')) {
+      if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
         return opts.specRaw.substr(opts.alias.length + 1)
       }
     }
@@ -144,7 +146,7 @@ function getPrefPreferSpecifiedExoticSpec (
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`) && opts.specRaw !== `${opts.alias}@workspace:*`) {
     const specWithoutName = opts.specRaw.substr(`${opts.alias}@${prefix}`.length)
     const selector = versionSelectorType(specWithoutName)
-    if (!(selector && (selector.type === 'version' || selector.type === 'range'))) {
+    if (!((selector != null) && (selector.type === 'version' || selector.type === 'range'))) {
       return opts.specRaw.substr(opts.alias.length + 1)
     }
   }

@@ -13,7 +13,7 @@ export default function wantedDepIsLocallyAvailable (
   }
 ) {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
-  if (!spec || !workspacePackages[spec.name]) return false
+  if ((spec == null) || !workspacePackages[spec.name]) return false
   return pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec) !== null
 }
 

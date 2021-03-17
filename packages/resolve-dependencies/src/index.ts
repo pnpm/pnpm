@@ -105,7 +105,7 @@ export default async function (
       })
     }
 
-    if (updatedManifest) {
+    if (updatedManifest != null) {
       const projectSnapshot = opts.wantedLockfile.importers[project.id]
       opts.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
         updatedManifest,
@@ -197,7 +197,7 @@ async function finishLockfileUpdates (
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
-    if (!depNode.fetchingBundledManifest) {
+    if (depNode.fetchingBundledManifest == null) {
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
     }
@@ -211,7 +211,7 @@ async function finishLockfileUpdates (
         Boolean(pkgJson.scripts.postinstall)
       ) ||
       filesResponse.filesIndex['binding.gyp'] ||
-        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
+        Object.keys(filesResponse.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
     )
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
@@ -286,7 +286,7 @@ function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: Proje
 
   // Aligning the dependency types in pnpm-lock.yaml
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!projectSnapshot[depType]) continue
+    if (projectSnapshot[depType] == null) continue
     for (const alias of Object.keys(projectSnapshot[depType] ?? {})) {
       if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
       projectSnapshot[depTypesOfAliases[alias]][alias] = projectSnapshot[depType]![alias]
@@ -298,7 +298,7 @@ function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: Proje
 function getAliasToDependencyTypeMap (manifest: ProjectManifest) {
   const depTypesOfAliases = {}
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!manifest[depType]) continue
+    if (manifest[depType] == null) continue
     for (const alias of Object.keys(manifest[depType] ?? {})) {
       if (!depTypesOfAliases[alias]) {
         depTypesOfAliases[alias] = depType

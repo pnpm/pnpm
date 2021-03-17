@@ -71,7 +71,7 @@ export default async function linkPackages (
     removedDepPaths: Set<string>
   }> {
   let depNodes = R.values(depGraph).filter(({ depPath, id }) => {
-    if (opts.wantedLockfile.packages?.[depPath] && !opts.wantedLockfile.packages[depPath].optional) {
+    if (((opts.wantedLockfile.packages?.[depPath]) != null) && !opts.wantedLockfile.packages[depPath].optional) {
       opts.skipped.delete(depPath)
       return true
     }
@@ -95,12 +95,12 @@ export default async function linkPackages (
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     hoistedDependencies: opts.hoistedDependencies,
-    hoistedModulesDir: (opts.hoistPattern && opts.hoistedModulesDir) ?? undefined,
+    hoistedModulesDir: (opts.hoistPattern != null) ? opts.hoistedModulesDir : undefined,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     pruneStore: opts.pruneStore,
     pruneVirtualStore: opts.pruneVirtualStore,
-    publicHoistedModulesDir: (opts.publicHoistPattern && opts.rootModulesDir) ?? undefined,
+    publicHoistedModulesDir: (opts.publicHoistPattern != null) ? opts.rootModulesDir : undefined,
     registries: opts.registries,
     skipped: opts.skipped,
     storeController: opts.storeController,
@@ -198,7 +198,7 @@ export default async function linkPackages (
     !allImportersIncluded
   ) {
     const packages = opts.currentLockfile.packages ?? {}
-    if (opts.wantedLockfile.packages) {
+    if (opts.wantedLockfile.packages != null) {
       for (const depPath in opts.wantedLockfile.packages) { // eslint-disable-line:forin
         if (depGraph[depPath]) {
           packages[depPath] = opts.wantedLockfile.packages[depPath]
@@ -305,7 +305,7 @@ async function linkNewPackages (
   })
 
   const existingWithUpdatedDeps = []
-  if (!opts.force && currentLockfile.packages && wantedLockfile.packages) {
+  if (!opts.force && (currentLockfile.packages != null) && (wantedLockfile.packages != null)) {
     // add subdependencies that have been updated
     // TODO: no need to relink everything. Can be relinked only what was changed
     for (const depPath of wantedRelDepPaths) {
@@ -321,7 +321,7 @@ async function linkNewPackages (
     }
   }
 
-  if (!newDepPathsSet.size && !existingWithUpdatedDeps.length) return []
+  if (!newDepPathsSet.size && (existingWithUpdatedDeps.length === 0)) return []
 
   const newDepPaths = Array.from(newDepPathsSet)
 

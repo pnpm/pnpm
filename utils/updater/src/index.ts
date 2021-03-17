@@ -10,7 +10,7 @@ import writeJsonFile from 'write-json-file'
 export default async (workspaceDir: string) => {
   const pkgsDir = path.join(workspaceDir, 'packages')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
-  if (!lockfile) {
+  if (lockfile == null) {
     throw new Error('no lockfile found')
   }
   return {

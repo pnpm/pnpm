@@ -98,7 +98,7 @@ export default (
   }): Promise<FetchResult> {
     // If a tarball is hosted on a different place than the manifest, only send
     // credentials on `alwaysAuth`
-    const shouldAuth = opts.auth && (
+    const shouldAuth = (opts.auth != null) && (
       opts.auth.alwaysAuth === true ||
       !opts.registry ||
       new urlLib.URL(url).host === new urlLib.URL(opts.registry).host
@@ -152,7 +152,7 @@ export default (
         const size = typeof contentLength === 'string'
           ? parseInt(contentLength, 10)
           : null
-        if (opts.onStart) {
+        if (opts.onStart != null) {
           opts.onStart(size, currentAttempt)
         }
         // In order to reduce the amount of logs, we only report the download progress of big tarballs
@@ -162,7 +162,7 @@ export default (
         let downloaded = 0
         res.body.on('data', (chunk: Buffer) => {
           downloaded += chunk.length
-          if (onProgress) onProgress(downloaded)
+          if (onProgress != null) onProgress(downloaded)
         })
 
         // eslint-disable-next-line no-async-promise-executor

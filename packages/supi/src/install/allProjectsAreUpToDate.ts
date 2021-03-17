@@ -72,7 +72,7 @@ async function linkedPackagesAreUpToDate (
   for (const depField of DEPENDENCIES_FIELDS) {
     const lockfileDeps = project.snapshot[depField]
     const manifestDeps = project.manifest[depField]
-    if (!lockfileDeps || !manifestDeps) continue
+    if ((lockfileDeps == null) || (manifestDeps == null)) continue
     const depNames = Object.keys(lockfileDeps)
     for (const depName of depNames) {
       const currentSpec = manifestDeps[depName]

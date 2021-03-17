@@ -14,7 +14,7 @@ export default async function (
   }
 ): Promise<ProjectManifest> {
   if (opts.saveType) {
-    if (!packageManifest[opts.saveType]) return packageManifest
+    if (packageManifest[opts.saveType] == null) return packageManifest
 
     removedPackages.forEach((dependency) => {
       delete packageManifest[opts.saveType as DependenciesField]![dependency]
@@ -28,7 +28,7 @@ export default async function (
         })
       })
   }
-  if (packageManifest.peerDependencies) {
+  if (packageManifest.peerDependencies != null) {
     for (const removedDependency of removedPackages) {
       delete packageManifest.peerDependencies[removedDependency]
     }

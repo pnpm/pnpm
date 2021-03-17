@@ -71,7 +71,7 @@ export function pruneLockfile (
       lockfileDevDependencies[depName] = importer.devDependencies[depName]
     }
   })
-  if (importer.dependencies) {
+  if (importer.dependencies != null) {
     for (const dep of R.keys(importer.dependencies)) {
       if (
         !lockfileDependencies[dep] && importer.dependencies[dep].startsWith('link:') &&

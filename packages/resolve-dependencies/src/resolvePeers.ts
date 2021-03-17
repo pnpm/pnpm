@@ -190,7 +190,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
         return parentDepPath === cachedDepPath
       }) && cache.missingPeers.every((missingPeer) => !parentPkgs[missingPeer])
   )
-  if (hit) {
+  if (hit != null) {
     ctx.pathsByNodeId[nodeId] = hit.depPath
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
     return {
@@ -259,7 +259,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ...Object.keys(unknownResolvedPeersOfChildren),
       ...missingPeersOfChildren,
     ]
-    if (unknownPeers.length) {
+    if (unknownPeers.length > 0) {
       for (const unknownPeer of unknownPeers) {
         if (!peerDependencies[unknownPeer]) {
           transitivePeerDependencies.add(unknownPeer)

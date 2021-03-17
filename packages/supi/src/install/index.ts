@@ -129,7 +129,7 @@ export async function mutateModules (
   }
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
 
@@ -152,13 +152,13 @@ export async function mutateModules (
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
-  const overrides = rootProjectManifest
+  const overrides = (rootProjectManifest != null)
     ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
   const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
   if (!R.isEmpty(overrides ?? {})) {
     const versionsOverrider = createVersionsOverrider(overrides!)
-    if (opts.hooks.readPackage) {
+    if (opts.hooks.readPackage != null) {
       opts.hooks.readPackage = R.pipe(
         opts.hooks.readPackage,
         versionsOverrider
@@ -176,7 +176,7 @@ export async function mutateModules (
 
   const result = await _install()
 
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 
@@ -345,7 +345,7 @@ export async function mutateModules (
             packagesToInstall.push(pkgName)
           }
         }
-        if (!packagesToInstall.length) return projects
+        if (packagesToInstall.length === 0) return projects
 
         // TODO: install only those that were unlinked
         // but don't update their version specs in package.json
@@ -375,7 +375,7 @@ export async function mutateModules (
             packagesToInstall.push(depName)
           }
         }
-        if (!packagesToInstall.length) return projects
+        if (packagesToInstall.length === 0) return projects
 
         // TODO: install only those that were unlinked
         // but don't update their version specs in package.json
@@ -489,7 +489,7 @@ async function isExternalLink (storeDir: string, modules: string, pkgName: strin
 
 function pkgHasDependencies (manifest: ProjectManifest) {
   return Boolean(
-    R.keys(manifest.dependencies).length ||
+    (R.keys(manifest.dependencies).length > 0) ||
     R.keys(manifest.devDependencies).length ||
     R.keys(manifest.optionalDependencies).length
   )
@@ -645,7 +645,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (project.mutation !== 'uninstallSome') return
         const _removeDeps = async (manifest: ProjectManifest) => removeDeps(manifest, project.dependencyNames, { prefix: project.rootDir, saveType: project.targetDependenciesField })
         project.manifest = await _removeDeps(project.manifest)
-        if (project.originalManifest) {
+        if (project.originalManifest != null) {
           project.originalManifest = await _removeDeps(project.originalManifest)
         }
       })
@@ -659,7 +659,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   const preferredVersions = opts.preferredVersions ?? (
     (
       !opts.update &&
-      ctx.wantedLockfile.packages &&
+      (ctx.wantedLockfile.packages != null) &&
       !R.isEmpty(ctx.wantedLockfile.packages)
     )
       ? getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages)
@@ -671,7 +671,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     opts.needsFullResolution ||
     ctx.lockfileHadConflicts
   const _toResolveImporter = toResolveImporter.bind(null, {
-    defaultUpdateDepth: (opts.update || opts.updateMatching) ? opts.depth : -1,
+    defaultUpdateDepth: (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,
     lockfileOnly: opts.lockfileOnly,
     preferredVersions,
     storeDir: ctx.storeDir,
@@ -722,7 +722,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_done',
   })
 
-  newLockfile = opts.hooks?.afterAllResolved
+  newLockfile = ((opts.hooks?.afterAllResolved) != null)
     ? opts.hooks?.afterAllResolved(newLockfile)
     : newLockfile
 

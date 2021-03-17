@@ -38,7 +38,7 @@ export default async function <T> (
   return {
     currentHoistPattern: modules?.hoistPattern,
     currentPublicHoistPattern: modules?.publicHoistPattern,
-    hoist: !modules ? undefined : Boolean(modules.hoistPattern),
+    hoist: (modules == null) ? undefined : Boolean(modules.hoistPattern),
     hoistedDependencies: modules?.hoistedDependencies ?? {},
     include: modules?.included ?? { dependencies: true, devDependencies: true, optionalDependencies: true },
     modules,
@@ -55,7 +55,7 @@ export default async function <T> (
           modulesDir,
         }
       })),
-    registries: modules?.registries && normalizeRegistries(modules.registries),
+    registries: ((modules?.registries) != null) ? normalizeRegistries(modules.registries) : undefined,
     rootModulesDir,
     skipped: new Set(modules?.skipped ?? []),
   }

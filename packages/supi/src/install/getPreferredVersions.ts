@@ -18,14 +18,14 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
         const index = pref.lastIndexOf('@')
         const spec = pref.substr(index + 1)
         const selector = getVerSelType(spec)
-        if (selector) {
+        if (selector != null) {
           const pkgName = pref.substr(0, index)
           acc[pkgName] = acc[pkgName] || {}
           acc[pkgName][selector.normalized] = selector.type
         }
       } else if (!deps[depName].includes(':')) { // we really care only about semver specs
         const selector = getVerSelType(deps[depName])
-        if (selector) {
+        if (selector != null) {
           acc[depName] = acc[depName] || {}
           acc[depName][selector.normalized] = selector.type
         }

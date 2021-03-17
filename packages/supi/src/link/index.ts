@@ -46,7 +46,7 @@ export default async function link (
   }
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
@@ -115,10 +115,10 @@ export default async function link (
     {
       currentLockfile,
       hoistedDependencies: ctx.hoistedDependencies,
-      hoistedModulesDir: (opts.hoistPattern && ctx.hoistedModulesDir) ?? undefined,
+      hoistedModulesDir: (opts.hoistPattern != null) ? ctx.hoistedModulesDir : undefined,
       include: ctx.include,
       lockfileDir: opts.lockfileDir,
-      publicHoistedModulesDir: (opts.publicHoistPattern && ctx.rootModulesDir) ?? undefined,
+      publicHoistedModulesDir: (opts.publicHoistPattern != null) ? ctx.rootModulesDir : undefined,
       registries: ctx.registries,
       skipped: ctx.skipped,
       storeController: opts.storeController,
@@ -168,7 +168,7 @@ export default async function link (
 
   summaryLogger.debug({ prefix: opts.dir })
 
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 
@@ -190,13 +190,13 @@ function addLinkToLockfile (
       addedTo = depType
       projectSnapshot[depType] = projectSnapshot[depType] ?? {}
       projectSnapshot[depType]![opts.linkedPkgName] = id
-    } else if (projectSnapshot[depType]) {
+    } else if (projectSnapshot[depType] != null) {
       delete projectSnapshot[depType]![opts.linkedPkgName]
     }
   }
 
   // package.json might not be available when linking to global
-  if (!opts.manifest) return
+  if (opts.manifest == null) return
 
   const availableSpec = getSpecFromPackageManifest(opts.manifest, opts.linkedPkgName)
   if (availableSpec) {
@@ -212,7 +212,7 @@ export async function linkFromGlobal (
   maybeOpts: LinkOptions & {globalDir: string}
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
@@ -220,7 +220,7 @@ export async function linkFromGlobal (
   const linkFromPkgs = pkgNames.map((pkgName) => path.join(globalPkgPath, 'node_modules', pkgName))
   const newManifest = await link(linkFromPkgs, path.join(linkTo, 'node_modules'), opts)
 
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 
@@ -235,7 +235,7 @@ export async function linkToGlobal (
   }
 ) {
   const reporter = maybeOpts?.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   maybeOpts.lockfileDir = maybeOpts.lockfileDir ?? maybeOpts.globalDir
@@ -247,7 +247,7 @@ export async function linkToGlobal (
     linkToBin: maybeOpts.globalBin,
   })
 
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 

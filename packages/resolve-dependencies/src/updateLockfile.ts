@@ -116,28 +116,28 @@ function toLockfileDependency (
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
-  if (pkg.peerDependenciesMeta) {
+  if (pkg.peerDependenciesMeta != null) {
     const normalizedPeerDependenciesMeta = {}
     for (const peer of Object.keys(pkg.peerDependenciesMeta)) {
       if (pkg.peerDependenciesMeta[peer].optional) {
         normalizedPeerDependenciesMeta[peer] = { optional: true }
       }
     }
-    if (Object.keys(normalizedPeerDependenciesMeta).length) {
+    if (Object.keys(normalizedPeerDependenciesMeta).length > 0) {
       result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
     }
   }
-  if (pkg.additionalInfo.engines) {
+  if (pkg.additionalInfo.engines != null) {
     for (const engine of R.keys(pkg.additionalInfo.engines)) {
       if (pkg.additionalInfo.engines[engine] === '*') continue
       result['engines'] = result['engines'] || {}
       result['engines'][engine] = pkg.additionalInfo.engines[engine]
     }
   }
-  if (pkg.additionalInfo.cpu) {
+  if (pkg.additionalInfo.cpu != null) {
     result['cpu'] = pkg.additionalInfo.cpu
   }
-  if (pkg.additionalInfo.os) {
+  if (pkg.additionalInfo.os != null) {
     result['os'] = pkg.additionalInfo.os
   }
   if (Array.isArray(pkg.additionalInfo.bundledDependencies) || Array.isArray(pkg.additionalInfo.bundleDependencies)) {
@@ -153,7 +153,7 @@ function toLockfileDependency (
     if (pkg.requiresBuild) {
       result['requiresBuild'] = true
     }
-  } else if (opts.prevSnapshot) {
+  } else if (opts.prevSnapshot != null) {
     if (opts.prevSnapshot.requiresBuild) {
       result['requiresBuild'] = opts.prevSnapshot.requiresBuild
     }

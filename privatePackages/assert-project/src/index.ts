@@ -58,7 +58,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
   async function getStoreInstance () {
     if (!cachedStore) {
       const modulesYaml = await readModules(modules)
-      if (!modulesYaml) {
+      if (modulesYaml == null) {
         throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
       }
       const storePath = modulesYaml.storeDir
@@ -71,7 +71,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
   }
   async function getVirtualStoreDir () {
     const modulesYaml = await readModules(modules)
-    if (!modulesYaml) {
+    if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
     }
     return modulesYaml.virtualStoreDir
