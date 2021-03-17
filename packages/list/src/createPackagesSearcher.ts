@@ -22,7 +22,7 @@ function search (
   if (!packageSelector.matchName(pkg.name)) {
     return false
   }
-  if (!packageSelector.matchVersion) {
+  if (packageSelector.matchVersion == null) {
     return true
   }
   return !pkg.version.startsWith('link:') && packageSelector.matchVersion(pkg.version)

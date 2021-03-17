@@ -49,7 +49,7 @@ function pickVersionByVersionRange (
   const latest = meta['dist-tags'].latest
 
   const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
-  if (preferredVerSelsArr.length) {
+  if (preferredVerSelsArr.length > 0) {
     const preferredVersions: string[] = []
     for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
       if (preferredSelector === versionRange) continue

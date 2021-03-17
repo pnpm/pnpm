@@ -22,7 +22,7 @@ const STAT_DEFAULT = {
 
 export default async function createFuseHandlers (lockfileDir: string, cafsDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (!lockfile) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
+  if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
   return createFuseHandlersFromLockfile(lockfile, lockfileDir, cafsDir)
 }
 
@@ -44,7 +44,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir:
       }
       const filePathInStore = getFilePathByModeInCafs(cafsDir, fileInfo.integrity, fileInfo.mode)
       fs.open(filePathInStore, flags, (err, fd) => {
-        if (err) {
+        if (err != null) {
           cb(-1)
           return
         }
@@ -52,11 +52,11 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir:
       })
     },
     release (p: string, fd: number, cb: (exitCode: number) => void) {
-      fs.close(fd, (err) => cb(err ? -1 : 0))
+      fs.close(fd, (err) => cb((err != null) ? -1 : 0))
     },
     read (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {
       fs.read(fd, buffer, position, length, position, (err, bytesRead) => {
-        if (err) {
+        if (err != null) {
           cb(-1)
           return
         }
@@ -74,7 +74,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir:
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
     getattr (p: string, cb: (returnCode: number, files?: any) => void) {
       const dirEnt = getDirEnt(p)
-      if (!dirEnt) {
+      if (dirEnt == null) {
         cb(Fuse.ENOENT)
         return
       }
@@ -126,7 +126,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir:
       cb(0, dirEnts)
       return
     }
-    if (!dirEnt || dirEnt.entryType !== 'directory') {
+    if ((dirEnt == null) || dirEnt.entryType !== 'directory') {
       cb(Fuse.ENOENT)
       return
     }
@@ -136,12 +136,12 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir:
     let currentDirEntry = virtualNodeModules
     const parts = p === '/' ? [] : p.split('/')
     parts.shift()
-    while (parts.length && currentDirEntry && currentDirEntry.entryType === 'directory') {
+    while ((parts.length > 0) && currentDirEntry && currentDirEntry.entryType === 'directory') {
       currentDirEntry = currentDirEntry.entries[parts.shift()!]
     }
     if (currentDirEntry?.entryType === 'index') {
       const pkg = getPkgInfo(currentDirEntry.depPath, cafsDir)
-      if (!pkg) {
+      if (pkg == null) {
         return null
       }
       return {
@@ -155,7 +155,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir:
   function getPkgInfo (depPath: string, cafsDir: string) {
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath]
-      if (!pkgSnapshot) return undefined
+      if (pkgSnapshot == null) return undefined
       const indexPath = getFilePathInCafs(cafsDir, pkgSnapshot.resolution['integrity'], 'index')
       pkgSnapshotCache.set(depPath, {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),

@@ -34,7 +34,7 @@ export default async function runLifecycleHooksConcurrently (
           rootModulesDir: modulesDir,
         }
         for (const stage of stages) {
-          if (!manifest.scripts || !manifest.scripts[stage]) continue
+          if ((manifest.scripts == null) || !manifest.scripts[stage]) continue
           await runLifecycleHook(stage, manifest, runLifecycleHookOpts)
         }
       }

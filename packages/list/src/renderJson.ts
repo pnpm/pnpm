@@ -51,7 +51,7 @@ export async function toJsonResult (
 
           resolved: node.resolved,
         }
-      if (Object.keys(subDependencies).length) {
+      if (Object.keys(subDependencies).length > 0) {
         dep['dependencies'] = subDependencies
       }
       if (!dep.resolved) {

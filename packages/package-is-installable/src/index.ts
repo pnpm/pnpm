@@ -33,7 +33,7 @@ export default function packageIsInstallable (
 ): boolean | null {
   const warn = checkPackage(pkgId, pkg, options)
 
-  if (!warn) return true
+  if (warn == null) return true
 
   installCheckLogger.warn({
     message: warn.message,
@@ -76,10 +76,11 @@ export function checkPackage (
     cpu: manifest.cpu ?? ['any'],
     os: manifest.os ?? ['any'],
   }) ?? (
-    manifest.engines &&
-    checkEngine(pkgId, manifest.engines, {
-      node: options.nodeVersion ?? process.version,
-      pnpm: options.pnpmVersion,
-    })
-  ) ?? null
+    (manifest.engines == null)
+      ? null
+      : checkEngine(pkgId, manifest.engines, {
+        node: options.nodeVersion ?? process.version,
+        pnpm: options.pnpmVersion,
+      })
+  )
 }

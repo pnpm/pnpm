@@ -27,7 +27,7 @@ export default function checkEngine (
   if (currentEngine.pnpm && wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm)) {
     unsatisfiedWanted.pnpm = wantedEngine.pnpm
   }
-  if (Object.keys(unsatisfiedWanted).length) {
+  if (Object.keys(unsatisfiedWanted).length > 0) {
     return new UnsupportedEngineError(packageId, unsatisfiedWanted, currentEngine)
   }
   return null

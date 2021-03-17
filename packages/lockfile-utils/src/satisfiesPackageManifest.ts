@@ -23,13 +23,13 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) =>
     case 'devDependencies':
       pkgDepNames = Object.keys(pkgDeps)
         .filter((depName) =>
-          (!pkg.optionalDependencies || !pkg.optionalDependencies[depName]) &&
-            (!pkg.dependencies || !pkg.dependencies[depName])
+          ((pkg.optionalDependencies == null) || !pkg.optionalDependencies[depName]) &&
+            ((pkg.dependencies == null) || !pkg.dependencies[depName])
         )
       break
     case 'dependencies':
       pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) => !pkg.optionalDependencies || !pkg.optionalDependencies[depName])
+        .filter((depName) => (pkg.optionalDependencies == null) || !pkg.optionalDependencies[depName])
       break
     default:
       throw new Error(`Unknown dependency type "${depField as string}"`)

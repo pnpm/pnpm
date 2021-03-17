@@ -118,8 +118,8 @@ export default async function prune (
 
   if (!opts.dryRun) {
     if (
-      orphanDepPaths.length &&
-      opts.currentLockfile.packages &&
+      (orphanDepPaths.length > 0) &&
+      (opts.currentLockfile.packages != null) &&
       (opts.hoistedModulesDir != null || opts.publicHoistedModulesDir != null)
     ) {
       const prefix = path.join(opts.virtualStoreDir, '../..')

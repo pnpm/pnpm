@@ -72,7 +72,7 @@ function createVirtualStoreDir (lockfile: Lockfile, lockfileDir: string) {
 function addDirEntry (target: Record<string, DirEntry>, subPath: string[] | string, newEntry: DirEntry) {
   const subPathArray = typeof subPath === 'string' ? subPath.split('/') : subPath
   const p = subPathArray.shift()!
-  if (subPathArray.length) {
+  if (subPathArray.length > 0) {
     if (!target[p]) {
       target[p] = {
         entryType: 'directory',

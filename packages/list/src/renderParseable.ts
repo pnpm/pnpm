@@ -35,7 +35,7 @@ function renderParseableForPackage (
       ]
     )
   )
-  if (!opts.alwaysPrintRootPackage && !pkgs.length) return ''
+  if (!opts.alwaysPrintRootPackage && (pkgs.length === 0)) return ''
   if (opts.long) {
     let firstLine = pkg.path
     if (pkg.name) {

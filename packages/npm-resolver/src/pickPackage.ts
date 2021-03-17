@@ -67,7 +67,7 @@ export default async (
   validatePackageName(spec.name)
 
   const cachedMeta = ctx.metaCache.get(spec.name)
-  if (cachedMeta) {
+  if (cachedMeta != null) {
     return {
       meta: cachedMeta,
       pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta),
@@ -83,7 +83,7 @@ export default async (
     metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
     if (ctx.offline) {
-      if (metaCachedInStore) return {
+      if (metaCachedInStore != null) return {
         meta: metaCachedInStore,
         pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore),
       }
@@ -91,7 +91,7 @@ export default async (
       throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
     }
 
-    if (metaCachedInStore) {
+    if (metaCachedInStore != null) {
       const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore)
       if (pickedPackage) {
         return {
@@ -106,7 +106,7 @@ export default async (
     metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
-    if (metaCachedInStore?.versions?.[spec.fetchSpec]) {
+    if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
       return {
         meta: metaCachedInStore,
         pickedPackage: metaCachedInStore.versions[spec.fetchSpec],
@@ -135,7 +135,7 @@ export default async (
     }
   } catch (err) {
     const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
-    if (!meta) throw err
+    if (meta == null) throw err
     logger.error(err, err)
     logger.debug({ message: `Using cached meta from ${pkgMirror}` })
     return {

@@ -61,7 +61,7 @@ export async function linkBinsOfPackages (
     warn: WarnFunction
   }
 ): Promise<string[]> {
-  if (!pkgs.length) return []
+  if (pkgs.length === 0) return []
 
   const allCmds = R.unnest(
     (await Promise.all(
@@ -87,7 +87,7 @@ async function linkBins (
     warn: WarnFunction
   }
 ): Promise<string[]> {
-  if (!allCmds.length) return [] as string[]
+  if (allCmds.length === 0) return [] as string[]
 
   await fs.mkdir(binsDir, { recursive: true })
 
@@ -131,7 +131,7 @@ async function getPackageBins (
     ? (await safeReadProjectManifestOnly(target) as DependencyManifest)
     : await safeReadPkgJson(target)
 
-  if (!manifest) {
+  if (manifest == null) {
     // There's a directory in node_modules without package.json: ${target}.
     // This used to be a warning but it didn't really cause any issues.
     return []

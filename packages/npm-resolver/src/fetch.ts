@@ -30,7 +30,7 @@ export class RegistryResponseError extends FetchError {
     if (response.status === 404) {
       hint = `${pkgName} is not in the npm registry, or you have no permission to fetch it.`
       const matched = pkgName.match(semverRegex)
-      if (matched) {
+      if (matched != null) {
         hint += ` Did you mean ${matched[1]}?`
       }
     }

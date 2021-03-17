@@ -158,7 +158,7 @@ async function resolveAndFetch (
     // If the integrity of a local tarball dependency has changed,
     // the local tarball should be unpacked, so a fetch to the store should be forced
     forceFetch = Boolean(
-      options.currentPkg?.resolution &&
+      ((options.currentPkg?.resolution) != null) &&
       pkgId?.startsWith('file:') &&
       options.currentPkg?.resolution['integrity'] !== resolveResult.resolution['integrity'] // eslint-disable-line @typescript-eslint/dot-notation
     )
@@ -172,7 +172,7 @@ async function resolveAndFetch (
   const id = pkgId as string
 
   if (resolution.type === 'directory') {
-    if (!manifest) {
+    if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
     }
     return {
@@ -190,7 +190,7 @@ async function resolveAndFetch (
 
   // We can skip fetching the package only if the manifest
   // is present after resolution
-  if (options.skipFetch && manifest) {
+  if (options.skipFetch && (manifest != null)) {
     return {
       body: {
         id,
@@ -206,7 +206,7 @@ async function resolveAndFetch (
   }
 
   const fetchResult = ctx.fetchPackageToStore({
-    fetchRawManifest: updated || !manifest,
+    fetchRawManifest: updated || (manifest == null),
     force: forceFetch,
     lockfileDir: options.lockfileDir,
     pkg: {
@@ -320,7 +320,7 @@ function fetchToStore (
 
       // If fetching failed then it was removed from the cache.
       // It is OK. In that case there is no need to update it.
-      if (!tmp) return
+      if (tmp == null) return
 
       ctx.fetchingLocker.set(opts.pkg.id, {
         ...tmp,
@@ -337,7 +337,7 @@ function fetchToStore (
 
   const result = ctx.fetchingLocker.get(opts.pkg.id)!
 
-  if (opts.fetchRawManifest && !result.bundledManifest) {
+  if (opts.fetchRawManifest && (result.bundledManifest == null)) {
     result.bundledManifest = removeKeyOnFail(
       result.files.then(async ({ filesIndex }) => {
         const { integrity, mode } = filesIndex['package.json']
@@ -348,7 +348,7 @@ function fetchToStore (
   }
 
   return {
-    bundledManifest: result.bundledManifest ? pShare(result.bundledManifest) : undefined,
+    bundledManifest: (result.bundledManifest != null) ? pShare(result.bundledManifest) : undefined,
     files: pShare(result.files),
     filesIndexFile: result.filesIndexFile,
     finishing: pShare(result.finishing),
@@ -387,7 +387,7 @@ function fetchToStore (
         }
         // if target exists and it wasn't modified, then no need to refetch it
 
-        if (pkgFilesIndex?.files) {
+        if ((pkgFilesIndex?.files) != null) {
           const manifest = opts.fetchRawManifest
             ? safeDeferredPromise<DependencyManifest>()
             : undefined
@@ -409,7 +409,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               fromStore: true,
               sideEffects: pkgFilesIndex.sideEffects,
             })
-            if (manifest) {
+            if (manifest != null) {
               manifest()
                 .then((manifest) => bundledManifest.resolve(pickBundledManifest(manifest)))
                 .catch(bundledManifest.reject)
@@ -436,7 +436,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       const fetchManifest = opts.fetchRawManifest
         ? safeDeferredPromise<DependencyManifest>()
         : undefined
-      if (fetchManifest) {
+      if (fetchManifest != null) {
         fetchManifest()
           .then((manifest) => bundledManifest.resolve(pickBundledManifest(manifest)))
           .catch(bundledManifest.reject)

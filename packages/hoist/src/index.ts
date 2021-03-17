@@ -24,7 +24,7 @@ export default async function hoistByLockfile (
     virtualStoreDir: string
   }
 ) {
-  if (!opts.lockfile.packages) return {}
+  if (opts.lockfile.packages == null) return {}
 
   const { directDeps, step } = lockfileWalker(
     opts.lockfile,

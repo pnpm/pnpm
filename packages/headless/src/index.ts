@@ -125,14 +125,14 @@ export interface HeadlessOptions {
 
 export default async (opts: HeadlessOptions) => {
   const reporter = opts.reporter
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
 
   const lockfileDir = opts.lockfileDir
   const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
 
-  if (!wantedLockfile) {
+  if (wantedLockfile == null) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
@@ -170,7 +170,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const skipped = opts.skipped || new Set<string>()
-  if (currentLockfile) {
+  if (currentLockfile != null) {
     await prune(
       opts.projects,
       {
@@ -319,7 +319,7 @@ export default async (opts: HeadlessOptions) => {
 
     if (opts.ignoreScripts) {
       for (const { id, manifest } of opts.projects) {
-        if (opts.ignoreScripts && manifest?.scripts &&
+        if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
           (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
             manifest.scripts.install ??
             manifest.scripts.postinstall ??
@@ -392,7 +392,7 @@ export default async (opts: HeadlessOptions) => {
       }
     }))
 
-    if (currentLockfile && !R.equals(opts.projects.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
+    if ((currentLockfile != null) && !R.equals(opts.projects.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
       Object.assign(filteredLockfile.packages, currentLockfile.packages)
     }
     await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
@@ -430,7 +430,7 @@ export default async (opts: HeadlessOptions) => {
     )
   }
 
-  if (reporter && typeof reporter === 'function') {
+  if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 }
@@ -509,7 +509,7 @@ async function linkRootPackages (
         const depPath = dp.refToRelative(allDeps[alias], alias)
         if (depPath === null) return
         const pkgSnapshot = lockfile.packages?.[depPath]
-        if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
+        if (pkgSnapshot == null) return // this won't ever happen. Just making typescript happy
         const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(allDeps[alias], alias, opts.registries) ?? undefined
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         rootLogger.debug({
@@ -551,7 +551,7 @@ async function lockfileToDepGraph (
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
-  if (lockfile.packages) {
+  if (lockfile.packages != null) {
     const pkgSnapshotByLocation = {}
     await Promise.all(
       Object.keys(lockfile.packages).map(async (depPath) => {
@@ -638,7 +638,7 @@ async function lockfileToDepGraph (
           filesIndexFile: fetchResponse.filesIndexFile,
           finishing: fetchResponse.finishing,
           hasBin: pkgSnapshot.hasBin === true,
-          hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
+          hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
           modules,
           name: pkgName,
           optional: !!pkgSnapshot.optional,
@@ -718,7 +718,7 @@ async function getChildrenPaths (
       children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
-    } else if (!ctx.skipped.has(childRelDepPath) && (!peerDeps || !peerDeps.has(alias))) {
+    } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }
   }

@@ -42,7 +42,7 @@ export default async function (
     const filesMap = {} as Record<string, string>
     let isBuilt!: boolean
     let filesIndex!: Record<string, PackageFileInfo>
-    if (opts.targetEngine && opts.filesResponse.sideEffects?.[opts.targetEngine]) {
+    if (opts.targetEngine && ((opts.filesResponse.sideEffects?.[opts.targetEngine]) != null)) {
       filesIndex = opts.filesResponse.sideEffects?.[opts.targetEngine]
       isBuilt = true
     } else {

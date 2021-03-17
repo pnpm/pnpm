@@ -18,7 +18,7 @@ export default function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) 
         theirs.importers[importerId]?.[key] ?? {},
         mergeVersions
       )
-      if (!Object.keys(newLockfile.importers[importerId][key]).length) {
+      if (Object.keys(newLockfile.importers[importerId][key]).length === 0) {
         delete newLockfile.importers[importerId][key]
       }
     }
@@ -43,7 +43,7 @@ export default function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) 
         theirPkg?.[key] ?? {},
         mergeVersions
       )
-      if (!Object.keys(pkg[key]).length) {
+      if (Object.keys(pkg[key]).length === 0) {
         delete pkg[key]
       }
     }

@@ -23,7 +23,7 @@ export function lockfileWalkerGroupImporterSteps (
     skipped?: Set<string>
   }
 ) {
-  const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
+  const walked = new Set<string>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
 
   return importerIds.map((importerId) => {
     const projectSnapshot = lockfile.importers[importerId]
@@ -53,7 +53,7 @@ export default function lockfileWalker (
     skipped?: Set<string>
   }
 ) {
-  const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
+  const walked = new Set<string>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
   const entryNodes = [] as string[]
   const directDeps = [] as Array<{ alias: string, depPath: string }>
 
@@ -98,7 +98,7 @@ function step (
     if (ctx.walked.has(depPath)) continue
     ctx.walked.add(depPath)
     const pkgSnapshot = ctx.lockfile.packages?.[depPath]
-    if (!pkgSnapshot) {
+    if (pkgSnapshot == null) {
       if (depPath.startsWith('link:')) {
         result.links.push(depPath)
         continue

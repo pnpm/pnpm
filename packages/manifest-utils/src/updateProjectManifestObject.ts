@@ -24,7 +24,7 @@ export async function updateProjectManifestObject (
         packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] ?? {}
         packageManifest[packageSpec.saveType]![packageSpec.alias] = spec
         DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
-          if (packageManifest[deptype]) {
+          if (packageManifest[deptype] != null) {
             delete packageManifest[deptype]![packageSpec.alias]
           }
         })

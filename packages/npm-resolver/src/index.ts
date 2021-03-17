@@ -123,7 +123,7 @@ async function resolveNpm (
       registry: opts.registry,
       workspacePackages: opts.workspacePackages,
     })
-    if (resolvedFromWorkspace) {
+    if (resolvedFromWorkspace != null) {
       return resolvedFromWorkspace
     }
   }
@@ -131,7 +131,7 @@ async function resolveNpm (
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
-  if (!spec) return null
+  if (spec == null) return null
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(opts.registry)
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
@@ -143,23 +143,23 @@ async function resolveNpm (
       registry: opts.registry,
     })
   } catch (err) {
-    if (workspacePackages && opts.projectDir) {
+    if ((workspacePackages != null) && opts.projectDir) {
       const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, opts.projectDir)
-      if (resolvedFromLocal) return resolvedFromLocal
+      if (resolvedFromLocal != null) return resolvedFromLocal
     }
     throw err
   }
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
-  if (!pickedPackage) {
-    if (workspacePackages && opts.projectDir) {
+  if (pickedPackage == null) {
+    if ((workspacePackages != null) && opts.projectDir) {
       const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, opts.projectDir)
-      if (resolvedFromLocal) return resolvedFromLocal
+      if (resolvedFromLocal != null) return resolvedFromLocal
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta })
   }
 
-  if (workspacePackages?.[pickedPackage.name] && opts.projectDir) {
+  if (((workspacePackages?.[pickedPackage.name]) != null) && opts.projectDir) {
     if (workspacePackages[pickedPackage.name][pickedPackage.version]) {
       return {
         ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.projectDir),
@@ -208,15 +208,15 @@ function tryResolveFromWorkspace (
     pref = `npm:${pref}`
   }
   const spec = parsePref(pref, wantedDependency.alias, opts.defaultTag, opts.registry)
-  if (!spec) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
-  if (!opts.workspacePackages) {
+  if (spec == null) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
+  if (opts.workspacePackages == null) {
     throw new Error('Cannot resolve package from workspace because opts.workspacePackages is not defined')
   }
   if (!opts.projectDir) {
     throw new Error('Cannot resolve package from workspace because opts.projectDir is not defined')
   }
   const resolvedFromLocal = tryResolveFromWorkspacePackages(opts.workspacePackages, spec, opts.projectDir)
-  if (!resolvedFromLocal) {
+  if (resolvedFromLocal == null) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
       `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${wantedDependency.alias ?? ''}@${pref} inside the workspace`

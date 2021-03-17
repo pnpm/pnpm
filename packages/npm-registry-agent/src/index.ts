@@ -85,7 +85,7 @@ function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }) {
     const noproxyArr = opts.noProxy.split(/\s*,\s*/g)
     return noproxyArr.some(no => {
       const noParts = no.split('.').filter(x => x).reverse()
-      if (!noParts.length) {
+      if (noParts.length === 0) {
         return false
       }
       for (let i = 0; i < noParts.length; i++) {

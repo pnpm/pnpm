@@ -11,7 +11,7 @@ import logger from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
 
 async function writeFileAtomic (filename: string, data: string) {
-  return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => err ? reject(err) : resolve()))
+  return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => (err != null) ? reject(err) : resolve()))
 }
 
 const LOCKFILE_YAML_FORMAT = {
@@ -88,7 +88,7 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
         delete lockfileToSave[depType]
       }
     }
-    if (R.isEmpty(lockfileToSave.packages) || !lockfileToSave.packages) {
+    if (R.isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
   } else {
@@ -108,14 +108,14 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
         return acc
       }, {}),
     }
-    if (R.isEmpty(lockfileToSave.packages) || !lockfileToSave.packages) {
+    if (R.isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
   }
-  if (lockfileToSave.overrides && R.isEmpty(lockfileToSave.overrides)) {
+  if ((lockfileToSave.overrides != null) && R.isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
   }
-  if (lockfileToSave.neverBuiltDependencies) {
+  if (lockfileToSave.neverBuiltDependencies != null) {
     if (R.isEmpty(lockfileToSave.neverBuiltDependencies)) {
       delete lockfileToSave.neverBuiltDependencies
     } else {

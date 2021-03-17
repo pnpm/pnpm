@@ -28,7 +28,7 @@ export default function parsePref (
   }
   if (name) {
     const selector = getVersionSelectorType(pref)
-    if (selector) {
+    if (selector != null) {
       return {
         fetchSpec: selector.normalized,
         name,
@@ -38,7 +38,7 @@ export default function parsePref (
   }
   if (pref.startsWith(registry)) {
     const pkg = parseNpmTarballUrl(pref)
-    if (pkg) {
+    if (pkg != null) {
       return {
         fetchSpec: pkg.version,
         name: pkg.name,

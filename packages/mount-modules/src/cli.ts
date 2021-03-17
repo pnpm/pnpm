@@ -10,12 +10,12 @@ import createFuseHandlers from './createFuseHandlers'
   const cafsDir = path.join(await getStorePath(process.cwd()), 'files')
   const fuse = new Fuse(mnt, await createFuseHandlers(process.cwd(), cafsDir), { debug: true })
   fuse.mount(function (err?: Error) {
-    if (err) console.error(err)
+    if (err != null) console.error(err)
   })
 
   process.once('SIGINT', function () {
     fuse.unmount((err?: Error) => {
-      if (err) {
+      if (err != null) {
         console.log(`filesystem at ${fuse.mnt as string} not unmounted`, err)
       } else {
         console.log(`filesystem at ${fuse.mnt as string} unmounted`)

@@ -15,7 +15,7 @@ import renameOverwrite from 'rename-overwrite'
 
 export default async function (lockfileDir: string, projectDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
-  if (!lockfile) {
+  if (lockfile == null) {
     throw new Error('no lockfile found')
   }
   const allImporters = lockfile.importers
@@ -74,7 +74,7 @@ function projectSnapshotWithoutLinkedDeps (projectSnapshot: ProjectSnapshot) {
     specifiers: projectSnapshot.specifiers,
   }
   for (const depField of DEPENDENCIES_FIELDS) {
-    if (!projectSnapshot[depField]) continue
+    if (projectSnapshot[depField] == null) continue
     newProjectSnapshot[depField] = R.fromPairs(
       Object.entries(projectSnapshot[depField]!)
         .filter(([depName, depVersion]) => !depVersion.startsWith('link:'))

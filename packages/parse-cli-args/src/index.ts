@@ -93,7 +93,7 @@ export default async function parseCliArgs (
     0
   )
 
-  if (opts.renamedOptions) {
+  if (opts.renamedOptions != null) {
     for (const cliOption of Object.keys(options)) {
       if (opts.renamedOptions[cliOption]) {
         options[opts.renamedOptions[cliOption]] = options[cliOption]

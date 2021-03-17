@@ -43,7 +43,7 @@ export default async function outdated (
   }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
-  if (!opts.wantedLockfile) {
+  if (opts.wantedLockfile == null) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
   }
   const allDeps = getAllDependenciesFromManifest(opts.manifest)
@@ -56,12 +56,12 @@ export default async function outdated (
     DEPENDENCIES_FIELDS.map(async (depType) => {
       if (
         opts.include?.[depType] === false ||
-        !opts.wantedLockfile!.importers[importerId][depType]
+        (opts.wantedLockfile!.importers[importerId][depType] == null)
       ) return
 
       let pkgs = Object.keys(opts.wantedLockfile!.importers[importerId][depType]!)
 
-      if (opts.match) {
+      if (opts.match != null) {
         pkgs = pkgs.filter((pkgName) => opts.match!(pkgName))
       }
 
@@ -81,7 +81,7 @@ export default async function outdated (
 
           const pkgSnapshot = opts.wantedLockfile!.packages?.[relativeDepPath]
 
-          if (!pkgSnapshot) {
+          if (pkgSnapshot == null) {
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
           }
 
@@ -113,7 +113,7 @@ export default async function outdated (
             opts.compatible ? (allDeps[name] ?? 'latest') : 'latest'
           )
 
-          if (!latestManifest) return
+          if (latestManifest == null) return
 
           if (!current) {
             outdated.push({
@@ -145,9 +145,9 @@ export default async function outdated (
 }
 
 function packageHasNoDeps (manifest: ProjectManifest) {
-  return (!manifest.dependencies || isEmpty(manifest.dependencies)) &&
-    (!manifest.devDependencies || isEmpty(manifest.devDependencies)) &&
-    (!manifest.optionalDependencies || isEmpty(manifest.optionalDependencies))
+  return ((manifest.dependencies == null) || isEmpty(manifest.dependencies)) &&
+    ((manifest.devDependencies == null) || isEmpty(manifest.devDependencies)) &&
+    ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies))
 }
 
 function isEmpty (obj: object) {

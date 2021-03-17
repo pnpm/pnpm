@@ -14,7 +14,7 @@ import * as R from 'ramda'
 
 export async function lockfileToPnp (lockfileDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (!lockfile) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
+  if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
   const importerNames: { [importerId: string]: string } = {}
   await Promise.all(
     Object.keys(lockfile.importers)
@@ -75,9 +75,9 @@ export function lockfileToPackageRegistry (
           null,
           {
             packageDependencies: new Map([
-              ...((importer.dependencies && toPackageDependenciesMap(lockfile, importer.dependencies)) ?? []),
-              ...((importer.optionalDependencies && toPackageDependenciesMap(lockfile, importer.optionalDependencies)) ?? []),
-              ...((importer.devDependencies && toPackageDependenciesMap(lockfile, importer.devDependencies)) ?? []),
+              ...((importer.dependencies != null) ? toPackageDependenciesMap(lockfile, importer.dependencies) : []),
+              ...((importer.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, importer.optionalDependencies) : []),
+              ...((importer.devDependencies != null) ? toPackageDependenciesMap(lockfile, importer.devDependencies) : []),
             ]),
             packageLocation: './',
           },
@@ -92,9 +92,9 @@ export function lockfileToPackageRegistry (
           {
             packageDependencies: new Map([
               [name, importerId],
-              ...((importer.dependencies && toPackageDependenciesMap(lockfile, importer.dependencies, importerId)) ?? []),
-              ...((importer.optionalDependencies && toPackageDependenciesMap(lockfile, importer.optionalDependencies, importerId)) ?? []),
-              ...((importer.devDependencies && toPackageDependenciesMap(lockfile, importer.devDependencies, importerId)) ?? []),
+              ...((importer.dependencies != null) ? toPackageDependenciesMap(lockfile, importer.dependencies, importerId) : []),
+              ...((importer.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, importer.optionalDependencies, importerId) : []),
+              ...((importer.devDependencies != null) ? toPackageDependenciesMap(lockfile, importer.devDependencies, importerId) : []),
             ]),
             packageLocation: `./${importerId}`,
           },
@@ -125,8 +125,8 @@ export function lockfileToPackageRegistry (
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
-        ...((pkgSnapshot.dependencies && toPackageDependenciesMap(lockfile, pkgSnapshot.dependencies)) ?? []),
-        ...((pkgSnapshot.optionalDependencies && toPackageDependenciesMap(lockfile, pkgSnapshot.optionalDependencies)) ?? []),
+        ...((pkgSnapshot.dependencies != null) ? toPackageDependenciesMap(lockfile, pkgSnapshot.dependencies) : []),
+        ...((pkgSnapshot.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, pkgSnapshot.optionalDependencies) : []),
       ]),
       packageLocation,
     })

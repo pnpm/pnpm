@@ -12,6 +12,7 @@ import stripBom from 'strip-bom'
 import { LockfileBreakingChangeError } from './errors'
 import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import logger from './logger'
+import { LockfileFile } from './write'
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,
@@ -73,7 +74,7 @@ async function _read (
       hadConflicts: false,
     }
   }
-  let lockfile: Lockfile
+  let lockfile: LockfileFile
   let hadConflicts!: boolean
   try {
     lockfile = yaml.load(lockfileRawContent) as Lockfile
@@ -96,9 +97,9 @@ async function _read (
         specifiers: lockfile['specifiers'],
       },
     }
-    delete lockfile['specifiers']
+    delete lockfile.specifiers
     for (const depType of DEPENDENCIES_FIELDS) {
-      if (lockfile[depType]) {
+      if (lockfile[depType] != null) {
         lockfile.importers['.'][depType] = lockfile[depType]
         delete lockfile[depType]
       }
@@ -114,7 +115,7 @@ async function _read (
           prefix,
         })
       }
-      return { lockfile, hadConflicts }
+      return { lockfile: lockfile as Lockfile, hadConflicts }
     }
   }
   if (opts.ignoreIncompatible) {

@@ -6,7 +6,7 @@ export const DEFAULT_REGISTRIES = {
 }
 
 export default function normalizeRegistries (registries?: { [scope: string]: string }): Registries {
-  if (!registries) return DEFAULT_REGISTRIES
+  if (registries == null) return DEFAULT_REGISTRIES
 
   const normalizeRegistries = {}
   for (const scope of Object.keys(registries)) {
