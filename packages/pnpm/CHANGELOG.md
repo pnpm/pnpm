@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.0.0-alpha.4
+## 6.0.0-alpha.5
 
 ### Major Changes
 
