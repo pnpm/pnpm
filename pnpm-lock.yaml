@@ -11,6 +11,7 @@ overrides:
   table@^6.0.3: 6.0.4
   graceful-fs: 4.2.4
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.4
+  '@jest/transform': 27.0.0-next.4
 
 importers:
 
@@ -31,14 +32,14 @@ importers:
       cross-env: ^7.0.3
       eslint: ^7.22.0
       husky: ^4.3.6
-      jest: ^27.0.0-next.4
+      jest: 27.0.0-next.4
       lcov-result-merger: ^3.1.0
       npm-run-all: ^4.1.5
       publish-packed: ^3.1.1
       rimraf: ^3.0.2
       shx: ^0.3.3
       syncpack: ^5.6.10
-      ts-jest: ^27.0.0-next.8
+      ts-jest: 27.0.0-next.8
       ts-node: ^9.1.1
       typescript: ^4.2.3
       verdaccio: ^4.11.3
@@ -59,14 +60,14 @@ importers:
       cross-env: 7.0.3
       eslint: 7.22.0
       husky: 4.3.8
-      jest: 27.0.0-next.5_2a885f561020f18950bf4eb2ea462d74
+      jest: 27.0.0-next.4_2a885f561020f18950bf4eb2ea462d74
       lcov-result-merger: 3.1.0
       npm-run-all: 4.1.5
       publish-packed: 3.1.1
       rimraf: 3.0.2
       shx: 0.3.3
       syncpack: 5.7.11
-      ts-jest: 27.0.0-next.8_b4f321f7a0aaf9f33e83e784ba250e6f
+      ts-jest: 27.0.0-next.8_27a2807b8d03dde82e561c41128ed7c9
       ts-node: 9.1.1_typescript@4.2.3
       typescript: 4.2.3
       verdaccio: 4.12.0
@@ -3877,7 +3878,7 @@ packages:
       '@jest/console': 27.0.0-next.5
       '@jest/reporters': 27.0.0-next.5
       '@jest/test-result': 27.0.0-next.5
-      '@jest/transform': 27.0.0-next.5
+      '@jest/transform': 27.0.0-next.4
       '@jest/types': 27.0.0-next.3
       '@types/node': 14.14.35
       ansi-escapes: 4.3.1
@@ -3955,7 +3956,7 @@ packages:
       '@bcoe/v8-coverage': 0.2.3
       '@jest/console': 27.0.0-next.5
       '@jest/test-result': 27.0.0-next.5
-      '@jest/transform': 27.0.0-next.5
+      '@jest/transform': 27.0.0-next.4
       '@jest/types': 27.0.0-next.3
       chalk: 4.1.0
       collect-v8-coverage: 1.0.1
@@ -4017,8 +4018,8 @@ packages:
       - utf-8-validate
     dev: true
 
-  /@jest/transform/27.0.0-next.5:
-    resolution: {integrity: sha512-v1mr0O4DtDoWS2FdeOl6ml2atrQMiy1CARiSp+qvSnCWKVWtWd5kvfKmnXPkvbFU2vmC5esFL6FdQWl8LgHxog==}
+  /@jest/transform/27.0.0-next.4:
+    resolution: {integrity: sha512-1rI+X68XhWlPMaNJfr2CkfwL4BWum1KbMUvn8uYKdwzVHFOQNcg/uBS1orypaKDvawPbXRzbUshIcf48A0SUPA==}
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     dependencies:
       '@babel/core': 7.13.10
@@ -5718,7 +5719,7 @@ packages:
       '@babel/core': ^7.8.0
     dependencies:
       '@babel/core': 7.13.10
-      '@jest/transform': 27.0.0-next.5
+      '@jest/transform': 27.0.0-next.4
       '@jest/types': 27.0.0-next.3
       '@types/babel__core': 7.1.13
       babel-plugin-istanbul: 6.0.0
@@ -9439,7 +9440,7 @@ packages:
       '@jest/console': 27.0.0-next.5
       '@jest/environment': 27.0.0-next.5
       '@jest/test-result': 27.0.0-next.5
-      '@jest/transform': 27.0.0-next.5
+      '@jest/transform': 27.0.0-next.4
       '@jest/types': 27.0.0-next.3
       '@types/node': 14.14.35
       chalk: 4.1.0
@@ -9476,7 +9477,7 @@ packages:
       '@jest/globals': 27.0.0-next.5
       '@jest/source-map': 27.0.0-next.3
       '@jest/test-result': 27.0.0-next.5
-      '@jest/transform': 27.0.0-next.5
+      '@jest/transform': 27.0.0-next.4
       '@jest/types': 27.0.0-next.3
       '@types/yargs': 16.0.0
       chalk: 4.1.0
@@ -9590,8 +9591,8 @@ packages:
       supports-color: 8.1.1
     dev: true
 
-  /jest/27.0.0-next.5_2a885f561020f18950bf4eb2ea462d74:
-    resolution: {integrity: sha512-fMHSRq7xYwZmdNr5YP2icy6Txn9wJBhGLNIeHsGxkokeuIj30tnpU2EyRb4Cq6l8+VD2c2Vt4YdhT3ephyX8Kw==}
+  /jest/27.0.0-next.4_2a885f561020f18950bf4eb2ea462d74:
+    resolution: {integrity: sha512-w8SUQJDXZw73l8fFcPFqoxoRItlZJ2MplJbCBZZrZZFLD1mZFCyRnTU4DnZDIw+iINYAO0J9Z/sHxEnce2opyA==}
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     hasBin: true
     peerDependencies:
@@ -13339,7 +13340,7 @@ packages:
       utf8-byte-length: 1.0.4
     dev: false
 
-  /ts-jest/27.0.0-next.8_b4f321f7a0aaf9f33e83e784ba250e6f:
+  /ts-jest/27.0.0-next.8_27a2807b8d03dde82e561c41128ed7c9:
     resolution: {integrity: sha512-tJ4SABywIG+R09W5aEiDnV4N8atuepCIdAxYrJNHj0A5cclNsjmkq9x4bKy6qVX/FfGMryxtkc0hXdJHoj1eFQ==}
     engines: {node: '>= 10'}
     hasBin: true
@@ -13350,7 +13351,7 @@ packages:
       bs-logger: 0.2.6
       buffer-from: 1.1.1
       fast-json-stable-stringify: 2.1.0
-      jest: 27.0.0-next.5_2a885f561020f18950bf4eb2ea462d74
+      jest: 27.0.0-next.4_2a885f561020f18950bf4eb2ea462d74
       jest-util: 27.0.0-next.3
       json5: 2.2.0
       lodash: 4.17.21
