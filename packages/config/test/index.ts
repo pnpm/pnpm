@@ -655,3 +655,16 @@ test('warn user unknown settings in npmrc', async () => {
 
   expect(noWarnings).toStrictEqual([])
 })
+
+test('getConfig() converts noproxy to noProxy', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      noproxy: 'www.foo.com',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.noProxy).toBe('www.foo.com')
+})
