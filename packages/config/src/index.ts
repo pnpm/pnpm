@@ -396,7 +396,7 @@ export default async (
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
   }
   if (!pnpmConfig.noProxy) {
-    pnpmConfig.noProxy = getProcessEnv('no_proxy')
+    pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
   pnpmConfig.enablePnp = pnpmConfig['nodeLinker'] === 'pnp'
 
