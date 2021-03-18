@@ -274,12 +274,12 @@ async function resolveDependenciesOfDependency (
   const updateShouldContinue = options.currentDepth <= updateDepth
   const update = (
     updateShouldContinue && (
-      !ctx.updateMatching ||
-      !extendedWantedDep.infoFromLockfile?.dependencyLockfile ||
+      (ctx.updateMatching == null) ||
+      ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
       ctx.updateMatching(extendedWantedDep.infoFromLockfile.dependencyLockfile.name ?? extendedWantedDep.wantedDependency.alias)
     )
   ) || Boolean(
-    options.workspacePackages &&
+    (options.workspacePackages != null) &&
     wantedDepIsLocallyAvailable(
       options.workspacePackages,
       extendedWantedDep.wantedDependency,
@@ -298,7 +298,7 @@ async function resolveDependenciesOfDependency (
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
-  if (!resolveDependencyResult) return null
+  if (resolveDependencyResult == null) return null
   if (resolveDependencyResult.isLinkedDependency) {
     ctx.dependenciesTree[resolveDependencyResult.pkgId] = {
       children: {},
@@ -337,7 +337,7 @@ async function resolveChildren (
   updateDepth: number,
   preferredVersions: PreferredVersions
 ) {
-  const currentResolvedDependencies = dependencyLockfile
+  const currentResolvedDependencies = (dependencyLockfile != null)
     ? {
       ...dependencyLockfile.dependencies,
       ...dependencyLockfile.optionalDependencies,
@@ -434,14 +434,14 @@ function getDepsToResolve (
     if (
       !proceedAll &&
       (
-        !infoFromLockfile ||
+        (infoFromLockfile == null) ||
         infoFromLockfile.dependencyLockfile != null && (
           infoFromLockfile.dependencyLockfile.peerDependencies != null ||
           infoFromLockfile.dependencyLockfile.transitivePeerDependencies?.length
         )
       )
     ) {
-      if (infoFromLockfile?.dependencyLockfile?.peerDependencies) {
+      if ((infoFromLockfile?.dependencyLockfile?.peerDependencies) != null) {
         Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
           allPeers.add(peerName)
         })
@@ -481,7 +481,7 @@ function referenceSatisfiesWantedSpec (
   const depPath = dp.refToRelative(preferredRef, wantedDep.alias)
   if (depPath === null) return false
   const pkgSnapshot = opts.lockfile.packages?.[depPath]
-  if (!pkgSnapshot) {
+  if (pkgSnapshot == null) {
     logger.warn({
       message: `Could not find preferred package ${depPath} in lockfile`,
       prefix: opts.prefix,
@@ -519,8 +519,8 @@ function getInfoFromLockfile (
 
   let dependencyLockfile = lockfile.packages?.[depPath]
 
-  if (dependencyLockfile) {
-    if (dependencyLockfile.peerDependencies && dependencyLockfile.dependencies) {
+  if (dependencyLockfile != null) {
+    if ((dependencyLockfile.peerDependencies != null) && (dependencyLockfile.dependencies != null)) {
       // This is done to guarantee that the dependency will be relinked with the
       // up-to-date peer dependencies
       // Covered by test: "peer dependency is grouped with dependency when peer is resolved not from a top dependency"
@@ -595,7 +595,7 @@ async function resolveDependency (
     )
   )
 
-  if (!options.update && !options.proceed && currentPkg.resolution && depIsLinked) {
+  if (!options.update && !options.proceed && (currentPkg.resolution != null) && depIsLinked) {
     return null
   }
 
@@ -681,7 +681,7 @@ async function resolveDependency (
   let pkg: PackageManifest
   let prepare!: boolean
   let hasBin!: boolean
-  pkg = ctx.readPackageHook
+  pkg = (ctx.readPackageHook != null)
     ? ctx.readPackageHook(pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!())
     : pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
   if (!pkg.name) { // TODO: don't fail on optional dependencies
@@ -715,12 +715,12 @@ async function resolveDependency (
   }
 
   if (
-    !options.update && currentPkg.dependencyLockfile && currentPkg.depPath &&
+    !options.update && (currentPkg.dependencyLockfile != null) && currentPkg.depPath &&
     !pkgResponse.body.updated &&
     // peerDependencies field is also used for transitive peer dependencies which should not be linked
     // That's why we cannot omit reading package.json of such dependencies.
     // This can be removed if we implement something like peerDependenciesMeta.transitive: true
-    !currentPkg.dependencyLockfile.peerDependencies
+    (currentPkg.dependencyLockfile.peerDependencies == null)
   ) {
     prepare = currentPkg.dependencyLockfile.prepare === true
     hasBin = currentPkg.dependencyLockfile.hasBin === true
@@ -788,7 +788,7 @@ async function resolveDependency (
       requester: ctx.lockfileDir,
       status: 'resolved',
     })
-    if (pkgResponse.files) {
+    if (pkgResponse.files != null) {
       pkgResponse.files()
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
@@ -887,7 +887,7 @@ function getResolvedPackage (
     filesIndexFile: options.pkgResponse.filesIndexFile!,
     finishing: options.pkgResponse.finishing!,
     hasBin: options.hasBin,
-    hasBundledDependencies: !!(options.pkg.bundledDependencies ?? options.pkg.bundleDependencies),
+    hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,
     name: options.pkg.name,
     optional: options.wantedDependency.optional,
@@ -905,19 +905,19 @@ function getResolvedPackage (
 }
 
 function peerDependenciesWithoutOwn (pkg: PackageManifest) {
-  if (!pkg.peerDependencies && !pkg.peerDependenciesMeta) return pkg.peerDependencies
+  if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return pkg.peerDependencies
   const ownDeps = new Set([
     ...Object.keys(pkg.dependencies ?? {}),
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])
   const result = {}
-  if (pkg.peerDependencies) {
+  if (pkg.peerDependencies != null) {
     for (const [peerName, peerRange] of Object.entries(pkg.peerDependencies)) {
       if (ownDeps.has(peerName)) continue
       result[peerName] = peerRange
     }
   }
-  if (pkg.peerDependenciesMeta) {
+  if (pkg.peerDependenciesMeta != null) {
     for (const [peerName, peerMeta] of Object.entries(pkg.peerDependenciesMeta)) {
       if (ownDeps.has(peerName) || result[peerName] || peerMeta.optional !== true) continue
       result[peerName] = '*'
