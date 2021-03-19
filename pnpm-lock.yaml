@@ -11,7 +11,6 @@ overrides:
   table@^6.0.3: 6.0.4
   graceful-fs: 4.2.4
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.4
-  '@jest/transform': 27.0.0-next.4
 
 importers:
 
@@ -3878,7 +3877,7 @@ packages:
       '@jest/console': 27.0.0-next.5
       '@jest/reporters': 27.0.0-next.5
       '@jest/test-result': 27.0.0-next.5
-      '@jest/transform': 27.0.0-next.4
+      '@jest/transform': 27.0.0-next.5
       '@jest/types': 27.0.0-next.3
       '@types/node': 14.14.35
       ansi-escapes: 4.3.1
@@ -3956,7 +3955,7 @@ packages:
       '@bcoe/v8-coverage': 0.2.3
       '@jest/console': 27.0.0-next.5
       '@jest/test-result': 27.0.0-next.5
-      '@jest/transform': 27.0.0-next.4
+      '@jest/transform': 27.0.0-next.5
       '@jest/types': 27.0.0-next.3
       chalk: 4.1.0
       collect-v8-coverage: 1.0.1
@@ -4018,8 +4017,8 @@ packages:
       - utf-8-validate
     dev: true
 
-  /@jest/transform/27.0.0-next.4:
-    resolution: {integrity: sha512-1rI+X68XhWlPMaNJfr2CkfwL4BWum1KbMUvn8uYKdwzVHFOQNcg/uBS1orypaKDvawPbXRzbUshIcf48A0SUPA==}
+  /@jest/transform/27.0.0-next.5:
+    resolution: {integrity: sha512-v1mr0O4DtDoWS2FdeOl6ml2atrQMiy1CARiSp+qvSnCWKVWtWd5kvfKmnXPkvbFU2vmC5esFL6FdQWl8LgHxog==}
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     dependencies:
       '@babel/core': 7.13.10
@@ -5719,7 +5718,7 @@ packages:
       '@babel/core': ^7.8.0
     dependencies:
       '@babel/core': 7.13.10
-      '@jest/transform': 27.0.0-next.4
+      '@jest/transform': 27.0.0-next.5
       '@jest/types': 27.0.0-next.3
       '@types/babel__core': 7.1.13
       babel-plugin-istanbul: 6.0.0
@@ -9448,7 +9447,7 @@ packages:
       '@jest/console': 27.0.0-next.5
       '@jest/environment': 27.0.0-next.5
       '@jest/test-result': 27.0.0-next.5
-      '@jest/transform': 27.0.0-next.4
+      '@jest/transform': 27.0.0-next.5
       '@jest/types': 27.0.0-next.3
       '@types/node': 14.14.35
       chalk: 4.1.0
@@ -9485,7 +9484,7 @@ packages:
       '@jest/globals': 27.0.0-next.5
       '@jest/source-map': 27.0.0-next.3
       '@jest/test-result': 27.0.0-next.5
-      '@jest/transform': 27.0.0-next.4
+      '@jest/transform': 27.0.0-next.5
       '@jest/types': 27.0.0-next.3
       '@types/yargs': 16.0.0
       chalk: 4.1.0
