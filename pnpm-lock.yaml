@@ -18,7 +18,7 @@ importers:
   .:
     specifiers:
       '@babel/core': ^7.13.10
-      '@changesets/cli': ^2.14.0
+      '@changesets/cli': ^2.14.1
       '@commitlint/cli': ^12.0.1
       '@commitlint/config-conventional': ^12.0.1
       '@commitlint/prompt-cli': ^12.0.1
@@ -26,23 +26,23 @@ importers:
       '@pnpm/meta-updater': ^0.0.0
       '@pnpm/registry-mock': ^2.4.0
       '@pnpm/tsconfig': workspace:*
-      '@types/jest': ^26.0.19
+      '@types/jest': ^26.0.21
       '@types/node': ^14.14.33
-      c8: ^7.3.5
+      c8: ^7.6.0
       cross-env: ^7.0.3
       eslint: ^7.22.0
-      husky: ^4.3.6
-      jest: 27.0.0-next.4
+      husky: ^4.3.8
+      jest: 27.0.0-next.5
       lcov-result-merger: ^3.1.0
       npm-run-all: ^4.1.5
       publish-packed: ^3.1.1
       rimraf: ^3.0.2
       shx: ^0.3.3
-      syncpack: ^5.6.10
-      ts-jest: 27.0.0-next.8
+      syncpack: ^5.7.11
+      ts-jest: 27.0.0-next.9
       ts-node: ^9.1.1
       typescript: ^4.2.3
-      verdaccio: ^4.11.3
+      verdaccio: ^4.12.0
       yarn: ^1.22.10
     devDependencies:
       '@babel/core': 7.13.10
@@ -60,14 +60,14 @@ importers:
       cross-env: 7.0.3
       eslint: 7.22.0
       husky: 4.3.8
-      jest: 27.0.0-next.4_2a885f561020f18950bf4eb2ea462d74
+      jest: 27.0.0-next.5_2a885f561020f18950bf4eb2ea462d74
       lcov-result-merger: 3.1.0
       npm-run-all: 4.1.5
       publish-packed: 3.1.1
       rimraf: 3.0.2
       shx: 0.3.3
       syncpack: 5.7.11
-      ts-jest: 27.0.0-next.8_27a2807b8d03dde82e561c41128ed7c9
+      ts-jest: 27.0.0-next.9_b4f321f7a0aaf9f33e83e784ba250e6f
       ts-node: 9.1.1_typescript@4.2.3
       typescript: 4.2.3
       verdaccio: 4.12.0
@@ -5949,9 +5949,9 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
     dependencies:
-      caniuse-lite: 1.0.30001202
+      caniuse-lite: 1.0.30001203
       colorette: 1.2.2
-      electron-to-chromium: 1.3.691
+      electron-to-chromium: 1.3.692
       escalade: 3.1.1
       node-releases: 1.1.71
     dev: true
@@ -6134,8 +6134,8 @@ packages:
     dependencies:
       path-temp: 2.0.0
 
-  /caniuse-lite/1.0.30001202:
-    resolution: {integrity: sha512-ZcijQNqrcF8JNLjzvEiXqX4JUYxoZa7Pvcsd9UD8Kz4TvhTonOSNRsK+qtvpVL4l6+T1Rh4LFtLfnNWg6BGWCQ==}
+  /caniuse-lite/1.0.30001203:
+    resolution: {integrity: sha512-/I9tvnzU/PHMH7wBPrfDMSuecDeUKerjCPX7D0xBbaJZPxoT9m+yYxt0zCTkcijCkjTdim3H56Zm0i5Adxch4w==}
     dev: true
 
   /caseless/0.12.0:
@@ -7103,8 +7103,8 @@ packages:
     resolution: {integrity: sha1-WQxhFWsK4vTwJVcyoViyZrxWsh0=}
     dev: true
 
-  /electron-to-chromium/1.3.691:
-    resolution: {integrity: sha512-ZqiO69KImmOGCyoH0icQPU3SndJiW93juEvf63gQngyhODO6SpQIPMTOHldtCs5DS5GMKvAkquk230E2zt2vpw==}
+  /electron-to-chromium/1.3.692:
+    resolution: {integrity: sha512-Ix+zDUAXWZuUzqKdhkgN5dP7ZM+IwMG4yAGFGDLpGJP/3vNEEwuHG1LIhtXUfW0FFV0j38t5PUv2n/3MFSRviQ==}
     dev: true
 
   /emittery/0.8.1:
@@ -7420,7 +7420,7 @@ packages:
       file-entry-cache: 6.0.1
       functional-red-black-tree: 1.0.1
       glob-parent: 5.1.2
-      globals: 13.6.0
+      globals: 13.7.0
       ignore: 4.0.6
       import-fresh: 3.3.0
       imurmurhash: 0.1.4
@@ -8262,8 +8262,8 @@ packages:
       type-fest: 0.8.1
     dev: true
 
-  /globals/13.6.0:
-    resolution: {integrity: sha512-YFKCX0SiPg7l5oKYCJ2zZGxcXprVXHcSnVuvzrT3oSENQonVLqM5pf9fN5dLGZGyCjhw8TN8Btwe/jKnZ0pjvQ==}
+  /globals/13.7.0:
+    resolution: {integrity: sha512-Aipsz6ZKRxa/xQkZhNg0qIWXT6x6rD46f6x/PCnBomlttdIyAPak4YD9jTmKpZ72uROSMU87qJtcgpgHaVchiA==}
     engines: {node: '>=8'}
     dependencies:
       type-fest: 0.20.2
@@ -8475,6 +8475,14 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       lru-cache: 6.0.0
+    dev: false
+
+  /hosted-git-info/4.0.1:
+    resolution: {integrity: sha512-eT7NrxAsppPRQEBSwKSosReE+v8OzABwEScQYk5d4uxaEPlzxTIku7LINXtBGalthkLhJnq5lBI89PfK43zAKg==}
+    engines: {node: '>=10'}
+    dependencies:
+      lru-cache: 6.0.0
+    dev: true
 
   /html-encoding-sniffer/1.0.2:
     resolution: {integrity: sha512-71lZziiDnsuabfdYiUeWdCVyKuqwWi23L8YeIgV9jSSZHCtb6wB1BKWooH7L3tn4/FuZJMVWyNaIDr4RGmaSYw==}
@@ -9591,8 +9599,8 @@ packages:
       supports-color: 8.1.1
     dev: true
 
-  /jest/27.0.0-next.4_2a885f561020f18950bf4eb2ea462d74:
-    resolution: {integrity: sha512-w8SUQJDXZw73l8fFcPFqoxoRItlZJ2MplJbCBZZrZZFLD1mZFCyRnTU4DnZDIw+iINYAO0J9Z/sHxEnce2opyA==}
+  /jest/27.0.0-next.5_2a885f561020f18950bf4eb2ea462d74:
+    resolution: {integrity: sha512-fMHSRq7xYwZmdNr5YP2icy6Txn9wJBhGLNIeHsGxkokeuIj30tnpU2EyRb4Cq6l8+VD2c2Vt4YdhT3ephyX8Kw==}
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     hasBin: true
     peerDependencies:
@@ -10402,7 +10410,7 @@ packages:
       decamelize-keys: 1.1.0
       hard-rejection: 2.1.0
       minimist-options: 4.1.0
-      normalize-package-data: 3.0.1
+      normalize-package-data: 3.0.2
       read-pkg-up: 7.0.1
       redent: 3.0.0
       trim-newlines: 3.0.0
@@ -10803,6 +10811,17 @@ packages:
       resolve: 1.20.0
       semver: 7.3.4
       validate-npm-package-license: 3.0.4
+    dev: false
+
+  /normalize-package-data/3.0.2:
+    resolution: {integrity: sha512-6CdZocmfGaKnIHPVFhJJZ3GuR8SsLKvDANFp47Jmy51aKIr8akjAWTSxtpI+MBgBFdSMRyo4hMpDlT6dTffgZg==}
+    engines: {node: '>=10'}
+    dependencies:
+      hosted-git-info: 4.0.1
+      resolve: 1.20.0
+      semver: 7.3.4
+      validate-npm-package-license: 3.0.4
+    dev: true
 
   /normalize-path/2.1.1:
     resolution: {integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=}
@@ -12271,7 +12290,7 @@ packages:
     resolution: {integrity: sha1-vURYp561YbdUiq7ArDdT70Kf5ws=}
     dependencies:
       any-promise: 1.3.0
-      rimraf: 2.4.5
+      rimraf: 2.7.1
     dev: true
 
   /rimraf/2.4.5:
@@ -13340,18 +13359,18 @@ packages:
       utf8-byte-length: 1.0.4
     dev: false
 
-  /ts-jest/27.0.0-next.8_27a2807b8d03dde82e561c41128ed7c9:
-    resolution: {integrity: sha512-tJ4SABywIG+R09W5aEiDnV4N8atuepCIdAxYrJNHj0A5cclNsjmkq9x4bKy6qVX/FfGMryxtkc0hXdJHoj1eFQ==}
+  /ts-jest/27.0.0-next.9_b4f321f7a0aaf9f33e83e784ba250e6f:
+    resolution: {integrity: sha512-cBPbeOeenjtupe2Vcbb3vKqE7VED23jfGagDu6l3QjZCbx03pedqOrl02ajBKy/tT2B3TIFQt4BtwQRxig9eyw==}
     engines: {node: '>= 10'}
     hasBin: true
     peerDependencies:
-      jest: 27.0.0-next.4
+      jest: 27.0.0-next.5
       typescript: '>=3.8 <5.0'
     dependencies:
       bs-logger: 0.2.6
       buffer-from: 1.1.1
       fast-json-stable-stringify: 2.1.0
-      jest: 27.0.0-next.4_2a885f561020f18950bf4eb2ea462d74
+      jest: 27.0.0-next.5_2a885f561020f18950bf4eb2ea462d74
       jest-util: 27.0.0-next.3
       json5: 2.2.0
       lodash: 4.17.21
