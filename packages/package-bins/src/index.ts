@@ -1,8 +1,7 @@
-import { promises as fs } from 'fs'
 import path from 'path'
 import { DependencyManifest, PackageBin } from '@pnpm/types'
+import fastGlob from 'fast-glob'
 import isSubdir from 'is-subdir'
-import pFilter from 'p-filter'
 
 export interface Command {
   name: string
@@ -16,20 +15,21 @@ export default async function binify (manifest: DependencyManifest, pkgPath: str
   if (manifest.directories?.bin) {
     const binDir = path.join(pkgPath, manifest.directories.bin)
     const files = await findFiles(binDir)
-    return pFilter(
-      files.map((file) => ({
-        name: file,
-        path: path.join(binDir, file),
-      })),
-      async (cmd: Command) => (await fs.stat(cmd.path)).isFile()
-    )
+    return files.map((file) => ({
+      name: path.basename(file),
+      path: path.join(binDir, file),
+    }))
   }
   return []
 }
 
 async function findFiles (dir: string): Promise<string[]> {
   try {
-    return await fs.readdir(dir)
+    return await fastGlob('**', {
+      cwd: dir,
+      onlyFiles: true,
+      followSymbolicLinks: false,
+    })
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err

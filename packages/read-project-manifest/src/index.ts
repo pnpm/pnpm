@@ -1,5 +1,4 @@
-import fs, { Stats } from 'fs'
-import { promisify } from 'util'
+import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import PnpmError from '@pnpm/error'
 import { ProjectManifest } from '@pnpm/types'
@@ -14,8 +13,6 @@ import {
   readJson5File,
   readJsonFile,
 } from './readFile'
-
-const stat = promisify(fs.stat)
 
 type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
@@ -102,7 +99,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     // ENOTDIR isn't used on Windows, but pnpm expects it.
     let s: Stats | undefined
     try {
-      s = await stat(projectDir)
+      s = await fs.stat(projectDir)
     } catch (err) {
       // Ignore
     }

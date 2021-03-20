@@ -1,14 +1,14 @@
-import { promisify } from 'util'
 import path from 'path'
 import PnpmError from '@pnpm/error'
 import { PackageManifest } from '@pnpm/types'
-import readPackageManifestCB from 'read-package-json'
-
-const readPackageManifest = promisify<string, PackageManifest>(readPackageManifestCB)
+import loadJsonFile from 'load-json-file'
+import normalizePackageData from 'normalize-package-data'
 
 export default async function readPkg (pkgPath: string): Promise<PackageManifest> {
   try {
-    return await readPackageManifest(pkgPath)
+    const manifest = await loadJsonFile<PackageManifest>(pkgPath)
+    normalizePackageData(manifest)
+    return manifest
   } catch (err: any) { // eslint-disable-line
     if (err.code) throw err
     throw new PnpmError('BAD_PACKAGE_JSON', `${pkgPath}: ${err.message as string}`)
