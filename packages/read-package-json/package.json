@@ -32,7 +32,8 @@
   "dependencies": {
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/types": "workspace:6.4.0",
-    "read-package-json": "^3.0.0"
+    "load-json-file": "^6.2.0",
+    "normalize-package-data": "^3.0.2"
   },
   "funding": "https://opencollective.com/pnpm"
 }

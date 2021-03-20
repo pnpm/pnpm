@@ -23,27 +23,31 @@ export async function runPostinstallHooks (
   }
 ): Promise<boolean> {
   const pkg = await readPackageJsonFromDir(opts.pkgRoot)
-  const scripts = pkg?.scripts ?? {}
-
-  if (!scripts.install) {
-    await checkBindingGyp(opts.pkgRoot, scripts)
+  if (pkg.scripts == null) {
+    pkg.scripts = {}
   }
 
-  if (scripts.preinstall) {
+  if (!pkg.scripts.install) {
+    await checkBindingGyp(opts.pkgRoot, pkg.scripts)
+  }
+
+  if (pkg.scripts.preinstall) {
     await runLifecycleHook('preinstall', pkg, opts)
   }
-  if (scripts.install) {
+  if (pkg.scripts.install) {
     await runLifecycleHook('install', pkg, opts)
   }
-  if (scripts.postinstall) {
+  if (pkg.scripts.postinstall) {
     await runLifecycleHook('postinstall', pkg, opts)
   }
 
-  if (opts.prepare && scripts.prepare) {
+  if (opts.prepare && pkg.scripts.prepare) {
     await runLifecycleHook('prepare', pkg, opts)
   }
 
-  return !!scripts.preinstall || !!scripts.install || !!scripts.postinstall
+  return pkg.scripts.preinstall != null ||
+    pkg.scripts.install != null ||
+    pkg.scripts.postinstall != null
 }
 
 /**

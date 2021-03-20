@@ -260,3 +260,11 @@ test('linkBins() would not give warning if package has no bin field but inside n
 
   expect(warn).not.toHaveBeenCalled()
 })
+
+test('linkBins() links commands from bin directory with a subdirectory', async () => {
+  const binTarget = tempy.directory()
+
+  await linkBins(path.join(fixtures, 'bin-dir'), binTarget, { warn: () => {} })
+
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['index.js']))
+})
