@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [d853fb14a]
+  - @pnpm/read-package-json@4.0.0
+
 ## 13.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.14.1
+
+### Patch Changes
+
+- 4b3852c39: The noproxy setting should work.
+
 ## 11.14.0
 
 ### Minor Changes

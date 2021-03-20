@@ -1,5 +1,13 @@
 # @pnpm/lifecycle
 
+## 9.6.5
+
+### Patch Changes
+
+- d853fb14a: Run `node-gyp` when `binding.gyp` is present, even if an install lifecycle script is not present in the scripts field.
+- Updated dependencies [d853fb14a]
+  - @pnpm/read-package-json@4.0.0
+
 ## 9.6.4
 
 ### Patch Changes

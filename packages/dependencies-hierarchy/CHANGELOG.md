@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 9.0.19
+
+### Patch Changes
+
+- Updated dependencies [d853fb14a]
+  - @pnpm/read-package-json@4.0.0
+
 ## 9.0.18
 
 ### Patch Changes

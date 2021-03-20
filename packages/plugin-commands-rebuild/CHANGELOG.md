@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.2.33
+
+### Patch Changes
+
+- Updated dependencies [d853fb14a]
+- Updated dependencies [d853fb14a]
+- Updated dependencies [4b3852c39]
+  - @pnpm/lifecycle@9.6.5
+  - @pnpm/link-bins@5.3.25
+  - @pnpm/config@11.14.1
+  - @pnpm/cli-utils@0.5.3
+  - @pnpm/store-connection-manager@1.0.3
+  - @pnpm/find-workspace-packages@2.3.41
+
 ## 2.2.32
 
 ### Patch Changes

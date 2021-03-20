@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "13.0.0",
+  "version": "13.0.1",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "@pnpm/core-loggers": "workspace:5.0.3",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/fetcher-base": "workspace:9.0.4",
-    "@pnpm/read-package-json": "workspace:3.1.9",
+    "@pnpm/read-package-json": "workspace:4.0.0",
     "@pnpm/resolver-base": "workspace:7.1.1",
     "@pnpm/store-controller-types": "workspace:10.0.0",
     "@pnpm/types": "workspace:6.4.0",

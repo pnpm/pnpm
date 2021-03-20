@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "9.0.18",
+  "version": "9.0.19",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -37,7 +37,7 @@
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/normalize-registries": "workspace:1.0.6",
     "@pnpm/read-modules-dir": "workspace:2.0.3",
-    "@pnpm/read-package-json": "workspace:3.1.9",
+    "@pnpm/read-package-json": "workspace:4.0.0",
     "@pnpm/types": "workspace:6.4.0",
     "dependency-path": "workspace:5.1.1",
     "normalize-path": "^3.0.0",

@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 5.0.26
+
+### Patch Changes
+
+- Updated dependencies [d853fb14a]
+  - @pnpm/read-package-json@4.0.0
+  - dependencies-hierarchy@9.0.19
+
 ## 5.0.25
 
 ### Patch Changes
