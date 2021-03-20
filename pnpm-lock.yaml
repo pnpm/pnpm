@@ -1466,14 +1466,12 @@ importers:
       '@pnpm/types': workspace:6.4.0
       '@types/graceful-fs': ^4.1.4
       '@types/node': ^14.14.22
-      graceful-fs: 4.2.4
+      fast-glob: ^3.2.4
       is-subdir: ^1.1.1
-      p-filter: ^2.1.0
     dependencies:
       '@pnpm/types': link:../types
-      graceful-fs: 4.2.4
+      fast-glob: 3.2.5
       is-subdir: 1.2.0
-      p-filter: 2.1.0
     devDependencies:
       '@pnpm/package-bins': 'link:'
       '@types/graceful-fs': 4.1.5
@@ -2583,11 +2581,13 @@ importers:
       '@pnpm/error': workspace:1.4.0
       '@pnpm/read-package-json': 'link:'
       '@pnpm/types': workspace:6.4.0
-      read-package-json: ^3.0.0
+      load-json-file: ^6.2.0
+      normalize-package-data: ^3.0.2
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/types': link:../types
-      read-package-json: 3.0.1
+      load-json-file: 6.2.0
+      normalize-package-data: 3.0.2
     devDependencies:
       '@pnpm/read-package-json': 'link:'
 
@@ -8591,6 +8591,14 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       lru-cache: 6.0.0
+    dev: true
+
+  /hosted-git-info/4.0.1:
+    resolution: {integrity: sha512-eT7NrxAsppPRQEBSwKSosReE+v8OzABwEScQYk5d4uxaEPlzxTIku7LINXtBGalthkLhJnq5lBI89PfK43zAKg==}
+    engines: {node: '>=10'}
+    dependencies:
+      lru-cache: 6.0.0
+    dev: false
 
   /html-encoding-sniffer/1.0.2:
     resolution: {integrity: sha512-71lZziiDnsuabfdYiUeWdCVyKuqwWi23L8YeIgV9jSSZHCtb6wB1BKWooH7L3tn4/FuZJMVWyNaIDr4RGmaSYw==}
@@ -10914,6 +10922,17 @@ packages:
       resolve: 1.20.0
       semver: 7.3.4
       validate-npm-package-license: 3.0.4
+    dev: true
+
+  /normalize-package-data/3.0.2:
+    resolution: {integrity: sha512-6CdZocmfGaKnIHPVFhJJZ3GuR8SsLKvDANFp47Jmy51aKIr8akjAWTSxtpI+MBgBFdSMRyo4hMpDlT6dTffgZg==}
+    engines: {node: '>=10'}
+    dependencies:
+      hosted-git-info: 4.0.1
+      resolve: 1.20.0
+      semver: 7.3.4
+      validate-npm-package-license: 3.0.4
+    dev: false
 
   /normalize-path/2.1.1:
     resolution: {integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=}
@@ -10942,10 +10961,6 @@ packages:
     dependencies:
       once: 1.4.0
     dev: true
-
-  /npm-normalize-package-bin/1.0.1:
-    resolution: {integrity: sha512-EPfafl6JL5/rU+ot6P3gRSCpPDW5VmIzX959Ob1+ySFUuuYHWHekXpwdUZcKP5C+DS4GEtdJluwBjnsNDl+fSA==}
-    dev: false
 
   /npm-package-arg/4.2.1:
     resolution: {integrity: sha1-WTMD/eqF98Qid18X+et2cPaA4+w=}
@@ -11908,16 +11923,6 @@ packages:
       graceful-fs: 4.2.4
       ini: 2.0.0
       strip-bom: 4.0.0
-    dev: false
-
-  /read-package-json/3.0.1:
-    resolution: {integrity: sha512-aLcPqxovhJTVJcsnROuuzQvv6oziQx4zd3JvG0vGCL5MjTONUc4uJ90zCBC6R7W7oUKBNoR/F8pkyfVwlbxqng==}
-    engines: {node: '>=10'}
-    dependencies:
-      glob: 7.1.6
-      json-parse-even-better-errors: 2.3.1
-      normalize-package-data: 3.0.1
-      npm-normalize-package-bin: 1.0.1
     dev: false
 
   /read-pkg-up/1.0.1:

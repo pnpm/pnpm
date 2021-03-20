@@ -15,6 +15,28 @@ test('getBinsFromPkg()', async () => {
   )
 })
 
+test('find all the bin files from a bin directory', async () => {
+  const fixtures = path.join(__dirname, 'fixtures')
+  expect(
+    await getBinsFromPkg({
+      name: 'bin-dir',
+      version: '1.0.0',
+
+      directories: { bin: 'bin-dir' },
+    }, fixtures)).toStrictEqual(
+    [
+      {
+        name: 'rootBin.js',
+        path: path.join(fixtures, 'bin-dir/rootBin.js'),
+      },
+      {
+        name: 'subBin.js',
+        path: path.join(fixtures, 'bin-dir/subdir/subBin.js'),
+      },
+    ]
+  )
+})
+
 test('get bin of scoped package', async () => {
   expect(
     await getBinsFromPkg({
