@@ -14,8 +14,6 @@ import {
   readJsonFile,
 } from './readFile'
 
-export { readJsonFile }
-
 type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
 export async function safeReadProjectManifestOnly (projectDir: string) {
