@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "11.14.0",
+  "version": "11.14.1",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

@@ -1,5 +1,21 @@
 # @pnpm/headless
 
+## 15.0.2
+
+### Patch Changes
+
+- Updated dependencies [d853fb14a]
+- Updated dependencies [d853fb14a]
+- Updated dependencies [d853fb14a]
+  - @pnpm/lifecycle@9.6.5
+  - @pnpm/link-bins@5.3.25
+  - @pnpm/read-package-json@4.0.0
+  - @pnpm/build-modules@5.2.12
+  - @pnpm/hoist@4.0.26
+  - @pnpm/lockfile-to-pnp@0.3.24
+  - @pnpm/package-requester@13.0.1
+  - @pnpm/modules-cleaner@10.0.23
+
 ## 15.0.1
 
 ### Patch Changes

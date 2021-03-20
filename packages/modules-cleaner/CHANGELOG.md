@@ -1,5 +1,11 @@
 # @pnpm/modules-cleaner
 
+## 10.0.23
+
+### Patch Changes
+
+- @pnpm/remove-bins@1.0.12
+
 ## 10.0.22
 
 ### Patch Changes

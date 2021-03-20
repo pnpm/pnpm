@@ -1,5 +1,11 @@
 # @pnpm/read-package-json
 
+## 4.0.0
+
+### Major Changes
+
+- d853fb14a: Don't normalize the `bin` field of `package.json`.
+
 ## 3.1.9
 
 ### Patch Changes

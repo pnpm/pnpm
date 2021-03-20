@@ -1,5 +1,15 @@
 # @pnpm/link-bins
 
+## 5.3.25
+
+### Patch Changes
+
+- d853fb14a: Don't fail when linking bins of a package that uses the `directories.bin` and points to a directory that has subdirectories.
+- Updated dependencies [d853fb14a]
+- Updated dependencies [d853fb14a]
+  - @pnpm/package-bins@4.1.0
+  - @pnpm/read-package-json@4.0.0
+
 ## 5.3.24
 
 ### Patch Changes

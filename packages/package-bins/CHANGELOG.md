@@ -1,5 +1,11 @@
 # @pnpm/package-bins
 
+## 4.1.0
+
+### Minor Changes
+
+- d853fb14a: Find all files inside the bin directory.
+
 ## 4.0.11
 
 ### Patch Changes

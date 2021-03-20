@@ -35,6 +35,14 @@
   - pnpm v4: `pnpm link foo`
   - pnpm v5: `pnpm link --global foo`
 
+## 5.18.8
+
+### Patch Changes
+
+- Installation of packages that have bin directories with subdirectories should not fail ([#3263](https://github.com/pnpm/pnpm/issues/3263)).
+- The value of the `noproxy` setting should be read ([#3258](https://github.com/pnpm/pnpm/issues/3258)).
+- An empty `node_modules` directory should not be created just to save a `.pnpm-debug.log` file to it.
+
 ## 5.18.7
 
 ### Patch Changes
