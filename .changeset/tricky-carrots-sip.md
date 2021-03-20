@@ -1,6 +1,5 @@
 ---
-"@pnpm/headless": patch
-"@pnpm/package-requester": patch
+"@pnpm/read-package-json": major
 ---
 
-Don't normalize package.json file, while reading.
+Don't normalize `package.json` file, while reading it.
