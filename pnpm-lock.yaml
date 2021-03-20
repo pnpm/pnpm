@@ -943,6 +943,7 @@ importers:
       chalk: ^4.1.0
       cli-columns: ^3.1.2
       dependencies-hierarchy: workspace:9.0.18
+      normalize-package-data: ^3.0.2
       p-limit: ^3.1.0
       ramda: ^0.27.1
       semver: ^7.3.4
@@ -956,6 +957,7 @@ importers:
       chalk: 4.1.0
       cli-columns: 3.1.2
       dependencies-hierarchy: link:../dependencies-hierarchy
+      normalize-package-data: 3.0.2
       p-limit: 3.1.0
       ramda: 0.27.1
       semver: 7.3.4
@@ -8474,7 +8476,6 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       lru-cache: 6.0.0
-    dev: true
 
   /html-encoding-sniffer/1.0.2:
     resolution: {integrity: sha512-71lZziiDnsuabfdYiUeWdCVyKuqwWi23L8YeIgV9jSSZHCtb6wB1BKWooH7L3tn4/FuZJMVWyNaIDr4RGmaSYw==}
@@ -10803,7 +10804,6 @@ packages:
       resolve: 1.20.0
       semver: 7.3.4
       validate-npm-package-license: 3.0.4
-    dev: true
 
   /normalize-path/2.1.1:
     resolution: {integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=}
