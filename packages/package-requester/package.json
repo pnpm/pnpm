@@ -52,7 +52,7 @@
     "promise-share": "^1.0.0",
     "ramda": "^0.27.1",
     "rename-overwrite": "^3.1.0",
-    "ssri": "6.0.1"
+    "ssri": "^8.0.1"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:2.0.24",

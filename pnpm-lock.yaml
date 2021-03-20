@@ -144,7 +144,7 @@ importers:
       p-limit: ^3.1.0
       path-temp: ^2.0.0
       rename-overwrite: ^3.1.0
-      ssri: 6.0.1
+      ssri: ^8.0.1
       strip-bom: ^4.0.0
       tar-stream: ^2.1.4
       tempy: ^1.0.0
@@ -158,7 +158,7 @@ importers:
       p-limit: 3.1.0
       path-temp: 2.0.0
       rename-overwrite: 3.1.0
-      ssri: 6.0.1
+      ssri: 8.0.1
       strip-bom: 4.0.0
       tar-stream: 2.2.0
     devDependencies:
@@ -976,14 +976,14 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/ssri': ^7.1.0
       normalize-path: ^3.0.0
-      ssri: 6.0.1
+      ssri: ^8.0.1
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/types': link:../types
       normalize-path: 3.0.0
-      ssri: 6.0.1
+      ssri: 8.0.1
     devDependencies:
       '@pnpm/local-resolver': 'link:'
       '@types/normalize-path': 3.0.0
@@ -1343,7 +1343,7 @@ importers:
       path-temp: ^2.0.0
       rename-overwrite: ^3.1.0
       semver: ^7.3.4
-      ssri: 6.0.1
+      ssri: ^8.0.1
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
     dependencies:
@@ -1364,7 +1364,7 @@ importers:
       path-temp: 2.0.0
       rename-overwrite: 3.1.0
       semver: 7.3.4
-      ssri: 6.0.1
+      ssri: 8.0.1
       version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/fetch': link:../fetch
@@ -1485,7 +1485,7 @@ importers:
       promise-share: ^1.0.0
       ramda: ^0.27.1
       rename-overwrite: ^3.1.0
-      ssri: 6.0.1
+      ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
       '@pnpm/cafs': link:../cafs
@@ -1505,7 +1505,7 @@ importers:
       promise-share: 1.0.0
       ramda: 0.27.1
       rename-overwrite: 3.1.0
-      ssri: 6.0.1
+      ssri: 8.0.1
     devDependencies:
       '@pnpm/client': link:../client
       '@pnpm/logger': 3.2.3
@@ -1544,7 +1544,7 @@ importers:
       ramda: ^0.27.1
       rename-overwrite: ^3.1.0
       sanitize-filename: ^1.6.3
-      ssri: 6.0.1
+      ssri: ^8.0.1
       tempy: ^1.0.0
       write-json-file: ^4.3.0
     dependencies:
@@ -1564,7 +1564,7 @@ importers:
       ramda: 0.27.1
       rename-overwrite: 3.1.0
       sanitize-filename: 1.6.3
-      ssri: 6.0.1
+      ssri: 8.0.1
       write-json-file: 4.3.0
     devDependencies:
       '@pnpm/client': link:../client
@@ -2227,7 +2227,7 @@ importers:
       ramda: ^0.27.1
       render-help: ^1.0.1
       sinon: ^9.2.2
-      ssri: 6.0.1
+      ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
       '@pnpm/cafs': link:../cafs
@@ -2264,7 +2264,7 @@ importers:
       load-json-file: 6.2.0
       path-exists: 4.0.0
       sinon: 9.2.4
-      ssri: 6.0.1
+      ssri: 8.0.1
       tempy: 1.0.1
 
   packages/pnpm:
@@ -2982,7 +2982,7 @@ importers:
       '@zkochan/retry': ^0.2.0
       cp-file: ^9.0.0
       nock: 12.0.3
-      ssri: 6.0.1
+      ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
@@ -2990,7 +2990,7 @@ importers:
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/fetching-types': link:../fetching-types
       '@zkochan/retry': 0.2.0
-      ssri: 6.0.1
+      ssri: 8.0.1
     devDependencies:
       '@pnpm/cafs': link:../cafs
       '@pnpm/fetch': link:../fetch
@@ -4121,15 +4121,15 @@ packages:
       load-json-file: 6.2.0
     dev: true
 
-  /@pnpm/cli-utils/0.5.2_@pnpm+logger@3.2.3:
-    resolution: {integrity: sha512-5gfap6Y+rUuPO+RCVFqyVIteCyKiJxBKU7iIZxY4mdyeopDhg8EtTWrh7BHddzZ5PRrZpMM/s2iy2715vE40NQ==}
+  /@pnpm/cli-utils/0.5.3_@pnpm+logger@3.2.3:
+    resolution: {integrity: sha512-yH6LDGpUua8K/7rul1DvGP1eSYWkBIu3xy0KPq2lFvxyt5Vb+6eh/mlGWQPj8epBSDykG34KYJpLGjAOKY/qQQ==}
     engines: {node: '>=10.16'}
     peerDependencies:
       '@pnpm/logger': ^3.2.3
     dependencies:
       '@pnpm/cli-meta': 1.0.2
-      '@pnpm/config': 11.14.0
-      '@pnpm/default-reporter': 7.10.5_@pnpm+logger@3.2.3
+      '@pnpm/config': 11.14.1
+      '@pnpm/default-reporter': 7.10.6_@pnpm+logger@3.2.3
       '@pnpm/error': 1.4.0
       '@pnpm/logger': 3.2.3
       '@pnpm/manifest-utils': 1.1.5_@pnpm+logger@3.2.3
@@ -4146,8 +4146,8 @@ packages:
       chalk: 4.1.0
     dev: false
 
-  /@pnpm/config/11.14.0:
-    resolution: {integrity: sha512-UfxE0oOcVPqWqIii49Y5hpjBt+4Zq8wLESMtpTXPb7aTTqpAvrZQ3REnljAYFHaX/seg+xJ6tAI0iz/QD0ohrQ==}
+  /@pnpm/config/11.14.1:
+    resolution: {integrity: sha512-1Omn8H31T6WZvFXkuvQKDz9rOqjwz08HYFXi1M7JSSkXEh5HbeAIABHG/mTH9Tl4VtR91QhbRNBG5iFVVR5N8Q==}
     engines: {node: '>=10.16'}
     dependencies:
       '@pnpm/constants': 4.1.0
@@ -4177,11 +4177,11 @@ packages:
       '@pnpm/types': 6.4.0
     dev: true
 
-  /@pnpm/default-reporter/7.10.5_@pnpm+logger@3.2.3:
-    resolution: {integrity: sha512-xesZnJcrTic1ztDDhjoF7IzvZGu+YC8uhTfvRXXFqYLWCcHKxCa/lhZg8kXz8xXXrrmpiDx2/ts+pHRo7YDVoA==}
+  /@pnpm/default-reporter/7.10.6_@pnpm+logger@3.2.3:
+    resolution: {integrity: sha512-zvGdWYTJaPuOc+JBTAtW16wbM9cdSnN2h1n9PV8Pp4uxX6yiFBYIE87KuthjBj5P0Y1WrfTFoz80+ZZfhL2tGQ==}
     engines: {node: '>=10.16'}
     dependencies:
-      '@pnpm/config': 11.14.0
+      '@pnpm/config': 11.14.1
       '@pnpm/core-loggers': 5.0.3_@pnpm+logger@3.2.3
       '@pnpm/error': 1.4.0
       '@pnpm/types': 6.4.0
@@ -4231,11 +4231,11 @@ packages:
       find-up: 5.0.0
     dev: true
 
-  /@pnpm/find-workspace-packages/2.3.40_@pnpm+logger@3.2.3:
-    resolution: {integrity: sha512-4z8Ln4an8LNRpzRZZSsHWMKDt8YBcTA3uLpxgKoZQxF7L8TogT6tPgm7Mo+LLj03svYCfajIyKohkjXACx94Vg==}
+  /@pnpm/find-workspace-packages/2.3.41_@pnpm+logger@3.2.3:
+    resolution: {integrity: sha512-HDM0h0vLRGMspE/XZYmXiWz8vv3Zd1WNoSPhM4smx55Lf7emgW6AIufWNI8ktUwo8FVNSJ37wcFcCRoYlDgomQ==}
     engines: {node: '>=10.16'}
     dependencies:
-      '@pnpm/cli-utils': 0.5.2_@pnpm+logger@3.2.3
+      '@pnpm/cli-utils': 0.5.3_@pnpm+logger@3.2.3
       '@pnpm/constants': 4.1.0
       '@pnpm/types': 6.4.0
       find-packages: 7.0.24
@@ -4277,7 +4277,7 @@ packages:
     hasBin: true
     dependencies:
       '@pnpm/find-workspace-dir': 2.0.0
-      '@pnpm/find-workspace-packages': 2.3.40_@pnpm+logger@3.2.3
+      '@pnpm/find-workspace-packages': 2.3.41_@pnpm+logger@3.2.3
       '@pnpm/logger': 3.2.3
       '@pnpm/types': 6.4.0
       load-json-file: 6.2.0
@@ -7721,9 +7721,6 @@ packages:
       bser: 2.1.1
     dev: true
 
-  /figgy-pudding/3.5.2:
-    resolution: {integrity: sha512-0btnI/H8f2pavGMN8w40mlSKOfTK2SVJmBfBeVIj3kNw0swwgzyRq0d5TJVOwodFmtvpPeWPN/MCcfuWF0Ezbw==}
-
   /figures/1.7.0:
     resolution: {integrity: sha1-y+Hjr/zxzUS4DK3+0o3Hk6lwHS4=}
     engines: {node: '>=0.10.0'}
@@ -10517,7 +10514,6 @@ packages:
     engines: {node: '>=8'}
     dependencies:
       yallist: 4.0.0
-    dev: false
 
   /minizlib/2.1.2:
     resolution: {integrity: sha512-bAxsR8BVfj60DWXHE3u30oHzfl4G7khkSuPW+qvpd7jFRHm7dLxOjUk1EHACJ/hxLY8phGJ0YhYHZo7jil7Qdg==}
@@ -12754,17 +12750,11 @@ packages:
       safer-buffer: 2.1.2
       tweetnacl: 0.14.5
 
-  /ssri/6.0.1:
-    resolution: {integrity: sha512-3Wge10hNcT1Kur4PDFwEieXSCMCJs/7WvSACcrMYrNp+b8kDL1/0wJch5Ni2WrtwEa2IO8OsVfeKIciKCDx/QA==}
-    dependencies:
-      figgy-pudding: 3.5.2
-
   /ssri/8.0.1:
     resolution: {integrity: sha512-97qShzy1AiyxvPNIkLWoGua7xoQzzPjQ0HAH4B0rWKo7SZ6USuPcrUiAFrws0UH8RrbWmgq3LMTObhPIHbbBeQ==}
     engines: {node: '>= 8'}
     dependencies:
       minipass: 3.1.3
-    dev: false
 
   /stack-utils/2.0.3:
     resolution: {integrity: sha512-gL//fkxfWUsIlFL2Tl42Cl6+HFALEaB1FU76I/Fy+oZjRreP7OPMXFlGbxM7NQsI0ZpUfw76sHnv0WNYuTb7Iw==}

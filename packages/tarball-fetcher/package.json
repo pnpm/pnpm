@@ -39,7 +39,7 @@
     "@pnpm/fetcher-base": "workspace:9.0.4",
     "@pnpm/fetching-types": "workspace:1.0.0",
     "@zkochan/retry": "^0.2.0",
-    "ssri": "6.0.1"
+    "ssri": "^8.0.1"
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:2.1.0",
