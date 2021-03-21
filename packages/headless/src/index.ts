@@ -177,12 +177,12 @@ export default async (opts: HeadlessOptions) => {
         currentLockfile,
         dryRun: false,
         hoistedDependencies: opts.hoistedDependencies,
-        hoistedModulesDir: (opts.hoistPattern && hoistedModulesDir) ?? undefined,
+        hoistedModulesDir: (opts.hoistPattern == null) ? undefined : hoistedModulesDir,
         include: opts.include,
         lockfileDir,
         pruneStore: opts.pruneStore,
         pruneVirtualStore: opts.pruneVirtualStore,
-        publicHoistedModulesDir: (opts.publicHoistPattern && publicHoistedModulesDir) ?? undefined,
+        publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
         registries: opts.registries,
         skipped,
         storeController: opts.storeController,
@@ -346,7 +346,7 @@ export default async (opts: HeadlessOptions) => {
           })
       }
       const extraBinPaths = [...opts.extraBinPaths ?? []]
-      if (opts.hoistPattern) {
+      if (opts.hoistPattern != null) {
         extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
       }
       let extraEnv: Record<string, string> | undefined
