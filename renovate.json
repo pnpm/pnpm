@@ -90,10 +90,6 @@
       "allowedVersions": "2.2.1"
     },
     {
-      "packageNames": ["ssri"],
-      "allowedVersions": "6.0.1"
-    },
-    {
       "packageNames": ["uuid"],
       "allowedVersions": "^3.4.0"
     },
