@@ -24,7 +24,7 @@
     "test": "pnpm run compile",
     "lint": "eslint -c ../../eslint.json src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:3.2.1",

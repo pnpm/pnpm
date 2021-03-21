@@ -47,10 +47,10 @@ export async function read (modulesDir: string): Promise<Modules | null> {
   }
   switch (modules.shamefullyHoist) {
   case true:
-    if (!modules.publicHoistPattern) {
+    if (modules.publicHoistPattern == null) {
       modules.publicHoistPattern = ['*']
     }
-    if (modules.hoistedAliases && !modules.hoistedDependencies) {
+    if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
       modules.hoistedDependencies = {}
       for (const depPath of Object.keys(modules.hoistedAliases)) {
         modules.hoistedDependencies[depPath] = {}
@@ -61,10 +61,10 @@ export async function read (modulesDir: string): Promise<Modules | null> {
     }
     break
   case false:
-    if (!modules.publicHoistPattern) {
+    if (modules.publicHoistPattern == null) {
       modules.publicHoistPattern = []
     }
-    if (modules.hoistedAliases && !modules.hoistedDependencies) {
+    if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
       modules.hoistedDependencies = {}
       for (const depPath of Object.keys(modules.hoistedAliases)) {
         modules.hoistedDependencies[depPath] = {}
@@ -95,14 +95,14 @@ export async function write (
   const saveModules = { ...modules }
   if (saveModules.skipped) saveModules.skipped.sort()
 
-  if (!saveModules.hoistPattern) {
+  if (saveModules.hoistPattern == null || (saveModules.hoistPattern as unknown) === '') {
     // Because the YAML writer fails on undefined fields
     delete saveModules.hoistPattern
   }
-  if (!saveModules.publicHoistPattern) {
+  if (saveModules.publicHoistPattern == null) {
     delete saveModules.publicHoistPattern
   }
-  if (!saveModules.hoistedAliases || !saveModules.hoistPattern && !saveModules.publicHoistPattern) {
+  if ((saveModules.hoistedAliases == null) || (saveModules.hoistPattern == null) && (saveModules.publicHoistPattern == null)) {
     delete saveModules.hoistedAliases
   }
   // We should store the absolute virtual store directory path on Windows

@@ -65,7 +65,7 @@
     "prepublishOnly": "pnpm run compile",
     "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.js i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
     "prepareFixtures": "registry-mock prepare && run-p -r registry-mock runPrepareFixtures",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:5.2.12",

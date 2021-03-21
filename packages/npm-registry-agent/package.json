@@ -16,7 +16,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "devDependencies": {
     "@types/http-proxy-agent": "^2.0.2",

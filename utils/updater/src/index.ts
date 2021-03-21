@@ -115,7 +115,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     break
   }
-  scripts.compile = 'rimraf lib tsconfig.tsbuildinfo && tsc --build'
+  scripts.compile = 'rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix'
   delete scripts.tsc
   let homepage: string
   let repository: string | { type: 'git', url: string }
