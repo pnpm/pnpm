@@ -69,7 +69,7 @@
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "funding": "https://opencollective.com/pnpm"
 }
