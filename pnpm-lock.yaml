@@ -2272,6 +2272,7 @@ importers:
       '@pnpm/assert-project': workspace:*
       '@pnpm/cli-meta': workspace:1.0.2
       '@pnpm/cli-utils': workspace:0.5.3
+      '@pnpm/client': workspace:2.0.24
       '@pnpm/command': workspace:1.0.0
       '@pnpm/common-cli-options-help': workspace:0.3.1
       '@pnpm/config': workspace:11.14.1
@@ -2285,8 +2286,8 @@ importers:
       '@pnpm/lockfile-types': workspace:2.2.0
       '@pnpm/logger': ^3.2.3
       '@pnpm/modules-yaml': workspace:8.0.6
-      '@pnpm/outdated': workspace:7.2.29
       '@pnpm/parse-cli-args': workspace:3.2.2
+      '@pnpm/pick-registry-for-package': workspace:1.1.0
       '@pnpm/plugin-commands-audit': workspace:3.0.5
       '@pnpm/plugin-commands-import': workspace:1.0.109
       '@pnpm/plugin-commands-installation': workspace:3.5.27
@@ -2362,6 +2363,7 @@ importers:
       '@pnpm/assert-project': link:../../privatePackages/assert-project
       '@pnpm/cli-meta': link:../cli-meta
       '@pnpm/cli-utils': link:../cli-utils
+      '@pnpm/client': link:../client
       '@pnpm/command': link:../command
       '@pnpm/common-cli-options-help': link:../common-cli-options-help
       '@pnpm/config': link:../config
@@ -2375,8 +2377,8 @@ importers:
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/logger': 3.2.3
       '@pnpm/modules-yaml': link:../modules-yaml
-      '@pnpm/outdated': link:../outdated
       '@pnpm/parse-cli-args': link:../parse-cli-args
+      '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
       '@pnpm/plugin-commands-audit': link:../plugin-commands-audit
       '@pnpm/plugin-commands-import': link:../plugin-commands-import
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation

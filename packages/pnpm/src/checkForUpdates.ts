@@ -2,11 +2,12 @@ import { homedir } from 'os'
 import path from 'path'
 import packageManager from '@pnpm/cli-meta'
 import { Config } from '@pnpm/config'
-import loadJsonFile from 'load-json-file'
-import writeJsonFile from 'write-json-file'
-import { createManifestGetter } from '@pnpm/outdated/lib/createManifestGetter'
+import { createResolver } from '@pnpm/client'
+import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import storePath from '@pnpm/store-path'
 import { updateCheckLogger } from '@pnpm/core-loggers'
+import loadJsonFile from 'load-json-file'
+import writeJsonFile from 'write-json-file'
 
 interface State {
   lastUpdateCheck?: string
@@ -28,17 +29,21 @@ export default async function (config: Config) {
 
   try {
     const storeDir = await storePath(config.dir, config.storeDir)
-    const manifestGetter = createManifestGetter({
+    const resolve = createResolver({
       ...config,
-      fullMetadata: false,
-      lockfileDir: config.lockfileDir ?? config.dir,
+      authConfig: config.rawConfig,
       storeDir,
     })
-    const latestManifest = await manifestGetter(packageManager.name, 'latest')
-    if (latestManifest?.version) {
+    const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
+      lockfileDir: config.lockfileDir ?? config.dir,
+      preferredVersions: {},
+      projectDir: config.dir,
+      registry: pickRegistryForPackage(config.registries, packageManager.name, 'latest'),
+    })
+    if (resolution?.manifest?.version) {
       updateCheckLogger.debug({
         currentVersion: packageManager.version,
-        latestVersion: latestManifest.version,
+        latestVersion: resolution?.manifest.version,
       })
     }
     await writeJsonFile(stateFile, {
