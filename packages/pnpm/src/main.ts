@@ -115,15 +115,6 @@ export default async function run (inputArgv: string[]) {
     write = (text) => process.stdout.write(stripAnsi(text))
   }
 
-  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
-
-  // Don't check for updates
-  //   1. on CI environments
-  //   2. when in the middle of an actual update
-  if (!isCI && !selfUpdate) {
-    await checkForUpdates()
-  }
-
   const reporterType: ReporterType = (() => {
     if (config.loglevel === 'silent') return 'silent'
     if (config.reporter) return config.reporter as ReporterType
@@ -136,6 +127,8 @@ export default async function run (inputArgv: string[]) {
     config,
   })
   global['reporterInitialized'] = reporterType
+
+  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
 
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -194,6 +187,13 @@ export default async function run (inputArgv: string[]) {
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
   const [output, exitCode] = await new Promise((resolve, reject) => {
     setTimeout(async () => {
+      // Don't check for updates
+      //   1. on CI environments
+      //   2. when in the middle of an actual update
+      if (!isCI && !selfUpdate) {
+        await checkForUpdates(config)
+      }
+
       if (config.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',

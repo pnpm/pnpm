@@ -17,6 +17,7 @@ import {
   StageLog,
   StatsLog,
   SummaryLog,
+  UpdateCheckLog,
 } from './all'
 
 export * from './all'
@@ -40,3 +41,4 @@ export type Log =
   | StageLog
   | StatsLog
   | SummaryLog
+  | UpdateCheckLog

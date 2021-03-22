@@ -16,9 +16,7 @@
     "bin"
   ],
   "optionalDependencies": {
-    "graceful-fs": "4.2.4",
-    "node-gyp": "^7.1.2",
-    "update-notifier": "^5.1.0"
+    "node-gyp": "^7.1.2"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -37,6 +35,7 @@
     "@pnpm/lockfile-types": "workspace:2.2.0",
     "@pnpm/logger": "^3.2.3",
     "@pnpm/modules-yaml": "workspace:8.0.6",
+    "@pnpm/outdated": "workspace:7.2.29",
     "@pnpm/parse-cli-args": "workspace:3.2.2",
     "@pnpm/plugin-commands-audit": "workspace:3.0.5",
     "@pnpm/plugin-commands-import": "workspace:1.0.109",
@@ -52,6 +51,7 @@
     "@pnpm/read-package-json": "workspace:4.0.0",
     "@pnpm/read-project-manifest": "workspace:1.1.7",
     "@pnpm/run-npm": "workspace:2.0.3",
+    "@pnpm/store-path": "5.0.0-0",
     "@pnpm/tabtab": "^0.1.2",
     "@pnpm/types": "workspace:6.4.0",
     "@pnpm/write-project-manifest": "workspace:1.1.7",

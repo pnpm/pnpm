@@ -58,6 +58,9 @@
       "path": "../modules-yaml"
     },
     {
+      "path": "../outdated"
+    },
+    {
       "path": "../parse-cli-args"
     },
     {
