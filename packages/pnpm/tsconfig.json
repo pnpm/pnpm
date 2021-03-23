@@ -25,6 +25,9 @@
       "path": "../cli-utils"
     },
     {
+      "path": "../client"
+    },
+    {
       "path": "../command"
     },
     {
@@ -59,6 +62,9 @@
     },
     {
       "path": "../parse-cli-args"
+    },
+    {
+      "path": "../pick-registry-for-package"
     },
     {
       "path": "../pkgs-graph"

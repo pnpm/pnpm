@@ -16,6 +16,7 @@ import reportScope from './reportScope'
 import reportSkippedOptionalDependencies from './reportSkippedOptionalDependencies'
 import reportStats from './reportStats'
 import reportSummary from './reportSummary'
+import reportUpdateCheck from './reportUpdateCheck'
 
 export default function (
   log$: {
@@ -38,6 +39,7 @@ export default function (
     scope: Rx.Observable<logs.ScopeLog>
     skippedOptionalDependency: Rx.Observable<logs.SkippedOptionalDependencyLog>
     packageImportMethod: Rx.Observable<logs.PackageImportMethodLog>
+    updateCheck: Rx.Observable<logs.UpdateCheckLog>
   },
   opts: {
     appendOnly?: boolean
@@ -89,6 +91,7 @@ export default function (
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
     reportContext(log$, { cwd }),
+    reportUpdateCheck(log$.updateCheck),
   ]
 
   if (!opts.appendOnly) {

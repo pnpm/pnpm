@@ -100,6 +100,7 @@ export function toOutput$ (
   const skippedOptionalDependencyPushStream = new Rx.Subject<logs.SkippedOptionalDependencyLog>()
   const scopePushStream = new Rx.Subject<logs.ScopeLog>()
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
+  const updateCheckPushStream = new Rx.Subject<logs.UpdateCheckLog>()
   setTimeout(() => {
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
@@ -157,6 +158,9 @@ export function toOutput$ (
       case 'pnpm:request-retry':
         requestRetryPushStream.next(log)
         break
+      case 'pnpm:update-check':
+        updateCheckPushStream.next(log)
+        break
       case 'pnpm' as any: // eslint-disable-line
       case 'pnpm:global' as any: // eslint-disable-line
       case 'pnpm:store' as any: // eslint-disable-line
@@ -186,6 +190,7 @@ export function toOutput$ (
     stage: Rx.from(stagePushStream),
     stats: Rx.from(statsPushStream),
     summary: Rx.from(summaryPushStream),
+    updateCheck: Rx.from(updateCheckPushStream),
   }
   const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = reporterForClient(
     log$,
