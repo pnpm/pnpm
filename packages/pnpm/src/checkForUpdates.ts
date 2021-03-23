@@ -27,30 +27,26 @@ export default async function (config: Config) {
     (Date.now() - new Date(state.lastUpdateCheck).valueOf()) < UPDATE_CHECK_FREQUENCY
   ) return
 
-  try {
-    const storeDir = await storePath(config.dir, config.storeDir)
-    const resolve = createResolver({
-      ...config,
-      authConfig: config.rawConfig,
-      storeDir,
+  const storeDir = await storePath(config.dir, config.storeDir)
+  const resolve = createResolver({
+    ...config,
+    authConfig: config.rawConfig,
+    storeDir,
+  })
+  const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
+    lockfileDir: config.lockfileDir ?? config.dir,
+    preferredVersions: {},
+    projectDir: config.dir,
+    registry: pickRegistryForPackage(config.registries, packageManager.name, 'latest'),
+  })
+  if (resolution?.manifest?.version) {
+    updateCheckLogger.debug({
+      currentVersion: packageManager.version,
+      latestVersion: resolution?.manifest.version,
     })
-    const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
-      lockfileDir: config.lockfileDir ?? config.dir,
-      preferredVersions: {},
-      projectDir: config.dir,
-      registry: pickRegistryForPackage(config.registries, packageManager.name, 'latest'),
-    })
-    if (resolution?.manifest?.version) {
-      updateCheckLogger.debug({
-        currentVersion: packageManager.version,
-        latestVersion: resolution?.manifest.version,
-      })
-    }
-    await writeJsonFile(stateFile, {
-      ...state,
-      lastUpdateCheck: new Date().toUTCString(),
-    })
-  } catch (err) {
-    // ignore any issues
   }
+  await writeJsonFile(stateFile, {
+    ...state,
+    lastUpdateCheck: new Date().toUTCString(),
+  })
 }

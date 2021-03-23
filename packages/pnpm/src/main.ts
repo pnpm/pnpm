@@ -191,7 +191,7 @@ export default async function run (inputArgv: string[]) {
       //   1. on CI environments
       //   2. when in the middle of an actual update
       if (!isCI && !selfUpdate) {
-        await checkForUpdates(config)
+        checkForUpdates(config).catch(() => { /* Ignore */ })
       }
 
       if (config.force === true) {
