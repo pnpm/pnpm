@@ -25,6 +25,9 @@
       "path": "../cli-utils"
     },
     {
+      "path": "../client"
+    },
+    {
       "path": "../command"
     },
     {
@@ -58,10 +61,10 @@
       "path": "../modules-yaml"
     },
     {
-      "path": "../outdated"
+      "path": "../parse-cli-args"
     },
     {
-      "path": "../parse-cli-args"
+      "path": "../pick-registry-for-package"
     },
     {
       "path": "../pkgs-graph"
