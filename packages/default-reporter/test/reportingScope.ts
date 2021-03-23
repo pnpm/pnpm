@@ -1,11 +1,8 @@
 import { Config } from '@pnpm/config'
+import { scopeLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
-import logger, {
-  createStreamParser,
-} from '@pnpm/logger'
+import { createStreamParser } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
-
-const scopeLogger = logger<object>('scope')
 
 test('does not print scope of non-recursive install in a workspace', (done) => {
   const output$ = toOutput$({

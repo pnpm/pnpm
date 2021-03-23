@@ -35,6 +35,7 @@
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/types": "workspace:6.4.0",
     "ansi-diff": "^1.1.1",
+    "boxen": "^5.0.0",
     "chalk": "^4.1.0",
     "normalize-path": "^3.0.0",
     "pretty-bytes": "^5.5.0",
