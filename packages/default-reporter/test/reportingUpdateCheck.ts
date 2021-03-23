@@ -3,6 +3,7 @@ import { updateCheckLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
+import stripAnsi from 'strip-ansi'
 
 test('does not print update if latest is less than current', (done) => {
   const output$ = toOutput$({
@@ -51,7 +52,7 @@ test('print update notification if the latest version is greater than the curren
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toMatchSnapshot()
+      expect(stripAnsi(output)).toMatchSnapshot()
     },
   })
 })
