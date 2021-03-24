@@ -36,16 +36,17 @@ export default async function (maybeOpts: StoreStatusOptions) {
       return {
         depPath,
         integrity: pkg.resolution['integrity'],
+        tarball: pkg.resolution['tarball'],
         pkgPath: dp.resolve(registries, depPath),
         ...nameVerFromPkgSnapshot(depPath, pkg),
       }
     })
 
   const cafsDir = path.join(storeDir, 'files')
-  const modified = await pFilter(pkgs, async ({ integrity, pkgPath, depPath, name }) => {
+  const modified = await pFilter(pkgs, async ({ integrity, tarball, pkgPath, depPath, name }) => {
     const pkgIndexFilePath = integrity
       ? getFilePathInCafs(cafsDir, integrity, 'index')
-      : path.join(storeDir, pkgPath, 'integrity.json')
+      : path.join(storeDir, tarball ? dp.depPathToFilename(depPath, opts.dir) : pkgPath, 'integrity.json')
     const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, opts.dir), 'node_modules', name), files)) === false
   }, { concurrency: 8 })

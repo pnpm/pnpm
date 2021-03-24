@@ -52,6 +52,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
     'is-positive@3.1.0',
     'react@15.4.1',
     'webpack@5.24.2',
+    'koorchik/node-mole-rpc',
   ])
   // store status does not fail on not installed optional dependencies
   await execa('node', [pnpmBin, 'add', 'not-compatible-with-any-os', '--save-optional', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
