@@ -1,7 +1,10 @@
 import path from 'path'
 import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import {
+  nameVerFromPkgSnapshot,
+  packageIdFromSnapshot,
+} from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from 'dependency-path'
 import dint from 'dint'
@@ -32,21 +35,22 @@ export default async function (maybeOpts: StoreStatusOptions) {
   const pkgs = Object.keys(wantedLockfile.packages ?? {})
     .filter((depPath) => !skipped.has(depPath))
     .map((depPath) => {
-      const pkg = wantedLockfile.packages![depPath]
+      const pkgSnapshot = wantedLockfile.packages![depPath]
+      const id = packageIdFromSnapshot(depPath, pkgSnapshot, registries)
       return {
         depPath,
-        integrity: pkg.resolution['integrity'],
-        tarball: pkg.resolution['tarball'],
+        id,
+        integrity: pkgSnapshot.resolution['integrity'],
         pkgPath: dp.resolve(registries, depPath),
-        ...nameVerFromPkgSnapshot(depPath, pkg),
+        ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }
     })
 
   const cafsDir = path.join(storeDir, 'files')
-  const modified = await pFilter(pkgs, async ({ integrity, tarball, pkgPath, depPath, name }) => {
+  const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
     const pkgIndexFilePath = integrity
       ? getFilePathInCafs(cafsDir, integrity, 'index')
-      : path.join(storeDir, tarball ? dp.depPathToFilename(depPath, opts.dir) : pkgPath, 'integrity.json')
+      : path.join(storeDir, dp.depPathToFilename(id, opts.dir), 'integrity.json')
     const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, opts.dir), 'node_modules', name), files)) === false
   }, { concurrency: 8 })
