@@ -58,6 +58,7 @@ export const types = Object.assign({
   'modules-dir': String,
   'network-concurrency': Number,
   'node-linker': ['pnp'],
+  noproxy: String,
   'npm-path': String,
   offline: Boolean,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
