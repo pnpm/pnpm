@@ -15,7 +15,10 @@ export default function (
 
     if (parsedSpec == null) return null
 
-    const commit = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish ?? 'master', parsedSpec.gitRange)
+    const pref = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
+      ? 'master'
+      : parsedSpec.gitCommittish
+    const commit = await resolveRef(parsedSpec.fetchSpec, pref, parsedSpec.gitRange)
     let resolution
 
     if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
