@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 3.5.28
+
+### Patch Changes
+
+- 4f1ce907a: Allow `--https-proxy`, `--proxy`, and `--noproxy` CLI options with the `install`, `add`, `update` commands.
+- Updated dependencies [4f1ce907a]
+  - @pnpm/config@11.14.2
+  - @pnpm/cli-utils@0.5.4
+  - @pnpm/plugin-commands-rebuild@2.2.34
+  - @pnpm/store-connection-manager@1.0.4
+  - @pnpm/find-workspace-packages@2.3.42
+  - supi@0.45.4
+  - @pnpm/filter-workspace-packages@2.3.14
+
 ## 3.5.27
 
 ### Patch Changes

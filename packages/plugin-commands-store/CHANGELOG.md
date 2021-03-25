@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.79
+
+### Patch Changes
+
+- b72e8b308: fix: use correct path fix for integrity.json with git dependency
+- Updated dependencies [4f1ce907a]
+  - @pnpm/config@11.14.2
+  - @pnpm/cli-utils@0.5.4
+  - @pnpm/store-connection-manager@1.0.4
+
 ## 2.0.78
 
 ### Patch Changes
