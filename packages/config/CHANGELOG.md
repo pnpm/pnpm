@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 11.14.2
+
+### Patch Changes
+
+- 4f1ce907a: Add type for `noproxy`.
+
 ## 11.14.1
 
 ### Patch Changes

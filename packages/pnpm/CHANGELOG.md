@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.18.9
+
+### Patch Changes
+
+- `pnpm store status` should look for the `integrity.json` file at the right place ([#2597](https://github.com/pnpm/pnpm/issues/2597)).
+- Allow `--https-proxy`, `--proxy`, and `--noproxy` CLI options with the `install`, `add`, `update` commands ([#3274](https://github.com/pnpm/pnpm/issues/3274)).
+
 ## 5.18.8
 
 ### Patch Changes
