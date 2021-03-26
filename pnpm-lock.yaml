@@ -2328,7 +2328,7 @@ importers:
       deep-require-cwd: 1.0.0
       delay: ^5.0.0
       dir-is-case-sensitive: ^2.0.0
-      esbuild: ^0.9.0
+      esbuild: ^0.10.0
       execa: ^5.0.0
       exists-link: 2.0.0
       is-ci: ^3.0.0
@@ -2419,7 +2419,7 @@ importers:
       deep-require-cwd: 1.0.0
       delay: 5.0.0
       dir-is-case-sensitive: 2.0.0
-      esbuild: 0.9.6
+      esbuild: 0.10.0
       execa: 5.0.0
       exists-link: 2.0.0
       is-ci: 3.0.0
@@ -7161,8 +7161,8 @@ packages:
       es6-promise: 4.2.8
     dev: false
 
-  /esbuild/0.9.6:
-    resolution: {integrity: sha512-F6vASxU0wT/Davt9aj2qtDwDNSkQxh9VbyO56M7PDWD+D/Vgq/rmUDGDQo7te76W5auauVojjnQr/wTu3vpaUA==}
+  /esbuild/0.10.0:
+    resolution: {integrity: sha512-g+/Fk18bP7GAx0eG2RTfvjbsdB6RSchvvrrokFX8UexrTtPo0ZF0R1KViUu5v0A4Uu8m3I7pZhEyZveiOk0/JA==}
     hasBin: true
     requiresBuild: true
     dev: true
