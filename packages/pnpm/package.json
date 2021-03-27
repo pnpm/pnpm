@@ -66,7 +66,7 @@
     "@types/semver": "^7.3.4",
     "@types/update-notifier": "^5.0.0",
     "@types/which": "^2.0.0",
-    "@zkochan/libnpx": "11.0.3",
+    "@zkochan/libnpx": "13.0.1",
     "@zkochan/retry": "^0.2.0",
     "@zkochan/rimraf": "^1.0.0",
     "anonymous-npm-registry-client": "0.1.2",
