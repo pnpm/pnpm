@@ -45,7 +45,9 @@ async function updateTSConfig (
   const references = [] as Array<{ path: string }>
   for (const spec of Object.values(deps)) {
     if (!spec.startsWith('link:') || spec.length === 5) continue
-    references.push({ path: spec.substr(5) })
+    const relativePath = spec.substr(5)
+    if (!await exists(path.join(dir, relativePath, 'tsconfig.json'))) continue
+    references.push({ path: relativePath })
   }
   await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
     extends: './tsconfig.json',
