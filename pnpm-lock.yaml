@@ -2318,7 +2318,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/update-notifier': ^5.0.0
       '@types/which': ^2.0.0
-      '@zkochan/libnpx': 11.0.3
+      '@zkochan/libnpx': 13.0.1
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^1.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -2409,7 +2409,7 @@ importers:
       '@types/semver': 7.3.4
       '@types/update-notifier': 5.0.0
       '@types/which': 2.0.0
-      '@zkochan/libnpx': 11.0.3
+      '@zkochan/libnpx': 13.0.1
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -4978,12 +4978,13 @@ packages:
     dependencies:
       argparse: 2.0.1
 
-  /@zkochan/libnpx/11.0.3:
-    resolution: {integrity: sha512-pkwTuA8Cd301zhg0Gz35nJ2sxKhGr5lFKFI6UT9ISEedGSYzxATsFlCF41+i/0kZcnZTG1nNlR5XknkZBGryuw==}
-    engines: {node: '>=8.15'}
+  /@zkochan/libnpx/13.0.1:
+    resolution: {integrity: sha512-csFWr7oHFCoHsysci1WA07SD9LWfz3OWicmOGBLumCMZj9x44ifvlLV5V7WGgxbGm/UdLb3itgX4DjD1KE50sg==}
+    engines: {node: '>=10.13'}
     dependencies:
-      '@zkochan/npm-package-arg': 1.0.2
+      '@zkochan/npm-package-arg': 2.0.1
       dotenv: 8.2.0
+      enquirer: 2.3.6
       rimraf: 3.0.2
       safe-buffer: 5.2.1
       which: 2.0.2
@@ -5011,22 +5012,13 @@ packages:
       which: 2.0.2
     dev: false
 
-  /@zkochan/npm-package-arg/1.0.2:
-    resolution: {integrity: sha512-9hHFHZTOexP/oge2GMQzPlhdi9IJ+Zgnobh7sNfSdIZepULMM/lNQE4hmkFDC2zk8+OBibtfHbUPulNZI18TQA==}
-    dependencies:
-      hosted-git-info: 2.8.8
-      semver: 6.3.0
-      validate-npm-package-name: 3.0.0
-    dev: true
-
   /@zkochan/npm-package-arg/2.0.1:
     resolution: {integrity: sha512-VvK3/jS9m/quSU970L5sZSvX9wmmhXnEu/GfffCz0/ZcMAUs471FFz2UJu56T/8N8hcKPODYuKHz8wL5xZZY3w==}
     engines: {node: '>=10.13'}
     dependencies:
-      hosted-git-info: 4.0.1
+      hosted-git-info: 4.0.2
       semver: 7.3.5
       validate-npm-package-name: 3.0.0
-    dev: false
 
   /@zkochan/retry/0.2.0:
     resolution: {integrity: sha512-WhB+2B/ZPlW2Xy/kMJBrMbqecWXcbDDgn0K0wKBAgO2OlBTz1iLJrRWduo+DGGn0Akvz1Lu4Xvls7dJojximWw==}
@@ -8360,6 +8352,12 @@ packages:
 
   /hosted-git-info/4.0.1:
     resolution: {integrity: sha512-eT7NrxAsppPRQEBSwKSosReE+v8OzABwEScQYk5d4uxaEPlzxTIku7LINXtBGalthkLhJnq5lBI89PfK43zAKg==}
+    engines: {node: '>=10'}
+    dependencies:
+      lru-cache: 6.0.0
+
+  /hosted-git-info/4.0.2:
+    resolution: {integrity: sha512-c9OGXbZ3guC/xOlCg1Ci/VgWlwsqDv1yMQL1CWqXDL0hDjXuNcq0zuR4xqPSuasI3kqFDhqSyTjREz5gzq0fXg==}
     engines: {node: '>=10'}
     dependencies:
       lru-cache: 6.0.0
