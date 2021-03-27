@@ -171,13 +171,7 @@ so you may run "pnpm -w ${scriptName}"`,
     lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
   }
   try {
-    if (manifest.scripts?.[`pre${scriptName}`]) {
-      await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
-    }
     await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
-    if (manifest.scripts?.[`post${scriptName}`]) {
-      await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
-    }
   } catch (err) {
     if (opts.bail !== false) {
       throw err

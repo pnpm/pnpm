@@ -84,11 +84,7 @@ test('run: pass the args to the command that is specfied in the build script', a
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([
-    [],
-    ['arg', '--flag=true', '--help', '-h'],
-    [],
-  ])
+  expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
 test('run: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
@@ -109,11 +105,7 @@ test('run: pass the args to the command that is specfied in the build script of 
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([
-    [],
-    ['arg', '--flag=true', '--help', '-h'],
-    [],
-  ])
+  expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
 test('test: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
@@ -134,11 +126,7 @@ test('test: pass the args to the command that is specfied in the build script of
   }, ['arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([
-    [],
-    ['arg', '--flag=true', '--help', '-h'],
-    [],
-  ])
+  expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
 test('run start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
@@ -159,11 +147,7 @@ test('run start: pass the args to the command that is specfied in the build scri
   }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([
-    [],
-    ['arg', '--flag=true', '--help', '-h'],
-    [],
-  ])
+  expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
 test('run stop: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
@@ -184,11 +168,7 @@ test('run stop: pass the args to the command that is specfied in the build scrip
   }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([
-    [],
-    ['arg', '--flag=true', '--help', '-h'],
-    [],
-  ])
+  expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
 test('restart: run stop, restart and start', async () => {
@@ -217,15 +197,9 @@ test('restart: run stop, restart and start', async () => {
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
   expect(scriptsRan).toStrictEqual([
-    'prestop',
     'stop',
-    'poststop',
-    'prerestart',
     'restart',
-    'postrestart',
-    'prestart',
     'start',
-    'poststart',
   ])
 })
 
