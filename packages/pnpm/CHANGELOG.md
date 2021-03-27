@@ -43,6 +43,8 @@
   - pnpm v4: `pnpm link foo`
   - pnpm v5: `pnpm link --global foo`
 
+- pnpm's command file's extension changed to `.cjs` (`bin/pnpm.js`=>`bin/pnpm.cjs`).
+
 ### Minor Changes
 
 - A new command added: [pnpm fetch](https://pnpm.io/cli/fetch).

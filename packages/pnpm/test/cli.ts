@@ -135,14 +135,14 @@ test('exit code from plugin is used to end the process', () => {
   expect(result.stdout.toString()).toMatch(/is-positive/)
 })
 
-const PNPM_CLI = path.join(__dirname, '../dist/pnpm.js')
+const PNPM_CLI = path.join(__dirname, '../dist/pnpm.cjs')
 
 test('the bundled CLI is independent', async () => {
   const project = prepare()
 
-  await fs.copyFile(PNPM_CLI, 'pnpm.js')
+  await fs.copyFile(PNPM_CLI, 'pnpm.cjs')
 
-  await execa('node', ['./pnpm.js', 'add', 'is-positive'])
+  await execa('node', ['./pnpm.cjs', 'add', 'is-positive'])
 
   await project.has('is-positive')
 })

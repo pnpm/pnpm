@@ -7,7 +7,7 @@ import execa from 'execa'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
 test('pnpm recursive rebuild', async () => {
   const projects = preparePackages([
