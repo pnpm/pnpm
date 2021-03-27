@@ -100,6 +100,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
     scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
+    if (manifest.name === '@pnpm/headless') {
+      scripts._test = `ts-node test/pretest && ${scripts._test}`
+    }
     break
   }
   default:
@@ -116,6 +119,14 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       }
     }
     break
+  }
+  if (scripts._test) {
+    if (scripts.pretest) {
+      scripts._test = `pnpm pretest && ${scripts._test}`
+    }
+    if (scripts.posttest) {
+      scripts._test = `${scripts._test} && pnpm posttest`
+    }
   }
   scripts.compile = 'rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix'
   delete scripts.tsc

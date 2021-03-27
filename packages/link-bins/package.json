@@ -13,9 +13,9 @@
   },
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
-    "pre_test": "ncp test/fixtures test/fixtures_for_testing",
-    "post_test": "rimraf test/fixtures_for_testing",
-    "_test": "jest",
+    "pretest": "ncp test/fixtures test/fixtures_for_testing",
+    "posttest": "rimraf test/fixtures_for_testing",
+    "_test": "pnpm pretest && jest && pnpm posttest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json --project . --fix",

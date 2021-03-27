@@ -38,7 +38,7 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm run compile && jest"
+    "test": "pnpm pretest && pnpm run compile && jest"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:2.1.0",

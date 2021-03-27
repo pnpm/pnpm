@@ -66,7 +66,7 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
     "pretest": "rimraf .tmp",
-    "_test": "jest",
+    "_test": "pnpm pretest && jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"

@@ -37,7 +37,7 @@
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm run compile && jest"
+    "test": "pnpm pretest && pnpm run compile && jest"
   },
   "dependencies": {
     "@pnpm/assert-store": "workspace:*",
