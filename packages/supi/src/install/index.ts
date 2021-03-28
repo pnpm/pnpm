@@ -141,11 +141,7 @@ export async function mutateModules (
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
   opts['forceNewModules'] = installsOnly
-  const ctx = await getContext(projects, opts)
-  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
-    ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
-    : true
-  const rootProjectManifest = ctx.projects.find(({ id }) => id === '.')?.manifest ??
+  const rootProjectManifest = projects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly hear.
     await safeReadProjectManifestOnly(opts.lockfileDir)
@@ -167,6 +163,10 @@ export async function mutateModules (
       opts.hooks.readPackage = versionsOverrider
     }
   }
+  const ctx = await getContext(projects, opts)
+  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
+    ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
+    : true
 
   for (const { manifest, rootDir } of ctx.projects) {
     if (!manifest) {
