@@ -137,7 +137,7 @@ importers:
       '@types/node': ^14.14.33
       '@types/ssri': ^7.1.0
       '@types/tar-stream': ^2.1.0
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       concat-stream: ^2.0.0
       decompress-maybe: ^1.0.0
       get-stream: ^6.0.0
@@ -151,7 +151,7 @@ importers:
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/store-controller-types': link:../store-controller-types
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       concat-stream: 2.0.0
       decompress-maybe: 1.0.0
       get-stream: 6.0.0
@@ -642,7 +642,7 @@ importers:
       '@pnpm/types': workspace:6.4.0
       '@types/is-ci': ^3.0.0
       '@types/ramda': ^0.27.35
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       is-ci: ^3.0.0
       path-absolute: ^1.0.1
       ramda: ^0.27.1
@@ -654,7 +654,7 @@ importers:
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/read-projects-context': link:../read-projects-context
       '@pnpm/types': link:../types
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       is-ci: 3.0.0
       path-absolute: 1.0.1
       ramda: 0.27.1
@@ -670,13 +670,13 @@ importers:
       '@pnpm/fetcher-base': workspace:9.0.4
       '@pnpm/git-fetcher': 'link:'
       '@pnpm/types': workspace:6.4.0
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       execa: ^5.0.0
       p-defer: ^3.0.0
       tempy: ^1.0.0
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       execa: 5.0.0
       tempy: 1.0.1
     devDependencies:
@@ -752,7 +752,7 @@ importers:
       '@pnpm/read-project-manifest': workspace:1.1.7
       '@pnpm/read-projects-context': workspace:4.0.16
       '@pnpm/store-controller-types': workspace:10.0.0
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/symlink-dependency': workspace:3.0.13
       '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:6.4.0
@@ -760,7 +760,7 @@ importers:
       '@types/ramda': ^0.27.35
       '@types/rimraf': ^3.0.0
       '@types/sinon': ^9.0.11
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       dependency-path: workspace:5.1.1
       is-windows: ^1.0.2
       isexe: 2.0.0
@@ -809,13 +809,13 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/read-projects-context': link:../read-projects-context
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/fs-extra': 9.0.8
       '@types/ramda': 0.27.39
       '@types/rimraf': 3.0.0
       '@types/sinon': 9.0.11
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       is-windows: 1.0.2
       isexe: 2.0.0
       load-json-file: 6.2.0
@@ -1004,7 +1004,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.35
       '@types/write-file-atomic': ^3.0.1
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       js-yaml: npm:@zkochan/js-yaml@0.0.4
       normalize-path: ^3.0.0
       ramda: ^0.27.1
@@ -1020,7 +1020,7 @@ importers:
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/merge-lockfile-changes': link:../merge-lockfile-changes
       '@pnpm/types': link:../types
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       js-yaml: /@zkochan/js-yaml/0.0.4
       normalize-path: 3.0.0
       ramda: 0.27.1
@@ -1214,7 +1214,7 @@ importers:
       '@pnpm/store-controller-types': workspace:10.0.0
       '@pnpm/types': workspace:6.4.0
       '@types/ramda': ^0.27.35
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       dependency-path: workspace:5.1.1
       ramda: ^0.27.1
     dependencies:
@@ -1226,7 +1226,7 @@ importers:
       '@pnpm/remove-bins': link:../remove-bins
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       dependency-path: link:../dependency-path
       ramda: 0.27.1
     devDependencies:
@@ -1260,7 +1260,7 @@ importers:
       '@pnpm/lockfile-utils': workspace:2.0.22
       '@pnpm/logger': ^3.2.3
       '@pnpm/mount-modules': 'link:'
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': workspace:6.4.0
       dependency-path: workspace:5.1.1
       fuse-native: ^2.2.6
@@ -1272,7 +1272,7 @@ importers:
       '@pnpm/cafs': link:../cafs
       '@pnpm/lockfile-file': link:../lockfile-file
       '@pnpm/lockfile-utils': link:../lockfile-utils
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': link:../types
       dependency-path: link:../dependency-path
       hyperdrive-schemas: 2.0.0
@@ -1393,7 +1393,7 @@ importers:
       '@pnpm/modules-yaml': workspace:8.0.6
       '@pnpm/outdated': 'link:'
       '@pnpm/pick-registry-for-package': workspace:1.1.0
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': workspace:6.4.0
       '@types/ramda': ^0.27.35
       '@types/semver': ^7.3.4
@@ -1411,7 +1411,7 @@ importers:
       '@pnpm/matcher': link:../matcher
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': link:../types
       dependency-path: link:../dependency-path
       ramda: 0.27.1
@@ -1537,7 +1537,7 @@ importers:
       '@pnpm/types': workspace:6.4.0
       '@types/ramda': ^0.27.35
       '@types/ssri': ^7.1.0
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       load-json-file: ^6.2.0
       make-empty-dir: ^1.1.0
       p-limit: ^3.1.0
@@ -1557,7 +1557,7 @@ importers:
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       load-json-file: 6.2.0
       make-empty-dir: 1.1.0
       p-limit: 3.1.0
@@ -1679,7 +1679,7 @@ importers:
       '@pnpm/read-project-manifest': workspace:1.1.7
       '@pnpm/store-connection-manager': workspace:1.0.4
       '@types/ncp': ^2.0.4
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       load-json-file: ^6.2.0
       ncp: ^2.0.0
       render-help: ^1.0.1
@@ -1691,7 +1691,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/store-connection-manager': link:../store-connection-manager
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       load-json-file: 6.2.0
       render-help: 1.0.2
       supi: link:../supi
@@ -1884,7 +1884,7 @@ importers:
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': workspace:0.0.18
       '@pnpm/semver-diff': ^1.0.2
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': workspace:6.4.0
       '@types/lru-cache': ^5.1.0
       '@types/ramda': ^0.27.35
@@ -1910,7 +1910,7 @@ importers:
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/outdated': link:../outdated
       '@pnpm/semver-diff': 1.0.2
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@zkochan/table': 1.0.0
       chalk: 4.1.0
       lru-cache: 6.0.0
@@ -1946,13 +1946,13 @@ importers:
       '@pnpm/resolver-base': workspace:7.1.1
       '@pnpm/run-npm': workspace:2.0.3
       '@pnpm/sort-packages': workspace:1.0.16
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': workspace:6.4.0
       '@types/cross-spawn': ^6.0.2
       '@types/proxyquire': ^1.3.28
       '@types/ramda': ^0.27.35
       '@types/sinon': ^9.0.11
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       cp-file: ^9.0.0
       cross-spawn: ^7.0.3
       enquirer: ^2.3.6
@@ -1980,9 +1980,9 @@ importers:
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/run-npm': link:../run-npm
       '@pnpm/sort-packages': link:../sort-packages
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': link:../types
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       cp-file: 9.0.0
       enquirer: 2.3.6
       fast-glob: 3.2.5
@@ -2111,7 +2111,7 @@ importers:
       '@pnpm/sort-packages': workspace:1.0.16
       '@pnpm/types': workspace:6.4.0
       '@types/ramda': ^0.27.35
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       execa: ^5.0.0
       is-windows: ^1.0.2
       p-limit: ^3.1.0
@@ -2140,7 +2140,7 @@ importers:
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/ramda': 0.27.39
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       execa: 5.0.0
       is-windows: 1.0.2
       write-yaml-file: 4.2.0
@@ -2156,7 +2156,7 @@ importers:
       '@pnpm/plugin-commands-server': 'link:'
       '@pnpm/server': workspace:10.0.1
       '@pnpm/store-connection-manager': workspace:1.0.4
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@types/is-windows': ^1.0.0
       '@types/ramda': ^0.27.35
       '@types/signal-exit': ^3.0.0
@@ -2177,7 +2177,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/server': link:../server
       '@pnpm/store-connection-manager': link:../store-connection-manager
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@zkochan/diable': 1.0.2
       delay: 5.0.0
       get-port: 5.1.1
@@ -2212,13 +2212,13 @@ importers:
       '@pnpm/prepare': workspace:0.0.18
       '@pnpm/store-connection-manager': workspace:1.0.4
       '@pnpm/store-controller-types': workspace:10.0.0
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': workspace:6.4.0
       '@types/archy': 0.0.31
       '@types/ramda': ^0.27.35
       '@types/sinon': ^9.0.11
       '@types/ssri': ^7.1.0
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       archy: ^1.0.0
       dependency-path: workspace:5.1.1
       dint: ^5.1.0
@@ -2243,7 +2243,7 @@ importers:
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
       '@pnpm/store-connection-manager': link:../store-connection-manager
       '@pnpm/store-controller-types': link:../store-controller-types
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/types': link:../types
       archy: 1.0.0
       dependency-path: link:../dependency-path
@@ -2261,7 +2261,7 @@ importers:
       '@types/ramda': 0.27.39
       '@types/sinon': 9.0.11
       '@types/ssri': 7.1.0
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       execa: 5.0.0
       load-json-file: 6.2.0
       path-exists: 4.0.0
@@ -2304,7 +2304,7 @@ importers:
       '@pnpm/read-package-json': workspace:4.0.0
       '@pnpm/read-project-manifest': workspace:1.1.7
       '@pnpm/run-npm': workspace:2.0.3
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/tabtab': ^0.1.2
       '@pnpm/types': workspace:6.4.0
       '@pnpm/write-project-manifest': workspace:1.1.7
@@ -2320,7 +2320,7 @@ importers:
       '@types/which': ^2.0.0
       '@zkochan/libnpx': 13.0.1
       '@zkochan/retry': ^0.2.0
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
       chalk: ^4.1.0
@@ -2395,7 +2395,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/run-npm': link:../run-npm
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/tabtab': 0.1.2
       '@pnpm/types': link:../types
       '@pnpm/write-project-manifest': link:../write-project-manifest
@@ -2411,7 +2411,7 @@ importers:
       '@types/which': 2.0.0
       '@zkochan/libnpx': 13.0.1
       '@zkochan/retry': 0.2.0
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
       chalk: 4.1.0
@@ -2581,14 +2581,14 @@ importers:
       '@pnpm/types': workspace:6.4.0
       '@types/is-windows': ^1.0.0
       '@types/ramda': ^0.27.35
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       is-windows: ^1.0.2
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/package-bins': link:../package-bins
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/types': link:../types
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       is-windows: 1.0.2
     devDependencies:
       '@pnpm/logger': 3.2.3
@@ -2701,7 +2701,7 @@ importers:
       '@types/mz': ^2.7.3
       '@types/node-fetch': ^2.5.7
       '@types/uuid': ^8.3.0
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       is-port-reachable: 3.0.0
       load-json-file: ^6.2.0
       node-fetch: ^2.6.1
@@ -2725,7 +2725,7 @@ importers:
       '@types/mz': 2.7.3
       '@types/node-fetch': 2.5.8
       '@types/uuid': 8.3.0
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       is-port-reachable: 3.0.0
       load-json-file: 6.2.0
       node-fetch: 2.6.1
@@ -2752,7 +2752,7 @@ importers:
       '@pnpm/package-store': workspace:11.0.3
       '@pnpm/server': workspace:10.0.1
       '@pnpm/store-connection-manager': 'link:'
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@zkochan/diable': ^1.0.2
       delay: ^5.0.0
       dir-is-case-sensitive: ^2.0.0
@@ -2763,7 +2763,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/package-store': link:../package-store
       '@pnpm/server': link:../server
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@zkochan/diable': 1.0.2
       delay: 5.0.0
       dir-is-case-sensitive: 2.0.0
@@ -2819,7 +2819,7 @@ importers:
       '@pnpm/resolve-dependencies': workspace:19.0.2
       '@pnpm/resolver-base': workspace:7.1.1
       '@pnpm/store-controller-types': workspace:10.0.0
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/symlink-dependency': workspace:3.0.13
       '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:6.4.0
@@ -2832,7 +2832,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/sinon': ^9.0.11
       '@zkochan/npm-package-arg': ^2.0.1
-      '@zkochan/rimraf': ^1.0.0
+      '@zkochan/rimraf': ^2.0.0
       anonymous-npm-registry-client: 0.1.2
       cross-spawn: ^7.0.3
       deep-require-cwd: 1.0.0
@@ -2900,7 +2900,7 @@ importers:
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
       '@zkochan/npm-package-arg': 2.0.1
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       dependency-path: link:../dependency-path
       graph-sequencer: 2.0.0
       is-inner-link: 4.0.0
@@ -2924,7 +2924,7 @@ importers:
       '@pnpm/logger': 3.2.3
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/store-path': 5.0.0-0
+      '@pnpm/store-path': 5.0.0-1
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/fs-extra': 9.0.8
       '@types/is-ci': 3.0.0
@@ -4124,15 +4124,15 @@ packages:
       load-json-file: 6.2.0
     dev: true
 
-  /@pnpm/cli-utils/0.5.3_@pnpm+logger@3.2.3:
-    resolution: {integrity: sha512-yH6LDGpUua8K/7rul1DvGP1eSYWkBIu3xy0KPq2lFvxyt5Vb+6eh/mlGWQPj8epBSDykG34KYJpLGjAOKY/qQQ==}
+  /@pnpm/cli-utils/0.5.4_@pnpm+logger@3.2.3:
+    resolution: {integrity: sha512-LNMaZDqwIyomnNp+QxLD2tjH5xjLzbqdUIBriuRYNrr81+80z50kDHzQqWUzCJvoDKH7jelx8/SiO5VRDD4NWw==}
     engines: {node: '>=10.16'}
     peerDependencies:
       '@pnpm/logger': ^3.2.3
     dependencies:
       '@pnpm/cli-meta': 1.0.2
-      '@pnpm/config': 11.14.1
-      '@pnpm/default-reporter': 7.10.6_@pnpm+logger@3.2.3
+      '@pnpm/config': 11.14.2
+      '@pnpm/default-reporter': 7.10.7_@pnpm+logger@3.2.3
       '@pnpm/error': 1.4.0
       '@pnpm/logger': 3.2.3
       '@pnpm/manifest-utils': 1.1.5_@pnpm+logger@3.2.3
@@ -4149,8 +4149,8 @@ packages:
       chalk: 4.1.0
     dev: false
 
-  /@pnpm/config/11.14.1:
-    resolution: {integrity: sha512-1Omn8H31T6WZvFXkuvQKDz9rOqjwz08HYFXi1M7JSSkXEh5HbeAIABHG/mTH9Tl4VtR91QhbRNBG5iFVVR5N8Q==}
+  /@pnpm/config/11.14.2:
+    resolution: {integrity: sha512-0MOD4ir9Eo2pkqnlCxwX/dQnJClqHByL6qHDW+odp0gg8LiFHcKR/LRQCjEY2gjvxTg9GKdX9edNbjuf7HR5yA==}
     engines: {node: '>=10.16'}
     dependencies:
       '@pnpm/constants': 4.1.0
@@ -4180,11 +4180,11 @@ packages:
       '@pnpm/types': 6.4.0
     dev: true
 
-  /@pnpm/default-reporter/7.10.6_@pnpm+logger@3.2.3:
-    resolution: {integrity: sha512-zvGdWYTJaPuOc+JBTAtW16wbM9cdSnN2h1n9PV8Pp4uxX6yiFBYIE87KuthjBj5P0Y1WrfTFoz80+ZZfhL2tGQ==}
+  /@pnpm/default-reporter/7.10.7_@pnpm+logger@3.2.3:
+    resolution: {integrity: sha512-v016LEoZMr+71eiW9M1mcVy3eVIBDbk/aK6s3zGdgIxdiPIC1OtPr60ptuBkS+lptJGH9/oV0G7lvF82gRVIxw==}
     engines: {node: '>=10.16'}
     dependencies:
-      '@pnpm/config': 11.14.1
+      '@pnpm/config': 11.14.2
       '@pnpm/core-loggers': 5.0.3_@pnpm+logger@3.2.3
       '@pnpm/error': 1.4.0
       '@pnpm/types': 6.4.0
@@ -4234,11 +4234,11 @@ packages:
       find-up: 5.0.0
     dev: true
 
-  /@pnpm/find-workspace-packages/2.3.41_@pnpm+logger@3.2.3:
-    resolution: {integrity: sha512-HDM0h0vLRGMspE/XZYmXiWz8vv3Zd1WNoSPhM4smx55Lf7emgW6AIufWNI8ktUwo8FVNSJ37wcFcCRoYlDgomQ==}
+  /@pnpm/find-workspace-packages/2.3.42_@pnpm+logger@3.2.3:
+    resolution: {integrity: sha512-dapFoXn9QfQTYD8bFB72r5mjI5rwNs7MktUrAEps7IoW2DdgaIvHwwvgjyMH/50Pv9y4ViExQG2V7zETTtiVjA==}
     engines: {node: '>=10.16'}
     dependencies:
-      '@pnpm/cli-utils': 0.5.3_@pnpm+logger@3.2.3
+      '@pnpm/cli-utils': 0.5.4_@pnpm+logger@3.2.3
       '@pnpm/constants': 4.1.0
       '@pnpm/types': 6.4.0
       find-packages: 7.0.24
@@ -4280,7 +4280,7 @@ packages:
     hasBin: true
     dependencies:
       '@pnpm/find-workspace-dir': 2.0.0
-      '@pnpm/find-workspace-packages': 2.3.41_@pnpm+logger@3.2.3
+      '@pnpm/find-workspace-packages': 2.3.42_@pnpm+logger@3.2.3
       '@pnpm/logger': 3.2.3
       '@pnpm/types': 6.4.0
       load-json-file: 6.2.0
@@ -4348,11 +4348,11 @@ packages:
     engines: {node: '>=8.15'}
     dev: false
 
-  /@pnpm/store-path/5.0.0-0:
-    resolution: {integrity: sha512-2ppjWzjyZwpczCNuIBvnUrnw8Pq+6ZxUc4Fg3wkX+j9l/nWSadcem1xTAzQbEHSYJBGF1fnLuI8KGc5ggYYAEw==}
-    engines: {node: '>=10.12'}
+  /@pnpm/store-path/5.0.0-1:
+    resolution: {integrity: sha512-p8abw3OS4jwRNzw+qT2Jh+JJSdcqrG7jZSOSTJ8eC1P2V8WCoDkHcwaxEmoLgLMYPncKUJaOdhcNrARVD+bFYg==}
+    engines: {node: '>=12.10'}
     dependencies:
-      '@zkochan/rimraf': 1.0.0
+      '@zkochan/rimraf': 2.0.0
       can-link: 2.0.0
       path-absolute: 1.0.1
       path-temp: 2.0.0
@@ -4496,6 +4496,7 @@ packages:
     dependencies:
       '@types/minimatch': 3.0.3
       '@types/node': 14.14.35
+    dev: true
 
   /@types/graceful-fs/4.1.5:
     resolution: {integrity: sha512-anKkLmZZ+xm4p8JWBf4hElkM4XR+EZeA2M9BAkkTldmcyDY4mbdIJnRghDJH3Ov5ooY7/UAoENtmdMSkaAd7Cw==}
@@ -4583,6 +4584,7 @@ packages:
 
   /@types/minimatch/3.0.3:
     resolution: {integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==}
+    dev: true
 
   /@types/minimist/1.2.1:
     resolution: {integrity: sha512-fZQQafSREFyuZcdWFAExYjBiCL7AUCdgsk80iO0q4yihYYdcIiH28CcuPTGFgLOCC8RlW49GSQxdHwZP+I7CNg==}
@@ -5024,13 +5026,9 @@ packages:
     resolution: {integrity: sha512-WhB+2B/ZPlW2Xy/kMJBrMbqecWXcbDDgn0K0wKBAgO2OlBTz1iLJrRWduo+DGGn0Akvz1Lu4Xvls7dJojximWw==}
     engines: {node: '>=10'}
 
-  /@zkochan/rimraf/1.0.0:
-    resolution: {integrity: sha512-uWMEF7fdc6C3VGTaW6Z9G9rYS41ulS0Lz+a3lGlDGji42kI6FSVVLI9s8bZ4ZR4l4Hs28MJHHVN8cOqvNlN86w==}
+  /@zkochan/rimraf/2.0.0:
+    resolution: {integrity: sha512-S1gRukZ8D2NHAxFTZz2iRleVd7eRoXKVB2oZ0LMoriw0isBf7FRtuZiLIYxeEhK4LIgGDDFC/3nqMw0oWu2Rxw==}
     engines: {node: '>=8.15'}
-    dependencies:
-      '@types/glob': 7.1.3
-      '@types/node': 14.14.35
-      rimraf: 3.0.2
 
   /@zkochan/table/1.0.0:
     resolution: {integrity: sha512-xLQlpiyapKO00VN3X0FmIzDN5CNCLCaSSnEldb9wAhKrFzQmmfu+FDlMvU0lA0wVDC8pawS8HFYYuGoZR6GdOw==}

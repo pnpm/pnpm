@@ -46,7 +46,7 @@
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/read-project-manifest": "workspace:1.1.7",
     "@pnpm/store-connection-manager": "workspace:1.0.4",
-    "@zkochan/rimraf": "^1.0.0",
+    "@zkochan/rimraf": "^2.0.0",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.1",
     "supi": "workspace:0.45.4"

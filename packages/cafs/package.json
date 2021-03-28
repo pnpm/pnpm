@@ -17,7 +17,7 @@
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:9.0.4",
     "@pnpm/store-controller-types": "workspace:10.0.0",
-    "@zkochan/rimraf": "^1.0.0",
+    "@zkochan/rimraf": "^2.0.0",
     "concat-stream": "^2.0.0",
     "decompress-maybe": "^1.0.0",
     "get-stream": "^6.0.0",

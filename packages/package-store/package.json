@@ -23,7 +23,7 @@
     "@pnpm/resolver-base": "workspace:7.1.1",
     "@pnpm/store-controller-types": "workspace:10.0.0",
     "@pnpm/types": "workspace:6.4.0",
-    "@zkochan/rimraf": "^1.0.0",
+    "@zkochan/rimraf": "^2.0.0",
     "load-json-file": "^6.2.0",
     "make-empty-dir": "^1.1.0",
     "p-limit": "^3.1.0",

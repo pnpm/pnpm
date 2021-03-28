@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/git-fetcher#readme",
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:9.0.4",
-    "@zkochan/rimraf": "^1.0.0",
+    "@zkochan/rimraf": "^2.0.0",
     "execa": "^5.0.0",
     "tempy": "^1.0.0"
   },
