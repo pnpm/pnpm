@@ -1,3 +1,5 @@
+[中文](https://pnpm.js.org/zh/) | [Español](https://pnpm.js.org/es/)
+
 ![](https://i.imgur.com/qlW1eEG.png)
 
 Fast, disk space efficient package manager:
