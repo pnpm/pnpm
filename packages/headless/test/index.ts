@@ -123,6 +123,48 @@ test('installing only dev deps', async () => {
   await project.hasNot('colors')
 })
 
+test('installing only lockfile', async () => {
+  const prefix = path.join(fixtures, 'only-lockfile')
+  await rimraf(path.join(prefix, 'node_modules'))
+  const opt = await testDefaults({
+    projects: [],
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
+    lockfileDir: prefix,
+  })
+  const {projects, ...rest} = opt
+
+  await headless({...rest, projects: [], allImporterIds: true})
+
+  const project = assertProject(prefix)
+  await project.storeHas('is-negative')
+  await project.storeHas('is-positive')
+})
+
+test('installing only dev package from only lockfile', async () => {
+  const prefix = path.join(fixtures, 'only-lockfile')
+  await rimraf(path.join(prefix, 'node_modules'))
+  const opt = await testDefaults({
+    projects: [],
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: false,
+    },
+    lockfileDir: prefix,
+  })
+  const {projects, ...rest} = opt
+
+  await headless({...rest, projects: [],  allImporterIds: true})
+
+  const project = assertProject(prefix)
+  await project.storeHasNot('is-negative')
+  await project.storeHas('is-positive')
+})
+
 test('installing non-prod deps then all deps', async () => {
   const prefix = path.join(fixtures, 'prod-dep-is-dev-subdep')
 
