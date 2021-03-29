@@ -39,6 +39,8 @@ test('versions are replaced with versions specified through pnpm.overrides field
 
   // The lockfile is updated if the overrides are changed
   manifest.pnpm!.overrides!['bar@^100.0.0'] = '100.0.0'
+  // A direct dependency may be overriden as well
+  manifest.pnpm!.overrides!['foobarqar'] = '1.0.1'
   await mutateModules([
     {
       buildIndex: 0,
@@ -52,7 +54,9 @@ test('versions are replaced with versions specified through pnpm.overrides field
     const lockfile = await project.readLockfile()
     expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/101.0.0'])
     expect(lockfile.packages).toHaveProperty(['/bar/100.0.0'])
+    expect(lockfile.packages).toHaveProperty(['/foobarqar/1.0.1'])
     expect(lockfile.overrides).toStrictEqual({
+      foobarqar: '1.0.1',
       'foobarqar>foo': 'npm:qar@100.0.0',
       'bar@^100.0.0': '100.0.0',
       'dep-of-pkg-with-1-dep': '101.0.0',
@@ -73,6 +77,7 @@ test('versions are replaced with versions specified through pnpm.overrides field
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.overrides).toStrictEqual({
+      foobarqar: '1.0.1',
       'foobarqar>foo': 'npm:qar@100.0.0',
       'bar@^100.0.0': '100.0.0',
       'dep-of-pkg-with-1-dep': '101.0.0',
