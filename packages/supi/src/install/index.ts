@@ -219,7 +219,7 @@ export async function mutateModules (
         }
         return projects
       }
-      const allImporterIds = maybeOpts.onlyImportToVirtualStore;
+      const allImporterIds = maybeOpts.onlyImportToVirtualStore
 
       if (maybeOpts.onlyImportToVirtualStore) {
         logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
