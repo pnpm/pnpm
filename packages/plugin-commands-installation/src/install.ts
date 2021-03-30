@@ -185,7 +185,7 @@ by any dependencies, so it is an emulation of a flat node_modules',
           },
           {
             description: 'Clones/hardlinks or copies packages only to virtual store, but not link them to node_modules',
-            name: '--package-import-only',
+            name: '--only-import-to-virtual-store',
           },
           {
             description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',
