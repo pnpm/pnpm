@@ -21,6 +21,7 @@ import getSaveType from './getSaveType'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+import logger from '@pnpm/logger'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -73,7 +74,7 @@ export type InstallDepsOptions = Pick<Config,
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
-  onlyImportToVirtualStore?: boolean
+  ignorePackageManifest?: boolean
   latest?: boolean
   update?: boolean
   updateMatching?: (pkgName: string) => boolean
@@ -138,6 +139,10 @@ when running add/update with the --workspace option')
   // `pnpm install ""` is going to be just `pnpm install`
   params = params.filter(Boolean)
 
+  if (params.length > 0 && opts.ignorePackageManifest) {
+    throw new PnpmError('BAD_OPTIONS', 'Cannot add new packages with --ignore-package-manifest')
+  }
+
   const dir = opts.dir || process.cwd()
   let workspacePackages!: WorkspacePackages
 
@@ -160,7 +165,7 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
-    onlyImportToVirtualStore: opts.onlyImportToVirtualStore ?? false,
+    ignorePackageManifest: opts.ignorePackageManifest ?? false,
   }
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)
@@ -171,6 +176,9 @@ when running add/update with the --workspace option')
     if (opts.update) {
       throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
     }
+    manifest = {}
+  } else if (opts.ignorePackageManifest) {
+    logger.warn({ message: 'Found package.json, but it will be ignored', prefix: opts.dir })
     manifest = {}
   }
 

@@ -67,7 +67,7 @@ export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
   ...R.pick(['force'], allTypes),
   recursive: Boolean,
-  'only-import-to-virtual-store': Boolean,
+  'ignore-package-manifest': Boolean,
 })
 
 export const shorthands = {
@@ -184,8 +184,8 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--use-running-store-server',
           },
           {
-            description: 'Clones/hardlinks or copies packages only to virtual store, but not link them to node_modules',
-            name: '--only-import-to-virtual-store',
+            description: 'Clones/hardlinks or copies packages to virtual store based on a lockfile, package.json will be ignored',
+            name: '--ignore-package-manifest',
           },
           {
             description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',
@@ -266,7 +266,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'rawLocalConfig'
 | 'lockfileDir'
 | 'lockfileOnly'
-| 'onlyImportToVirtualStore'
+| 'ignorePackageManifest'
 | 'pnpmfile'
 | 'production'
 | 'registries'

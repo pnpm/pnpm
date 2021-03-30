@@ -21,7 +21,7 @@ export interface StrictInstallOptions {
   useLockfile: boolean
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
-  onlyImportToVirtualStore: boolean
+  ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean
   preferWorkspacePackages: boolean
@@ -117,7 +117,7 @@ const defaults = async (opts: InstallOptions) => {
     lockfileOnly: false,
     nodeVersion: process.version,
     ownLifecycleHooksStdio: 'inherit',
-    onlyImportToVirtualStore: false,
+    ignorePackageManifest: false,
     packageManager,
     preferFrozenLockfile: true,
     preferWorkspacePackages: false,

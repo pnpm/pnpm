@@ -168,7 +168,7 @@ export async function mutateModules (
     }
   }
 
-  if (!maybeOpts.onlyImportToVirtualStore) {
+  if (!maybeOpts.ignorePackageManifest) {
     for (const { manifest, rootDir } of ctx.projects) {
       if (!manifest) {
         throw new Error(`No package.json found in "${rootDir}"`)
@@ -198,6 +198,7 @@ export async function mutateModules (
       installsOnly &&
       (
         frozenLockfile ||
+        opts.ignorePackageManifest ||
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
@@ -213,15 +214,15 @@ export async function mutateModules (
       if (needsFullResolution) {
         throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot perform a frozen installation because the lockfile needs updates')
       }
-      if (!ctx.existsWantedLockfile && !maybeOpts.onlyImportToVirtualStore) {
+      if (!ctx.existsWantedLockfile && !maybeOpts.ignorePackageManifest) {
         if (ctx.projects.some((project) => pkgHasDependencies(project.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
         return projects
       }
-      const allImporterIds = maybeOpts.onlyImportToVirtualStore
+      const allImporterIds = maybeOpts.ignorePackageManifest
 
-      if (maybeOpts.onlyImportToVirtualStore) {
+      if (maybeOpts.ignorePackageManifest) {
         logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
       } else {
         logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDir })
@@ -247,7 +248,7 @@ export async function mutateModules (
           ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
           packageManager: opts.packageManager,
           pendingBuilds: ctx.pendingBuilds,
-          projects: maybeOpts.onlyImportToVirtualStore
+          projects: maybeOpts.ignorePackageManifest
             ? []
             : ctx.projects as Array<{
               binsDir: string
@@ -273,7 +274,7 @@ export async function mutateModules (
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
           virtualStoreDir: ctx.virtualStoreDir,
-          wantedLockfile: maybeOpts.onlyImportToVirtualStore ? undefined : ctx.wantedLockfile,
+          wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
         })
         return projects
       } catch (error) {
