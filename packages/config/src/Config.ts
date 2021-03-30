@@ -93,6 +93,7 @@ export interface Config {
   ignorePnpmfile?: boolean
   pnpmfile: string
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+  onlyImportToVirtualStore?: boolean
   hoistPattern?: string[]
   publicHoistPattern?: string[]
   useStoreServer?: boolean

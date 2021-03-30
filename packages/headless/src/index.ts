@@ -79,7 +79,7 @@ export interface HeadlessOptions {
   enablePnp?: boolean
   engineStrict: boolean
   extraBinPaths?: string[]
-  allImporterIds?: boolean;
+  allImporterIds?: boolean
   ignoreScripts: boolean
   include: IncludedDependencies
   projects: Array<{
@@ -208,8 +208,9 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     skipped,
   }
-  const importerIds = opts.allImporterIds ? Object.keys(wantedLockfile.importers)
-    : opts.projects.map(({ id }) => id);
+  const importerIds = opts.allImporterIds
+    ? Object.keys(wantedLockfile.importers)
+    : opts.projects.map(({ id }) => id)
   const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, importerIds, {
     ...filterOpts,
     currentEngine: opts.currentEngine,

@@ -67,6 +67,7 @@ export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
   ...R.pick(['force'], allTypes),
   recursive: Boolean,
+  'only-import-to-virtual-store': Boolean,
 })
 
 export const shorthands = {
@@ -183,6 +184,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--use-running-store-server',
           },
           {
+            description: 'Clones/hardlinks or copies packages only to virtual store, but not link them to node_modules',
+            name: '--package-import-only',
+          },
+          {
             description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',
             name: '--package-import-method auto',
           },
@@ -261,9 +266,9 @@ export type InstallCommandOptions = Pick<Config,
 | 'rawLocalConfig'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'onlyImportToVirtualStore'
 | 'pnpmfile'
 | 'production'
-| 'rawLocalConfig'
 | 'registries'
 | 'save'
 | 'saveDev'
@@ -287,6 +292,7 @@ export type InstallCommandOptions = Pick<Config,
     original: string[]
   }
   useBetaCli?: boolean
+  onlyImportToVirtualStore?: boolean
   recursive?: boolean
   workspace?: boolean
 } & Partial<Pick<Config, 'preferWorkspacePackages'>>

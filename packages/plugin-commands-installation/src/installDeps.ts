@@ -73,6 +73,7 @@ export type InstallDepsOptions = Pick<Config,
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
+  onlyImportToVirtualStore?: boolean
   latest?: boolean
   update?: boolean
   updateMatching?: (pkgName: string) => boolean
@@ -159,6 +160,7 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
+    onlyImportToVirtualStore: opts.onlyImportToVirtualStore ?? false,
   }
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)

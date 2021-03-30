@@ -61,6 +61,7 @@ export const types = Object.assign({
   noproxy: String,
   'npm-path': String,
   offline: Boolean,
+  'only-import-to-virtual-store': Boolean,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   pnpmfile: String,
   'prefer-frozen-lockfile': Boolean,
@@ -244,6 +245,9 @@ export default async (
   pnpmConfig.sharedWorkspaceLockfile = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
     ? pnpmConfig.sharedWorkspaceShrinkwrap
     : pnpmConfig['sharedWorkspaceLockfile']
+  if (opts.cliOptions['only-import-to-virtual-store']) {
+    pnpmConfig.onlyImportToVirtualStore = true
+  }
 
   if (cliOptions['global']) {
     const npmGlobalPrefix: string = findBestGlobalPrefix(npmConfig.globalPrefix, process.env)

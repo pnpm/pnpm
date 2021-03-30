@@ -135,9 +135,9 @@ test('installing only lockfile', async () => {
     },
     lockfileDir: prefix,
   })
-  const {projects, ...rest} = opt
+  const { projects, ...rest } = opt
 
-  await headless({...rest, projects: [], allImporterIds: true})
+  await headless({ ...rest, projects: [], allImporterIds: true })
 
   const project = assertProject(prefix)
   await project.storeHas('is-negative')
@@ -156,9 +156,9 @@ test('installing only dev package from only lockfile', async () => {
     },
     lockfileDir: prefix,
   })
-  const {projects, ...rest} = opt
+  const { projects, ...rest } = opt
 
-  await headless({...rest, projects: [],  allImporterIds: true})
+  await headless({ ...rest, projects: [],  allImporterIds: true })
 
   const project = assertProject(prefix)
   await project.storeHasNot('is-negative')
