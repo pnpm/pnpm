@@ -141,6 +141,8 @@ test('installing with package manifest ignored', async () => {
   const project = assertProject(prefix)
   await project.storeHas('is-negative')
   await project.storeHas('is-positive')
+  await project.hasNot('is-negative')
+  await project.hasNot('is-positive')
 })
 
 test('installing only dev package with package manifest ignored', async () => {
@@ -161,6 +163,8 @@ test('installing only dev package with package manifest ignored', async () => {
   const project = assertProject(prefix)
   await project.storeHasNot('is-negative')
   await project.storeHas('is-positive')
+  await project.hasNot('is-negative')
+  await project.hasNot('is-positive')
 })
 
 test('installing non-prod deps then all deps', async () => {

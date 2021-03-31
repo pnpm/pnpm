@@ -279,7 +279,7 @@ export default async (opts: HeadlessOptions) => {
     ])
 
     let newHoistedDependencies!: HoistedDependencies
-    if (opts.hoistPattern != null || opts.publicHoistPattern != null) {
+    if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
       // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
       // pnpm is comparing the current lockfile to the wanted one and they should much.
       // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
@@ -372,7 +372,6 @@ export default async (opts: HeadlessOptions) => {
 
     /** Skip linking and writing lockfile due to no project manifest, opts.projects may contains no enough info */
     if (!opts.ignorePackageManifest) {
-
       await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
       await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
         if (opts.symlink !== false) {
