@@ -139,10 +139,6 @@ when running add/update with the --workspace option')
   // `pnpm install ""` is going to be just `pnpm install`
   params = params.filter(Boolean)
 
-  if (params.length > 0 && opts.ignorePackageManifest) {
-    throw new PnpmError('BAD_OPTIONS', 'Cannot add new packages with --ignore-package-manifest')
-  }
-
   const dir = opts.dir || process.cwd()
   let workspacePackages!: WorkspacePackages
 
@@ -169,6 +165,14 @@ when running add/update with the --workspace option')
   }
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)
+  }
+
+  if (opts.ignorePackageManifest) {
+    if (params.length > 0) {
+      throw new PnpmError('BAD_OPTIONS', 'Cannot add new packages with --ignore-package-manifest')
+    }
+    await install({}, installOpts)
+    return;
   }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
