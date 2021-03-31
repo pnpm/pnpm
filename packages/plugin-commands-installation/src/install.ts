@@ -292,7 +292,6 @@ export type InstallCommandOptions = Pick<Config,
     original: string[]
   }
   useBetaCli?: boolean
-  onlyImportToVirtualStore?: boolean
   recursive?: boolean
   workspace?: boolean
 } & Partial<Pick<Config, 'preferWorkspacePackages'>>
