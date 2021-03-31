@@ -218,81 +218,82 @@ export async function mutateModules (
         if (ctx.projects.some((project) => pkgHasDependencies(project.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
-      }
-      const allImporterIds = maybeOpts.ignorePackageManifest
-
-      if (maybeOpts.ignorePackageManifest) {
-        logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
       } else {
-        logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDir })
-      }
-      try {
-        await headless({
-          allImporterIds,
-          currentEngine: {
-            nodeVersion: opts.nodeVersion,
-            pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-          },
-          currentLockfile: ctx.currentLockfile,
-          enablePnp: opts.enablePnp,
-          engineStrict: opts.engineStrict,
-          extraBinPaths: opts.extraBinPaths,
-          force: opts.force,
-          hoistedDependencies: ctx.hoistedDependencies,
-          hoistPattern: ctx.hoistPattern,
-          ignoreScripts: opts.ignoreScripts,
-          include: opts.include,
-          lockfileDir: ctx.lockfileDir,
-          modulesDir: opts.modulesDir,
-          ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
-          packageManager: opts.packageManager,
-          pendingBuilds: ctx.pendingBuilds,
-          projects: maybeOpts.ignorePackageManifest
-            ? []
-            : ctx.projects as Array<{
-              binsDir: string
-              buildIndex: number
-              id: string
-              manifest: ProjectManifest
-              modulesDir: string
-              rootDir: string
-              pruneDirectDependencies?: boolean
-            }>,
-          pruneStore: opts.pruneStore,
-          prunedAt: ctx.modulesFile?.prunedAt,
-          pruneVirtualStore,
-          publicHoistPattern: ctx.publicHoistPattern,
-          rawConfig: opts.rawConfig,
-          registries: opts.registries,
-          sideEffectsCacheRead: opts.sideEffectsCacheRead,
-          sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-          symlink: opts.symlink,
-          skipped: ctx.skipped,
-          storeController: opts.storeController,
-          storeDir: opts.storeDir,
-          unsafePerm: opts.unsafePerm,
-          userAgent: opts.userAgent,
-          virtualStoreDir: ctx.virtualStoreDir,
-          wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
-        })
-        return projects
-      } catch (error) {
-        if (
-          frozenLockfile ||
-          error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' && !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
-        ) throw error
-        if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
-          needsFullResolution = true
-          // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-          opts.update = true
+        const allImporterIds = maybeOpts.ignorePackageManifest
+
+        if (maybeOpts.ignorePackageManifest) {
+          logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
+        } else {
+          logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDir })
         }
-        // A broken lockfile may be caused by a badly resolved Git conflict
-        logger.warn({
-          error,
-          message: error.message,
-          prefix: ctx.lockfileDir,
-        })
-        logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
+        try {
+          await headless({
+            allImporterIds,
+            currentEngine: {
+              nodeVersion: opts.nodeVersion,
+              pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+            },
+            currentLockfile: ctx.currentLockfile,
+            enablePnp: opts.enablePnp,
+            engineStrict: opts.engineStrict,
+            extraBinPaths: opts.extraBinPaths,
+            force: opts.force,
+            hoistedDependencies: ctx.hoistedDependencies,
+            hoistPattern: ctx.hoistPattern,
+            ignoreScripts: opts.ignoreScripts,
+            include: opts.include,
+            lockfileDir: ctx.lockfileDir,
+            modulesDir: opts.modulesDir,
+            ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
+            packageManager: opts.packageManager,
+            pendingBuilds: ctx.pendingBuilds,
+            projects: maybeOpts.ignorePackageManifest
+              ? []
+              : ctx.projects as Array<{
+                binsDir: string
+                buildIndex: number
+                id: string
+                manifest: ProjectManifest
+                modulesDir: string
+                rootDir: string
+                pruneDirectDependencies?: boolean
+              }>,
+            pruneStore: opts.pruneStore,
+            prunedAt: ctx.modulesFile?.prunedAt,
+            pruneVirtualStore,
+            publicHoistPattern: ctx.publicHoistPattern,
+            rawConfig: opts.rawConfig,
+            registries: opts.registries,
+            sideEffectsCacheRead: opts.sideEffectsCacheRead,
+            sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+            symlink: opts.symlink,
+            skipped: ctx.skipped,
+            storeController: opts.storeController,
+            storeDir: opts.storeDir,
+            unsafePerm: opts.unsafePerm,
+            userAgent: opts.userAgent,
+            virtualStoreDir: ctx.virtualStoreDir,
+            wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
+          })
+          return projects
+        } catch (error) {
+          if (
+            frozenLockfile ||
+            error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' && !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+          ) throw error
+          if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
+            needsFullResolution = true
+            // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
+            opts.update = true
+          }
+          // A broken lockfile may be caused by a badly resolved Git conflict
+          logger.warn({
+            error,
+            message: error.message,
+            prefix: ctx.lockfileDir,
+          })
+          logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
+        }
       }
     }
 

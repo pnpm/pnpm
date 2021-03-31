@@ -172,7 +172,7 @@ when running add/update with the --workspace option')
       throw new PnpmError('BAD_OPTIONS', 'Cannot add new packages with --ignore-package-manifest')
     }
     await install({}, installOpts)
-    return;
+    return
   }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
