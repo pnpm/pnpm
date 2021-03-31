@@ -214,11 +214,10 @@ export async function mutateModules (
       if (needsFullResolution) {
         throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot perform a frozen installation because the lockfile needs updates')
       }
-      if (!ctx.existsWantedLockfile && !maybeOpts.ignorePackageManifest) {
+      if (!ctx.existsWantedLockfile) {
         if (ctx.projects.some((project) => pkgHasDependencies(project.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
-        return projects
       }
       const allImporterIds = maybeOpts.ignorePackageManifest
 
