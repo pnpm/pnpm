@@ -144,11 +144,13 @@ export default async (opts: HeadlessOptions) => {
   const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
   const publicHoistedModulesDir = rootModulesDir
 
-  for (const { id, manifest, rootDir } of opts.projects) {
-    if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
-      throw new PnpmError('OUTDATED_LOCKFILE',
-        `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
-        path.relative(lockfileDir, path.join(rootDir, 'package.json')))
+  if (!opts.ignorePackageManifest) {
+    for (const { id, manifest, rootDir } of opts.projects) {
+      if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
+        throw new PnpmError('OUTDATED_LOCKFILE',
+          `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
+          path.relative(lockfileDir, path.join(rootDir, 'package.json')))
+      }
     }
   }
 
