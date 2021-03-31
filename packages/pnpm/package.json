@@ -76,7 +76,7 @@
     "deep-require-cwd": "1.0.0",
     "delay": "^5.0.0",
     "dir-is-case-sensitive": "^2.0.0",
-    "esbuild": "^0.10.0",
+    "esbuild": "^0.11.2",
     "execa": "^5.0.0",
     "exists-link": "2.0.0",
     "is-ci": "^3.0.0",
