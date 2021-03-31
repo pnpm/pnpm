@@ -259,11 +259,6 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  stageLogger.debug({
-    prefix: lockfileDir,
-    stage: 'importing_done',
-  })
-
   if (opts.enableModulesDir !== false) {
     await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
     await Promise.all([
@@ -279,6 +274,11 @@ export default async (opts: HeadlessOptions) => {
         targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
       }),
     ])
+
+    stageLogger.debug({
+      prefix: lockfileDir,
+      stage: 'importing_done',
+    })
 
     let newHoistedDependencies!: HoistedDependencies
     if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
