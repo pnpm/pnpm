@@ -245,17 +245,15 @@ export async function mutateModules (
             ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
             packageManager: opts.packageManager,
             pendingBuilds: ctx.pendingBuilds,
-            projects: maybeOpts.ignorePackageManifest
-              ? []
-              : ctx.projects as Array<{
-                binsDir: string
-                buildIndex: number
-                id: string
-                manifest: ProjectManifest
-                modulesDir: string
-                rootDir: string
-                pruneDirectDependencies?: boolean
-              }>,
+            projects: ctx.projects as Array<{
+              binsDir: string
+              buildIndex: number
+              id: string
+              manifest: ProjectManifest
+              modulesDir: string
+              rootDir: string
+              pruneDirectDependencies?: boolean
+            }>,
             pruneStore: opts.pruneStore,
             prunedAt: ctx.modulesFile?.prunedAt,
             pruneVirtualStore,
