@@ -2,7 +2,7 @@ import { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { importCommand } from '@pnpm/plugin-commands-import'
-import { add, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
+import { add, fetch, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
@@ -59,6 +59,7 @@ const commands: Array<{
   audit,
   bin,
   exec,
+  fetch,
   importCommand,
   install,
   installTest,

@@ -21,7 +21,6 @@ import getSaveType from './getSaveType'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import logger from '@pnpm/logger'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -74,7 +73,6 @@ export type InstallDepsOptions = Pick<Config,
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
-  ignorePackageManifest?: boolean
   latest?: boolean
   update?: boolean
   updateMatching?: (pkgName: string) => boolean
@@ -161,18 +159,9 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
-    ignorePackageManifest: opts.ignorePackageManifest ?? false,
   }
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)
-  }
-
-  if (opts.ignorePackageManifest) {
-    if (params.length > 0) {
-      throw new PnpmError('BAD_OPTIONS', 'Cannot add new packages with --ignore-package-manifest')
-    }
-    await install({}, installOpts)
-    return
   }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
@@ -180,9 +169,6 @@ when running add/update with the --workspace option')
     if (opts.update) {
       throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
     }
-    manifest = {}
-  } else if (opts.ignorePackageManifest) {
-    logger.warn({ message: 'Found package.json, but it will be ignored', prefix: opts.dir })
     manifest = {}
   }
 
