@@ -123,7 +123,7 @@ test('installing only dev deps', async () => {
   await project.hasNot('colors')
 })
 
-test('installing only lockfile', async () => {
+test('installing with package manifest ignored', async () => {
   const prefix = path.join(fixtures, 'only-lockfile')
   await rimraf(path.join(prefix, 'node_modules'))
   const opt = await testDefaults({
@@ -135,16 +135,15 @@ test('installing only lockfile', async () => {
     },
     lockfileDir: prefix,
   })
-  const { projects, ...rest } = opt
 
-  await headless({ ...rest, projects: [], allImporterIds: true })
+  await headless({ ...opt, ignorePackageManifest: true })
 
   const project = assertProject(prefix)
   await project.storeHas('is-negative')
   await project.storeHas('is-positive')
 })
 
-test('installing only dev package from only lockfile', async () => {
+test('installing only dev package with package manifest ignored', async () => {
   const prefix = path.join(fixtures, 'only-lockfile')
   await rimraf(path.join(prefix, 'node_modules'))
   const opt = await testDefaults({
@@ -156,9 +155,8 @@ test('installing only dev package from only lockfile', async () => {
     },
     lockfileDir: prefix,
   })
-  const { projects, ...rest } = opt
 
-  await headless({ ...rest, projects: [], allImporterIds: true })
+  await headless({ ...opt, ignorePackageManifest: true })
 
   const project = assertProject(prefix)
   await project.storeHasNot('is-negative')

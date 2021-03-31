@@ -219,8 +219,6 @@ export async function mutateModules (
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
       } else {
-        const allImporterIds = maybeOpts.ignorePackageManifest
-
         if (maybeOpts.ignorePackageManifest) {
           logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
         } else {
@@ -228,7 +226,6 @@ export async function mutateModules (
         }
         try {
           await headless({
-            allImporterIds,
             currentEngine: {
               nodeVersion: opts.nodeVersion,
               pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
@@ -241,6 +238,7 @@ export async function mutateModules (
             hoistedDependencies: ctx.hoistedDependencies,
             hoistPattern: ctx.hoistPattern,
             ignoreScripts: opts.ignoreScripts,
+            ignorePackageManifest: opts.ignorePackageManifest,
             include: opts.include,
             lockfileDir: ctx.lockfileDir,
             modulesDir: opts.modulesDir,
