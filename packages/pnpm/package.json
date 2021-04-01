@@ -11,6 +11,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "bin/pnpm.js",
+  "unpkg": "dist/pnpm.js",
   "files": [
     "dist",
     "bin"
