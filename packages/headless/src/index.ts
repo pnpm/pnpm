@@ -374,7 +374,12 @@ export default async (opts: HeadlessOptions) => {
 
     await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
 
-    /** Skip linking and writing lockfile due to no project manifest, opts.projects may contains no enough info */
+    if ((currentLockfile != null) && !R.equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
+      Object.assign(filteredLockfile.packages, currentLockfile.packages)
+    }
+    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+
+    /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
       await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
         if (opts.symlink !== false) {
@@ -417,11 +422,6 @@ export default async (opts: HeadlessOptions) => {
           )
         }
       }))
-
-      if ((currentLockfile != null) && !R.equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
-        Object.assign(filteredLockfile.packages, currentLockfile.packages)
-      }
-      await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
     }
   }
   // waiting till package requests are finished
