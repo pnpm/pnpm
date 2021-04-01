@@ -16,6 +16,7 @@ export type RawLockfile = Lockfile & Partial<ProjectSnapshot>
 export interface Project {
   // eslint-disable-next-line
   requireModule: (moduleName: string) => any
+  dir: () => string
   has: (pkgName: string, modulesDir?: string) => Promise<void>
   hasNot: (pkgName: string, modulesDir?: string) => Promise<void>
   getStorePath: () => Promise<string>
@@ -82,6 +83,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
   // eslint-disable-next-line
   const notOk = (value: any) => expect(value).toBeFalsy()
   return {
+    dir: () => projectPath,
     requireModule (pkgName: string) {
       // eslint-disable-next-line
       return require(path.join(modules, pkgName))
