@@ -19,7 +19,7 @@ export const commandNames = ['fetch']
 
 export function help () {
   return renderHelp({
-    description: 'Fetch packages from a lockfile into virtual store, package manifest is ignored',
+    description: 'Fetch packages from a lockfile into virtual store, package manifest is ignored. WARNING! This is an experimental command. Breaking changes may be introduced in non-major versions of the CLI',
     descriptionLists: [
       {
         title: 'Options',
