@@ -4250,7 +4250,7 @@ packages:
     engines: {node: '>=10.16'}
     dependencies:
       '@pnpm/error': 1.4.0
-      can-write-to-dir: 1.1.0
+      can-write-to-dir: 1.1.1
       path-name: 1.0.0
     dev: true
 
@@ -6101,19 +6101,11 @@ packages:
     resolution: {integrity: sha512-2W2yAdkQQrrL0WM6BrGqkrLkWlVon8riZch0EBNklid2CZsOzZnqR5HE7W3Q3BrMWUop+9I2dpjyZqhSOYh6Yg==}
     engines: {node: '>=10'}
 
-  /can-write-to-dir/1.1.0:
-    resolution: {integrity: sha512-PYRx9toaBwM5kk+GTFuijayF5omWa/ToRCSlMUe2YA2Ki8+j0vOc+Hoe1bf7C5l1lQA2y3tE2t+PeQ4XiTlibg==}
-    engines: {node: '>=10.13'}
-    dependencies:
-      path-temp: 2.0.0
-    dev: true
-
   /can-write-to-dir/1.1.1:
     resolution: {integrity: sha512-eOgiEWqjppB+3DN/5E82EQ8dTINus8d9GXMCbEsUnp2hcUIcXmBvzWmD3tXMk3CuBK0v+ddK9qw0EAF+JVRMjQ==}
     engines: {node: '>=10.13'}
     dependencies:
       path-temp: 2.0.0
-    dev: false
 
   /caniuse-lite/1.0.30001205:
     resolution: {integrity: sha512-TL1GrS5V6LElbitPazidkBMD9sa448bQDDLrumDqaggmKFcuU2JW1wTOHJPukAcOMtEmLcmDJEzfRrf+GjM0Og==}
