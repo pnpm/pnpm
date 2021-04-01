@@ -163,7 +163,7 @@ export default async (opts: HeadlessOptions) => {
     unsafePerm: opts.unsafePerm || false,
   }
 
-  if (!opts.ignoreScripts) {
+  if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
       ['preinstall'],
       opts.projects,
@@ -173,7 +173,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const skipped = opts.skipped || new Set<string>()
-  if (currentLockfile != null) {
+  if (currentLockfile != null && !opts.ignorePackageManifest) {
     await prune(
       opts.projects,
       {
@@ -431,7 +431,7 @@ export default async (opts: HeadlessOptions) => {
 
   await opts.storeController.close()
 
-  if (!opts.ignoreScripts) {
+  if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
       ['install', 'postinstall', 'prepublish', 'prepare'],
       opts.projects,
