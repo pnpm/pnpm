@@ -80,6 +80,7 @@ export interface HeadlessOptions {
   engineStrict: boolean
   extraBinPaths?: string[]
   ignoreScripts: boolean
+  ignorePackageManifest?: boolean
   include: IncludedDependencies
   projects: Array<{
     binsDir: string
@@ -143,11 +144,13 @@ export default async (opts: HeadlessOptions) => {
   const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
   const publicHoistedModulesDir = rootModulesDir
 
-  for (const { id, manifest, rootDir } of opts.projects) {
-    if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
-      throw new PnpmError('OUTDATED_LOCKFILE',
-        `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
-        path.relative(lockfileDir, path.join(rootDir, 'package.json')))
+  if (!opts.ignorePackageManifest) {
+    for (const { id, manifest, rootDir } of opts.projects) {
+      if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
+        throw new PnpmError('OUTDATED_LOCKFILE',
+          `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
+          path.relative(lockfileDir, path.join(rootDir, 'package.json')))
+      }
     }
   }
 
@@ -160,7 +163,7 @@ export default async (opts: HeadlessOptions) => {
     unsafePerm: opts.unsafePerm || false,
   }
 
-  if (!opts.ignoreScripts) {
+  if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
       ['preinstall'],
       opts.projects,
@@ -170,7 +173,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const skipped = opts.skipped || new Set<string>()
-  if (currentLockfile != null) {
+  if (currentLockfile != null && !opts.ignorePackageManifest) {
     await prune(
       opts.projects,
       {
@@ -207,7 +210,10 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     skipped,
   }
-  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.projects.map(({ id }) => id), {
+  const importerIds = opts.ignorePackageManifest
+    ? Object.keys(wantedLockfile.importers)
+    : opts.projects.map(({ id }) => id)
+  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, importerIds, {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
@@ -220,7 +226,7 @@ export default async (opts: HeadlessOptions) => {
     opts.force ? null : currentLockfile,
     {
       ...opts,
-      importerIds: opts.projects.map(({ id }) => id),
+      importerIds,
       lockfileDir,
       skipped,
       virtualStoreDir,
@@ -275,7 +281,7 @@ export default async (opts: HeadlessOptions) => {
     })
 
     let newHoistedDependencies!: HoistedDependencies
-    if (opts.hoistPattern != null || opts.publicHoistPattern != null) {
+    if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
       // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
       // pnpm is comparing the current lockfile to the wanted one and they should much.
       // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
@@ -295,27 +301,6 @@ export default async (opts: HeadlessOptions) => {
     } else {
       newHoistedDependencies = {}
     }
-
-    await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
-      if (opts.symlink !== false) {
-        await linkRootPackages(filteredLockfile, {
-          importerId: id,
-          importerModulesDir: modulesDir,
-          lockfileDir,
-          projectDir: rootDir,
-          projects: opts.projects,
-          registries: opts.registries,
-          rootDependencies: directDependenciesByImporterId[id],
-        })
-      }
-
-      // Even though headless installation will never update the package.json
-      // this needs to be logged because otherwise install summary won't be printed
-      packageManifestLogger.debug({
-        prefix: rootDir,
-        updated: manifest,
-      })
-    }))
 
     if (opts.ignoreScripts) {
       for (const { id, manifest } of opts.projects) {
@@ -337,7 +322,7 @@ export default async (opts: HeadlessOptions) => {
         )
     } else {
       const directNodes = new Set<string>()
-      for (const { id } of opts.projects) {
+      for (const id of importerIds) {
         R
           .values(directDependenciesByImporterId[id])
           .filter((loc) => graph[loc])
@@ -370,32 +355,6 @@ export default async (opts: HeadlessOptions) => {
       })
     }
 
-    await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
-    await Promise.all(opts.projects.map(async (project) => {
-      if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
-        await linkBinsOfImporter(project)
-      } else {
-        const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
-        await linkBinsOfPackages(
-          (
-            await Promise.all(
-              directPkgDirs.map(async (dir) => ({
-                location: dir,
-                manifest: await safeReadProjectManifestOnly(dir),
-              }))
-            )
-          )
-            .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
-          project.binsDir,
-          { warn: (message: string) => logger.info({ message, prefix: project.rootDir }) }
-        )
-      }
-    }))
-
-    if ((currentLockfile != null) && !R.equals(opts.projects.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
-      Object.assign(filteredLockfile.packages, currentLockfile.packages)
-    }
-    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
     await writeModulesYaml(rootModulesDir, {
       hoistedDependencies: newHoistedDependencies,
       hoistPattern: opts.hoistPattern,
@@ -412,8 +371,59 @@ export default async (opts: HeadlessOptions) => {
       storeDir: opts.storeDir,
       virtualStoreDir,
     })
-  }
 
+    await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
+
+    if ((currentLockfile != null) && !R.equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
+      Object.assign(filteredLockfile.packages, currentLockfile.packages)
+    }
+    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+
+    /** Skip linking and due to no project manifest */
+    if (!opts.ignorePackageManifest) {
+      await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
+        if (opts.symlink !== false) {
+          await linkRootPackages(filteredLockfile, {
+            importerId: id,
+            importerModulesDir: modulesDir,
+            lockfileDir,
+            projectDir: rootDir,
+            projects: opts.projects,
+            registries: opts.registries,
+            rootDependencies: directDependenciesByImporterId[id],
+          })
+        }
+
+        // Even though headless installation will never update the package.json
+        // this needs to be logged because otherwise install summary won't be printed
+        packageManifestLogger.debug({
+          prefix: rootDir,
+          updated: manifest,
+        })
+      }))
+
+      await Promise.all(opts.projects.map(async (project) => {
+        if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
+          await linkBinsOfImporter(project)
+        } else {
+          const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+          await linkBinsOfPackages(
+            (
+              await Promise.all(
+                directPkgDirs.map(async (dir) => ({
+                  location: dir,
+                  manifest: await safeReadProjectManifestOnly(dir),
+                }))
+              )
+            )
+              .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+            project.binsDir,
+            { warn: (message: string) => logger.info({ message, prefix: project.rootDir }) }
+          )
+        }
+      }))
+    }
+  }
   // waiting till package requests are finished
   await Promise.all(depNodes.map(({ finishing }) => finishing))
 
@@ -421,7 +431,7 @@ export default async (opts: HeadlessOptions) => {
 
   await opts.storeController.close()
 
-  if (!opts.ignoreScripts) {
+  if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
       ['install', 'postinstall', 'prepublish', 'prepare'],
       opts.projects,

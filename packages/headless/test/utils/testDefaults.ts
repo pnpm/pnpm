@@ -56,6 +56,8 @@ export default async function testDefaults (
     },
     engineStrict: false,
     force: false,
+    hoistedDependencies: {},
+    hoistPattern: ['*'],
     include,
     lockfileDir,
     packageManager: {

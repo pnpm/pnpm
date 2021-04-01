@@ -123,6 +123,81 @@ test('installing only dev deps', async () => {
   await project.hasNot('colors')
 })
 
+test('installing with package manifest ignored', async () => {
+  const prefix = path.join(fixtures, 'ignore-package-manifest')
+  await rimraf(path.join(prefix, 'node_modules'))
+  const opt = await testDefaults({
+    projects: [],
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    lockfileDir: prefix,
+  })
+
+  await headless({ ...opt, ignorePackageManifest: true })
+
+  const project = assertProject(prefix)
+  const currentLockfile = await project.readCurrentLockfile()
+  expect(currentLockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
+  expect(currentLockfile.packages).toHaveProperty(['/is-negative/2.1.0'])
+  await project.storeHas('is-negative')
+  await project.storeHas('is-positive')
+  await project.hasNot('is-negative')
+  await project.hasNot('is-positive')
+})
+
+test('installing only prod package with package manifest ignored', async () => {
+  const prefix = path.join(fixtures, 'ignore-package-manifest')
+  await rimraf(path.join(prefix, 'node_modules'))
+  const opt = await testDefaults({
+    projects: [],
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+    lockfileDir: prefix,
+  })
+
+  await headless({ ...opt, ignorePackageManifest: true })
+
+  const project = assertProject(prefix)
+  const currentLockfile = await project.readCurrentLockfile()
+  expect(currentLockfile.packages).not.toHaveProperty(['/is-negative/2.1.0'])
+  expect(currentLockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
+  await project.storeHasNot('is-negative')
+  await project.storeHas('is-positive')
+  await project.hasNot('is-negative')
+  await project.hasNot('is-positive')
+})
+
+test('installing only dev package with package manifest ignored', async () => {
+  const prefix = path.join(fixtures, 'ignore-package-manifest')
+  await rimraf(path.join(prefix, 'node_modules'))
+  const opt = await testDefaults({
+    projects: [],
+    include: {
+      dependencies: false,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
+    lockfileDir: prefix,
+  })
+
+  await headless({ ...opt, ignorePackageManifest: true })
+
+  const project = assertProject(prefix)
+  const currentLockfile = await project.readCurrentLockfile()
+  expect(currentLockfile.packages).toHaveProperty(['/is-negative/2.1.0'])
+  expect(currentLockfile.packages).not.toHaveProperty(['/is-positive/1.0.0'])
+  await project.storeHasNot('is-negative')
+  await project.storeHas('is-positive')
+  await project.hasNot('is-negative')
+  await project.hasNot('is-positive')
+})
+
 test('installing non-prod deps then all deps', async () => {
   const prefix = path.join(fixtures, 'prod-dep-is-dev-subdep')
 

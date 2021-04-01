@@ -263,7 +263,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'lockfileOnly'
 | 'pnpmfile'
 | 'production'
-| 'rawLocalConfig'
 | 'registries'
 | 'save'
 | 'saveDev'

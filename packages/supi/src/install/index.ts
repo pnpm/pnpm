@@ -168,9 +168,11 @@ export async function mutateModules (
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
 
-  for (const { manifest, rootDir } of ctx.projects) {
-    if (!manifest) {
-      throw new Error(`No package.json found in "${rootDir}"`)
+  if (!maybeOpts.ignorePackageManifest) {
+    for (const { manifest, rootDir } of ctx.projects) {
+      if (!manifest) {
+        throw new Error(`No package.json found in "${rootDir}"`)
+      }
     }
   }
 
@@ -196,6 +198,7 @@ export async function mutateModules (
       installsOnly &&
       (
         frozenLockfile ||
+        opts.ignorePackageManifest ||
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
@@ -216,7 +219,11 @@ export async function mutateModules (
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
       } else {
-        logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDir })
+        if (maybeOpts.ignorePackageManifest) {
+          logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
+        } else {
+          logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDir })
+        }
         try {
           await headless({
             currentEngine: {
@@ -231,6 +238,7 @@ export async function mutateModules (
             hoistedDependencies: ctx.hoistedDependencies,
             hoistPattern: ctx.hoistPattern,
             ignoreScripts: opts.ignoreScripts,
+            ignorePackageManifest: opts.ignorePackageManifest,
             include: opts.include,
             lockfileDir: ctx.lockfileDir,
             modulesDir: opts.modulesDir,
@@ -261,7 +269,7 @@ export async function mutateModules (
             unsafePerm: opts.unsafePerm,
             userAgent: opts.userAgent,
             virtualStoreDir: ctx.virtualStoreDir,
-            wantedLockfile: ctx.wantedLockfile,
+            wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
           })
           return projects
         } catch (error) {
