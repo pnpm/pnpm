@@ -372,9 +372,10 @@ export default async (opts: HeadlessOptions) => {
       virtualStoreDir,
     })
 
+    await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
+
     /** Skip linking and writing lockfile due to no project manifest, opts.projects may contains no enough info */
     if (!opts.ignorePackageManifest) {
-      await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
       await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
         if (opts.symlink !== false) {
           await linkRootPackages(filteredLockfile, {
