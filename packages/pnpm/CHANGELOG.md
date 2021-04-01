@@ -43,6 +43,13 @@
   - pnpm v4: `pnpm link foo`
   - pnpm v5: `pnpm link --global foo`
 
+### Minor Changes
+
+- A new command added: [pnpm fetch](https://pnpm.js.org/cli/fetch).
+
+  Fetch packages from a lockfile into virtual store, package manifest is ignored.
+  This command is specifically designed to boost building a docker image.
+
 ## 5.18.9
 
 ### Patch Changes
