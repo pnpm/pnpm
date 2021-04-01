@@ -260,7 +260,7 @@ importers:
       '@types/which': ^2.0.0
       '@zkochan/npm-conf': 2.0.2
       camelcase: ^6.2.0
-      can-write-to-dir: ^1.1.0
+      can-write-to-dir: ^1.1.1
       is-subdir: ^1.1.1
       ramda: ^0.27.1
       realpath-missing: ^1.1.0
@@ -273,7 +273,7 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/npm-conf': 2.0.2
       camelcase: 6.2.0
-      can-write-to-dir: 1.1.0
+      can-write-to-dir: 1.1.1
       is-subdir: 1.2.0
       ramda: 0.27.1
       realpath-missing: 1.1.0
@@ -714,12 +714,12 @@ importers:
     specifiers:
       '@pnpm/error': workspace:1.4.0
       '@pnpm/global-bin-dir': 'link:'
-      can-write-to-dir: ^1.1.0
+      can-write-to-dir: ^1.1.1
       is-windows: ^1.0.2
       path-name: ^1.0.0
     dependencies:
       '@pnpm/error': link:../error
-      can-write-to-dir: 1.1.0
+      can-write-to-dir: 1.1.1
       path-name: 1.0.0
     devDependencies:
       '@pnpm/global-bin-dir': 'link:'
@@ -6106,6 +6106,14 @@ packages:
     engines: {node: '>=10.13'}
     dependencies:
       path-temp: 2.0.0
+    dev: true
+
+  /can-write-to-dir/1.1.1:
+    resolution: {integrity: sha512-eOgiEWqjppB+3DN/5E82EQ8dTINus8d9GXMCbEsUnp2hcUIcXmBvzWmD3tXMk3CuBK0v+ddK9qw0EAF+JVRMjQ==}
+    engines: {node: '>=10.13'}
+    dependencies:
+      path-temp: 2.0.0
+    dev: false
 
   /caniuse-lite/1.0.30001205:
     resolution: {integrity: sha512-TL1GrS5V6LElbitPazidkBMD9sa448bQDDLrumDqaggmKFcuU2JW1wTOHJPukAcOMtEmLcmDJEzfRrf+GjM0Og==}

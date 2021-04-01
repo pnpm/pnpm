@@ -37,7 +37,7 @@
     "@pnpm/types": "workspace:6.4.0",
     "@zkochan/npm-conf": "2.0.2",
     "camelcase": "^6.2.0",
-    "can-write-to-dir": "^1.1.0",
+    "can-write-to-dir": "^1.1.1",
     "is-subdir": "^1.1.1",
     "ramda": "^0.27.1",
     "realpath-missing": "^1.1.0",
