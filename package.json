@@ -47,7 +47,7 @@
     "yarn": "^1.22.10"
   },
   "engines": {
-    "pnpm": ">=5 || ^0.0.0-x"
+    "pnpm": ">=6"
   },
   "pnpm": {
     "overrides": {
