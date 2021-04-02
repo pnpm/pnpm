@@ -1,4 +1,4 @@
-[中文](https://pnpm.js.org/zh/) | [Español](https://pnpm.js.org/es/)
+[中文](https://pnpm.io/zh/) | [Español](https://pnpm.io/es/)
 
 ![](https://i.imgur.com/qlW1eEG.png)
 
@@ -6,11 +6,11 @@ Fast, disk space efficient package manager:
 
 * **Fast.** Up to 2x faster than the alternatives (see [benchmark](#benchmark)).
 * **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
-* **[Great for monorepos](https://pnpm.js.org/workspaces).**
+* **[Great for monorepos](https://pnpm.io/workspaces).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
 * **Works everywhere.** Supports Windows, Linux, and macOS.
-* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.js.org/users) since 2016.
+* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/users) since 2016.
   
 To quote the [Rush](https://rushjs.io/) team:
 
@@ -36,7 +36,7 @@ With pnpm, lodash will be stored in a content-addressable storage, so:
 
 As a result, you save gigabytes of space on your disk and you have a lot faster installations!
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
-why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://pnpm.js.org/blog/2020/05/27/flat-node-modules-is-not-the-only-way).
+why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://pnpm.io/blog/2020/05/27/flat-node-modules-is-not-the-only-way).
 
 ## Installation
 
@@ -44,7 +44,7 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 npm install -g pnpm
 ```
 
-For other installation options [visit our website](https://pnpm.js.org/installation).
+For other installation options [visit our website](https://pnpm.io/installation).
 
 ## Usage
 
@@ -60,7 +60,7 @@ Also, pnpx instead of npx:
 pnpx create-react-app my-cool-new-app
 ```
 
-For more advanced usage, read [pnpm CLI](https://pnpm.js.org/pnpm-cli) on our website, or run `pnpm help`.
+For more advanced usage, read [pnpm CLI](https://pnpm.io/pnpm-cli) on our website, or run `pnpm help`.
 
 ## Benchmark
 
@@ -72,7 +72,7 @@ Benchmarks on an app with lots of dependencies:
 
 ## Support
 
-- [Frequently Asked Questions](https://pnpm.js.org/faq)
+- [Frequently Asked Questions](https://pnpm.io/faq)
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
 - [Chat](https://r.pnpm.io/chat)
 - [Twitter](https://twitter.com/pnpmjs)

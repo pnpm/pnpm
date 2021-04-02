@@ -111,7 +111,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://pnpm.io",
   "keywords": [
     "dependency manager",
     "install",

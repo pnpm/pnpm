@@ -133,7 +133,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   let homepage: string
   let repository: string | { type: 'git', url: string }
   if (manifest.name === 'pnpm') {
-    homepage = 'https://pnpm.js.org'
+    homepage = 'https://pnpm.io'
     repository = {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',

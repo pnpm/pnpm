@@ -7,7 +7,7 @@ test('getManifest()', async () => {
     lockfileDir: '',
     rawConfig: {},
     registries: {
-      '@scope': 'https://pnpm.js.org/',
+      '@scope': 'https://pnpm.io/',
       default: 'https://registry.npmjs.org/',
     },
   }
@@ -34,7 +34,7 @@ test('getManifest()', async () => {
   })
 
   const resolve2: ResolveFunction = async function (wantedPackage, opts) {
-    expect(opts.registry).toEqual('https://pnpm.js.org/')
+    expect(opts.registry).toEqual('https://pnpm.io/')
     return {
       id: 'foo/2.0.0',
       latest: '2.0.0',

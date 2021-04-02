@@ -19,7 +19,7 @@ test('fetchFromRegistry fullMetadata', async () => {
 })
 
 test('authorization headers are removed before redirection if the target is on a different host', async () => {
-  nock('http://registry.pnpm.js.org/', {
+  nock('http://registry.pnpm.io/', {
     reqheaders: { authorization: 'Bearer 123' },
   })
     .get('/is-positive')
@@ -30,7 +30,7 @@ test('authorization headers are removed before redirection if the target is on a
 
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
   const res = await fetchFromRegistry(
-    'http://registry.pnpm.js.org/is-positive',
+    'http://registry.pnpm.io/is-positive',
     { authHeaderValue: 'Bearer 123' }
   )
 
@@ -39,12 +39,12 @@ test('authorization headers are removed before redirection if the target is on a
 })
 
 test('authorization headers are not removed before redirection if the target is on the same host', async () => {
-  nock('http://registry.pnpm.js.org/', {
+  nock('http://registry.pnpm.io/', {
     reqheaders: { authorization: 'Bearer 123' },
   })
     .get('/is-positive')
-    .reply(302, '', { location: 'http://registry.pnpm.js.org/is-positive-new' })
-  nock('http://registry.pnpm.js.org/', {
+    .reply(302, '', { location: 'http://registry.pnpm.io/is-positive-new' })
+  nock('http://registry.pnpm.io/', {
     reqheaders: { authorization: 'Bearer 123' },
   })
     .get('/is-positive-new')
@@ -52,7 +52,7 @@ test('authorization headers are not removed before redirection if the target is 
 
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
   const res = await fetchFromRegistry(
-    'http://registry.pnpm.js.org/is-positive',
+    'http://registry.pnpm.io/is-positive',
     { authHeaderValue: 'Bearer 123' }
   )
 
@@ -64,7 +64,7 @@ test('switch to the correct agent for requests on redirect from http: to https:'
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
 
   // We can test this on any endpoint that redirects from http: to https:
-  const { status } = await fetchFromRegistry('http://pnpm.js.org/pnpm.js')
+  const { status } = await fetchFromRegistry('http://pnpm.io/pnpm.js')
 
   expect(status).toEqual(200)
 })

@@ -198,7 +198,7 @@ test('registries of scoped packages are read', async () => {
 test('registries in current directory\'s .npmrc have bigger priority then global config settings', async () => {
   prepare()
 
-  await fs.writeFile('.npmrc', 'registry=https://pnpm.js.org/', 'utf8')
+  await fs.writeFile('.npmrc', 'registry=https://pnpm.io/', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -211,7 +211,7 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   })
 
   expect(config.registries).toStrictEqual({
-    default: 'https://pnpm.js.org/',
+    default: 'https://pnpm.io/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
   })

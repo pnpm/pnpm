@@ -11,5 +11,5 @@ export * from './style'
 
 export const docsUrl = (cmd: string) => {
   const [pnpmMajorVersion] = pnpmManifest.version.split('.')
-  return `https://pnpm.js.org/${pnpmMajorVersion}.x/cli/${cmd}`
+  return `https://pnpm.io/${pnpmMajorVersion}.x/cli/${cmd}`
 }

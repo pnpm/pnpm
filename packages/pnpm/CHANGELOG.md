@@ -45,7 +45,7 @@
 
 ### Minor Changes
 
-- A new command added: [pnpm fetch](https://pnpm.js.org/cli/fetch).
+- A new command added: [pnpm fetch](https://pnpm.io/cli/fetch).
 
   Fetch packages from a lockfile into virtual store, package manifest is ignored.
   This command is specifically designed to boost building a docker image.
