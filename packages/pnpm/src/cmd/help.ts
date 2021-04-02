@@ -79,6 +79,10 @@ function getHelpText () {
             name: 'audit',
           },
           {
+            description: 'Output a graph of packages and their dependencies',
+            name: 'graph',
+          },
+          {
             description: 'Print all the versions of packages that are installed, as well as their dependencies, in a tree-structure',
             name: 'list',
             shortAlias: 'ls',
