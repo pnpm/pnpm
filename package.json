@@ -4,7 +4,7 @@
     "bump": "changeset version && pnpm install",
     "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
-    "prepare": "pnpm --dir=verdaccio install && pnpm --dir=fixtures run prepareFixtures",
+    "prepare": "pnpm --dir=verdaccio install && pnpm --dir=fixtures run prepareFixtures && husky install",
     "lint": "syncpack list-mismatches && eslint --config=eslint.json **/src/**/*.ts **/test/**/*.ts",
     "test-main": "pnpm compile && pnpm lint -- --quiet && run-p -r verdaccio test-pkgs-main",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
@@ -32,7 +32,7 @@
     "c8": "^7.7.0",
     "cross-env": "^7.0.3",
     "eslint": "^7.23.0",
-    "husky": "^4.3.8",
+    "husky": "^6.0.0",
     "jest": "27.0.0-next.7",
     "lcov-result-merger": "^3.1.0",
     "npm-run-all": "^4.1.5",
@@ -48,12 +48,6 @@
   },
   "engines": {
     "pnpm": ">=5 || ^0.0.0-x"
-  },
-  "husky": {
-    "hooks": {
-      "commit-msg": "commitlint -e",
-      "pre-push": "pnpm run lint -- --quiet"
-    }
   },
   "pnpm": {
     "overrides": {
