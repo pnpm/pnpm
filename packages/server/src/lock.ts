@@ -11,7 +11,7 @@ export default function lock<T> (): LockedFunc<T> {
   const locks: CachedPromises<T> = {}
 
   return async (key: string, fn: () => Promise<T>): Promise<T> => {
-    if (locks[key]) return locks[key]
+    if (locks[key] != null) return locks[key]
     locks[key] = fn()
     fn()
       .then(() => delete locks[key], () => delete locks[key])
