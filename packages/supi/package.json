@@ -72,7 +72,7 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-store": "workspace:11.0.3",
     "@pnpm/prepare": "workspace:0.0.18",
-    "@pnpm/store-path": "5.0.0-1",
+    "@pnpm/store-path": "^5.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.5",
     "@types/is-ci": "^3.0.0",

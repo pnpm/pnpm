@@ -53,7 +53,7 @@
     "@pnpm/read-package-json": "workspace:4.0.0",
     "@pnpm/read-project-manifest": "workspace:1.1.7",
     "@pnpm/run-npm": "workspace:2.0.3",
-    "@pnpm/store-path": "5.0.0-1",
+    "@pnpm/store-path": "^5.0.0",
     "@pnpm/tabtab": "^0.1.2",
     "@pnpm/types": "workspace:6.4.0",
     "@pnpm/write-project-manifest": "workspace:1.1.7",

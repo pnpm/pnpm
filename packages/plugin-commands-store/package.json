@@ -61,7 +61,7 @@
     "@pnpm/pick-registry-for-package": "workspace:1.1.0",
     "@pnpm/store-connection-manager": "workspace:1.0.4",
     "@pnpm/store-controller-types": "workspace:10.0.0",
-    "@pnpm/store-path": "5.0.0-1",
+    "@pnpm/store-path": "^5.0.0",
     "@pnpm/types": "workspace:6.4.0",
     "archy": "^1.0.0",
     "dependency-path": "workspace:5.1.1",

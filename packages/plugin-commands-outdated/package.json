@@ -57,7 +57,7 @@
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/outdated": "workspace:7.2.29",
     "@pnpm/semver-diff": "^1.0.2",
-    "@pnpm/store-path": "5.0.0-1",
+    "@pnpm/store-path": "^5.0.0",
     "@zkochan/table": "^1.0.0",
     "chalk": "^4.1.0",
     "lru-cache": "^6.0.0",
