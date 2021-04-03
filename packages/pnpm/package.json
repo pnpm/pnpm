@@ -17,7 +17,7 @@
     "bin"
   ],
   "optionalDependencies": {
-    "node-gyp": "^7.1.2"
+    "node-gyp": "^8.0.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
