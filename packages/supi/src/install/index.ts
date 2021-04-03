@@ -408,9 +408,8 @@ export async function mutateModules (
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies)
       }
-      const scripts = opts.ignoreScripts ? {} : (project.manifest?.scripts ?? {})
       if (opts.ignoreScripts && project.manifest?.scripts &&
-        (project.manifest.scripts.preinstall || project.manifest.scripts.prepublish ||
+        (project.manifest.scripts.preinstall ||
           project.manifest.scripts.install ||
           project.manifest.scripts.postinstall ||
           project.manifest.scripts.prepare)
@@ -418,12 +417,6 @@ export async function mutateModules (
         ctx.pendingBuilds.push(project.id)
       }
 
-      if (scripts['prepublish']) { // eslint-disable-line @typescript-eslint/dot-notation
-        logger.warn({
-          message: '`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.',
-          prefix: project.rootDir,
-        })
-      }
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
@@ -474,7 +467,7 @@ export async function mutateModules (
       if (opts.enablePnp) {
         scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
-      await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepublish', 'prepare'],
+      await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepare'],
         projectsToBeInstalled,
         opts.childConcurrency,
         scriptsOpts
