@@ -4,9 +4,9 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
 
-const binDir = path.join(__dirname, '../..', isWindows() ? 'lib' : 'bin')
-const pnpmBinLocation = path.join(binDir, 'pnpm.js')
-const pnpxBinLocation = path.join(binDir, 'pnpx.js')
+const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
+const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
+const pnpxBinLocation = path.join(binDir, 'pnpx.cjs')
 
 export async function execPnpm (
   args: string[],

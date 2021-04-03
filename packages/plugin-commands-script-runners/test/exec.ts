@@ -8,7 +8,7 @@ import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
 test('pnpm recursive exec', async () => {
   preparePackages([

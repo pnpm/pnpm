@@ -14,4 +14,4 @@ ${COMPATIBILITY_PAGE}`)
   process.exit(1)
 }
 
-require('../dist/pnpm')
+require('../dist/pnpm.cjs')

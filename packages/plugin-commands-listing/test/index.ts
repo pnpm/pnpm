@@ -9,7 +9,7 @@ import execa from 'execa'
 import stripAnsi from 'strip-ansi'
 import writeYamlFile from 'write-yaml-file'
 
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
 test('listing packages', async () => {
   prepare({

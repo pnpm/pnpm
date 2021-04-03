@@ -2318,7 +2318,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/update-notifier': ^5.0.0
       '@types/which': ^2.0.0
-      '@zkochan/libnpx': 13.0.1
+      '@zkochan/libnpx': 13.1.0
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^2.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -2409,7 +2409,7 @@ importers:
       '@types/semver': 7.3.4
       '@types/update-notifier': 5.0.0
       '@types/which': 2.0.0
-      '@zkochan/libnpx': 13.0.1
+      '@zkochan/libnpx': 13.1.0
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 2.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -4986,8 +4986,8 @@ packages:
     dependencies:
       argparse: 2.0.1
 
-  /@zkochan/libnpx/13.0.1:
-    resolution: {integrity: sha512-csFWr7oHFCoHsysci1WA07SD9LWfz3OWicmOGBLumCMZj9x44ifvlLV5V7WGgxbGm/UdLb3itgX4DjD1KE50sg==}
+  /@zkochan/libnpx/13.1.0:
+    resolution: {integrity: sha512-NMqXAYJbtJycxRvR8Oy4pHSJ/2ApBxqmJpc+MxTO/JHpIVhWeqhEdrl4QNdqebw+4vE6h6c0vmJEdcBwJKQKAA==}
     engines: {node: '>=10.13'}
     dependencies:
       '@zkochan/npm-package-arg': 2.0.1
