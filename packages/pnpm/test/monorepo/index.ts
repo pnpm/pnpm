@@ -633,11 +633,9 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
     expect(outputs1).toStrictEqual([
       'project-999-install',
       'project-999-postinstall',
-      'project-999-prepublish',
       'project-999-prepare',
       'project-1-install',
       'project-1-postinstall',
-      'project-1-prepublish',
       'project-1-prepare',
     ])
 
@@ -645,11 +643,9 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
     expect(outputs2).toStrictEqual([
       'project-999-install',
       'project-999-postinstall',
-      'project-999-prepublish',
       'project-999-prepare',
       'project-2-install',
       'project-2-postinstall',
-      'project-2-prepublish',
       'project-2-prepare',
     ])
   }
@@ -666,11 +662,9 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
     expect(outputs1).toStrictEqual([
       'project-999-install',
       'project-999-postinstall',
-      'project-999-prepublish',
       'project-999-prepare',
       'project-1-install',
       'project-1-postinstall',
-      'project-1-prepublish',
       'project-1-prepare',
     ])
 
@@ -678,11 +672,9 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
     expect(outputs2).toStrictEqual([
       'project-999-install',
       'project-999-postinstall',
-      'project-999-prepublish',
       'project-999-prepare',
       'project-2-install',
       'project-2-postinstall',
-      'project-2-prepublish',
       'project-2-prepare',
     ])
   }
