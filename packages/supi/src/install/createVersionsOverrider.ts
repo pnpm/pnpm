@@ -63,7 +63,7 @@ function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies) 
       deps[versionOverride.wantedDependency.alias] &&
       (
         !versionOverride.wantedDependency.pref ||
-        deps[versionOverride.wantedDependency.alias] === versionOverride.wantedDependency.pref
+        semver.subset(deps[versionOverride.wantedDependency.alias], versionOverride.wantedDependency.pref)
       )
     ) {
       deps[versionOverride.wantedDependency.alias] = versionOverride.newPref
