@@ -59,11 +59,15 @@ function overrideDepsOfPkg (pkg: PackageManifest, versionOverrides: VersionOverr
 
 function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies) {
   for (const versionOverride of versionOverrides) {
+    const actual = deps[versionOverride.wantedDependency.alias]
     if (
-      deps[versionOverride.wantedDependency.alias] &&
+      actual &&
       (
         !versionOverride.wantedDependency.pref ||
-        semver.subset(deps[versionOverride.wantedDependency.alias], versionOverride.wantedDependency.pref)
+        actual === versionOverride.wantedDependency.pref ||
+        semver.validRange(actual) != null &&
+        semver.validRange(versionOverride.wantedDependency.pref) != null &&
+        semver.subset(actual, versionOverride.wantedDependency.pref)
       )
     ) {
       deps[versionOverride.wantedDependency.alias] = versionOverride.newPref
