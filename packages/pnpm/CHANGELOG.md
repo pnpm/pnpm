@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.0.0-beta.0
+## 6.0.0-rc.0
 
 ### Major Changes
 
@@ -45,12 +45,30 @@
 
 - pnpm's command file's extension changed to `.cjs` (`bin/pnpm.js`=>`bin/pnpm.cjs`).
 
+- [node-gyp](https://github.com/nodejs/node-gyp) updated to v8.
+
+- `prepublish` is not executed on a local `pnpm install`. Use `prepare` instead.
+
 ### Minor Changes
 
 - A new command added: [pnpm fetch](https://pnpm.io/cli/fetch).
 
   Fetch packages from a lockfile into virtual store, package manifest is ignored.
   This command is specifically designed to boost building a docker image.
+
+- Overrides match dependencies by checking if the target range is a subset of the specified range, instead of making an exact match.
+
+  For example, the following override will replace any version of `foo` that has a subrange on v2:
+
+  ```json
+  "pnpm": {
+    "overrides": {
+      "foo@2": "2.1.0"
+    }
+  }
+  ```
+
+  This will override `foo@2.2.0` and `foo@^2.3.0` to `foo@2.1.0` as both `2.2.0` and `^2.3.0` are subranges of `2`.
 
 ## 5.18.9
 
