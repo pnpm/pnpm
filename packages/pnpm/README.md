@@ -55,7 +55,7 @@ On Windows (using PowerShell):
 Using npm:
 
 ```
-npm install -g pnpm
+npx pnpm add -g pnpm
 ```
 
 For other installation options [visit our website](https://pnpm.io/installation).
