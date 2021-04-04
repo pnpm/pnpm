@@ -3,6 +3,7 @@ import path from 'path'
 import prepare from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
+import loadJsonFile from 'load-json-file'
 import {
   execPnpm,
   execPnpmSync,
@@ -157,4 +158,13 @@ test('the bundled CLI can be executed from stdin', async () => {
   await nodeProcess
 
   await project.has('is-positive')
+})
+
+test('the bundled CLI prints the correct version, when executed from stdin', async () => {
+  const nodeProcess = execa('node', ['-', '--version'])
+
+  createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
+
+  const { version } = await loadJsonFile<{ version: string }>(path.join(__dirname, '../package.json'))
+  expect((await nodeProcess).stdout).toBe(version)
 })

@@ -3,8 +3,8 @@ import { DependencyManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 
 const defaultManifest = {
-  name: 'unknown',
-  version: '0.0.0',
+  name: process.env.npm_package_name ?? 'pnpm',
+  version: process.env.npm_package_version ?? '0.0.0',
 }
 let pkgJson
 if (require.main == null) {
