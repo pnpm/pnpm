@@ -2325,6 +2325,7 @@ importers:
       byline: 5.0.0
       chalk: ^4.1.0
       cross-spawn: ^7.0.3
+      cross-var-no-babel: ^1.2.0
       deep-require-cwd: 1.0.0
       delay: ^5.0.0
       dir-is-case-sensitive: ^2.0.0
@@ -2416,6 +2417,7 @@ importers:
       byline: 5.0.0
       chalk: 4.1.0
       cross-spawn: 7.0.3
+      cross-var-no-babel: 1.2.0
       deep-require-cwd: 1.0.0
       delay: 5.0.0
       dir-is-case-sensitive: 2.0.0
@@ -6670,6 +6672,14 @@ packages:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  /cross-var-no-babel/1.2.0:
+    resolution: {integrity: sha512-7l0hGWt/RdodCJxB3V3CGlkwMyZQOncyy1mrWaVc7utVQihfw16gU6uAQO/aeQOU+UQTFFEZNuMV9d88DFlV3A==}
+    hasBin: true
+    dependencies:
+      cross-spawn: 5.1.0
+      exit: 0.1.2
+    dev: true
 
   /crypto-random-string/2.0.0:
     resolution: {integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==}
