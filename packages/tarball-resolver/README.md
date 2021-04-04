@@ -34,4 +34,4 @@ resolveFromTarball({pref: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.t
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

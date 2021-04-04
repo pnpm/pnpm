@@ -12,7 +12,6 @@
     "prepublishOnly": "pnpm run compile"
   },
   "keywords": [],
-  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:9.0.4",

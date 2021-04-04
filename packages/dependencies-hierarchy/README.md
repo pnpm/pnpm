@@ -16,4 +16,4 @@ A symlinked `node_modules` is created when installing using [pnpm](https://githu
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

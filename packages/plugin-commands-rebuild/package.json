@@ -26,7 +26,6 @@
     "pnpm",
     "rebuild"
   ],
-  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -27,4 +27,4 @@ await linkBinsOfPackages(packages, 'node_modules/.bin', {warn})
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+[MIT](./LICENSE)

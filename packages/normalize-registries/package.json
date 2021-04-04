@@ -2,7 +2,6 @@
   "name": "@pnpm/normalize-registries",
   "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
   "version": "1.0.6",
-  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

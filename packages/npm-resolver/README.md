@@ -62,4 +62,4 @@ resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

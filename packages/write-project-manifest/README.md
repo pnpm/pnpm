@@ -23,4 +23,4 @@ import path from 'path'
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

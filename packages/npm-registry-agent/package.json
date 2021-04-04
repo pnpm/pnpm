@@ -8,7 +8,6 @@
     "lib",
     "!*.map"
   ],
-  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "scripts": {
     "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",

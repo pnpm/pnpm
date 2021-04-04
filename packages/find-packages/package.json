@@ -20,7 +20,6 @@
     "find",
     "package"
   ],
-  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "engines": {
     "node": ">=12.17"
   },

@@ -27,4 +27,4 @@ await getBinsFromPkg(path.resolve('package.json'), process.cwd())
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+[MIT](./LICENSE)

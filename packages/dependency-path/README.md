@@ -50,4 +50,4 @@ console.log(dependencyPath.parse('/foo/2.0.0'))
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

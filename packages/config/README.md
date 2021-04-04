@@ -22,4 +22,4 @@ getConfig().then(pnpmConfig => console.log(pnpmConfig))
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

@@ -35,4 +35,4 @@ resolveFromLocal({pref: './example-package'}, {prefix: process.cwd()})
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

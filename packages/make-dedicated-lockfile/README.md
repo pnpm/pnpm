@@ -21,4 +21,4 @@ only those that are related to the project in the current working directory or s
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

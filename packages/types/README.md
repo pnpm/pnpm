@@ -25,4 +25,4 @@ const pkg: PackageManifest = {
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

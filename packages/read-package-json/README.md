@@ -36,4 +36,4 @@ const pkgJson = await readPackageJson('package.json')
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

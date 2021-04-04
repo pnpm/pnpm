@@ -2,7 +2,6 @@
   "name": "@pnpm/remove-bins",
   "version": "1.0.12",
   "description": "Remove bins from .bin",
-  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [

@@ -22,4 +22,4 @@ const { manifest, fileName } = await readProjectManifest(process.cwd())
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

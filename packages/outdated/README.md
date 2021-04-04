@@ -14,4 +14,4 @@
 
 ## License
 
-[MIT](LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+[MIT](LICENSE)

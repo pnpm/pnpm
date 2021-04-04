@@ -42,4 +42,4 @@ Writes a `.modules.yaml` file to the specified directory.
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

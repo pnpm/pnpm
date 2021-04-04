@@ -2,7 +2,6 @@
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
   "version": "0.45.4",
-  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

@@ -38,4 +38,4 @@ export async function (
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io/)
+MIT

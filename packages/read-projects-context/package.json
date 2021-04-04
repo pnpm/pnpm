@@ -1,7 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
   "version": "4.0.16",
-  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

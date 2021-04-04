@@ -168,7 +168,6 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   }
   return {
     ...manifest,
-    author: 'Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)',
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
     },
