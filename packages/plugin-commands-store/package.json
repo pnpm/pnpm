@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/lockfile-file": "workspace:3.2.1",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.18",
     "@types/archy": "0.0.31",
     "@types/ramda": "^0.27.35",
@@ -71,7 +71,7 @@
     "render-help": "^1.0.1"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

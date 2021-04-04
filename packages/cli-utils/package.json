@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cli-utils#readme",
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/types": "workspace:6.4.0",
     "@types/ramda": "^0.27.35"
   },
@@ -44,7 +44,7 @@
     "load-json-file": "^6.2.0"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

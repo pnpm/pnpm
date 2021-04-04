@@ -15,7 +15,7 @@
     "node": ">=12.17"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/read-projects-context",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-projects-context#readme",
@@ -34,7 +34,7 @@
     "realpath-missing": "^1.1.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

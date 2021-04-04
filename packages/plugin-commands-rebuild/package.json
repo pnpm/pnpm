@@ -34,7 +34,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-rebuild#readme",
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:2.3.14",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.18",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "^0.27.35",
@@ -77,7 +77,7 @@
     "semver": "^7.3.4"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

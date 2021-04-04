@@ -34,10 +34,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/mount-modules#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "rimraf": "^3.0.2"
   },
   "dependencies": {

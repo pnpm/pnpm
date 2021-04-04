@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-server#readme",
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "^0.27.35",
     "@types/signal-exit": "^3.0.0"
@@ -54,7 +54,7 @@
     "tree-kill": "^1.2.2"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

@@ -13,12 +13,12 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:2.0.24",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:11.0.3",
     "@pnpm/prepare": "workspace:0.0.18",
     "@pnpm/read-projects-context": "workspace:4.0.16",

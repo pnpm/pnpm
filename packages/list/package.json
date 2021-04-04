@@ -48,7 +48,7 @@
     "semver": "^7.3.4"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
     "@types/ramda": "^0.27.35",
     "@types/semver": "^7.3.4"

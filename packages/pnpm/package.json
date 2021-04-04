@@ -35,7 +35,7 @@
     "@pnpm/find-workspace-dir": "workspace:2.0.0",
     "@pnpm/find-workspace-packages": "workspace:2.3.42",
     "@pnpm/lockfile-types": "workspace:2.2.0",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/parse-cli-args": "workspace:3.2.2",
     "@pnpm/pick-registry-for-package": "workspace:1.1.0",

@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/store-connection-manager#readme",
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.2",
@@ -44,7 +44,7 @@
     "dir-is-case-sensitive": "^2.0.0"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

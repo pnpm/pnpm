@@ -20,44 +20,43 @@ export default function reportError (logObj: Log, config?: Config) {
     const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
     case 'ERR_PNPM_UNEXPECTED_STORE':
-      return reportUnexpectedStore(err, logObj['message'])
+      return reportUnexpectedStore(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE':
-      return reportUnexpectedVirtualStoreDir(err, logObj['message'])
+      return reportUnexpectedVirtualStoreDir(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_STORE_BREAKING_CHANGE':
-      return reportStoreBreakingChange(logObj['message'])
+      return reportStoreBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
-      return reportModulesBreakingChange(logObj['message'])
+      return reportModulesBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_MODIFIED_DEPENDENCY':
-      return reportModifiedDependency(logObj['message'])
+      return reportModifiedDependency(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
-      return reportLockfileBreakingChange(err, logObj['message'])
+      return reportLockfileBreakingChange(err, logObj)
     case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
       return formatErrorSummary(err.message)
     case 'ERR_PNPM_NO_MATCHING_VERSION':
-      return formatNoMatchingVersion(err, logObj['message'])
+      return formatNoMatchingVersion(err, logObj)
     case 'ERR_PNPM_RECURSIVE_FAIL':
-      return formatRecursiveCommandSummary(logObj['message'])
+      return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_BAD_TARBALL_SIZE':
-      return reportBadTarballSize(err, logObj['message'])
+      return reportBadTarballSize(err, logObj)
     case 'ELIFECYCLE':
-      return reportLifecycleError(logObj['message'])
+      return reportLifecycleError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_UNSUPPORTED_ENGINE':
-      return reportEngineError(err, logObj['message'])
+      return reportEngineError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
     case 'ERR_PNPM_FETCH_403':
-      return reportAuthError(err, logObj['message'], config)
+      return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
     default: {
       // Errors with unknown error codes are printed with stack trace
       if (!err.code?.startsWith?.('ERR_PNPM_')) {
         return formatGenericError(err.message ?? logObj['message'], err.stack)
       }
       let errorOutput = formatErrorSummary(err.message)
-      if (!logObj['message']) return errorOutput
-      if (logObj['message']['pkgsStack']?.length) {
-        errorOutput += `${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
+      if (logObj['pkgsStack']?.length) {
+        errorOutput += `${EOL}${formatPkgsStack(logObj['pkgsStack'])}`
       }
-      if (logObj['message']['hint']) {
-        errorOutput += `${EOL}${logObj['message']['hint'] as string}`
+      if (logObj['hint']) {
+        errorOutput += `${EOL}${logObj['hint'] as string}`
       }
       return errorOutput
     }

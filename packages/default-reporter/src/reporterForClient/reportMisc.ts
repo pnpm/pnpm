@@ -42,9 +42,9 @@ export default (
         return reportWarning(obj)
       }
       case 'error':
-        if (obj['message']?.['prefix'] && obj['message']['prefix'] !== opts.cwd) {
+        if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
           return Rx.of({
-            msg: `${obj['message']['prefix'] as string}:` + os.EOL + reportError(obj, opts.config),
+            msg: `${obj['prefix'] as string}:` + os.EOL + reportError(obj, opts.config),
           })
         }
         return Rx.of({ msg: reportError(obj, opts.config) })

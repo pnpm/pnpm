@@ -41,7 +41,7 @@
     "mem": "^8.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

@@ -13,7 +13,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:5.2.12",
@@ -69,7 +69,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:2.1.0",
     "@pnpm/client": "workspace:2.0.24",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:11.0.3",
     "@pnpm/prepare": "workspace:0.0.18",
     "@pnpm/store-path": "^5.0.0",

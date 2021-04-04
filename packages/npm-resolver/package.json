@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/npm-resolver#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:5.0.3",
@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:2.1.11",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@types/lru-cache": "^5.1.0",
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "^7.3.4",

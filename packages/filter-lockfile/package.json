@@ -31,10 +31,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/filter-lockfile#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@types/ramda": "^0.27.35",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0",

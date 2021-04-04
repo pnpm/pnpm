@@ -34,7 +34,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/lockfile-types": "workspace:2.2.0",
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/matcher": "workspace:1.0.3",
     "@pnpm/prepare": "workspace:0.0.18",
     "@pnpm/test-fixtures": "workspace:*",
@@ -93,7 +93,7 @@
     "version-selector-type": "^3.0.0"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pnpmfile#readme",
   "devDependencies": {
-    "@pnpm/logger": "^3.2.3",
+    "@pnpm/logger": "^4.0.0",
     "@types/ramda": "^0.27.35"
   },
   "dependencies": {
@@ -41,7 +41,7 @@
     "ramda": "^0.27.1"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.2.3"
+    "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }
