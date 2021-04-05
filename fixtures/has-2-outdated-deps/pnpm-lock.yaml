@@ -1,21 +1,23 @@
-dependencies:
-  is-negative: 1.0.1
-devDependencies:
-  is-positive: 1.0.0
-lockfileVersion: 5.1
-packages:
-  /is-negative/1.0.1:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-3GuHKO69A8db+HYIftzVDpy1aZQ=
-  /is-positive/1.0.0:
-    dev: true
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=
+lockfileVersion: 5.3
+
 specifiers:
   is-negative: ^1.0.0
   is-positive: ^1.0.0
+
+dependencies:
+  is-negative: 1.0.1
+
+devDependencies:
+  is-positive: 1.0.0
+
+packages:
+
+  /is-negative/1.0.1:
+    resolution: {integrity: sha1-3GuHKO69A8db+HYIftzVDpy1aZQ=}
+    engines: {node: '>=0.10.0'}
+    dev: false
+
+  /is-positive/1.0.0:
+    resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
+    engines: {node: '>=0.10.0'}
+    dev: true
