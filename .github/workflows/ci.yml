@@ -34,7 +34,7 @@ jobs:
       run: git branch -f main origin/main
     - name: install pnpm and npm
       run: |
-        curl -L https://get.pnpm.io/v6.js | node - add --global pnpm@dev npm@6
+        curl -L https://get.pnpm.io/v6.js | node - add --global pnpm@next npm@6
     - name: pnpm install
       run: pnpm install
     - name: run tests (main)
