@@ -29,6 +29,24 @@ test('readWantedLockfile()', async () => {
   }
 })
 
+test('readWantedLockfile() when lockfileVersion is a string', async () => {
+  {
+    const lockfile = await readWantedLockfile(path.join('fixtures', '4'), {
+      ignoreIncompatible: false,
+      wantedVersion: 3,
+    })
+    expect(lockfile!.lockfileVersion).toEqual('v3')
+  }
+
+  {
+    const lockfile = await readWantedLockfile(path.join('fixtures', '5'), {
+      ignoreIncompatible: false,
+      wantedVersion: 3,
+    })
+    expect(lockfile!.lockfileVersion).toEqual('3')
+  }
+})
+
 test('readCurrentLockfile()', async () => {
   const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
     ignoreIncompatible: false,

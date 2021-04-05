@@ -1,11 +1,14 @@
 import { Lockfile } from '@pnpm/lockfile-types'
+import comverToSemver from 'comver-to-semver'
 import * as R from 'ramda'
 import semver from 'semver'
 
 export default function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
   const newLockfile: Lockfile = {
     importers: {},
-    lockfileVersion: Math.max(theirs.lockfileVersion, ours.lockfileVersion),
+    lockfileVersion: semver.gt(comverToSemver(theirs.lockfileVersion.toString()), comverToSemver(ours.lockfileVersion.toString()))
+      ? theirs.lockfileVersion
+      : ours.lockfileVersion,
   }
 
   for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)]))) {
