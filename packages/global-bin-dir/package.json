@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/global-bin-dir",
-  "version": "1.2.6",
+  "version": "2.0.0",
   "description": "Finds a directory that is in PATH and we have permission to write to i",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/global-bin-dir#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/error": "workspace:1.4.0",
+    "@pnpm/error": "workspace:2.0.0",
     "can-write-to-dir": "^1.1.1",
     "path-name": "^1.0.0"
   },

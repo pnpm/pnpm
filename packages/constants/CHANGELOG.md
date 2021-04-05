@@ -1,5 +1,13 @@
 # @pnpm/constants
 
+## 5.0.0
+
+### Major Changes
+
+- 6871d74b2: Bump lockfile version to 5.3.
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+- f2bb5cbeb: Bump layout version to 5.
+
 ## 4.1.0
 
 ### Minor Changes

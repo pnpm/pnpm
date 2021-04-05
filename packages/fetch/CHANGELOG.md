@@ -1,5 +1,19 @@
 # @pnpm/fetch
 
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+  - @pnpm/core-loggers@6.0.0
+  - @pnpm/fetching-types@2.0.0
+  - @pnpm/npm-registry-agent@4.0.0
+
 ## 2.1.11
 
 ### Patch Changes

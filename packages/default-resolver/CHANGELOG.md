@@ -1,5 +1,24 @@
 # @pnpm/default-resolver
 
+## 12.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [83645c8ed]
+- Updated dependencies [992820161]
+  - @pnpm/error@2.0.0
+  - @pnpm/fetching-types@2.0.0
+  - @pnpm/git-resolver@5.0.0
+  - @pnpm/local-resolver@6.0.0
+  - @pnpm/npm-resolver@11.0.0
+  - @pnpm/resolver-base@8.0.0
+  - @pnpm/tarball-resolver@5.0.0
+
 ## 11.0.20
 
 ### Patch Changes

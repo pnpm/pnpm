@@ -1,5 +1,25 @@
 # @pnpm/read-projects-context
 
+## 5.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [155e70597]
+- Updated dependencies [9c2a878c3]
+- Updated dependencies [8b66f26dc]
+- Updated dependencies [f7750baed]
+- Updated dependencies [78470a32d]
+- Updated dependencies [9c2a878c3]
+  - @pnpm/lockfile-file@4.0.0
+  - @pnpm/modules-yaml@9.0.0
+  - @pnpm/normalize-registries@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 4.0.16
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/config
 
+## 12.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+- aed712455: Remove `pnpm-prefix` setting support.
+- aed712455: `globalDir` is never set. Only the `dir` option is set with the global directory location when the `--global` is used. The pnpm CLI should have access to the global dir, otherwise an exception is thrown.
+
+### Minor Changes
+
+- 78470a32d: New setting added: `modules-cache-max-age`. The default value of the setting is 10080 (7 days in seconds). `modules-cache-max-age` is the time in minutes after which pnpm should remove the orphan packages from node_modules.
+
+### Patch Changes
+
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [f2bb5cbeb]
+  - @pnpm/constants@5.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/global-bin-dir@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 11.14.2
 
 ### Patch Changes

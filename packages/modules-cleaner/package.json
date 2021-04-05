@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "10.0.23",
+  "version": "11.0.0",
   "description": "Exports util functions to clean up node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -26,16 +26,16 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:5.0.3",
-    "@pnpm/filter-lockfile": "workspace:4.0.17",
-    "@pnpm/lockfile-types": "workspace:2.2.0",
-    "@pnpm/lockfile-utils": "workspace:2.0.22",
-    "@pnpm/read-modules-dir": "workspace:2.0.3",
-    "@pnpm/remove-bins": "workspace:1.0.12",
-    "@pnpm/store-controller-types": "workspace:10.0.0",
-    "@pnpm/types": "workspace:6.4.0",
+    "@pnpm/core-loggers": "workspace:6.0.0",
+    "@pnpm/filter-lockfile": "workspace:5.0.0",
+    "@pnpm/lockfile-types": "workspace:3.0.0",
+    "@pnpm/lockfile-utils": "workspace:3.0.0",
+    "@pnpm/read-modules-dir": "workspace:3.0.0",
+    "@pnpm/remove-bins": "workspace:2.0.0",
+    "@pnpm/store-controller-types": "workspace:11.0.0",
+    "@pnpm/types": "workspace:7.0.0",
     "@zkochan/rimraf": "^2.0.0",
-    "dependency-path": "workspace:5.1.1",
+    "dependency-path": "workspace:6.0.0",
     "ramda": "^0.27.1"
   },
   "devDependencies": {

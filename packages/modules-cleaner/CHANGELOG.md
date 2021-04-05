@@ -1,5 +1,32 @@
 # @pnpm/modules-cleaner
 
+## 11.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Minor Changes
+
+- 78470a32d: `prune()` accepts a new option: `pruneVirtualStore`. When `pruneVirtualStore` is `true`, any unreferenced packages are removed from the virtual store (from `node_modules/.pnpm`).
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [f2bb5cbeb]
+  - @pnpm/core-loggers@6.0.0
+  - dependency-path@6.0.0
+  - @pnpm/filter-lockfile@5.0.0
+  - @pnpm/lockfile-types@3.0.0
+  - @pnpm/lockfile-utils@3.0.0
+  - @pnpm/read-modules-dir@3.0.0
+  - @pnpm/remove-bins@2.0.0
+  - @pnpm/store-controller-types@11.0.0
+  - @pnpm/types@7.0.0
+
 ## 10.0.23
 
 ### Patch Changes

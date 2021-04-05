@@ -1,5 +1,36 @@
 # @pnpm/outdated
 
+## 8.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [155e70597]
+- Updated dependencies [9c2a878c3]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [8b66f26dc]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f7750baed]
+- Updated dependencies [78470a32d]
+- Updated dependencies [9c2a878c3]
+  - @pnpm/constants@5.0.0
+  - @pnpm/client@3.0.0
+  - dependency-path@6.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/lockfile-file@4.0.0
+  - @pnpm/lockfile-utils@3.0.0
+  - @pnpm/manifest-utils@2.0.0
+  - @pnpm/matcher@2.0.0
+  - @pnpm/modules-yaml@9.0.0
+  - @pnpm/pick-registry-for-package@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 7.2.29
 
 ### Patch Changes

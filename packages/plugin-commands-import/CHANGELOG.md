@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-import
 
+## 2.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [78470a32d]
+- Updated dependencies [f2d3b6c8b]
+- Updated dependencies [945dc9f56]
+- Updated dependencies [048c94871]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [7adc6e875]
+- Updated dependencies [735d2ac79]
+- Updated dependencies [9e30b9659]
+  - @pnpm/constants@5.0.0
+  - @pnpm/cli-utils@0.6.0
+  - @pnpm/error@2.0.0
+  - @pnpm/read-project-manifest@2.0.0
+  - @pnpm/store-connection-manager@1.1.0
+  - supi@0.46.0
+
 ## 1.0.110
 
 ### Patch Changes

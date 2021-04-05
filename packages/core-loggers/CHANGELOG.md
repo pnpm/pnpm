@@ -1,5 +1,20 @@
 # @pnpm/core-loggers
 
+## 6.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Minor Changes
+
+- 90487a3a8: New logger added: `updateCheckLogger`.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+  - @pnpm/types@7.0.0
+
 ## 5.0.3
 
 ### Patch Changes

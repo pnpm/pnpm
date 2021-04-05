@@ -1,5 +1,30 @@
 # @pnpm/hoist
 
+## 5.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [6871d74b2]
+- Updated dependencies [06c6c9959]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f2bb5cbeb]
+  - @pnpm/constants@5.0.0
+  - @pnpm/link-bins@6.0.0
+  - dependency-path@6.0.0
+  - @pnpm/lockfile-types@3.0.0
+  - @pnpm/lockfile-utils@3.0.0
+  - @pnpm/lockfile-walker@4.0.0
+  - @pnpm/matcher@2.0.0
+  - @pnpm/symlink-dependency@4.0.0
+  - @pnpm/types@7.0.0
+
 ## 4.0.26
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.2.0
+
+### Minor Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [155e70597]
+- Updated dependencies [9c2a878c3]
+- Updated dependencies [8b66f26dc]
+- Updated dependencies [f7750baed]
+- Updated dependencies [9c2a878c3]
+  - @pnpm/error@2.0.0
+  - @pnpm/exportable-manifest@2.0.0
+  - @pnpm/find-workspace-dir@3.0.0
+  - @pnpm/lockfile-file@4.0.0
+  - @pnpm/prune-lockfile@3.0.0
+  - @pnpm/read-project-manifest@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 0.1.21
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # dependency-path
 
+## 6.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+- f2bb5cbeb: All packages inside the virtual store directory should be on the same depth. Instead of subdirectories, one directory is used with # instead of slashes.
+
+### Patch Changes
+
+- e4efddbd2: Don't use ":" in path to dependency.
+- Updated dependencies [97b986fbc]
+  - @pnpm/types@7.0.0
+
 ## 5.1.1
 
 ### Patch Changes

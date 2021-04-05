@@ -1,5 +1,33 @@
 # @pnpm/lockfile-file
 
+## 4.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Minor Changes
+
+- 155e70597: The "resolution" field should always be the first key. This will reduce the number of issues during lockfile merges.
+- f7750baed: Add blank lines to the lockfile between items.
+
+  The `resolution` object should be written in a single line.
+
+### Patch Changes
+
+- 9c2a878c3: Change order of keys in package snapshot.
+- 8b66f26dc: Do not fail when `lockfileVersion` is a string.
+- 9c2a878c3: Write engines, os, and cpu to single line.
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+- Updated dependencies [f2bb5cbeb]
+  - @pnpm/constants@5.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/lockfile-types@3.0.0
+  - @pnpm/merge-lockfile-changes@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 3.2.1
 
 ### Patch Changes

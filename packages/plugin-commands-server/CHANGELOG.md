@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-server
 
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- 7adc6e875: Update dependencies.
+- Updated dependencies [97b986fbc]
+- Updated dependencies [78470a32d]
+- Updated dependencies [aed712455]
+- Updated dependencies [aed712455]
+- Updated dependencies [7adc6e875]
+  - @pnpm/cli-meta@2.0.0
+  - @pnpm/cli-utils@0.6.0
+  - @pnpm/common-cli-options-help@0.4.0
+  - @pnpm/config@12.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/server@11.0.0
+  - @pnpm/store-connection-manager@1.1.0
+
 ## 2.0.72
 
 ### Patch Changes

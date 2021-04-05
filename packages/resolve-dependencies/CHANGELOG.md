@@ -1,5 +1,41 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Minor Changes
+
+- 6871d74b2: Add new transitivePeerDependencies field to lockfile.
+
+### Patch Changes
+
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [83645c8ed]
+  - @pnpm/constants@5.0.0
+  - @pnpm/core-loggers@6.0.0
+  - dependency-path@6.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/lockfile-types@3.0.0
+  - @pnpm/lockfile-utils@3.0.0
+  - @pnpm/manifest-utils@2.0.0
+  - @pnpm/npm-resolver@11.0.0
+  - @pnpm/package-is-installable@5.0.0
+  - @pnpm/pick-registry-for-package@2.0.0
+  - @pnpm/prune-lockfile@3.0.0
+  - @pnpm/read-package-json@5.0.0
+  - @pnpm/resolver-base@8.0.0
+  - @pnpm/store-controller-types@11.0.0
+  - @pnpm/types@7.0.0
+
 ## 19.0.2
 
 ### Patch Changes

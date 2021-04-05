@@ -1,5 +1,72 @@
 # supi
 
+## 0.46.0
+
+### Minor Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+- 78470a32d: New option added: `modulesCacheMaxAge`. The default value of the setting is 10080 (7 days in seconds). `modulesCacheMaxAge` is the time in minutes after which pnpm should remove the orphan packages from node_modules.
+- f2d3b6c8b: Overrides match dependencies by checking if the target range is a subset of the specified range, instead of making an exact match.
+- 048c94871: `.pnp.js` renamed to `.pnp.cjs` in order to force CommonJS.
+- 735d2ac79: support fetch package without package manifest
+- 9e30b9659: Do not execute prepublish during installation.
+
+### Patch Changes
+
+- 945dc9f56: `pnpm.overrides` should work on direct dependencies as well.
+- Updated dependencies [6871d74b2]
+- Updated dependencies [06c6c9959]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [155e70597]
+- Updated dependencies [78470a32d]
+- Updated dependencies [9c2a878c3]
+- Updated dependencies [048c94871]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [8b66f26dc]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f7750baed]
+- Updated dependencies [83645c8ed]
+- Updated dependencies [7adc6e875]
+- Updated dependencies [78470a32d]
+- Updated dependencies [78470a32d]
+- Updated dependencies [735d2ac79]
+- Updated dependencies [9c2a878c3]
+- Updated dependencies [78470a32d]
+  - @pnpm/constants@5.0.0
+  - @pnpm/link-bins@6.0.0
+  - @pnpm/build-modules@6.0.0
+  - @pnpm/core-loggers@6.0.0
+  - dependency-path@6.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/filter-lockfile@5.0.0
+  - @pnpm/get-context@5.0.0
+  - @pnpm/headless@16.0.0
+  - @pnpm/hoist@5.0.0
+  - @pnpm/lifecycle@10.0.0
+  - @pnpm/lockfile-file@4.0.0
+  - @pnpm/lockfile-to-pnp@0.4.0
+  - @pnpm/lockfile-utils@3.0.0
+  - @pnpm/lockfile-walker@4.0.0
+  - @pnpm/manifest-utils@2.0.0
+  - @pnpm/modules-cleaner@11.0.0
+  - @pnpm/modules-yaml@9.0.0
+  - @pnpm/normalize-registries@2.0.0
+  - @pnpm/package-requester@14.0.0
+  - @pnpm/parse-wanted-dependency@2.0.0
+  - @pnpm/prune-lockfile@3.0.0
+  - @pnpm/read-modules-dir@3.0.0
+  - @pnpm/read-package-json@5.0.0
+  - @pnpm/read-project-manifest@2.0.0
+  - @pnpm/remove-bins@2.0.0
+  - @pnpm/resolve-dependencies@20.0.0
+  - @pnpm/resolver-base@8.0.0
+  - @pnpm/store-controller-types@11.0.0
+  - @pnpm/symlink-dependency@4.0.0
+  - @pnpm/types@7.0.0
+
 ## 0.45.4
 
 ### Patch Changes

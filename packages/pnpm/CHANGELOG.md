@@ -7,11 +7,13 @@
 - Node.js v10 support is dropped. At least Node.js v12.17 is required for the package to work.
 
 - The lockfile version is bumped to v5.3. Changes in the new format:
+
   - Blank lines added between package/project entries to improve readability and decrease merge issues.
   - The `resolution`, `engines`, `os`, and `cpu` fields are now always written in a single lines, as the first keys of the package objects.
   - A new field is added to the package objects: `transitivePeerDependencies`.
 
 - The layout of the virtual store directory has changed (`node_modules/.pnpm`) to allow keeping cache in it:
+
   - All packages inside the virtual store directory are on the same depth. Instead of subdirectories, one directory is used with `#` instead of slashes.
   - New setting added: `modules-cache-max-age`. The default value of the setting is 10080 (7 days in seconds). `modules-cache-max-age` is the time in minutes after which pnpm should remove the orphan packages from `node_modules`.
 

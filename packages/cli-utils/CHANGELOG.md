@@ -1,5 +1,26 @@
 # @pnpm/cli-utils
 
+## 0.6.0
+
+### Minor Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [78470a32d]
+- Updated dependencies [aed712455]
+- Updated dependencies [aed712455]
+- Updated dependencies [90487a3a8]
+  - @pnpm/cli-meta@2.0.0
+  - @pnpm/config@12.0.0
+  - @pnpm/default-reporter@8.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/manifest-utils@2.0.0
+  - @pnpm/package-is-installable@5.0.0
+  - @pnpm/read-project-manifest@2.0.0
+
 ## 0.5.4
 
 ### Patch Changes

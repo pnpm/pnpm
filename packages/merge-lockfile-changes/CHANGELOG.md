@@ -1,5 +1,17 @@
 # @pnpm/merge-lockfile-changes
 
+## 2.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+  - @pnpm/lockfile-types@3.0.0
+
 ## 1.0.1
 
 ### Patch Changes

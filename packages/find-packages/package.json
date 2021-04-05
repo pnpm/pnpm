@@ -1,6 +1,6 @@
 {
   "name": "find-packages",
-  "version": "7.0.24",
+  "version": "8.0.0",
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [
@@ -29,8 +29,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages#readme",
   "dependencies": {
-    "@pnpm/read-project-manifest": "workspace:1.1.7",
-    "@pnpm/types": "workspace:6.4.0",
+    "@pnpm/read-project-manifest": "workspace:2.0.0",
+    "@pnpm/types": "workspace:7.0.0",
     "fast-glob": "^3.2.4",
     "p-filter": "^2.1.0"
   },

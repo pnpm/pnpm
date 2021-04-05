@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching-types",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Types for fetching",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -23,6 +23,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetching-types#readme",
   "scripts": {
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile"
   },

@@ -1,5 +1,27 @@
 # @pnpm/default-reporter
 
+## 8.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Minor Changes
+
+- 90487a3a8: Print a notification about newer version of the CLI.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [78470a32d]
+- Updated dependencies [aed712455]
+- Updated dependencies [aed712455]
+  - @pnpm/config@12.0.0
+  - @pnpm/core-loggers@6.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 7.10.7
 
 ### Patch Changes

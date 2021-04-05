@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-publishing
 
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [78470a32d]
+- Updated dependencies [aed712455]
+- Updated dependencies [aed712455]
+  - @pnpm/cli-utils@0.6.0
+  - @pnpm/client@3.0.0
+  - @pnpm/config@12.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/exportable-manifest@2.0.0
+  - @pnpm/lifecycle@10.0.0
+  - @pnpm/pick-registry-for-package@2.0.0
+  - @pnpm/resolver-base@8.0.0
+  - @pnpm/run-npm@3.0.0
+  - @pnpm/sort-packages@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 2.5.6
 
 ### Patch Changes

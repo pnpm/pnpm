@@ -1,5 +1,29 @@
 # @pnpm/package-requester
 
+## 14.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- 83645c8ed: Update ssri.
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [83645c8ed]
+  - @pnpm/cafs@3.0.0
+  - @pnpm/core-loggers@6.0.0
+  - dependency-path@6.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/fetcher-base@10.0.0
+  - @pnpm/read-package-json@5.0.0
+  - @pnpm/resolver-base@8.0.0
+  - @pnpm/store-controller-types@11.0.0
+  - @pnpm/types@7.0.0
+
 ## 13.0.1
 
 ### Patch Changes

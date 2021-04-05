@@ -1,5 +1,21 @@
 # @pnpm/tarball-fetcher
 
+## 9.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- 83645c8ed: Update ssri.
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+  - @pnpm/core-loggers@6.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/fetcher-base@10.0.0
+  - @pnpm/fetching-types@2.0.0
+
 ## 8.2.8
 
 ### Patch Changes

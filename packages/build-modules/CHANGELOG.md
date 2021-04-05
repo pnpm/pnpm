@@ -1,5 +1,26 @@
 # @pnpm/build-modules
 
+## 6.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [6871d74b2]
+- Updated dependencies [06c6c9959]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [f2bb5cbeb]
+  - @pnpm/constants@5.0.0
+  - @pnpm/link-bins@6.0.0
+  - @pnpm/core-loggers@6.0.0
+  - @pnpm/lifecycle@10.0.0
+  - @pnpm/read-package-json@5.0.0
+  - @pnpm/store-controller-types@11.0.0
+  - @pnpm/types@7.0.0
+
 ## 5.2.12
 
 ### Patch Changes

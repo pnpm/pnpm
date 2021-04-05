@@ -1,5 +1,22 @@
 # @pnpm/link-bins
 
+## 6.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- 06c6c9959: Don't create a PowerShell command shim for pnpm commands.
+- Updated dependencies [97b986fbc]
+  - @pnpm/error@2.0.0
+  - @pnpm/package-bins@5.0.0
+  - @pnpm/read-modules-dir@3.0.0
+  - @pnpm/read-package-json@5.0.0
+  - @pnpm/read-project-manifest@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 5.3.25
 
 ### Patch Changes

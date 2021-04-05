@@ -1,5 +1,59 @@
 # @pnpm/plugin-commands-installation
 
+## 4.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+- 09e950fdc: `pnpmfile.js` renamed to `.pnpmfile.cjs`.
+- 0d381e1d6: The default depth of an update is Infinity, not 0.
+- aed712455: The --global option should be used when linking from/to the global modules directory.
+
+### Minor Changes
+
+- 46e71ea4a: `pnpm prune` should remove the modules cache.
+- 735d2ac79: add new command `pnpm fetch`
+
+### Patch Changes
+
+- 7adc6e875: Update dependencies.
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [78470a32d]
+- Updated dependencies [78470a32d]
+- Updated dependencies [f2d3b6c8b]
+- Updated dependencies [945dc9f56]
+- Updated dependencies [09e950fdc]
+- Updated dependencies [aed712455]
+- Updated dependencies [048c94871]
+- Updated dependencies [78470a32d]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [83645c8ed]
+- Updated dependencies [aed712455]
+- Updated dependencies [7adc6e875]
+- Updated dependencies [735d2ac79]
+- Updated dependencies [9e30b9659]
+  - @pnpm/constants@5.0.0
+  - @pnpm/cli-utils@0.6.0
+  - @pnpm/command@2.0.0
+  - @pnpm/common-cli-options-help@0.4.0
+  - @pnpm/config@12.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/filter-workspace-packages@3.0.0
+  - @pnpm/find-workspace-dir@3.0.0
+  - @pnpm/find-workspace-packages@3.0.0
+  - @pnpm/manifest-utils@2.0.0
+  - @pnpm/outdated@8.0.0
+  - @pnpm/package-store@12.0.0
+  - @pnpm/parse-wanted-dependency@2.0.0
+  - @pnpm/plugin-commands-rebuild@3.0.0
+  - @pnpm/pnpmfile@1.0.0
+  - @pnpm/resolver-base@8.0.0
+  - @pnpm/sort-packages@2.0.0
+  - @pnpm/store-connection-manager@1.1.0
+  - supi@0.46.0
+  - @pnpm/types@7.0.0
+
 ## 3.5.28
 
 ### Patch Changes

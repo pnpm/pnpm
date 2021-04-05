@@ -1,5 +1,15 @@
 # @pnpm/lockfile-types
 
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Minor Changes
+
+- 6871d74b2: Add new transitivePeerDependencies field to lockfile.
+
 ## 2.2.0
 
 ### Minor Changes

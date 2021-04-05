@@ -1,5 +1,19 @@
 # @pnpm/filter-workspace-packages
 
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+  - @pnpm/error@2.0.0
+  - @pnpm/find-workspace-packages@3.0.0
+  - @pnpm/matcher@2.0.0
+  - pkgs-graph@6.0.0
+
 ## 2.3.14
 
 ### Patch Changes

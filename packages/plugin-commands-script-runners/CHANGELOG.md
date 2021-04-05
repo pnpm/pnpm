@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-script-runners
 
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+- 34338d2d0: Arbitrary pre/post hooks for user-defined scripts (such as `prestart`) are not executed automatically.
+- 048c94871: `.pnp.js` renamed to `.pnp.cjs` in order to force CommonJS.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [78470a32d]
+- Updated dependencies [aed712455]
+- Updated dependencies [aed712455]
+  - @pnpm/cli-utils@0.6.0
+  - @pnpm/command@2.0.0
+  - @pnpm/common-cli-options-help@0.4.0
+  - @pnpm/config@12.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/lifecycle@10.0.0
+  - @pnpm/sort-packages@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 2.6.5
 
 ### Patch Changes

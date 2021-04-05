@@ -1,5 +1,32 @@
 # @pnpm/get-context
 
+## 5.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- 7adc6e875: Update dependencies.
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [155e70597]
+- Updated dependencies [9c2a878c3]
+- Updated dependencies [8b66f26dc]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f7750baed]
+- Updated dependencies [78470a32d]
+- Updated dependencies [9c2a878c3]
+  - @pnpm/constants@5.0.0
+  - @pnpm/core-loggers@6.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/lockfile-file@4.0.0
+  - @pnpm/modules-yaml@9.0.0
+  - @pnpm/read-projects-context@5.0.0
+  - @pnpm/types@7.0.0
+
 ## 4.0.0
 
 ### Major Changes

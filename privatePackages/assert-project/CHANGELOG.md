@@ -1,5 +1,24 @@
 # @pnpm/assert-project
 
+## 2.2.0
+
+### Minor Changes
+
+- 735d2ac79: expose dir of project
+
+### Patch Changes
+
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [78470a32d]
+  - @pnpm/constants@5.0.0
+  - @pnpm/lockfile-types@3.0.0
+  - @pnpm/modules-yaml@9.0.0
+  - @pnpm/types@7.0.0
+  - @pnpm/assert-store@1.0.17
+
 ## 2.1.16
 
 ### Patch Changes

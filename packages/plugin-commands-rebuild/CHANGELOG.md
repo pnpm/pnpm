@@ -1,5 +1,45 @@
 # @pnpm/plugin-commands-rebuild
 
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- 78470a32d: `prunedAt` is set for the modules meta file.
+- Updated dependencies [6871d74b2]
+- Updated dependencies [06c6c9959]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [78470a32d]
+- Updated dependencies [aed712455]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [aed712455]
+- Updated dependencies [7adc6e875]
+- Updated dependencies [78470a32d]
+  - @pnpm/constants@5.0.0
+  - @pnpm/link-bins@6.0.0
+  - @pnpm/cli-utils@0.6.0
+  - @pnpm/common-cli-options-help@0.4.0
+  - @pnpm/config@12.0.0
+  - @pnpm/core-loggers@6.0.0
+  - dependency-path@6.0.0
+  - @pnpm/find-workspace-packages@3.0.0
+  - @pnpm/get-context@5.0.0
+  - @pnpm/lifecycle@10.0.0
+  - @pnpm/lockfile-utils@3.0.0
+  - @pnpm/lockfile-walker@4.0.0
+  - @pnpm/modules-yaml@9.0.0
+  - @pnpm/normalize-registries@2.0.0
+  - @pnpm/sort-packages@2.0.0
+  - @pnpm/store-connection-manager@1.1.0
+  - @pnpm/store-controller-types@11.0.0
+  - @pnpm/types@7.0.0
+
 ## 2.2.34
 
 ### Patch Changes

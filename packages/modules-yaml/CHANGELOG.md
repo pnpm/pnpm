@@ -1,5 +1,17 @@
 # @pnpm/modules-yaml
 
+## 9.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+- 78470a32d: New required option added to the modules meta object: `prunedAt`. `prunedAt` is the stringified UTC date when the virtual store was last cleared.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+  - @pnpm/types@7.0.0
+
 ## 8.0.6
 
 ### Patch Changes

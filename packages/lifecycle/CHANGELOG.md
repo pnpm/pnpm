@@ -1,5 +1,19 @@
 # @pnpm/lifecycle
 
+## 10.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+  - @pnpm/core-loggers@6.0.0
+  - @pnpm/read-package-json@5.0.0
+  - @pnpm/types@7.0.0
+
 ## 9.6.5
 
 ### Patch Changes

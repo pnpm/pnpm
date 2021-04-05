@@ -1,5 +1,26 @@
 # @pnpm/store-connection-manager
 
+## 2.0.0
+
+### Minor Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- 7adc6e875: Update dependencies.
+- Updated dependencies [97b986fbc]
+- Updated dependencies [78470a32d]
+- Updated dependencies [aed712455]
+- Updated dependencies [83645c8ed]
+- Updated dependencies [aed712455]
+  - @pnpm/cli-meta@2.0.0
+  - @pnpm/client@3.0.0
+  - @pnpm/config@12.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/package-store@12.0.0
+  - @pnpm/server@11.0.0
+
 ## 1.0.4
 
 ### Patch Changes

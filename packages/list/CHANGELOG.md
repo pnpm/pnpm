@@ -1,5 +1,20 @@
 # @pnpm/list
 
+## 6.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+  - dependencies-hierarchy@10.0.0
+  - @pnpm/matcher@2.0.0
+  - @pnpm/read-package-json@5.0.0
+  - @pnpm/read-project-manifest@2.0.0
+  - @pnpm/types@7.0.0
+
 ## 5.0.26
 
 ### Patch Changes

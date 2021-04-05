@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 0.4.0
+
+### Minor Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
 ## 0.3.1
 
 ### Patch Changes
