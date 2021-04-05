@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.0.0-rc.1
+## 6.0.0
 
 ### Major Changes
 
