@@ -1,5 +1,7 @@
-dependencies:
-  example: 'link:example'
-lockfileVersion: 5.1
+lockfileVersion: 5.3
+
 specifiers:
-  example: 'link:example'
+  example: link:example
+
+dependencies:
+  example: link:example

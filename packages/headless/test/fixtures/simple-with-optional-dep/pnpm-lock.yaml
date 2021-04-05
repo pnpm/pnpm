@@ -1,28 +1,31 @@
-dependencies:
-  pkg-with-good-optional: 1.0.0
-lockfileVersion: 5.1
-optionalDependencies:
-  is-positive: 1.0.0
-packages:
-  /dep-of-pkg-with-1-dep/100.0.0:
-    dev: false
-    resolution:
-      integrity: sha512-lKXGmfrRNYKcd0+oWS8lZb08dbTm3WRbB5Lq3O35WigqJHNSsYIQB/lLrdTyJDBil9tS8SACdXp64zJXGk72jA==
-  /is-positive/1.0.0:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    optional: true
-    resolution:
-      integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=
-  /pkg-with-good-optional/1.0.0:
-    dependencies:
-      dep-of-pkg-with-1-dep: 100.0.0
-    dev: false
-    optionalDependencies:
-      is-positive: 1.0.0
-    resolution:
-      integrity: sha512-gos9k175h8q97LuQKrjZrdUiYsbWeCfG8g6jKDX4UU/D3IhpaEqbEoSlXC/W5NiojUNo/pZXikGrdnJl8miusw==
+lockfileVersion: 5.3
+
 specifiers:
   is-positive: 1.0.0
   pkg-with-good-optional: '*'
+
+dependencies:
+  pkg-with-good-optional: 1.0.0
+
+optionalDependencies:
+  is-positive: 1.0.0
+
+packages:
+
+  /dep-of-pkg-with-1-dep/100.0.0:
+    resolution: {integrity: sha512-lKXGmfrRNYKcd0+oWS8lZb08dbTm3WRbB5Lq3O35WigqJHNSsYIQB/lLrdTyJDBil9tS8SACdXp64zJXGk72jA==}
+    dev: false
+
+  /is-positive/1.0.0:
+    resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
+    engines: {node: '>=0.10.0'}
+    dev: false
+    optional: true
+
+  /pkg-with-good-optional/1.0.0:
+    resolution: {integrity: sha512-gos9k175h8q97LuQKrjZrdUiYsbWeCfG8g6jKDX4UU/D3IhpaEqbEoSlXC/W5NiojUNo/pZXikGrdnJl8miusw==}
+    dependencies:
+      dep-of-pkg-with-1-dep: 100.0.0
+    optionalDependencies:
+      is-positive: 1.0.0
+    dev: false
