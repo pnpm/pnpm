@@ -5,7 +5,7 @@ Object {
   "entries": Object {
     ".pnpm": Object {
       "entries": Object {
-        "@zkochan#git-config@0.1.0": Object {
+        "@zkochan+git-config@0.1.0": Object {
           "entries": Object {
             "node_modules": Object {
               "entries": Object {
@@ -63,7 +63,7 @@ Object {
       "entries": Object {
         "git-config": Object {
           "entryType": "symlink",
-          "target": "./.pnpm/@zkochan#git-config@0.1.0/node_modules/@zkochan/git-config",
+          "target": "./.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config",
         },
       },
       "entryType": "directory",
