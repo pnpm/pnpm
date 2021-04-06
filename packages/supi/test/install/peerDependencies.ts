@@ -408,7 +408,7 @@ test('scoped peer dependency is linked', async () => {
   prepareEmpty()
   await addDependenciesToPackage({}, ['for-testing-scoped-peers'], await testDefaults())
 
-  const pkgVariation = path.resolve('node_modules/.pnpm/@having#scoped-peer@1.0.0_@scoped+peer@1.0.0/node_modules')
+  const pkgVariation = path.resolve('node_modules/.pnpm/@having+scoped-peer@1.0.0_@scoped+peer@1.0.0/node_modules')
   await okFile(path.join(pkgVariation, '@having', 'scoped-peer'))
   await okFile(path.join(pkgVariation, '@scoped', 'peer'))
 })
@@ -896,7 +896,7 @@ test('local tarball dependency with peer dependency', async () => {
   ], await testDefaults({ reporter }))
 
   const integrityLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
-    .filter((dir) => dir.startsWith('local#'))
+    .filter((dir) => dir.startsWith('local+'))
 
   expect(integrityLocalPkgDirs.length).toBe(1)
 
@@ -913,7 +913,7 @@ test('local tarball dependency with peer dependency', async () => {
 
   {
     const updatedLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
-      .filter((dir) => dir.startsWith('local#'))
+      .filter((dir) => dir.startsWith('local+'))
     expect(updatedLocalPkgDirs).toStrictEqual(integrityLocalPkgDirs)
   }
 })

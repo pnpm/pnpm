@@ -131,7 +131,7 @@ export function parse (dependencyPath: string) {
 }
 
 export function depPathToFilename (depPath: string, lockfileDir: string) {
-  const filename = depPathToFilenameUnescaped(depPath, lockfileDir).replace(/\//g, '#')
+  const filename = depPathToFilenameUnescaped(depPath, lockfileDir).replace(/\//g, '+')
   if (filename.length > 120) {
     return `${filename.substring(0, 50)}_${crypto.createHash('md5').update(filename).digest('hex')}`
   }
@@ -148,5 +148,5 @@ function depPathToFilenameUnescaped (depPath: string, lockfileDir: string) {
   }
 
   const absolutePath = normalize(path.join(lockfileDir, depPath.slice(5)))
-  return `local#${absolutePath.replace(':', '#')}`
+  return `local+${absolutePath.replace(':', '+')}`
 }
