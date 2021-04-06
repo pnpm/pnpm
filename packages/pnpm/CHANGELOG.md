@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.0.1
+
+### Bug Fixes
+
+- Use `+` instead of `#` in directory names inside the virtual store directory (`node_modules/.pnpm`). `#` causes issues with Webpack and Vite [#3314](https://github.com/pnpm/pnpm/pull/3314).
+
 ## 6.0.0
 
 ### Major Changes
@@ -37,13 +43,13 @@
 
   Linking a package to the global directory:
 
-  - pnpm v4: `pnpm link`
-  - pnpm v5: `pnpm link --global`
+  - pnpm v5: `pnpm link`
+  - pnpm v6: `pnpm link --global`
 
   Linking a package from the global directory:
 
-  - pnpm v4: `pnpm link foo`
-  - pnpm v5: `pnpm link --global foo`
+  - pnpm v5: `pnpm link foo`
+  - pnpm v6: `pnpm link --global foo`
 
 - pnpm's command file's extension changed to `.cjs` (`bin/pnpm.js`=>`bin/pnpm.cjs`).
 

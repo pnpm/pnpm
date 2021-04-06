@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-outdated",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "The outdated command of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/filter-workspace-packages": "workspace:3.0.0",
-    "@pnpm/plugin-commands-installation": "workspace:4.0.0",
+    "@pnpm/plugin-commands-installation": "workspace:4.0.1",
     "@pnpm/prepare": "workspace:0.0.19",
     "@pnpm/types": "workspace:7.0.0",
     "@types/lru-cache": "^5.1.0",
@@ -54,7 +54,7 @@
     "@pnpm/lockfile-file": "workspace:4.0.0",
     "@pnpm/matcher": "workspace:2.0.0",
     "@pnpm/modules-yaml": "workspace:9.0.0",
-    "@pnpm/outdated": "workspace:8.0.0",
+    "@pnpm/outdated": "workspace:8.0.1",
     "@pnpm/semver-diff": "^1.0.2",
     "@pnpm/store-path": "^5.0.0",
     "@zkochan/table": "^1.0.0",

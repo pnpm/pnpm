@@ -1,5 +1,12 @@
 # @pnpm/store-connection-manager
 
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/package-store@12.0.1
+- @pnpm/server@11.0.0
+
 ## 2.0.0
 
 ### Minor Changes

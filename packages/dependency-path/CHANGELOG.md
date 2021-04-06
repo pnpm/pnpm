@@ -1,5 +1,11 @@
 # dependency-path
 
+## 7.0.0
+
+### Major Changes
+
+- 9ceab68f0: Use + instead of # to escape / in paths.
+
 ## 6.0.0
 
 ### Major Changes

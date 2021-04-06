@@ -1,5 +1,22 @@
 # supi
 
+## 0.46.1
+
+### Patch Changes
+
+- Updated dependencies [9ceab68f0]
+  - dependency-path@7.0.0
+  - @pnpm/filter-lockfile@5.0.1
+  - @pnpm/headless@16.0.1
+  - @pnpm/hoist@5.0.1
+  - @pnpm/lockfile-to-pnp@0.4.1
+  - @pnpm/lockfile-utils@3.0.1
+  - @pnpm/lockfile-walker@4.0.1
+  - @pnpm/modules-cleaner@11.0.1
+  - @pnpm/package-requester@14.0.1
+  - @pnpm/prune-lockfile@3.0.1
+  - @pnpm/resolve-dependencies@20.0.1
+
 ## 0.46.0
 
 ### Minor Changes

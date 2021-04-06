@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 6.0.1
+
+### Patch Changes
+
+- dependencies-hierarchy@10.0.1
+
 ## 6.0.0
 
 ### Major Changes

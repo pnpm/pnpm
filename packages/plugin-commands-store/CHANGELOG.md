@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-store
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [9ceab68f0]
+  - dependency-path@7.0.0
+  - @pnpm/lockfile-utils@3.0.1
+  - @pnpm/store-connection-manager@2.0.1
+
 ## 3.0.0
 
 ### Major Changes

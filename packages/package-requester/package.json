@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "14.0.0",
+  "version": "14.0.1",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -42,7 +42,7 @@
     "@pnpm/resolver-base": "workspace:8.0.0",
     "@pnpm/store-controller-types": "workspace:11.0.0",
     "@pnpm/types": "workspace:7.0.0",
-    "dependency-path": "workspace:6.0.0",
+    "dependency-path": "workspace:7.0.0",
     "load-json-file": "^6.2.0",
     "p-defer": "^3.0.0",
     "p-limit": "^3.1.0",
