@@ -37,6 +37,9 @@
       "path": "../plugin-commands-installation"
     },
     {
+      "path": "../sort-packages"
+    },
+    {
       "path": "../types"
     }
   ]
