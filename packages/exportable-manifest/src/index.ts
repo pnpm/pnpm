@@ -8,6 +8,8 @@ import * as R from 'ramda'
 const PUBLISH_CONFIG_WHITELIST = new Set([
   // manifest fields that may make sense to overwrite
   'bin',
+  'type',
+  'imports',
   // https://github.com/stereobooster/package.json#package-bundlers
   'main',
   'module',
