@@ -100,6 +100,14 @@
     {
       "packageNames": ["p-queue"],
       "allowedVersions": "^6.6.2"
+    },
+    {
+      "packageNames": ["unique-string"],
+      "allowedVersions": "^2.0.0"
+    },
+    {
+      "packageNames": ["normalize-newline"],
+      "allowedVersions": "^3.0.0"
     }
   ],
   "pinVersions": false,
