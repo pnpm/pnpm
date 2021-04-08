@@ -12,6 +12,8 @@
 
 - Node.js v10 support is dropped. At least Node.js v12.17 is required for the package to work.
 
+- Arbitrary pre/post hooks for user-defined scripts (such as `prestart`) are not executed automatically.
+
 - The lockfile version is bumped to v5.3. Changes in the new format:
 
   - Blank lines added between package/project entries to improve readability and decrease merge issues.
@@ -21,15 +23,13 @@
 - The layout of the virtual store directory has changed (`node_modules/.pnpm`) to allow keeping cache in it:
 
   - All packages inside the virtual store directory are on the same depth. Instead of subdirectories, one directory is used with `#` instead of slashes.
-  - New setting added: `modules-cache-max-age`. The default value of the setting is 10080 (7 days in seconds). `modules-cache-max-age` is the time in minutes after which pnpm should remove the orphan packages from `node_modules`.
+  - New setting added: `modules-cache-max-age`. The default value of the setting is 10080 (7 days in minutes). `modules-cache-max-age` is the time in minutes after which pnpm should remove the orphan packages from `node_modules`.
 
 - pnpx does not automatically install packages. A prompt asks the user if a package should be installed, if it is not present.
 
   `pnpx --yes` tells pnpx to install any missing package.
 
   `pnpx --no` makes pnpx fail if the called packages is not installed.
-
-- Arbitrary pre/post hooks for user-defined scripts (such as `prestart`) are not executed automatically.
 
 - `pnpmfile.js` renamed to `.pnpmfile.cjs` in order to force CommonJS.
 
