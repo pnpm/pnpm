@@ -156,6 +156,7 @@ export default async (opts: HeadlessOptions) => {
 
   const scriptsOpts = {
     optional: false,
+    extraBinPaths: opts.extraBinPaths,
     rawConfig: opts.rawConfig,
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
