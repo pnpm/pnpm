@@ -71,6 +71,7 @@ test('interactively update', async () => {
     updateDependencies: ['is-negative'],
   })
 
+  prompt.mockClear()
   // t.comment('update to compatible versions')
   await update.handler({
     ...DEFAULT_OPTIONS,
@@ -129,7 +130,7 @@ test('interactively update', async () => {
       name: 'is-positive',
     },
     {
-      message: chalk`micromatch  3.0.0 ❯ {redBright.bold 4.0.2} `,
+      message: chalk`micromatch  3.0.0 ❯ {redBright.bold 4.0.3} `,
       name: 'micromatch',
     },
   ])
