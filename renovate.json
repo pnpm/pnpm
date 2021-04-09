@@ -108,6 +108,10 @@
     {
       "packageNames": ["normalize-newline"],
       "allowedVersions": "^3.0.0"
+    },
+    {
+      "packageNames": ["p-defer"],
+      "allowedVersions": "^3.0.0"
     }
   ],
   "pinVersions": false,
