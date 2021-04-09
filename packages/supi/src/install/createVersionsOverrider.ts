@@ -54,6 +54,7 @@ interface VersionOverrideWithParent extends VersionOverride {
 function overrideDepsOfPkg (pkg: PackageManifest, versionOverrides: VersionOverride[]) {
   if (pkg.dependencies != null) overrideDeps(versionOverrides, pkg.dependencies)
   if (pkg.optionalDependencies != null) overrideDeps(versionOverrides, pkg.optionalDependencies)
+  if (pkg.devDependencies != null) overrideDeps(versionOverrides, pkg.devDependencies)
   return pkg
 }
 
