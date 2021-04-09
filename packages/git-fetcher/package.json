@@ -37,7 +37,7 @@
   "devDependencies": {
     "@pnpm/cafs": "workspace:3.0.0",
     "@pnpm/types": "workspace:7.0.0",
-    "p-defer": "^3.0.0"
+    "p-defer": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }
