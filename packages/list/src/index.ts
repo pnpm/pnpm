@@ -14,6 +14,7 @@ const DEFAULTS = {
   long: false,
   registries: undefined,
   reportAs: 'tree' as const,
+  showExtraneous: true,
 }
 
 export async function forPackages (
@@ -59,6 +60,7 @@ export async function forPackages (
     depth: opts.depth,
     long: opts.long,
     search: Boolean(packages.length),
+    showExtraneous: opts.showExtraneous,
   })
 }
 
@@ -72,6 +74,7 @@ export default async function (
     include?: { [dependenciesField in DependenciesField]: boolean }
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
+    showExtraneous?: boolean
   }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -108,6 +111,7 @@ export default async function (
     depth: opts.depth,
     long: opts.long,
     search: false,
+    showExtraneous: opts.showExtraneous,
   })
 }
 

@@ -465,6 +465,7 @@ test('unsaved dependencies are marked', async () => {
       depth: 0,
       long: false,
       search: true,
+      showExtraneous: true,
     }
   )).toBe(`${LEGEND}
 
@@ -590,6 +591,7 @@ test('write long lists in columns', async () => {
       depth: 0,
       long: false,
       search: false,
+      showExtraneous: false,
     }
   )).toBe(`${LEGEND}
 
@@ -658,6 +660,7 @@ test('sort list items', async () => {
       depth: 0,
       long: false,
       search: false,
+      showExtraneous: false,
     }
   )).toBe(`${LEGEND}
 
