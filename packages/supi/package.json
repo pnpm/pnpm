@@ -97,7 +97,7 @@
     "read-yaml-file": "^2.1.0",
     "resolve-link-target": "^2.0.0",
     "sinon": "^9.2.2",
-    "symlink-dir": "^4.2.0",
+    "symlink-dir": "^5.0.0",
     "write-json-file": "^4.3.0",
     "write-yaml-file": "^4.2.0"
   },
