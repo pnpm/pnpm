@@ -159,7 +159,7 @@ Do you want to continue?`,
       engineStrict: opts.engineStrict,
       workspaceDir: opts.workspaceDir ?? dir,
     },
-    async (publishManifest) => {
+    async (publishManifest, originalManifest) => {
       // Unfortunately, we cannot support postpack at the moment
       if (!opts.ignoreScripts) {
         await _runScriptsIfPresent([
@@ -167,7 +167,7 @@ Do you want to continue?`,
           'prepare',
           'prepublishOnly',
           'prepack',
-        ], publishManifest)
+        ], originalManifest)
       }
 
       const args = opts.argv.original.slice(1)
@@ -187,7 +187,7 @@ Do you want to continue?`,
         await _runScriptsIfPresent([
           'publish',
           'postpublish',
-        ], publishManifest)
+        ], originalManifest)
       }
       _status = status!
     }
@@ -217,7 +217,7 @@ export async function fakeRegularManifest (
     dir: string
     workspaceDir: string
   },
-  fn: (publishManifest: ProjectManifest) => Promise<void>
+  fn: (publishManifest: ProjectManifest, originalManifest: ProjectManifest) => Promise<void>
 ) {
   // If a workspace package has no License of its own,
   // license files from the root of the workspace are used
@@ -232,7 +232,7 @@ export async function fakeRegularManifest (
     await rimraf(path.join(opts.dir, fileName))
     await writeJsonFile(path.join(opts.dir, 'package.json'), publishManifest)
   }
-  await fn(publishManifest)
+  await fn(publishManifest, manifest)
   if (replaceManifest) {
     await rimraf(path.join(opts.dir, 'package.json'))
     await writeProjectManifest(manifest, true)
