@@ -130,7 +130,7 @@ test('interactively update', async () => {
       name: 'is-positive',
     },
     {
-      message: chalk`micromatch  3.0.0 ❯ {redBright.bold 4.0.3} `,
+      message: chalk`micromatch  3.0.0 ❯ {redBright.bold 4.0.4} `,
       name: 'micromatch',
     },
   ])
