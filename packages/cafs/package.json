@@ -22,7 +22,7 @@
     "get-stream": "^6.0.0",
     "p-limit": "^3.1.0",
     "path-temp": "^2.0.0",
-    "rename-overwrite": "^3.1.1",
+    "rename-overwrite": "^3.1.2",
     "ssri": "^8.0.1",
     "strip-bom": "^4.0.0",
     "tar-stream": "^2.1.4"
