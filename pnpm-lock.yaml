@@ -1543,7 +1543,7 @@ importers:
       '@types/ssri': ^7.1.0
       '@zkochan/rimraf': ^2.0.0
       load-json-file: ^6.2.0
-      make-empty-dir: ^1.1.0
+      make-empty-dir: ^2.0.0
       p-limit: ^3.1.0
       path-exists: ^4.0.0
       path-temp: ^2.0.0
@@ -1563,7 +1563,7 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.0.0
       load-json-file: 6.2.0
-      make-empty-dir: 1.1.0
+      make-empty-dir: 2.0.0
       p-limit: 3.1.0
       path-exists: 4.0.0
       path-temp: 2.0.0
@@ -2322,7 +2322,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/update-notifier': ^5.0.0
       '@types/which': ^2.0.0
-      '@zkochan/libnpx': 13.1.0
+      '@zkochan/libnpx': 13.1.1
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^2.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -2414,7 +2414,7 @@ importers:
       '@types/semver': 7.3.4
       '@types/update-notifier': 5.0.0
       '@types/which': 2.0.0
-      '@zkochan/libnpx': 13.1.0
+      '@zkochan/libnpx': 13.1.1
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 2.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -5005,14 +5005,14 @@ packages:
     dependencies:
       argparse: 2.0.1
 
-  /@zkochan/libnpx/13.1.0:
-    resolution: {integrity: sha512-NMqXAYJbtJycxRvR8Oy4pHSJ/2ApBxqmJpc+MxTO/JHpIVhWeqhEdrl4QNdqebw+4vE6h6c0vmJEdcBwJKQKAA==}
+  /@zkochan/libnpx/13.1.1:
+    resolution: {integrity: sha512-soDi2OVct9xqLuWFCnQ9SP66mkuR5JhMng5ED2Vvz0PTnxgKpg4tOTHpE1SxG3QA8QEi4AfXefGYnBgaTc0j8A==}
     engines: {node: '>=10.13'}
     dependencies:
       '@zkochan/npm-package-arg': 2.0.1
+      '@zkochan/rimraf': 2.1.0
       dotenv: 8.2.0
       enquirer: 2.3.6
-      rimraf: 3.0.2
       safe-buffer: 5.2.1
       which: 2.0.2
       y18n: 4.0.1
@@ -10109,11 +10109,11 @@ packages:
     dependencies:
       semver: 6.3.0
 
-  /make-empty-dir/1.1.0:
-    resolution: {integrity: sha512-UtIGrcm81aLNurhFoOkRpSimVKDAbH8trI7QXtH/OZoEsR8qYfuDsDHLuAe12SaMwz/ZFkeh+XdMe5GKjiD1eg==}
-    engines: {node: '>=10.12'}
+  /make-empty-dir/2.0.0:
+    resolution: {integrity: sha512-kKvqQBL0LzLd6tmG1TwGTxAS8kgS0LPtKMlH5M0awKGixPo6EEaE2i0gHpXXoywoSjYOvZpdWrxln6NdgQ3q4g==}
+    engines: {node: '>=12.10'}
     dependencies:
-      rimraf: 3.0.2
+      '@zkochan/rimraf': 2.1.0
     dev: false
 
   /make-error/1.3.6:
