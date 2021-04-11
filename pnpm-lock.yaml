@@ -141,7 +141,7 @@ importers:
       get-stream: ^6.0.0
       p-limit: ^3.1.0
       path-temp: ^2.0.0
-      rename-overwrite: ^3.1.0
+      rename-overwrite: ^3.1.1
       ssri: ^8.0.1
       strip-bom: ^4.0.0
       tar-stream: ^2.1.4
@@ -155,7 +155,7 @@ importers:
       get-stream: 6.0.0
       p-limit: 3.1.0
       path-temp: 2.0.0
-      rename-overwrite: 3.1.0
+      rename-overwrite: 3.1.1
       ssri: 8.0.1
       strip-bom: 4.0.0
       tar-stream: 2.2.0
@@ -1144,7 +1144,7 @@ importers:
       '@types/ramda': ^0.27.35
       ncp: ^2.0.0
       ramda: ^0.27.1
-      rename-overwrite: ^3.1.0
+      rename-overwrite: ^3.1.1
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/exec': 2.0.0
@@ -1156,7 +1156,7 @@ importers:
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
       ramda: 0.27.1
-      rename-overwrite: 3.1.0
+      rename-overwrite: 3.1.1
     devDependencies:
       '@pnpm/make-dedicated-lockfile': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
@@ -1347,7 +1347,7 @@ importers:
       parse-npm-tarball-url: ^3.0.0
       path-exists: ^4.0.0
       path-temp: ^2.0.0
-      rename-overwrite: ^3.1.0
+      rename-overwrite: ^3.1.1
       semver: ^7.3.4
       ssri: ^8.0.1
       tempy: ^1.0.0
@@ -1368,7 +1368,7 @@ importers:
       p-memoize: 4.0.1
       parse-npm-tarball-url: 3.0.0
       path-temp: 2.0.0
-      rename-overwrite: 3.1.0
+      rename-overwrite: 3.1.1
       semver: 7.3.5
       ssri: 8.0.1
       version-selector-type: 3.0.0
@@ -1490,7 +1490,7 @@ importers:
       path-temp: ^2.0.0
       promise-share: ^1.0.0
       ramda: ^0.27.1
-      rename-overwrite: ^3.1.0
+      rename-overwrite: ^3.1.1
       ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
@@ -1510,7 +1510,7 @@ importers:
       path-temp: 2.0.0
       promise-share: 1.0.0
       ramda: 0.27.1
-      rename-overwrite: 3.1.0
+      rename-overwrite: 3.1.1
       ssri: 8.0.1
     devDependencies:
       '@pnpm/client': link:../client
@@ -1548,7 +1548,7 @@ importers:
       path-exists: ^4.0.0
       path-temp: ^2.0.0
       ramda: ^0.27.1
-      rename-overwrite: ^3.1.0
+      rename-overwrite: ^3.1.1
       sanitize-filename: ^1.6.3
       ssri: ^8.0.1
       tempy: ^1.0.0
@@ -1568,7 +1568,7 @@ importers:
       path-exists: 4.0.0
       path-temp: 2.0.0
       ramda: 0.27.1
-      rename-overwrite: 3.1.0
+      rename-overwrite: 3.1.1
       sanitize-filename: 1.6.3
       ssri: 8.0.1
       write-json-file: 4.3.0
@@ -11627,7 +11627,7 @@ packages:
       getopts: 2.3.0
       nm-prune: 4.0.0
       read-pkg: 5.2.0
-      rename-overwrite: 3.1.0
+      rename-overwrite: 3.1.1
       rimraf-then: 1.0.1
       write-pkg: 4.0.0
     dev: true
@@ -11937,8 +11937,8 @@ packages:
     resolution: {integrity: sha1-wkvOKig62tW8P1jg1IJJuSN52O8=}
     dev: true
 
-  /rename-overwrite/3.1.0:
-    resolution: {integrity: sha512-Txm8AChJq2dC/yLiKnZfmhj0fQWL3GoVkfzgqvxpgEXvSrpjX+FuJ3Q2+ErzanA72y3IQLPXuKDgFxCCOsksNA==}
+  /rename-overwrite/3.1.1:
+    resolution: {integrity: sha512-LY2HE0r5MGOVEtVfu/SfwnqWeUtJBFCpYpF5Nv0pkzhMAEll9K7IolFApmdqvSuA35WA6WkOntW8Gv8Clh7BHQ==}
     engines: {node: '>=10.12'}
     dependencies:
       rimraf: 3.0.2
@@ -12882,7 +12882,7 @@ packages:
     hasBin: true
     dependencies:
       better-path-resolve: 1.0.0
-      rename-overwrite: 3.1.0
+      rename-overwrite: 3.1.1
 
   /syncpack/5.7.11:
     resolution: {integrity: sha512-H79iI8D7W6rJeKyKEfbQdaBX1TA4ro0geJMGHZ1ob8YtfHjlZj1Fn+2bd7kHyaLlPtXSHceUShS4UMuoNphnAA==}
