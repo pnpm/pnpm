@@ -35,7 +35,7 @@
     "tempy": "^1.0.0"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:3.0.0",
+    "@pnpm/cafs": "workspace:3.0.1",
     "@pnpm/types": "workspace:7.0.0",
     "p-defer": "^3.0.0"
   },

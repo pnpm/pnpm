@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 6.1.0
+
+### Minor Changes
+
+- 1729f7b99: New option added: `showExtraneous`. When `showExtraneous` is `false`, unsaved dependencies are not listed.
+
 ## 6.0.1
 
 ### Patch Changes

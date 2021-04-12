@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 14.0.2
+
+### Patch Changes
+
+- 6f198457d: Update rename-overwrite.
+- Updated dependencies [6f198457d]
+  - @pnpm/cafs@3.0.1
+
 ## 14.0.1
 
 ### Patch Changes

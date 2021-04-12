@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "14.0.1",
+  "version": "14.0.2",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:3.0.0",
+    "@pnpm/cafs": "workspace:3.0.1",
     "@pnpm/core-loggers": "workspace:6.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/fetcher-base": "workspace:10.0.0",
@@ -54,7 +54,7 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:3.0.0",
+    "@pnpm/client": "workspace:3.0.1",
     "@pnpm/logger": "^4.0.0",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [561276d2c]
+  - @pnpm/exportable-manifest@2.0.1
+  - @pnpm/client@3.0.1
+  - @pnpm/config@12.0.0
+
 ## 3.0.0
 
 ### Major Changes

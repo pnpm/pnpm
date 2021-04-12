@@ -41,7 +41,7 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:3.0.0",
+    "@pnpm/cafs": "workspace:3.0.1",
     "@pnpm/fetch": "workspace:3.0.0",
     "@pnpm/logger": "^4.0.0",
     "@types/retry": "^0.12.0",

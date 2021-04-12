@@ -1,5 +1,11 @@
 # @pnpm/symlink-dependency
 
+## 4.0.1
+
+### Patch Changes
+
+- 6f198457d: Update rename-overwrite.
+
 ## 4.0.0
 
 ### Major Changes

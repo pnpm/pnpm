@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 2.0.1
+
+### Patch Changes
+
+- 561276d2c: Remove publish lifecycle events from manifest to avoid npm running them.
+
 ## 2.0.0
 
 ### Major Changes

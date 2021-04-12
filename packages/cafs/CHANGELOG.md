@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 3.0.1
+
+### Patch Changes
+
+- 6f198457d: Update rename-overwrite.
+
 ## 3.0.0
 
 ### Major Changes

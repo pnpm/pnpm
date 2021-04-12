@@ -1,5 +1,13 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.2.2
+
+### Patch Changes
+
+- 6f198457d: Update rename-overwrite.
+- Updated dependencies [561276d2c]
+  - @pnpm/exportable-manifest@2.0.1
+
 ## 0.2.1
 
 ### Patch Changes

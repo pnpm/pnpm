@@ -1,5 +1,18 @@
 # supi
 
+## 0.46.2
+
+### Patch Changes
+
+- c70c77f89: Overrides should override devDependencies as well.
+- Updated dependencies [6f198457d]
+- Updated dependencies [cbc1a827c]
+  - @pnpm/package-requester@14.0.2
+  - @pnpm/symlink-dependency@4.0.1
+  - @pnpm/headless@16.0.2
+  - @pnpm/resolve-dependencies@20.0.2
+  - @pnpm/hoist@5.0.2
+
 ## 0.46.1
 
 ### Patch Changes

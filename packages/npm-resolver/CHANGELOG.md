@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 11.0.1
+
+### Patch Changes
+
+- 6f198457d: Update rename-overwrite.
+
 ## 11.0.0
 
 ### Major Changes

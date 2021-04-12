@@ -1,5 +1,15 @@
 # @pnpm/package-store
 
+## 12.0.2
+
+### Patch Changes
+
+- 6f198457d: Update rename-overwrite.
+- e3d9b3215: Update make-empty-dir.
+- Updated dependencies [6f198457d]
+  - @pnpm/cafs@3.0.1
+  - @pnpm/package-requester@14.0.2
+
 ## 12.0.1
 
 ### Patch Changes

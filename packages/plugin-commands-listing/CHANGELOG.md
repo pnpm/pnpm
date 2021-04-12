@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-listing
 
+## 3.0.2
+
+### Patch Changes
+
+- 1729f7b99: Don't list hoisted dependencies as unsaved dependencies to avoid confusion.
+- Updated dependencies [1729f7b99]
+  - @pnpm/list@6.1.0
+  - @pnpm/config@12.0.0
+
 ## 3.0.1
 
 ### Patch Changes

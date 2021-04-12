@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 16.0.2
+
+### Patch Changes
+
+- cbc1a827c: fix bug that extraBinPaths does not take effect
+- Updated dependencies [6f198457d]
+  - @pnpm/package-requester@14.0.2
+  - @pnpm/symlink-dependency@4.0.1
+  - @pnpm/hoist@5.0.2
+
 ## 16.0.1
 
 ### Patch Changes

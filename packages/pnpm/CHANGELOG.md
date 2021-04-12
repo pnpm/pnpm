@@ -1,5 +1,14 @@
 # pnpm
 
+## 6.0.2
+
+### Bug Fixes
+
+- `pnpm publish`: lifecycle scripts should not be executed twice when the globally installed npm version is 7 [#3340](https://github.com/pnpm/pnpm/pull/3340).
+- `pnpm list`: hoisted dependencies are not listed as unsaved dependencies [#3339](https://github.com/pnpm/pnpm/pull/3339).
+- `pnpm.overrides` should override direct dev dependencies [#3327](https://github.com/pnpm/pnpm/pull/3327).
+- Commands from the root of the workspace should be in the PATH even when there is no lockfile in the workspace root [#2086](https://github.com/pnpm/pnpm/issues/2086).
+
 ## 6.0.1
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "20.0.1",
+  "version": "20.0.2",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
     "@pnpm/lockfile-types": "workspace:3.0.0",
     "@pnpm/lockfile-utils": "workspace:3.0.1",
     "@pnpm/manifest-utils": "workspace:2.0.0",
-    "@pnpm/npm-resolver": "workspace:11.0.0",
+    "@pnpm/npm-resolver": "workspace:11.0.1",
     "@pnpm/package-is-installable": "workspace:5.0.0",
     "@pnpm/pick-registry-for-package": "workspace:2.0.0",
     "@pnpm/prune-lockfile": "workspace:3.0.1",
