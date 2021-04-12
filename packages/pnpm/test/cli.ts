@@ -126,6 +126,8 @@ test('pnpx works', () => {
 
   const result = execPnpxSync(['--yes', 'hello-world-js-bin'])
 
+  console.log(result.stderr.toString())
+  console.log(result.stdout.toString())
   expect(result.status).toBe(0)
   expect(result.stdout.toString()).toMatch(/Hello world!/)
 })
