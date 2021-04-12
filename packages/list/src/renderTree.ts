@@ -17,14 +17,17 @@ const NOT_SAVED_DEP_CLR = chalk.red
 
 const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP_CLR('optional only')}, ${DEV_DEP_ONLY_CLR('dev only')}\n\n`
 
+export interface RenderTreeOptions {
+  alwaysPrintRootPackage: boolean
+  depth: number
+  long: boolean
+  search: boolean
+  showExtraneous: boolean
+}
+
 export default async function (
   packages: PackageDependencyHierarchy[],
-  opts: {
-    alwaysPrintRootPackage: boolean
-    depth: number
-    long: boolean
-    search: boolean
-  }
+  opts: RenderTreeOptions
 ) {
   const output = (
     await Promise.all(packages.map(async (pkg) => renderTreeForPackage(pkg, opts)))
@@ -36,19 +39,14 @@ export default async function (
 
 async function renderTreeForPackage (
   pkg: PackageDependencyHierarchy,
-  opts: {
-    alwaysPrintRootPackage: boolean
-    depth: number
-    long: boolean
-    search: boolean
-  }
+  opts: RenderTreeOptions
 ) {
   if (
     !opts.alwaysPrintRootPackage &&
     !pkg.dependencies?.length &&
     !pkg.devDependencies?.length &&
     !pkg.optionalDependencies?.length &&
-    !pkg.unsavedDependencies?.length
+    (!opts.showExtraneous || !pkg.unsavedDependencies?.length)
   ) return ''
 
   let label = ''
@@ -62,7 +60,13 @@ async function renderTreeForPackage (
   label += pkg.path
   let output = `${chalk.bold.underline(label)}\n`
   const useColumns = opts.depth === 0 && !opts.long && !opts.search
-  for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
+  const dependenciesFields: string[] = [
+    ...DEPENDENCIES_FIELDS.sort(),
+  ]
+  if (opts.showExtraneous) {
+    dependenciesFields.push('unsavedDependencies')
+  }
+  for (const dependenciesField of dependenciesFields) {
     if (pkg[dependenciesField]?.length) {
       const depsLabel = chalk.cyanBright(
         dependenciesField !== 'unsavedDependencies'
