@@ -11,12 +11,11 @@ import crossSpawn from 'cross-spawn'
 import loadJsonFile from 'load-json-file'
 import { DEFAULT_OPTS } from './utils'
 
-const CREDENTIALS = [
-  `registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
-  `//localhost:${REGISTRY_MOCK_PORT}/:username=username`,
-  `//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}`,
-  `//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
-].join('\n')
+const CREDENTIALS = `\
+registry=http://localhost:${REGISTRY_MOCK_PORT}/
+//localhost:${REGISTRY_MOCK_PORT}/:username=username
+//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}
+//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`
 
 test('recursive publish', async () => {
   const pkg1 = {
