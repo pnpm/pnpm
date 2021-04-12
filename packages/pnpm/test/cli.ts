@@ -1,6 +1,6 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
-import prepare from '@pnpm/prepare'
+import prepare, { prepareEmpty } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import loadJsonFile from 'load-json-file'
@@ -122,6 +122,8 @@ test('adding new dep does not fail if node_modules was created with --public-hoi
 })
 
 test('pnpx works', () => {
+  prepareEmpty()
+
   const result = execPnpxSync(['--yes', 'hello-world-js-bin'])
 
   expect(result.status).toBe(0)
