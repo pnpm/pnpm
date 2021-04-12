@@ -21,8 +21,20 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   'umd:main',
 ])
 
+const PREPUBLISH_SCRIPTS = [
+  'prepublishOnly',
+  'prepack',
+  'prepare',
+  'postpack',
+  'publish',
+  'postpublish',
+]
+
 export default async function makePublishManifest (dir: string, originalManifest: ProjectManifest) {
-  const publishManifest = R.omit(['pnpm'], originalManifest)
+  const publishManifest: ProjectManifest = R.omit(['pnpm', 'scripts'], originalManifest)
+  if (originalManifest.scripts != null) {
+    publishManifest.scripts = R.omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
+  }
   for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
     const deps = await makePublishDependencies(dir, originalManifest[depsField])
     if (deps != null) {

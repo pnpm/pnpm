@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
@@ -10,12 +11,11 @@ import crossSpawn from 'cross-spawn'
 import loadJsonFile from 'load-json-file'
 import { DEFAULT_OPTS } from './utils'
 
-const CREDENTIALS = [
-  `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:username=username`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
-].join('\n')
+const CREDENTIALS = `\
+registry=http://localhost:${REGISTRY_MOCK_PORT}/
+//localhost:${REGISTRY_MOCK_PORT}/:username=username
+//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}
+//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`
 
 test('recursive publish', async () => {
   const pkg1 = {
@@ -86,6 +86,7 @@ test('recursive publish', async () => {
     expect(status).toBe(1)
   }
 
+  process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),

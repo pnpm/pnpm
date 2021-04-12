@@ -153,23 +153,23 @@ Do you want to continue?`,
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   })
   let _status!: number
+  const { manifest } = await readProjectManifest(dir, opts)
+  // Unfortunately, we cannot support postpack at the moment
+  if (!opts.ignoreScripts) {
+    await _runScriptsIfPresent([
+      'prepublish',
+      'prepare',
+      'prepublishOnly',
+      'prepack',
+    ], manifest)
+  }
   await fakeRegularManifest(
     {
       dir,
       engineStrict: opts.engineStrict,
       workspaceDir: opts.workspaceDir ?? dir,
     },
-    async (publishManifest) => {
-      // Unfortunately, we cannot support postpack at the moment
-      if (!opts.ignoreScripts) {
-        await _runScriptsIfPresent([
-          'prepublish',
-          'prepare',
-          'prepublishOnly',
-          'prepack',
-        ], publishManifest)
-      }
-
+    async () => {
       const args = opts.argv.original.slice(1)
       const index = args.indexOf('--publish-branch')
       if (index !== -1) {
@@ -183,17 +183,17 @@ Do you want to continue?`,
       }
 
       const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...args])
-      if (!opts.ignoreScripts) {
-        await _runScriptsIfPresent([
-          'publish',
-          'postpublish',
-        ], publishManifest)
-      }
       _status = status!
     }
   )
   if (_status !== 0) {
     process.exit(_status)
+  }
+  if (!opts.ignoreScripts) {
+    await _runScriptsIfPresent([
+      'publish',
+      'postpublish',
+    ], manifest)
   }
 }
 
@@ -217,7 +217,7 @@ export async function fakeRegularManifest (
     dir: string
     workspaceDir: string
   },
-  fn: (publishManifest: ProjectManifest) => Promise<void>
+  fn: () => Promise<void>
 ) {
   // If a workspace package has no License of its own,
   // license files from the root of the workspace are used
@@ -232,7 +232,7 @@ export async function fakeRegularManifest (
     await rimraf(path.join(opts.dir, fileName))
     await writeJsonFile(path.join(opts.dir, 'package.json'), publishManifest)
   }
-  await fn(publishManifest)
+  await fn()
   if (replaceManifest) {
     await rimraf(path.join(opts.dir, 'package.json'))
     await writeProjectManifest(manifest, true)
