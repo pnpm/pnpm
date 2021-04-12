@@ -1,4 +1,4 @@
-import { promises as fs, readFileSync } from 'fs'
+import { promises as fs } from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
@@ -12,7 +12,6 @@ import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
-import semver from 'semver'
 import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
@@ -164,29 +163,6 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   } else {
     expect([...files]).toStrictEqual(['Foo.js', 'package.json'])
   }
-})
-
-test('lockfile compatibility', async () => {
-  if (semver.satisfies(process.version, '4')) {
-    console.log("don't run on Node.js 4")
-    return
-  }
-  prepare({ dependencies: { rimraf: '*' } })
-
-  await execPnpm(['install', 'rimraf@2.5.1'])
-
-  return new Promise<void>((resolve, reject) => {
-    const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
-
-    proc.on('error', reject)
-
-    proc.on('close', (code: number) => {
-      if (code > 0) return reject(new Error(`Exit code ${code}`))
-      const wrap = JSON.parse(readFileSync('npm-shrinkwrap.json', 'utf-8'))
-      expect(wrap.dependencies.rimraf.version).toBe('2.5.1')
-      resolve()
-    })
-  })
 })
 
 test('top-level packages should find the plugins they use', async () => {
