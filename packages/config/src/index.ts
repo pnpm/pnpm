@@ -36,6 +36,7 @@ export const types = Object.assign({
   dev: [null, true],
   dir: String,
   'enable-modules-dir': Boolean,
+  'enable-pre-post-scripts': Boolean,
   'fetching-concurrency': Number,
   filter: [String, Array],
   'frozen-lockfile': Boolean,

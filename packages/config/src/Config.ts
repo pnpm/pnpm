@@ -63,6 +63,7 @@ export interface Config {
   dev?: boolean
   ignoreCurrentPrefs?: boolean
   recursive?: boolean
+  enablePrePostScripts?: boolean
 
   // proxy
   httpProxy?: string

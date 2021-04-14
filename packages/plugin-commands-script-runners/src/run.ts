@@ -111,7 +111,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'reporter' | 'scriptShell' | 'shellEmulator'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'reporter' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -171,7 +171,21 @@ so you may run "pnpm -w ${scriptName}"`,
     lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
   }
   try {
+    if (
+      opts.enablePrePostScripts &&
+      manifest.scripts?.[`pre${scriptName}`] &&
+      !manifest.scripts[scriptName].includes(`pre${scriptName}`)
+    ) {
+      await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
+    }
     await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
+    if (
+      opts.enablePrePostScripts &&
+      manifest.scripts?.[`post${scriptName}`] &&
+      !manifest.scripts[scriptName].includes(`post${scriptName}`)
+    ) {
+      await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
+    }
   } catch (err) {
     if (opts.bail !== false) {
       throw err

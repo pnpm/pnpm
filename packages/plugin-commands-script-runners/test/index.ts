@@ -203,6 +203,45 @@ test('restart: run stop, restart and start', async () => {
   ])
 })
 
+test('restart: run stop, restart and start and all the pre/post scripts', async () => {
+  prepare({
+    scripts: {
+      poststop: 'node -e "process.stdout.write(\'poststop\')" | json-append ./output.json',
+      prestop: 'node -e "process.stdout.write(\'prestop\')" | json-append ./output.json',
+      stop: 'pnpm prestop && node -e "process.stdout.write(\'stop\')" | json-append ./output.json && pnpm poststop',
+
+      postrestart: 'node -e "process.stdout.write(\'postrestart\')" | json-append ./output.json',
+      prerestart: 'node -e "process.stdout.write(\'prerestart\')" | json-append ./output.json',
+      restart: 'node -e "process.stdout.write(\'restart\')" | json-append ./output.json',
+
+      poststart: 'node -e "process.stdout.write(\'poststart\')" | json-append ./output.json',
+      prestart: 'node -e "process.stdout.write(\'prestart\')" | json-append ./output.json',
+      start: 'node -e "process.stdout.write(\'start\')" | json-append ./output.json',
+    },
+  })
+
+  await execa('pnpm', ['add', 'json-append@1'])
+  await restart.handler({
+    dir: process.cwd(),
+    enablePrePostScripts: true,
+    extraBinPaths: [],
+    rawConfig: {},
+  }, [])
+
+  const { default: scriptsRan } = await import(path.resolve('output.json'))
+  expect(scriptsRan).toStrictEqual([
+    'prestop',
+    'stop',
+    'poststop',
+    'prerestart',
+    'restart',
+    'postrestart',
+    'prestart',
+    'start',
+    'poststart',
+  ])
+})
+
 test('"pnpm run" prints the list of available commands', async () => {
   prepare({
     scripts: {
