@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 16.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile-to-pnp@0.4.2
+
 ## 16.0.2
 
 ### Patch Changes

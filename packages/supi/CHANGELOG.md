@@ -1,5 +1,12 @@
 # supi
 
+## 0.46.3
+
+### Patch Changes
+
+- @pnpm/lockfile-to-pnp@0.4.2
+- @pnpm/headless@16.0.3
+
 ## 0.46.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.1.0
+
+### Minor Changes
+
+- ba5231ccf: New option added for: `enable-pre-post-scripts`. When it is set to `true`, lifecycle scripts with pre/post prefixes are automatically executed by pnpm.
+
 ## 12.0.0
 
 ### Major Changes

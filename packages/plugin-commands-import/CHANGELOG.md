@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-import
 
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.1
+- @pnpm/store-connection-manager@2.0.3
+- supi@0.46.3
+
 ## 2.0.2
 
 ### Patch Changes

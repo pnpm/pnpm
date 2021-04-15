@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.1.0
+
+### Minor Changes
+
+- New option added: `enable-pre-post-scripts`. When it is set to `true`, lifecycle scripts with pre/post prefixes are automatically executed by pnpm [#3348](https://github.com/pnpm/pnpm/pull/3348).
+
 ## 6.0.2
 
 ### Bug Fixes

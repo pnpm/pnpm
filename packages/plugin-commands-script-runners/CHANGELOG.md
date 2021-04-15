@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 3.1.0
+
+### Minor Changes
+
+- ba5231ccf: New option added for: `enable-pre-post-scripts`. When it is set to `true`, lifecycle scripts with pre/post prefixes are automatically executed by pnpm.
+
+### Patch Changes
+
+- Updated dependencies [ba5231ccf]
+  - @pnpm/config@12.1.0
+  - @pnpm/cli-utils@0.6.1
+
 ## 3.0.0
 
 ### Major Changes
