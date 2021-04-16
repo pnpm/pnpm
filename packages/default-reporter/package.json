@@ -45,7 +45,7 @@
     "semver": "^7.3.4",
     "stacktracey": "^1.2.127",
     "string-length": "^4.0.1",
-    "strip-ansi": "^6.0.0"
+    "strip-ansi": "^7.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",

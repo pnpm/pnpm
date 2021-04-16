@@ -38,7 +38,7 @@
     "@pnpm/prepare": "workspace:0.0.20",
     "@types/ramda": "^0.27.35",
     "execa": "^5.0.0",
-    "strip-ansi": "^6.0.0",
+    "strip-ansi": "^7.0.0",
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
