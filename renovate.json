@@ -112,6 +112,14 @@
     {
       "packageNames": ["p-defer"],
       "allowedVersions": "^3.0.0"
+    },
+    {
+      "packageNames": ["strip-ansi"],
+      "allowedVersions": "^6.0.0"
+    },
+    {
+      "packageNames": ["wrap-ansi"],
+      "allowedVersions": "^7.0.0"
     }
   ],
   "pinVersions": false,
