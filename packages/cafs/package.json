@@ -24,7 +24,7 @@
     "path-temp": "^2.0.0",
     "rename-overwrite": "^4.0.0",
     "ssri": "^8.0.1",
-    "strip-bom": "^4.0.0",
+    "strip-bom": "^5.0.0",
     "tar-stream": "^2.1.4"
   },
   "devDependencies": {

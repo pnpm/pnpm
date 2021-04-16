@@ -38,7 +38,7 @@
     "parse-json": "^5.1.0",
     "read-yaml-file": "^2.1.0",
     "sort-keys": "^4.2.0",
-    "strip-bom": "^4.0.0"
+    "strip-bom": "^5.0.0"
   },
   "devDependencies": {
     "@types/is-windows": "^1.0.0",

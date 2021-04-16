@@ -55,7 +55,7 @@
     "ramda": "^0.27.1",
     "semver": "^7.3.4",
     "sort-keys": "^4.2.0",
-    "strip-bom": "^4.0.0",
+    "strip-bom": "^5.0.0",
     "write-file-atomic": "^3.0.3"
   },
   "funding": "https://opencollective.com/pnpm"
