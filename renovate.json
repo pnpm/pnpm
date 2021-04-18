@@ -120,6 +120,18 @@
     {
       "packageNames": ["wrap-ansi"],
       "allowedVersions": "^7.0.0"
+    },
+    {
+      "packageNames": ["escape-string-regexp"],
+      "allowedVersions": "^4.0.0"
+    },
+    {
+      "packageNames": ["sort-keys"],
+      "allowedVersions": "^4.2.0"
+    },
+    {
+      "packageNames": ["strip-bom"],
+      "allowedVersions": "^4.0.0"
     }
   ],
   "pinVersions": false,
