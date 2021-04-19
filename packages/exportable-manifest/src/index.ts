@@ -72,7 +72,16 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
-  if (depSpec === 'workspace:*' || depSpec.endsWith('@*')) {
+  if (
+    depSpec.endsWith('@*') || depSpec === 'workspace:*' ||
+    depSpec === 'workspace:^' || depSpec === 'workspace:~'
+  ) {
+    const rangeToken = depSpec === 'workspace:^'
+      ? '^'
+      : (depSpec === 'workspace:~'
+        ? '~'
+        : '')
+
     const { manifest } = await tryReadProjectManifest(path.join(dir, 'node_modules', depName))
     if ((manifest == null) || !manifest.version) {
       throw new PnpmError(
@@ -82,9 +91,9 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
       )
     }
     if (depName !== manifest.name) {
-      return `npm:${manifest.name!}@${manifest.version}`
+      return `npm:${manifest.name!}@${rangeToken}${manifest.version}`
     }
-    return manifest.version
+    return `${rangeToken}${manifest.version}`
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
     const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.substr(10)))

@@ -351,12 +351,16 @@ test('convert specs with workspace protocols to regular version ranges', async (
         'is-positive': '1.0.0',
         'lodash.delay': '~4.1.0',
         odd: 'workspace:is-odd@*',
+        'minor-package': 'workspace:minor-package@^',
+        'patch-package': 'workspace:~',
       },
       devDependencies: {
         'random-package': 'workspace:^1.2.3',
+        'minor-package': 'workspace:^',
       },
       optionalDependencies: {
         'lodash.deburr': 'workspace:^4.1.0',
+        'patch-package-2': 'workspace:patch-package-2@~',
       },
       peerDependencies: {
         'random-package': 'workspace:*',
@@ -393,6 +397,22 @@ test('convert specs with workspace protocols to regular version ranges', async (
     {
       name: 'target',
       version: '1.0.0',
+    },
+    {
+      name: 'minor-package',
+      version: '1.2.3',
+    },
+    {
+      name: 'patch-package',
+      version: '1.2.3',
+    },
+    {
+      name: 'minor-package-2',
+      version: '1.2.3',
+    },
+    {
+      name: 'patch-package-2',
+      version: '1.2.3',
     },
   ])
 
@@ -435,12 +455,16 @@ test('convert specs with workspace protocols to regular version ranges', async (
     'lodash.delay': '~4.1.0',
     even: 'npm:is-even@^1.0.0',
     odd: 'npm:is-odd@1.0.0',
+    'minor-package': '^1.2.3',
+    'patch-package-2': '~1.2.3',
   })
   expect(publishedManifest.devDependencies).toStrictEqual({
     'random-package': '^1.2.3',
+    'minor-package-2': '^1.2.3',
   })
   expect(publishedManifest.optionalDependencies).toStrictEqual({
     'lodash.deburr': '^4.1.0',
+    'patch-package-2': '~1.2.3',
   })
   expect(publishedManifest.peerDependencies).toStrictEqual({
     'random-package': '1.2.3',

@@ -1,7 +1,7 @@
 import semver from 'semver'
 
 export default function (range: string, versions: string[]) {
-  if (range === '*') {
+  if (range === '*' || range === '^' || range === '~') {
     return semver.maxSatisfying(versions, '*', {
       includePrerelease: true,
     })
