@@ -145,13 +145,13 @@ function getSubgraphToBuild (
 ) {
   let currentShouldBeBuilt = false
   for (const depPath of entryNodes) {
-    if (!graph[depPath]) return // packages that are already in node_modules are skipped
+    if (!graph[depPath]) continue // packages that are already in node_modules are skipped
     if (nodesToBuild.has(depPath)) {
       currentShouldBeBuilt = true
     }
     if (walked.has(depPath)) continue
     walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked) === true ||
+    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked) ||
       graph[depPath].requiresBuild
     if (childShouldBeBuilt) {
       nodesToBuild.add(depPath)
