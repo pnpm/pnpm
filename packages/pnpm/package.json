@@ -64,7 +64,6 @@
     "@types/nopt": "^3.0.29",
     "@types/ramda": "^0.27.35",
     "@types/semver": "^7.3.4",
-    "@types/update-notifier": "^5.0.0",
     "@types/which": "^2.0.0",
     "@zkochan/libnpx": "^13.1.2",
     "@zkochan/retry": "^0.2.0",
