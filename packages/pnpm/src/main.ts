@@ -145,7 +145,7 @@ export default async function run (inputArgv: string[]) {
     cliOptions['recursive'] = true
     config.recursive = true
 
-    if (!config.recursiveInstall && !config.filter) {
+    if (!config.recursiveInstall && !config.filter && !config.filterProd) {
       config.filter = ['{.}...']
     }
   }
@@ -163,7 +163,16 @@ export default async function run (inputArgv: string[]) {
       }
       process.exit(0)
     }
-    const filterResults = await filterPackages(allProjects, config.filter ?? [], {
+
+    config.filter = config.filter ?? []
+    config.filterProd = config.filterProd ?? []
+
+    const filters = [
+      ...config.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
+      ...config.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
+    ]
+
+    const filterResults = await filterPackages(allProjects, filters, {
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,

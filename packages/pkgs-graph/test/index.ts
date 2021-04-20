@@ -418,6 +418,112 @@ test('create package graph respects linked-workspace-packages = false', () => {
   })
 })
 
+test('create package graph respects ignoreDevDeps = true', () => {
+  const result = createPkgGraph([
+    {
+      dir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        devDependencies: {
+          foo: '^1.0.0',
+        },
+      },
+    },
+    {
+      dir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+        version: '1.0.0',
+
+        dependencies: {
+          bar: '^10.0.0',
+        },
+      },
+    },
+    {
+      dir: BAR2_PATH,
+      manifest: {
+        name: 'bar',
+        version: '2.0.0',
+
+        dependencies: {
+          foo: '^2.0.0',
+        },
+      },
+    },
+    {
+      dir: FOO2_PATH,
+      manifest: {
+        name: 'foo',
+        version: '2.0.0',
+      },
+    },
+  ], { ignoreDevDeps: true })
+  expect(result.unmatched).toStrictEqual([{ pkgName: 'bar', range: '^10.0.0' }])
+  expect(result.graph).toStrictEqual({
+    [BAR1_PATH]: {
+      dependencies: [],
+      package: {
+        dir: BAR1_PATH,
+        manifest: {
+          name: 'bar',
+          version: '1.0.0',
+
+          dependencies: {
+            'is-positive': '1.0.0',
+          },
+          devDependencies: {
+            foo: '^1.0.0',
+          },
+        },
+      },
+    },
+    [FOO1_PATH]: {
+      dependencies: [],
+      package: {
+        dir: FOO1_PATH,
+        manifest: {
+          name: 'foo',
+          version: '1.0.0',
+
+          dependencies: {
+            bar: '^10.0.0',
+          },
+        },
+      },
+    },
+    [BAR2_PATH]: {
+      dependencies: [FOO2_PATH],
+      package: {
+        dir: BAR2_PATH,
+        manifest: {
+          name: 'bar',
+          version: '2.0.0',
+
+          dependencies: {
+            foo: '^2.0.0',
+          },
+        },
+      },
+    },
+    [FOO2_PATH]: {
+      dependencies: [],
+      package: {
+        dir: FOO2_PATH,
+        manifest: {
+          name: 'foo',
+          version: '2.0.0',
+        },
+      },
+    },
+  })
+})
+
 test('* matches prerelease versions', () => {
   const result = createPkgGraph([
     {

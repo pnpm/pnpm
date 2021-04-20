@@ -21,6 +21,15 @@ test('a command is recursive if it has a --filter option', async () => {
   expect(options).toHaveProperty(['recursive'])
 })
 
+test('a command is recursive if it has a --filter-prod option', async () => {
+  const { options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { 'filter-prod': [String, Array] },
+  }, ['--filter-prod', 'foo', 'update'])
+  expect(cmd).toBe('update')
+  expect(options).toHaveProperty(['recursive'])
+})
+
 test('a command is recursive if -r option is used', async () => {
   const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,

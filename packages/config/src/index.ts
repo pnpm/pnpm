@@ -39,6 +39,7 @@ export const types = Object.assign({
   'enable-pre-post-scripts': Boolean,
   'fetching-concurrency': Number,
   filter: [String, Array],
+  'filter-prod': [String, Array],
   'frozen-lockfile': Boolean,
   'frozen-shrinkwrap': Boolean,
   'git-checks': Boolean,
@@ -144,7 +145,7 @@ export default async (
     if (node.toUpperCase() !== process.execPath.toUpperCase()) {
       process.execPath = node
     }
-  } catch (err) {} // eslint-disable-line:no-empty
+  } catch (err) { } // eslint-disable-line:no-empty
 
   if (cliOptions.dir) {
     cliOptions.dir = await realpathMissing(cliOptions.dir)
@@ -334,6 +335,10 @@ export default async (
 
   if (typeof pnpmConfig.filter === 'string') {
     pnpmConfig.filter = (pnpmConfig.filter as string).split(' ')
+  }
+
+  if (typeof pnpmConfig.filterProd === 'string') {
+    pnpmConfig.filterProd = (pnpmConfig.filterProd as string).split(' ')
   }
 
   if (!pnpmConfig.ignoreScripts && pnpmConfig.workspaceDir) {

@@ -27,14 +27,15 @@ export interface PackageNode<T> {
   dependencies: string[]
 }
 
-export default function<T> (pkgs: Array<Package & T>, opts?: {
+export default function <T> (pkgs: Array<Package & T>, opts?: {
+  ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
-    graph: {[id: string]: PackageNode<T>}
-    unmatched: Array<{pkgName: string, range: string}>
+    graph: { [id: string]: PackageNode<T> }
+    unmatched: Array<{ pkgName: string, range: string }>
   } {
   const pkgMap = createPkgMap(pkgs)
-  const unmatched: Array<{pkgName: string, range: string}> = []
+  const unmatched: Array<{ pkgName: string, range: string }> = []
   const graph = Object.keys(pkgMap)
     .reduce((acc, pkgSpec) => {
       acc[pkgSpec] = {
@@ -48,7 +49,7 @@ export default function<T> (pkgs: Array<Package & T>, opts?: {
 
   function createNode (pkg: Package): string[] {
     const dependencies = {
-      ...pkg.manifest.devDependencies,
+      ...(!opts?.ignoreDevDeps && pkg.manifest.devDependencies),
       ...pkg.manifest.optionalDependencies,
       ...pkg.manifest.dependencies,
     }

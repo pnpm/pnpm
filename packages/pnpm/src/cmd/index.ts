@@ -28,6 +28,7 @@ export const GLOBAL_OPTIONS = R.pick([
   'color',
   'dir',
   'filter',
+  'filter-prod',
   'loglevel',
   'help',
   'parseable',
