@@ -351,16 +351,16 @@ test('convert specs with workspace protocols to regular version ranges', async (
         'is-positive': '1.0.0',
         'lodash.delay': '~4.1.0',
         odd: 'workspace:is-odd@*',
-        'minor-package': 'workspace:minor-package@^',
-        'patch-package': 'workspace:~',
+        rd: 'workspace:ramda@^',
+        'word-wrap': 'workspace:~',
       },
       devDependencies: {
         'random-package': 'workspace:^1.2.3',
-        'minor-package': 'workspace:^',
+        through2: 'workspace:^',
       },
       optionalDependencies: {
         'lodash.deburr': 'workspace:^4.1.0',
-        'patch-package-2': 'workspace:patch-package-2@~',
+        ww: 'workspace:wordwrap@~',
       },
       peerDependencies: {
         'random-package': 'workspace:*',
@@ -399,19 +399,19 @@ test('convert specs with workspace protocols to regular version ranges', async (
       version: '1.0.0',
     },
     {
-      name: 'minor-package',
+      name: 'ramda',
       version: '1.2.3',
     },
     {
-      name: 'patch-package',
+      name: 'word-wrap',
       version: '1.2.3',
     },
     {
-      name: 'minor-package-2',
+      name: 'through2',
       version: '1.2.3',
     },
     {
-      name: 'patch-package-2',
+      name: 'wordwrap',
       version: '1.2.3',
     },
   ])
@@ -455,16 +455,16 @@ test('convert specs with workspace protocols to regular version ranges', async (
     'lodash.delay': '~4.1.0',
     even: 'npm:is-even@^1.0.0',
     odd: 'npm:is-odd@1.0.0',
-    'minor-package': '^1.2.3',
-    'patch-package-2': '~1.2.3',
+    rd: 'npm:ramda@^1.2.3',
+    'word-wrap': '~1.2.3',
   })
   expect(publishedManifest.devDependencies).toStrictEqual({
     'random-package': '^1.2.3',
-    'minor-package-2': '^1.2.3',
+    through2: '^1.2.3',
   })
   expect(publishedManifest.optionalDependencies).toStrictEqual({
     'lodash.deburr': '^4.1.0',
-    'patch-package-2': '~1.2.3',
+    ww: 'npm:wordwrap@~1.2.3',
   })
   expect(publishedManifest.peerDependencies).toStrictEqual({
     'random-package': '1.2.3',

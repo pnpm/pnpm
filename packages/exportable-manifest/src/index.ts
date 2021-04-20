@@ -68,20 +68,19 @@ async function makePublishDependencies (dir: string, dependencies: Dependencies 
   return publishDependencies
 }
 
+/** Check if a workspace dependency specifier matches the provided alias */
+function matchesWorkspaceAlias (depSpec: string, alias: '*' | '^' | '~'): boolean {
+  return depSpec === `workspace:${alias}` || depSpec.endsWith(`@${alias}`)
+}
+
 async function makePublishDependency (depName: string, depSpec: string, dir: string) {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
   if (
-    depSpec.endsWith('@*') || depSpec === 'workspace:*' ||
-    depSpec === 'workspace:^' || depSpec === 'workspace:~'
+    matchesWorkspaceAlias(depSpec, '*') || matchesWorkspaceAlias(depSpec, '^') ||
+    matchesWorkspaceAlias(depSpec, '~')
   ) {
-    const rangeToken = depSpec === 'workspace:^'
-      ? '^'
-      : (depSpec === 'workspace:~'
-        ? '~'
-        : '')
-
     const { manifest } = await tryReadProjectManifest(path.join(dir, 'node_modules', depName))
     if ((manifest == null) || !manifest.version) {
       throw new PnpmError(
@@ -90,6 +89,13 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
           'because this dependency is not installed. Try running "pnpm install".'
       )
     }
+
+    const rangeToken = matchesWorkspaceAlias(depSpec, '^')
+      ? '^'
+      : (matchesWorkspaceAlias(depSpec, '~')
+        ? '~'
+        : '')
+
     if (depName !== manifest.name) {
       return `npm:${manifest.name!}@${rangeToken}${manifest.version}`
     }
