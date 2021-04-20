@@ -203,12 +203,22 @@ function tryResolveFromWorkspace (
   if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null
   }
-  let pref = wantedDependency.pref.substr(10)
-  if (pref.includes('@', 1)) {
-    pref = `npm:${pref}`
-  } else if (pref === '^' || pref === '~') {
-    pref = '*'
+  const workspacePref = wantedDependency.pref.substr(10)
+
+  let pkgAliasPart = ''
+  let versionPart = workspacePref
+
+  const pkgAliasSeparatorPos = workspacePref.indexOf('@', 1)
+  if (pkgAliasSeparatorPos >= 0) {
+    pkgAliasPart = `npm:${workspacePref.slice(0, pkgAliasSeparatorPos + 1)}`
+    versionPart = workspacePref.slice(pkgAliasSeparatorPos + 1)
   }
+
+  if (versionPart === '^' || versionPart === '~') {
+    versionPart = '*'
+  }
+
+  const pref = `${pkgAliasPart}${versionPart}`
   const spec = parsePref(pref, wantedDependency.alias, opts.defaultTag, opts.registry)
   if (spec == null) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
   if (opts.workspacePackages == null) {

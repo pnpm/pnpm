@@ -356,7 +356,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
       },
       devDependencies: {
         'random-package': 'workspace:^1.2.3',
-        through2: 'workspace:^',
+        through: 'workspace:^',
       },
       optionalDependencies: {
         'lodash.deburr': 'workspace:^4.1.0',
@@ -400,19 +400,19 @@ test('convert specs with workspace protocols to regular version ranges', async (
     },
     {
       name: 'ramda',
-      version: '1.2.3',
+      version: '0.1.0',
     },
     {
       name: 'word-wrap',
-      version: '1.2.3',
+      version: '0.1.0',
     },
     {
-      name: 'through2',
-      version: '1.2.3',
+      name: 'through',
+      version: '0.0.1',
     },
     {
       name: 'wordwrap',
-      version: '1.2.3',
+      version: '0.0.1',
     },
   ])
 
@@ -437,6 +437,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
   crossSpawn.sync(pnpmBin, ['multi', 'install', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   process.chdir('workspace-protocol-package')
+
   await publish.handler({
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
@@ -455,16 +456,16 @@ test('convert specs with workspace protocols to regular version ranges', async (
     'lodash.delay': '~4.1.0',
     even: 'npm:is-even@^1.0.0',
     odd: 'npm:is-odd@1.0.0',
-    rd: 'npm:ramda@^1.2.3',
-    'word-wrap': '~1.2.3',
+    rd: 'npm:ramda@^0.1.0',
+    'word-wrap': '~0.1.0',
   })
   expect(publishedManifest.devDependencies).toStrictEqual({
     'random-package': '^1.2.3',
-    through2: '^1.2.3',
+    through: '^0.0.1',
   })
   expect(publishedManifest.optionalDependencies).toStrictEqual({
     'lodash.deburr': '^4.1.0',
-    ww: 'npm:wordwrap@~1.2.3',
+    ww: 'npm:wordwrap@~0.0.1',
   })
   expect(publishedManifest.peerDependencies).toStrictEqual({
     'random-package': '1.2.3',
