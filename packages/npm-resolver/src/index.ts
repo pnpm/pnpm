@@ -191,6 +191,23 @@ async function resolveNpm (
   }
 }
 
+function workspacePrefToNpm (workspacePref: string): string {
+  const prefParts = /^workspace:([^@]+@)?(.*)$/.exec(workspacePref)
+  if (prefParts == null) {
+    throw new Error(`Invalid workspace spec: ${workspacePref}`)
+  }
+  const [workspacePkgAlias, workspaceVersion] = prefParts.slice(1)
+
+  const pkgAliasPart = workspacePkgAlias != null && workspacePkgAlias
+    ? `npm:${workspacePkgAlias}`
+    : ''
+  const versionPart = workspaceVersion === '^' || workspaceVersion === '~'
+    ? '*'
+    : workspaceVersion
+
+  return `${pkgAliasPart}${versionPart}`
+}
+
 function tryResolveFromWorkspace (
   wantedDependency: WantedDependency,
   opts: {
@@ -203,10 +220,8 @@ function tryResolveFromWorkspace (
   if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null
   }
-  let pref = wantedDependency.pref.substr(10)
-  if (pref.includes('@', 1)) {
-    pref = `npm:${pref}`
-  }
+  const pref = workspacePrefToNpm(wantedDependency.pref)
+
   const spec = parsePref(pref, wantedDependency.alias, opts.defaultTag, opts.registry)
   if (spec == null) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
   if (opts.workspacePackages == null) {

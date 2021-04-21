@@ -351,12 +351,16 @@ test('convert specs with workspace protocols to regular version ranges', async (
         'is-positive': '1.0.0',
         'lodash.delay': '~4.1.0',
         odd: 'workspace:is-odd@*',
+        rd: 'workspace:ramda@^',
+        'word-wrap': 'workspace:~',
       },
       devDependencies: {
         'random-package': 'workspace:^1.2.3',
+        through: 'workspace:^',
       },
       optionalDependencies: {
         'lodash.deburr': 'workspace:^4.1.0',
+        ww: 'workspace:wordwrap@~',
       },
       peerDependencies: {
         'random-package': 'workspace:*',
@@ -394,6 +398,22 @@ test('convert specs with workspace protocols to regular version ranges', async (
       name: 'target',
       version: '1.0.0',
     },
+    {
+      name: 'ramda',
+      version: '0.1.0',
+    },
+    {
+      name: 'word-wrap',
+      version: '0.1.0',
+    },
+    {
+      name: 'through',
+      version: '0.0.1',
+    },
+    {
+      name: 'wordwrap',
+      version: '0.0.1',
+    },
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
@@ -417,6 +437,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
   crossSpawn.sync(pnpmBin, ['multi', 'install', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   process.chdir('workspace-protocol-package')
+
   await publish.handler({
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
@@ -435,12 +456,16 @@ test('convert specs with workspace protocols to regular version ranges', async (
     'lodash.delay': '~4.1.0',
     even: 'npm:is-even@^1.0.0',
     odd: 'npm:is-odd@1.0.0',
+    rd: 'npm:ramda@^0.1.0',
+    'word-wrap': '~0.1.0',
   })
   expect(publishedManifest.devDependencies).toStrictEqual({
     'random-package': '^1.2.3',
+    through: '^0.0.1',
   })
   expect(publishedManifest.optionalDependencies).toStrictEqual({
     'lodash.deburr': '^4.1.0',
+    ww: 'npm:wordwrap@~0.0.1',
   })
   expect(publishedManifest.peerDependencies).toStrictEqual({
     'random-package': '1.2.3',

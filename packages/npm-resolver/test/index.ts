@@ -1547,3 +1547,67 @@ test('request to a package with malformed metadata', async () => {
       new PnpmError('MALFORMED_METADATA', 'Received malformed metadata for "code-snippet"')
     )
 })
+
+test('resolve workspace:^', async () => {
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: 'workspace:^' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '1.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.resolution).toStrictEqual({
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('1.0.0')
+})
+
+test('resolve workspace:~', async () => {
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: 'workspace:~' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '1.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.resolution).toStrictEqual({
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('1.0.0')
+})
