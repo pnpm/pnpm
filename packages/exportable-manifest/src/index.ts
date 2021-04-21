@@ -72,8 +72,10 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
+
   // Dependencies with bare "*", "^" and "~" versions
-  if (/^workspace:([^@]+@)?[\^~*]$/.test(depSpec)) {
+  const versionAliasSpecParts = /^workspace:([^@]+@)?([\^~*])$/.exec(depSpec)
+  if (versionAliasSpecParts != null) {
     const { manifest } = await tryReadProjectManifest(path.join(dir, 'node_modules', depName))
     if ((manifest == null) || !manifest.version) {
       throw new PnpmError(
@@ -83,8 +85,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
       )
     }
 
-    const semverRangeToken = /^workspace:([^@]+@)?([\^~])$/.exec(depSpec)?.[2] ?? ''
-
+    const semverRangeToken = versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
     if (depName !== manifest.name) {
       return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
     }
