@@ -68,19 +68,12 @@ async function makePublishDependencies (dir: string, dependencies: Dependencies 
   return publishDependencies
 }
 
-/** Check if a workspace dependency specifier matches the provided alias */
-function matchesWorkspaceAlias (depSpec: string, alias: '*' | '^' | '~'): boolean {
-  return depSpec === `workspace:${alias}` || depSpec.endsWith(`@${alias}`)
-}
-
 async function makePublishDependency (depName: string, depSpec: string, dir: string) {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
-  if (
-    matchesWorkspaceAlias(depSpec, '*') || matchesWorkspaceAlias(depSpec, '^') ||
-    matchesWorkspaceAlias(depSpec, '~')
-  ) {
+  // Dependencies with bare "*", "^" and "~" versions
+  if (/^workspace:([^@]+@)?[\^~*]$/.test(depSpec)) {
     const { manifest } = await tryReadProjectManifest(path.join(dir, 'node_modules', depName))
     if ((manifest == null) || !manifest.version) {
       throw new PnpmError(
@@ -90,16 +83,12 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
       )
     }
 
-    const rangeToken = matchesWorkspaceAlias(depSpec, '^')
-      ? '^'
-      : (matchesWorkspaceAlias(depSpec, '~')
-        ? '~'
-        : '')
+    const semverRangeToken = /^workspace:([^@]+@)?([\^~])$/.exec(depSpec)?.[2] ?? ''
 
     if (depName !== manifest.name) {
-      return `npm:${manifest.name!}@${rangeToken}${manifest.version}`
+      return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
     }
-    return `${rangeToken}${manifest.version}`
+    return `${semverRangeToken}${manifest.version}`
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
     const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.substr(10)))
