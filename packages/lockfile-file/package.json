@@ -48,7 +48,7 @@
     "@pnpm/lockfile-types": "workspace:3.0.0",
     "@pnpm/merge-lockfile-changes": "workspace:2.0.0",
     "@pnpm/types": "workspace:7.0.0",
-    "@zkochan/rimraf": "^2.0.0",
+    "@zkochan/rimraf": "^2.1.1",
     "comver-to-semver": "^1.0.0",
     "js-yaml": "npm:@zkochan/js-yaml@0.0.4",
     "normalize-path": "^3.0.0",

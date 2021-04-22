@@ -36,7 +36,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.20",
     "@types/ramda": "^0.27.35",
-    "@zkochan/rimraf": "^2.0.0",
+    "@zkochan/rimraf": "^2.1.1",
     "execa": "^5.0.0",
     "is-windows": "^1.0.2",
     "write-yaml-file": "^4.2.0"
