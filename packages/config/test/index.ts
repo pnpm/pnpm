@@ -235,6 +235,24 @@ test('filter is read from .npmrc as an array', async () => {
   expect(config.filter).toStrictEqual(['foo', 'bar...'])
 })
 
+test('filter-prod is read from .npmrc as an array', async () => {
+  prepareEmpty()
+
+  await fs.writeFile('.npmrc', 'filter-prod=foo bar...', 'utf8')
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.filterProd).toStrictEqual(['foo', 'bar...'])
+})
+
 test('throw error if --save-prod is used with --save-peer', async () => {
   try {
     await getConfig({

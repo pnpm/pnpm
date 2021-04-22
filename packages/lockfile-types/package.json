@@ -23,7 +23,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme",
   "scripts": {
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts",
     "prepublishOnly": "pnpm run compile"
   },
   "funding": "https://opencollective.com/pnpm"

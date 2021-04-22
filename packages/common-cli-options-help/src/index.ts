@@ -100,6 +100,10 @@ export const FILTERING = {
       description: 'Defines files related to tests. Useful with the changed since filter. When selecting only changed packages and their dependent packages, the dependent packages will be ignored in case a package has changes only in tests. Usage example: pnpm --filter="...[origin/master]" --test-pattern="test/*" test',
       name: '--test-pattern <pattern>',
     },
+    {
+      description: 'Restricts the scope to package names matching the given pattern similar to --filter, but it ignores devDependencies when searching for dependencies and dependents.',
+      name: '--filter-prod <pattern>',
+    },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }

@@ -105,7 +105,7 @@ export default async function parseCliArgs (
   // `pnpm install ""` is going to be just `pnpm install`
   const params = argv.remain.slice(1).filter(Boolean)
 
-  if (options['recursive'] !== true && (options['filter'] || recursiveCommandUsed)) {
+  if (options['recursive'] !== true && (options['filter'] || options['filter-prod'] || recursiveCommandUsed)) {
     options['recursive'] = true
     const subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
     if (subCmd && recursiveCommandUsed) {

@@ -17,6 +17,7 @@ export interface Config {
   useBetaCli: boolean
   extraBinPaths: string[]
   filter: string[]
+  filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
   rawConfig: Record<string, any>, // eslint-disable-line
   dryRun?: boolean // This option might be not supported ever

@@ -8,6 +8,7 @@ export interface PackageSelector {
   includeDependents?: boolean
   namePattern?: string
   parentDir?: string
+  followProdDepsOnly?: boolean
 }
 
 export default (rawSelector: string, prefix: string): PackageSelector => {
