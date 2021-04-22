@@ -62,7 +62,7 @@
     "@pnpm/sort-packages": "workspace:2.0.0",
     "@pnpm/store-path": "^5.0.0",
     "@pnpm/types": "workspace:7.0.0",
-    "@zkochan/rimraf": "^2.0.0",
+    "@zkochan/rimraf": "^2.1.1",
     "cp-file": "^9.0.0",
     "enquirer": "^2.3.6",
     "fast-glob": "^3.2.4",

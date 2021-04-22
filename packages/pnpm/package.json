@@ -67,7 +67,7 @@
     "@types/which": "^2.0.0",
     "@zkochan/libnpx": "^13.1.2",
     "@zkochan/retry": "^0.2.0",
-    "@zkochan/rimraf": "^2.0.0",
+    "@zkochan/rimraf": "^2.1.1",
     "anonymous-npm-registry-client": "0.1.2",
     "byline": "5.0.0",
     "chalk": "^4.1.0",

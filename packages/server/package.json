@@ -39,7 +39,7 @@
     "@types/mz": "^2.7.3",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "^8.3.0",
-    "@zkochan/rimraf": "^2.0.0",
+    "@zkochan/rimraf": "^2.1.1",
     "is-port-reachable": "3.0.0",
     "load-json-file": "^6.2.0",
     "node-fetch": "^2.6.1",
