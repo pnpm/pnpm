@@ -36,7 +36,7 @@
     "@pnpm/logger": "^4.0.0",
     "@types/js-yaml": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/write-file-atomic": "^3.0.1",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0",

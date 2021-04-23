@@ -42,7 +42,7 @@
     "@types/is-ci": "^3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/micromatch": "^4.0.1",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/touch": "^3.1.1",
     "is-ci": "^3.0.0",
     "is-windows": "^1.0.2",

@@ -38,7 +38,7 @@
     "@pnpm/client": "workspace:3.0.1",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.20",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/ssri": "^7.1.0",
     "tempy": "^1.0.0"
   },

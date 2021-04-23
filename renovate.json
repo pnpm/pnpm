@@ -61,7 +61,8 @@
     "publish-packed",
     "remove-all-except-outer-links",
     "supi",
-    "ts-node"
+    "ts-node",
+    "@types/ramda"
   ],
   "ignorePaths": [
     "fixtures",

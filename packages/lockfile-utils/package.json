@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-utils#readme",
   "devDependencies": {
     "@types/js-yaml": "^4.0.0",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0",
     "yaml-tag": "1.1.0"

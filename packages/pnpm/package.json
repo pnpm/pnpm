@@ -62,7 +62,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/ncp": "^2.0.4",
     "@types/nopt": "^3.0.29",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4",
     "@types/which": "^2.0.0",
     "@zkochan/libnpx": "^13.1.2",

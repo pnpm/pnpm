@@ -50,7 +50,7 @@
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4",
     "ghooks": "2.0.4",
     "load-json-file": "^6.2.0",

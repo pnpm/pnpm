@@ -37,7 +37,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.20",
     "@types/archy": "0.0.31",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/sinon": "^9.0.11",
     "@types/ssri": "^7.1.0",
     "@zkochan/rimraf": "^2.1.1",

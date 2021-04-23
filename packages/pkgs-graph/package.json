@@ -25,7 +25,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pkgs-graph#readme",
   "devDependencies": {
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "better-path-resolve": "1.0.0"
   },
   "dependencies": {

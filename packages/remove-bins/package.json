@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "^0.27.35"
+    "@types/ramda": "0.27.39"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

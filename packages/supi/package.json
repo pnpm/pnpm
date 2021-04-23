@@ -78,7 +78,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4",
     "@types/sinon": "^9.0.11",
     "anonymous-npm-registry-client": "0.1.2",

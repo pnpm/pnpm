@@ -52,7 +52,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4",
     "npm-run-all": "^4.1.5"
   },

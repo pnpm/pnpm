@@ -58,7 +58,7 @@
     "@pnpm/logger": "^4.0.0",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/ssri": "^7.1.0",
     "delay": "^5.0.0",
     "ncp": "^2.0.0",

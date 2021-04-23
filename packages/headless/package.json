@@ -24,7 +24,7 @@
     "@pnpm/store-path": "^5.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.5",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "@types/rimraf": "^3.0.0",
     "@types/sinon": "^9.0.11",
     "@zkochan/rimraf": "^2.1.1",
