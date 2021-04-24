@@ -1,3 +1,4 @@
+import path from 'path'
 import createVersionOverrider from 'supi/lib/install/createVersionsOverrider'
 
 test('createVersionsOverrider() overrides dependencies of specified packages only', () => {
@@ -61,6 +62,25 @@ test('createVersionsOverrider() overrides all types of dependencies', () => {
     },
     devDependencies: {
       qar: '3.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with links', () => {
+  const overrider = createVersionOverrider({
+    qar: 'link:../qar',
+  }, process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'link:../../qar',
     },
   })
 })

@@ -1,7 +1,7 @@
+import path from 'path'
 import { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import parseWantedDependency from '@pnpm/parse-wanted-dependency'
 import normalizePath from 'normalize-path'
-import path from 'path'
 import semver from 'semver'
 
 export default function (overrides: Record<string, string>, rootDir: string): ReadPackageHook {
