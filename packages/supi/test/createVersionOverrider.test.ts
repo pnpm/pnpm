@@ -3,7 +3,7 @@ import createVersionOverrider from 'supi/lib/install/createVersionsOverrider'
 test('createVersionsOverrider() overrides dependencies of specified packages only', () => {
   const overrider = createVersionOverrider({
     'foo@1>bar@^1.2.0': '3.0.0',
-  })
+  }, process.cwd())
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
@@ -37,7 +37,7 @@ test('createVersionsOverrider() overrides all types of dependencies', () => {
     foo: '3.0.0',
     bar: '3.0.0',
     qar: '3.0.0',
-  })
+  }, process.cwd())
   expect(overrider({
     name: 'foo',
     version: '1.2.0',

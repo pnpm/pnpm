@@ -34,10 +34,10 @@ export default function requireHooks (
       const globalHookContext = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
       const localHookContext = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
       // the `arg` is a package manifest in case of readPackage() and a lockfile object in case of afterAllResolved()
-      cookedHooks[hookName] = (arg: object) => {
+      cookedHooks[hookName] = (arg: object, dir?: string) => {
         return hooks[hookName](
-          globalHooks[hookName](arg, globalHookContext),
-          localHookContext
+          globalHooks[hookName](arg, { dir, log: globalHookContext.log }),
+          { dir, log: localHookContext.log }
         )
       }
     } else if (globalHooks[hookName]) {

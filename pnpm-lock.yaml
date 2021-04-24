@@ -38,7 +38,7 @@ importers:
       syncpack: ^5.7.11
       ts-jest: 27.0.0-next.11
       ts-node: ^9.1.1
-      typescript: ^4.3.0-beta
+      typescript: ^4.2.4
       verdaccio: ^5.0.0
       yarn: ^1.22.10
     devDependencies:
@@ -64,9 +64,9 @@ importers:
       rimraf: 3.0.2
       shx: 0.3.3
       syncpack: 5.7.11
-      ts-jest: 27.0.0-next.11_a5546de6b94dcb9edcea3d9b2bcd5fbc
-      ts-node: 9.1.1_typescript@4.3.0-dev.20210423
-      typescript: 4.3.0-dev.20210423
+      ts-jest: 27.0.0-next.11_79fc8990d1d2d58e33fab6b2a5ad4bdc
+      ts-node: 9.1.1_typescript@4.2.4
+      typescript: 4.2.4
       verdaccio: 5.0.1
       yarn: 1.22.10
 
@@ -9118,7 +9118,7 @@ packages:
       jest-validate: 27.0.0-next.8
       micromatch: 4.0.4
       pretty-format: 27.0.0-next.8
-      ts-node: 9.1.1_typescript@4.3.0-dev.20210423
+      ts-node: 9.1.1_typescript@4.2.4
     transitivePeerDependencies:
       - bufferutil
       - canvas
@@ -13127,7 +13127,7 @@ packages:
       utf8-byte-length: 1.0.4
     dev: false
 
-  /ts-jest/27.0.0-next.11_a5546de6b94dcb9edcea3d9b2bcd5fbc:
+  /ts-jest/27.0.0-next.11_79fc8990d1d2d58e33fab6b2a5ad4bdc:
     resolution: {integrity: sha512-MdlskBkkYy2/Q47Wlilf0ZJhRe1kZdP9ul7vOwsICUtS+47aCv47nRMrueDg1VCcOcWT3ZgwZ3XaYXcGFEhcHA==}
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     hasBin: true
@@ -13145,11 +13145,11 @@ packages:
       make-error: 1.3.6
       mkdirp: 1.0.4
       semver: 7.3.5
-      typescript: 4.3.0-dev.20210423
+      typescript: 4.2.4
       yargs-parser: 20.2.7
     dev: true
 
-  /ts-node/9.1.1_typescript@4.3.0-dev.20210423:
+  /ts-node/9.1.1_typescript@4.2.4:
     resolution: {integrity: sha512-hPlt7ZACERQGf03M253ytLY3dHbGNGrAq9qIHWUY9XHYl1z7wYngSr3OQ5xmui8o2AaxsONxIzjafLUiWBo1Fg==}
     engines: {node: '>=10.0.0'}
     hasBin: true
@@ -13161,7 +13161,7 @@ packages:
       diff: 4.0.2
       make-error: 1.3.6
       source-map-support: 0.5.19
-      typescript: 4.3.0-dev.20210423
+      typescript: 4.2.4
       yn: 3.1.1
     dev: true
 
@@ -13324,8 +13324,8 @@ packages:
   /typedarray/0.0.6:
     resolution: {integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=}
 
-  /typescript/4.3.0-dev.20210423:
-    resolution: {integrity: sha512-2rJFJX6594459dFyxWkrl4Io3Gs140NylUSlds/WWzdd/kB4YTeM0iXu5fZLv6XM1GOLSnwnyDmUEu98Z2SEkQ==}
+  /typescript/4.2.4:
+    resolution: {integrity: sha512-V+evlYHZnQkaz8TRBuxTA92yZBPotr5H+WhQ7bD3hZUndx5tGOa1fuCgeSjxAzM1RiN5IzvadIXTVefuuwZCRg==}
     engines: {node: '>=4.2.0'}
     hasBin: true
     dev: true
