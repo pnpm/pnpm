@@ -1,5 +1,5 @@
-import createVersionsOverrider from 'supi/lib/install/createVersionsOverrider'
 import path from 'path'
+import createVersionsOverrider from 'supi/lib/install/createVersionsOverrider'
 
 test('createVersionsOverrider() matches subranges', () => {
   const overrider = createVersionsOverrider({

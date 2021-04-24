@@ -73,21 +73,20 @@ function overrideDepsOfPkg (
 function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies, dir: string | undefined) {
   for (const versionOverride of versionOverrides) {
     const actual = deps[versionOverride.wantedDependency.alias]
-    if (
-      actual &&
-      (
-        !versionOverride.wantedDependency.pref ||
-        actual === versionOverride.wantedDependency.pref ||
-        semver.validRange(actual) != null &&
-        semver.validRange(versionOverride.wantedDependency.pref) != null &&
-        semver.subset(actual, versionOverride.wantedDependency.pref)
-      )
-    ) {
-      if (versionOverride.linkTarget && dir) {
-        deps[versionOverride.wantedDependency.alias] = `link:${normalizePath(path.relative(dir, versionOverride.linkTarget))}`
-      } else {
-        deps[versionOverride.wantedDependency.alias] = versionOverride.newPref
-      }
+    if (actual == null) continue
+    if (!isSubRange(versionOverride.wantedDependency.pref, actual)) continue
+    if (versionOverride.linkTarget && dir) {
+      deps[versionOverride.wantedDependency.alias] = `link:${normalizePath(path.relative(dir, versionOverride.linkTarget))}`
+      continue
     }
+    deps[versionOverride.wantedDependency.alias] = versionOverride.newPref
   }
+}
+
+function isSubRange (superRange: string | undefined, subRange: string) {
+  return !superRange ||
+  subRange === superRange ||
+  semver.validRange(subRange) != null &&
+  semver.validRange(superRange) != null &&
+  semver.subset(subRange, superRange)
 }
