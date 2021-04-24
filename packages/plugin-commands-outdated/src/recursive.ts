@@ -49,7 +49,17 @@ export default async (
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ) => {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
-  const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, { ...opts, fullMetadata: opts.long })
+  const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
+    ...opts,
+    fullMetadata: opts.long,
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
+    timeout: opts.fetchTimeout,
+  })
   for (let i = 0; i < outdatedPackagesByProject.length; i++) {
     const { dir, manifest } = pkgs[i]
     outdatedPackagesByProject[i].forEach((outdatedPkg) => {

@@ -17,6 +17,7 @@ type CreateResolverOptions = Pick<Config,
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
 | 'ca'
 | 'cert'
+| 'fetchTimeout'
 | 'httpProxy'
 | 'httpsProxy'
 | 'key'
@@ -57,6 +58,7 @@ export default async (
     },
     storeDir: opts.storeDir,
     strictSSL: opts.strictSsl ?? true,
+    timeout: opts.fetchTimeout,
     userAgent: opts.userAgent,
     maxSockets: opts.networkConcurrency != null
       ? (opts.networkConcurrency * 3)

@@ -188,6 +188,13 @@ async function interactiveUpdate (
     ...opts,
     compatible: opts.latest !== true,
     include,
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
+    timeout: opts.fetchTimeout,
   })
   const choices = getUpdateChoices(R.unnest(outdatedPkgsOfProjects))
   if (choices.length === 0) {

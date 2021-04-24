@@ -74,6 +74,7 @@ export default (
       maxTimeout?: number
       randomize?: boolean
     }
+    timeout?: number
   }
 ): DownloadFunction => {
   const retryOpts = {
@@ -142,6 +143,7 @@ export default (
           // Hence, we tell fetch to not retry,
           // and we perform the retries from this function instead.
           retry: { retries: 0 },
+          timeout: gotOpts.timeout,
         })
 
         if (res.status !== 200) {

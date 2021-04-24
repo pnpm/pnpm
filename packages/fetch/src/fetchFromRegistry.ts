@@ -47,6 +47,7 @@ export default function (
         headers,
         redirect: 'manual',
         retry: opts?.retry,
+        timeout: opts?.timeout ?? 60000,
       })
       if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
         return response

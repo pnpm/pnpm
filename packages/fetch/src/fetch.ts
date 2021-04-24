@@ -19,6 +19,7 @@ export type RequestInfo = string | URLLike | Request
 
 export interface RequestInit extends NodeRequestInit {
   retry?: RetryTimeoutOptions
+  timeout?: number
 }
 
 export const isRedirect = fetch.isRedirect
