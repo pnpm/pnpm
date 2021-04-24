@@ -14,6 +14,7 @@ export { ResolveFunction }
 export type ClientOptions = {
   authConfig: Record<string, string>
   retry?: RetryTimeoutOptions
+  timeout?: number
   userAgent?: string
 } & ResolverFactoryOptions & AgentOptions
 

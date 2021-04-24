@@ -41,16 +41,20 @@ export class RegistryResponseError extends FetchError {
 
 export default async function fromRegistry (
   fetch: FetchFromRegistry,
-  retryOpts: RetryTimeoutOptions,
+  fetchOpts: { retry: RetryTimeoutOptions, timeout: number },
   pkgName: string,
   registry: string,
   authHeaderValue?: string
 ): Promise<PackageMeta> {
   const uri = toUri(pkgName, registry)
-  const op = retry.operation(retryOpts)
+  const op = retry.operation(fetchOpts.retry)
   return new Promise((resolve, reject) =>
     op.attempt(async (attempt) => {
-      const response = await fetch(uri, { authHeaderValue, retry: retryOpts }) as RegistryResponse
+      const response = await fetch(uri, {
+        authHeaderValue,
+        retry: fetchOpts.retry,
+        timeout: fetchOpts.timeout,
+      }) as RegistryResponse
       if (response.status > 400) {
         const request = {
           authHeaderValue,
@@ -75,7 +79,7 @@ export default async function fromRegistry (
         requestRetryLogger.debug({
           attempt,
           error,
-          maxRetries: retryOpts.retries!,
+          maxRetries: fetchOpts.retry.retries!,
           method: 'GET',
           timeout,
           url: uri,

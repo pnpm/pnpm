@@ -8,6 +8,7 @@ export type FetchFromRegistry = (
   opts?: {
     authHeaderValue?: string
     retry?: RetryTimeoutOptions
+    timeout?: number
   }
 ) => Promise<Response>
 

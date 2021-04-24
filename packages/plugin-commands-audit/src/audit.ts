@@ -93,7 +93,7 @@ export async function handler (
     json?: boolean
     lockfileDir?: string
     registries: Registries
-  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor' | 'production' | 'dev' | 'optional'>
+  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor' | 'fetchTimeout' | 'production' | 'dev' | 'optional'>
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -113,6 +113,7 @@ export async function handler (
       minTimeout: opts.fetchRetryMintimeout,
       retries: opts.fetchRetries,
     },
+    timeout: opts.fetchTimeout,
   })
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const totalVulnerabilityCount = Object.values(vulnerabilities)

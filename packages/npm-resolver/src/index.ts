@@ -59,6 +59,7 @@ export interface ResolverFactoryOptions {
   offline?: boolean
   preferOffline?: boolean
   retry?: RetryTimeoutOptions
+  timeout?: number
 }
 
 export default function createResolver (
@@ -69,7 +70,11 @@ export default function createResolver (
   if (typeof opts.storeDir !== 'string') { // eslint-disable-line
     throw new TypeError('`opts.storeDir` is required and needs to be a string')
   }
-  const fetch = pMemoize(fromRegistry.bind(null, fetchFromRegistry, opts.retry ?? {}), {
+  const fetchOpts = {
+    retry: opts.retry ?? {},
+    timeout: opts.timeout ?? 60000,
+  }
+  const fetch = pMemoize(fromRegistry.bind(null, fetchFromRegistry, fetchOpts), {
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })

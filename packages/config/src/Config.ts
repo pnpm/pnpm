@@ -38,6 +38,7 @@ export interface Config {
   fetchRetryFactor?: number
   fetchRetryMintimeout?: number
   fetchRetryMaxtimeout?: number
+  fetchTimeout?: number
   saveExact?: boolean
   savePrefix?: string
   shellEmulator?: boolean

@@ -31,7 +31,14 @@ export default async function (config: Config) {
   const resolve = createResolver({
     ...config,
     authConfig: config.rawConfig,
+    retry: {
+      factor: config.fetchRetryFactor,
+      maxTimeout: config.fetchRetryMaxtimeout,
+      minTimeout: config.fetchRetryMintimeout,
+      retries: config.fetchRetries,
+    },
     storeDir,
+    timeout: config.fetchTimeout,
   })
   const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
     lockfileDir: config.lockfileDir ?? config.dir,

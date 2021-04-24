@@ -132,6 +132,7 @@ export type OutdatedCommandOptions = {
 | 'fetchRetryFactor'
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
+| 'fetchTimeout'
 | 'global'
 | 'httpProxy'
 | 'httpsProxy'
@@ -175,6 +176,13 @@ export async function handler (
     ...opts,
     fullMetadata: opts.long,
     include,
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
+    timeout: opts.fetchTimeout,
   })
 
   if (outdatedPackages.length === 0) return { output: '', exitCode: 0 }

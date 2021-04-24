@@ -20,6 +20,7 @@ Partial<Pick<Config,
 | 'tag'
 | 'ca'
 | 'cert'
+| 'fetchTimeout'
 | 'force'
 | 'dryRun'
 | 'extraBinPaths'
@@ -52,10 +53,18 @@ export default async function (
 ) {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const storeDir = await storePath(opts.workspaceDir, opts.storeDir)
-  const resolve = createResolver(Object.assign(opts, {
+  const resolve = createResolver({
+    ...opts,
     authConfig: opts.rawConfig,
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
     storeDir,
-  })) as unknown as ResolveFunction
+    timeout: opts.fetchTimeout,
+  }) as unknown as ResolveFunction
   const pkgsToPublish = await pFilter(pkgs, async (pkg) => {
     if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private) return false
     if (opts.force) return true

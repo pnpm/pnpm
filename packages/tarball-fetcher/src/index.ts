@@ -27,12 +27,14 @@ export default function (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   opts: {
+    timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
   }
 ): { tarball: FetchFunction } {
   const download = createDownloader(fetchFromRegistry, {
     retry: opts.retry,
+    timeout: opts.timeout,
   })
   return {
     tarball: fetchFromTarball.bind(null, {
