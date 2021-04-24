@@ -1,5 +1,18 @@
 # @pnpm/build-modules
 
+## 6.0.1
+
+### Patch Changes
+
+- 1a9b4f812: Fix incorrect return in getSubgraphToBuild
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+  - @pnpm/link-bins@6.0.1
+  - @pnpm/core-loggers@6.0.1
+  - @pnpm/lifecycle@10.0.1
+  - @pnpm/read-package-json@5.0.1
+  - @pnpm/store-controller-types@11.0.1
+
 ## 6.0.0
 
 ### Major Changes

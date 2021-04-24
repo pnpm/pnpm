@@ -1,5 +1,14 @@
 # @pnpm/read-project-manifest
 
+## 2.0.1
+
+### Patch Changes
+
+- 6e9c112af: Use graceful-fs in order to avoid EMFILE errors.
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+  - @pnpm/write-project-manifest@2.0.1
+
 ## 2.0.0
 
 ### Major Changes

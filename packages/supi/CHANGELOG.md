@@ -1,5 +1,42 @@
 # supi
 
+## 0.46.4
+
+### Patch Changes
+
+- 97c64bae4: It should be possible to override dependencies with links.
+- Updated dependencies [97c64bae4]
+- Updated dependencies [6e9c112af]
+- Updated dependencies [97c64bae4]
+- Updated dependencies [1a9b4f812]
+  - @pnpm/get-context@5.1.0
+  - @pnpm/read-project-manifest@2.0.1
+  - @pnpm/types@7.1.0
+  - @pnpm/build-modules@6.0.1
+  - @pnpm/lockfile-to-pnp@0.4.3
+  - @pnpm/headless@16.0.4
+  - @pnpm/link-bins@6.0.1
+  - @pnpm/resolve-dependencies@20.0.3
+  - @pnpm/package-requester@14.0.3
+  - @pnpm/core-loggers@6.0.1
+  - dependency-path@7.0.1
+  - @pnpm/filter-lockfile@5.0.2
+  - @pnpm/hoist@5.0.3
+  - @pnpm/lifecycle@10.0.1
+  - @pnpm/lockfile-file@4.0.1
+  - @pnpm/lockfile-utils@3.0.2
+  - @pnpm/lockfile-walker@4.0.2
+  - @pnpm/manifest-utils@2.0.1
+  - @pnpm/modules-cleaner@11.0.2
+  - @pnpm/modules-yaml@9.0.1
+  - @pnpm/normalize-registries@2.0.1
+  - @pnpm/prune-lockfile@3.0.2
+  - @pnpm/read-package-json@5.0.1
+  - @pnpm/remove-bins@2.0.1
+  - @pnpm/resolver-base@8.0.1
+  - @pnpm/store-controller-types@11.0.1
+  - @pnpm/symlink-dependency@4.0.2
+
 ## 0.46.3
 
 ### Patch Changes

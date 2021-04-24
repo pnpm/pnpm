@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [6e9c112af]
+- Updated dependencies [97c64bae4]
+  - @pnpm/read-project-manifest@2.0.1
+  - @pnpm/types@7.1.0
+  - @pnpm/package-bins@5.0.1
+  - @pnpm/read-package-json@5.0.1
+
 ## 6.0.0
 
 ### Major Changes

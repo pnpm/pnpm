@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+  - @pnpm/core-loggers@6.0.1
+  - @pnpm/read-package-json@5.0.1
+
 ## 10.0.0
 
 ### Major Changes

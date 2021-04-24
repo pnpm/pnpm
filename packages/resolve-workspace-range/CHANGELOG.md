@@ -1,5 +1,11 @@
 # @pnpm/resolve-workspace-range
 
+## 2.1.0
+
+### Minor Changes
+
+- 85fb21a83: Add support for workspace:^ and workspace:~ aliases
+
 ## 2.0.0
 
 ### Major Changes

@@ -1,5 +1,16 @@
 # pkgs-graph
 
+## 6.1.0
+
+### Minor Changes
+
+- dfdf669e6: Add new cli arg --filter-prod. --filter-prod acts the same as --filter, but it omits devDependencies when building dependencies
+
+### Patch Changes
+
+- Updated dependencies [85fb21a83]
+  - @pnpm/resolve-workspace-range@2.1.0
+
 ## 6.0.0
 
 ### Major Changes

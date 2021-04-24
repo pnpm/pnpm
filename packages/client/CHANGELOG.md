@@ -1,5 +1,21 @@
 # @pnpm/client
 
+## 3.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new option: timeout.
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+  - @pnpm/fetch@3.1.0
+  - @pnpm/fetching-types@2.1.0
+  - @pnpm/tarball-fetcher@9.1.0
+  - @pnpm/default-resolver@12.0.2
+  - @pnpm/git-fetcher@4.0.1
+  - @pnpm/resolver-base@8.0.1
+
 ## 3.0.1
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/config
 
+## 12.2.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new config setting: `fetch-timeout`.
+- dfdf669e6: Add new cli arg --filter-prod. --filter-prod acts the same as --filter, but it omits devDependencies when building dependencies
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+
 ## 12.1.0
 
 ### Minor Changes

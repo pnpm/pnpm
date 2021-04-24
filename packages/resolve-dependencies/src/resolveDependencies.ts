@@ -898,7 +898,7 @@ function getResolvedPackage (
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     requiresBuild: options.neverBuiltDependencies.has(options.pkg.name)
       ? false
-      : (options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild)),
+      : ((options.dependencyLockfile != null) && Boolean(options.dependencyLockfile.requiresBuild)),
     resolution: options.pkgResponse.body.resolution,
     version: options.pkg.version,
   }

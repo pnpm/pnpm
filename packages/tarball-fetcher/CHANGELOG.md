@@ -1,5 +1,18 @@
 # @pnpm/tarball-fetcher
 
+## 9.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new option: timeout.
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+  - @pnpm/fetching-types@2.1.0
+  - @pnpm/core-loggers@6.0.1
+  - @pnpm/fetcher-base@10.0.1
+
 ## 9.0.0
 
 ### Major Changes

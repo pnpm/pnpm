@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-installation
 
+## 4.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new config setting: `fetch-timeout`.
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+- Updated dependencies [dfdf669e6]
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [dfdf669e6]
+- Updated dependencies [97c64bae4]
+  - supi@0.46.4
+  - @pnpm/filter-workspace-packages@4.0.0
+  - @pnpm/config@12.2.0
+  - @pnpm/store-connection-manager@2.1.0
+  - @pnpm/common-cli-options-help@0.5.0
+  - @pnpm/types@7.1.0
+  - @pnpm/plugin-commands-rebuild@3.0.4
+  - @pnpm/cli-utils@0.6.2
+  - @pnpm/outdated@8.0.3
+  - @pnpm/package-store@12.0.3
+  - @pnpm/find-workspace-packages@3.0.2
+  - @pnpm/manifest-utils@2.0.1
+  - @pnpm/pnpmfile@1.0.1
+  - @pnpm/resolver-base@8.0.1
+  - @pnpm/sort-packages@2.0.1
+
 ## 4.0.3
 
 ### Patch Changes

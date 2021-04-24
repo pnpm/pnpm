@@ -1,5 +1,20 @@
 # @pnpm/audit
 
+## 2.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new option: timeout.
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [97c64bae4]
+  - @pnpm/fetch@3.1.0
+  - @pnpm/types@7.1.0
+  - @pnpm/lockfile-utils@3.0.2
+  - @pnpm/lockfile-walker@4.0.2
+
 ## 2.0.1
 
 ### Patch Changes

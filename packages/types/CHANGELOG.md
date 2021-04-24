@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.1.0
+
+### Minor Changes
+
+- 97c64bae4: An optional `dir` parameter added to the `ReadPackageHook` function. The `dir` parameter is defined when the hook runs on project manifests and defined the root of the project.
+
 ## 7.0.0
 
 ### Major Changes

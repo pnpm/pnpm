@@ -1,5 +1,20 @@
 # @pnpm/get-context
 
+## 5.1.0
+
+### Minor Changes
+
+- 97c64bae4: Pass in the location of the project to the `readPackage` hook.
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+  - @pnpm/core-loggers@6.0.1
+  - @pnpm/lockfile-file@4.0.1
+  - @pnpm/modules-yaml@9.0.1
+  - @pnpm/read-projects-context@5.0.1
+
 ## 5.0.0
 
 ### Major Changes

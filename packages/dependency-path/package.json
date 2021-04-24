@@ -1,6 +1,6 @@
 {
   "name": "dependency-path",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependency-path#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:7.0.0",
+    "@pnpm/types": "workspace:7.1.0",
     "encode-registry": "^3.0.0",
     "normalize-path": "^3.0.0",
     "semver": "^7.3.4"

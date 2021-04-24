@@ -1,5 +1,18 @@
 # @pnpm/default-resolver
 
+## 12.0.2
+
+### Patch Changes
+
+- Updated dependencies [85fb21a83]
+- Updated dependencies [05baaa6e7]
+  - @pnpm/npm-resolver@11.1.0
+  - @pnpm/fetching-types@2.1.0
+  - @pnpm/local-resolver@6.0.1
+  - @pnpm/git-resolver@5.0.1
+  - @pnpm/resolver-base@8.0.1
+  - @pnpm/tarball-resolver@5.0.1
+
 ## 12.0.1
 
 ### Patch Changes

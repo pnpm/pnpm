@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-outdated
 
+## 4.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new config setting: `fetch-timeout`.
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [dfdf669e6]
+  - @pnpm/config@12.2.0
+  - @pnpm/common-cli-options-help@0.5.0
+  - @pnpm/cli-utils@0.6.2
+  - @pnpm/default-resolver@12.0.2
+  - @pnpm/outdated@8.0.3
+  - @pnpm/lockfile-file@4.0.1
+  - @pnpm/modules-yaml@9.0.1
+
 ## 4.0.3
 
 ### Patch Changes

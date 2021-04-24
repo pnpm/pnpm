@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/manifest-utils",
   "description": "Utils for dealing with package manifest",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -25,9 +25,9 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:6.0.0",
+    "@pnpm/core-loggers": "workspace:6.0.1",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/types": "workspace:7.0.0"
+    "@pnpm/types": "workspace:7.1.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils#readme",
   "funding": "https://opencollective.com/pnpm"

@@ -1,5 +1,11 @@
 # @pnpm/fetching-types
 
+## 2.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new option: timeout.
+
 ## 2.0.0
 
 ### Major Changes

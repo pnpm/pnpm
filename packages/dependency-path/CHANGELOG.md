@@ -1,5 +1,12 @@
 # dependency-path
 
+## 7.0.1
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+
 ## 7.0.0
 
 ### Major Changes

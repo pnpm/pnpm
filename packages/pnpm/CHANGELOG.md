@@ -1,5 +1,22 @@
 # pnpm
 
+## 6.2.0
+
+### Minor Changes
+
+- New CLI option: `--filter-prod`. `--filter-prod` acts the same as `--filter`, but it omits `devDependencies` when selecting dependency projects from the workspace [#3372](https://github.com/pnpm/pnpm/pull/3372).
+- New types of workspace ranges added [#3116](https://github.com/pnpm/pnpm/issues/3116):
+  - `workspace:~` means that the version of the workspace project should be added using the `~` prefix. For instance: `~1.0.0` (if the version of the referenced project is `1.0.0` in the workspace).
+  - `workspace:^` means that the version of the workspace project should be added using the `^` prefix. For instance: `^1.0.0`.
+- New setting: `fetch-timeout`. Sets the maximum amount of time to wait for HTTP requests to complete. By default, the value is 60000 (1 minute) [#3390](https://github.com/pnpm/pnpm/pull/3390).
+
+### Patch Changes
+
+- Don't skip lifecycle scripts of projects when doing a filtered installation [#3251](https://github.com/pnpm/pnpm/issues/3251).
+- No deprecation warning about `rmdir()` usage should appear when running pnpm on Node.js 16.
+- Link overrides should work on non-root workspace projects [#3388](https://github.com/pnpm/pnpm/pull/3388).
+- pnpm should not fail with an `EMFILE` error on a big workspace with many projects [#3381](https://github.com/pnpm/pnpm/pull/3381).
+
 ## 6.1.0
 
 ### Minor Changes

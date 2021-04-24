@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-audit
 
+## 4.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new config setting: `fetch-timeout`.
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [dfdf669e6]
+- Updated dependencies [05baaa6e7]
+  - @pnpm/config@12.2.0
+  - @pnpm/audit@2.1.0
+  - @pnpm/cli-utils@0.6.2
+  - @pnpm/lockfile-file@4.0.1
+
 ## 4.0.2
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @pnpm/npm-resolver
 
+## 11.1.0
+
+### Minor Changes
+
+- 85fb21a83: Add support for workspace:^ and workspace:~ aliases
+- 05baaa6e7: Add new option: timeout.
+
+### Patch Changes
+
+- Updated dependencies [85fb21a83]
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [97c64bae4]
+  - @pnpm/resolve-workspace-range@2.1.0
+  - @pnpm/fetching-types@2.1.0
+  - @pnpm/types@7.1.0
+  - @pnpm/core-loggers@6.0.1
+  - @pnpm/resolver-base@8.0.1
+
 ## 11.0.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/pick-registry-for-package
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+
 ## 2.0.0
 
 ### Major Changes

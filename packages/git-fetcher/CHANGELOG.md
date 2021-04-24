@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@10.0.1
+
 ## 4.0.0
 
 ### Major Changes

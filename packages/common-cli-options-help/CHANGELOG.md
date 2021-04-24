@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 0.5.0
+
+### Minor Changes
+
+- dfdf669e6: Add new cli arg --filter-prod. --filter-prod acts the same as --filter, but it omits devDependencies when building dependencies
+
 ## 0.4.0
 
 ### Minor Changes

@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-publishing
 
+## 3.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new config setting: `fetch-timeout`.
+- 85fb21a83: Add support for workspace:^ and workspace:~ aliases
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [dfdf669e6]
+- Updated dependencies [85fb21a83]
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [97c64bae4]
+  - @pnpm/config@12.2.0
+  - @pnpm/exportable-manifest@2.1.0
+  - @pnpm/client@3.1.0
+  - @pnpm/types@7.1.0
+  - @pnpm/cli-utils@0.6.2
+  - @pnpm/lifecycle@10.0.1
+  - @pnpm/pick-registry-for-package@2.0.1
+  - @pnpm/resolver-base@8.0.1
+  - @pnpm/sort-packages@2.0.1
+
 ## 3.0.2
 
 ### Patch Changes

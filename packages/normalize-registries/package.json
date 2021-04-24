@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/normalize-registries",
   "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -24,7 +24,7 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:7.0.0",
+    "@pnpm/types": "workspace:7.1.0",
     "normalize-registry-url": "1.0.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/normalize-registries#readme",

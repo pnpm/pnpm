@@ -1,5 +1,22 @@
 # @pnpm/store-connection-manager
 
+## 2.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new config setting: `fetch-timeout`.
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [dfdf669e6]
+- Updated dependencies [05baaa6e7]
+  - @pnpm/config@12.2.0
+  - @pnpm/client@3.1.0
+  - @pnpm/server@11.0.1
+  - @pnpm/package-store@12.0.3
+  - @pnpm/cli-meta@2.0.0
+
 ## 2.0.3
 
 ### Patch Changes

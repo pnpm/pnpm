@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-script-runners
 
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+- Updated dependencies [dfdf669e6]
+- Updated dependencies [97c64bae4]
+  - @pnpm/config@12.2.0
+  - @pnpm/common-cli-options-help@0.5.0
+  - @pnpm/types@7.1.0
+  - @pnpm/cli-utils@0.6.2
+  - @pnpm/lifecycle@10.0.1
+  - @pnpm/sort-packages@2.0.1
+
 ## 3.1.0
 
 ### Minor Changes
