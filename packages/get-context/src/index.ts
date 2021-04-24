@@ -131,7 +131,7 @@ export default async function getContext<T> (
   if ((opts.hooks?.readPackage) != null) {
     for (const project of importersContext.projects) {
       project.originalManifest = project.manifest
-      project.manifest = opts.hooks.readPackage(R.clone(project.manifest))
+      project.manifest = opts.hooks.readPackage(R.clone(project.manifest), project.rootDir)
     }
   }
 

@@ -153,7 +153,7 @@ export async function mutateModules (
     : undefined
   const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
   if (!R.isEmpty(overrides ?? {})) {
-    const versionsOverrider = createVersionsOverrider(overrides!)
+    const versionsOverrider = createVersionsOverrider(overrides!, opts.lockfileDir)
     if (opts.hooks.readPackage != null) {
       opts.hooks.readPackage = R.pipe(
         opts.hooks.readPackage,
