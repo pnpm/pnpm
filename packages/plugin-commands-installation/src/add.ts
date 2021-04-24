@@ -15,6 +15,7 @@ export function rcOptionsTypes () {
     'fetch-retry-factor',
     'fetch-retry-maxtimeout',
     'fetch-retry-mintimeout',
+    'fetch-timeout',
     'force',
     'global-dir',
     'global-pnpmfile',

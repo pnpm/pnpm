@@ -434,3 +434,11 @@ test('installing in a CI environment', async () => {
 
   await execPnpm(['install', '--no-prefer-frozen-lockfile'], { env: { CI: 'true' } })
 })
+
+test('installation fails with a timeout error', async () => {
+  prepare()
+
+  await expect(
+    execPnpm(['add', 'typescript@2.4.2', '--fetch-timeout=1', '--fetch-retries=0'])
+  ).rejects.toThrow()
+})
