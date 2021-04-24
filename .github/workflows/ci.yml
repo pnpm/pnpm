@@ -7,10 +7,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: 
+        node:
           - '12.17'
           - '14'
-          - '15'
+          - '16'
         platform:
           - ubuntu-latest
           - windows-latest
