@@ -1687,7 +1687,7 @@ importers:
       load-json-file: ^6.2.0
       ncp: ^2.0.0
       render-help: ^1.0.1
-      supi: workspace:0.46.4
+      supi: workspace:0.46.5
       tempy: ^1.0.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
@@ -1761,7 +1761,7 @@ importers:
       read-yaml-file: ^2.1.0
       render-help: ^1.0.1
       sinon: ^9.2.2
-      supi: workspace:0.46.4
+      supi: workspace:0.46.5
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
       write-json-file: ^4.3.0
@@ -1838,7 +1838,7 @@ importers:
       '@pnpm/filter-workspace-packages': workspace:4.0.0
       '@pnpm/list': workspace:6.1.1
       '@pnpm/logger': ^4.0.0
-      '@pnpm/plugin-commands-installation': workspace:4.1.0
+      '@pnpm/plugin-commands-installation': workspace:4.1.1
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': workspace:0.0.21
       '@pnpm/types': workspace:7.1.0
@@ -1884,7 +1884,7 @@ importers:
       '@pnpm/matcher': workspace:2.0.0
       '@pnpm/modules-yaml': workspace:9.0.1
       '@pnpm/outdated': workspace:8.0.3
-      '@pnpm/plugin-commands-installation': workspace:4.1.0
+      '@pnpm/plugin-commands-installation': workspace:4.1.1
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': workspace:0.0.21
       '@pnpm/semver-diff': ^1.0.2
@@ -2295,8 +2295,8 @@ importers:
       '@pnpm/parse-cli-args': workspace:4.1.0
       '@pnpm/pick-registry-for-package': workspace:2.0.1
       '@pnpm/plugin-commands-audit': workspace:4.1.0
-      '@pnpm/plugin-commands-import': workspace:2.0.4
-      '@pnpm/plugin-commands-installation': workspace:4.1.0
+      '@pnpm/plugin-commands-import': workspace:2.0.5
+      '@pnpm/plugin-commands-installation': workspace:4.1.1
       '@pnpm/plugin-commands-listing': workspace:3.0.4
       '@pnpm/plugin-commands-outdated': workspace:4.1.0
       '@pnpm/plugin-commands-publishing': workspace:3.1.0
@@ -2822,7 +2822,7 @@ importers:
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/read-project-manifest': workspace:2.0.1
       '@pnpm/remove-bins': workspace:2.0.1
-      '@pnpm/resolve-dependencies': workspace:20.0.3
+      '@pnpm/resolve-dependencies': workspace:20.0.4
       '@pnpm/resolver-base': workspace:8.0.1
       '@pnpm/store-controller-types': workspace:11.0.1
       '@pnpm/store-path': ^5.0.0

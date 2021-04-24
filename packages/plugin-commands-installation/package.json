@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -88,7 +88,7 @@
     "ramda": "^0.27.1",
     "read-ini-file": "^3.1.0",
     "render-help": "^1.0.1",
-    "supi": "workspace:0.46.4",
+    "supi": "workspace:0.46.5",
     "version-selector-type": "^3.0.0"
   },
   "peerDependencies": {

@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.4
+
+### Patch Changes
+
+- 787b69908: Fixing a regression introduced in 20.0.3
+
 ## 20.0.3
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "6.2.0",
+  "version": "6.2.1",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -39,8 +39,8 @@
     "@pnpm/parse-cli-args": "workspace:4.1.0",
     "@pnpm/pick-registry-for-package": "workspace:2.0.1",
     "@pnpm/plugin-commands-audit": "workspace:4.1.0",
-    "@pnpm/plugin-commands-import": "workspace:2.0.4",
-    "@pnpm/plugin-commands-installation": "workspace:4.1.0",
+    "@pnpm/plugin-commands-import": "workspace:2.0.5",
+    "@pnpm/plugin-commands-installation": "workspace:4.1.1",
     "@pnpm/plugin-commands-listing": "workspace:3.0.4",
     "@pnpm/plugin-commands-outdated": "workspace:4.1.0",
     "@pnpm/plugin-commands-publishing": "workspace:3.1.0",
