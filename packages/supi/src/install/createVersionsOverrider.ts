@@ -29,14 +29,14 @@ export default function (overrides: Record<string, string>, rootDir: string): Re
         wantedDependency: parseWantedDependency(selector),
       } as VersionOverride)
     })
-  return ((pkg: PackageManifest, dir?: string) => {
-    overrideDepsOfPkg(pkg, dir, versionOverrides.filter(({ parentWantedDependency }) => {
-      return parentWantedDependency.alias === pkg.name && (
-        !parentWantedDependency.pref || semver.satisfies(pkg.version, parentWantedDependency.pref)
+  return ((manifest: PackageManifest, dir?: string) => {
+    overrideDepsOfPkg({ manifest, dir }, versionOverrides.filter(({ parentWantedDependency }) => {
+      return parentWantedDependency.alias === manifest.name && (
+        !parentWantedDependency.pref || semver.satisfies(manifest.version, parentWantedDependency.pref)
       )
     }))
-    overrideDepsOfPkg(pkg, dir, genericVersionOverrides)
-    return pkg
+    overrideDepsOfPkg({ manifest, dir }, genericVersionOverrides)
+    return manifest
   }) as ReadPackageHook
 }
 
@@ -60,11 +60,14 @@ interface VersionOverrideWithParent extends VersionOverride {
   }
 }
 
-function overrideDepsOfPkg (pkg: PackageManifest, dir: string | undefined, versionOverrides: VersionOverride[]) {
-  if (pkg.dependencies != null) overrideDeps(versionOverrides, pkg.dependencies, dir)
-  if (pkg.optionalDependencies != null) overrideDeps(versionOverrides, pkg.optionalDependencies, dir)
-  if (pkg.devDependencies != null) overrideDeps(versionOverrides, pkg.devDependencies, dir)
-  return pkg
+function overrideDepsOfPkg (
+  { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
+  versionOverrides: VersionOverride[]
+) {
+  if (manifest.dependencies != null) overrideDeps(versionOverrides, manifest.dependencies, dir)
+  if (manifest.optionalDependencies != null) overrideDeps(versionOverrides, manifest.optionalDependencies, dir)
+  if (manifest.devDependencies != null) overrideDeps(versionOverrides, manifest.devDependencies, dir)
+  return manifest
 }
 
 function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies, dir: string | undefined) {
