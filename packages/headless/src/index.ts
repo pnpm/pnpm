@@ -164,15 +164,6 @@ export default async (opts: HeadlessOptions) => {
     unsafePerm: opts.unsafePerm || false,
   }
 
-  if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
-    await runLifecycleHooksConcurrently(
-      ['preinstall'],
-      opts.projects,
-      opts.childConcurrency ?? 5,
-      scriptsOpts
-    )
-  }
-
   const skipped = opts.skipped || new Set<string>()
   if (currentLockfile != null && !opts.ignorePackageManifest) {
     await prune(
@@ -434,7 +425,7 @@ export default async (opts: HeadlessOptions) => {
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
-      ['install', 'postinstall', 'prepublish', 'prepare'],
+      ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
       opts.projects,
       opts.childConcurrency ?? 5,
       scriptsOpts

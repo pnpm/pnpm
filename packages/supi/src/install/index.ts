@@ -304,14 +304,6 @@ export async function mutateModules (
       stdio: opts.ownLifecycleHooksStdio,
       unsafePerm: opts.unsafePerm || false,
     }
-    if (!opts.ignoreScripts) {
-      await runLifecycleHooksConcurrently(
-        ['preinstall'],
-        projectsToBeInstalled,
-        opts.childConcurrency,
-        scriptsOpts
-      )
-    }
 
     // TODO: make it concurrent
     for (const project of ctx.projects) {
@@ -467,7 +459,7 @@ export async function mutateModules (
       if (opts.enablePnp) {
         scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
-      await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepare'],
+      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],
         projectsToBeInstalled,
         opts.childConcurrency,
         scriptsOpts
