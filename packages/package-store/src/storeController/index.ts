@@ -74,7 +74,10 @@ export default async function (
   const storeDir = initOpts.storeDir
   const cafsDir = path.join(storeDir, 'files')
   const cafs = createCafsStore(cafsDir, initOpts)
-  const packageRequester = createPackageRequester(resolve, fetchers, cafs, {
+  const packageRequester = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
     ignoreFile: initOpts.ignoreFile,
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,

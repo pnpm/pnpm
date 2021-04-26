@@ -66,10 +66,10 @@ const pickBundledManifest = R.pick([
 ])
 
 export default function (
-  resolve: ResolveFunction,
-  fetchers: {[type: string]: FetchFunction},
-  cafs: Cafs,
   opts: {
+    resolve: ResolveFunction
+    fetchers: {[type: string]: FetchFunction}
+    cafs: Cafs
     ignoreFile?: (filename: string) => boolean
     networkConcurrency?: number
     storeDir: string
@@ -90,7 +90,7 @@ export default function (
 
   const cafsDir = path.join(opts.storeDir, 'files')
   const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
-  const fetch = fetcher.bind(null, fetchers, cafs)
+  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
     checkFilesIntegrity: _checkFilesIntegrity.bind(null, cafsDir),
     fetch,
@@ -104,7 +104,7 @@ export default function (
   const requestPackage = resolveAndFetch.bind(null, {
     fetchPackageToStore,
     requestsQueue,
-    resolve,
+    resolve: opts.resolve,
     storeDir: opts.storeDir,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
