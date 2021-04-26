@@ -232,7 +232,13 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
       })
     )
   )
-  await cafs.importPackage(tempLocation, { force: true, filesResponse: { filesIndex: filesIndexReady, fromStore: false } })
+  await cafs.importPackage(tempLocation, {
+    filesResponse: {
+      filesIndex: filesIndexReady,
+      fromStore: false,
+    },
+    force: true,
+  })
   const manifest = await readPackageJsonFromDir(tempLocation)
   if (manifest.scripts?.prepare != null && manifest.scripts.prepare !== '') {
     await execa('pnpm', ['install'], { cwd: tempLocation })
