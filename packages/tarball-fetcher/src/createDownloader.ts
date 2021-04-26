@@ -7,6 +7,7 @@ import {
   Cafs,
   DeferredManifestPromise,
   FetchResult,
+  FilesIndex,
   PackageFileInfo,
 } from '@pnpm/fetcher-base'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
@@ -188,33 +189,11 @@ export default (
             if (integrityCheckResult !== true) {
               throw integrityCheckResult
             }
-            if (url.startsWith('https://codeload.github.com/')) {
-              const tempLocation = tempy.directory()
-              const filesIndexReady: Record<string, PackageFileInfo> = R.fromPairs(
-                await Promise.all(
-                  Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
-                    const { integrity, checkedAt } = await fileInfo.writeResult
-                    return [
-                      fileName,
-                      {
-                        ...R.omit(['writeResult'], fileInfo),
-                        checkedAt,
-                        integrity: integrity.toString(),
-                      },
-                    ]
-                  })
-                )
-              )
-              await opts.cafs.importPackage(tempLocation, { force: true, filesResponse: { filesIndex: filesIndexReady, fromStore: false } })
-              const manifest = await readPackageJsonFromDir(tempLocation)
-              if (manifest.scripts?.prepare != null && manifest.scripts.prepare !== '') {
-                await execa('pnpm', ['install'], { cwd: tempLocation })
-                await rimraf(path.join(tempLocation, 'node_modules'))
-              }
-              resolve({ filesIndex: await opts.cafs.addFilesFromDir(tempLocation, opts.manifest) })
+            if (!isGitHostedPkgUrl(url)) {
+              resolve({ filesIndex })
               return
             }
-            resolve({ filesIndex })
+            resolve({ filesIndex: await prepareGitHostedPkg(filesIndex, opts.cafs) })
           } catch (err) {
             reject(err)
           }
@@ -226,6 +205,40 @@ export default (
       }
     }
   }
+}
+
+function isGitHostedPkgUrl (url: string) {
+  return (
+    url.startsWith('https://codeload.github.com/') ||
+    url.startsWith('https://bitbucket.org/') ||
+    url.startsWith('https://gitlab.com/')
+  ) && url.includes('tar.gz')
+}
+
+async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
+  const tempLocation = tempy.directory()
+  const filesIndexReady: Record<string, PackageFileInfo> = R.fromPairs(
+    await Promise.all(
+      Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
+        const { integrity, checkedAt } = await fileInfo.writeResult
+        return [
+          fileName,
+          {
+            ...R.omit(['writeResult'], fileInfo),
+            checkedAt,
+            integrity: integrity.toString(),
+          },
+        ]
+      })
+    )
+  )
+  await cafs.importPackage(tempLocation, { force: true, filesResponse: { filesIndex: filesIndexReady, fromStore: false } })
+  const manifest = await readPackageJsonFromDir(tempLocation)
+  if (manifest.scripts?.prepare != null && manifest.scripts.prepare !== '') {
+    await execa('pnpm', ['install'], { cwd: tempLocation })
+    await rimraf(path.join(tempLocation, 'node_modules'))
+  }
+  return cafs.addFilesFromDir(tempLocation)
 }
 
 async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // eslint-disable-line @typescript-eslint/no-explicit-any
