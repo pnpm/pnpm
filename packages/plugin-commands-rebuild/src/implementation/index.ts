@@ -276,7 +276,6 @@ async function _rebuild (
           extraBinPaths: ctx.extraBinPaths,
           optional: pkgSnapshot.optional === true,
           pkgRoot,
-          prepare: pkgSnapshot.prepare,
           rawConfig: opts.rawConfig,
           rootModulesDir: ctx.rootModulesDir,
           shellEmulator: opts.shellEmulator,

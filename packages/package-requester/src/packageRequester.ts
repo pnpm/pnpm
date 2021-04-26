@@ -1,6 +1,6 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
-import createCafs, {
+import {
   checkFilesIntegrity as _checkFilesIntegrity,
   FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
@@ -16,6 +16,7 @@ import {
   FetchFunction,
   FetchOptions,
   FetchResult,
+  PackageFilesResponse,
 } from '@pnpm/fetcher-base'
 import logger from '@pnpm/logger'
 import readPackage from '@pnpm/read-package-json'
@@ -28,7 +29,6 @@ import {
 import {
   BundledManifest,
   FetchPackageToStoreFunction,
-  PackageFilesResponse,
   PackageResponse,
   RequestPackageFunction,
   RequestPackageOptions,
@@ -68,6 +68,7 @@ const pickBundledManifest = R.pick([
 export default function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
+  cafs: Cafs,
   opts: {
     ignoreFile?: (filename: string) => boolean
     networkConcurrency?: number
@@ -75,7 +76,6 @@ export default function (
     verifyStoreIntegrity: boolean
   }
 ): RequestPackageFunction & {
-    cafs: Cafs
     fetchPackageToStore: FetchPackageToStoreFunction
     requestPackage: RequestPackageFunction
   } {
@@ -89,7 +89,6 @@ export default function (
   requestsQueue['concurrency'] = networkConcurrency // eslint-disable-line
 
   const cafsDir = path.join(opts.storeDir, 'files')
-  const cafs = createCafs(cafsDir, opts.ignoreFile)
   const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
   const fetch = fetcher.bind(null, fetchers, cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
@@ -110,7 +109,7 @@ export default function (
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
 
-  return Object.assign(requestPackage, { cafs, fetchPackageToStore, requestPackage })
+  return Object.assign(requestPackage, { fetchPackageToStore, requestPackage })
 }
 
 async function resolveAndFetch (

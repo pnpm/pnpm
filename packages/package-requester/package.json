@@ -56,6 +56,7 @@
   "devDependencies": {
     "@pnpm/client": "workspace:3.1.0",
     "@pnpm/logger": "^4.0.0",
+    "@pnpm/package-store": "workspace:12.0.3",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",

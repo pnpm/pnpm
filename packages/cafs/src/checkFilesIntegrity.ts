@@ -1,6 +1,5 @@
 import { createReadStream, promises as fs } from 'fs'
-import { DeferredManifestPromise } from '@pnpm/fetcher-base'
-import { PackageFileInfo } from '@pnpm/store-controller-types'
+import { DeferredManifestPromise, PackageFileInfo } from '@pnpm/fetcher-base'
 import rimraf from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import ssri from 'ssri'

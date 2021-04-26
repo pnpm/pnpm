@@ -16,6 +16,9 @@
       "path": "../fetcher-base"
     },
     {
+      "path": "../read-package-json"
+    },
+    {
       "path": "../types"
     }
   ]

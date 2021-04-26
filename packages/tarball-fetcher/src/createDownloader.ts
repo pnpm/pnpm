@@ -1,15 +1,22 @@
 import { IncomingMessage } from 'http'
 import urlLib from 'url'
+import path from 'path'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError, { FetchError } from '@pnpm/error'
 import {
   Cafs,
   DeferredManifestPromise,
   FetchResult,
+  PackageFileInfo,
 } from '@pnpm/fetcher-base'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import * as retry from '@zkochan/retry'
+import rimraf from '@zkochan/rimraf'
+import execa from 'execa'
+import R from 'ramda'
 import ssri from 'ssri'
+import tempy from 'tempy'
 import { BadTarballError } from './errorTypes'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
@@ -181,7 +188,33 @@ export default (
             if (integrityCheckResult !== true) {
               throw integrityCheckResult
             }
-            resolve({ filesIndex: filesIndex })
+            if (url.startsWith('https://codeload.github.com/')) {
+              const tempLocation = tempy.directory()
+              const filesIndexReady: Record<string, PackageFileInfo> = R.fromPairs(
+                await Promise.all(
+                  Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
+                    const { integrity, checkedAt } = await fileInfo.writeResult
+                    return [
+                      fileName,
+                      {
+                        ...R.omit(['writeResult'], fileInfo),
+                        checkedAt,
+                        integrity: integrity.toString(),
+                      },
+                    ]
+                  })
+                )
+              )
+              await opts.cafs.importPackage(tempLocation, { force: true, filesResponse: { filesIndex: filesIndexReady, fromStore: false } })
+              const manifest = await readPackageJsonFromDir(tempLocation)
+              if (manifest.scripts?.prepare != null && manifest.scripts.prepare !== '') {
+                await execa('pnpm', ['install'], { cwd: tempLocation })
+                await rimraf(path.join(tempLocation, 'node_modules'))
+              }
+              resolve({ filesIndex: await opts.cafs.addFilesFromDir(tempLocation, opts.manifest) })
+              return
+            }
+            resolve({ filesIndex })
           } catch (err) {
             reject(err)
           }

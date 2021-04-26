@@ -667,6 +667,8 @@ importers:
       '@pnpm/cafs': workspace:3.0.2
       '@pnpm/fetcher-base': workspace:10.0.1
       '@pnpm/git-fetcher': 'link:'
+      '@pnpm/package-store': workspace:12.0.3
+      '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/types': workspace:7.1.0
       '@zkochan/rimraf': ^2.1.1
       execa: ^5.0.0
@@ -674,12 +676,14 @@ importers:
       tempy: ^1.0.0
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
+      '@pnpm/read-package-json': link:../read-package-json
       '@zkochan/rimraf': 2.1.1
       execa: 5.0.0
       tempy: 1.0.1
     devDependencies:
       '@pnpm/cafs': link:../cafs
       '@pnpm/git-fetcher': 'link:'
+      '@pnpm/package-store': link:../package-store
       '@pnpm/types': link:../types
       p-defer: 3.0.0
 
@@ -1470,6 +1474,7 @@ importers:
       '@pnpm/fetcher-base': workspace:10.0.1
       '@pnpm/logger': ^4.0.0
       '@pnpm/package-requester': 'link:'
+      '@pnpm/package-store': workspace:12.0.3
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/resolver-base': workspace:8.0.1
       '@pnpm/store-controller-types': workspace:11.0.1
@@ -1516,6 +1521,7 @@ importers:
       '@pnpm/client': link:../client
       '@pnpm/logger': 4.0.0
       '@pnpm/package-requester': 'link:'
+      '@pnpm/package-store': link:../package-store
       '@types/ncp': 2.0.4
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
@@ -2779,10 +2785,12 @@ importers:
 
   packages/store-controller-types:
     specifiers:
+      '@pnpm/fetcher-base': workspace:10.0.1
       '@pnpm/resolver-base': workspace:8.0.1
       '@pnpm/store-controller-types': 'link:'
       '@pnpm/types': workspace:7.1.0
     dependencies:
+      '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/types': link:../types
     devDependencies:
@@ -2978,20 +2986,25 @@ importers:
 
   packages/tarball-fetcher:
     specifiers:
-      '@pnpm/cafs': workspace:3.0.2
       '@pnpm/core-loggers': workspace:6.0.1
       '@pnpm/error': workspace:2.0.0
       '@pnpm/fetch': workspace:3.1.0
       '@pnpm/fetcher-base': workspace:10.0.1
       '@pnpm/fetching-types': workspace:2.1.0
       '@pnpm/logger': ^4.0.0
+      '@pnpm/package-store': workspace:12.0.3
+      '@pnpm/read-package-json': workspace:5.0.1
+      '@pnpm/store-controller-types': workspace:11.0.1
       '@pnpm/tarball-fetcher': 'link:'
       '@types/retry': ^0.12.0
       '@types/rimraf': ^3.0.0
       '@types/ssri': ^7.1.0
       '@zkochan/retry': ^0.2.0
+      '@zkochan/rimraf': ^2.1.1
       cp-file: ^9.0.0
+      execa: ^5.0.0
       nock: 12.0.3
+      ramda: ^0.27.1
       ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
@@ -2999,12 +3012,17 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/fetching-types': link:../fetching-types
+      '@pnpm/read-package-json': link:../read-package-json
+      '@pnpm/store-controller-types': link:../store-controller-types
       '@zkochan/retry': 0.2.0
+      '@zkochan/rimraf': 2.1.1
+      execa: 5.0.0
+      ramda: 0.27.1
       ssri: 8.0.1
     devDependencies:
-      '@pnpm/cafs': link:../cafs
       '@pnpm/fetch': link:../fetch
       '@pnpm/logger': 4.0.0
+      '@pnpm/package-store': link:../package-store
       '@pnpm/tarball-fetcher': 'link:'
       '@types/retry': 0.12.0
       '@types/rimraf': 3.0.0

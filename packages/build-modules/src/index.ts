@@ -89,7 +89,6 @@ async function buildDependency (
       initCwd: opts.lockfileDir,
       optional: depNode.optional,
       pkgRoot: depNode.dir,
-      prepare: depNode.prepare,
       rawConfig: opts.rawConfig,
       rootModulesDir: opts.rootModulesDir,
       scriptShell: opts.scriptShell,
@@ -172,7 +171,6 @@ export interface DependenciesGraphNode {
   isBuilt?: boolean
   optional: boolean
   optionalDependencies: Set<string>
-  prepare: boolean
   requiresBuild?: boolean
 }
 

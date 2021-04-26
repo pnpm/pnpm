@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../cafs"
-    },
-    {
       "path": "../core-loggers"
     },
     {
@@ -26,6 +23,12 @@
     },
     {
       "path": "../fetching-types"
+    },
+    {
+      "path": "../read-package-json"
+    },
+    {
+      "path": "../store-controller-types"
     }
   ]
 }
