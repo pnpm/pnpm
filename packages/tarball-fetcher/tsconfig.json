@@ -25,6 +25,9 @@
       "path": "../fetching-types"
     },
     {
+      "path": "../prepare-package"
+    },
+    {
       "path": "../read-package-json"
     },
     {

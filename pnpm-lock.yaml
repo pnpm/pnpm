@@ -668,6 +668,7 @@ importers:
       '@pnpm/fetcher-base': workspace:10.0.1
       '@pnpm/git-fetcher': 'link:'
       '@pnpm/package-store': workspace:12.0.3
+      '@pnpm/prepare-package': workspace:^0.0.0
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/types': workspace:7.1.0
       '@zkochan/rimraf': ^2.1.1
@@ -676,6 +677,7 @@ importers:
       tempy: ^1.0.0
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
+      '@pnpm/prepare-package': link:../prepare-package
       '@pnpm/read-package-json': link:../read-package-json
       '@zkochan/rimraf': 2.1.1
       execa: 5.0.0
@@ -2483,6 +2485,19 @@ importers:
       '@pnpm/pnpmfile': 'link:'
       '@types/ramda': 0.27.39
 
+  packages/prepare-package:
+    specifiers:
+      '@pnpm/prepare-package': 'link:'
+      '@pnpm/read-package-json': workspace:5.0.1
+      '@zkochan/rimraf': ^2.1.1
+      execa: ^5.0.0
+    dependencies:
+      '@pnpm/read-package-json': link:../read-package-json
+      '@zkochan/rimraf': 2.1.1
+      execa: 5.0.0
+    devDependencies:
+      '@pnpm/prepare-package': 'link:'
+
   packages/prune-lockfile:
     specifiers:
       '@pnpm/constants': workspace:5.0.0
@@ -2993,6 +3008,7 @@ importers:
       '@pnpm/fetching-types': workspace:2.1.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/package-store': workspace:12.0.3
+      '@pnpm/prepare-package': workspace:^0.0.0
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/store-controller-types': workspace:11.0.1
       '@pnpm/tarball-fetcher': 'link:'
@@ -3012,6 +3028,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/fetching-types': link:../fetching-types
+      '@pnpm/prepare-package': link:../prepare-package
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/store-controller-types': link:../store-controller-types
       '@zkochan/retry': 0.2.0
