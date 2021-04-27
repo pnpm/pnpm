@@ -28,7 +28,10 @@ export default function lockfileToAuditTree (
   const dependencies = {}
   importerWalkers.forEach((importerWalker) => {
     const importerDeps = lockfileToAuditNode(importerWalker.step)
-    dependencies[importerWalker.importerId] = {
+    // For some reason the registry responds with 500 if the keys in dependencies have slashes
+    // see issue: https://github.com/pnpm/pnpm/issues/2848
+    const depName = importerWalker.importerId.replace(/\//g, '__')
+    dependencies[depName] = {
       dependencies: importerDeps,
       requires: toRequires(importerDeps),
       version: '0.0.0',
