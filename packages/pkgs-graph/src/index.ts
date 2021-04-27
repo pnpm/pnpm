@@ -62,6 +62,9 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
         try {
           if (isWorkspaceSpec) {
             rawSpec = rawSpec.substr(10)
+            if (rawSpec === '^' || rawSpec === '~') {
+              rawSpec = '*'
+            };
           }
           spec = npa.resolve(depName, rawSpec, pkg.dir)
         } catch (err) {
