@@ -15,7 +15,6 @@ import * as retry from '@zkochan/retry'
 import rimraf from '@zkochan/rimraf'
 import R from 'ramda'
 import ssri from 'ssri'
-import tempy from 'tempy'
 import { BadTarballError } from './errorTypes'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
@@ -214,7 +213,7 @@ function isGitHostedPkgUrl (url: string) {
 }
 
 async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
-  const tempLocation = tempy.directory()
+  const tempLocation = await cafs.tempDir()
   const filesIndexReady: Record<string, PackageFileInfo> = R.fromPairs(
     await Promise.all(
       Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {

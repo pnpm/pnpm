@@ -28,6 +28,7 @@ export interface Cafs {
   addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
   addFilesFromTarball: (stream: NodeJS.ReadableStream, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
   importPackage: ImportPackageFunction
+  tempDir: () => Promise<string>
 }
 
 export interface FetchOptions {

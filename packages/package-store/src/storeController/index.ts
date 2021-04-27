@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs'
 import path from 'path'
 import createCafs, {
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
@@ -12,6 +13,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import loadJsonFile from 'load-json-file'
+import pathTemp from 'path-temp'
 import writeJsonFile from 'write-json-file'
 import createImportPackage from './createImportPackage'
 import prune from './prune'
@@ -44,12 +46,14 @@ function createPackageImporter (
 }
 
 export function createCafsStore (
-  cafsDir: string,
+  storeDir: string,
   opts?: {
     ignoreFile?: (filename: string) => boolean
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
   }
 ) {
+  const cafsDir = path.join(storeDir, 'files')
+  const baseTempDir = path.join(storeDir)
   const importPackage = createPackageImporter({
     packageImportMethod: opts?.packageImportMethod,
     cafsDir,
@@ -57,6 +61,11 @@ export function createCafsStore (
   return {
     ...createCafs(cafsDir, opts?.ignoreFile),
     importPackage,
+    tempDir: async () => {
+      const tmpDir = pathTemp(baseTempDir)
+      await fs.mkdir(tmpDir, { recursive: true })
+      return tmpDir
+    },
   }
 }
 
@@ -72,8 +81,7 @@ export default async function (
   }
 ): Promise<StoreController> {
   const storeDir = initOpts.storeDir
-  const cafsDir = path.join(storeDir, 'files')
-  const cafs = createCafsStore(cafsDir, initOpts)
+  const cafs = createCafsStore(storeDir, initOpts)
   const packageRequester = createPackageRequester({
     resolve,
     fetchers,
