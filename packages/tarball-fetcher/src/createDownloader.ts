@@ -244,7 +244,9 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
     await execa('pnpm', ['install'], { cwd: tempLocation })
     await rimraf(path.join(tempLocation, 'node_modules'))
   }
-  return cafs.addFilesFromDir(tempLocation)
+  const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
+  await rimraf(tempLocation)
+  return newFilesIndex
 }
 
 async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // eslint-disable-line @typescript-eslint/no-explicit-any
