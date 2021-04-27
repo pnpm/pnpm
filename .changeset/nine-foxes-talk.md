@@ -2,4 +2,4 @@
 "@pnpm/fetcher-base": major
 ---
 
-`importPackage()` added to the `Cafs` type.
+`importPackage()` and `tempDir()` added to the `Cafs` type.

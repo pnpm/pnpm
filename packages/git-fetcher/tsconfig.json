@@ -19,9 +19,6 @@
       "path": "../prepare-package"
     },
     {
-      "path": "../read-package-json"
-    },
-    {
       "path": "../types"
     }
   ]
