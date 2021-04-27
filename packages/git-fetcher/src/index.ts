@@ -1,8 +1,8 @@
 import path from 'path'
 import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
+import preparePackage from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import tempy from 'tempy'
 
 export default () => {
   return {
@@ -17,14 +17,15 @@ export default () => {
         manifest?: DeferredManifestPromise
       }
     ) {
-      const tempLocation = tempy.directory()
+      const tempLocation = await cafs.tempDir()
       await execGit(['clone', resolution.repo, tempLocation])
       await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+      await preparePackage(tempLocation)
       // removing /.git to make directory integrity calculation faster
       await rimraf(path.join(tempLocation, '.git'))
-      return {
-        filesIndex: await cafs.addFilesFromDir(tempLocation, opts.manifest),
-      }
+      const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)
+      await rimraf(tempLocation)
+      return { filesIndex }
     },
   }
 }

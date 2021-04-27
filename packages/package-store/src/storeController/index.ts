@@ -1,7 +1,7 @@
+import { promises as fs } from 'fs'
 import path from 'path'
-import {
+import createCafs, {
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
-  PackageFileInfo,
   PackageFilesIndex,
 } from '@pnpm/cafs'
 import { FetchFunction } from '@pnpm/fetcher-base'
@@ -9,36 +9,24 @@ import createPackageRequester from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
   ImportPackageFunction,
+  PackageFileInfo,
   StoreController,
 } from '@pnpm/store-controller-types'
 import loadJsonFile from 'load-json-file'
+import pathTemp from 'path-temp'
 import writeJsonFile from 'write-json-file'
 import createImportPackage from './createImportPackage'
 import prune from './prune'
 
-export default async function (
-  resolve: ResolveFunction,
-  fetchers: {[type: string]: FetchFunction},
-  initOpts: {
-    ignoreFile?: (filename: string) => boolean
-    storeDir: string
-    networkConcurrency?: number
+function createPackageImporter (
+  opts: {
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
-    verifyStoreIntegrity: boolean
+    cafsDir: string
   }
-): Promise<StoreController> {
-  const storeDir = initOpts.storeDir
-  const packageRequester = createPackageRequester(resolve, fetchers, {
-    ignoreFile: initOpts.ignoreFile,
-    networkConcurrency: initOpts.networkConcurrency,
-    storeDir: initOpts.storeDir,
-    verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
-  })
-
-  const impPkg = createImportPackage(initOpts.packageImportMethod)
-  const cafsDir = path.join(storeDir, 'files')
-  const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, cafsDir)
-  const importPackage: ImportPackageFunction = async (to, opts) => {
+): ImportPackageFunction {
+  const impPkg = createImportPackage(opts.packageImportMethod)
+  const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, opts.cafsDir)
+  return async (to, opts) => {
     const filesMap = {} as Record<string, string>
     let isBuilt!: boolean
     let filesIndex!: Record<string, PackageFileInfo>
@@ -55,18 +43,66 @@ export default async function (
     const importMethod = await impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
     return { importMethod, isBuilt }
   }
+}
+
+export function createCafsStore (
+  storeDir: string,
+  opts?: {
+    ignoreFile?: (filename: string) => boolean
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+  }
+) {
+  const cafsDir = path.join(storeDir, 'files')
+  const baseTempDir = path.join(storeDir)
+  const importPackage = createPackageImporter({
+    packageImportMethod: opts?.packageImportMethod,
+    cafsDir,
+  })
+  return {
+    ...createCafs(cafsDir, opts?.ignoreFile),
+    importPackage,
+    tempDir: async () => {
+      const tmpDir = pathTemp(baseTempDir)
+      await fs.mkdir(tmpDir, { recursive: true })
+      return tmpDir
+    },
+  }
+}
+
+export default async function (
+  resolve: ResolveFunction,
+  fetchers: {[type: string]: FetchFunction},
+  initOpts: {
+    ignoreFile?: (filename: string) => boolean
+    storeDir: string
+    networkConcurrency?: number
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+    verifyStoreIntegrity: boolean
+  }
+): Promise<StoreController> {
+  const storeDir = initOpts.storeDir
+  const cafs = createCafsStore(storeDir, initOpts)
+  const packageRequester = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    ignoreFile: initOpts.ignoreFile,
+    networkConcurrency: initOpts.networkConcurrency,
+    storeDir: initOpts.storeDir,
+    verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
+  })
 
   return {
     close: async () => {}, // eslint-disable-line:no-empty
     fetchPackage: packageRequester.fetchPackageToStore,
-    importPackage,
+    importPackage: cafs.importPackage,
     prune: prune.bind(null, storeDir),
     requestPackage: packageRequester.requestPackage,
     upload,
   }
 
   async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) {
-    const sideEffectsIndex = await packageRequester.cafs.addFilesFromDir(builtPkgLocation)
+    const sideEffectsIndex = await cafs.addFilesFromDir(builtPkgLocation)
     // TODO: move this to a function
     // This is duplicated in @pnpm/package-requester
     const integrity: Record<string, PackageFileInfo> = {}

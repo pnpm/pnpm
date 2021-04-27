@@ -1,7 +1,6 @@
 import { promises as fs, Stats } from 'fs'
 import path from 'path'
-import { PackageFileInfo } from '@pnpm/store-controller-types'
-import { FileWriteResult } from '@pnpm/fetcher-base'
+import { FileWriteResult, PackageFileInfo } from '@pnpm/fetcher-base'
 import getStream from 'get-stream'
 import pathTemp from 'path-temp'
 import renameOverwrite from 'rename-overwrite'

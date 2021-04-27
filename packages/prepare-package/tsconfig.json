@@ -10,16 +10,7 @@
   ],
   "references": [
     {
-      "path": "../cafs"
-    },
-    {
-      "path": "../fetcher-base"
-    },
-    {
-      "path": "../prepare-package"
-    },
-    {
-      "path": "../types"
+      "path": "../read-package-json"
     }
   ]
 }

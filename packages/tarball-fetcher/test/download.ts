@@ -1,9 +1,9 @@
 /// <reference path="../../../typings/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import createCafs from '@pnpm/cafs'
 import PnpmError, { FetchError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
+import { createCafsStore } from '@pnpm/package-store'
 import createFetcher, {
   BadTarballError,
   TarballIntegrityError,
@@ -14,7 +14,7 @@ import ssri from 'ssri'
 import tempy from 'tempy'
 
 const cafsDir = tempy.directory()
-const cafs = createCafs(cafsDir)
+const cafs = createCafsStore(cafsDir)
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279

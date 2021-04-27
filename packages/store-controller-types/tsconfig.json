@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../fetcher-base"
+    },
+    {
       "path": "../resolver-base"
     },
     {

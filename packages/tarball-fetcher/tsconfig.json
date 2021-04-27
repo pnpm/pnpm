@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../cafs"
-    },
-    {
       "path": "../core-loggers"
     },
     {
@@ -26,6 +23,9 @@
     },
     {
       "path": "../fetching-types"
+    },
+    {
+      "path": "../prepare-package"
     }
   ]
 }

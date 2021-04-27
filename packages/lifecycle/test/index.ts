@@ -36,19 +36,3 @@ test('runPostinstallHooks()', async () => {
 
   expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall', 'install', 'postinstall'])
 })
-
-test('runPostinstallHooks() with prepare = true', async () => {
-  const pkgRoot = path.join(fixtures, 'with-many-scripts')
-  rimraf.sync(path.join(pkgRoot, 'output.json'))
-  await runPostinstallHooks({
-    depPath: '/with-many-scripts/1.0.0',
-    optional: false,
-    pkgRoot,
-    prepare: true,
-    rawConfig: {},
-    rootModulesDir,
-    unsafePerm: true,
-  })
-
-  expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall', 'install', 'postinstall', 'prepare'])
-})

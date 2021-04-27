@@ -6,9 +6,14 @@ import {
   Cafs,
   DeferredManifestPromise,
   FetchResult,
+  FilesIndex,
+  PackageFileInfo,
 } from '@pnpm/fetcher-base'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
+import preparePackage from '@pnpm/prepare-package'
 import * as retry from '@zkochan/retry'
+import rimraf from '@zkochan/rimraf'
+import R from 'ramda'
 import ssri from 'ssri'
 import { BadTarballError } from './errorTypes'
 
@@ -181,7 +186,11 @@ export default (
             if (integrityCheckResult !== true) {
               throw integrityCheckResult
             }
-            resolve({ filesIndex: filesIndex })
+            if (!isGitHostedPkgUrl(url)) {
+              resolve({ filesIndex })
+              return
+            }
+            resolve({ filesIndex: await prepareGitHostedPkg(filesIndex, opts.cafs) })
           } catch (err) {
             reject(err)
           }
@@ -193,6 +202,44 @@ export default (
       }
     }
   }
+}
+
+function isGitHostedPkgUrl (url: string) {
+  return (
+    url.startsWith('https://codeload.github.com/') ||
+    url.startsWith('https://bitbucket.org/') ||
+    url.startsWith('https://gitlab.com/')
+  ) && url.includes('tar.gz')
+}
+
+async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
+  const tempLocation = await cafs.tempDir()
+  const filesIndexReady: Record<string, PackageFileInfo> = R.fromPairs(
+    await Promise.all(
+      Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
+        const { integrity, checkedAt } = await fileInfo.writeResult
+        return [
+          fileName,
+          {
+            ...R.omit(['writeResult'], fileInfo),
+            checkedAt,
+            integrity: integrity.toString(),
+          },
+        ]
+      })
+    )
+  )
+  await cafs.importPackage(tempLocation, {
+    filesResponse: {
+      filesIndex: filesIndexReady,
+      fromStore: false,
+    },
+    force: true,
+  })
+  await preparePackage(tempLocation)
+  const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
+  await rimraf(tempLocation)
+  return newFilesIndex
 }
 
 async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // eslint-disable-line @typescript-eslint/no-explicit-any

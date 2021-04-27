@@ -22,7 +22,7 @@ test('rebuilds dependencies', async () => {
     'add',
     '--save-dev',
     'pre-and-postinstall-scripts-example',
-    'zkochan/install-scripts-example#prepare',
+    'pnpm/test-git-fetch#main',
     '--registry',
     REGISTRY,
     '--store-dir',
@@ -33,7 +33,7 @@ test('rebuilds dependencies', async () => {
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
     '/pre-and-postinstall-scripts-example/1.0.0',
-    'github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb',
+    'github.com/pnpm/test-git-fetch/299c6d89507571462b992b92407a8a07663e32ee',
   ])
 
   await rebuild.handler({
@@ -59,7 +59,7 @@ test('rebuilds dependencies', async () => {
   }
 
   {
-    const scripts = project.requireModule('install-scripts-example-for-pnpm/output.json')
+    const scripts = project.requireModule('test-git-fetch/output.json')
     expect(scripts[0]).toBe('preinstall')
     expect(scripts[1]).toBe('install')
     expect(scripts[2]).toBe('postinstall')

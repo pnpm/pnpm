@@ -2,9 +2,33 @@ import { Resolution } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import { IntegrityLike } from 'ssri'
 
+export interface PackageFileInfo {
+  checkedAt?: number // Nullable for backward compatibility
+  integrity: string
+  mode: number
+  size: number
+}
+
+export interface PackageFilesResponse {
+  fromStore: boolean
+  filesIndex: Record<string, PackageFileInfo>
+  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+}
+
+export type ImportPackageFunction = (
+  to: string,
+  opts: {
+    targetEngine?: string
+    filesResponse: PackageFilesResponse
+    force: boolean
+  }
+) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
+
 export interface Cafs {
   addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
   addFilesFromTarball: (stream: NodeJS.ReadableStream, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
+  importPackage: ImportPackageFunction
+  tempDir: () => Promise<string>
 }
 
 export interface FetchOptions {

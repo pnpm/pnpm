@@ -6,9 +6,16 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
+  ImportPackageFunction,
+  PackageFileInfo,
+  PackageFilesResponse,
+} from '@pnpm/fetcher-base'
+import {
   DependencyManifest,
   PackageManifest,
 } from '@pnpm/types'
+
+export { PackageFileInfo, PackageFilesResponse, ImportPackageFunction }
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
@@ -56,28 +63,6 @@ export interface FetchPackageToStoreOptions {
     version?: string
     resolution: Resolution
   }
-}
-
-export type ImportPackageFunction = (
-  to: string,
-  opts: {
-    targetEngine?: string
-    filesResponse: PackageFilesResponse
-    force: boolean
-  }
-) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
-
-export interface PackageFileInfo {
-  checkedAt?: number // Nullable for backward compatibility
-  integrity: string
-  mode: number
-  size: number
-}
-
-export interface PackageFilesResponse {
-  fromStore: boolean
-  filesIndex: Record<string, PackageFileInfo>
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
 }
 
 export type RequestPackageFunction = (

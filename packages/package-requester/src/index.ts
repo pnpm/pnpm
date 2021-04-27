@@ -2,4 +2,5 @@ import packageRequester from './packageRequester'
 
 export default packageRequester
 
-export { PackageResponse, PackageFilesResponse } from '@pnpm/store-controller-types'
+export { PackageFilesResponse } from '@pnpm/fetcher-base'
+export { PackageResponse } from '@pnpm/store-controller-types'
