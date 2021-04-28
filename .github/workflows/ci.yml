@@ -37,6 +37,8 @@ jobs:
         curl -L https://get.pnpm.io/v6.js | node - add --global pnpm@next npm@7
     - name: pnpm install
       run: pnpm install
+    - name: Audit
+      run: pnpm audit
     - name: run tests (main)
       if: github.ref == 'refs/heads/main'
       run: pnpm run test-main

@@ -9,6 +9,7 @@ overrides:
   http-errors: ^1.7.3
   table@^6.0.3: 6.0.4
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.4
+  lodash@<4.17.19: ^4.17.9
 
 importers:
 
@@ -8634,7 +8635,7 @@ packages:
       cli-cursor: 1.0.2
       cli-width: 1.1.1
       figures: 1.7.0
-      lodash: 3.10.1
+      lodash: 4.17.21
       readline2: 1.0.1
       run-async: 0.1.0
       rx-lite: 3.1.2
@@ -9996,10 +9997,6 @@ packages:
 
   /lodash.startcase/4.4.0:
     resolution: {integrity: sha1-lDbjTtJgk+1/+uGTYUQ1CRXZrdg=}
-    dev: true
-
-  /lodash/3.10.1:
-    resolution: {integrity: sha1-W/Rejkm6QYnhfUgnid/RW9FAt7Y=}
     dev: true
 
   /lodash/4.17.21:
