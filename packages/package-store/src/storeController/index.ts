@@ -53,7 +53,7 @@ export function createCafsStore (
   }
 ) {
   const cafsDir = path.join(storeDir, 'files')
-  const baseTempDir = path.join(storeDir)
+  const baseTempDir = path.join(storeDir, 'tmp')
   const importPackage = createPackageImporter({
     packageImportMethod: opts?.packageImportMethod,
     cafsDir,

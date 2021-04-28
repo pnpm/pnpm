@@ -12,7 +12,6 @@ import {
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import preparePackage from '@pnpm/prepare-package'
 import * as retry from '@zkochan/retry'
-import rimraf from '@zkochan/rimraf'
 import R from 'ramda'
 import ssri from 'ssri'
 import { BadTarballError } from './errorTypes'
@@ -238,7 +237,6 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
   })
   await preparePackage(tempLocation)
   const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
-  await rimraf(tempLocation)
   return newFilesIndex
 }
 

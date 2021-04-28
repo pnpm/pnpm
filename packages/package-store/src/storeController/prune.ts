@@ -12,6 +12,7 @@ export default async function prune (storeDir: string) {
   const cafsDir = path.join(storeDir, 'files')
   await rimraf(path.join(storeDir, 'metadata'))
   await rimraf(path.join(storeDir, 'metadata-full'))
+  await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
   const pkgIndexFiles = [] as string[]
   const removedHashes = new Set<string>()
