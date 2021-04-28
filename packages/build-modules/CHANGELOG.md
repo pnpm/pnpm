@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 7.0.0
+
+### Major Changes
+
+- e6a2654a2: `prepare` scripts of Git-hosted packages are not executed (they are executed during fetching by `@pnpm/git-fetcher`).
+
+### Patch Changes
+
+- Updated dependencies [e6a2654a2]
+  - @pnpm/lifecycle@11.0.0
+  - @pnpm/store-controller-types@11.0.2
+
 ## 6.0.1
 
 ### Patch Changes

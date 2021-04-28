@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 2.1.1
+
+### Patch Changes
+
+- 40b75fbb9: Escape the dependency names to avoud 502 errors from the registry.
+
 ## 2.1.0
 
 ### Minor Changes

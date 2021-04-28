@@ -1,5 +1,11 @@
 # pkgs-graph
 
+## 6.1.1
+
+### Patch Changes
+
+- 1084ca1a7: Include dependencies with workspace version aliases in graph
+
 ## 6.1.0
 
 ### Minor Changes

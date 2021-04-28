@@ -1,5 +1,12 @@
 # @pnpm/filter-workspace-packages
 
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [1084ca1a7]
+  - pkgs-graph@6.1.1
+
 ## 4.0.0
 
 ### Major Changes

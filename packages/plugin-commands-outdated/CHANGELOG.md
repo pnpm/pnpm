@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-outdated
 
+## 4.1.1
+
+### Patch Changes
+
+- @pnpm/outdated@8.0.4
+- @pnpm/config@12.2.0
+
 ## 4.1.0
 
 ### Minor Changes

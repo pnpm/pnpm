@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cafs",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -14,8 +14,8 @@
   "keywords": [],
   "license": "MIT",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:10.0.1",
-    "@pnpm/store-controller-types": "workspace:11.0.1",
+    "@pnpm/fetcher-base": "workspace:11.0.0",
+    "@pnpm/store-controller-types": "workspace:11.0.2",
     "@zkochan/rimraf": "^2.1.1",
     "concat-stream": "^2.0.0",
     "decompress-maybe": "^1.0.0",

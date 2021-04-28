@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "11.0.2",
+  "version": "11.0.3",
   "description": "Exports util functions to clean up node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
     "@pnpm/lockfile-utils": "workspace:3.0.2",
     "@pnpm/read-modules-dir": "workspace:3.0.0",
     "@pnpm/remove-bins": "workspace:2.0.1",
-    "@pnpm/store-controller-types": "workspace:11.0.1",
+    "@pnpm/store-controller-types": "workspace:11.0.2",
     "@pnpm/types": "workspace:7.1.0",
     "@zkochan/rimraf": "^2.1.1",
     "dependency-path": "workspace:7.0.1",

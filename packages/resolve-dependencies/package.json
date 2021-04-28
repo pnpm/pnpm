@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "20.0.4",
+  "version": "20.0.5",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "@pnpm/prune-lockfile": "workspace:3.0.2",
     "@pnpm/read-package-json": "workspace:5.0.1",
     "@pnpm/resolver-base": "workspace:8.0.1",
-    "@pnpm/store-controller-types": "workspace:11.0.1",
+    "@pnpm/store-controller-types": "workspace:11.0.2",
     "@pnpm/types": "workspace:7.1.0",
     "dependency-path": "workspace:7.0.1",
     "encode-registry": "^3.0.0",

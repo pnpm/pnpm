@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-store
 
+## 3.0.5
+
+### Patch Changes
+
+- @pnpm/cafs@3.0.3
+- @pnpm/store-controller-types@11.0.2
+- @pnpm/store-connection-manager@2.1.1
+- @pnpm/config@12.2.0
+
 ## 3.0.4
 
 ### Patch Changes

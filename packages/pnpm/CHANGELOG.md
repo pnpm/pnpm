@@ -1,5 +1,14 @@
 # pnpm
 
+## 6.2.2
+
+### Patch Changes
+
+- `pnpm audit` should not receive a 502 error from the registry [#2848](https://github.com/pnpm/pnpm/issues/2848).
+- When installing Git-hosted dependencies that have a `prepare` script, pnpm should install their `devDependencies` for a successfull build [#855](https://github.com/pnpm/pnpm/issues/855).
+- `preinstall` scripts should run after installing the dependencies [#3395](https://github.com/pnpm/pnpm/pull/3395).
+- Sorting workspace projects should work correctly when the workspace dependencies use `workspace:~` or `workspace:^` [#3400](https://github.com/pnpm/pnpm/issues/3400)
+
 ## 6.2.1
 
 ### Minor Changes

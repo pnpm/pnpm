@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.5
+
+### Patch Changes
+
+- @pnpm/store-controller-types@11.0.2
+
 ## 20.0.4
 
 ### Patch Changes

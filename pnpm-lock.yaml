@@ -100,11 +100,11 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/core-loggers': workspace:6.0.1
-      '@pnpm/lifecycle': workspace:10.0.1
+      '@pnpm/lifecycle': workspace:11.0.0
       '@pnpm/link-bins': workspace:6.0.1
       '@pnpm/logger': ^4.0.0
       '@pnpm/read-package-json': workspace:5.0.1
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
       graph-sequencer: 2.0.0
@@ -129,8 +129,8 @@ importers:
   packages/cafs:
     specifiers:
       '@pnpm/cafs': 'link:'
-      '@pnpm/fetcher-base': workspace:10.0.1
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/fetcher-base': workspace:11.0.0
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@types/concat-stream': ^1.6.0
       '@types/node': ^14.14.33
       '@types/ssri': ^7.1.0
@@ -215,10 +215,10 @@ importers:
       '@pnpm/default-resolver': workspace:12.0.2
       '@pnpm/fetch': workspace:3.1.0
       '@pnpm/fetching-types': workspace:2.1.0
-      '@pnpm/git-fetcher': workspace:4.0.1
+      '@pnpm/git-fetcher': workspace:4.1.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/resolver-base': workspace:8.0.1
-      '@pnpm/tarball-fetcher': workspace:9.1.0
+      '@pnpm/tarball-fetcher': workspace:9.2.0
       credentials-by-uri: ^2.0.0
       mem: ^8.0.0
     dependencies:
@@ -252,7 +252,7 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
       '@pnpm/global-bin-dir': workspace:2.0.0
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
       '@types/which': ^2.0.0
@@ -558,7 +558,7 @@ importers:
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
       micromatch: ^4.0.2
-      pkgs-graph: workspace:6.1.0
+      pkgs-graph: workspace:6.1.1
       ramda: ^0.27.1
       tempy: ^1.0.0
       touch: 3.1.0
@@ -664,11 +664,11 @@ importers:
 
   packages/git-fetcher:
     specifiers:
-      '@pnpm/cafs': workspace:3.0.2
-      '@pnpm/fetcher-base': workspace:10.0.1
+      '@pnpm/cafs': workspace:3.0.3
+      '@pnpm/fetcher-base': workspace:11.0.0
       '@pnpm/git-fetcher': 'link:'
-      '@pnpm/package-store': workspace:12.0.3
-      '@pnpm/prepare-package': workspace:0.0.0
+      '@pnpm/package-store': workspace:12.0.4
+      '@pnpm/prepare-package': workspace:1.0.0
       '@pnpm/types': workspace:7.1.0
       '@zkochan/rimraf': ^2.1.1
       execa: ^5.0.0
@@ -730,30 +730,30 @@ importers:
   packages/headless:
     specifiers:
       '@pnpm/assert-project': workspace:*
-      '@pnpm/build-modules': workspace:6.0.1
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/build-modules': workspace:7.0.0
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/core-loggers': workspace:6.0.1
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-lockfile': workspace:5.0.2
       '@pnpm/headless': 'link:'
       '@pnpm/hoist': workspace:5.0.3
-      '@pnpm/lifecycle': workspace:10.0.1
+      '@pnpm/lifecycle': workspace:11.0.0
       '@pnpm/link-bins': workspace:6.0.1
       '@pnpm/lockfile-file': workspace:4.0.1
       '@pnpm/lockfile-to-pnp': workspace:0.4.3
       '@pnpm/lockfile-utils': workspace:3.0.2
       '@pnpm/logger': ^4.0.0
-      '@pnpm/modules-cleaner': workspace:11.0.2
+      '@pnpm/modules-cleaner': workspace:11.0.3
       '@pnpm/modules-yaml': workspace:9.0.1
       '@pnpm/package-is-installable': workspace:5.0.1
-      '@pnpm/package-requester': workspace:14.0.3
-      '@pnpm/package-store': workspace:12.0.3
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/package-requester': workspace:15.0.0
+      '@pnpm/package-store': workspace:12.0.4
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/read-project-manifest': workspace:2.0.1
       '@pnpm/read-projects-context': workspace:5.0.1
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/store-path': ^5.0.0
       '@pnpm/symlink-dependency': workspace:4.0.2
       '@pnpm/test-fixtures': workspace:*
@@ -1140,7 +1140,7 @@ importers:
       '@pnpm/lockfile-file': workspace:4.0.1
       '@pnpm/logger': ^4.0.0
       '@pnpm/make-dedicated-lockfile': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/prune-lockfile': workspace:3.0.2
       '@pnpm/read-project-manifest': workspace:2.0.1
       '@pnpm/types': workspace:7.1.0
@@ -1219,7 +1219,7 @@ importers:
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/read-modules-dir': workspace:3.0.0
       '@pnpm/remove-bins': workspace:2.0.1
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
       '@zkochan/rimraf': ^2.1.1
@@ -1263,7 +1263,7 @@ importers:
 
   packages/mount-modules:
     specifiers:
-      '@pnpm/cafs': workspace:3.0.2
+      '@pnpm/cafs': workspace:3.0.3
       '@pnpm/lockfile-file': workspace:4.0.1
       '@pnpm/lockfile-utils': workspace:3.0.2
       '@pnpm/logger': ^4.0.0
@@ -1390,7 +1390,7 @@ importers:
 
   packages/outdated:
     specifiers:
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
       '@pnpm/lockfile-file': workspace:4.0.1
@@ -1467,17 +1467,17 @@ importers:
 
   packages/package-requester:
     specifiers:
-      '@pnpm/cafs': workspace:3.0.2
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/cafs': workspace:3.0.3
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/core-loggers': workspace:6.0.1
       '@pnpm/error': workspace:2.0.0
-      '@pnpm/fetcher-base': workspace:10.0.1
+      '@pnpm/fetcher-base': workspace:11.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/package-requester': 'link:'
-      '@pnpm/package-store': workspace:12.0.3
+      '@pnpm/package-store': workspace:12.0.4
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/resolver-base': workspace:8.0.1
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/types': workspace:7.1.0
       '@types/ncp': ^2.0.4
       '@types/normalize-path': ^3.0.0
@@ -1534,16 +1534,16 @@ importers:
 
   packages/package-store:
     specifiers:
-      '@pnpm/cafs': workspace:3.0.2
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/cafs': workspace:3.0.3
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/core-loggers': workspace:6.0.1
-      '@pnpm/fetcher-base': workspace:10.0.1
+      '@pnpm/fetcher-base': workspace:11.0.0
       '@pnpm/logger': ^4.0.0
-      '@pnpm/package-requester': workspace:14.0.3
+      '@pnpm/package-requester': workspace:15.0.0
       '@pnpm/package-store': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/resolver-base': workspace:8.0.1
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
       '@types/ssri': ^7.1.0
@@ -1645,7 +1645,7 @@ importers:
 
   packages/plugin-commands-audit:
     specifiers:
-      '@pnpm/audit': workspace:2.1.0
+      '@pnpm/audit': workspace:2.1.1
       '@pnpm/cli-utils': workspace:0.6.2
       '@pnpm/config': workspace:12.2.0
       '@pnpm/constants': workspace:5.0.0
@@ -1685,15 +1685,15 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
       '@pnpm/plugin-commands-import': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/read-project-manifest': workspace:2.0.1
-      '@pnpm/store-connection-manager': workspace:2.1.0
+      '@pnpm/store-connection-manager': workspace:2.1.1
       '@types/ncp': ^2.0.4
       '@zkochan/rimraf': ^2.1.1
       load-json-file: ^6.2.0
       ncp: ^2.0.0
       render-help: ^1.0.1
-      supi: workspace:0.46.5
+      supi: workspace:0.46.6
       tempy: ^1.0.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
@@ -1723,24 +1723,24 @@ importers:
       '@pnpm/config': workspace:12.2.0
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
-      '@pnpm/filter-workspace-packages': workspace:4.0.0
+      '@pnpm/filter-workspace-packages': workspace:4.0.1
       '@pnpm/find-workspace-dir': workspace:3.0.0
       '@pnpm/find-workspace-packages': workspace:3.0.2
       '@pnpm/lockfile-types': workspace:3.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/manifest-utils': workspace:2.0.1
       '@pnpm/matcher': workspace:2.0.0
-      '@pnpm/outdated': workspace:8.0.3
-      '@pnpm/package-store': workspace:12.0.3
+      '@pnpm/outdated': workspace:8.0.4
+      '@pnpm/package-store': workspace:12.0.4
       '@pnpm/parse-wanted-dependency': workspace:2.0.0
       '@pnpm/plugin-commands-installation': 'link:'
-      '@pnpm/plugin-commands-rebuild': workspace:3.0.4
+      '@pnpm/plugin-commands-rebuild': workspace:4.0.0
       '@pnpm/pnpmfile': workspace:1.0.1
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/resolver-base': workspace:8.0.1
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/sort-packages': workspace:2.0.1
-      '@pnpm/store-connection-manager': workspace:2.1.0
+      '@pnpm/store-connection-manager': workspace:2.1.1
       '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.1.0
       '@types/is-ci': ^3.0.0
@@ -1767,7 +1767,7 @@ importers:
       read-yaml-file: ^2.1.0
       render-help: ^1.0.1
       sinon: ^9.2.2
-      supi: workspace:0.46.5
+      supi: workspace:0.46.6
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
       write-json-file: ^4.3.0
@@ -1841,12 +1841,12 @@ importers:
       '@pnpm/config': workspace:12.2.0
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
-      '@pnpm/filter-workspace-packages': workspace:4.0.0
+      '@pnpm/filter-workspace-packages': workspace:4.0.1
       '@pnpm/list': workspace:6.1.1
       '@pnpm/logger': ^4.0.0
-      '@pnpm/plugin-commands-installation': workspace:4.1.1
+      '@pnpm/plugin-commands-installation': workspace:4.1.2
       '@pnpm/plugin-commands-listing': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
       execa: ^5.0.0
@@ -1885,14 +1885,14 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/default-resolver': workspace:12.0.2
       '@pnpm/error': workspace:2.0.0
-      '@pnpm/filter-workspace-packages': workspace:4.0.0
+      '@pnpm/filter-workspace-packages': workspace:4.0.1
       '@pnpm/lockfile-file': workspace:4.0.1
       '@pnpm/matcher': workspace:2.0.0
       '@pnpm/modules-yaml': workspace:9.0.1
-      '@pnpm/outdated': workspace:8.0.3
-      '@pnpm/plugin-commands-installation': workspace:4.1.1
+      '@pnpm/outdated': workspace:8.0.4
+      '@pnpm/plugin-commands-installation': workspace:4.1.2
       '@pnpm/plugin-commands-outdated': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.1.0
@@ -1943,16 +1943,16 @@ importers:
   packages/plugin-commands-publishing:
     specifiers:
       '@pnpm/cli-utils': workspace:0.6.2
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/config': workspace:12.2.0
       '@pnpm/error': workspace:2.0.0
       '@pnpm/exportable-manifest': workspace:2.1.0
-      '@pnpm/filter-workspace-packages': workspace:4.0.0
-      '@pnpm/lifecycle': workspace:10.0.1
+      '@pnpm/filter-workspace-packages': workspace:4.0.1
+      '@pnpm/lifecycle': workspace:11.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/pick-registry-for-package': workspace:2.0.1
       '@pnpm/plugin-commands-publishing': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/resolver-base': workspace:8.0.1
       '@pnpm/run-npm': workspace:3.0.0
       '@pnpm/sort-packages': workspace:2.0.1
@@ -2026,10 +2026,10 @@ importers:
       '@pnpm/config': workspace:12.2.0
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/core-loggers': workspace:6.0.1
-      '@pnpm/filter-workspace-packages': workspace:4.0.0
+      '@pnpm/filter-workspace-packages': workspace:4.0.1
       '@pnpm/find-workspace-packages': workspace:3.0.2
       '@pnpm/get-context': workspace:5.1.0
-      '@pnpm/lifecycle': workspace:10.0.1
+      '@pnpm/lifecycle': workspace:11.0.0
       '@pnpm/link-bins': workspace:6.0.1
       '@pnpm/lockfile-utils': workspace:3.0.2
       '@pnpm/lockfile-walker': workspace:4.0.2
@@ -2037,10 +2037,10 @@ importers:
       '@pnpm/modules-yaml': workspace:9.0.1
       '@pnpm/normalize-registries': workspace:2.0.1
       '@pnpm/plugin-commands-rebuild': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/sort-packages': workspace:2.0.1
-      '@pnpm/store-connection-manager': workspace:2.1.0
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-connection-manager': workspace:2.1.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
@@ -2113,11 +2113,11 @@ importers:
       '@pnpm/common-cli-options-help': workspace:0.5.0
       '@pnpm/config': workspace:12.2.0
       '@pnpm/error': workspace:2.0.0
-      '@pnpm/filter-workspace-packages': workspace:4.0.0
-      '@pnpm/lifecycle': workspace:10.0.1
+      '@pnpm/filter-workspace-packages': workspace:4.0.1
+      '@pnpm/lifecycle': workspace:11.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/plugin-commands-script-runners': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/sort-packages': workspace:2.0.1
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
@@ -2164,8 +2164,8 @@ importers:
       '@pnpm/error': workspace:2.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/plugin-commands-server': 'link:'
-      '@pnpm/server': workspace:11.0.1
-      '@pnpm/store-connection-manager': workspace:2.1.0
+      '@pnpm/server': workspace:11.0.2
+      '@pnpm/store-connection-manager': workspace:2.1.1
       '@pnpm/store-path': ^5.0.0
       '@types/is-windows': ^1.0.0
       '@types/ramda': 0.27.39
@@ -2207,7 +2207,7 @@ importers:
   packages/plugin-commands-store:
     specifiers:
       '@pnpm/assert-store': workspace:*
-      '@pnpm/cafs': workspace:3.0.2
+      '@pnpm/cafs': workspace:3.0.3
       '@pnpm/cli-utils': workspace:0.6.2
       '@pnpm/config': workspace:12.2.0
       '@pnpm/error': workspace:2.0.0
@@ -2219,9 +2219,9 @@ importers:
       '@pnpm/parse-wanted-dependency': workspace:2.0.0
       '@pnpm/pick-registry-for-package': workspace:2.0.1
       '@pnpm/plugin-commands-store': 'link:'
-      '@pnpm/prepare': workspace:0.0.21
-      '@pnpm/store-connection-manager': workspace:2.1.0
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/prepare': workspace:0.0.22
+      '@pnpm/store-connection-manager': workspace:2.1.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.1.0
       '@types/archy': 0.0.31
@@ -2284,7 +2284,7 @@ importers:
       '@pnpm/assert-project': workspace:*
       '@pnpm/cli-meta': workspace:2.0.0
       '@pnpm/cli-utils': workspace:0.6.2
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/command': workspace:2.0.0
       '@pnpm/common-cli-options-help': workspace:0.5.0
       '@pnpm/config': workspace:12.2.0
@@ -2292,7 +2292,7 @@ importers:
       '@pnpm/core-loggers': workspace:6.0.1
       '@pnpm/default-reporter': workspace:8.0.2
       '@pnpm/file-reporter': ^1.0.1
-      '@pnpm/filter-workspace-packages': workspace:4.0.0
+      '@pnpm/filter-workspace-packages': workspace:4.0.1
       '@pnpm/find-workspace-dir': workspace:3.0.0
       '@pnpm/find-workspace-packages': workspace:3.0.2
       '@pnpm/lockfile-types': workspace:3.0.0
@@ -2300,17 +2300,17 @@ importers:
       '@pnpm/modules-yaml': workspace:9.0.1
       '@pnpm/parse-cli-args': workspace:4.1.0
       '@pnpm/pick-registry-for-package': workspace:2.0.1
-      '@pnpm/plugin-commands-audit': workspace:4.1.0
-      '@pnpm/plugin-commands-import': workspace:2.0.5
-      '@pnpm/plugin-commands-installation': workspace:4.1.1
+      '@pnpm/plugin-commands-audit': workspace:4.1.1
+      '@pnpm/plugin-commands-import': workspace:2.0.6
+      '@pnpm/plugin-commands-installation': workspace:4.1.2
       '@pnpm/plugin-commands-listing': workspace:3.0.4
-      '@pnpm/plugin-commands-outdated': workspace:4.1.0
-      '@pnpm/plugin-commands-publishing': workspace:3.1.0
-      '@pnpm/plugin-commands-rebuild': workspace:3.0.4
-      '@pnpm/plugin-commands-script-runners': workspace:3.1.1
-      '@pnpm/plugin-commands-server': workspace:3.0.4
-      '@pnpm/plugin-commands-store': workspace:3.0.4
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/plugin-commands-outdated': workspace:4.1.1
+      '@pnpm/plugin-commands-publishing': workspace:3.1.1
+      '@pnpm/plugin-commands-rebuild': workspace:4.0.0
+      '@pnpm/plugin-commands-script-runners': workspace:3.1.2
+      '@pnpm/plugin-commands-server': workspace:3.0.5
+      '@pnpm/plugin-commands-store': workspace:3.0.5
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/read-project-manifest': workspace:2.0.1
       '@pnpm/run-npm': workspace:3.0.0
@@ -2354,7 +2354,7 @@ importers:
       p-defer: ^3.0.0
       path-exists: ^4.0.0
       path-name: ^1.0.0
-      pkgs-graph: workspace:6.1.0
+      pkgs-graph: workspace:6.1.1
       ps-list: ^7.2.0
       ramda: ^0.27.1
       read-yaml-file: ^2.1.0
@@ -2639,7 +2639,7 @@ importers:
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': workspace:8.0.1
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
@@ -2717,13 +2717,13 @@ importers:
 
   packages/server:
     specifiers:
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/fetch': workspace:3.1.0
       '@pnpm/logger': ^4.0.0
-      '@pnpm/package-requester': workspace:14.0.3
-      '@pnpm/package-store': workspace:12.0.3
+      '@pnpm/package-requester': workspace:15.0.0
+      '@pnpm/package-store': workspace:12.0.4
       '@pnpm/server': 'link:'
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/types': workspace:7.1.0
       '@types/mz': ^2.7.3
       '@types/node-fetch': ^2.5.7
@@ -2772,12 +2772,12 @@ importers:
   packages/store-connection-manager:
     specifiers:
       '@pnpm/cli-meta': workspace:2.0.0
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/config': workspace:12.2.0
       '@pnpm/error': workspace:2.0.0
       '@pnpm/logger': ^4.0.0
-      '@pnpm/package-store': workspace:12.0.3
-      '@pnpm/server': workspace:11.0.1
+      '@pnpm/package-store': workspace:12.0.4
+      '@pnpm/server': workspace:11.0.2
       '@pnpm/store-connection-manager': 'link:'
       '@pnpm/store-path': ^5.0.0
       '@zkochan/diable': ^1.0.2
@@ -2800,7 +2800,7 @@ importers:
 
   packages/store-controller-types:
     specifiers:
-      '@pnpm/fetcher-base': workspace:10.0.1
+      '@pnpm/fetcher-base': workspace:11.0.0
       '@pnpm/resolver-base': workspace:8.0.1
       '@pnpm/store-controller-types': 'link:'
       '@pnpm/types': workspace:7.1.0
@@ -2815,17 +2815,17 @@ importers:
     specifiers:
       '@pnpm/assert-project': workspace:*
       '@pnpm/assert-store': workspace:*
-      '@pnpm/build-modules': workspace:6.0.1
-      '@pnpm/cafs': workspace:3.0.2
-      '@pnpm/client': workspace:3.1.0
+      '@pnpm/build-modules': workspace:7.0.0
+      '@pnpm/cafs': workspace:3.0.3
+      '@pnpm/client': workspace:3.1.1
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/core-loggers': workspace:6.0.1
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-lockfile': workspace:5.0.2
       '@pnpm/get-context': workspace:5.1.0
-      '@pnpm/headless': workspace:16.0.4
+      '@pnpm/headless': workspace:16.0.5
       '@pnpm/hoist': workspace:5.0.3
-      '@pnpm/lifecycle': workspace:10.0.1
+      '@pnpm/lifecycle': workspace:11.0.0
       '@pnpm/link-bins': workspace:6.0.1
       '@pnpm/lockfile-file': workspace:4.0.1
       '@pnpm/lockfile-to-pnp': workspace:0.4.3
@@ -2833,21 +2833,21 @@ importers:
       '@pnpm/lockfile-walker': workspace:4.0.2
       '@pnpm/logger': ^4.0.0
       '@pnpm/manifest-utils': workspace:2.0.1
-      '@pnpm/modules-cleaner': workspace:11.0.2
+      '@pnpm/modules-cleaner': workspace:11.0.3
       '@pnpm/modules-yaml': workspace:9.0.1
       '@pnpm/normalize-registries': workspace:2.0.1
-      '@pnpm/package-requester': workspace:14.0.3
-      '@pnpm/package-store': workspace:12.0.3
+      '@pnpm/package-requester': workspace:15.0.0
+      '@pnpm/package-store': workspace:12.0.4
       '@pnpm/parse-wanted-dependency': workspace:2.0.0
-      '@pnpm/prepare': workspace:0.0.21
+      '@pnpm/prepare': workspace:0.0.22
       '@pnpm/prune-lockfile': workspace:3.0.2
       '@pnpm/read-modules-dir': workspace:3.0.0
       '@pnpm/read-package-json': workspace:5.0.1
       '@pnpm/read-project-manifest': workspace:2.0.1
       '@pnpm/remove-bins': workspace:2.0.1
-      '@pnpm/resolve-dependencies': workspace:20.0.4
+      '@pnpm/resolve-dependencies': workspace:20.0.5
       '@pnpm/resolver-base': workspace:8.0.1
-      '@pnpm/store-controller-types': workspace:11.0.1
+      '@pnpm/store-controller-types': workspace:11.0.2
       '@pnpm/store-path': ^5.0.0
       '@pnpm/symlink-dependency': workspace:4.0.2
       '@pnpm/test-fixtures': workspace:*
@@ -3004,11 +3004,11 @@ importers:
       '@pnpm/core-loggers': workspace:6.0.1
       '@pnpm/error': workspace:2.0.0
       '@pnpm/fetch': workspace:3.1.0
-      '@pnpm/fetcher-base': workspace:10.0.1
+      '@pnpm/fetcher-base': workspace:11.0.0
       '@pnpm/fetching-types': workspace:2.1.0
       '@pnpm/logger': ^4.0.0
-      '@pnpm/package-store': workspace:12.0.3
-      '@pnpm/prepare-package': workspace:0.0.0
+      '@pnpm/package-store': workspace:12.0.4
+      '@pnpm/prepare-package': workspace:1.0.0
       '@pnpm/tarball-fetcher': 'link:'
       '@types/retry': ^0.12.0
       '@types/rimraf': ^3.0.0
@@ -3114,7 +3114,7 @@ importers:
   privatePackages/assert-store:
     specifiers:
       '@pnpm/assert-store': 'link:'
-      '@pnpm/cafs': workspace:3.0.2
+      '@pnpm/cafs': workspace:3.0.3
       path-exists: ^4.0.0
     dependencies:
       '@pnpm/cafs': link:../../packages/cafs

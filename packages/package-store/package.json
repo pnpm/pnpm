@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "12.0.3",
+  "version": "12.0.4",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -15,12 +15,12 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:3.0.2",
+    "@pnpm/cafs": "workspace:3.0.3",
     "@pnpm/core-loggers": "workspace:6.0.1",
-    "@pnpm/fetcher-base": "workspace:10.0.1",
-    "@pnpm/package-requester": "workspace:14.0.3",
+    "@pnpm/fetcher-base": "workspace:11.0.0",
+    "@pnpm/package-requester": "workspace:15.0.0",
     "@pnpm/resolver-base": "workspace:8.0.1",
-    "@pnpm/store-controller-types": "workspace:11.0.1",
+    "@pnpm/store-controller-types": "workspace:11.0.2",
     "@pnpm/types": "workspace:7.1.0",
     "@zkochan/rimraf": "^2.1.1",
     "load-json-file": "^6.2.0",
@@ -35,9 +35,9 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:3.1.0",
+    "@pnpm/client": "workspace:3.1.1",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/prepare": "workspace:0.0.21",
+    "@pnpm/prepare": "workspace:0.0.22",
     "@types/ramda": "0.27.39",
     "@types/ssri": "^7.1.0",
     "tempy": "^1.0.0"

@@ -1,5 +1,11 @@
 # @pnpm/mount-modules
 
+## 0.1.4
+
+### Patch Changes
+
+- @pnpm/cafs@3.0.3
+
 ## 0.1.3
 
 ### Patch Changes

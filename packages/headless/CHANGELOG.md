@@ -1,5 +1,18 @@
 # @pnpm/headless
 
+## 16.0.5
+
+### Patch Changes
+
+- 3e3c3ff71: `preinstall` scripts should run after installing the dependencies (this is how it works with npm).
+- Updated dependencies [e6a2654a2]
+- Updated dependencies [e6a2654a2]
+  - @pnpm/package-requester@15.0.0
+  - @pnpm/build-modules@7.0.0
+  - @pnpm/lifecycle@11.0.0
+  - @pnpm/store-controller-types@11.0.2
+  - @pnpm/modules-cleaner@11.0.3
+
 ## 16.0.4
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/fetcher-base
 
+## 11.0.0
+
+### Major Changes
+
+- e6a2654a2: `importPackage()` and `tempDir()` added to the `Cafs` type.
+
+### Minor Changes
+
+- e6a2654a2: `PackageFileInfo`, `PackageFilesResponse`, and `ImportPackageFunction` types added.
+
 ## 10.0.1
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/tarball-fetcher
 
+## 9.2.0
+
+### Minor Changes
+
+- e6a2654a2: Packages fetched from Git should have their `devDependencies` installed in case they have a `prepare` script.
+
+### Patch Changes
+
+- Updated dependencies [e6a2654a2]
+- Updated dependencies [e6a2654a2]
+- Updated dependencies [e6a2654a2]
+  - @pnpm/prepare-package@1.0.0
+  - @pnpm/fetcher-base@11.0.0
+
 ## 9.1.0
 
 ### Minor Changes

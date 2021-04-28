@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 11.0.0
+
+### Major Changes
+
+- e6a2654a2: `prepare` scripts of Git-hosted packages are not executed (they are executed during fetching by `@pnpm/git-fetcher`).
+
 ## 10.0.1
 
 ### Patch Changes

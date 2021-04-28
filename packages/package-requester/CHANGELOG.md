@@ -1,5 +1,23 @@
 # @pnpm/package-requester
 
+## 15.0.0
+
+### Major Changes
+
+- e6a2654a2: Breaking changes to the API of `packageRequester()`.
+
+  `resolve` and `fetchers` should be passed in through `options`, not as arguments.
+
+  `cafs` is not returned anymore. It should be passed in through `options` as well.
+
+### Patch Changes
+
+- Updated dependencies [e6a2654a2]
+- Updated dependencies [e6a2654a2]
+  - @pnpm/fetcher-base@11.0.0
+  - @pnpm/cafs@3.0.3
+  - @pnpm/store-controller-types@11.0.2
+
 ## 14.0.3
 
 ### Patch Changes

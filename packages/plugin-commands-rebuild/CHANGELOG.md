@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-rebuild
 
+## 4.0.0
+
+### Major Changes
+
+- e6a2654a2: `prepare` scripts of Git-hosted packages are not executed (they are executed during fetching by `@pnpm/git-fetcher`).
+
+### Patch Changes
+
+- Updated dependencies [e6a2654a2]
+  - @pnpm/lifecycle@11.0.0
+  - @pnpm/store-controller-types@11.0.2
+  - @pnpm/store-connection-manager@2.1.1
+  - @pnpm/config@12.2.0
+
 ## 3.0.4
 
 ### Patch Changes
