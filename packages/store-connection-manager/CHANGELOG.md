@@ -1,5 +1,14 @@
 # @pnpm/store-connection-manager
 
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [3b147ced9]
+  - @pnpm/package-store@12.0.5
+  - @pnpm/client@3.1.2
+  - @pnpm/server@11.0.2
+
 ## 2.1.1
 
 ### Patch Changes

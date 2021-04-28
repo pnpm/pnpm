@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 12.0.5
+
+### Patch Changes
+
+- 3b147ced9: The temporary directory should be removed during prunning the store.
+  - @pnpm/package-requester@15.0.0
+
 ## 12.0.4
 
 ### Patch Changes

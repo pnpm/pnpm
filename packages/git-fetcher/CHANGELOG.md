@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 4.1.1
+
+### Patch Changes
+
+- 3b147ced9: Do not remove the Git temporary directory because it might still be in the process of linking to the CAFS.
+
 ## 4.1.0
 
 ### Minor Changes

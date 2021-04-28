@@ -1,5 +1,13 @@
 # @pnpm/client
 
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [3b147ced9]
+  - @pnpm/git-fetcher@4.1.1
+  - @pnpm/tarball-fetcher@9.2.1
+
 ## 3.1.1
 
 ### Patch Changes

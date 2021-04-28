@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "12.0.4",
+  "version": "12.0.5",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -35,7 +35,7 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:3.1.1",
+    "@pnpm/client": "workspace:3.1.2",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.22",
     "@types/ramda": "0.27.39",

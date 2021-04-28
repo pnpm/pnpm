@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-fetcher",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "A fetcher for git-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:3.0.3",
-    "@pnpm/package-store": "workspace:12.0.4",
+    "@pnpm/package-store": "workspace:12.0.5",
     "@pnpm/types": "workspace:7.1.0",
     "p-defer": "^3.0.0",
     "tempy": "^1.0.0"

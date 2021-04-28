@@ -1,5 +1,13 @@
 # supi
 
+## 0.46.7
+
+### Patch Changes
+
+- 66dbd06e6: Pass `childConcurrency` option to `@pnpm/headless`. Setting `childConcurrency` should have an effect during frozen lockfile installation.
+  - @pnpm/headless@16.0.5
+  - @pnpm/package-requester@15.0.0
+
 ## 0.46.6
 
 ### Patch Changes

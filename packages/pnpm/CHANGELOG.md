@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.2.3
+
+### Patch Changes
+
+- Fixing a regression introduced in v6.2.2 [#3407](https://github.com/pnpm/pnpm/issues/3407).
+- The `child-concurrency` setting should not be ignored when installing in a project with up-to-date lockfile [#3399](https://github.com/pnpm/pnpm/issues/3399).
+
 ## 6.2.2
 
 ### Patch Changes

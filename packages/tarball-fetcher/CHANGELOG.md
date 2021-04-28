@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 9.2.1
+
+### Patch Changes
+
+- 3b147ced9: Do not remove the Git temporary directory because it might still be in the process of linking to the CAFS.
+
 ## 9.2.0
 
 ### Minor Changes
