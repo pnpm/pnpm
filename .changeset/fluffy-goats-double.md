@@ -2,4 +2,4 @@
 "supi": patch
 ---
 
-Pass `childConcurrency` to headless. Setting childConcurrency should an effect during frozen lockfile installation.
+Pass `childConcurrency` option to `@pnpm/headless`. Setting `childConcurrency` should have an effect during frozen lockfile installation.
