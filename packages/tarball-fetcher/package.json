@@ -39,7 +39,6 @@
     "@pnpm/fetching-types": "workspace:2.1.0",
     "@pnpm/prepare-package": "workspace:1.0.0",
     "@zkochan/retry": "^0.2.0",
-    "@zkochan/rimraf": "^2.1.1",
     "ramda": "^0.27.1",
     "ssri": "^8.0.1"
   },
@@ -48,7 +47,6 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.0.4",
     "@types/retry": "^0.12.0",
-    "@types/rimraf": "^3.0.0",
     "@types/ssri": "^7.1.0",
     "cp-file": "^9.0.0",
     "nock": "12.0.3",
