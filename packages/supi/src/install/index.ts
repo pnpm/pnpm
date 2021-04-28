@@ -226,6 +226,7 @@ export async function mutateModules (
         }
         try {
           await headless({
+            childConcurrency: opts.childConcurrency,
             currentEngine: {
               nodeVersion: opts.nodeVersion,
               pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
