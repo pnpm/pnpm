@@ -1,5 +1,5 @@
-import fs from 'fs'
 import PnpmError from '@pnpm/error'
+import gfs from '@pnpm/graceful-fs'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   DirectoryResolution,
@@ -77,5 +77,5 @@ export default async function resolveLocal (
 }
 
 async function getFileIntegrity (filename: string) {
-  return (await ssri.fromStream(fs.createReadStream(filename))).toString()
+  return (await ssri.fromStream(gfs.createReadStream(filename))).toString()
 }

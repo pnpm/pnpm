@@ -37,6 +37,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/fetcher-base": "workspace:11.0.0",
     "@pnpm/fetching-types": "workspace:2.1.0",
+    "@pnpm/graceful-fs": "workspace:0.0.0",
     "@pnpm/prepare-package": "workspace:1.0.0",
     "@zkochan/retry": "^0.2.0",
     "ramda": "^0.27.1",

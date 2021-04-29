@@ -1,12 +1,8 @@
-import { promisify } from 'util'
-import gracefulFs from 'graceful-fs'
+import gfs from '@pnpm/graceful-fs'
 import { ProjectManifest } from '@pnpm/types'
 import JSON5 from 'json5'
 import parseJson from 'parse-json'
 import stripBom from 'strip-bom'
-
-// We use graceful-fs to avoid EMFILE errors.
-const readFile = promisify(gracefulFs.readFile)
 
 export async function readJson5File (filePath: string) {
   const text = await readFileWithoutBom(filePath)
@@ -36,5 +32,5 @@ export async function readJsonFile (filePath: string) {
 }
 
 async function readFileWithoutBom (path: string) {
-  return stripBom(await readFile(path, 'utf8'))
+  return stripBom(await gfs.readFile(path, 'utf8'))
 }

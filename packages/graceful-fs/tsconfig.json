@@ -8,15 +8,5 @@
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../fetcher-base"
-    },
-    {
-      "path": "../graceful-fs"
-    },
-    {
-      "path": "../store-controller-types"
-    }
-  ]
+  "references": []
 }

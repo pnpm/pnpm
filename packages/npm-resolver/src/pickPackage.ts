@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
+import gfs from '@pnpm/graceful-fs'
 import { VersionSelectors } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
 import getRegistryName from 'encode-registry'
@@ -162,7 +163,7 @@ async function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
     createdDirs.add(dir)
   }
   const temp = pathTemp(dir)
-  await fs.writeFile(temp, JSON.stringify(meta))
+  await gfs.writeFile(temp, JSON.stringify(meta))
   await renameOverwrite(temp, pkgMirror)
 }
 

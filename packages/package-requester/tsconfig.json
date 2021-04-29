@@ -28,6 +28,9 @@
       "path": "../fetcher-base"
     },
     {
+      "path": "../graceful-fs"
+    },
+    {
       "path": "../read-package-json"
     },
     {

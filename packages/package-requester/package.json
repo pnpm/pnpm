@@ -38,6 +38,7 @@
     "@pnpm/core-loggers": "workspace:6.0.1",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/fetcher-base": "workspace:11.0.0",
+    "@pnpm/graceful-fs": "workspace:0.0.0",
     "@pnpm/read-package-json": "workspace:5.0.1",
     "@pnpm/resolver-base": "workspace:8.0.1",
     "@pnpm/store-controller-types": "workspace:11.0.2",

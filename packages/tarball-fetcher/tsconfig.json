@@ -25,6 +25,9 @@
       "path": "../fetching-types"
     },
     {
+      "path": "../graceful-fs"
+    },
+    {
       "path": "../prepare-package"
     }
   ]

@@ -32,6 +32,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/local-resolver#readme",
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
+    "@pnpm/graceful-fs": "workspace:0.0.0",
     "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/resolver-base": "workspace:8.0.1",
     "@pnpm/types": "workspace:7.1.0",

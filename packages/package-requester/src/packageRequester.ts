@@ -18,6 +18,7 @@ import {
   FetchResult,
   PackageFilesResponse,
 } from '@pnpm/fetcher-base'
+import gfs from '@pnpm/graceful-fs'
 import logger from '@pnpm/logger'
 import readPackage from '@pnpm/read-package-json'
 import {
@@ -493,7 +494,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
 
       if (isLocalTarballDep && opts.pkg.resolution['integrity']) { // eslint-disable-line @typescript-eslint/dot-notation
         await fs.mkdir(target, { recursive: true })
-        await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.pkg.resolution['integrity'], 'utf8') // eslint-disable-line @typescript-eslint/dot-notation
+        await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.pkg.resolution['integrity'], 'utf8') // eslint-disable-line @typescript-eslint/dot-notation
       }
 
       files.resolve({
@@ -517,7 +518,7 @@ async function writeJsonFile (filePath: string, data: Object) {
   // So by using cafs API, we'll improve performance.
   await fs.mkdir(targetDir, { recursive: true })
   const temp = pathTemp(targetDir)
-  await fs.writeFile(temp, JSON.stringify(data))
+  await gfs.writeFile(temp, JSON.stringify(data))
   await renameOverwrite(temp, filePath)
 }
 
@@ -536,7 +537,7 @@ async function tarballIsUpToDate (
 ) {
   let currentIntegrity!: string
   try {
-    currentIntegrity = (await fs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8'))
+    currentIntegrity = (await gfs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8'))
   } catch (err) {
     return false
   }

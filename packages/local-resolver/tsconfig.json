@@ -13,6 +13,9 @@
       "path": "../error"
     },
     {
+      "path": "../graceful-fs"
+    },
+    {
       "path": "../read-project-manifest"
     },
     {

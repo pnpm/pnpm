@@ -22,6 +22,9 @@
       "path": "../fetching-types"
     },
     {
+      "path": "../graceful-fs"
+    },
+    {
       "path": "../resolve-workspace-range"
     },
     {

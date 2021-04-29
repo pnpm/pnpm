@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import gfs from '@pnpm/graceful-fs'
 
 const dirs = new Set()
 
@@ -9,7 +10,7 @@ export default async function (
   mode?: number
 ) {
   await makeDirForFile(fileDest)
-  await fs.writeFile(fileDest, buffer, { mode })
+  await gfs.writeFile(fileDest, buffer, { mode })
 }
 
 async function makeDirForFile (fileDest: string) {

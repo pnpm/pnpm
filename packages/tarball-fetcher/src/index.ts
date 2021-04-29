@@ -1,5 +1,4 @@
 import path from 'path'
-import fs from 'fs'
 import PnpmError from '@pnpm/error'
 import {
   Cafs,
@@ -13,6 +12,7 @@ import {
   GetCredentials,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import gfs from '@pnpm/graceful-fs'
 import ssri from 'ssri'
 import createDownloader, {
   DownloadFunction,
@@ -101,7 +101,7 @@ async function fetchFromLocalTarball (
   }
 ): Promise<FetchResult> {
   try {
-    const tarballStream = fs.createReadStream(tarball)
+    const tarballStream = gfs.createReadStream(tarball)
     const [fetchResult] = (
       await Promise.all([
         cafs.addFilesFromTarball(tarballStream, opts.manifest),

@@ -1,10 +1,11 @@
-import { createReadStream, promises as fs } from 'fs'
+import { promises as fs } from 'fs'
 import path from 'path'
 import {
   DeferredManifestPromise,
   FilesIndex,
   FileWriteResult,
 } from '@pnpm/fetcher-base'
+import gfs from '@pnpm/graceful-fs'
 import pLimit from 'p-limit'
 import { parseJsonBuffer } from './parseJson'
 
@@ -48,15 +49,15 @@ async function _retrieveFileIntegrities (
         const relativePath = path.relative(rootDir, fullPath)
         const writeResult = limit(async () => {
           if ((deferredManifest != null) && rootDir === currDir && file === 'package.json') {
-            const buffer = await fs.readFile(fullPath)
+            const buffer = await gfs.readFile(fullPath)
             parseJsonBuffer(buffer, deferredManifest)
             return cafs.addBuffer(buffer, stat.mode)
           }
           if (stat.size < MAX_BULK_SIZE) {
-            const buffer = await fs.readFile(fullPath)
+            const buffer = await gfs.readFile(fullPath)
             return cafs.addBuffer(buffer, stat.mode)
           }
-          return cafs.addStream(createReadStream(fullPath), stat.mode)
+          return cafs.addStream(gfs.createReadStream(fullPath), stat.mode)
         })
         index[relativePath] = {
           mode: stat.mode,
