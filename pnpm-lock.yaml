@@ -140,6 +140,7 @@ importers:
       concat-stream: ^2.0.0
       decompress-maybe: ^1.0.0
       get-stream: ^6.0.0
+      graceful-fs: ^4.2.6
       p-limit: ^3.1.0
       path-temp: ^2.0.0
       rename-overwrite: ^4.0.0
@@ -154,6 +155,7 @@ importers:
       concat-stream: 2.0.0
       decompress-maybe: 1.0.0
       get-stream: 6.0.1
+      graceful-fs: 4.2.6
       p-limit: 3.1.0
       path-temp: 2.0.0
       rename-overwrite: 4.0.0
