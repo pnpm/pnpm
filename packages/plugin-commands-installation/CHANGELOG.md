@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 4.1.4
+
+### Patch Changes
+
+- @pnpm/package-store@12.0.6
+- supi@0.46.8
+- @pnpm/cli-utils@0.6.3
+- @pnpm/store-connection-manager@2.1.3
+- @pnpm/find-workspace-packages@3.0.3
+- @pnpm/plugin-commands-rebuild@4.0.2
+- @pnpm/outdated@8.0.6
+- @pnpm/filter-workspace-packages@4.0.2
+- @pnpm/config@12.2.0
+
 ## 4.1.3
 
 ### Patch Changes

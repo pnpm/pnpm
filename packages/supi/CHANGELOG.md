@@ -1,5 +1,18 @@
 # supi
 
+## 0.46.8
+
+### Patch Changes
+
+- @pnpm/package-requester@15.0.1
+- @pnpm/read-project-manifest@2.0.2
+- @pnpm/resolve-dependencies@20.0.6
+- @pnpm/headless@16.0.6
+- @pnpm/link-bins@6.0.2
+- @pnpm/lockfile-to-pnp@0.4.4
+- @pnpm/build-modules@7.0.1
+- @pnpm/hoist@5.0.4
+
 ## 0.46.7
 
 ### Patch Changes

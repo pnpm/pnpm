@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.6
+
+### Patch Changes
+
+- @pnpm/npm-resolver@11.1.1
+
 ## 20.0.5
 
 ### Patch Changes

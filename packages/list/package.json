@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "6.1.1",
+  "version": "6.1.2",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/matcher": "workspace:2.0.0",
     "@pnpm/read-package-json": "workspace:5.0.1",
-    "@pnpm/read-project-manifest": "workspace:2.0.1",
+    "@pnpm/read-project-manifest": "workspace:2.0.2",
     "@pnpm/types": "workspace:7.1.0",
     "@zkochan/npm-package-arg": "^2.0.1",
     "archy": "^1.0.0",

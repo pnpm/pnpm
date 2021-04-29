@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.2.4
+
+### Patch Changes
+
+- pnpm should not fail with an `EMFILE` error on a big workspace with many projects [#3381](https://github.com/pnpm/pnpm/pull/3381).
+
 ## 6.2.3
 
 ### Patch Changes

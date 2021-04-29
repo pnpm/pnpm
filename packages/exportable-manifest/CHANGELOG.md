@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 2.1.1
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@2.0.2
+
 ## 2.1.0
 
 ### Minor Changes

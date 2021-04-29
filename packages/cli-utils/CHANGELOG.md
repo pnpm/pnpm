@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 0.6.3
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@2.0.2
+- @pnpm/config@12.2.0
+
 ## 0.6.2
 
 ### Patch Changes

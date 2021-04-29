@@ -1,5 +1,11 @@
 # @pnpm/outdated
 
+## 8.0.6
+
+### Patch Changes
+
+- @pnpm/client@3.1.3
+
 ## 8.0.5
 
 ### Patch Changes

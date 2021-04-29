@@ -1,5 +1,13 @@
 # @pnpm/cafs
 
+## 3.0.4
+
+### Patch Changes
+
+- ef0ca24be: Use graceful-fs for reading files.
+- Updated dependencies [a2aeeef88]
+  - @pnpm/graceful-fs@1.0.0
+
 ## 3.0.3
 
 ### Patch Changes

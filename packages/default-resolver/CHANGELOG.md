@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 12.0.3
+
+### Patch Changes
+
+- @pnpm/local-resolver@6.0.2
+- @pnpm/npm-resolver@11.1.1
+
 ## 12.0.2
 
 ### Patch Changes

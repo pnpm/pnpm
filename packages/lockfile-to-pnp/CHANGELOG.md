@@ -1,5 +1,12 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.4.4
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@2.0.2
+- @pnpm/config@12.2.0
+
 ## 0.4.3
 
 ### Patch Changes

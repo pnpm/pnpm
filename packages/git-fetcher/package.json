@@ -35,8 +35,8 @@
     "execa": "^5.0.0"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:3.0.3",
-    "@pnpm/package-store": "workspace:12.0.5",
+    "@pnpm/cafs": "workspace:3.0.4",
+    "@pnpm/package-store": "workspace:12.0.6",
     "@pnpm/types": "workspace:7.1.0",
     "p-defer": "^3.0.0",
     "tempy": "^1.0.0"

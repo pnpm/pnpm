@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 9.2.2
+
+### Patch Changes
+
+- Updated dependencies [a2aeeef88]
+  - @pnpm/graceful-fs@1.0.0
+
 ## 9.2.1
 
 ### Patch Changes

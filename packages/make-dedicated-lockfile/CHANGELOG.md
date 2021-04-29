@@ -1,5 +1,12 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.2.4
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@2.0.2
+- @pnpm/exportable-manifest@2.1.1
+
 ## 0.2.3
 
 ### Patch Changes

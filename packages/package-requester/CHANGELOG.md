@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 15.0.1
+
+### Patch Changes
+
+- Updated dependencies [a2aeeef88]
+- Updated dependencies [ef0ca24be]
+  - @pnpm/graceful-fs@1.0.0
+  - @pnpm/cafs@3.0.4
+
 ## 15.0.0
 
 ### Major Changes
