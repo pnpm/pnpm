@@ -1,13 +1,16 @@
-import { createReadStream, promises as fs } from 'fs'
+import { promises as fs } from 'fs'
+import gracefulFS from 'graceful-fs'
 import { DeferredManifestPromise, PackageFileInfo } from '@pnpm/fetcher-base'
 import rimraf from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import ssri from 'ssri'
+import { promisify } from 'util'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
 import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
+const readFile = promisify(gracefulFS.readFile)
 
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
@@ -69,7 +72,7 @@ async function verifyFile (
     return verifyFileIntegrity(filename, fstat, deferredManifest)
   }
   if (deferredManifest != null) {
-    parseJsonBuffer(await fs.readFile(filename), deferredManifest)
+    parseJsonBuffer(await readFile(filename), deferredManifest)
   }
   // If a file was not edited, we are skipping integrity check.
   // We assume that nobody will manually remove a file in the store and create a new one.
@@ -83,13 +86,13 @@ export async function verifyFileIntegrity (
 ) {
   try {
     if (expectedFile.size > MAX_BULK_SIZE && (deferredManifest == null)) {
-      const ok = Boolean(await ssri.checkStream(createReadStream(filename), expectedFile.integrity))
+      const ok = Boolean(await ssri.checkStream(gracefulFS.createReadStream(filename), expectedFile.integrity))
       if (!ok) {
         await rimraf(filename)
       }
       return ok
     }
-    const data = await fs.readFile(filename)
+    const data = await readFile(filename)
     const ok = Boolean(ssri.checkData(data, expectedFile.integrity))
     if (!ok) {
       await rimraf(filename)
