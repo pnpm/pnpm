@@ -1,5 +1,5 @@
-import gfs from 'graceful-fs'
 import { promisify } from 'util'
+import gfs from 'graceful-fs'
 
 export default {
   createReadStream: gfs.createReadStream,
