@@ -41,7 +41,7 @@
     "pretty-ms": "^7.0.1",
     "ramda": "^0.27.1",
     "right-pad": "^1.0.1",
-    "rxjs": "^6.6.3",
+    "rxjs": "^7.0.0",
     "semver": "^7.3.4",
     "stacktracey": "^1.2.127",
     "string-length": "^4.0.1",
