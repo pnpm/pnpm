@@ -112,18 +112,7 @@ export default function (
   )
     .pipe(
       map(
-        ([pkgsDiff, packageManifests]: [
-          {
-            dev: Map<PackageDiff>
-            nodeModulesOnly: Map<PackageDiff>
-            optional: Map<PackageDiff>
-            prod: Map<PackageDiff>
-          },
-          {
-            initial?: PackageManifest
-            updated?: PackageManifest
-          }
-        ]) => {
+        ([pkgsDiff, packageManifests]) => {
           if ((packageManifests['initial'] == null) || (packageManifests['updated'] == null)) return pkgsDiff
 
           const initialPackageManifest = removeOptionalFromProdDeps(packageManifests['initial'])

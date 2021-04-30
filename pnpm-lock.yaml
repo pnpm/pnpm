@@ -325,7 +325,7 @@ importers:
       pretty-ms: ^7.0.1
       ramda: ^0.27.1
       right-pad: ^1.0.1
-      rxjs: ^6.6.3
+      rxjs: ^7.0.0
       semver: ^7.3.4
       stacktracey: ^1.2.127
       string-length: ^4.0.1
@@ -343,7 +343,7 @@ importers:
       pretty-ms: 7.0.1
       ramda: 0.27.1
       right-pad: 1.0.1
-      rxjs: 6.6.7
+      rxjs: 7.0.0
       semver: 7.3.5
       stacktracey: 1.2.127
       string-length: 4.0.2
@@ -12174,6 +12174,13 @@ packages:
     engines: {npm: '>=2.0.0'}
     dependencies:
       tslib: 1.14.1
+    dev: true
+
+  /rxjs/7.0.0:
+    resolution: {integrity: sha512-I1V/ArAtGJg4kmCfms8fULm0SwYgEsAf2d5WPCBGzTYm2qTjO3Tx4EDFaGjbOox8CeEsC69jQK22mnmfyA26sw==}
+    dependencies:
+      tslib: 2.1.0
+    dev: false
 
   /safe-buffer/5.1.2:
     resolution: {integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==}
@@ -13225,6 +13232,10 @@ packages:
   /tslib/1.9.0:
     resolution: {integrity: sha512-f/qGG2tUkrISBlQZEjEqoZ3B2+npJjIf04H1wuAv9iA8i04Icp+61KRXxFdha22670NJopsZCIjhC3SnjPRKrQ==}
     dev: true
+
+  /tslib/2.1.0:
+    resolution: {integrity: sha512-hcVC3wYEziELGGmEEXue7D75zbwIIVUMWAVbHItGPx0ziyXxrOMQx4rQEVEV45Ut/1IotuEvwqPopzIOkDMf0A==}
+    dev: false
 
   /tslint-config-standard/9.0.0:
     resolution: {integrity: sha512-CAw9J743RnPMemQV/XQ4YyNreC+A1NItACfkm+cBedrOkz6CQfwlnbKn8anUXBfoa4Zo4tjAhblRbsMNcSLfSw==}
