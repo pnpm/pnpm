@@ -80,7 +80,7 @@
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4",
-    "@types/sinon": "^9.0.11",
+    "@types/sinon": "^10.0.0",
     "anonymous-npm-registry-client": "0.1.2",
     "cross-spawn": "^7.0.3",
     "deep-require-cwd": "1.0.0",
@@ -96,7 +96,7 @@
     "path-name": "^1.0.0",
     "read-yaml-file": "^2.1.0",
     "resolve-link-target": "^2.0.0",
-    "sinon": "^9.2.2",
+    "sinon": "^10.0.0",
     "symlink-dir": "^5.0.0",
     "write-json-file": "^4.3.0",
     "write-yaml-file": "^4.2.0"
