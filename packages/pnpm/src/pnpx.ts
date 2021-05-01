@@ -1,5 +1,6 @@
 import path from 'path'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
+import storePath from '@pnpm/store-path'
 import npx from '@zkochan/libnpx/index'
 import PATH from 'path-name'
 
@@ -13,6 +14,7 @@ const PNPM_PATH = path.join(__dirname, 'pnpm.cjs')
   }
   npx({
     ...npx.parseArgs(process.argv, PNPM_PATH),
+    cache: path.join(await storePath(process.cwd(), '~/.pnpm-store'), 'tmp'),
     installerStdio: 'inherit',
   })
 })()
