@@ -126,8 +126,8 @@ test('pnpx works', () => {
 
   const result = execPnpxSync(['--yes', 'hello-world-js-bin'])
 
-  expect(result.status).toBe(0)
   expect(result.stdout.toString()).toMatch(/Hello world!/)
+  expect(result.status).toBe(0)
 })
 
 test('exit code from plugin is used to end the process', () => {
