@@ -62,7 +62,8 @@
     "remove-all-except-outer-links",
     "supi",
     "ts-node",
-    "@types/ramda"
+    "@types/ramda",
+    "@types/table"
   ],
   "ignorePaths": [
     "fixtures",

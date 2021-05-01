@@ -31,7 +31,7 @@
   "devDependencies": {
     "@pnpm/types": "workspace:7.1.0",
     "@types/ramda": "0.27.39",
-    "@types/zkochan__table": "npm:@types/table@^6.0.0",
+    "@types/zkochan__table": "npm:@types/table@6.0.0",
     "strip-ansi": "^6.0.0"
   },
   "dependencies": {
