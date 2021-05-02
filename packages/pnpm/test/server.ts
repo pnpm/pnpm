@@ -285,7 +285,7 @@ async function testParallelServerStart (
   }
 }
 
-test('parallel server starts against the same store should result in only one server process existing after 10 seconds', async () => {
+skipOnWindows('parallel server starts against the same store should result in only one server process existing after 10 seconds', async () => {
   // Number of server processes to start in parallel
   const n = 5
   // Plan that n - 1 of n server processes will close within 10 seconds.
