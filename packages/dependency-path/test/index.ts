@@ -128,4 +128,5 @@ test('depPathToFilename()', () => {
   expect(filename).not.toContain(':')
 
   expect(depPathToFilename('abcd/'.repeat(200), process.cwd())).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+_27524303f1ddd808db67f175ff83606e')
+  expect(depPathToFilename('/JSONSteam/1.0.0', process.cwd())).toBe('JSONSteam@1.0.0_4b2567ab922fbdf01171f59fab8f6fef')
 })

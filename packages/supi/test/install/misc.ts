@@ -1261,7 +1261,32 @@ test('installing dependencies with the same name in different case', async () =>
       },
       rootDir: path.resolve('project-1'),
     },
-  ], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  ], await testDefaults({ fastUnpack: false }))
 
   // if it did not fail, it is fine
+})
+
+test('two dependencies have the same version and name. The only difference is the casing in the name', async () => {
+  prepareEmpty()
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      mutation: 'install',
+      manifest: {
+        dependencies: {
+          a: 'npm:JSONStream@1.0.3',
+          b: 'npm:jsonstream@1.0.3',
+        },
+      },
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({
+    fastUnpack: false,
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  }))
+
+  expect((await fs.readdir(path.resolve('node_modules/.pnpm'))).length).toBe(5)
 })
