@@ -1,6 +1,6 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import PnpmError from '@pnpm/error'
 import {
   PackageManifestLog,
@@ -1239,4 +1239,29 @@ test('installing with no modules directory', async () => {
 
   expect(await project.readLockfile()).toBeTruthy()
   expect(await exists(path.resolve('node_modules'))).toBeFalsy()
+})
+
+test('installing dependencies with the same name in different case', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+  ])
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      mutation: 'install',
+      manifest: {
+        dependencies: {
+          File: 'https://registry.npmjs.org/File/-/File-0.10.2.tgz',
+          file: 'https://registry.npmjs.org/file/-/file-0.2.2.tgz',
+        },
+      },
+      rootDir: path.resolve('project-1'),
+    },
+  ], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+
+  // if it did not fail, it is fine
 })
