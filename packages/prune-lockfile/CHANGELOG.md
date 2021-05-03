@@ -1,5 +1,12 @@
 # @pnpm/prune-lockfile
 
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [20e2f235d]
+  - dependency-path@8.0.0
+
 ## 3.0.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/modules-cleaner
 
+## 11.0.4
+
+### Patch Changes
+
+- Updated dependencies [20e2f235d]
+  - dependency-path@8.0.0
+  - @pnpm/filter-lockfile@5.0.3
+  - @pnpm/lockfile-utils@3.0.3
+
 ## 11.0.3
 
 ### Patch Changes

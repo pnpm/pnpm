@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.2.5
+
+### Patch Changes
+
+- Do not crash when linking two dependencies with the same name [#3308](https://github.com/pnpm/pnpm/issues/3308).
+- The temp pnpx directory should be created inside the pnpm store.
+
 ## 6.2.4
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies [20e2f235d]
+  - dependency-path@8.0.0
+  - @pnpm/lockfile-utils@3.0.3
+  - @pnpm/client@3.1.4
+
 ## 8.0.6
 
 ### Patch Changes

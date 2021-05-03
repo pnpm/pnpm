@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 11.1.2
+
+### Patch Changes
+
+- ae36ac7d3: Fix: unhandled rejection in npm resolver when fetch fails
+- bf322c702: Avoid conflicts in metadata, when a package name has upper case letters.
+
 ## 11.1.1
 
 ### Patch Changes

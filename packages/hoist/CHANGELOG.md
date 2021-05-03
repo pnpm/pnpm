@@ -1,5 +1,15 @@
 # @pnpm/hoist
 
+## 5.0.5
+
+### Patch Changes
+
+- ec097f4ed: Ignore the case of the package name when deciding which dependency to hoist.
+- Updated dependencies [20e2f235d]
+  - dependency-path@8.0.0
+  - @pnpm/lockfile-utils@3.0.3
+  - @pnpm/lockfile-walker@4.0.3
+
 ## 5.0.4
 
 ### Patch Changes

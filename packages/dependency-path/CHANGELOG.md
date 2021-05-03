@@ -1,5 +1,11 @@
 # dependency-path
 
+## 8.0.0
+
+### Major Changes
+
+- 20e2f235d: Add a unique prefix to any directory name inside the virtual store that has non-lowercase characters. This is important to avoid conflicts in case insensitive filesystems.
+
 ## 7.0.1
 
 ### Patch Changes

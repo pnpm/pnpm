@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.0.3
+
+### Patch Changes
+
+- e4a981c0c: Update rxjs.
+
 ## 8.0.2
 
 ### Patch Changes
