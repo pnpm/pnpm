@@ -673,7 +673,7 @@ test('error is thrown when registry not responding', async () => {
     retry: { retries: 1 },
   })
   await expect(resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, { registry: notExistingRegistry })).rejects
-    .toThrow(new PnpmError('META_FETCH_FAIL', `GET ${notExistingRegistry}/${notExistingPackage}: request to ${notExistingRegistry}/${notExistingPackage} failed, reason: connect ECONNREFUSED 127.0.0.1:4873 - ECONNREFUSED`, { attempts: 1 }))
+    .toThrow(new PnpmError('META_FETCH_FAIL', `GET ${notExistingRegistry}/${notExistingPackage}: request to ${notExistingRegistry}/${notExistingPackage} failed, reason: connect ECONNREFUSED 127.0.0.1:4873`, { attempts: 1 }))
 })
 
 test('extra info is shown if package has valid semver appended', async () => {
