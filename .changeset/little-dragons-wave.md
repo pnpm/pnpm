@@ -1,5 +1,4 @@
 ---
-"@pnpm/error": patch
 "@pnpm/npm-resolver": patch
 ---
 
