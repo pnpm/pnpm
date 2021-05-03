@@ -50,11 +50,17 @@ export default async function fromRegistry (
   const op = retry.operation(fetchOpts.retry)
   return new Promise((resolve, reject) =>
     op.attempt(async (attempt) => {
-      const response = await fetch(uri, {
-        authHeaderValue,
-        retry: fetchOpts.retry,
-        timeout: fetchOpts.timeout,
-      }) as RegistryResponse
+      let response: RegistryResponse
+      try {
+        response = await fetch(uri, {
+          authHeaderValue,
+          retry: fetchOpts.retry,
+          timeout: fetchOpts.timeout,
+        }) as RegistryResponse
+      } catch (error) {
+        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
+        return
+      }
       if (response.status > 400) {
         const request = {
           authHeaderValue,
