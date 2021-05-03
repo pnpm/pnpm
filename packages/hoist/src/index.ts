@@ -163,11 +163,12 @@ async function hoistGraph (
       for (const [childAlias, childPath] of Object.entries(depNode.children)) {
         const hoist = opts.getAliasHoistType(childAlias)
         if (!hoist) continue
+        const childAliasNormalized = childAlias.toLowerCase()
         // if this alias has already been taken, skip it
-        if (hoistedAliases.has(childAlias)) {
+        if (hoistedAliases.has(childAliasNormalized)) {
           continue
         }
-        hoistedAliases.add(childAlias)
+        hoistedAliases.add(childAliasNormalized)
         if (!hoistedDependencies[childPath]) {
           hoistedDependencies[childPath] = {}
         }
