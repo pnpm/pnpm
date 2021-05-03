@@ -17,6 +17,7 @@ const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(path.join(__dirname,
 const isPositiveMetaFull = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-full.json'))
 const isPositiveBrokenMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-broken.json'))
 const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
+const jsonMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'JSON.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registry = 'https://registry.npmjs.org/'
@@ -68,6 +69,30 @@ test('resolveFromNpm()', async () => {
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
   const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(meta.name).toBeTruthy()
+  expect(meta.versions).toBeTruthy()
+  expect(meta['dist-tags']).toBeTruthy()
+})
+
+test('resolveFromNpm() should save metadata to a unique file when the package name has upper case letters', async () => {
+  nock(registry)
+    .get('/JSON')
+    .reply(200, jsonMeta)
+
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'JSON', pref: '1.0.0' }, {
+    registry,
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('registry.npmjs.org/JSON/1.0.0')
+
+  // The resolve function does not wait for the package meta cache file to be saved
+  // so we must delay for a bit in order to read it
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/JSON_0ecd11c1d7a287401d148a23bbd7a2f8.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()

@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { promises as fs } from 'fs'
 import path from 'path'
 import PnpmError from '@pnpm/error'
@@ -76,7 +77,7 @@ export default async (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.storeDir, ctx.metaDir, registryName, `${spec.name}.json`)
+  const pkgMirror = path.join(ctx.storeDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.json`)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   let metaCachedInStore: PackageMeta | null | undefined
@@ -144,6 +145,13 @@ export default async (
       pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
     }
   }
+}
+
+function encodePkgName (pkgName: string) {
+  if (pkgName !== pkgName.toLowerCase()) {
+    return `${pkgName}_${crypto.createHash('md5').update(pkgName).digest('hex')}`
+  }
+  return pkgName
 }
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
