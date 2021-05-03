@@ -132,7 +132,7 @@ export function parse (dependencyPath: string) {
 
 export function depPathToFilename (depPath: string, lockfileDir: string) {
   const filename = depPathToFilenameUnescaped(depPath, lockfileDir).replace(/\//g, '+')
-  if (filename.length > 120) {
+  if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('local+')) {
     return `${filename.substring(0, 50)}_${crypto.createHash('md5').update(filename).digest('hex')}`
   }
   return filename
