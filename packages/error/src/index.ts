@@ -18,7 +18,7 @@ export default class PnpmError extends Error {
   }
 }
 
-export interface FetchErrorResponse { status: number | string, statusText: string }
+export interface FetchErrorResponse { status: number, statusText: string }
 
 export interface FetchErrorRequest { url: string, authHeaderValue?: string }
 

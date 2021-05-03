@@ -58,11 +58,7 @@ export default async function fromRegistry (
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error) {
-        console.log(error)
-        reject(new FetchError({
-          url: uri,
-          authHeaderValue: authHeaderValue,
-        }, { status: error.code, statusText: error.message }))
+        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
         return
       }
       if (response.status > 400) {
