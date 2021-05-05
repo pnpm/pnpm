@@ -126,7 +126,8 @@ function getPrefPreferSpecifiedSpec (
     if (range) {
       const selector = versionSelectorType(range)
       if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
-        return opts.specRaw.substr(opts.alias.length + 1)
+        const version = opts.specRaw.substr(opts.alias.length + 1)
+        return createVersionSpec(version, opts.pinnedVersion)
       }
     }
   }
