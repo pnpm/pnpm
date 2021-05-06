@@ -214,8 +214,8 @@ test('pnpm add --save-peer', async () => {
         name: 'project',
         version: '0.0.0',
 
-        devDependencies: { 'is-positive': '^1.0.0' },
-        peerDependencies: { 'is-positive': '^1.0.0' },
+        devDependencies: { 'is-positive': '1.0.0' },
+        peerDependencies: { 'is-positive': '1.0.0' },
       }
     )
   }
@@ -268,26 +268,20 @@ test('pnpm add - with save-prefix set to empty string should save package versio
   }
 })
 
-test('pnpm add - with save-prefix set to ~ should save package version with prefix ~ when requesting specific version', async () => {
+test('pnpm add - should add prefix when set in .npmrc when a range is not specified explicitly', async () => {
   prepare()
   await add.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: false,
     savePrefix: '~',
-  }, ['is-positive@1.0.0'])
+  }, ['is-positive'])
 
   {
-    const manifest = await loadJsonFile(path.resolve('package.json'))
+    const manifest = (await import(path.resolve('package.json')))
 
     expect(
-      manifest
-    ).toStrictEqual(
-      {
-        name: 'project',
-        version: '0.0.0',
-        dependencies: { 'is-positive': '~1.0.0' },
-      }
-    )
+      manifest.dependencies['is-positive']
+    ).toMatch(/~([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$/)
   }
 })
