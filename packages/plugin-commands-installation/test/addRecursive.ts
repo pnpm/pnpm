@@ -44,12 +44,12 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     expect(
       manifest.devDependencies
     ).toStrictEqual(
-      { 'is-positive': '^1.0.0', 'is-negative': '^1.0.0' }
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     expect(
       manifest.peerDependencies
     ).toStrictEqual(
-      { 'is-negative': '^1.0.0' }
+      { 'is-negative': '1.0.0' }
     )
     expect(
       (await projects['project-1'].readLockfile()).devDependencies
@@ -63,12 +63,12 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     expect(
       manifest.devDependencies
     ).toStrictEqual(
-      { 'is-positive': '^1.0.0', 'is-negative': '^1.0.0' }
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     expect(
       manifest.peerDependencies
     ).toStrictEqual(
-      { 'is-negative': '^1.0.0' }
+      { 'is-negative': '1.0.0' }
     )
     expect(
       (await projects['project-2'].readLockfile()).devDependencies
@@ -118,12 +118,12 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     expect(
       manifest.devDependencies
     ).toStrictEqual(
-      { 'is-positive': '^1.0.0', 'is-negative': '^1.0.0' }
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     expect(
       manifest.peerDependencies
     ).toStrictEqual(
-      { 'is-negative': '^1.0.0' }
+      { 'is-negative': '1.0.0' }
     )
   }
 
@@ -132,12 +132,12 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     expect(
       manifest.devDependencies
     ).toStrictEqual(
-      { 'is-positive': '^1.0.0', 'is-negative': '^1.0.0' }
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     expect(
       manifest.peerDependencies
     ).toStrictEqual(
-      { 'is-negative': '^1.0.0' }
+      { 'is-negative': '1.0.0' }
     )
   }
 
