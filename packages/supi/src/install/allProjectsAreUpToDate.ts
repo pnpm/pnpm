@@ -83,7 +83,8 @@ async function linkedPackagesAreUpToDate (
         isLinked &&
         (
           currentSpec.startsWith('link:') ||
-          currentSpec.startsWith('file:')
+          currentSpec.startsWith('file:') ||
+          currentSpec.startsWith('workspace:.')
         )
       ) {
         continue

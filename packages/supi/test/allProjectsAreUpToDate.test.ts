@@ -13,6 +13,44 @@ const workspacePackages = {
   },
 }
 
+test('allProjectsAreUpToDate(): works with packages linked through the workspace protocol using relative path', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar',
+      manifest: {
+        dependencies: {
+          foo: 'workspace:../foo',
+        },
+      },
+      rootDir: 'bar',
+    },
+    {
+      id: 'foo',
+      manifest: fooManifest,
+      rootDir: 'foo',
+    },
+  ], {
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            foo: 'link:../foo',
+          },
+          specifiers: {
+            foo: 'workspace:../foo',
+          },
+        },
+        foo: {
+          specifiers: {},
+        },
+      },
+      lockfileVersion: 5,
+    },
+    workspacePackages,
+  })).toBeTruthy()
+})
+
 test('allProjectsAreUpToDate(): works with aliased local dependencies', async () => {
   expect(await allProjectsAreUpToDate([
     {
