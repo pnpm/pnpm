@@ -290,7 +290,9 @@ function getTreeHelper (
     let newEntry: PackageNode | null = null
     if (packageAbsolutePath === null) {
       circular = false
-      newEntry = packageInfo
+      if (opts.search == null || matchedSearched) {
+        newEntry = packageInfo
+      }
     } else {
       let dependencies: PackageNode[] | undefined
 
