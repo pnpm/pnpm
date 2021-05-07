@@ -136,7 +136,9 @@ export async function handler (
   }
   const manifest = await readProjectManifestOnly(dir, opts)
   if (!scriptName) {
-    const rootManifest = opts.workspaceDir ? (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest : undefined
+    const rootManifest = opts.workspaceDir && opts.workspaceDir !== dir
+      ? (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest
+      : undefined
     return printProjectCommands(manifest, rootManifest ?? undefined)
   }
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {

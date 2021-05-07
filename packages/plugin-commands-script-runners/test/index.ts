@@ -295,17 +295,18 @@ test('"pnpm run" prints the list of available commands, including commands of th
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
 
-  process.chdir('foo')
-  const output = await run.handler({
-    allProjects,
-    dir: process.cwd(),
-    extraBinPaths: [],
-    rawConfig: {},
-    selectedProjectsGraph,
-    workspaceDir,
-  }, [])
+  {
+    process.chdir('foo')
+    const output = await run.handler({
+      allProjects,
+      dir: process.cwd(),
+      extraBinPaths: [],
+      rawConfig: {},
+      selectedProjectsGraph,
+      workspaceDir,
+    }, [])
 
-  expect(output).toBe(`\
+    expect(output).toBe(`\
 Lifecycle scripts:
   test
     ts-node test
@@ -319,6 +320,27 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
     echo root
   test
     test-all`)
+  }
+  {
+    process.chdir('..')
+    const output = await run.handler({
+      allProjects,
+      dir: process.cwd(),
+      extraBinPaths: [],
+      rawConfig: {},
+      selectedProjectsGraph,
+      workspaceDir,
+    }, [])
+
+    expect(output).toBe(`\
+Lifecycle scripts:
+  test
+    test-all
+
+Commands available via "pnpm run":
+  build
+    echo root`)
+  }
 })
 
 test('pnpm run does not fail with --if-present even if the wanted script is not present', async () => {
