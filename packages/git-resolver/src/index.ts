@@ -55,16 +55,16 @@ export default function (
 
 async function resolveDefaultBranch (repo: string) {
   const result = await git(['ls-remote', repo], { retries: 1 })
-  const lines = result.stdout.split('\n');
+  const lines = result.stdout.split('\n')
   const headRef = lines.find((line: string) => {
     const commit = line.split('\t')[1]
-    return commit === "HEAD"
+    return commit === 'HEAD'
   })
   for (const [ref, commit] of lines.split('\t')) {
-    if (ref === headRef) return commit;
+    if (ref === headRef) return commit
   }
 
-  throw new Error("Could not resolve default branch.")
+  throw new Error('Could not resolve default branch.')
 }
 
 function resolveVTags (vTags: string[], range: string) {
