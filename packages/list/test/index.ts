@@ -245,7 +245,7 @@ test('JSON list with depth 1', async () => {
   expect(await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture })).toBe(JSON.stringify([{
     name: 'fixture',
     version: '1.0.0',
-
+    path: fixture,
     dependencies: {
       'write-json-file': {
         from: 'write-json-file',
@@ -320,12 +320,11 @@ test('JSON list with aliased dep', async () => {
       {
         name: 'with-aliased-dep',
         version: '1.0.0',
-
+        path: fixtureWithAliasedDep,
         dependencies: {
           positive: {
             from: 'is-positive',
             version: '1.0.0',
-
             resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           },
         },
@@ -338,7 +337,7 @@ test('JSON list with aliased dep', async () => {
     JSON.stringify([{
       name: 'with-aliased-dep',
       version: '1.0.0',
-
+      path: fixtureWithAliasedDep,
       dependencies: {
         positive: {
           from: 'is-positive',

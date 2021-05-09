@@ -17,8 +17,8 @@ export default async function (
   const jsonArr = await Promise.all(pkgs.map(async (pkg) => {
     const jsonObj = {
       name: pkg.name,
-
       version: pkg.version,
+      path: pkg.path,
     }
     for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
       if (pkg[dependenciesField]?.length) {
