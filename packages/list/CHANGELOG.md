@@ -1,5 +1,16 @@
 # @pnpm/list
 
+## 6.2.0
+
+### Minor Changes
+
+- 6f3fa2233: Feat - add path as part of list command json output
+
+### Patch Changes
+
+- Updated dependencies [a7de89feb]
+  - dependencies-hierarchy@10.0.4
+
 ## 6.1.3
 
 ### Patch Changes

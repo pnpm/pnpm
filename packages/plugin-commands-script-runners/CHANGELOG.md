@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 3.1.5
+
+### Patch Changes
+
+- ff9714d78: Don't list the commands twice when `pnpm run` is executed in the root of a workspace.
+
 ## 3.1.4
 
 ### Patch Changes

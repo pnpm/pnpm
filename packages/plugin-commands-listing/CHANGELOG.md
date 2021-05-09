@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-listing
 
+## 3.0.7
+
+### Patch Changes
+
+- Updated dependencies [6f3fa2233]
+  - @pnpm/list@6.2.0
+
 ## 3.0.6
 
 ### Patch Changes

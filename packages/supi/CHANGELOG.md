@@ -1,5 +1,11 @@
 # supi
 
+## 0.46.10
+
+### Patch Changes
+
+- 0e69ad440: Prefer headless install, when the lockfile is up-to-date and some packages are linked using relative path via `workspace:<path>`.
+
 ## 0.46.9
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-installation
 
+## 4.1.6
+
+### Patch Changes
+
+- 9d2ff0309: Fix: align pnpm save-prefix behavior when a range is not specified explicitly.
+- Updated dependencies [0e69ad440]
+  - supi@0.46.10
+
 ## 4.1.5
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # pnpm
 
+## 6.3.0
+
+### Minor Changes
+
+- `pnpm list -r --json` returns the locations of workspace projects via the `path` field [#3432](https://github.com/pnpm/pnpm/pull/3432/files).
+
+### Patch Changes
+
+- `save-prefix` should be respected, when it is set to empty [#3414](https://github.com/pnpm/pnpm/issues/3414).
+- skip resolution, when lockfile is up-to-date, even if some packages in the workspace are referenced through relative path [#3422](https://github.com/pnpm/pnpm/pull/3422).
+- `pnpm why`: do not incorrectly include linked deps in search results [#3428](https://github.com/pnpm/pnpm/pull/3428).
+
 ## 6.2.5
 
 ### Patch Changes

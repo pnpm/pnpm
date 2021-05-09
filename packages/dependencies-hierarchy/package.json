@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "10.0.3",
+  "version": "10.0.4",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

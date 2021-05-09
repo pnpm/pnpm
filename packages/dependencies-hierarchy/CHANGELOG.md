@@ -1,5 +1,11 @@
 # dependencies-hierarchy
 
+## 10.0.4
+
+### Patch Changes
+
+- a7de89feb: Do not include linked dependencies in search results if they do not match.
+
 ## 10.0.3
 
 ### Patch Changes
