@@ -18,7 +18,7 @@ export default async function (
     const jsonObj = {
       name: pkg.name,
       version: pkg.version,
-      workspace: pkg.path,
+      path: pkg.path,
     }
     for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
       if (pkg[dependenciesField]?.length) {
