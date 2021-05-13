@@ -1,0 +1,19 @@
+{
+  "name": "@pnpm/win-x64",
+  "version": "0.0.0",
+  "license": "MIT",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/pnpm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://pnpm.io"
+}

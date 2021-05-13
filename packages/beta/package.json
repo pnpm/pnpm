@@ -1,0 +1,61 @@
+{
+  "name": "@pnpm/beta",
+  "description": "Fast, disk space efficient package manager",
+  "version": "0.0.0",
+  "bin": {
+    "pnpm": "bin/pnpm.cjs",
+    "pnpx": "bin/pnpx.cjs"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "bin/pnpm.cjs",
+  "unpkg": "dist/pnpm.cjs",
+  "files": [
+    "lib",
+    "!*.map",
+    "bin"
+  ],
+  "optionalDependencies": {
+    "@pnpm/linux-x64": "workspace:0.0.0",
+    "@pnpm/win-x64": "workspace:0.0.0"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/beta#readme",
+  "keywords": [
+    "dependency manager",
+    "install",
+    "installer",
+    "uninstall",
+    "remove",
+    "link",
+    "prune",
+    "shrinkwrap",
+    "lockfile",
+    "fast",
+    "rapid",
+    "efficient",
+    "package.json",
+    "packages",
+    "dependencies",
+    "symlinks",
+    "hardlinks",
+    "modules",
+    "npm",
+    "package manager",
+    "monorepo",
+    "multi-package",
+    "workspace"
+  ],
+  "license": "MIT",
+  "preferGlobal": true,
+  "engines": {
+    "node": ">=12.17"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/beta",
+  "scripts": {
+  },
+  "funding": "https://opencollective.com/pnpm"
+}
