@@ -73,10 +73,16 @@ importers:
       yarn: 1.22.10
 
   packages/artifacts/linux-x64:
-    specifiers: {}
+    specifiers:
+      '@pnpm/linux-x64': 'link:'
+    devDependencies:
+      '@pnpm/linux-x64': 'link:'
 
   packages/artifacts/win-x64:
-    specifiers: {}
+    specifiers:
+      '@pnpm/win-x64': 'link:'
+    devDependencies:
+      '@pnpm/win-x64': 'link:'
 
   packages/audit:
     specifiers:

@@ -1,22 +1,20 @@
 {
   "name": "@pnpm/linux-x64",
-  "version": "0.0.0",
+  "version": "0.0.1-0",
   "license": "MIT",
   "bin": {
     "pnpm": "pnpm"
   },
+  "funding": "https://opencollective.com/pnpm",
   "os": [
     "linux"
   ],
   "cpu": [
     "x64"
   ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/pnpm.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://pnpm.io"
+  }
 }

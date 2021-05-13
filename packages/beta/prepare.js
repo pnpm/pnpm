@@ -1,4 +1,6 @@
 const fs = require('fs')
 const path = require('path')
 
-fs.writeFileSync(path.join(__dirname, 'pnpm'), '', 'utf8')
+const pnpmCli = path.join(__dirname, 'pnpm')
+fs.unlinkSync(pnpmCli)
+fs.writeFileSync(pnpmCli, '', 'utf8')
