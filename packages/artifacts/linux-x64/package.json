@@ -2,6 +2,9 @@
   "name": "@pnpm/linux-x64",
   "version": "0.0.0",
   "license": "MIT",
+  "bin": {
+    "pnpm": "pnpm"
+  },
   "os": [
     "linux"
   ],
