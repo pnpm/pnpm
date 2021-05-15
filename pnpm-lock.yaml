@@ -112,8 +112,8 @@ importers:
   packages/beta:
     specifiers:
       '@pnpm/beta': 'link:'
-      '@pnpm/linux-x64': workspace:0.0.1-1
-      '@pnpm/win-x64': workspace:0.0.1-0
+      '@pnpm/linux-x64': workspace:0.0.1-3
+      '@pnpm/win-x64': workspace:0.0.1-1
     optionalDependencies:
       '@pnpm/linux-x64': link:../artifacts/linux-x64
       '@pnpm/win-x64': link:../artifacts/win-x64
@@ -2370,7 +2370,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/which': ^2.0.0
       '@zkochan/libnpx': ^13.1.5
-      '@zkochan/pkg': ^0.0.0-0
+      '@zkochan/pkg': 0.0.0-1
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^2.1.1
       anonymous-npm-registry-client: 0.1.2
@@ -2462,7 +2462,7 @@ importers:
       '@types/semver': 7.3.5
       '@types/which': 2.0.0
       '@zkochan/libnpx': 13.1.5
-      '@zkochan/pkg': 0.0.0-0
+      '@zkochan/pkg': 0.0.0-1
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 2.1.1
       anonymous-npm-registry-client: 0.1.2
@@ -5135,8 +5135,8 @@ packages:
       semver: 7.3.5
       validate-npm-package-name: 3.0.0
 
-  /@zkochan/pkg/0.0.0-0:
-    resolution: {integrity: sha512-LvLrC/72quxRRcpYD9b4CuhyGPcgr4MUUAvtgGhPL80pfw2A1EpHgSBqu+m7NikvBavfZIFrczElM/9WFHdCDQ==}
+  /@zkochan/pkg/0.0.0-1:
+    resolution: {integrity: sha512-Z3JNUGfvEIJ8H0XHOLllEQDxeB6bU2jtNy0ketV1MkJVU8Hu3TZdDWvNgCUeUJ6I8A9UH6gbSLficly3PPkaDA==}
     hasBin: true
     peerDependencies:
       node-notifier: '>=9.0.1'
