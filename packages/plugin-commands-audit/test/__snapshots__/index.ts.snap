@@ -2,6 +2,17 @@
 
 exports[`audit --audit-level 1`] = `
 "┌─────────────────────┬───────────────────────────────────┐
+│ critical            │ Command Injection                 │
+├─────────────────────┼───────────────────────────────────┤
+│ Package             │ nodemailer                        │
+├─────────────────────┼───────────────────────────────────┤
+│ Vulnerable versions │ <6.4.16                           │
+├─────────────────────┼───────────────────────────────────┤
+│ Patched versions    │ >=6.4.16                          │
+├─────────────────────┼───────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/1708 │
+└─────────────────────┴───────────────────────────────────┘
+┌─────────────────────┬───────────────────────────────────┐
 │ high                │ Insufficient Entropy              │
 ├─────────────────────┼───────────────────────────────────┤
 │ Package             │ cryptiles                         │
@@ -144,8 +155,8 @@ exports[`audit --audit-level 1`] = `
 ├─────────────────────┼───────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/1609 │
 └─────────────────────┴───────────────────────────────────┘
-20 vulnerabilities found
-Severity: 7 low | 4 moderate | 9 high"
+21 vulnerabilities found
+Severity: 7 low | 4 moderate | 9 high | 1 critical"
 `;
 
 exports[`audit --dev 1`] = `
@@ -177,6 +188,17 @@ Severity: 1 moderate | 1 high"
 
 exports[`audit 1`] = `
 "┌─────────────────────┬───────────────────────────────────┐
+│ critical            │ Command Injection                 │
+├─────────────────────┼───────────────────────────────────┤
+│ Package             │ nodemailer                        │
+├─────────────────────┼───────────────────────────────────┤
+│ Vulnerable versions │ <6.4.16                           │
+├─────────────────────┼───────────────────────────────────┤
+│ Patched versions    │ >=6.4.16                          │
+├─────────────────────┼───────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/1708 │
+└─────────────────────┴───────────────────────────────────┘
+┌─────────────────────┬───────────────────────────────────┐
 │ high                │ Insufficient Entropy              │
 ├─────────────────────┼───────────────────────────────────┤
 │ Package             │ cryptiles                         │
@@ -385,6 +407,6 @@ exports[`audit 1`] = `
 ├─────────────────────┼──────────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/1662    │
 └─────────────────────┴──────────────────────────────────────┘
-20 vulnerabilities found
-Severity: 7 low | 4 moderate | 9 high"
+21 vulnerabilities found
+Severity: 7 low | 4 moderate | 9 high | 1 critical"
 `;
