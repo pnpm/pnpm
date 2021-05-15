@@ -15,7 +15,11 @@ export default async (workspaceDir: string) => {
   }
   return {
     'package.json': (manifest: ProjectManifest, dir: string) => {
-      if (!isSubdir(pkgsDir, dir)) return manifest
+      if (
+        !isSubdir(pkgsDir, dir) || dir.includes('artifacts') || manifest.name === '@pnpm/beta'
+      ) {
+        return manifest
+      }
       return updateManifest(workspaceDir, manifest, dir)
     },
     'tsconfig.json': updateTSConfig.bind(null, {
