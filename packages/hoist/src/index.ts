@@ -6,12 +6,14 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import logger, { globalWarn } from '@pnpm/logger'
+import logger from '@pnpm/logger'
 import matcher from '@pnpm/matcher'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import * as R from 'ramda'
+
+const hoistLogger = logger('hoist')
 
 export default async function hoistByLockfile (
   opts: {
@@ -194,8 +196,8 @@ async function symlinkHoistedDependencies (
       .map(async ([depPath, pkgAliases]) => {
         const pkgSnapshot = opts.lockfile.packages![depPath]
         if (!pkgSnapshot) {
-          globalWarn(`Failed to find "${depPath}" in lockfile during hoisting. ` +
-            `Next aliases will not be hoisted: ${Object.keys(pkgAliases).join(', ')}`)
+          // This dependency is probably a skipped optional dependency.
+          hoistLogger.debug({ hoistFailedFor: depPath })
           return
         }
         const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
