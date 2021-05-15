@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - packages/artifacts/*
   - privatePackages/*
   - typings
   - tools

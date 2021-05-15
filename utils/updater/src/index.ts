@@ -15,7 +15,11 @@ export default async (workspaceDir: string) => {
   }
   return {
     'package.json': (manifest: ProjectManifest, dir: string) => {
-      if (!isSubdir(pkgsDir, dir)) return manifest
+      if (
+        !isSubdir(pkgsDir, dir) || dir.includes('artifacts') || manifest.name === '@pnpm/beta'
+      ) {
+        return manifest
+      }
       return updateManifest(workspaceDir, manifest, dir)
     },
     'tsconfig.json': updateTSConfig.bind(null, {
@@ -151,7 +155,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     scripts.compile += ' && rimraf dist && pnpm run bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
 && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts \
-&& shx cp -r node_modules/ps-list/vendor dist/vendor'
+&& shx cp -r node_modules/ps-list/vendor dist/vendor \
+&& pkg ./dist/pnpm.cjs --out-path=../artifacts/win-x64 --targets=node14-win-x64 \
+&& pkg ./dist/pnpm.cjs --out-path=../artifacts/linux-x64 --targets=node14-linux-x64'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
