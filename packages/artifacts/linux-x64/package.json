@@ -2,8 +2,10 @@
   "name": "@pnpm/linux-x64",
   "version": "0.0.1-1",
   "license": "MIT",
-  "bin": {
-    "pnpm": "pnpm"
+  "publishConfig": {
+    "bin": {
+      "pnpm": "pnpm"
+    }
   },
   "funding": "https://opencollective.com/pnpm",
   "os": [

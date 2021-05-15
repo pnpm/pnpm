@@ -2,8 +2,10 @@
   "name": "@pnpm/win-x64",
   "version": "0.0.1-0",
   "license": "MIT",
-  "bin": {
-    "pnpm": "pnpm.exe"
+  "publishConfig": {
+    "bin": {
+      "pnpm": "pnpm.exe"
+    }
   },
   "funding": "https://opencollective.com/pnpm",
   "os": [
