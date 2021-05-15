@@ -36,6 +36,9 @@ const DEPRECATED_OPTIONS = new Set([
   'resolution-strategy',
 ])
 
+// A workaround for the https://github.com/vercel/pkg/issues/897 issue.
+delete process.env.PKG_EXECPATH
+
 export default async function run (inputArgv: string[]) {
   let parsedCliArgs!: ParsedCliArgs
   try {
