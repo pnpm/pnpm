@@ -11,7 +11,9 @@ export default function (helpByCommandName: Record<string, () => string>) {
     } else {
       helpText = `No results for "${params[0]}"`
     }
-    return `Version ${packageManager.version}\n${helpText}\n`
+    return `Version ${packageManager.version}\
+${process['pkg'] != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
+\n${helpText}\n`
   }
 }
 
