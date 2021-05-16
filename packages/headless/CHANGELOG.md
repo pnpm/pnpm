@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 16.0.8
+
+### Patch Changes
+
+- Updated dependencies [0560ca63f]
+  - @pnpm/hoist@5.0.6
+
 ## 16.0.7
 
 ### Patch Changes

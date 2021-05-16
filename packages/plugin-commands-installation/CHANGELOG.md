@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-installation
 
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [da0d4091d]
+  - @pnpm/pnpmfile@1.0.2
+  - supi@0.46.11
+
 ## 4.1.6
 
 ### Patch Changes

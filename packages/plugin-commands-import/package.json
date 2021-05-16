@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-import",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "description": "The import command",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -48,7 +48,7 @@
     "@zkochan/rimraf": "^2.1.1",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.1",
-    "supi": "workspace:0.46.10"
+    "supi": "workspace:0.46.11"
   },
   "funding": "https://opencollective.com/pnpm"
 }

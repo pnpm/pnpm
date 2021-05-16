@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 5.0.6
+
+### Patch Changes
+
+- 0560ca63f: Do not print a warning if a skipped optional dependency cannot be hoisted.
+
 ## 5.0.5
 
 ### Patch Changes

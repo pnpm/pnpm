@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 1.0.2
+
+### Patch Changes
+
+- da0d4091d: The second argument to readPackage hook should always be the context object.
+
 ## 1.0.1
 
 ### Patch Changes

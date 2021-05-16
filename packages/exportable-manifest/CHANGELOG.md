@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 2.1.2
+
+### Patch Changes
+
+- 6a1468495: Adds support for `type` and `imports` in publishConfig
+
 ## 2.1.1
 
 ### Patch Changes

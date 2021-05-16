@@ -1,5 +1,16 @@
 # pnpm
 
+## 6.4.0
+
+### Minor Changes
+
+- Added support for `type` and `imports` in `publishConfig` field of the `package.json` manifest [#3315](https://github.com/pnpm/pnpm/pull/3315).
+
+### Bug Fixes
+
+- Do not print a warning if a skipped optional dependency cannot be hoisted [#3454](https://github.com/pnpm/pnpm/pull/3454).
+- The second argument to readPackage hook should always be the context object [#3455](https://github.com/pnpm/pnpm/pull/3455).
+
 ## 6.3.0
 
 ### Minor Changes

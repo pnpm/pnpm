@@ -1,5 +1,14 @@
 # supi
 
+## 0.46.11
+
+### Patch Changes
+
+- da0d4091d: The second argument to readPackage hook should always be the context object.
+- Updated dependencies [0560ca63f]
+  - @pnpm/hoist@5.0.6
+  - @pnpm/headless@16.0.8
+
 ## 0.46.10
 
 ### Patch Changes
