@@ -2511,21 +2511,17 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/pnpmfile': 'link:'
       '@pnpm/types': workspace:7.1.0
-      '@types/ramda': 0.27.39
       chalk: ^4.1.0
       path-absolute: ^1.0.1
-      ramda: ^0.27.1
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/error': link:../error
       '@pnpm/types': link:../types
       chalk: 4.1.1
       path-absolute: 1.0.1
-      ramda: 0.27.1
     devDependencies:
       '@pnpm/logger': 4.0.0
       '@pnpm/pnpmfile': 'link:'
-      '@types/ramda': 0.27.39
 
   packages/prepare-package:
     specifiers:

@@ -155,10 +155,8 @@ export async function mutateModules (
   if (!R.isEmpty(overrides ?? {})) {
     const versionsOverrider = createVersionsOverrider(overrides!, opts.lockfileDir)
     if (opts.hooks.readPackage != null) {
-      opts.hooks.readPackage = R.pipe(
-        opts.hooks.readPackage,
-        versionsOverrider
-      ) as ReadPackageHook
+      const readPackage = opts.hooks.readPackage
+      opts.hooks.readPackage = ((manifest: ProjectManifest, dir?: string) => versionsOverrider(readPackage(manifest, dir), dir)) as ReadPackageHook
     } else {
       opts.hooks.readPackage = versionsOverrider
     }

@@ -2,7 +2,6 @@ import path from 'path'
 import { hookLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import pathAbsolute from 'path-absolute'
-import * as R from 'ramda'
 import requirePnpmfile from './requirePnpmfile'
 
 export default function requireHooks (
@@ -41,9 +40,13 @@ export default function requireHooks (
         )
       }
     } else if (globalHooks[hookName]) {
-      cookedHooks[hookName] = R.partialRight(globalHooks[hookName], [createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)])
+      const globalHook = globalHooks[hookName]
+      const context = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
+      cookedHooks[hookName] = (pkg: object) => globalHook(pkg, context)
     } else if (hooks[hookName]) {
-      cookedHooks[hookName] = R.partialRight(hooks[hookName], [createReadPackageHookContext(pnpmFile.filename, prefix, hookName)])
+      const hook = hooks[hookName]
+      const context = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
+      cookedHooks[hookName] = (pkg: object) => hook(pkg, context)
     }
   }
   return cookedHooks
