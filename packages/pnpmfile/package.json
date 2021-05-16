@@ -28,16 +28,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pnpmfile#readme",
   "devDependencies": {
-    "@pnpm/logger": "^4.0.0",
-    "@types/ramda": "0.27.39"
+    "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.0.1",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/types": "workspace:7.1.0",
     "chalk": "^4.1.0",
-    "path-absolute": "^1.0.1",
-    "ramda": "^0.27.1"
+    "path-absolute": "^1.0.1"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

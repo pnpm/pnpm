@@ -10,8 +10,9 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   const project = prepare()
   const pnpmfile = `
       module.exports = { hooks: { readPackage } }
-      function readPackage (pkg) {
+      function readPackage (pkg, context) {
         if (pkg.name === 'project') {
+          context.log('good')
           pkg.dependencies = pkg.dependencies || {}
           pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
         }
