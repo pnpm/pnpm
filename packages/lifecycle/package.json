@@ -37,7 +37,7 @@
     "@pnpm/core-loggers": "workspace:6.0.1",
     "@pnpm/read-package-json": "workspace:5.0.1",
     "@pnpm/types": "workspace:7.1.0",
-    "@zkochan/npm-lifecycle": "^5.0.0",
+    "@zkochan/npm-lifecycle": "^5.0.1",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"
   },
