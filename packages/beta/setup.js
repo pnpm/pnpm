@@ -1,7 +1,11 @@
 const path = require('path')
 const fs = require('fs')
 
-const platform = process.platform == 'win32' ? 'win' : process.platform
+const platform = process.platform == 'win32'
+  ? 'win'
+  : process.platform == 'darwin'
+  ? 'macos'
+  : process.platform
 const arch = platform == 'win' && process.arch == 'ia32' ? 'x86' : process.arch
 
 const pkgName = `@pnpm/${platform}-${arch}`

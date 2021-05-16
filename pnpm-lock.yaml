@@ -78,6 +78,12 @@ importers:
     devDependencies:
       '@pnpm/linux-x64': 'link:'
 
+  packages/artifacts/macos-x64:
+    specifiers:
+      '@pnpm/macos-x64': 'link:'
+    devDependencies:
+      '@pnpm/macos-x64': 'link:'
+
   packages/artifacts/win-x64:
     specifiers:
       '@pnpm/win-x64': 'link:'
@@ -113,9 +119,11 @@ importers:
     specifiers:
       '@pnpm/beta': 'link:'
       '@pnpm/linux-x64': workspace:0.0.1-4
+      '@pnpm/macos-x64': workspace:0.0.1-0
       '@pnpm/win-x64': workspace:0.0.1-2
     optionalDependencies:
       '@pnpm/linux-x64': link:../artifacts/linux-x64
+      '@pnpm/macos-x64': link:../artifacts/macos-x64
       '@pnpm/win-x64': link:../artifacts/win-x64
     devDependencies:
       '@pnpm/beta': 'link:'

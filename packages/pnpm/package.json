@@ -160,7 +160,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client yarn --dest dist",
     "postpublish": "publish-packed",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && pkg ./dist/pnpm.cjs --out-path=../artifacts/win-x64 --targets=node14-win-x64 && pkg ./dist/pnpm.cjs --out-path=../artifacts/linux-x64 --targets=node14-linux-x64"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix && rimraf dist && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && pkg ./dist/pnpm.cjs --out-path=../artifacts/win-x64 --targets=node14-win-x64 && pkg ./dist/pnpm.cjs --out-path=../artifacts/linux-x64 --targets=node14-linux-x64 && pkg ./dist/pnpm.cjs --out-path=../artifacts/macos-x64 --targets=node14-macos-x64"
   },
   "publishconfig": {
     "tag": "next"
