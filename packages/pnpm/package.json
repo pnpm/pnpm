@@ -48,6 +48,7 @@
     "@pnpm/plugin-commands-rebuild": "workspace:4.0.3",
     "@pnpm/plugin-commands-script-runners": "workspace:3.1.5",
     "@pnpm/plugin-commands-server": "workspace:3.0.8",
+    "@pnpm/plugin-commands-setup": "workspace:^0.0.0",
     "@pnpm/plugin-commands-store": "workspace:3.0.8",
     "@pnpm/prepare": "workspace:0.0.23",
     "@pnpm/read-package-json": "workspace:5.0.1",
