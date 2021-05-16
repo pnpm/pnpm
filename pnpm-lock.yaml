@@ -118,9 +118,9 @@ importers:
   packages/beta:
     specifiers:
       '@pnpm/beta': 'link:'
-      '@pnpm/linux-x64': workspace:0.0.1-4
-      '@pnpm/macos-x64': workspace:0.0.1-0
-      '@pnpm/win-x64': workspace:0.0.1-2
+      '@pnpm/linux-x64': workspace:0.0.1-6.4.0
+      '@pnpm/macos-x64': workspace:0.0.1-6.4.0
+      '@pnpm/win-x64': workspace:0.0.1-6.4.0
     optionalDependencies:
       '@pnpm/linux-x64': link:../artifacts/linux-x64
       '@pnpm/macos-x64': link:../artifacts/macos-x64
@@ -3231,6 +3231,7 @@ importers:
       '@pnpm/types': workspace:7.1.0
       '@types/normalize-path': ^3.0.0
       is-subdir: ^1.1.1
+      load-json-file: ^6.2.0
       normalize-path: ^3.0.0
       path-exists: ^4.0.0
       write-json-file: ^4.3.0
@@ -3239,6 +3240,7 @@ importers:
       '@pnpm/types': link:../../packages/types
       '@types/normalize-path': 3.0.0
       is-subdir: 1.2.0
+      load-json-file: 6.2.0
       normalize-path: 3.0.0
       path-exists: 4.0.0
       write-json-file: 4.3.0

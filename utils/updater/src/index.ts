@@ -3,11 +3,14 @@ import path from 'path'
 import { readWantedLockfile, Lockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
 import isSubdir from 'is-subdir'
+import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
 export default async (workspaceDir: string) => {
+  const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'packages/pnpm/package.json'))
+  const artifactVersion = `0.0.1-${pnpmManifest!['version']}` // eslint-disable-line
   const pkgsDir = path.join(workspaceDir, 'packages')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
@@ -15,9 +18,16 @@ export default async (workspaceDir: string) => {
   }
   return {
     'package.json': (manifest: ProjectManifest, dir: string) => {
-      if (
-        !isSubdir(pkgsDir, dir) || dir.includes('artifacts') || manifest.name === '@pnpm/beta'
-      ) {
+      if (!isSubdir(pkgsDir, dir)) {
+        return manifest
+      }
+      if (dir.includes('artifacts') || manifest.name === '@pnpm/beta') {
+        manifest.version = artifactVersion
+        if (manifest.name === '@pnpm/beta') {
+          for (const depName of ['@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/macos-x64']) {
+            manifest.optionalDependencies![depName] = `workspace:${artifactVersion}`
+          }
+        }
         return manifest
       }
       return updateManifest(workspaceDir, manifest, dir)
