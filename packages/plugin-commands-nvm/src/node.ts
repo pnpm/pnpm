@@ -44,7 +44,7 @@ export async function handler (
   process.exit(result.exitCode)
 }
 
-async function getActiveNodeDir (nodeVersion?: string) {
+export async function getActiveNodeDir (nodeVersion?: string) {
   const pnpmHome = getPnpmHome()
   const nodesDir = path.join(pnpmHome, 'nodes')
   let wantedNodeVersion = nodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
