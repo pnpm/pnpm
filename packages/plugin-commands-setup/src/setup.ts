@@ -27,6 +27,7 @@ export async function handler () {
   if (!fs.existsSync(bashRC)) return 'Could not setup pnpm. No ~/.bashrc found'
   const bashRCContent = await fs.promises.readFile(bashRC, 'utf8')
   const pnpmHome = getPnpmHome()
+  if (bashRCContent.includes('PNPM_HOME')) return ''
   await fs.promises.writeFile(bashRC, `${bashRCContent}
 export PNPM_HOME="${pnpmHome}"
 export PATH="$PNPM_HOME:$PATH"
