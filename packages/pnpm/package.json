@@ -165,5 +165,8 @@
   "publishconfig": {
     "tag": "next"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "dependencies": {
+    "@pnpm/plugin-commands-nvm": "workspace:^0.0.0"
+  }
 }
