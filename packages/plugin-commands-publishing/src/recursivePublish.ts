@@ -80,45 +80,45 @@ export default async function (
     }, pkg.manifest.name, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
+  const publishedPackages = []
   if (publishedPkgDirs.size === 0) {
     logger.info({
       message: 'There are no new packages that should be published',
       prefix: opts.dir,
     })
-    return
-  }
-  const appendedArgs = []
-  if (opts.cliOptions['access']) {
-    appendedArgs.push(`--access=${opts.cliOptions['access'] as string}`)
-  }
-  if (opts.dryRun) {
-    appendedArgs.push('--dry-run')
-  }
-  const chunks = sortPackages(opts.selectedProjectsGraph)
-  const tag = opts.tag ?? 'latest'
-  const publishedPackages = []
-  for (const chunk of chunks) {
-    for (const pkgDir of chunk) {
-      if (!publishedPkgDirs.has(pkgDir)) continue
-      const pkg = opts.selectedProjectsGraph[pkgDir].package
-      const publishResult = await publish({
-        ...opts,
-        argv: {
-          original: [
-            'publish',
-            pkg.dir,
-            '--tag',
-            tag,
-            '--registry',
-            pickRegistryForPackage(opts.registries, pkg.manifest.name!),
-            ...appendedArgs,
-          ],
-        },
-        gitChecks: false,
-        recursive: false,
-      }, [pkg.dir])
-      if (publishResult?.manifest != null) {
-        publishedPackages.push(R.pick(['name', 'version'], publishResult.manifest))
+  } else {
+    const appendedArgs = []
+    if (opts.cliOptions['access']) {
+      appendedArgs.push(`--access=${opts.cliOptions['access'] as string}`)
+    }
+    if (opts.dryRun) {
+      appendedArgs.push('--dry-run')
+    }
+    const chunks = sortPackages(opts.selectedProjectsGraph)
+    const tag = opts.tag ?? 'latest'
+    for (const chunk of chunks) {
+      for (const pkgDir of chunk) {
+        if (!publishedPkgDirs.has(pkgDir)) continue
+        const pkg = opts.selectedProjectsGraph[pkgDir].package
+        const publishResult = await publish({
+          ...opts,
+          argv: {
+            original: [
+              'publish',
+              pkg.dir,
+              '--tag',
+              tag,
+              '--registry',
+              pickRegistryForPackage(opts.registries, pkg.manifest.name!),
+              ...appendedArgs,
+            ],
+          },
+          gitChecks: false,
+          recursive: false,
+        }, [pkg.dir])
+        if (publishResult?.manifest != null) {
+          publishedPackages.push(R.pick(['name', 'version'], publishResult.manifest))
+        }
       }
     }
   }

@@ -260,7 +260,24 @@ test('recursive publish writes publish summary', async () => {
     reportSummary: true,
   }, [])
 
-  const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+  {
+    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    expect(publishSummary).toMatchSnapshot()
+    await fs.unlink('pnpm-publish-summary.json')
+  }
 
-  expect(publishSummary).toMatchSnapshot()
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    reportSummary: true,
+  }, [])
+
+  {
+    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    expect(publishSummary).toStrictEqual({
+      publishedPackages: [],
+    })
+  }
 })
