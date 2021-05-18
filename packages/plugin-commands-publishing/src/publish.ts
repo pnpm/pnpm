@@ -82,7 +82,7 @@ export function help () {
             name: '--force',
           },
           {
-            description: 'Save the list of the newly published packages to "pnpm-publish-summary.json". Usefull when some other tooling is used to report the list of published packages.',
+            description: 'Save the list of the newly published packages to "pnpm-publish-summary.json". Useful when some other tooling is used to report the list of published packages.',
             name: '--report-summary',
           },
         ],
