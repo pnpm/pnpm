@@ -94,6 +94,7 @@ export const types = Object.assign({
   stream: Boolean,
   'strict-peer-dependencies': Boolean,
   'use-beta-cli': Boolean,
+  'use-node-version': String,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'use-stderr': Boolean,

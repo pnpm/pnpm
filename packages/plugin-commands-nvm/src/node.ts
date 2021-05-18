@@ -30,11 +30,11 @@ export async function handler (
     argv: {
       original: string[]
     }
-    nodeVersion?: string
+    useNodeVersion?: string
     pnpmHomeDir: string
   }
 ) {
-  const nodeDir = await getNodeDir(opts.pnpmHomeDir, opts.nodeVersion)
+  const nodeDir = await getNodeDir(opts.pnpmHomeDir, opts.useNodeVersion)
   const { exitCode } = await execa('node', opts.argv.original.slice(1), {
     env: {
       [PATH]: `${path.join(nodeDir, 'node_modules/.bin')}${path.delimiter}${process.env[PATH]!}`,

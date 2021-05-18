@@ -68,6 +68,7 @@ export interface Config {
   ignoreCurrentPrefs?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
+  useNodeVersion?: string
   useStderr?: boolean
 
   // proxy

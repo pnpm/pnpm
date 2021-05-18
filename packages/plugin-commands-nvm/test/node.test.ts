@@ -8,7 +8,7 @@ test('run specific version of Node.js', async () => {
     argv: {
       original: ['node', '-e', 'require("fs").writeFileSync("version",process.version, "utf8")'],
     },
-    nodeVersion: '14.0.0',
+    useNodeVersion: '14.0.0',
     pnpmHomeDir: process.cwd(),
   })
   expect(exitCode).toBe(0)
