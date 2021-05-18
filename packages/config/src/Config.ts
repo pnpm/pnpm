@@ -33,6 +33,8 @@ export interface Config {
   saveWorkspaceProtocol?: boolean
   scriptShell?: string
   stream?: boolean
+  pnpmExecPath: string
+  pnpmHomeDir: string
   production?: boolean
   fetchRetries?: number
   fetchRetryFactor?: number

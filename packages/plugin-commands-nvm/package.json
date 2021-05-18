@@ -37,5 +37,8 @@
     "render-help": "^1.0.1",
     "write-json-file": "^4.3.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/prepare": "workspace:0.0.23"
+  }
 }

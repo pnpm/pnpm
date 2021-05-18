@@ -31,22 +31,22 @@ export async function handler (
       original: string[]
     }
     nodeVersion?: string
+    pnpmHomeDir: string
   }
 ) {
-  const nodeDir = await getActiveNodeDir(opts.nodeVersion)
-  const result = await execa('node', opts.argv.original.slice(1), {
+  const nodeDir = await getNodeDir(opts.pnpmHomeDir, opts.nodeVersion)
+  const { exitCode } = await execa('node', opts.argv.original.slice(1), {
     env: {
       [PATH]: `${path.join(nodeDir, 'node_modules/.bin')}${path.delimiter}${process.env[PATH]!}`,
     },
     stdout: 'inherit',
     stdin: 'inherit',
   })
-  process.exit(result.exitCode)
+  return { exitCode }
 }
 
-export async function getActiveNodeDir (nodeVersion?: string) {
-  const pnpmHome = getPnpmHome()
-  const nodesDir = path.join(pnpmHome, 'nodes')
+export async function getNodeDir (pnpmHomeDir: string, nodeVersion?: string) {
+  const nodesDir = path.join(pnpmHomeDir, 'nodes')
   let wantedNodeVersion = nodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
   if (wantedNodeVersion == null) {
     await fs.promises.mkdir(nodesDir, { recursive: true })
@@ -81,16 +81,5 @@ async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: 
       return {}
     }
     throw err
-  }
-}
-
-function getPnpmHome () {
-  if (process['pkg'] != null) {
-    // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
-    // because in that case the js is in a virtual filesystem inside the executor.
-    // Instead, we use the path to the exe file.
-    return path.dirname(process.execPath)
-  } else {
-    return (require.main != null) ? path.dirname(require.main.filename) : process.cwd()
   }
 }

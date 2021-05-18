@@ -1930,6 +1930,7 @@ importers:
       '@pnpm/cli-utils': workspace:0.6.4
       '@pnpm/fetch': workspace:3.1.0
       '@pnpm/plugin-commands-nvm': 'link:'
+      '@pnpm/prepare': workspace:0.0.23
       execa: ^5.0.0
       load-json-file: ^6.2.0
       path-name: ^1.0.0
@@ -1945,6 +1946,7 @@ importers:
       write-json-file: 4.3.0
     devDependencies:
       '@pnpm/plugin-commands-nvm': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
 
   packages/plugin-commands-outdated:
     specifiers:
