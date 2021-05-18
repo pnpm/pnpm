@@ -1,3 +1,4 @@
+import path from 'path'
 import { createResolver } from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import logger from '@pnpm/logger'
@@ -7,6 +8,8 @@ import sortPackages from '@pnpm/sort-packages'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import pFilter from 'p-filter'
+import R from 'ramda'
+import writeJsonFile from 'write-json-file'
 import { handler as publish } from './publish'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
@@ -46,6 +49,7 @@ Partial<Pick<Config,
   argv: {
     original: string[]
   }
+  reportSummary?: boolean
 }
 
 export default async function (
@@ -92,11 +96,12 @@ export default async function (
   }
   const chunks = sortPackages(opts.selectedProjectsGraph)
   const tag = opts.tag ?? 'latest'
+  const publishedPackages = []
   for (const chunk of chunks) {
     for (const pkgDir of chunk) {
       if (!publishedPkgDirs.has(pkgDir)) continue
       const pkg = opts.selectedProjectsGraph[pkgDir].package
-      await publish({
+      const publishResult = await publish({
         ...opts,
         argv: {
           original: [
@@ -112,7 +117,13 @@ export default async function (
         gitChecks: false,
         recursive: false,
       }, [pkg.dir])
+      if (publishResult?.manifest != null) {
+        publishedPackages.push(R.pick(['name', 'version'], publishResult.manifest))
+      }
     }
+  }
+  if (opts.reportSummary) {
+    await writeJsonFile(path.join(opts.lockfileDir ?? opts.dir, 'pnpm-publish-summary.json'), { publishedPackages })
   }
 }
 
