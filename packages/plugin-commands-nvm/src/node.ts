@@ -48,9 +48,9 @@ export async function handler (
 export async function getNodeDir (pnpmHomeDir: string, nodeVersion?: string) {
   const nodesDir = path.join(pnpmHomeDir, 'nodes')
   let wantedNodeVersion = nodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
+  await fs.promises.mkdir(nodesDir, { recursive: true })
+  fs.writeFileSync(path.join(nodesDir, 'pnpm-workspace.yaml'), '', 'utf8')
   if (wantedNodeVersion == null) {
-    await fs.promises.mkdir(nodesDir, { recursive: true })
-    fs.writeFileSync(path.join(nodesDir, 'pnpm-workspace.yaml'), '', 'utf8')
     const response = await fetch('https://registry.npmjs.org/node')
     wantedNodeVersion = (await response.json())['dist-tags'].lts
     if (wantedNodeVersion == null) {
