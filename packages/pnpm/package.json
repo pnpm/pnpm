@@ -42,6 +42,7 @@
     "@pnpm/plugin-commands-import": "workspace:2.0.11",
     "@pnpm/plugin-commands-installation": "workspace:4.1.7",
     "@pnpm/plugin-commands-listing": "workspace:3.0.7",
+    "@pnpm/plugin-commands-nvm": "workspace:0.0.0",
     "@pnpm/plugin-commands-outdated": "workspace:4.1.4",
     "@pnpm/plugin-commands-publishing": "workspace:3.1.5",
     "@pnpm/plugin-commands-rebuild": "workspace:4.0.3",
@@ -165,8 +166,5 @@
   "publishconfig": {
     "tag": "next"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "dependencies": {
-    "@pnpm/plugin-commands-nvm": "workspace:^0.0.0"
-  }
+  "funding": "https://opencollective.com/pnpm"
 }
