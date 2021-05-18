@@ -162,7 +162,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
     }
-    scripts.compile += ' && rimraf dist && pnpm run bundle \
+    scripts.compile += ' && rimraf dist bin/nodes && pnpm run bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
 && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts \
 && shx cp -r node_modules/ps-list/vendor dist/vendor \

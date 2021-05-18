@@ -47,6 +47,7 @@ export async function handler (
 
 export async function getNodeDir (pnpmHomeDir: string, nodeVersion?: string) {
   const nodesDir = path.join(pnpmHomeDir, 'nodes')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
   let wantedNodeVersion = nodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
   if (wantedNodeVersion == null) {
     await fs.promises.mkdir(nodesDir, { recursive: true })
@@ -65,10 +66,13 @@ export async function getNodeDir (pnpmHomeDir: string, nodeVersion?: string) {
     await writeJsonFile(path.join(versionDir, 'package.json'), {})
     const platform = process.platform === 'win32' ? 'win' : process.platform
     const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-    await execa('pnpm', ['add', `node-${platform}-${arch}@${wantedNodeVersion}`], {
+    const { exitCode } = await execa('pnpm', ['add', `node-${platform}-${arch}@${wantedNodeVersion}`], {
       cwd: versionDir,
       stdout: 'inherit',
     })
+    if (exitCode !== 0) {
+      throw new Error(`Couldn't install Node.js ${wantedNodeVersion}`)
+    }
   }
   return versionDir
 }
