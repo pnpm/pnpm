@@ -6,9 +6,7 @@ const WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 
 export default async function findWorkspaceDir (cwd: string) {
-  const workspaceManifestDirEnvVar = process.env[WORKSPACE_DIR_ENV_VAR] ??
-    process.env[WORKSPACE_DIR_ENV_VAR.toUpperCase()] ??
-    process.env[WORKSPACE_DIR_ENV_VAR.toLowerCase()]
+  const workspaceManifestDirEnvVar = process.env[WORKSPACE_DIR_ENV_VAR] ?? process.env[WORKSPACE_DIR_ENV_VAR.toLowerCase()]
   const workspaceManifestLocation = workspaceManifestDirEnvVar
     ? path.join(workspaceManifestDirEnvVar, 'pnpm-workspace.yaml')
     : await findUp([WORKSPACE_MANIFEST_FILENAME, 'pnpm-workspace.yml'], { cwd })
