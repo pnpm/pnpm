@@ -62,19 +62,27 @@ export async function getNodeDir (pnpmHomeDir: string, nodeVersion?: string) {
   }
   const versionDir = path.join(nodesDir, wantedNodeVersion)
   if (!fs.existsSync(versionDir)) {
-    await fs.promises.mkdir(versionDir, { recursive: true })
-    await writeJsonFile(path.join(versionDir, 'package.json'), {})
-    const platform = process.platform === 'win32' ? 'win' : process.platform
-    const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-    const { exitCode } = await execa('pnpm', ['add', `node-${platform}-${arch}@${wantedNodeVersion}`], {
-      cwd: versionDir,
-      stdout: 'inherit',
-    })
-    if (exitCode !== 0) {
-      throw new Error(`Couldn't install Node.js ${wantedNodeVersion}`)
-    }
+    await installNode(wantedNodeVersion, versionDir)
   }
   return versionDir
+}
+
+async function installNode (wantedNodeVersion: string, versionDir: string) {
+  await fs.promises.mkdir(versionDir, { recursive: true })
+  await writeJsonFile(path.join(versionDir, 'package.json'), {})
+  const { exitCode } = await execa('pnpm', ['add', `${getNodePkgName()}@${wantedNodeVersion}`], {
+    cwd: versionDir,
+    stdout: 'inherit',
+  })
+  if (exitCode !== 0) {
+    throw new Error(`Couldn't install Node.js ${wantedNodeVersion}`)
+  }
+}
+
+function getNodePkgName () {
+  const platform = process.platform === 'win32' ? 'win' : process.platform
+  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+  return `node-${platform}-${arch}`
 }
 
 async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: string }> {
