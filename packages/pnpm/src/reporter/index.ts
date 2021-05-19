@@ -15,6 +15,7 @@ export default (
   switch (reporterType) {
   case 'default':
     defaultReporter({
+      useStderr: opts.config.useStderr,
       context: {
         argv: opts.cmd ? [opts.cmd] : [],
         config: opts.config,
@@ -30,6 +31,7 @@ export default (
     return
   case 'append-only':
     defaultReporter({
+      useStderr: opts.config.useStderr,
       context: {
         argv: opts.cmd ? [opts.cmd] : [],
         config: opts.config,
