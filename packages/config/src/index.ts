@@ -94,6 +94,7 @@ export const types = Object.assign({
   stream: Boolean,
   'strict-peer-dependencies': Boolean,
   'use-beta-cli': Boolean,
+  'use-node-version': String,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'use-stderr': Boolean,
@@ -409,6 +410,19 @@ export default async (
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
   pnpmConfig.enablePnp = pnpmConfig['nodeLinker'] === 'pnp'
+  if (process['pkg'] != null) {
+    // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
+    // because in that case the js is in a virtual filesystem inside the executor.
+    // Instead, we use the path to the exe file.
+    pnpmConfig.pnpmExecPath = process.execPath
+    pnpmConfig.pnpmHomeDir = path.dirname(pnpmConfig.pnpmExecPath)
+  } else if (require.main != null) {
+    pnpmConfig.pnpmExecPath = require.main.filename
+    pnpmConfig.pnpmHomeDir = path.dirname(pnpmConfig.pnpmExecPath)
+  } else {
+    pnpmConfig.pnpmExecPath = process.cwd()
+    pnpmConfig.pnpmHomeDir = process.cwd()
+  }
 
   if (opts.checkUnknownSetting) {
     const settingKeys = Object.keys({

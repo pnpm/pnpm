@@ -11,6 +11,7 @@ import { filterPackages } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
+import { node } from '@pnpm/plugin-commands-nvm'
 import chalk from 'chalk'
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { rcOptionsTypes } from './cmd'
@@ -61,7 +62,7 @@ export default async function run (inputArgv: string[]) {
     process.exit(1)
   }
 
-  if (unknownOptions.size > 0) {
+  if (unknownOptions.size > 0 && cmd !== 'node') {
     const unknownOptionsArray = Array.from(unknownOptions.keys())
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
@@ -225,6 +226,10 @@ export default async function run (inputArgv: string[]) {
       })
 
       try {
+        if (config.useNodeVersion != null) {
+          const nodePath = path.join(await node.getNodeDir(config.pnpmHomeDir, config.useNodeVersion), 'node_modules/.bin')
+          config.extraBinPaths.push(nodePath)
+        }
         let result = pnpmCmds[cmd ?? 'help'](
           // TypeScript doesn't currently infer that the type of config
           // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement

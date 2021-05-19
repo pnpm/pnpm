@@ -1925,6 +1925,29 @@ importers:
       strip-ansi: 6.0.0
       write-yaml-file: 4.2.0
 
+  packages/plugin-commands-nvm:
+    specifiers:
+      '@pnpm/cli-utils': workspace:0.6.4
+      '@pnpm/fetch': workspace:3.1.0
+      '@pnpm/plugin-commands-nvm': 'link:'
+      '@pnpm/prepare': workspace:0.0.23
+      execa: ^5.0.0
+      load-json-file: ^6.2.0
+      path-name: ^1.0.0
+      render-help: ^1.0.1
+      write-json-file: ^4.3.0
+    dependencies:
+      '@pnpm/cli-utils': link:../cli-utils
+      '@pnpm/fetch': link:../fetch
+      execa: 5.0.0
+      load-json-file: 6.2.0
+      path-name: 1.0.0
+      render-help: 1.0.2
+      write-json-file: 4.3.0
+    devDependencies:
+      '@pnpm/plugin-commands-nvm': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
+
   packages/plugin-commands-outdated:
     specifiers:
       '@pnpm/cli-utils': workspace:0.6.4
@@ -2354,6 +2377,7 @@ importers:
       '@pnpm/plugin-commands-import': workspace:2.0.11
       '@pnpm/plugin-commands-installation': workspace:4.1.7
       '@pnpm/plugin-commands-listing': workspace:3.0.7
+      '@pnpm/plugin-commands-nvm': workspace:0.0.0
       '@pnpm/plugin-commands-outdated': workspace:4.1.4
       '@pnpm/plugin-commands-publishing': workspace:3.1.5
       '@pnpm/plugin-commands-rebuild': workspace:4.0.3
@@ -2446,6 +2470,7 @@ importers:
       '@pnpm/plugin-commands-import': link:../plugin-commands-import
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-listing': link:../plugin-commands-listing
+      '@pnpm/plugin-commands-nvm': link:../plugin-commands-nvm
       '@pnpm/plugin-commands-outdated': link:../plugin-commands-outdated
       '@pnpm/plugin-commands-publishing': link:../plugin-commands-publishing
       '@pnpm/plugin-commands-rebuild': link:../plugin-commands-rebuild

@@ -4,6 +4,7 @@ import { audit } from '@pnpm/plugin-commands-audit'
 import { importCommand } from '@pnpm/plugin-commands-import'
 import { add, fetch, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
+import { node } from '@pnpm/plugin-commands-nvm'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
@@ -68,6 +69,7 @@ const commands: Array<{
   link,
   list,
   ll,
+  node,
   outdated,
   pack,
   prune,

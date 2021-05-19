@@ -170,3 +170,14 @@ test('the bundled CLI prints the correct version, when executed from stdin', asy
   const { version } = await loadJsonFile<{ version: string }>(path.join(__dirname, '../package.json'))
   expect((await nodeProcess).stdout).toBe(version)
 })
+
+test('use the specified Node.js version for running scripts', async () => {
+  prepare({
+    scripts: {
+      test: "node -e \"require('fs').writeFileSync('version',process.version,'utf8')\"",
+    },
+  })
+  await fs.writeFile('.npmrc', 'use-node-version=14.0.0', 'utf8')
+  await execPnpm(['run', 'test'])
+  expect(await fs.readFile('version', 'utf8')).toBe('v14.0.0')
+})

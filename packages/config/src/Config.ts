@@ -33,6 +33,8 @@ export interface Config {
   saveWorkspaceProtocol?: boolean
   scriptShell?: string
   stream?: boolean
+  pnpmExecPath: string
+  pnpmHomeDir: string
   production?: boolean
   fetchRetries?: number
   fetchRetryFactor?: number
@@ -66,6 +68,7 @@ export interface Config {
   ignoreCurrentPrefs?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
+  useNodeVersion?: string
   useStderr?: boolean
 
   // proxy
