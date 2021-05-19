@@ -96,6 +96,7 @@ export const types = Object.assign({
   'use-beta-cli': Boolean,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
+  'use-stderr': Boolean,
   'verify-store-integrity': Boolean,
   'virtual-store-dir': String,
   'workspace-concurrency': Number,

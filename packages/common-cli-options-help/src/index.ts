@@ -53,6 +53,10 @@ export const UNIVERSAL_OPTIONS = [
     description: 'Stream output from child processes immediately, prefixed with the originating package directory. This allows output from different packages to be interleaved.',
     name: '--stream',
   },
+  {
+    description: 'Divert all output to stderr',
+    name: '--use-stderr',
+  },
 ]
 export const FILTERING = {
   list: [

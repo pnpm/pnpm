@@ -36,6 +36,7 @@ export const GLOBAL_OPTIONS = R.pick([
   'reporter',
   'stream',
   'test-pattern',
+  'use-stderr',
   'workspace-packages',
   'workspace-root',
 ], allTypes)

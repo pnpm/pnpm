@@ -67,6 +67,16 @@ test('install --no-lockfile', async () => {
   expect(await project.readLockfile()).toBeFalsy()
 })
 
+test('write to stderr when --use-stderr is used', async () => {
+  const project = prepare()
+
+  const result = execPnpmSync(['add', 'is-positive', '--use-stderr'])
+
+  await project.has('is-positive')
+  expect(result.stdout.toString()).toBe('')
+  expect(result.stderr.toString()).not.toBe('')
+})
+
 test('install with package-lock=false in .npmrc', async () => {
   const project = prepare()
 

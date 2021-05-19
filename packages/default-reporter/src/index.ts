@@ -14,6 +14,7 @@ export { formatWarn }
 
 export default function (
   opts: {
+    useStderr?: boolean
     streamParser: object
     reportingOptions?: {
       appendOnly?: boolean
@@ -37,11 +38,14 @@ export default function (
   const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
   const output$ = toOutput$({ ...opts, reportingOptions: { ...opts.reportingOptions, outputMaxWidth } })
   if (opts.reportingOptions?.appendOnly) {
+    const writeNext = opts.useStderr
+      ? console.error.bind(console)
+      : console.log.bind(console)
     output$
       .subscribe({
         complete () {}, // eslint-disable-line:no-empty
         error: (err) => console.error(err.message),
-        next: (line) => console.log(line),
+        next: writeNext,
       })
     return
   }
@@ -55,12 +59,15 @@ export default function (
       error: (err) => logUpdate(err.message),
       next: logUpdate,
     })
+  const write = opts.useStderr
+    ? process.stderr.write.bind(process.stderr)
+    : process.stdout.write.bind(process.stdout)
   function logUpdate (view: string) {
     // A new line should always be appended in case a prompt needs to appear.
     // Without a new line the prompt will be joined with the previous output.
     // An example of such prompt may be seen by running: pnpm update --interactive
     if (!view.endsWith(EOL)) view += EOL
-    process.stdout.write(diff.update(view))
+    write(diff.update(view))
   }
 }
 
