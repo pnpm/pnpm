@@ -22,26 +22,18 @@ export function help () {
   })
 }
 
-export async function handler () {
+export async function handler (
+  opts: {
+    pnpmHomeDir: string
+  }
+) {
   const bashRC = path.join(os.homedir(), '.bashrc')
   if (!fs.existsSync(bashRC)) return 'Could not setup pnpm. No ~/.bashrc found'
   const bashRCContent = await fs.promises.readFile(bashRC, 'utf8')
-  const pnpmHome = getPnpmHome()
   if (bashRCContent.includes('PNPM_HOME')) return ''
   await fs.promises.writeFile(bashRC, `${bashRCContent}
-export PNPM_HOME="${pnpmHome}"
+export PNPM_HOME="${opts.pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
 `, 'utf8')
   return ''
-}
-
-function getPnpmHome () {
-  if (process['pkg'] != null) {
-    // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
-    // because in that case the js is in a virtual filesystem inside the executor.
-    // Instead, we use the path to the exe file.
-    return path.dirname(process.execPath)
-  } else {
-    return (require.main != null) ? path.dirname(require.main.filename) : process.cwd()
-  }
 }
