@@ -38,7 +38,7 @@
     "@pnpm/read-package-json": "workspace:5.0.1",
     "@pnpm/read-project-manifest": "workspace:2.0.2",
     "@pnpm/types": "workspace:7.1.0",
-    "@zkochan/cmd-shim": "^5.0.0",
+    "@zkochan/cmd-shim": "^5.1.1",
     "is-subdir": "^1.1.1",
     "is-windows": "^1.0.2",
     "normalize-path": "^3.0.0",
