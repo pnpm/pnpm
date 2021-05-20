@@ -16,7 +16,9 @@ test('PNPM_HOME is added to ~/.bashrc', async () => {
   tempDir()
   fs.writeFileSync('.bashrc', '', 'utf8')
   homedir['mockReturnValue'](process.cwd())
-  await setup.handler()
+  await setup.handler({
+    pnpmHomeDir: __dirname,
+  })
   const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
   expect(bashRCContent).toEqual(`
 export PNPM_HOME="${__dirname}"
@@ -31,7 +33,9 @@ export PNPM_HOME="pnpm_home"
 export PATH="$PNPM_HOME:$PATH"
 `, 'utf8')
   homedir['mockReturnValue'](process.cwd())
-  await setup.handler()
+  await setup.handler({
+    pnpmHomeDir: __dirname,
+  })
   const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
   expect(bashRCContent).toEqual(`
 export PNPM_HOME="pnpm_home"
