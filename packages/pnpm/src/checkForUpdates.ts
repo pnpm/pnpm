@@ -32,13 +32,10 @@ export default async function (config: Config) {
     ...config,
     authConfig: config.rawConfig,
     retry: {
-      factor: config.fetchRetryFactor,
-      maxTimeout: config.fetchRetryMaxtimeout,
-      minTimeout: config.fetchRetryMintimeout,
-      retries: config.fetchRetries,
+      retries: 0,
     },
     storeDir,
-    timeout: config.fetchTimeout,
+    timeout: 3000,
   })
   const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
     lockfileDir: config.lockfileDir ?? config.dir,
