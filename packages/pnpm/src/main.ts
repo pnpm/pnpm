@@ -202,6 +202,7 @@ export default async function run (inputArgv: string[]) {
       // Don't check for updates
       //   1. on CI environments
       //   2. when in the middle of an actual update
+      //   3. when the CLI is running in offline mode
       if (!isCI && !selfUpdate && !config.offline && !config.preferOffline) {
         checkForUpdates(config).catch(() => { /* Ignore */ })
       }
