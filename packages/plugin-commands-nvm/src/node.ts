@@ -70,7 +70,7 @@ export async function getNodeDir (pnpmHomeDir: string, nodeVersion?: string) {
 async function installNode (wantedNodeVersion: string, versionDir: string) {
   await fs.promises.mkdir(versionDir, { recursive: true })
   await writeJsonFile(path.join(versionDir, 'package.json'), {})
-  const { exitCode } = await execa('pnpm', ['add', `${getNodePkgName()}@${wantedNodeVersion}`], {
+  const { exitCode } = await execa('pnpm', ['add', '--use-stderr', `${getNodePkgName()}@${wantedNodeVersion}`], {
     cwd: versionDir,
     stdout: 'inherit',
   })
