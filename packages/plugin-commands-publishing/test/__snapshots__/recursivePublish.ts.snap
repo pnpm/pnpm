@@ -1,0 +1,16 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`recursive publish writes publish summary 1`] = `
+Object {
+  "publishedPackages": Array [
+    Object {
+      "name": "@pnpmtest/test-recursive-publish-project-4",
+      "version": "1.0.0",
+    },
+    Object {
+      "name": "@pnpmtest/test-recursive-publish-project-3",
+      "version": "1.0.0",
+    },
+  ],
+}
+`;

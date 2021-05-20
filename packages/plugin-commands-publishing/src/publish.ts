@@ -39,6 +39,7 @@ export function cliOptionsTypes () {
     force: Boolean,
     json: Boolean,
     recursive: Boolean,
+    'report-summary': Boolean,
   }
 }
 
@@ -79,6 +80,10 @@ export function help () {
           {
             description: 'Packages are proceeded to be published even if their current version is already in the registry. This is useful when a "prepublishOnly" script bumps the version of the package before it is published',
             name: '--force',
+          },
+          {
+            description: 'Save the list of the newly published packages to "pnpm-publish-summary.json". Useful when some other tooling is used to report the list of published packages.',
+            name: '--report-summary',
           },
         ],
       },
@@ -195,6 +200,7 @@ Do you want to continue?`,
       'postpublish',
     ], manifest)
   }
+  return { manifest }
 }
 
 async function runScriptsIfPresent (

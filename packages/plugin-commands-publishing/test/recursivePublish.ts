@@ -200,3 +200,84 @@ test('packages are released even if their current version is published, when for
   const manifest = await loadJsonFile<ProjectManifest>('is-positive/package.json')
   expect(manifest.version).toBe('4.0.0')
 })
+
+test('recursive publish writes publish summary', async () => {
+  preparePackages([
+    {
+      name: '@pnpmtest/test-recursive-publish-project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: '@pnpmtest/test-recursive-publish-project-4',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    // This will not be published because is-positive@1.0.0 is in the registry
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    // This will not be published because it is a private package
+    {
+      name: 'i-am-private',
+      version: '1.0.0',
+
+      private: true,
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    // Package with no name is skipped
+    {
+      location: 'no-name',
+      package: {
+        scripts: {
+          prepublishOnly: 'exit 1',
+        },
+      },
+    },
+  ])
+
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+
+  process.env.npm_config_userconfig = path.join('.npmrc')
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    reportSummary: true,
+  }, [])
+
+  {
+    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    expect(publishSummary).toMatchSnapshot()
+    await fs.unlink('pnpm-publish-summary.json')
+  }
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    reportSummary: true,
+  }, [])
+
+  {
+    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    expect(publishSummary).toStrictEqual({
+      publishedPackages: [],
+    })
+  }
+})
