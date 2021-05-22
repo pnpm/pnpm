@@ -44,3 +44,71 @@ export PNPM_HOME="pnpm_home"
 export PATH="$PNPM_HOME:$PATH"
 `)
 })
+
+test('PNPM_HOME is added to ~/.zshrc', async () => {
+  process.env.SHELL = '/bin/zsh'
+  tempDir()
+  fs.writeFileSync('.zshrc', '', 'utf8')
+  homedir['mockReturnValue'](process.cwd())
+  await setup.handler({
+    pnpmHomeDir: __dirname,
+  })
+  const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
+  expect(bashRCContent).toEqual(`
+export PNPM_HOME="${__dirname}"
+export PATH="$PNPM_HOME:$PATH"
+`)
+})
+
+test('PNPM_HOME is not added to ~/.zshrc if already present', async () => {
+  process.env.SHELL = '/bin/zsh'
+  tempDir()
+  fs.writeFileSync('.zshrc', `
+export PNPM_HOME="pnpm_home"
+export PATH="$PNPM_HOME:$PATH"
+`, 'utf8')
+  homedir['mockReturnValue'](process.cwd())
+  await setup.handler({
+    pnpmHomeDir: __dirname,
+  })
+  const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
+  expect(bashRCContent).toEqual(`
+export PNPM_HOME="pnpm_home"
+export PATH="$PNPM_HOME:$PATH"
+`)
+})
+
+test('PNPM_HOME is added to ~/.config/fish/config.fish', async () => {
+  process.env.SHELL = '/bin/fish'
+  tempDir()
+  fs.mkdirSync('.config/fish', { recursive: true })
+  fs.writeFileSync('.config/fish/config.fish', '', 'utf8')
+  homedir['mockReturnValue'](process.cwd())
+  await setup.handler({
+    pnpmHomeDir: __dirname,
+  })
+  const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
+  expect(bashRCContent).toEqual(`
+set -gx PNPM_HOME "${__dirname}"
+set -gx PATH "$PNPM_HOME" $PATH
+`)
+})
+
+test('PNPM_HOME is not added to ~/.config/fish/config.fish if already present', async () => {
+  process.env.SHELL = '/bin/fish'
+  tempDir()
+  fs.mkdirSync('.config/fish', { recursive: true })
+  fs.writeFileSync('.config/fish/config.fish', `
+set -gx PNPM_HOME "pnpm_home"
+set -gx PATH "$PNPM_HOME" $PATH
+`, 'utf8')
+  homedir['mockReturnValue'](process.cwd())
+  await setup.handler({
+    pnpmHomeDir: __dirname,
+  })
+  const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
+  expect(bashRCContent).toEqual(`
+set -gx PNPM_HOME "pnpm_home"
+set -gx PATH "$PNPM_HOME" $PATH
+`)
+})
