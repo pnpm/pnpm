@@ -13,6 +13,7 @@ jest.mock('os', () => {
 })
 
 test('PNPM_HOME is added to ~/.bashrc', async () => {
+  process.env.SHELL = '/bin/bash'
   tempDir()
   fs.writeFileSync('.bashrc', '', 'utf8')
   homedir['mockReturnValue'](process.cwd())
@@ -27,6 +28,7 @@ export PATH="$PNPM_HOME:$PATH"
 })
 
 test('PNPM_HOME is not added to ~/.bashrc if already present', async () => {
+  process.env.SHELL = '/bin/bash'
   tempDir()
   fs.writeFileSync('.bashrc', `
 export PNPM_HOME="pnpm_home"

@@ -27,13 +27,42 @@ export async function handler (
     pnpmHomeDir: string
   }
 ) {
-  const bashRC = path.join(os.homedir(), '.bashrc')
-  if (!fs.existsSync(bashRC)) return 'Could not setup pnpm. No ~/.bashrc found'
-  const bashRCContent = await fs.promises.readFile(bashRC, 'utf8')
-  if (bashRCContent.includes('PNPM_HOME')) return ''
-  await fs.promises.writeFile(bashRC, `${bashRCContent}
-export PNPM_HOME="${opts.pnpmHomeDir}"
+  const currentShell = process.env.SHELL ? path.basename(process.env.SHELL) : null
+  switch (currentShell) {
+  case 'bash': {
+    const configFile = path.join(os.homedir(), '.bashrc')
+    return setupShell(configFile, opts.pnpmHomeDir)
+  }
+  case 'zsh': {
+    const configFile = path.join(os.homedir(), '.zshrc')
+    return setupShell(configFile, opts.pnpmHomeDir)
+  }
+  case 'fish': {
+    return setupFishShell(opts.pnpmHomeDir)
+  }
+  }
+  return 'Could not infer shell type.'
+}
+
+async function setupShell (configFile: string, pnpmHomeDir: string) {
+  if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
+  const configContent = await fs.promises.readFile(configFile, 'utf8')
+  if (configContent.includes('PNPM_HOME')) return ''
+  await fs.promises.writeFile(configFile, `${configContent}
+export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
+`, 'utf8')
+  return ''
+}
+
+async function setupFishShell (pnpmHomeDir: string) {
+  const configFile = path.join(os.homedir(), '.config/fish/config.fish')
+  if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
+  const configContent = await fs.promises.readFile(configFile, 'utf8')
+  if (configContent.includes('PNPM_HOME')) return ''
+  await fs.promises.writeFile(configFile, `${configContent}
+set -gx PNPM_HOME "${pnpmHomeDir}"
+set -gx PATH "$PNPM_HOME" $PATH
 `, 'utf8')
   return ''
 }
