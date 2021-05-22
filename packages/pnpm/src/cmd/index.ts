@@ -15,6 +15,7 @@ import {
   test,
 } from '@pnpm/plugin-commands-script-runners'
 import { server } from '@pnpm/plugin-commands-server'
+import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
 import * as R from 'ramda'
 import { PnpmOptions } from '../types'
@@ -81,6 +82,7 @@ const commands: Array<{
   root,
   run,
   server,
+  setup,
   store,
   test,
   unlink,

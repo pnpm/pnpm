@@ -2277,6 +2277,19 @@ importers:
       '@types/ramda': 0.27.39
       '@types/signal-exit': 3.0.0
 
+  packages/plugin-commands-setup:
+    specifiers:
+      '@pnpm/cli-utils': workspace:0.6.4
+      '@pnpm/plugin-commands-setup': 'link:'
+      '@pnpm/prepare': workspace:0.0.23
+      render-help: ^1.0.1
+    dependencies:
+      '@pnpm/cli-utils': link:../cli-utils
+      render-help: 1.0.2
+    devDependencies:
+      '@pnpm/plugin-commands-setup': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
+
   packages/plugin-commands-store:
     specifiers:
       '@pnpm/assert-store': workspace:*
@@ -2383,6 +2396,7 @@ importers:
       '@pnpm/plugin-commands-rebuild': workspace:4.0.3
       '@pnpm/plugin-commands-script-runners': workspace:3.1.5
       '@pnpm/plugin-commands-server': workspace:3.0.8
+      '@pnpm/plugin-commands-setup': workspace:^0.0.0
       '@pnpm/plugin-commands-store': workspace:3.0.8
       '@pnpm/prepare': workspace:0.0.23
       '@pnpm/read-package-json': workspace:5.0.1
@@ -2476,6 +2490,7 @@ importers:
       '@pnpm/plugin-commands-rebuild': link:../plugin-commands-rebuild
       '@pnpm/plugin-commands-script-runners': link:../plugin-commands-script-runners
       '@pnpm/plugin-commands-server': link:../plugin-commands-server
+      '@pnpm/plugin-commands-setup': link:../plugin-commands-setup
       '@pnpm/plugin-commands-store': link:../plugin-commands-store
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/read-package-json': link:../read-package-json
