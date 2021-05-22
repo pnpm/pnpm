@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-publishing
 
+## 3.2.0
+
+### Minor Changes
+
+- 819f67894: New option: reportSummary. When it is set to `true`, recursive publish will save the summary of published packages to `pnpm-publish-summary.json`.
+
+### Patch Changes
+
+- Updated dependencies [84ec82e05]
+- Updated dependencies [c2a71e4fd]
+- Updated dependencies [84ec82e05]
+  - @pnpm/config@12.3.0
+  - @pnpm/cli-utils@0.6.5
+
 ## 3.1.5
 
 ### Patch Changes

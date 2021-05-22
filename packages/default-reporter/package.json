@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "8.0.3",
+  "version": "8.1.0",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,7 +29,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:12.2.0",
+    "@pnpm/config": "workspace:12.3.0",
     "@pnpm/core-loggers": "workspace:6.0.1",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/types": "workspace:7.1.0",

@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-dir
 
+## 3.0.1
+
+### Patch Changes
+
+- 6e8cedb79: Add support for NPM_CONFIG_WORKSPACE_DIR override environment variable when finding the workspace directory
+
 ## 3.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 0.6.0
+
+### Minor Changes
+
+- c2a71e4fd: New CLI option added: `use-stderr`. When set, all the output is written to stderr.
+
 ## 0.5.0
 
 ### Minor Changes

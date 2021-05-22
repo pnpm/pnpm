@@ -1,5 +1,18 @@
 # @pnpm/default-reporter
 
+## 8.1.0
+
+### Minor Changes
+
+- c2a71e4fd: New CLI option added: `use-stderr`. When set, all the output is written to stderr.
+
+### Patch Changes
+
+- Updated dependencies [84ec82e05]
+- Updated dependencies [c2a71e4fd]
+- Updated dependencies [84ec82e05]
+  - @pnpm/config@12.3.0
+
 ## 8.0.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/make-dedicated-lockfile",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/exec": "^2.0.0",
     "@pnpm/exportable-manifest": "workspace:2.1.2",
-    "@pnpm/find-workspace-dir": "workspace:3.0.0",
+    "@pnpm/find-workspace-dir": "workspace:3.0.1",
     "@pnpm/lockfile-file": "workspace:4.0.1",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prune-lockfile": "workspace:3.0.3",

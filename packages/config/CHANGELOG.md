@@ -1,5 +1,13 @@
 # @pnpm/config
 
+## 12.3.0
+
+### Minor Changes
+
+- 84ec82e05: New setting added: `use-node-version`. When set, pnpm will install the specified version of Node.js and use it for running any lifecycle scripts.
+- c2a71e4fd: New CLI option added: `use-stderr`. When set, all the output is written to stderr.
+- 84ec82e05: New settings are returned: pnpmExecPath and pnpmHomeDir.
+
 ## 12.2.0
 
 ### Minor Changes
