@@ -6,10 +6,12 @@ import { PackageFileInfo } from '@pnpm/fetcher-base'
 import { createCafsStore } from '@pnpm/package-store'
 import storePath from '@pnpm/store-path'
 import createFetcher from '@pnpm/tarball-fetcher'
+import AdmZip from 'adm-zip'
 import execa from 'execa'
 import PATH from 'path-name'
 import R from 'ramda'
 import renderHelp from 'render-help'
+import tempy from 'tempy'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 
@@ -88,6 +90,18 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
       retries: 1,
     },
   })
+  if (resolution.tarball.endsWith('.zip')) {
+    const response = await fetchFromRegistry(resolution.tarball)
+    const tmp = path.join(tempy.directory(), 'pnpm.zip')
+    const dest = fs.createWriteStream(tmp)
+    await new Promise((resolve, reject) => {
+      response.body.pipe(dest).on('error', reject).on('close', resolve)
+    })
+    const zip = new AdmZip(tmp)
+    zip.extractAllTo(versionDir, true)
+    await fs.promises.unlink(tmp)
+    return
+  }
   const storeDir = await storePath(process.cwd(), opts.storeDir)
   const cafsDir = path.join(storeDir, 'files')
   const cafs = createCafsStore(cafsDir)

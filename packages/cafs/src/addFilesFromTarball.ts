@@ -1,17 +1,18 @@
 import { Duplex, PassThrough } from 'stream'
 import { DeferredManifestPromise, FilesIndex, FileWriteResult } from '@pnpm/fetcher-base'
 import decompress from 'decompress-maybe'
-import tar from 'tar-stream'
+import tar, { Extract } from 'tar-stream'
 import { parseJsonStream } from './parseJson'
 
 export default async function (
   addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<FileWriteResult>,
   _ignore: null | ((filename: string) => Boolean),
   stream: NodeJS.ReadableStream,
-  manifest?: DeferredManifestPromise
+  manifest?: DeferredManifestPromise,
+  _extract?: Extract
 ): Promise<FilesIndex> {
   const ignore = _ignore ?? (() => false)
-  const extract = tar.extract()
+  const extract = _extract ?? tar.extract()
   const filesIndex = {}
   await new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, fileStream, next) => {
