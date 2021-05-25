@@ -40,6 +40,7 @@
     "load-json-file": "^6.2.0",
     "path-name": "^1.0.0",
     "ramda": "^0.27.1",
+    "rename-overwrite": "^4.0.0",
     "render-help": "^1.0.1",
     "tempy": "^1.0.0",
     "write-json-file": "^4.3.0"

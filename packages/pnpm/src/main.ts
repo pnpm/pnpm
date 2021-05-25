@@ -228,7 +228,7 @@ export default async function run (inputArgv: string[]) {
 
       try {
         if (config.useNodeVersion != null) {
-          const nodePath = path.join(await node.getNodeDir({ storeDir: config.storeDir }, config.pnpmHomeDir, config.useNodeVersion), 'bin')
+          const nodePath = await node.getNodeDir({ storeDir: config.storeDir }, config.pnpmHomeDir, config.useNodeVersion)
           config.extraBinPaths.push(nodePath)
         }
         let result = pnpmCmds[cmd ?? 'help'](

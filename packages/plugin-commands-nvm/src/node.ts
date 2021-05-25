@@ -10,6 +10,7 @@ import AdmZip from 'adm-zip'
 import execa from 'execa'
 import PATH from 'path-name'
 import R from 'ramda'
+import renameOverwrite from 'rename-overwrite'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import loadJsonFile from 'load-json-file'
@@ -45,7 +46,7 @@ export async function handler (
   const nodeDir = await getNodeDir(opts, opts.pnpmHomeDir, opts.useNodeVersion)
   const { exitCode } = await execa('node', opts.argv.original.slice(1), {
     env: {
-      [PATH]: `${path.join(nodeDir, 'bin')}${path.delimiter}${process.env[PATH]!}`,
+      [PATH]: `${nodeDir}${path.delimiter}${process.env[PATH]!}`,
     },
     stdout: 'inherit',
     stdin: 'inherit',
@@ -72,15 +73,14 @@ export async function getNodeDir (opts: { storeDir?: string }, pnpmHomeDir: stri
   if (!fs.existsSync(versionDir)) {
     await installNode(wantedNodeVersion, versionDir, opts)
   }
-  return versionDir
+  return process.platform === 'win32' ? versionDir : path.join(versionDir, 'bin')
 }
 
 async function installNode (wantedNodeVersion: string, versionDir: string, opts: { storeDir?: string }) {
   await fs.promises.mkdir(versionDir, { recursive: true })
   await writeJsonFile(path.join(versionDir, 'package.json'), {})
-  const resolution = {
-    tarball: getNodeJSTarball(wantedNodeVersion),
-  }
+  const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion)
+  const resolution = { tarball }
   const fetchFromRegistry = createFetchFromRegistry({})
   const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
   const fetch = createFetcher(fetchFromRegistry, getCredentials, {
@@ -98,7 +98,9 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
       response.body.pipe(dest).on('error', reject).on('close', resolve)
     })
     const zip = new AdmZip(tmp)
-    zip.extractAllTo(versionDir, true)
+    const nodeDir = path.dirname(versionDir)
+    zip.extractAllTo(nodeDir, true)
+    await renameOverwrite(path.join(nodeDir, pkgName), versionDir)
     await fs.promises.unlink(tmp)
     return
   }
@@ -136,7 +138,11 @@ function getNodeJSTarball (nodeVersion: string) {
   const platform = process.platform === 'win32' ? 'win' : process.platform
   const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
   const extension = platform === 'win' ? 'zip' : 'tar.gz'
-  return `https://nodejs.org/download/release/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.${extension}`
+  const pkgName = `node-v${nodeVersion}-${platform}-${arch}`
+  return {
+    pkgName,
+    tarball: `https://nodejs.org/download/release/v${nodeVersion}/${pkgName}.${extension}`,
+  }
 }
 
 async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: string }> {
