@@ -1,9 +1,14 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import fetch from '@pnpm/fetch'
+import fetch, { createFetchFromRegistry } from '@pnpm/fetch'
+import { PackageFileInfo } from '@pnpm/fetcher-base'
+import { createCafsStore } from '@pnpm/package-store'
+import storePath from '@pnpm/store-path'
+import createFetcher from '@pnpm/tarball-fetcher'
 import execa from 'execa'
 import PATH from 'path-name'
+import R from 'ramda'
 import renderHelp from 'render-help'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
@@ -32,12 +37,13 @@ export async function handler (
     }
     useNodeVersion?: string
     pnpmHomeDir: string
+    storeDir?: string
   }
 ) {
-  const nodeDir = await getNodeDir(opts.pnpmHomeDir, opts.useNodeVersion)
+  const nodeDir = await getNodeDir(opts, opts.pnpmHomeDir, opts.useNodeVersion)
   const { exitCode } = await execa('node', opts.argv.original.slice(1), {
     env: {
-      [PATH]: `${path.join(nodeDir, 'node_modules/.bin')}${path.delimiter}${process.env[PATH]!}`,
+      [PATH]: `${path.join(nodeDir, 'bin')}${path.delimiter}${process.env[PATH]!}`,
     },
     stdout: 'inherit',
     stdin: 'inherit',
@@ -45,7 +51,7 @@ export async function handler (
   return { exitCode }
 }
 
-export async function getNodeDir (pnpmHomeDir: string, nodeVersion?: string) {
+export async function getNodeDir (opts: { storeDir?: string }, pnpmHomeDir: string, nodeVersion?: string) {
   const nodesDir = path.join(pnpmHomeDir, 'nodes')
   let wantedNodeVersion = nodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
   await fs.promises.mkdir(nodesDir, { recursive: true })
@@ -62,27 +68,54 @@ export async function getNodeDir (pnpmHomeDir: string, nodeVersion?: string) {
   }
   const versionDir = path.join(nodesDir, wantedNodeVersion)
   if (!fs.existsSync(versionDir)) {
-    await installNode(wantedNodeVersion, versionDir)
+    await installNode(wantedNodeVersion, versionDir, opts)
   }
   return versionDir
 }
 
-async function installNode (wantedNodeVersion: string, versionDir: string) {
+async function installNode (wantedNodeVersion: string, versionDir: string, opts: { storeDir?: string }) {
   await fs.promises.mkdir(versionDir, { recursive: true })
   await writeJsonFile(path.join(versionDir, 'package.json'), {})
-  const { exitCode } = await execa('pnpm', ['add', '--use-stderr', `${getNodePkgName()}@${wantedNodeVersion}`], {
-    cwd: versionDir,
-    stdout: 'inherit',
-  })
-  if (exitCode !== 0) {
-    throw new Error(`Couldn't install Node.js ${wantedNodeVersion}`)
+  const resolution = {
+    tarball: `https://nodejs.org/download/release/v${wantedNodeVersion}/node-v${wantedNodeVersion}-linux-x64.tar.gz`,
   }
-}
-
-function getNodePkgName () {
-  const platform = process.platform === 'win32' ? 'win' : process.platform
-  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-  return `node-${platform}-${arch}`
+  const fetchFromRegistry = createFetchFromRegistry({})
+  const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
+  const fetch = createFetcher(fetchFromRegistry, getCredentials, {
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+  const storeDir = await storePath(process.cwd(), opts.storeDir)
+  const cafsDir = path.join(storeDir, 'files')
+  const cafs = createCafsStore(cafsDir)
+  const { filesIndex } = await fetch.tarball(cafs, resolution, {
+    lockfileDir: process.cwd(),
+  })
+  const filesIndexReady: Record<string, PackageFileInfo> = R.fromPairs(
+    await Promise.all(
+      Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
+        const { integrity, checkedAt } = await fileInfo.writeResult
+        return [
+          fileName,
+          {
+            ...R.omit(['writeResult'], fileInfo),
+            checkedAt,
+            integrity: integrity.toString(),
+          },
+        ]
+      })
+    )
+  )
+  await cafs.importPackage(versionDir, {
+    filesResponse: {
+      filesIndex: filesIndexReady,
+      fromStore: false,
+    },
+    force: true,
+  })
 }
 
 async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: string }> {

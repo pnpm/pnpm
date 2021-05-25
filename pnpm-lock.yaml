@@ -1929,19 +1929,29 @@ importers:
     specifiers:
       '@pnpm/cli-utils': workspace:0.6.5
       '@pnpm/fetch': workspace:3.1.0
+      '@pnpm/fetcher-base': workspace:11.0.0
+      '@pnpm/package-store': workspace:12.0.7
       '@pnpm/plugin-commands-nvm': 'link:'
       '@pnpm/prepare': workspace:0.0.23
+      '@pnpm/store-path': ^5.0.0
+      '@pnpm/tarball-fetcher': workspace:9.2.2
       execa: ^5.0.0
       load-json-file: ^6.2.0
       path-name: ^1.0.0
+      ramda: ^0.27.1
       render-help: ^1.0.1
       write-json-file: ^4.3.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/fetch': link:../fetch
+      '@pnpm/fetcher-base': link:../fetcher-base
+      '@pnpm/package-store': link:../package-store
+      '@pnpm/store-path': 5.0.0
+      '@pnpm/tarball-fetcher': link:../tarball-fetcher
       execa: 5.0.0
       load-json-file: 6.2.0
       path-name: 1.0.0
+      ramda: 0.27.1
       render-help: 1.0.2
       write-json-file: 4.3.0
     devDependencies:
