@@ -77,7 +77,7 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
   await fs.promises.mkdir(versionDir, { recursive: true })
   await writeJsonFile(path.join(versionDir, 'package.json'), {})
   const resolution = {
-    tarball: `https://nodejs.org/download/release/v${wantedNodeVersion}/node-v${wantedNodeVersion}-linux-x64.tar.gz`,
+    tarball: getNodeJSTarball(wantedNodeVersion),
   }
   const fetchFromRegistry = createFetchFromRegistry({})
   const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
@@ -116,6 +116,13 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
     },
     force: true,
   })
+}
+
+function getNodeJSTarball (nodeVersion: string) {
+  const platform = process.platform === 'win32' ? 'win' : process.platform
+  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+  const extension = platform === 'win' ? 'zip' : 'tar.gz'
+  return `https://nodejs.org/download/release/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.${extension}`
 }
 
 async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: string }> {
