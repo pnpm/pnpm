@@ -805,7 +805,7 @@ importers:
       '@types/fs-extra': ^9.0.5
       '@types/ramda': 0.27.39
       '@types/rimraf': ^3.0.0
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.0
       '@zkochan/rimraf': ^2.1.1
       dependency-path: workspace:8.0.0
       is-windows: ^1.0.2
@@ -817,7 +817,7 @@ importers:
       path-exists: ^4.0.0
       ramda: ^0.27.1
       realpath-missing: ^1.1.0
-      sinon: ^9.2.2
+      sinon: ^10.0.0
       tempy: ^1.0.0
       write-json-file: ^4.3.0
     dependencies:
@@ -860,13 +860,13 @@ importers:
       '@types/fs-extra': 9.0.11
       '@types/ramda': 0.27.39
       '@types/rimraf': 3.0.0
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.0
       '@zkochan/rimraf': 2.1.1
       is-windows: 1.0.2
       isexe: 2.0.0
       load-json-file: 6.2.0
       npm-run-all: 4.1.5
-      sinon: 9.2.4
+      sinon: 10.0.0
       tempy: 1.0.1
       write-json-file: 4.3.0
 
@@ -1796,7 +1796,7 @@ importers:
       '@types/is-ci': ^3.0.0
       '@types/proxyquire': ^1.3.28
       '@types/ramda': 0.27.39
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.0
       '@types/zkochan__table': npm:@types/table@6.0.0
       '@zkochan/table': ^1.0.0
       camelcase-keys: ^6.2.2
@@ -1816,7 +1816,7 @@ importers:
       read-ini-file: ^3.1.0
       read-yaml-file: ^2.1.0
       render-help: ^1.0.1
-      sinon: ^9.2.2
+      sinon: ^10.0.0
       supi: workspace:0.46.12
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
@@ -1872,13 +1872,13 @@ importers:
       '@types/is-ci': 3.0.0
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.39
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.0
       '@types/zkochan__table': /@types/table/6.0.0
       load-json-file: 6.2.0
       path-name: 1.0.0
       proxyquire: 2.1.3
       read-yaml-file: 2.1.0
-      sinon: 9.2.4
+      sinon: 10.0.0
       tempy: 1.0.1
       write-json-file: 4.3.0
       write-pkg: 4.0.0
@@ -2034,7 +2034,7 @@ importers:
       '@types/cross-spawn': ^6.0.2
       '@types/proxyquire': ^1.3.28
       '@types/ramda': 0.27.39
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.0
       '@zkochan/rimraf': ^2.1.1
       cp-file: ^9.0.0
       cross-spawn: ^7.0.3
@@ -2082,7 +2082,7 @@ importers:
       '@types/cross-spawn': 6.0.2
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.39
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.0
       cross-spawn: 7.0.3
       execa: 5.0.0
       is-ci: 3.0.0
@@ -2118,7 +2118,7 @@ importers:
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.0
       '@zkochan/npm-package-arg': ^2.0.1
       camelcase-keys: ^6.2.2
       dependency-path: workspace:8.0.0
@@ -2133,7 +2133,7 @@ importers:
       render-help: ^1.0.1
       run-groups: ^3.0.1
       semver: ^7.3.4
-      sinon: ^9.2.2
+      sinon: ^10.0.0
       write-yaml-file: ^4.2.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
@@ -2173,10 +2173,10 @@ importers:
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.6
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.0
       execa: 5.0.0
       path-exists: 4.0.0
-      sinon: 9.2.4
+      sinon: 10.0.0
       write-yaml-file: 4.2.0
 
   packages/plugin-commands-script-runners:
@@ -2312,7 +2312,7 @@ importers:
       '@pnpm/types': workspace:7.1.0
       '@types/archy': 0.0.31
       '@types/ramda': 0.27.39
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.0
       '@types/ssri': ^7.1.0
       '@zkochan/rimraf': ^2.1.1
       archy: ^1.0.0
@@ -2324,7 +2324,7 @@ importers:
       path-exists: ^4.0.0
       ramda: ^0.27.1
       render-help: ^1.0.1
-      sinon: ^9.2.2
+      sinon: ^10.0.0
       ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
@@ -2355,13 +2355,13 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/archy': 0.0.31
       '@types/ramda': 0.27.39
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.0
       '@types/ssri': 7.1.0
       '@zkochan/rimraf': 2.1.1
       execa: 5.0.0
       load-json-file: 6.2.0
       path-exists: 4.0.0
-      sinon: 9.2.4
+      sinon: 10.0.0
       ssri: 8.0.1
       tempy: 1.0.1
 
@@ -2947,7 +2947,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.0
       '@zkochan/npm-package-arg': ^2.0.1
       '@zkochan/rimraf': ^2.1.1
       anonymous-npm-registry-client: 0.1.2
@@ -2979,7 +2979,7 @@ importers:
       run-groups: ^3.0.1
       semver: ^7.3.4
       semver-utils: ^1.1.4
-      sinon: ^9.2.2
+      sinon: ^10.0.0
       supi: 'link:'
       symlink-dir: ^5.0.0
       version-selector-type: ^3.0.0
@@ -3050,7 +3050,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.6
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.0
       anonymous-npm-registry-client: 0.1.2
       cross-spawn: 7.0.3
       deep-require-cwd: 1.0.0
@@ -3066,7 +3066,7 @@ importers:
       path-name: 1.0.0
       read-yaml-file: 2.1.0
       resolve-link-target: 2.0.0
-      sinon: 9.2.4
+      sinon: 10.0.0
       supi: 'link:'
       symlink-dir: 5.0.1
       write-json-file: 4.3.0
@@ -4825,14 +4825,10 @@ packages:
     resolution: {integrity: sha512-MaJ+16SOXz0Z27EMf3d88+B6UDglq1sn140a+5X/ROLkIcEfRq0CPg+1B2efF1GXQn4n+aKH4ti2hHG4Ya+Dzg==}
     dev: true
 
-  /@types/sinon/9.0.11:
-    resolution: {integrity: sha512-PwP4UY33SeeVKodNE37ZlOsR9cReypbMJOhZ7BVE0lB+Hix3efCOxiJWiE5Ia+yL9Cn2Ch72EjFTRze8RZsNtg==}
+  /@types/sinon/10.0.0:
+    resolution: {integrity: sha512-jDZ55oCKxqlDmoTBBbBBEx+N8ZraUVhggMZ9T5t+6/Dh8/4NiOjSUfpLrPiEwxQDlAe3wpAkoXhWvE6LibtsMQ==}
     dependencies:
-      '@types/sinonjs__fake-timers': 6.0.2
-    dev: true
-
-  /@types/sinonjs__fake-timers/6.0.2:
-    resolution: {integrity: sha512-dIPoZ3g5gcx9zZEszaxLSVTvMReD3xxyyDnQUjA6IYDG9Ba2AV0otMPs+77sG9ojB4Qr2N2Vk5RnKeuA0X/0bg==}
+      '@sinonjs/fake-timers': 7.1.0
     dev: true
 
   /@types/ssri/7.1.0:
@@ -12661,8 +12657,8 @@ packages:
       simple-concat: 1.0.1
     dev: true
 
-  /sinon/9.2.4:
-    resolution: {integrity: sha512-zljcULZQsJxVra28qIAL6ow1Z9tpattkCTEJR4RBP3TGc00FcttsP5pK284Nas5WjMZU5Yzy3kAIp3B3KRf5Yg==}
+  /sinon/10.0.0:
+    resolution: {integrity: sha512-XAn5DxtGVJBlBWYrcYKEhWCz7FLwZGdyvANRyK06419hyEpdT0dMc5A8Vcxg5SCGHc40CsqoKsc1bt1CbJPfNw==}
     dependencies:
       '@sinonjs/commons': 1.8.3
       '@sinonjs/fake-timers': 6.0.1
