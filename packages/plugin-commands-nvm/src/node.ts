@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
+import { Config } from '@pnpm/config'
 import fetch, { createFetchFromRegistry } from '@pnpm/fetch'
 import { PackageFileInfo } from '@pnpm/fetcher-base'
 import { createCafsStore } from '@pnpm/package-store'
@@ -33,8 +34,28 @@ export function help () {
   })
 }
 
+export type NvmNodeCommandOptions = Pick<Config,
+| 'rawConfig'
+| 'fetchRetries'
+| 'fetchRetryFactor'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchRetryMintimeout'
+| 'fetchTimeout'
+| 'userAgent'
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'noProxy'
+| 'strictSsl'
+| 'storeDir'
+>
+
 export async function handler (
-  opts: {
+  opts: NvmNodeCommandOptions & {
     argv: {
       original: string[]
     }
@@ -54,7 +75,7 @@ export async function handler (
   return { exitCode }
 }
 
-export async function getNodeDir (opts: { storeDir?: string }, pnpmHomeDir: string, nodeVersion?: string) {
+export async function getNodeDir (opts: NvmNodeCommandOptions, pnpmHomeDir: string, nodeVersion?: string) {
   const nodesDir = path.join(pnpmHomeDir, 'nodes')
   let wantedNodeVersion = nodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
   await fs.promises.mkdir(nodesDir, { recursive: true })
@@ -76,19 +97,20 @@ export async function getNodeDir (opts: { storeDir?: string }, pnpmHomeDir: stri
   return process.platform === 'win32' ? versionDir : path.join(versionDir, 'bin')
 }
 
-async function installNode (wantedNodeVersion: string, versionDir: string, opts: { storeDir?: string }) {
+async function installNode (wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions) {
   await fs.promises.mkdir(versionDir, { recursive: true })
-  await writeJsonFile(path.join(versionDir, 'package.json'), {})
   const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion)
   const resolution = { tarball }
-  const fetchFromRegistry = createFetchFromRegistry({})
+  const fetchFromRegistry = createFetchFromRegistry(opts)
   const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
   const fetch = createFetcher(fetchFromRegistry, getCredentials, {
     retry: {
-      maxTimeout: 100,
-      minTimeout: 0,
-      retries: 1,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+      factor: opts.fetchRetryFactor,
     },
+    timeout: opts.fetchTimeout,
   })
   if (resolution.tarball.endsWith('.zip')) {
     const response = await fetchFromRegistry(resolution.tarball)
