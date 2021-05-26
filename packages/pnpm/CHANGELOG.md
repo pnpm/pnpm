@@ -5,7 +5,6 @@
 ### Minor Changes
 
 - New setting added: `use-node-version`. When set, pnpm will install the specified version of Node.js and use it for running any lifecycle scripts [#3459](https://github.com/pnpm/pnpm/pull/3459).
-- New experimental command added: `pnpm node [args...]`. Runs Node.js with the provided arguments. When `use-node-version` is provided, also installs the wanted Node.js version to run it [#3459](https://github.com/pnpm/pnpm/pull/3459).
 - New experimental command added: `pnpm setup`. This command adds the path to the pnpm bin to the active shell of the user. So it modifies the bash, zsh, or fish config file [#3456](https://github.com/pnpm/pnpm/pull/3456).
 - `pnpm publish -r` supports a new option: `--report-summary`. When it is used, `pnpm publish -r --report-summary` will save the summary of published packages to `pnpm-publish-summary.json` [#3461](https://github.com/pnpm/pnpm/pull/3461).
 - New CLI option added: `--use-stderr`. When set, all the output is written to stderr [#3463](https://github.com/pnpm/pnpm/pull/3463).

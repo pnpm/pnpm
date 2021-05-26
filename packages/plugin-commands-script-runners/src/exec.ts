@@ -1,3 +1,4 @@
+import path from 'path'
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -6,6 +7,7 @@ import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import execa from 'execa'
 import pLimit from 'p-limit'
+import PATH from 'path-name'
 import * as R from 'ramda'
 import renderHelp from 'render-help'
 import existsInDir from './existsInDir'
@@ -51,7 +53,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
+  opts: Required<Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'selectedProjectsGraph' | 'dir'>> & {
     bail?: boolean
     unsafePerm?: boolean
     rawConfig: object
@@ -89,6 +91,11 @@ export async function handler (
             env: {
               ...process.env,
               ...extraEnv,
+              [PATH]: [
+                ...opts.extraBinPaths,
+                path.join(opts.lockfileDir ?? opts.workspaceDir ?? opts.dir, 'node_modules/.bin'),
+                process.env[PATH],
+              ].join(path.delimiter),
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix].package.manifest.name,
             },
             stdio: 'inherit',

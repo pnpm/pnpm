@@ -1,36 +1,15 @@
 import fs from 'fs'
 import path from 'path'
-import { docsUrl } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import fetch, { createFetchFromRegistry, FetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/package-store'
 import storePath from '@pnpm/store-path'
 import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
 import AdmZip from 'adm-zip'
-import execa from 'execa'
-import PATH from 'path-name'
 import renameOverwrite from 'rename-overwrite'
-import renderHelp from 'render-help'
 import tempy from 'tempy'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-
-export const rcOptionsTypes = () => ({})
-
-export const cliOptionsTypes = () => ({})
-
-export const shorthands = {}
-
-export const commandNames = ['node']
-
-export function help () {
-  return renderHelp({
-    description: 'Run Node.js',
-    descriptionLists: [],
-    url: docsUrl('node'),
-    usages: ['pnpm node'],
-  })
-}
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'rawConfig'
@@ -53,24 +32,6 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'useNodeVersion'
 | 'pnpmHomeDir'
 >
-
-export async function handler (
-  opts: NvmNodeCommandOptions & {
-    argv: {
-      original: string[]
-    }
-  }
-) {
-  const nodeDir = await getNodeDir(opts)
-  const { exitCode } = await execa('node', opts.argv.original.slice(1), {
-    env: {
-      [PATH]: `${nodeDir}${path.delimiter}${process.env[PATH]!}`,
-    },
-    stdout: 'inherit',
-    stdin: 'inherit',
-  })
-  return { exitCode }
-}
 
 export async function getNodeDir (opts: NvmNodeCommandOptions) {
   const nodesDir = path.join(opts.pnpmHomeDir, 'nodes')
