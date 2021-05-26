@@ -3,14 +3,12 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import fetch, { createFetchFromRegistry } from '@pnpm/fetch'
-import { PackageFileInfo } from '@pnpm/fetcher-base'
 import { createCafsStore } from '@pnpm/package-store'
 import storePath from '@pnpm/store-path'
-import createFetcher from '@pnpm/tarball-fetcher'
+import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
 import AdmZip from 'adm-zip'
 import execa from 'execa'
 import PATH from 'path-name'
-import R from 'ramda'
 import renameOverwrite from 'rename-overwrite'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
@@ -52,6 +50,8 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'noProxy'
 | 'strictSsl'
 | 'storeDir'
+| 'useNodeVersion'
+| 'pnpmHomeDir'
 >
 
 export async function handler (
@@ -64,7 +64,7 @@ export async function handler (
     storeDir?: string
   }
 ) {
-  const nodeDir = await getNodeDir(opts, opts.pnpmHomeDir, opts.useNodeVersion)
+  const nodeDir = await getNodeDir(opts)
   const { exitCode } = await execa('node', opts.argv.original.slice(1), {
     env: {
       [PATH]: `${nodeDir}${path.delimiter}${process.env[PATH]!}`,
@@ -75,9 +75,9 @@ export async function handler (
   return { exitCode }
 }
 
-export async function getNodeDir (opts: NvmNodeCommandOptions, pnpmHomeDir: string, nodeVersion?: string) {
-  const nodesDir = path.join(pnpmHomeDir, 'nodes')
-  let wantedNodeVersion = nodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
+export async function getNodeDir (opts: NvmNodeCommandOptions) {
+  const nodesDir = path.join(opts.pnpmHomeDir, 'nodes')
+  let wantedNodeVersion = opts.useNodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
   await fs.promises.mkdir(nodesDir, { recursive: true })
   fs.writeFileSync(path.join(nodesDir, 'pnpm-workspace.yaml'), '', 'utf8')
   if (wantedNodeVersion == null) {
@@ -132,24 +132,9 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
   const { filesIndex } = await fetch.tarball(cafs, resolution, {
     lockfileDir: process.cwd(),
   })
-  const filesIndexReady: Record<string, PackageFileInfo> = R.fromPairs(
-    await Promise.all(
-      Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
-        const { integrity, checkedAt } = await fileInfo.writeResult
-        return [
-          fileName,
-          {
-            ...R.omit(['writeResult'], fileInfo),
-            checkedAt,
-            integrity: integrity.toString(),
-          },
-        ]
-      })
-    )
-  )
   await cafs.importPackage(versionDir, {
     filesResponse: {
-      filesIndex: filesIndexReady,
+      filesIndex: await waitForFilesIndex(filesIndex),
       fromStore: false,
     },
     force: true,

@@ -17,11 +17,12 @@ import ssri from 'ssri'
 import createDownloader, {
   DownloadFunction,
   TarballIntegrityError,
+  waitForFilesIndex,
 } from './createDownloader'
 
 export { BadTarballError } from './errorTypes'
 
-export { TarballIntegrityError }
+export { TarballIntegrityError, waitForFilesIndex }
 
 export default function (
   fetchFromRegistry: FetchFromRegistry,

@@ -1930,7 +1930,6 @@ importers:
       '@pnpm/cli-utils': workspace:0.6.5
       '@pnpm/config': workspace:12.3.0
       '@pnpm/fetch': workspace:3.1.0
-      '@pnpm/fetcher-base': workspace:11.0.0
       '@pnpm/package-store': workspace:12.0.7
       '@pnpm/plugin-commands-nvm': 'link:'
       '@pnpm/prepare': workspace:0.0.23
@@ -1941,7 +1940,6 @@ importers:
       execa: ^5.0.0
       load-json-file: ^6.2.0
       path-name: ^1.0.0
-      ramda: ^0.27.1
       rename-overwrite: ^4.0.0
       render-help: ^1.0.1
       tempy: ^1.0.0
@@ -1950,7 +1948,6 @@ importers:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/config': link:../config
       '@pnpm/fetch': link:../fetch
-      '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/package-store': link:../package-store
       '@pnpm/store-path': 5.0.0
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
@@ -1958,7 +1955,6 @@ importers:
       execa: 5.0.0
       load-json-file: 6.2.0
       path-name: 1.0.0
-      ramda: 0.27.1
       rename-overwrite: 4.0.0
       render-help: 1.0.2
       tempy: 1.0.1
