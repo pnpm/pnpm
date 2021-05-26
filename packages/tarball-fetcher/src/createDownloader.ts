@@ -211,9 +211,8 @@ function isGitHostedPkgUrl (url: string) {
   ) && url.includes('tar.gz')
 }
 
-async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
-  const tempLocation = await cafs.tempDir()
-  const filesIndexReady: Record<string, PackageFileInfo> = R.fromPairs(
+export async function waitForFilesIndex (filesIndex: FilesIndex): Promise<Record<string, PackageFileInfo>> {
+  return R.fromPairs(
     await Promise.all(
       Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
         const { integrity, checkedAt } = await fileInfo.writeResult
@@ -228,9 +227,13 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
       })
     )
   )
+}
+
+async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
+  const tempLocation = await cafs.tempDir()
   await cafs.importPackage(tempLocation, {
     filesResponse: {
-      filesIndex: filesIndexReady,
+      filesIndex: await waitForFilesIndex(filesIndex),
       fromStore: false,
     },
     force: true,

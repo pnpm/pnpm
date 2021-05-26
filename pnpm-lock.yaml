@@ -1928,25 +1928,41 @@ importers:
   packages/plugin-commands-nvm:
     specifiers:
       '@pnpm/cli-utils': workspace:0.6.5
+      '@pnpm/config': workspace:12.3.0
       '@pnpm/fetch': workspace:3.1.0
+      '@pnpm/package-store': workspace:12.0.7
       '@pnpm/plugin-commands-nvm': 'link:'
       '@pnpm/prepare': workspace:0.0.23
+      '@pnpm/store-path': ^5.0.0
+      '@pnpm/tarball-fetcher': workspace:9.2.2
+      '@types/adm-zip': ^0.4.34
+      adm-zip: ^0.5.5
       execa: ^5.0.0
       load-json-file: ^6.2.0
       path-name: ^1.0.0
+      rename-overwrite: ^4.0.0
       render-help: ^1.0.1
+      tempy: ^1.0.0
       write-json-file: ^4.3.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
+      '@pnpm/config': link:../config
       '@pnpm/fetch': link:../fetch
+      '@pnpm/package-store': link:../package-store
+      '@pnpm/store-path': 5.0.0
+      '@pnpm/tarball-fetcher': link:../tarball-fetcher
+      adm-zip: 0.5.5
       execa: 5.0.0
       load-json-file: 6.2.0
       path-name: 1.0.0
+      rename-overwrite: 4.0.0
       render-help: 1.0.2
+      tempy: 1.0.1
       write-json-file: 4.3.0
     devDependencies:
       '@pnpm/plugin-commands-nvm': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
+      '@types/adm-zip': 0.4.34
 
   packages/plugin-commands-outdated:
     specifiers:
@@ -4573,6 +4589,12 @@ packages:
     resolution: {integrity: sha512-RbzJvlNzmRq5c3O09UipeuXno4tA1FE6ikOjxZK0tuxVv3412l64l5t1W5pj4+rJq9vpkm/kwiR07aZXnsKPxw==}
     engines: {node: '>= 6'}
 
+  /@types/adm-zip/0.4.34:
+    resolution: {integrity: sha512-8ToYLLAYhkRfcmmljrKi22gT2pqu7hGMDtORP1emwIEGmgUTZOsaDjzWFzW5N2frcFRz/50CWt4zA1CxJ73pmQ==}
+    dependencies:
+      '@types/node': 15.6.1
+    dev: true
+
   /@types/archy/0.0.31:
     resolution: {integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==}
     dev: true
@@ -4772,6 +4794,10 @@ packages:
 
   /@types/node/15.3.0:
     resolution: {integrity: sha512-8/bnjSZD86ZfpBsDlCIkNXIvm+h6wi9g7IqL+kmFkQ+Wvu3JrasgLElfiPgoo8V8vVfnEi0QVS12gbl94h9YsQ==}
+
+  /@types/node/15.6.1:
+    resolution: {integrity: sha512-7EIraBEyRHEe7CH+Fm1XvgqU6uwZN8Q7jppJGcqjROMT29qhAuuOxYB1uEY5UMYQKEmA5D+5tBnhdaPXSsLONA==}
+    dev: true
 
   /@types/nopt/3.0.29:
     resolution: {integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=}
@@ -5294,6 +5320,11 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
     dev: true
+
+  /adm-zip/0.5.5:
+    resolution: {integrity: sha512-IWwXKnCbirdbyXSfUDvCCrmYrOHANRZcc8NcRrvTlIApdl7PwE9oGcsYvNeJPAVY1M+70b4PxXGKIf8AEuiQ6w==}
+    engines: {node: '>=6.0'}
+    dev: false
 
   /agent-base/4.3.0:
     resolution: {integrity: sha512-salcGninV0nPrwpGNn4VTXBb1SOuXQBiqbrNXoeizJsHrsL6ERFM2Ne3JUSBWRE6aeNJI2ROP/WEEIDUiDe3cg==}
@@ -7062,7 +7093,6 @@ packages:
       p-map: 4.0.0
       rimraf: 3.0.2
       slash: 3.0.0
-    dev: true
 
   /delay/5.0.0:
     resolution: {integrity: sha512-ReEBKkIfe4ya47wlPYf/gu5ib6yUG0/Aez0JQZQz94kiWtRQvZIQbTiehsnwHvLSWJnQdhVeqYue7Id1dKr0qw==}
@@ -9093,12 +9123,10 @@ packages:
   /is-path-cwd/2.2.0:
     resolution: {integrity: sha512-w942bTcih8fdJPJmQHFzkS76NEP8Kzzvmw92cXsazb8intwLqPibPPdXf4ANdKV3rYMuuQYGIWtvz9JilB3NFQ==}
     engines: {node: '>=6'}
-    dev: true
 
   /is-path-inside/3.0.3:
     resolution: {integrity: sha512-Fd4gABb+ycGAmKou8eMftCupSir5lRxqf4aD/vd0cD2qc4HL07OjCeuHMr8Ro4CoMaeCKDB0/ECBOVWjTwUvPQ==}
     engines: {node: '>=8'}
-    dev: true
 
   /is-plain-obj/1.1.0:
     resolution: {integrity: sha1-caUMhCnfync8kqOQpKA7OfzVHT4=}
@@ -13215,7 +13243,6 @@ packages:
   /temp-dir/2.0.0:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}
     engines: {node: '>=8'}
-    dev: true
 
   /tempy/1.0.1:
     resolution: {integrity: sha512-biM9brNqxSc04Ee71hzFbryD11nX7VPhQQY32AdDmjFvodsRFz/3ufeoTZ6uYkRFfGo188tENcASNs3vTdsM0w==}
@@ -13226,7 +13253,6 @@ packages:
       temp-dir: 2.0.0
       type-fest: 0.16.0
       unique-string: 2.0.0
-    dev: true
 
   /term-size/1.2.0:
     resolution: {integrity: sha1-RYuDiH8oj8Vtb/+/rSYuJmOO+mk=}
@@ -13626,7 +13652,6 @@ packages:
   /type-fest/0.16.0:
     resolution: {integrity: sha512-eaBzG6MxNzEn9kiwvtre90cXaNLkmadMWa1zQMs3XORCXNbsH/OewwbxC5ia9dCxIxnTAsSxXJaa/p5y8DlvJg==}
     engines: {node: '>=10'}
-    dev: true
 
   /type-fest/0.18.1:
     resolution: {integrity: sha512-OIAYXk8+ISY+qTOwkHtKqzAuxchoMiD9Udx+FSGQDuiRR+PJKJHc2NJAXlbhkGwTt/4/nKZxELY1w3ReWOL8mw==}

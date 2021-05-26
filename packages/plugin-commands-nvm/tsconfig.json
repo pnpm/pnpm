@@ -16,7 +16,16 @@
       "path": "../cli-utils"
     },
     {
+      "path": "../config"
+    },
+    {
       "path": "../fetch"
+    },
+    {
+      "path": "../package-store"
+    },
+    {
+      "path": "../tarball-fetcher"
     }
   ]
 }
