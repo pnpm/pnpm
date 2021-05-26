@@ -18,6 +18,7 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import runRecursive, { RecursiveRunOpts } from './runRecursive'
 import existsInDir from './existsInDir'
+import { handler as exec } from './exec'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
@@ -118,6 +119,11 @@ export type RunOpts =
     | { recursive: true }
     & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
   )
+  & {
+    argv: {
+      original: string[]
+    }
+  }
 
 export async function handler (
   opts: RunOpts,
@@ -143,6 +149,10 @@ export async function handler (
   }
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
     if (opts.ifPresent) return
+    if (opts['unknownCommand']) {
+      await exec(opts as any, opts.argv.original.slice(1))
+      return
+    }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
       if (rootManifest?.scripts?.[scriptName]) {

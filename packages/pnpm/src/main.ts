@@ -54,6 +54,7 @@ export default async function run (inputArgv: string[]) {
     params: cliParams,
     options: cliOptions,
     cmd,
+    unknownCommand,
     unknownOptions,
     workspaceDir,
   } = parsedCliArgs
@@ -62,7 +63,7 @@ export default async function run (inputArgv: string[]) {
     process.exit(1)
   }
 
-  if (unknownOptions.size > 0) {
+  if (unknownOptions.size > 0 && !unknownCommand) {
     const unknownOptionsArray = Array.from(unknownOptions.keys())
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
@@ -96,6 +97,7 @@ export default async function run (inputArgv: string[]) {
     }) as typeof config
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
+    config['unknownCommand'] = unknownCommand
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
