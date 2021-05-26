@@ -29,18 +29,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-nvm#readme",
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.5",
     "@pnpm/config": "workspace:12.3.0",
     "@pnpm/fetch": "workspace:3.1.0",
     "@pnpm/package-store": "workspace:12.0.7",
     "@pnpm/store-path": "^5.0.0",
     "@pnpm/tarball-fetcher": "workspace:9.2.2",
     "adm-zip": "^0.5.5",
-    "execa": "^5.0.0",
     "load-json-file": "^6.2.0",
-    "path-name": "^1.0.0",
     "rename-overwrite": "^4.0.0",
-    "render-help": "^1.0.1",
     "tempy": "^1.0.0",
     "write-json-file": "^4.3.0"
   },

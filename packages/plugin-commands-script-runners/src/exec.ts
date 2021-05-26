@@ -1,11 +1,13 @@
+import path from 'path'
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
+import readProjectManifest from '@pnpm/read-project-manifest'
 import sortPackages from '@pnpm/sort-packages'
 import execa from 'execa'
 import pLimit from 'p-limit'
+import PATH from 'path-name'
 import * as R from 'ramda'
 import renderHelp from 'render-help'
 import existsInDir from './existsInDir'
@@ -57,12 +59,9 @@ export async function handler (
     rawConfig: object
     sort?: boolean
     workspaceConcurrency?: number
-  } & Pick<Config, 'recursive' | 'workspaceDir'>,
+  } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
-  if (!opts.recursive) {
-    throw new PnpmError('EXEC_NOT_RECURSIVE', 'The "pnpm exec" command currently only works with the "-r" option')
-  }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
   const result = {
@@ -70,9 +69,24 @@ export async function handler (
     passes: 0,
   } as RecursiveSummary
 
-  const chunks = opts.sort
-    ? sortPackages(opts.selectedProjectsGraph)
-    : [Object.keys(opts.selectedProjectsGraph).sort()]
+  const rootDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
+  let chunks!: string[][]
+  if (opts.recursive) {
+    chunks = opts.sort
+      ? sortPackages(opts.selectedProjectsGraph)
+      : [Object.keys(opts.selectedProjectsGraph).sort()]
+  } else {
+    chunks = [[rootDir]]
+    opts.selectedProjectsGraph = {
+      [rootDir]: {
+        dependencies: [],
+        package: {
+          ...await readProjectManifest(rootDir),
+          dir: rootDir,
+        },
+      },
+    }
+  }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
@@ -89,6 +103,11 @@ export async function handler (
             env: {
               ...process.env,
               ...extraEnv,
+              [PATH]: [
+                ...opts.extraBinPaths,
+                path.join(rootDir, 'node_modules/.bin'),
+                process.env[PATH],
+              ].join(path.delimiter),
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix].package.manifest.name,
             },
             stdio: 'inherit',

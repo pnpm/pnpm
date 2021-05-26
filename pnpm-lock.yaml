@@ -1927,7 +1927,6 @@ importers:
 
   packages/plugin-commands-nvm:
     specifiers:
-      '@pnpm/cli-utils': workspace:0.6.5
       '@pnpm/config': workspace:12.3.0
       '@pnpm/fetch': workspace:3.1.0
       '@pnpm/package-store': workspace:12.0.7
@@ -1937,26 +1936,19 @@ importers:
       '@pnpm/tarball-fetcher': workspace:9.2.2
       '@types/adm-zip': ^0.4.34
       adm-zip: ^0.5.5
-      execa: ^5.0.0
       load-json-file: ^6.2.0
-      path-name: ^1.0.0
       rename-overwrite: ^4.0.0
-      render-help: ^1.0.1
       tempy: ^1.0.0
       write-json-file: ^4.3.0
     dependencies:
-      '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/config': link:../config
       '@pnpm/fetch': link:../fetch
       '@pnpm/package-store': link:../package-store
       '@pnpm/store-path': 5.0.0
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
       adm-zip: 0.5.5
-      execa: 5.0.0
       load-json-file: 6.2.0
-      path-name: 1.0.0
       rename-overwrite: 4.0.0
-      render-help: 1.0.2
       tempy: 1.0.1
       write-json-file: 4.3.0
     devDependencies:
@@ -2207,6 +2199,7 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': workspace:0.0.23
+      '@pnpm/read-project-manifest': workspace:2.0.2
       '@pnpm/sort-packages': workspace:2.0.1
       '@pnpm/types': workspace:7.1.0
       '@types/ramda': 0.27.39
@@ -2215,6 +2208,7 @@ importers:
       is-windows: ^1.0.2
       p-limit: ^3.1.0
       path-exists: ^4.0.0
+      path-name: ^1.0.0
       ramda: ^0.27.1
       realpath-missing: ^1.1.0
       render-help: ^1.0.1
@@ -2226,10 +2220,12 @@ importers:
       '@pnpm/config': link:../config
       '@pnpm/error': link:../error
       '@pnpm/lifecycle': link:../lifecycle
+      '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/sort-packages': link:../sort-packages
       '@pnpm/types': link:../types
       p-limit: 3.1.0
       path-exists: 4.0.0
+      path-name: 1.0.0
       ramda: 0.27.1
       realpath-missing: 1.1.0
       render-help: 1.0.2
