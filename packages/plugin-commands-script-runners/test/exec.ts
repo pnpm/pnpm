@@ -3,7 +3,7 @@ import path from 'path'
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { exec } from '@pnpm/plugin-commands-script-runners'
-import { preparePackages } from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
@@ -62,6 +62,7 @@ test('pnpm recursive exec', async () => {
   ])
   await exec.handler({
     ...DEFAULT_OPTS,
+    dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
   }, ['npm', 'run', 'build'])
@@ -84,6 +85,7 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await exec.handler({
     ...DEFAULT_OPTS,
+    dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
   }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkgname\', process.env.PNPM_PACKAGE_NAME, \'utf8\')'])
@@ -145,6 +147,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
   try {
     await exec.handler({
       ...DEFAULT_OPTS,
+      dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
     }, ['npm', 'run', 'build', '--no-bail'])
@@ -165,6 +168,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
   try {
     await exec.handler({
       ...DEFAULT_OPTS,
+      dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
     }, ['npm', 'run', 'build'])
@@ -215,6 +219,7 @@ test('pnpm recursive exec --no-sort', async () => {
   ])
   await exec.handler({
     ...DEFAULT_OPTS,
+    dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     sort: false,
@@ -226,21 +231,18 @@ test('pnpm recursive exec --no-sort', async () => {
   expect(outputs).toStrictEqual(['a-dependent', 'b-dependency'])
 })
 
-test('pnpm exec fails without the recursive=true option', async () => {
-  preparePackages([])
+test('pnpm exec on single project', async () => {
+  prepare({})
 
-  let err!: PnpmError
-  try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      recursive: false,
-      selectedProjectsGraph: {},
-    }, ['npm', 'run', 'build'])
-  } catch (_err) {
-    err = _err
-  }
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: false,
+    selectedProjectsGraph: {},
+  }, ['node', '-e', 'require("fs").writeFileSync("output.json", "[]", "utf8")'])
 
-  expect(err.code).toBe('ERR_PNPM_EXEC_NOT_RECURSIVE')
+  const { default: outputs } = await import(path.resolve('output.json'))
+  expect(outputs).toStrictEqual([])
 })
 
 test('pnpm recursive exec works with PnP', async () => {
@@ -300,6 +302,7 @@ test('pnpm recursive exec works with PnP', async () => {
   })
   await exec.handler({
     ...DEFAULT_OPTS,
+    dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
   }, ['npm', 'run', 'build'])

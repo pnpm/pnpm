@@ -9,6 +9,7 @@ export const DEFAULT_OPTS = {
   ca: undefined,
   cert: undefined,
   cliOptions: {},
+  extraBinPaths: [],
   fetchRetries: 2,
   fetchRetryFactor: 90,
   fetchRetryMaxtimeout: 90,
