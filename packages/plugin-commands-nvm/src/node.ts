@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
-import fetch, { createFetchFromRegistry } from '@pnpm/fetch'
+import fetch, { createFetchFromRegistry, FetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/package-store'
 import storePath from '@pnpm/store-path'
 import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
@@ -59,9 +59,6 @@ export async function handler (
     argv: {
       original: string[]
     }
-    useNodeVersion?: string
-    pnpmHomeDir: string
-    storeDir?: string
   }
 ) {
   const nodeDir = await getNodeDir(opts)
@@ -100,8 +97,11 @@ export async function getNodeDir (opts: NvmNodeCommandOptions) {
 async function installNode (wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions) {
   await fs.promises.mkdir(versionDir, { recursive: true })
   const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion)
-  const resolution = { tarball }
   const fetchFromRegistry = createFetchFromRegistry(opts)
+  if (tarball.endsWith('.zip')) {
+    await downloadAndUnpackZip(fetchFromRegistry, tarball, versionDir, pkgName)
+    return
+  }
   const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
   const fetch = createFetcher(fetchFromRegistry, getCredentials, {
     retry: {
@@ -112,24 +112,10 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
     },
     timeout: opts.fetchTimeout,
   })
-  if (resolution.tarball.endsWith('.zip')) {
-    const response = await fetchFromRegistry(resolution.tarball)
-    const tmp = path.join(tempy.directory(), 'pnpm.zip')
-    const dest = fs.createWriteStream(tmp)
-    await new Promise((resolve, reject) => {
-      response.body.pipe(dest).on('error', reject).on('close', resolve)
-    })
-    const zip = new AdmZip(tmp)
-    const nodeDir = path.dirname(versionDir)
-    zip.extractAllTo(nodeDir, true)
-    await renameOverwrite(path.join(nodeDir, pkgName), versionDir)
-    await fs.promises.unlink(tmp)
-    return
-  }
   const storeDir = await storePath(process.cwd(), opts.storeDir)
   const cafsDir = path.join(storeDir, 'files')
   const cafs = createCafsStore(cafsDir)
-  const { filesIndex } = await fetch.tarball(cafs, resolution, {
+  const { filesIndex } = await fetch.tarball(cafs, { tarball }, {
     lockfileDir: process.cwd(),
   })
   await cafs.importPackage(versionDir, {
@@ -139,6 +125,25 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
     },
     force: true,
   })
+}
+
+async function downloadAndUnpackZip (
+  fetchFromRegistry: FetchFromRegistry,
+  zipUrl: string,
+  targetDir: string,
+  pkgName: string
+) {
+  const response = await fetchFromRegistry(zipUrl)
+  const tmp = path.join(tempy.directory(), 'pnpm.zip')
+  const dest = fs.createWriteStream(tmp)
+  await new Promise((resolve, reject) => {
+    response.body.pipe(dest).on('error', reject).on('close', resolve)
+  })
+  const zip = new AdmZip(tmp)
+  const nodeDir = path.dirname(targetDir)
+  zip.extractAllTo(nodeDir, true)
+  await renameOverwrite(path.join(nodeDir, pkgName), targetDir)
+  await fs.promises.unlink(tmp)
 }
 
 function getNodeJSTarball (nodeVersion: string) {
