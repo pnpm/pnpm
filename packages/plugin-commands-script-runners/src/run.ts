@@ -120,7 +120,7 @@ export type RunOpts =
     & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
   )
   & {
-    argv: {
+    argv?: {
       original: string[]
     }
     unknownCommand?: boolean
@@ -151,6 +151,7 @@ export async function handler (
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
     if (opts.ifPresent) return
     if (opts.unknownCommand) {
+      if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
       await exec({
         selectedProjectsGraph: {},
         ...opts,
