@@ -83,6 +83,7 @@ export default async function run (inputArgv: string[]) {
   let config: Config & {
     forceSharedLockfile: boolean
     argv: { remain: string[], cooked: string[], original: string[] }
+    unknownCommand: boolean
   }
   try {
     // When we just want to print the location of the global bin directory,
@@ -97,7 +98,7 @@ export default async function run (inputArgv: string[]) {
     }) as typeof config
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
-    config['unknownCommand'] = unknownCommand
+    config.unknownCommand = unknownCommand
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`

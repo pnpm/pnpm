@@ -112,7 +112,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'reporter' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -123,6 +123,7 @@ export type RunOpts =
     argv: {
       original: string[]
     }
+    unknownCommand?: boolean
   }
 
 export async function handler (
@@ -149,8 +150,11 @@ export async function handler (
   }
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
     if (opts.ifPresent) return
-    if (opts['unknownCommand']) {
-      await exec(opts as any, opts.argv.original.slice(1))
+    if (opts.unknownCommand) {
+      await exec({
+        selectedProjectsGraph: {},
+        ...opts,
+      }, opts.argv.original.slice(1))
       return
     }
     if (opts.workspaceDir) {
