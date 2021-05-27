@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.6.0
+
+### Minor Changes
+
+- When pnpm is executed with an unknown command, it is considered a shell command that needs to be executed in the context of the project. So you can do things like `pnpm eslint`, when eslint is in the dependencies. It is kind of similar to `pnpx eslint` but unlink `pnpx`, `pnpm eslint` will not install eslint, when not present [#3478](https://github.com/pnpm/pnpm/pull/3478).
+
 ## 6.5.0
 
 ### Minor Changes

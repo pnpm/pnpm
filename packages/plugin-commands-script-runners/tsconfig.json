@@ -34,6 +34,9 @@
       "path": "../lifecycle"
     },
     {
+      "path": "../read-project-manifest"
+    },
+    {
       "path": "../sort-packages"
     },
     {

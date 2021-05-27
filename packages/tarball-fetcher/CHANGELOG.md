@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 9.3.0
+
+### Minor Changes
+
+- 6d2ccc9a3: Export waitForFilesIndex().
+
 ## 9.2.2
 
 ### Patch Changes

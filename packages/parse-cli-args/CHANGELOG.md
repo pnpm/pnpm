@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 4.2.0
+
+### Minor Changes
+
+- 209c14235: A new property is returned in the result: fallbackCommandUsed. It is true when an unknown command was used, so the fallback command had to be used instead.
+
 ## 4.1.1
 
 ### Patch Changes

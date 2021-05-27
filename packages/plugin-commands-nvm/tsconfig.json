@@ -13,9 +13,6 @@
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
-    },
-    {
       "path": "../config"
     },
     {

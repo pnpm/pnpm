@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 3.2.0
+
+### Minor Changes
+
+- 209c14235: `pnpm run` is passed through to `pnpm exec` when it detects a command that is not in the scripts.
+
+### Patch Changes
+
+- c1f137412: `pnpm exec` should add `node_modules/.bin` to the PATH.
+- c1f137412: `pnpm exec` should add the Node.js location to the PATH.
+
 ## 3.1.6
 
 ### Patch Changes
