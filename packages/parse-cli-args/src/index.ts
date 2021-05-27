@@ -48,16 +48,6 @@ export default async function parseCliArgs (
     inputArgv,
     0
   )
-  if (noptExploratoryResults['help']) {
-    return {
-      argv: noptExploratoryResults.argv,
-      cmd: 'help',
-      options: {},
-      params: noptExploratoryResults.argv.remain,
-      unknownOptions: new Map(),
-      fallbackCommandUsed: false,
-    }
-  }
 
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
@@ -67,6 +57,15 @@ export default async function parseCliArgs (
     cmd = opts.fallbackCommand!
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
+  } else if (noptExploratoryResults['help']) {
+    return {
+      argv: noptExploratoryResults.argv,
+      cmd: 'help',
+      options: {},
+      params: noptExploratoryResults.argv.remain,
+      unknownOptions: new Map(),
+      fallbackCommandUsed: false,
+    }
   }
   const types = {
     ...opts.universalOptionsTypes,

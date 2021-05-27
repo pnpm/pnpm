@@ -158,6 +158,16 @@ test('if a help option is used, set cmd to "help"', async () => {
   expect(cmd).toBe('help')
 })
 
+test('if a help option is used with an unknown command, do not set cmd to "help"', async () => {
+  const { cmd, fallbackCommandUsed } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getCommandLongName: () => null,
+    fallbackCommand: 'run',
+  }, ['eslint', '--help'])
+  expect(cmd).toBe('run')
+  expect(fallbackCommandUsed).toBeTruthy()
+})
+
 test('no command', async () => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
