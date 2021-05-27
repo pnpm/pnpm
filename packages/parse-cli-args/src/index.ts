@@ -16,7 +16,7 @@ export interface ParsedCliArgs {
   options: Record<string, any>
   cmd: string | null
   unknownOptions: Map<string, string[]>
-  unknownCommand: boolean
+  fallbackCommandUsed: boolean
   workspaceDir?: string
 }
 
@@ -55,15 +55,15 @@ export default async function parseCliArgs (
       options: {},
       params: noptExploratoryResults.argv.remain,
       unknownOptions: new Map(),
-      unknownCommand: false,
+      fallbackCommandUsed: false,
     }
   }
 
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
-  const unknownCommand = Boolean(commandName && !cmd && opts.fallbackCommand)
-  if (unknownCommand) {
+  const fallbackCommandUsed = Boolean(commandName && !cmd && opts.fallbackCommand)
+  if (fallbackCommandUsed) {
     cmd = opts.fallbackCommand!
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
@@ -144,7 +144,7 @@ export default async function parseCliArgs (
     cmd,
     params,
     workspaceDir,
-    unknownCommand,
+    fallbackCommandUsed,
     ...normalizeOptions(options, knownOptions),
   }
 }

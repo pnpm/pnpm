@@ -123,7 +123,7 @@ export type RunOpts =
     argv?: {
       original: string[]
     }
-    unknownCommand?: boolean
+    fallbackCommandUsed?: boolean
   }
 
 export async function handler (
@@ -150,7 +150,7 @@ export async function handler (
   }
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
     if (opts.ifPresent) return
-    if (opts.unknownCommand) {
+    if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
       await exec({
         selectedProjectsGraph: {},

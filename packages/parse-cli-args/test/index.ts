@@ -131,7 +131,7 @@ test('allow any option that starts with "config."', async () => {
 })
 
 test('do not incorrectly change "install" command to "add"', async () => {
-  const { cmd } = await parseCliArgs({
+  const { cmd, fallbackCommandUsed } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
       switch (commandName) {
@@ -148,6 +148,7 @@ test('do not incorrectly change "install" command to "add"', async () => {
     },
   }, ['install', '-C', os.homedir(), '--network-concurrency', '1'])
   expect(cmd).toBe('install')
+  expect(fallbackCommandUsed).toBeFalsy()
 })
 
 test('if a help option is used, set cmd to "help"', async () => {
@@ -183,7 +184,7 @@ test('use command-specific shorthands', async () => {
 })
 
 test('any unknown command is treated as a script', async () => {
-  const { options, cmd, params } = await parseCliArgs({
+  const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs({
     ...DEFAULT_OPTS,
     fallbackCommand: 'run',
     getCommandLongName: () => null,
@@ -192,6 +193,7 @@ test('any unknown command is treated as a script', async () => {
   expect(cmd).toBe('run')
   expect(params).toStrictEqual(['foo'])
   expect(options).toHaveProperty(['recursive'])
+  expect(fallbackCommandUsed).toBeTruthy()
 })
 
 test("don't use the fallback command if no command is present", async () => {
