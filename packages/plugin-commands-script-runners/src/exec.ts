@@ -38,17 +38,24 @@ export const cliOptionsTypes = () => ({
 
 export function help () {
   return renderHelp({
-    description: 'Run a command in each package.',
+    description: 'Run a shell command in the context of a project.',
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           PARALLEL_OPTION_HELP,
+          {
+            description: 'Run the shell command in every package found in subdirectories \
+or every workspace package, when executed inside a workspace. \
+For options that may be used with `-r`, see "pnpm help recursive"',
+            name: '--recursive',
+            shortAlias: '-r',
+          },
         ],
       },
     ],
-    usages: ['-r exec -- <command> [args...]'],
+    usages: ['pnpm exec -- <command> [args...]'],
   })
 }
 
