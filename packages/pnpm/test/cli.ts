@@ -67,10 +67,9 @@ test('pass through to npm with all the args', async () => {
 test('pnpm fails when an unsupported command is used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['unsupported-command'])
+  const { status } = execPnpmSync(['unsupported-command'])
 
   expect(status).toBe(1)
-  expect(stdout.toString()).toMatch(/Missing script: unsupported-command/)
 })
 
 test('pnpm fails when no command is specified', async () => {
@@ -180,4 +179,10 @@ test('use the specified Node.js version for running scripts', async () => {
   await fs.writeFile('.npmrc', 'use-node-version=14.0.0', 'utf8')
   await execPnpm(['run', 'test'])
   expect(await fs.readFile('version', 'utf8')).toBe('v14.0.0')
+})
+
+test('if an unknown command is executed, run it', async () => {
+  prepare({})
+  await execPnpm(['node', '-e', "require('fs').writeFileSync('foo','','utf8')"])
+  expect(await fs.readFile('foo', 'utf8')).toBe('')
 })

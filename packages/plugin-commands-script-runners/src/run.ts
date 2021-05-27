@@ -18,6 +18,7 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import runRecursive, { RecursiveRunOpts } from './runRecursive'
 import existsInDir from './existsInDir'
+import { handler as exec } from './exec'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
@@ -111,13 +112,19 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'reporter' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
     | { recursive: true }
     & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
   )
+  & {
+    argv?: {
+      original: string[]
+    }
+    fallbackCommandUsed?: boolean
+  }
 
 export async function handler (
   opts: RunOpts,
@@ -143,6 +150,14 @@ export async function handler (
   }
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
     if (opts.ifPresent) return
+    if (opts.fallbackCommandUsed) {
+      if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
+      await exec({
+        selectedProjectsGraph: {},
+        ...opts,
+      }, opts.argv.original.slice(1))
+      return
+    }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
       if (rootManifest?.scripts?.[scriptName]) {
