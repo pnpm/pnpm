@@ -67,10 +67,9 @@ test('pass through to npm with all the args', async () => {
 test('pnpm fails when an unsupported command is used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['unsupported-command'])
+  const { status } = execPnpmSync(['unsupported-command'])
 
   expect(status).toBe(1)
-  expect(stdout.toString()).toMatch(/Missing script: unsupported-command/)
 })
 
 test('pnpm fails when no command is specified', async () => {
