@@ -118,9 +118,9 @@ importers:
   packages/beta:
     specifiers:
       '@pnpm/beta': 'link:'
-      '@pnpm/linux-x64': workspace:0.0.1-6.6.0
-      '@pnpm/macos-x64': workspace:0.0.1-6.6.0
-      '@pnpm/win-x64': workspace:0.0.1-6.6.0
+      '@pnpm/linux-x64': workspace:0.0.1-6.6.1
+      '@pnpm/macos-x64': workspace:0.0.1-6.6.1
+      '@pnpm/win-x64': workspace:0.0.1-6.6.1
     optionalDependencies:
       '@pnpm/linux-x64': link:../artifacts/linux-x64
       '@pnpm/macos-x64': link:../artifacts/macos-x64
