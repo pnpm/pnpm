@@ -1,12 +1,11 @@
 import { filterDependenciesByType, getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
-import * as R from 'ramda'
 import getVerSelType from 'version-selector-type'
 
 export default function updateToLatestSpecsFromManifest (manifest: ProjectManifest, include: IncludedDependencies) {
   const allDeps = filterDependenciesByType(manifest, include)
   const updateSpecs = []
-  for (const [depName, depVersion] of R.toPairs(allDeps)) {
+  for (const [depName, depVersion] of Object.entries(allDeps)) {
     if (depVersion.startsWith('npm:')) {
       updateSpecs.push(`${depName}@${removeVersionFromSpec(depVersion)}@latest`)
     } else {

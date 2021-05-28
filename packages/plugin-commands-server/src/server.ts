@@ -3,7 +3,7 @@ import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import start from './start'
 import status from './status'
@@ -13,7 +13,7 @@ export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
   return {
-    ...R.pick([
+    ...pick([
       'store',
       'store-dir',
     ], allTypes),

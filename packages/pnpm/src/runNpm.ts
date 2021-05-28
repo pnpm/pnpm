@@ -1,14 +1,14 @@
 import packageManager from '@pnpm/cli-meta'
 import getConfig, { types as allTypes } from '@pnpm/config'
 import runNpm from '@pnpm/run-npm'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 
 export default async function run (args: string[]) {
   const { config } = await getConfig({
     cliOptions: {},
     packageManager,
     rcOptionsTypes: {
-      ...R.pick([
+      ...pick([
         'npm-path',
       ], allTypes),
     },

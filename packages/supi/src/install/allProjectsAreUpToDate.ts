@@ -13,7 +13,7 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import pEvery from 'p-every'
-import * as R from 'ramda'
+import any from 'ramda/src/any'
 import semver from 'semver'
 
 export default async function allProjectsAreUpToDate (
@@ -121,9 +121,9 @@ function getVersionRange (spec: string) {
 }
 
 function hasLocalTarballDepsInRoot (importer: ProjectSnapshot) {
-  return R.any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
-    R.any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
-    R.any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
+  return any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
+    any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
+    any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
 }
 
 function refIsLocalTarball (ref: string) {

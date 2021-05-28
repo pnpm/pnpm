@@ -18,7 +18,7 @@ import logger, {
 import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
-import * as R from 'ramda'
+import repeat from 'ramda/src/repeat'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
@@ -572,7 +572,7 @@ test('prints only the added stats if nothing was removed and a lot added', (done
     error: done,
     next: output => {
       expect(output).toBe(`Packages: ${chalk.green('+100')}
-${R.repeat(ADD, 20).join('')}`)
+${repeat(ADD, 20).join('')}`)
     },
   })
 })
@@ -595,7 +595,7 @@ test('prints only the removed stats if nothing was added and a lot removed', (do
     error: done,
     next: output => {
       expect(output).toBe(`Packages: ${chalk.red('-100')}
-${R.repeat(SUB, 20).join('')}`)
+${repeat(SUB, 20).join('')}`)
     },
   })
 })
@@ -618,7 +618,7 @@ test('prints at least one remove sign when removed !== 0', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(`Packages: ${chalk.green('+100')} ${chalk.red('-1')}
-${R.repeat(ADD, 19).join('') + SUB}`
+${repeat(ADD, 19).join('') + SUB}`
       )
     },
   })
@@ -642,7 +642,7 @@ test('prints at least one add sign when added !== 0', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(`Packages: ${chalk.green('+1')} ${chalk.red('-100')}
-${ADD + R.repeat(SUB, 19).join('')}`)
+${ADD + repeat(SUB, 19).join('')}`)
     },
   })
 })
@@ -748,7 +748,7 @@ test('recursive installation: prints only the added stats if nothing was removed
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.green('+190')} ${R.repeat(ADD, 12).join('')}`)
+      expect(output).toBe(`pkg-1                                    | ${chalk.green('+190')} ${repeat(ADD, 12).join('')}`)
     },
   })
 })
@@ -772,7 +772,7 @@ test('recursive installation: prints only the removed stats if nothing was added
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.red('-190')} ${R.repeat(SUB, 12).join('')}`)
+      expect(output).toBe(`pkg-1                                    | ${chalk.red('-190')} ${repeat(SUB, 12).join('')}`)
     },
   })
 })
@@ -796,7 +796,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${R.repeat(ADD, 8).join('') + SUB}`)
+      expect(output).toBe(`pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${repeat(ADD, 8).join('') + SUB}`)
     },
   })
 })
@@ -820,7 +820,7 @@ test('recursive installation: prints at least one add sign when added !== 0', (d
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + R.repeat(SUB, 8).join('')}`)
+      expect(output).toBe(`pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + repeat(SUB, 8).join('')}`)
     },
   })
 })

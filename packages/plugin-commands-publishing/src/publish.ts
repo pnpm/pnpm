@@ -11,7 +11,8 @@ import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import cpFile from 'cp-file'
 import fg from 'fast-glob'
-import * as R from 'ramda'
+import equals from 'ramda/src/equals'
+import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import writeJsonFile from 'write-json-file'
@@ -19,7 +20,7 @@ import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 
 export function rcOptionsTypes () {
-  return R.pick([
+  return pick([
     'access',
     'git-checks',
     'ignore-scripts',
@@ -233,7 +234,7 @@ export async function fakeRegularManifest (
 
   const { fileName, manifest, writeProjectManifest } = await readProjectManifest(opts.dir, opts)
   const publishManifest = await exportableManifest(opts.dir, manifest)
-  const replaceManifest = fileName !== 'package.json' || !R.equals(manifest, publishManifest)
+  const replaceManifest = fileName !== 'package.json' || !equals(manifest, publishManifest)
   if (replaceManifest) {
     await rimraf(path.join(opts.dir, fileName))
     await writeJsonFile(path.join(opts.dir, 'package.json'), publishManifest)

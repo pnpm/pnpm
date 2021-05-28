@@ -6,7 +6,7 @@ import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import {
   rebuild,
@@ -16,7 +16,7 @@ import recursive from './recursive'
 
 export function rcOptionsTypes () {
   return {
-    ...R.pick([
+    ...pick([
       'npm-path',
       'reporter',
       'unsafe-perm',

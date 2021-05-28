@@ -1,5 +1,6 @@
 import nopt from 'nopt'
-import * as R from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
+import omit from 'ramda/src/omit'
 
 export interface CompletionCtx {
   last: string
@@ -41,8 +42,8 @@ function getOptionType (
   shorthands: Record<string, string | string[]>,
   option: string
 ) {
-  const allBools = R.fromPairs(Object.keys(optionTypes).map((optionName) => [optionName, Boolean]))
-  const result = R.omit(['argv'], nopt(allBools, shorthands, [option], 0))
+  const allBools = fromPairs(Object.keys(optionTypes).map((optionName) => [optionName, Boolean]))
+  const result = omit(['argv'], nopt(allBools, shorthands, [option], 0))
   return optionTypes[Object.entries(result)[0]?.[0]]
 }
 

@@ -2,7 +2,8 @@ import * as logs from '@pnpm/core-loggers'
 import { PackageManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
-import * as R from 'ramda'
+import merge from 'ramda/src/merge'
+import difference from 'ramda/src/difference'
 
 export interface PackageDiff {
   added: boolean
@@ -103,7 +104,7 @@ export default function (
   )
     .pipe(
       take(2),
-      reduce(R.merge, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      reduce(merge, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     )
 
   return Rx.combineLatest(
@@ -122,7 +123,7 @@ export default function (
             const prop = propertyByDependencyType[depType]
             const initialDeps = Object.keys(initialPackageManifest[prop] || {})
             const updatedDeps = Object.keys(updatedPackageManifest[prop] || {})
-            const removedDeps = R.difference(initialDeps, updatedDeps)
+            const removedDeps = difference(initialDeps, updatedDeps)
 
             for (const removedDep of removedDeps) {
               if (!pkgsDiff[depType][`-${removedDep}`]) {
@@ -134,7 +135,7 @@ export default function (
               }
             }
 
-            const addedDeps = R.difference(updatedDeps, initialDeps)
+            const addedDeps = difference(updatedDeps, initialDeps)
 
             for (const addedDep of addedDeps) {
               if (!pkgsDiff[depType][`+${addedDep}`]) {

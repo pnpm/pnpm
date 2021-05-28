@@ -2,13 +2,13 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { InstallCommandOptions } from './install'
 import installDeps from './installDeps'
 
 export function rcOptionsTypes () {
-  return R.pick([
+  return pick([
     'child-concurrency',
     'engine-strict',
     'fetch-retries',

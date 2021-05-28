@@ -22,7 +22,11 @@ import {
 } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import rimraf from '@zkochan/rimraf'
-import * as R from 'ramda'
+import difference from 'ramda/src/difference'
+import equals from 'ramda/src/equals'
+import mergeAll from 'ramda/src/mergeAll'
+import pickAll from 'ramda/src/pickAll'
+import props from 'ramda/src/props'
 import removeDirectDependency from './removeDirectDependency'
 
 export default async function prune (
@@ -57,8 +61,8 @@ export default async function prune (
   })
   await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
     const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
-    const currentPkgs = R.toPairs(mergeDependencies(currentImporter))
-    const wantedPkgs = R.toPairs(mergeDependencies(wantedLockfile.importers[id]))
+    const currentPkgs = Object.entries(mergeDependencies(currentImporter))
+    const wantedPkgs = Object.entries(mergeDependencies(wantedLockfile.importers[id]))
 
     const allCurrentPackages = new Set(
       (pruneDirectDependencies === true || removePackages?.length)
@@ -67,7 +71,7 @@ export default async function prune (
     )
     const depsToRemove = new Set([
       ...(removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage)),
-      ...R.difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
+      ...difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
     ])
     if (pruneDirectDependencies) {
       if (allCurrentPackages.size > 0) {
@@ -100,7 +104,7 @@ export default async function prune (
   // In case installation is done on a subset of importers,
   // we may only prune dependencies that are used only by that subset of importers.
   // Otherwise, we would break the node_modules.
-  const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
+  const currentPkgIdsByDepPaths = equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
     ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages ?? {}, opts.skipped)
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
   const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages ?? {}, opts.skipped)
@@ -108,8 +112,8 @@ export default async function prune (
   const oldDepPaths = Object.keys(currentPkgIdsByDepPaths)
   const newDepPaths = Object.keys(wantedPkgIdsByDepPaths)
 
-  const orphanDepPaths = R.difference(oldDepPaths, newDepPaths)
-  const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, currentPkgIdsByDepPaths))
+  const orphanDepPaths = difference(oldDepPaths, newDepPaths)
+  const orphanPkgIds = new Set(props<string, string>(orphanDepPaths, currentPkgIdsByDepPaths))
 
   statsLogger.debug({
     prefix: opts.lockfileDir,
@@ -198,7 +202,7 @@ async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDi
 }
 
 function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: string]: string } {
-  return R.mergeAll(
+  return mergeAll(
     DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] ?? {})
   )
 }
@@ -231,13 +235,13 @@ function getPkgsDepPathsOwnedOnlyByImporters (
       skipped,
     })
   const other = filterLockfileByImporters(lockfile,
-    R.difference(Object.keys(lockfile.importers), importerIds),
+    difference(Object.keys(lockfile.importers), importerIds),
     {
       failOnMissingDependencies: false,
       include,
       skipped,
     })
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-  const packagesOfSelectedOnly = R.pickAll(R.difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
+  const packagesOfSelectedOnly = pickAll(difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
   return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
 }

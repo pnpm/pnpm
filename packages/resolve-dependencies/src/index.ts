@@ -19,7 +19,7 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import * as R from 'ramda'
+import difference from 'ramda/src/difference'
 import depPathToRef from './depPathToRef'
 import resolveDependencyTree, {
   Importer,
@@ -118,7 +118,7 @@ export default async function (
 
     const topParents = project.manifest
       ? await getTopParents(
-        R.difference(
+        difference(
           Object.keys(getAllDependenciesFromManifest(project.manifest)),
           resolvedImporter.directDependencies
             .filter((dep, index) => project.wantedDependencies[index].isNew === true)
@@ -153,7 +153,7 @@ export default async function (
   })
 
   for (const { id } of projectsToLink) {
-    for (const [alias, depPath] of R.toPairs(dependenciesByProjectId[id])) {
+    for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
       const depNode = dependenciesGraph[depPath]
       if (depNode.isPure) continue
 
@@ -176,7 +176,7 @@ export default async function (
   const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
 
   // waiting till package requests are finished
-  const waitTillAllFetchingsFinish = async () => Promise.all(R.values(resolvedPackagesByDepPath).map(async ({ finishing }) => finishing()))
+  const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ finishing }) => finishing()))
 
   return {
     dependenciesByProjectId,

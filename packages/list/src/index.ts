@@ -1,7 +1,6 @@
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
 import dh from 'dependencies-hierarchy'
-import * as R from 'ramda'
 import createPackagesSearcher from './createPackagesSearcher'
 import renderJson from './renderJson'
 import renderParseable from './renderParseable'
@@ -35,7 +34,7 @@ export async function forPackages (
   const search = createPackagesSearcher(packages)
 
   const pkgs = await Promise.all(
-    R.toPairs(await dh(projectPaths, {
+    Object.entries(await dh(projectPaths, {
       depth: opts.depth,
       include: maybeOpts?.include,
       lockfileDir: maybeOpts?.lockfileDir,
@@ -80,7 +79,7 @@ export default async function (
   const opts = { ...DEFAULTS, ...maybeOpts }
 
   const pkgs = await Promise.all(
-    R.toPairs(
+    Object.entries(
       opts.depth === -1
         ? projectPaths.reduce((acc, projectPath) => {
           acc[projectPath] = {}

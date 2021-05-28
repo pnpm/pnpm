@@ -9,7 +9,7 @@ import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest, PackageManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
 import graphSequencer from 'graph-sequencer'
-import * as R from 'ramda'
+import filter from 'ramda/src/filter'
 
 export default async (
   depGraph: DependenciesGraph,
@@ -35,12 +35,12 @@ export default async (
   // postinstall hooks
   const nodesToBuild = new Set<string>()
   getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
-  const onlyFromBuildGraph = R.filter((depPath: string) => nodesToBuild.has(depPath))
+  const onlyFromBuildGraph = filter((depPath: string) => nodesToBuild.has(depPath))
 
   const nodesToBuildArray = Array.from(nodesToBuild)
   const graph = new Map(
     nodesToBuildArray
-      .map((depPath) => [depPath, onlyFromBuildGraph(R.values(depGraph[depPath].children))])
+      .map((depPath) => [depPath, onlyFromBuildGraph(Object.values(depGraph[depPath].children))])
   )
   const graphSequencerResult = graphSequencer({
     graph,
@@ -150,7 +150,7 @@ function getSubgraphToBuild (
     }
     if (walked.has(depPath)) continue
     walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked) ||
+    const childShouldBeBuilt = getSubgraphToBuild(graph, Object.values(graph[depPath].children), nodesToBuild, walked) ||
       graph[depPath].requiresBuild
     if (childShouldBeBuilt) {
       nodesToBuild.add(depPath)

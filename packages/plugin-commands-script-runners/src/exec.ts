@@ -8,7 +8,7 @@ import sortPackages from '@pnpm/sort-packages'
 import execa from 'execa'
 import pLimit from 'p-limit'
 import PATH from 'path-name'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import existsInDir from './existsInDir'
 import {
@@ -23,7 +23,7 @@ export const shorthands = {
 export const commandNames = ['exec']
 
 export function rcOptionsTypes () {
-  return R.pick([
+  return pick([
     'bail',
     'sort',
     'unsafe-perm',

@@ -1,4 +1,4 @@
-import * as R from 'ramda'
+import omit from 'ramda/src/omit'
 import * as list from './list'
 
 export const commandNames = ['ll', 'la']
@@ -6,7 +6,7 @@ export const commandNames = ['ll', 'la']
 export const rcOptionsTypes = list.rcOptionsTypes
 
 export function cliOptionsTypes () {
-  return R.omit(['long'], list.cliOptionsTypes())
+  return omit(['long'], list.cliOptionsTypes())
 }
 
 export const help = list.help

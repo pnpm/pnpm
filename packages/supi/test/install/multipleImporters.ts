@@ -10,7 +10,7 @@ import {
 } from 'supi'
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
 import { addDistTag, testDefaults } from '../utils'
@@ -198,7 +198,7 @@ test('some projects were removed from the workspace and the ones that are left d
   await expect(
     mutateModules([importers[0]], await testDefaults({
       pruneLockfileImporters: true,
-      workspacePackages: R.pick(['project-1'], workspacePackages),
+      workspacePackages: pick(['project-1'], workspacePackages),
     } as any)) // eslint-disable-line
   ).rejects.toThrow(/No matching version found for/)
 })

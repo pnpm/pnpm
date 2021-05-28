@@ -8,7 +8,7 @@ import sortPackages from '@pnpm/sort-packages'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import pFilter from 'p-filter'
-import R from 'ramda'
+import pick from 'ramda/src/pick'
 import writeJsonFile from 'write-json-file'
 import { handler as publish } from './publish'
 
@@ -117,7 +117,7 @@ export default async function (
           recursive: false,
         }, [pkg.dir])
         if (publishResult?.manifest != null) {
-          publishedPackages.push(R.pick(['name', 'version'], publishResult.manifest))
+          publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
         }
       }
     }

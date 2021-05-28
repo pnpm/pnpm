@@ -15,7 +15,8 @@ import {
 import semverDiff from '@pnpm/semver-diff'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
+import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
 import stripAnsi from 'strip-ansi'
 import wrapAnsi from 'wrap-ansi'
@@ -27,7 +28,7 @@ import outdatedRecursive from './recursive'
 
 export function rcOptionsTypes () {
   return {
-    ...R.pick([
+    ...pick([
       'depth',
       'dev',
       'global-dir',
@@ -243,7 +244,7 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 }
 
 function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[]) {
-  return R.sortWith(
+  return sortWith(
     DEFAULT_COMPARATORS,
     outdatedPackages.map(toOutdatedWithVersionDiff)
   )

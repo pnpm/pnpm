@@ -10,7 +10,6 @@ import { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from 'dependency-path'
 import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
-import * as R from 'ramda'
 
 export async function lockfileToPnp (lockfileDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
@@ -103,7 +102,7 @@ export function lockfileToPackageRegistry (
       packageRegistry.set(name, packageStore)
     }
   }
-  for (const [relDepPath, pkgSnapshot] of R.toPairs(lockfile.packages ?? {})) {
+  for (const [relDepPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
     const pnpVersion = toPnPVersion(version, peersSuffix)
     let packageStore = packageRegistry.get(name)
@@ -142,7 +141,7 @@ function toPackageDependenciesMap (
   },
   importerId?: string
 ): Array<[string, string | [string, string]]> {
-  return R.toPairs(deps).map(([depAlias, ref]) => {
+  return Object.entries(deps).map(([depAlias, ref]) => {
     if (importerId && ref.startsWith('link:')) {
       return [depAlias, path.join(importerId, ref.substr(5))]
     }

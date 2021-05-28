@@ -16,7 +16,7 @@ import {
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import { PnpmOptions } from '../types'
 import * as bin from './bin'
 import createCompletion from './completion'
@@ -25,7 +25,7 @@ import * as installTest from './installTest'
 import * as recursive from './recursive'
 import * as root from './root'
 
-export const GLOBAL_OPTIONS = R.pick([
+export const GLOBAL_OPTIONS = pick([
   'color',
   'dir',
   'filter',

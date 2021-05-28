@@ -1,13 +1,13 @@
 import { types as allTypes, UniversalOptions } from '@pnpm/config'
 import runNpm from '@pnpm/run-npm'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { fakeRegularManifest } from './publish'
 
 export function rcOptionsTypes () {
   return {
     ...cliOptionsTypes(),
-    ...R.pick([
+    ...pick([
       'npm-path',
     ], allTypes),
   }

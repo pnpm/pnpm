@@ -15,7 +15,8 @@ import { DependenciesField } from '@pnpm/types'
 import {
   mutateModules,
 } from 'supi'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
+import without from 'ramda/src/without'
 import renderHelp from 'render-help'
 import getSaveType from './getSaveType'
 import recursive from './recursive'
@@ -45,7 +46,7 @@ class RemoveMissingDepsError extends PnpmError {
 }
 
 export function rcOptionsTypes () {
-  return R.pick([
+  return pick([
     'global-dir',
     'global-pnpmfile',
     'global',
@@ -68,7 +69,7 @@ export function rcOptionsTypes () {
 
 export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
-  ...R.pick(['force'], allTypes),
+  ...pick(['force'], allTypes),
   recursive: Boolean,
 })
 
@@ -171,7 +172,7 @@ export async function handler (
       ? getAllDependenciesFromManifest(currentManifest)
       : currentManifest[targetDependenciesField] ?? {}
   )
-  const nonMatchedDependencies = R.without(availableDependencies, params)
+  const nonMatchedDependencies = without(availableDependencies, params)
   if (nonMatchedDependencies.length !== 0) {
     throw new RemoveMissingDepsError({
       availableDependencies,

@@ -4,7 +4,7 @@ import PnpmError from '@pnpm/error'
 import logger, { LogBase } from '@pnpm/logger'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import storeAdd from './storeAdd'
 import storePrune from './storePrune'
@@ -13,7 +13,7 @@ import storeStatus from './storeStatus'
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return R.pick([
+  return pick([
     'registry',
     'store',
     'store-dir',

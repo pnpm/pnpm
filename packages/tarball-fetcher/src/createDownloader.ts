@@ -12,7 +12,8 @@ import {
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import preparePackage from '@pnpm/prepare-package'
 import * as retry from '@zkochan/retry'
-import R from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
+import omit from 'ramda/src/omit'
 import ssri from 'ssri'
 import { BadTarballError } from './errorTypes'
 
@@ -212,14 +213,14 @@ function isGitHostedPkgUrl (url: string) {
 }
 
 export async function waitForFilesIndex (filesIndex: FilesIndex): Promise<Record<string, PackageFileInfo>> {
-  return R.fromPairs(
+  return fromPairs(
     await Promise.all(
       Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
         const { integrity, checkedAt } = await fileInfo.writeResult
         return [
           fileName,
           {
-            ...R.omit(['writeResult'], fileInfo),
+            ...omit(['writeResult'], fileInfo),
             checkedAt,
             integrity: integrity.toString(),
           },

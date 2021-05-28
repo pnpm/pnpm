@@ -11,7 +11,6 @@ import matcher from '@pnpm/matcher'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import * as R from 'ramda'
 
 const hoistLogger = logger('hoist')
 
@@ -151,7 +150,7 @@ async function hoistGraph (
     getAliasHoistType: GetAliasHoistType
   }
 ): Promise<HoistedDependencies> {
-  const hoistedAliases = new Set(R.keys(currentSpecifiers))
+  const hoistedAliases = new Set(Object.keys(currentSpecifiers))
   const hoistedDependencies: HoistedDependencies = {}
 
   depNodes

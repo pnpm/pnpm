@@ -10,7 +10,8 @@ import {
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import * as R from 'ramda'
+import isEmpty from 'ramda/src/isEmpty'
+import sortWith from 'ramda/src/sortWith'
 import {
   getCellWidth,
   OutdatedCommandOptions,
@@ -71,7 +72,7 @@ export default async (
     })
   }
 
-  if (R.isEmpty(outdatedMap)) return { output: '', exitCode: 0 }
+  if (isEmpty(outdatedMap)) return { output: '', exitCode: 0 }
 
   if (opts.table !== false) {
     return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
@@ -158,7 +159,7 @@ function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
 }
 
 function sortOutdatedPackages (outdatedPackages: readonly OutdatedInWorkspace[]) {
-  return R.sortWith(
+  return sortWith(
     COMPARATORS,
     outdatedPackages.map(toOutdatedWithVersionDiff)
   )

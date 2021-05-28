@@ -1,7 +1,6 @@
 import { Lockfile, PackageSnapshot } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import * as R from 'ramda'
 
 export interface LockedDependency {
   depPath: string
@@ -27,7 +26,7 @@ export function lockfileWalkerGroupImporterSteps (
 
   return importerIds.map((importerId) => {
     const projectSnapshot = lockfile.importers[importerId]
-    const entryNodes = R.toPairs({
+    const entryNodes = Object.entries({
       ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
       ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
@@ -59,7 +58,7 @@ export default function lockfileWalker (
 
   importerIds.forEach((importerId) => {
     const projectSnapshot = lockfile.importers[importerId]
-    R.toPairs({
+    Object.entries({
       ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
       ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
@@ -116,7 +115,7 @@ function step (
 }
 
 function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageSnapshot) {
-  return R.toPairs({
+  return Object.entries({
     ...nextPkg.dependencies,
     ...(opts.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),
   })
