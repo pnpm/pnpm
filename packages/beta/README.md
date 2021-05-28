@@ -1,6 +1,6 @@
 # @pnpm/beta
 
-> The is an experimental pnpm CLI
+> This is an experimental pnpm CLI
 
 ## Installation
 
