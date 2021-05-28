@@ -2396,7 +2396,7 @@ importers:
       '@pnpm/lockfile-types': workspace:3.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/modules-yaml': workspace:9.0.1
-      '@pnpm/parse-cli-args': workspace:4.2.0
+      '@pnpm/parse-cli-args': workspace:4.2.1
       '@pnpm/pick-registry-for-package': workspace:2.0.1
       '@pnpm/plugin-commands-audit': workspace:4.1.4
       '@pnpm/plugin-commands-import': workspace:2.0.13
@@ -2406,7 +2406,7 @@ importers:
       '@pnpm/plugin-commands-outdated': workspace:4.1.6
       '@pnpm/plugin-commands-publishing': workspace:3.2.1
       '@pnpm/plugin-commands-rebuild': workspace:4.0.5
-      '@pnpm/plugin-commands-script-runners': workspace:3.2.0
+      '@pnpm/plugin-commands-script-runners': workspace:3.2.1
       '@pnpm/plugin-commands-server': workspace:3.0.10
       '@pnpm/plugin-commands-setup': workspace:^0.1.0
       '@pnpm/plugin-commands-store': workspace:3.0.10

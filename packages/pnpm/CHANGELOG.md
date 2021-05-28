@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.6.0
+## 6.6.1
 
 ### Minor Changes
 

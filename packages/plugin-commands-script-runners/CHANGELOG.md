@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 3.2.1
+
+### Patch Changes
+
+- a77a2005e: `pnpm exec` should exit with the exit code of the child process and should not print an error.
+
 ## 3.2.0
 
 ### Minor Changes
