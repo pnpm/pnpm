@@ -121,6 +121,9 @@ export async function handler (
           })
           result.passes++
         } catch (err) {
+          if (!opts.recursive && typeof err.exitCode === 'number') {
+            process.exit(err.exitCode)
+          }
           logger.info(err)
 
           if (!opts.bail) {
