@@ -202,15 +202,11 @@ export default async function run (inputArgv: string[]) {
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
   const [output, exitCode] = await new Promise((resolve, reject) => {
     setTimeout(async () => {
-      // Don't check for updates
-      //   1. on CI environments
-      //   2. when in the middle of an actual update
-      //   3. when the CLI is running in offline mode
-      if (!isCI && !selfUpdate && !config.offline && !config.preferOffline) {
+      if (!isCI && !selfUpdate && !config.offline && !config.preferOffline && !config.fallbackCommandUsed) {
         checkForUpdates(config).catch(() => { /* Ignore */ })
       }
 
-      if (config.force === true) {
+      if (config.force === true && !config.fallbackCommandUsed) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',
           prefix: config.dir,
