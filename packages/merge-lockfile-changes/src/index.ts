@@ -1,6 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import comverToSemver from 'comver-to-semver'
-import * as R from 'ramda'
 import semver from 'semver'
 
 export default function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
@@ -65,7 +64,7 @@ function mergeDict<T> (
   valueMerger: ValueMerger<T>
 ) {
   const newDict = {}
-  for (const key of R.keys(ourDict).concat(R.keys(theirDict))) {
+  for (const key of Object.keys(ourDict).concat(Object.keys(theirDict))) {
     const changedValue = valueMerger(
       ourDict[key],
       theirDict[key]

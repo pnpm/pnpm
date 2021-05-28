@@ -10,7 +10,11 @@ import { Resolution } from '@pnpm/resolver-base'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import * as R from 'ramda'
+import { KeyValuePair } from 'ramda'
+import isEmpty from 'ramda/src/isEmpty'
+import fromPairs from 'ramda/src/fromPairs'
+import merge from 'ramda/src/merge'
+import partition from 'ramda/src/partition'
 import depPathToRef from './depPathToRef'
 import { ResolvedPackage } from './resolveDependencies'
 import { DependenciesGraph } from '.'
@@ -28,7 +32,7 @@ export default function (
   const pendingRequiresBuilds = [] as string[]
   for (const depPath of Object.keys(depGraph)) {
     const depNode = depGraph[depPath]
-    const [updatedOptionalDeps, updatedDeps] = R.partition(
+    const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias),
       Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] }))
     )
@@ -93,10 +97,10 @@ function toLockfileDependency (
       result['version'] = pkg.version
     }
   }
-  if (!R.isEmpty(newResolvedDeps)) {
+  if (!isEmpty(newResolvedDeps)) {
     result['dependencies'] = newResolvedDeps
   }
-  if (!R.isEmpty(newResolvedOptionalDeps)) {
+  if (!isEmpty(newResolvedOptionalDeps)) {
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
   if (pkg.dev && !pkg.prod) {
@@ -110,7 +114,7 @@ function toLockfileDependency (
   if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
     result['id'] = pkg.id
   }
-  if (!R.isEmpty(pkg.peerDependencies ?? {})) {
+  if (!isEmpty(pkg.peerDependencies ?? {})) {
     result['peerDependencies'] = pkg.peerDependencies
   }
   if (pkg.transitivePeerDependencies.size) {
@@ -128,7 +132,7 @@ function toLockfileDependency (
     }
   }
   if (pkg.additionalInfo.engines != null) {
-    for (const engine of R.keys(pkg.additionalInfo.engines)) {
+    for (const engine of Object.keys(pkg.additionalInfo.engines)) {
       if (pkg.additionalInfo.engines[engine] === '*') continue
       result['engines'] = result['engines'] || {}
       result['engines'][engine] = pkg.additionalInfo.engines[engine]
@@ -180,9 +184,9 @@ function updateResolvedDeps (
   registries: Registries,
   depGraph: DependenciesGraph
 ) {
-  const newResolvedDeps = R.fromPairs<string>(
+  const newResolvedDeps = fromPairs<string>(
     updatedDeps
-      .map(({ alias, depPath }): R.KeyValuePair<string, string> => {
+      .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
           return [alias, depPath]
         }
@@ -198,7 +202,7 @@ function updateResolvedDeps (
         ]
       })
   )
-  return R.merge(
+  return merge(
     prevResolvedDeps,
     newResolvedDeps
   )

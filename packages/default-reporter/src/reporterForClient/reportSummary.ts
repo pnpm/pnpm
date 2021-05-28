@@ -9,7 +9,6 @@ import { Config } from '@pnpm/config'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
-import * as R from 'ramda'
 import semver from 'semver'
 import { EOL } from '../constants'
 import getPkgsDiff, {
@@ -46,7 +45,7 @@ export default (
       map(([pkgsDiff]) => {
         let msg = ''
         for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly']) {
-          const diffs = R.values(pkgsDiff[depType])
+          const diffs: PackageDiff[] = Object.values(pkgsDiff[depType])
           if (diffs.length > 0) {
             msg += EOL
             if (opts.pnpmConfig?.global) {

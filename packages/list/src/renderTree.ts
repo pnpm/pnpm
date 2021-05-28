@@ -4,11 +4,13 @@ import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
-import * as R from 'ramda'
+import sortBy from 'ramda/src/sortBy'
+import rpath from 'ramda/src/path'
+import { Ord } from 'ramda'
 import getPkgInfo from './getPkgInfo'
 import { PackageDependencyHierarchy } from './types'
 
-const sortPackages = R.sortBy(R.path(['name']) as (pkg: object) => R.Ord)
+const sortPackages = sortBy(rpath(['name']) as (pkg: object) => Ord)
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

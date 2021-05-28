@@ -1,6 +1,6 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
-import * as R from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
 import filterImporter from './filterImporter'
 
 export default function filterLockfile (
@@ -27,6 +27,6 @@ export default function filterLockfile (
       acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
       return acc
     }, {}),
-    packages: R.fromPairs(pairs),
+    packages: fromPairs(pairs),
   }
 }

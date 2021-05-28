@@ -7,7 +7,10 @@ import {
 } from '@pnpm/lockfile-types'
 import { PackageManifest } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
-import * as R from 'ramda'
+import difference from 'ramda/src/difference'
+import isEmpty from 'ramda/src/isEmpty'
+import omit from 'ramda/src/omit'
+import unnest from 'ramda/src/unnest'
 
 export * from '@pnpm/lockfile-types'
 
@@ -20,9 +23,9 @@ export function pruneSharedLockfile (
   const copiedPackages = (lockfile.packages == null)
     ? {}
     : copyPackageSnapshots(lockfile.packages, {
-      devDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {}))),
-      optionalDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
-      prodDepPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
+      devDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {}))),
+      optionalDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
+      prodDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
       warn: opts?.warn ?? ((msg: string) => undefined),
     })
 
@@ -30,7 +33,7 @@ export function pruneSharedLockfile (
     ...lockfile,
     packages: copiedPackages,
   }
-  if (R.isEmpty(prunnedLockfile.packages)) {
+  if (isEmpty(prunnedLockfile.packages)) {
     delete prunnedLockfile.packages
   }
   return prunnedLockfile
@@ -47,9 +50,9 @@ export function pruneLockfile (
   const packages: PackageSnapshots = {}
   const importer = lockfile.importers[importerId]
   const lockfileSpecs: ResolvedDependencies = importer.specifiers ?? {}
-  const optionalDependencies = R.keys(pkg.optionalDependencies)
-  const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
-  const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
+  const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
+  const dependencies = difference(Object.keys(pkg.dependencies ?? {}), optionalDependencies)
+  const devDependencies = difference(difference(Object.keys(pkg.devDependencies ?? {}), optionalDependencies), dependencies)
   const allDeps = [
     ...optionalDependencies,
     ...devDependencies,
@@ -72,7 +75,7 @@ export function pruneLockfile (
     }
   })
   if (importer.dependencies != null) {
-    for (const dep of R.keys(importer.dependencies)) {
+    for (const dep of Object.keys(importer.dependencies)) {
       if (
         !lockfileDependencies[dep] && importer.dependencies[dep].startsWith('link:') &&
         // If the linked dependency was removed from package.json
@@ -95,16 +98,16 @@ export function pruneLockfile (
     lockfileVersion: lockfile.lockfileVersion || LOCKFILE_VERSION,
     packages: lockfile.packages,
   }
-  if (!R.isEmpty(packages)) {
+  if (!isEmpty(packages)) {
     prunnedLockfile.packages = packages
   }
-  if (!R.isEmpty(lockfileDependencies)) {
+  if (!isEmpty(lockfileDependencies)) {
     updatedImporter.dependencies = lockfileDependencies
   }
-  if (!R.isEmpty(lockfileOptionalDependencies)) {
+  if (!isEmpty(lockfileOptionalDependencies)) {
     updatedImporter.optionalDependencies = lockfileOptionalDependencies
   }
-  if (!R.isEmpty(lockfileDevDependencies)) {
+  if (!isEmpty(lockfileDevDependencies)) {
     updatedImporter.devDependencies = lockfileDevDependencies
   }
   return pruneSharedLockfile(prunnedLockfile, opts)
@@ -194,7 +197,7 @@ function copyDependencySubGraph (
     } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
       depLockfile.dev = false
     }
-    const newDependencies = resolvedDepsToDepPaths(R.omit(Object.keys(depLockfile.peerDependencies ?? {}) ?? [], depLockfile.dependencies ?? {}))
+    const newDependencies = resolvedDepsToDepPaths(omit(Object.keys(depLockfile.peerDependencies ?? {}) ?? [], depLockfile.dependencies ?? {}))
     copyDependencySubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
     copyDependencySubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })

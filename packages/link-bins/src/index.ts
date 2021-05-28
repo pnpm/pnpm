@@ -12,7 +12,12 @@ import isSubdir from 'is-subdir'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import pSettle from 'p-settle'
-import * as R from 'ramda'
+import { KeyValuePair } from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
+import isEmpty from 'ramda/src/isEmpty'
+import union from 'ramda/src/union'
+import unnest from 'ramda/src/unnest'
+import partition from 'ramda/src/partition'
 
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
@@ -37,7 +42,7 @@ export default async (
     allowExoticManifests: false,
     ...opts,
   }
-  const allCmds = R.unnest(
+  const allCmds = unnest(
     (await Promise.all(
       allDeps
         .map((depName) => path.resolve(modulesDir, depName))
@@ -63,7 +68,7 @@ export async function linkBinsOfPackages (
 ): Promise<string[]> {
   if (pkgs.length === 0) return []
 
-  const allCmds = R.unnest(
+  const allCmds = unnest(
     (await Promise.all(
       pkgs
         .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
@@ -91,11 +96,11 @@ async function linkBins (
 
   await fs.mkdir(binsDir, { recursive: true })
 
-  const [cmdsWithOwnName, cmdsWithOtherNames] = R.partition(({ ownName }) => ownName, allCmds)
+  const [cmdsWithOwnName, cmdsWithOtherNames] = partition(({ ownName }) => ownName, allCmds)
 
   const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir)))
 
-  const usedNames = R.fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as R.KeyValuePair<string, string>))
+  const usedNames = fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
     if (usedNames[cmd.name]) {
       opts.warn(`Cannot link binary '${cmd.name}' of '${cmd.pkgName}' to '${binsDir}': binary of '${usedNames[cmd.name]}' is already linked`, 'BINARIES_CONFLICT')
@@ -137,7 +142,7 @@ async function getPackageBins (
     return []
   }
 
-  if (R.isEmpty(manifest.bin) && !await isFromModules(target)) {
+  if (isEmpty(manifest.bin) && !await isFromModules(target)) {
     opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`, 'EMPTY_BIN')
   }
 
@@ -167,7 +172,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string) {
   let nodePath = await getBinNodePaths(cmd.path)
   const binsParentDir = path.dirname(binsDir)
   if (path.relative(cmd.path, binsParentDir) !== '') {
-    nodePath = R.union(nodePath, await getBinNodePaths(binsParentDir))
+    nodePath = union(nodePath, await getBinNodePaths(binsParentDir))
   }
   return cmdShim(cmd.path, externalBinPath, {
     createPwshFile: cmd.makePowerShellShim,
@@ -179,7 +184,7 @@ async function getBinNodePaths (target: string): Promise<string[]> {
   const targetDir = path.dirname(target)
   const targetRealPath = await fs.realpath(targetDir)
 
-  return R.union(
+  return union(
     Module['_nodeModulePaths'](targetRealPath),
     Module['_nodeModulePaths'](targetDir)
   )

@@ -31,7 +31,7 @@ import {
 } from '@pnpm/types'
 import normalize from 'normalize-path'
 import pathAbsolute from 'path-absolute'
-import * as R from 'ramda'
+import clone from 'ramda/src/clone'
 import {
   extendOptions,
   LinkOptions,
@@ -56,7 +56,7 @@ export default async function link (
   })
 
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
-  const currentLockfile = R.clone(ctx.currentLockfile)
+  const currentLockfile = clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
   const specsToUpsert = [] as PackageSpecObject[]
 

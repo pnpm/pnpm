@@ -39,7 +39,7 @@ import {
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import exists from 'path-exists'
-import * as R from 'ramda'
+import isEmpty from 'ramda/src/isEmpty'
 import semver from 'semver'
 import encodePkgId from './encodePkgId'
 import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
@@ -742,7 +742,7 @@ async function resolveDependency (
     ) {
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
-    hasBin = Boolean((pkg.bin && !R.isEmpty(pkg.bin)) ?? pkg.directories?.bin)
+    hasBin = Boolean((pkg.bin && !isEmpty(pkg.bin)) ?? pkg.directories?.bin)
     /* eslint-enable @typescript-eslint/dot-notation */
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
@@ -851,9 +851,9 @@ async function resolveDependency (
 }
 
 function pkgIsLeaf (pkg: PackageManifest) {
-  return R.isEmpty(pkg.dependencies ?? {}) &&
-    R.isEmpty(pkg.optionalDependencies ?? {}) &&
-    R.isEmpty(pkg.peerDependencies ?? {})
+  return isEmpty(pkg.dependencies ?? {}) &&
+    isEmpty(pkg.optionalDependencies ?? {}) &&
+    isEmpty(pkg.peerDependencies ?? {})
 }
 
 function getResolvedPackage (
@@ -891,7 +891,7 @@ function getResolvedPackage (
     id: options.pkgResponse.body.id,
     name: options.pkg.name,
     optional: options.wantedDependency.optional,
-    optionalDependencies: new Set(R.keys(options.pkg.optionalDependencies)),
+    optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     peerDependencies: peerDependencies ?? {},
     peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     prepare: options.prepare,
@@ -923,6 +923,6 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest) {
       result[peerName] = '*'
     }
   }
-  if (R.isEmpty(result)) return undefined
+  if (isEmpty(result)) return undefined
   return result
 }

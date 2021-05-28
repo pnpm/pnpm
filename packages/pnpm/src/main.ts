@@ -21,7 +21,7 @@ import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
 import isCI from 'is-ci'
 import path from 'path'
-import * as R from 'ramda'
+import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
 import which from 'which'
 
@@ -186,7 +186,7 @@ export default async function run (inputArgv: string[]) {
       testPattern: config.testPattern,
     })
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
-    if (R.isEmpty(config.selectedProjectsGraph)) {
+    if (isEmpty(config.selectedProjectsGraph)) {
       if (!config['parseable']) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }

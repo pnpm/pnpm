@@ -1,8 +1,9 @@
 import { PackageNode } from 'dependencies-hierarchy'
-import * as R from 'ramda'
+import sortBy from 'ramda/src/sortBy'
+import prop from 'ramda/src/prop'
 import { PackageDependencyHierarchy } from './types'
 
-const sortPackages = R.sortBy(R.prop('name'))
+const sortPackages = sortBy(prop('name'))
 
 export default async function (
   pkgs: PackageDependencyHierarchy[],

@@ -2,11 +2,12 @@ import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
-import * as R from 'ramda'
+import isEmpty from 'ramda/src/isEmpty'
+import unnest from 'ramda/src/unnest'
 
 export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
   const allOutdatedPkgs = mergeOutdatedPkgs(outdatedPkgsOfProjects)
-  if (R.isEmpty(allOutdatedPkgs)) {
+  if (isEmpty(allOutdatedPkgs)) {
     return []
   }
   const rowsGroupedByPkgs = Object.entries(allOutdatedPkgs)
@@ -16,7 +17,7 @@ export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
       rows: outdatedPkgsRows(Object.values(outdatedPkgs)),
     }))
   const renderedTable = alignColumns(
-    R.unnest(rowsGroupedByPkgs.map(({ rows }) => rows))
+    unnest(rowsGroupedByPkgs.map(({ rows }) => rows))
   )
 
   const choices = []

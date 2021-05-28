@@ -62,7 +62,10 @@ import * as dp from 'dependency-path'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pathExists from 'path-exists'
-import * as R from 'ramda'
+import equals from 'ramda/src/equals'
+import fromPairs from 'ramda/src/fromPairs'
+import omit from 'ramda/src/omit'
+import props from 'ramda/src/props'
 import realpathMissing from 'realpath-missing'
 
 const brokenModulesLogger = logger('_broken_node_modules')
@@ -227,7 +230,7 @@ export default async (opts: HeadlessOptions) => {
     } as LockfileToDepGraphOptions
   )
   if (opts.enablePnp) {
-    const importerNames = R.fromPairs(
+    const importerNames = fromPairs(
       opts.projects.map(({ manifest, id }) => [id, manifest.name ?? id])
     )
     await writePnpFile(filteredLockfile, {
@@ -237,7 +240,7 @@ export default async (opts: HeadlessOptions) => {
       registries: opts.registries,
     })
   }
-  const depNodes = R.values(graph)
+  const depNodes = Object.values(graph)
 
   statsLogger.debug({
     added: depNodes.length,
@@ -279,7 +282,7 @@ export default async (opts: HeadlessOptions) => {
       // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
       const hoistLockfile = {
         ...filteredLockfile,
-        packages: R.omit(Array.from(skipped), filteredLockfile.packages),
+        packages: omit(Array.from(skipped), filteredLockfile.packages),
       }
       newHoistedDependencies = await hoist({
         lockfile: hoistLockfile,
@@ -315,7 +318,7 @@ export default async (opts: HeadlessOptions) => {
     } else {
       const directNodes = new Set<string>()
       for (const id of importerIds) {
-        R
+        Object
           .values(directDependenciesByImporterId[id])
           .filter((loc) => graph[loc])
           .forEach((loc) => {
@@ -366,7 +369,7 @@ export default async (opts: HeadlessOptions) => {
 
     await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
 
-    if ((currentLockfile != null) && !R.equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
+    if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
       Object.assign(filteredLockfile.packages, currentLockfile.packages)
     }
     await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
@@ -585,8 +588,8 @@ async function lockfileToDepGraph (
         }
         const dir = path.join(modules, pkgName)
         if (
-          currentPackages[depPath] && R.equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
-          R.equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
+          currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
+          equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
         ) {
           if (await pathExists(dir)) {
             return
@@ -644,7 +647,7 @@ async function lockfileToDepGraph (
           modules,
           name: pkgName,
           optional: !!pkgSnapshot.optional,
-          optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
+          optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
           prepare: pkgSnapshot.prepare === true,
           requiresBuild: pkgSnapshot.requiresBuild === true,
         }
@@ -663,7 +666,7 @@ async function lockfileToDepGraph (
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     }
-    for (const dir of R.keys(graph)) {
+    for (const dir of Object.keys(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[dir]
       const allDeps = {
         ...pkgSnapshot.dependencies,
@@ -796,7 +799,7 @@ async function linkAllBins (
   }
 ) {
   return Promise.all(
-    R.values(depGraph)
+    Object.values(depGraph)
       .map(async (depNode) => limitLinking(async () => {
         const childrenToLink = opts.optional
           ? depNode.children
@@ -809,7 +812,7 @@ async function linkAllBins (
             }, {})
 
         const binPath = path.join(depNode.dir, 'node_modules/.bin')
-        const pkgSnapshots = R.props<string, DependenciesGraphNode>(R.values(childrenToLink), depGraph)
+        const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
           await linkBins(depNode.modules, binPath, { warn: opts.warn })

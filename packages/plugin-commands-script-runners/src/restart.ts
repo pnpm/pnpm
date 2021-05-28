@@ -1,5 +1,5 @@
 import { types as allTypes } from '@pnpm/config'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import {
   handler as run,
@@ -10,7 +10,7 @@ import {
 
 export function rcOptionsTypes () {
   return {
-    ...R.pick([
+    ...pick([
       'npm-path',
     ], allTypes),
   }

@@ -1,7 +1,6 @@
 import path from 'path'
 import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
 import npa from '@zkochan/npm-package-arg'
-import * as R from 'ramda'
 
 export interface Manifest {
   name?: string
@@ -72,7 +71,7 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
         }
 
         if (spec.type === 'directory') {
-          const matchedPkg = R.values(pkgMap).find(pkg => path.relative(pkg.dir, spec.fetchSpec) === '')
+          const matchedPkg = Object.values(pkgMap).find(pkg => path.relative(pkg.dir, spec.fetchSpec) === '')
           if (matchedPkg == null) {
             return ''
           }
@@ -81,7 +80,7 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
 
-        const pkgs = R.values(pkgMap).filter(pkg => pkg.manifest.name === depName)
+        const pkgs = Object.values(pkgMap).filter(pkg => pkg.manifest.name === depName)
         if (pkgs.length === 0) return ''
         const versions = pkgs.filter(({ manifest }) => manifest.version)
           .map(pkg => pkg.manifest.version) as string[]

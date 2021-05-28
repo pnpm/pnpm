@@ -49,7 +49,11 @@ import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import * as R from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
+import equals from 'ramda/src/equals'
+import isEmpty from 'ramda/src/isEmpty'
+import props from 'ramda/src/props'
+import unnest from 'ramda/src/unnest'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
@@ -152,7 +156,7 @@ export async function mutateModules (
     ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
   const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
-  if (!R.isEmpty(overrides ?? {})) {
+  if (!isEmpty(overrides ?? {})) {
     const versionsOverrider = createVersionsOverrider(overrides!, opts.lockfileDir)
     if (opts.hooks.readPackage != null) {
       const readPackage = opts.hooks.readPackage
@@ -183,8 +187,8 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
-    let needsFullResolution = !R.equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
-      !R.equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())
+    let needsFullResolution = !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
+      !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())
     ctx.wantedLockfile.overrides = overrides
     ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
     const frozenLockfile = opts.frozenLockfile ||
@@ -481,9 +485,9 @@ async function isExternalLink (storeDir: string, modules: string, pkgName: strin
 
 function pkgHasDependencies (manifest: ProjectManifest) {
   return Boolean(
-    (R.keys(manifest.dependencies).length > 0) ||
-    R.keys(manifest.devDependencies).length ||
-    R.keys(manifest.optionalDependencies).length
+    (Object.keys(manifest.dependencies ?? {}).length > 0) ||
+    Object.keys(manifest.devDependencies ?? {}).length ||
+    Object.keys(manifest.optionalDependencies ?? {}).length
   )
 }
 
@@ -652,7 +656,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     (
       !opts.update &&
       (ctx.wantedLockfile.packages != null) &&
-      !R.isEmpty(ctx.wantedLockfile.packages)
+      !isEmpty(ctx.wantedLockfile.packages)
     )
       ? getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages)
       : undefined
@@ -756,7 +760,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     )
     await finishLockfileUpdates()
     if (opts.enablePnp) {
-      const importerNames = R.fromPairs(
+      const importerNames = fromPairs(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
       )
       await writePnpFile(result.currentLockfile, {
@@ -806,7 +810,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
     const binWarn = (prefix: string, message: string) => logger.info({ message, prefix })
     if (result.newDepPaths?.length) {
-      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      const newPkgs = props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
         optional: opts.include.optionalDependencies,
         warn: binWarn.bind(null, opts.lockfileDir),
@@ -822,7 +826,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
       } else {
         const directPkgs = [
-          ...R.props<string, DependenciesGraphNode>(
+          ...props<string, DependenciesGraphNode>(
             Object.values(dependenciesByProjectId[project.id]).filter((depPath) => !ctx.skipped.has(depPath)),
             dependenciesGraph
           ),
@@ -998,7 +1002,7 @@ async function linkAllBins (
     warn: (message: string) => void
   }
 ) {
-  return R.unnest(await Promise.all(
+  return unnest(await Promise.all(
     depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   ))
 }

@@ -2,7 +2,7 @@ import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import chalk from 'chalk'
-import * as R from 'ramda'
+import equals from 'ramda/src/equals'
 import StackTracey from 'stacktracey'
 import { EOL } from './constants'
 
@@ -82,7 +82,7 @@ ${formatErrorSummary(err.message)}
 
 The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
 
-  if (!R.equals(R.keys(meta['dist-tags']), ['latest'])) {
+  if (!equals(Object.keys(meta['dist-tags']), ['latest'])) {
     output += EOL + 'Other releases are:' + EOL
     for (const tag in meta['dist-tags']) {
       if (tag !== 'latest') {

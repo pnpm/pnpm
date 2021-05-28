@@ -5,7 +5,7 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import * as R from 'ramda'
+import partition from 'ramda/src/partition'
 import { WantedDependency } from './getNonDevWantedDependencies'
 import {
   createNodeId,
@@ -163,7 +163,7 @@ export default async function<T> (
 
   for (const { id } of importers) {
     const directDeps = directDepsByImporterId[id]
-    const [linkedDependencies, directNonLinkedDeps] = R.partition((dep) => dep.isLinkedDependency === true, directDeps) as [LinkedDependency[], PkgAddress[]]
+    const [linkedDependencies, directNonLinkedDeps] = partition((dep) => dep.isLinkedDependency === true, directDeps) as [LinkedDependency[], PkgAddress[]]
 
     resolvedImporters[id] = {
       directDependencies: directDeps

@@ -29,7 +29,11 @@ import {
 } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathExists from 'path-exists'
-import * as R from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
+import equals from 'ramda/src/equals'
+import difference from 'ramda/src/difference'
+import omit from 'ramda/src/omit'
+import props from 'ramda/src/props'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -70,7 +74,7 @@ export default async function linkPackages (
     newHoistedDependencies: HoistedDependencies
     removedDepPaths: Set<string>
   }> {
-  let depNodes = R.values(depGraph).filter(({ depPath, id }) => {
+  let depNodes = Object.values(depGraph).filter(({ depPath, id }) => {
     if (((opts.wantedLockfile.packages?.[depPath]) != null) && !opts.wantedLockfile.packages[depPath].optional) {
       opts.skipped.delete(depPath)
       return true
@@ -91,7 +95,7 @@ export default async function linkPackages (
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
-  depGraph = R.fromPairs(depNodes.map((depNode) => [depNode.depPath, depNode]))
+  depGraph = fromPairs(depNodes.map((depNode) => [depNode.depPath, depNode]))
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     hoistedDependencies: opts.hoistedDependencies,
@@ -192,7 +196,7 @@ export default async function linkPackages (
   }
 
   let currentLockfile: Lockfile
-  const allImportersIncluded = R.equals(projectIds.sort(), Object.keys(opts.wantedLockfile.importers).sort())
+  const allImportersIncluded = equals(projectIds.sort(), Object.keys(opts.wantedLockfile.importers).sort())
   if (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
@@ -239,7 +243,7 @@ export default async function linkPackages (
     // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
     const hoistLockfile = {
       ...currentLockfile,
-      packages: R.omit(Array.from(opts.skipped), currentLockfile.packages),
+      packages: omit(Array.from(opts.skipped), currentLockfile.packages),
     }
     newHoistedDependencies = await hoist({
       lockfile: hoistLockfile,
@@ -285,7 +289,7 @@ async function linkNewPackages (
     virtualStoreDir: string
   }
 ): Promise<string[]> {
-  const wantedRelDepPaths = R.difference(R.keys(wantedLockfile.packages), Array.from(opts.skipped))
+  const wantedRelDepPaths = difference(Object.keys(wantedLockfile.packages ?? {}), Array.from(opts.skipped))
 
   let newDepPathsSet: Set<string>
   if (opts.force) {
@@ -310,8 +314,8 @@ async function linkNewPackages (
     // TODO: no need to relink everything. Can be relinked only what was changed
     for (const depPath of wantedRelDepPaths) {
       if (currentLockfile.packages[depPath] &&
-        (!R.equals(currentLockfile.packages[depPath].dependencies, wantedLockfile.packages[depPath].dependencies) ||
-        !R.equals(currentLockfile.packages[depPath].optionalDependencies, wantedLockfile.packages[depPath].optionalDependencies))) {
+        (!equals(currentLockfile.packages[depPath].dependencies, wantedLockfile.packages[depPath].dependencies) ||
+        !equals(currentLockfile.packages[depPath].optionalDependencies, wantedLockfile.packages[depPath].optionalDependencies))) {
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
         if (depGraph[depPath] && !newDepPathsSet.has(depPath)) {
@@ -325,7 +329,7 @@ async function linkNewPackages (
 
   const newDepPaths = Array.from(newDepPathsSet)
 
-  const newPkgs = R.props<string, DependenciesGraphNode>(newDepPaths, depGraph)
+  const newPkgs = props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
   await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([

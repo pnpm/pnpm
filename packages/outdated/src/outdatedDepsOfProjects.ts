@@ -10,7 +10,7 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import * as R from 'ramda'
+import unnest from 'ramda/src/unnest'
 import { createManifestGetter, ManifestGetterOptions } from './createManifestGetter'
 import outdated, { OutdatedPackage } from './outdated'
 
@@ -23,7 +23,7 @@ export default async function outdatedDepsOfProjects (
   } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'storeDir' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
-    return R.unnest(await Promise.all(
+    return unnest(await Promise.all(
       pkgs.map(async (pkg) =>
         outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.dir })
       )

@@ -7,7 +7,7 @@ import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 
 // eslint-disable
@@ -30,7 +30,7 @@ export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
   return {
-    ...R.pick([
+    ...pick([
       'dev',
       'json',
       'only',

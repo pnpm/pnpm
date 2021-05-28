@@ -18,7 +18,8 @@ import {
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import pathAbsolute from 'path-absolute'
-import * as R from 'ramda'
+import clone from 'ramda/src/clone'
+import equals from 'ramda/src/equals'
 import checkCompatibility from './checkCompatibility'
 import UnexpectedStoreError from './checkCompatibility/UnexpectedStoreError'
 import UnexpectedVirtualStoreDirError from './checkCompatibility/UnexpectedVirtualStoreDirError'
@@ -131,7 +132,7 @@ export default async function getContext<T> (
   if ((opts.hooks?.readPackage) != null) {
     for (const project of importersContext.projects) {
       project.originalManifest = project.manifest
-      project.manifest = opts.hooks.readPackage(R.clone(project.manifest), project.rootDir)
+      project.manifest = opts.hooks.readPackage(clone(project.manifest), project.rootDir)
     }
   }
 
@@ -209,7 +210,7 @@ async function validateModules (
   if (
     opts.forcePublicHoistPattern &&
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-    !R.equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
+    !equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
   ) {
     if (opts.forceNewModules && (rootProject != null)) {
       await purgeModulesDirsOfImporter(opts.virtualStoreDir, rootProject)
@@ -225,7 +226,7 @@ async function validateModules (
   if (opts.forceHoistPattern && (rootProject != null)) {
     try {
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-      if (!R.equals(opts.currentHoistPattern, opts.hoistPattern || undefined)) {
+      if (!equals(opts.currentHoistPattern, opts.hoistPattern || undefined)) {
         throw new PnpmError(
           'HOIST_PATTERN_DIFF',
           'This modules directory was created using a different hoist-pattern value.' +
@@ -261,7 +262,7 @@ async function validateModules (
       purged = true
     }
   }))
-  if ((modules.registries != null) && !R.equals(opts.registries, modules.registries)) {
+  if ((modules.registries != null) && !equals(opts.registries, modules.registries)) {
     if (opts.forceNewModules) {
       await Promise.all(projects.map(purgeModulesDirsOfImporter.bind(null, opts.virtualStoreDir)))
       return { purged: true }

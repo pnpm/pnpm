@@ -2,7 +2,9 @@ import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
 import isSubdir from 'is-subdir'
-import * as R from 'ramda'
+import difference from 'ramda/src/difference'
+import partition from 'ramda/src/partition'
+import pick from 'ramda/src/pick'
 import getChangedPkgs from './getChangedPackages'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
 
@@ -75,7 +77,7 @@ export async function filterPkgsBySelectorObjects<T> (
     selectedProjectsGraph: PackageGraph<T>
     unmatchedFilters: string[]
   }> {
-  const [prodPackageSelectors, allPackageSelectors] = R.partition(({ followProdDepsOnly }) => !!followProdDepsOnly, packageSelectors)
+  const [prodPackageSelectors, allPackageSelectors] = partition(({ followProdDepsOnly }) => !!followProdDepsOnly, packageSelectors)
 
   if ((allPackageSelectors.length > 0) || (prodPackageSelectors.length > 0)) {
     let filteredGraph: FilteredGraph<T> | undefined
@@ -125,7 +127,7 @@ export default async function filterGraph<T> (
     selectedProjectsGraph: PackageGraph<T>
     unmatchedFilters: string[]
   }> {
-  const [excludeSelectors, includeSelectors] = R.partition<PackageSelector>(
+  const [excludeSelectors, includeSelectors] = partition<PackageSelector>(
     (selector: PackageSelector) => selector.exclude === true,
     packageSelectors
   )
@@ -135,8 +137,8 @@ export default async function filterGraph<T> (
     : await fg(includeSelectors)
   const exclude = await fg(excludeSelectors)
   return {
-    selectedProjectsGraph: R.pick(
-      R.difference(include.selected, exclude.selected),
+    selectedProjectsGraph: pick(
+      difference(include.selected, exclude.selected),
       pkgGraph
     ),
     unmatchedFilters: [...include.unmatchedFilters, ...exclude.unmatchedFilters],
@@ -178,7 +180,7 @@ async function _filterGraph<T> (
       if (entryPackages == null) {
         entryPackages = matchPackages(pkgGraph, selector.namePattern)
       } else {
-        entryPackages = matchPackages(R.pick(entryPackages, pkgGraph), selector.namePattern)
+        entryPackages = matchPackages(pick(entryPackages, pkgGraph), selector.namePattern)
       }
     }
 

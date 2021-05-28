@@ -7,7 +7,7 @@ import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import * as R from 'ramda'
+import isEmpty from 'ramda/src/isEmpty'
 import sinon from 'sinon'
 import ssri from 'ssri'
 
@@ -106,7 +106,7 @@ test('keep dependencies used by others', async () => {
 
   // all dependencies are marked as dev
   const lockfile = await project.readLockfile() as Lockfile
-  expect(R.isEmpty(lockfile.packages)).toBeFalsy()
+  expect(isEmpty(lockfile.packages)).toBeFalsy()
 
   Object.entries(lockfile.packages ?? {}).forEach(([depPath, dep]) => expect(dep.dev).toBeTruthy())
 

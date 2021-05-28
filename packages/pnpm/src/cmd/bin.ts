@@ -1,11 +1,11 @@
 import { types as allTypes } from '@pnpm/config'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return R.pick([
+  return pick([
     'global',
   ], allTypes)
 }

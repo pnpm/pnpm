@@ -10,14 +10,15 @@ import matcher from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
+import unnest from 'ramda/src/unnest'
 import renderHelp from 'render-help'
 import { InstallCommandOptions } from '../install'
 import installDeps from '../installDeps'
 import getUpdateChoices from './getUpdateChoices'
 
 export function rcOptionsTypes () {
-  return R.pick([
+  return pick([
     'depth',
     'dev',
     'engine-strict',
@@ -197,7 +198,7 @@ async function interactiveUpdate (
     },
     timeout: opts.fetchTimeout,
   })
-  const choices = getUpdateChoices(R.unnest(outdatedPkgsOfProjects))
+  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects))
   if (choices.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up-to-date'

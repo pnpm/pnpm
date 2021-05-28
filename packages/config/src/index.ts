@@ -8,7 +8,7 @@ import camelcase from 'camelcase'
 import loadNpmConf from '@zkochan/npm-conf'
 import npmTypes from '@zkochan/npm-conf/lib/types'
 import { sync as canWriteToDir } from 'can-write-to-dir'
-import * as R from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
@@ -207,7 +207,7 @@ export default async (
 
   const rcOptions = Object.keys(rcOptionsTypes)
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = R.fromPairs([
+  const pnpmConfig: ConfigWithDeprecatedSettings = fromPairs([
     ...rcOptions.map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings

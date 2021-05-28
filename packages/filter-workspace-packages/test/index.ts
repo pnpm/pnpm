@@ -7,7 +7,7 @@ import execa from 'execa'
 import isCI from 'is-ci'
 import isWindows from 'is-windows'
 import path from 'path'
-import * as R from 'ramda'
+import omit from 'ramda/src/omit'
 import tempy from 'tempy'
 import touchCB from 'touch'
 
@@ -356,7 +356,7 @@ test('select all packages except one', async () => {
   ], { workspaceDir: process.cwd() })
 
   expect(Object.keys(selectedProjectsGraph))
-    .toStrictEqual(Object.keys(R.omit(['/packages/project-1'], PKGS_GRAPH)))
+    .toStrictEqual(Object.keys(omit(['/packages/project-1'], PKGS_GRAPH)))
 })
 
 test('select by parentDir and exclude one package by pattern', async () => {

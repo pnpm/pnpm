@@ -8,7 +8,7 @@ import pnpmLogger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import * as R from 'ramda'
+import unnest from 'ramda/src/unnest'
 import filterImporter from './filterImporter'
 import LockfileMissingDependencyError from './LockfileMissingDependencyError'
 
@@ -38,7 +38,7 @@ export default function filterByImportersAndEngine (
       ...(opts.include.optionalDependencies ? importer.optionalDependencies : {}),
     }))
     .map(Object.entries)
-  const directDepPaths = R.unnest(importerDeps)
+  const directDepPaths = unnest(importerDeps)
     .map(([pkgName, ref]) => dp.refToRelative(ref, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]
 

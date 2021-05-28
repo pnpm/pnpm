@@ -3,12 +3,12 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import { IncludedDependencies } from '@pnpm/types'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import listRecursive from './recursive'
 
 export function rcOptionsTypes () {
-  return R.pick([
+  return pick([
     'depth',
     'dev',
     'global-dir',

@@ -5,7 +5,8 @@ import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
-import * as R from 'ramda'
+import equals from 'ramda/src/equals'
+import isEmpty from 'ramda/src/isEmpty'
 import writeFileAtomicCB from 'write-file-atomic'
 import logger from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
@@ -70,37 +71,37 @@ function yamlStringify (lockfile: Lockfile, forceSharedFormat: boolean) {
 }
 
 function isEmptyLockfile (lockfile: Lockfile) {
-  return R.values(lockfile.importers).every((importer) => R.isEmpty(importer.specifiers ?? {}) && R.isEmpty(importer.dependencies ?? {}))
+  return Object.values(lockfile.importers).every((importer) => isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {}))
 }
 
 export type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
 
 export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
   let lockfileToSave!: LockfileFile
-  if (!forceSharedFormat && R.equals(R.keys(lockfile.importers), ['.'])) {
+  if (!forceSharedFormat && equals(Object.keys(lockfile.importers), ['.'])) {
     lockfileToSave = {
       ...lockfile,
       ...lockfile.importers['.'],
     }
     delete lockfileToSave.importers
     for (const depType of DEPENDENCIES_FIELDS) {
-      if (R.isEmpty(lockfileToSave[depType])) {
+      if (isEmpty(lockfileToSave[depType])) {
         delete lockfileToSave[depType]
       }
     }
-    if (R.isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
+    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
   } else {
     lockfileToSave = {
       ...lockfile,
-      importers: R.keys(lockfile.importers).reduce((acc, alias) => {
+      importers: Object.keys(lockfile.importers).reduce((acc, alias) => {
         const importer = lockfile.importers[alias]
         const normalizedImporter = {
           specifiers: importer.specifiers ?? {},
         }
         for (const depType of DEPENDENCIES_FIELDS) {
-          if (!R.isEmpty(importer[depType] ?? {})) {
+          if (!isEmpty(importer[depType] ?? {})) {
             normalizedImporter[depType] = importer[depType]
           }
         }
@@ -108,15 +109,15 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
         return acc
       }, {}),
     }
-    if (R.isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
+    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
   }
-  if ((lockfileToSave.overrides != null) && R.isEmpty(lockfileToSave.overrides)) {
+  if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
   }
   if (lockfileToSave.neverBuiltDependencies != null) {
-    if (R.isEmpty(lockfileToSave.neverBuiltDependencies)) {
+    if (isEmpty(lockfileToSave.neverBuiltDependencies)) {
       delete lockfileToSave.neverBuiltDependencies
     } else {
       lockfileToSave.neverBuiltDependencies = lockfileToSave.neverBuiltDependencies.sort()

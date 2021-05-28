@@ -4,12 +4,12 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import isCI from 'is-ci'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import installDeps from './installDeps'
 
 export function rcOptionsTypes () {
-  return R.pick([
+  return pick([
     'child-concurrency',
     'dev',
     'engine-strict',
@@ -66,7 +66,7 @@ export function rcOptionsTypes () {
 
 export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
-  ...R.pick(['force'], allTypes),
+  ...pick(['force'], allTypes),
   recursive: Boolean,
 })
 

@@ -42,7 +42,7 @@ import loadJsonFile from 'load-json-file'
 import pDefer from 'p-defer'
 import pathTemp from 'path-temp'
 import pShare from 'promise-share'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
 import ssri from 'ssri'
 import safeDeferredPromise from './safeDeferredPromise'
@@ -50,7 +50,7 @@ import safeDeferredPromise from './safeDeferredPromise'
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
 
-const pickBundledManifest = R.pick([
+const pickBundledManifest = pick([
   'bin',
   'bundledDependencies',
   'bundleDependencies',
@@ -210,7 +210,7 @@ async function resolveAndFetch (
     force: forceFetch,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...R.pick(['name', 'version'], manifest ?? options.currentPkg ?? {}),
+      ...pick(['name', 'version'], manifest ?? options.currentPkg ?? {}),
       id,
       resolution,
     },

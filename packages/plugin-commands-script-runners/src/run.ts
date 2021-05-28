@@ -13,7 +13,7 @@ import runLifecycleHooks, {
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { ProjectManifest } from '@pnpm/types'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import runRecursive, { RecursiveRunOpts } from './runRecursive'
@@ -48,7 +48,7 @@ export const shorthands = {
 
 export function rcOptionsTypes () {
   return {
-    ...R.pick([
+    ...pick([
       'npm-path',
     ], allTypes),
   }
@@ -56,7 +56,7 @@ export function rcOptionsTypes () {
 
 export function cliOptionsTypes () {
   return {
-    ...R.pick([
+    ...pick([
       'bail',
       'sort',
       'unsafe-perm',

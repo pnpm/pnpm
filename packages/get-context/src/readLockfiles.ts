@@ -12,7 +12,8 @@ import {
 } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import isCI from 'is-ci'
-import * as R from 'ramda'
+import clone from 'ramda/src/clone'
+import equals from 'ramda/src/equals'
 
 export interface PnpmContext {
   currentLockfile: Lockfile
@@ -106,7 +107,7 @@ export default async function (
     }
   }
   const wantedLockfile = files[0] ??
-    (currentLockfile && R.clone(currentLockfile)) ??
+    (currentLockfile && clone(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {
     if (!wantedLockfile.importers[importerId]) {
@@ -117,7 +118,7 @@ export default async function (
   }
   return {
     currentLockfile,
-    currentLockfileIsUpToDate: R.equals(currentLockfile, wantedLockfile),
+    currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
     existsCurrentLockfile: files[1] != null,
     existsWantedLockfile: files[0] != null,
     wantedLockfile,

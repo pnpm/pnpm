@@ -2,7 +2,8 @@ import path from 'path'
 import PnpmError from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
-import * as R from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
+import omit from 'ramda/src/omit'
 
 // property keys that are copied from publishConfig into the manifest
 const PUBLISH_CONFIG_WHITELIST = new Set([
@@ -33,9 +34,9 @@ const PREPUBLISH_SCRIPTS = [
 ]
 
 export default async function makePublishManifest (dir: string, originalManifest: ProjectManifest) {
-  const publishManifest: ProjectManifest = R.omit(['pnpm', 'scripts'], originalManifest)
+  const publishManifest: ProjectManifest = omit(['pnpm', 'scripts'], originalManifest)
   if (originalManifest.scripts != null) {
-    publishManifest.scripts = R.omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
+    publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
   for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
     const deps = await makePublishDependencies(dir, originalManifest[depsField])
@@ -58,7 +59,7 @@ export default async function makePublishManifest (dir: string, originalManifest
 
 async function makePublishDependencies (dir: string, dependencies: Dependencies | undefined) {
   if (dependencies == null) return dependencies
-  const publishDependencies: Dependencies = R.fromPairs(
+  const publishDependencies: Dependencies = fromPairs(
     await Promise.all(
       Object.entries(dependencies)
         .map(async ([depName, depSpec]) => [

@@ -3,12 +3,12 @@ import {
   DEPENDENCIES_FIELDS,
   ProjectManifest,
 } from '@pnpm/types'
-import * as R from 'ramda'
+import equals from 'ramda/src/equals'
 
 export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) => {
   const importer = lockfile.importers[importerId]
   if (!importer) return false
-  if (!R.equals({ ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }, importer.specifiers)) {
+  if (!equals({ ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }, importer.specifiers)) {
     return false
   }
   for (const depField of DEPENDENCIES_FIELDS) {
@@ -46,5 +46,5 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) =>
 }
 
 function countOfNonLinkedDeps (lockfileDeps: {[depName: string]: string}): number {
-  return R.values(lockfileDeps).filter((ref) => !ref.includes('link:') && !ref.includes('file:')).length
+  return Object.values(lockfileDeps).filter((ref) => !ref.includes('link:') && !ref.includes('file:')).length
 }

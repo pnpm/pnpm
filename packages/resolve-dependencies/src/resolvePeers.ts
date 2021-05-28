@@ -5,7 +5,10 @@ import logger from '@pnpm/logger'
 import { Dependencies } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import importFrom from 'import-from'
-import * as R from 'ramda'
+import { KeyValuePair } from 'ramda'
+import fromPairs from 'ramda/src/fromPairs'
+import isEmpty from 'ramda/src/isEmpty'
+import scan from 'ramda/src/scan'
 import semver from 'semver'
 import {
   DependenciesTree,
@@ -66,8 +69,8 @@ export default function<T extends PartialResolvedPackage> (
 
   for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {
     const pkgsByName = Object.assign(
-      R.fromPairs(
-        topParents.map(({ name, version }: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
+      fromPairs(
+        topParents.map(({ name, version }: {name: string, version: string}): KeyValuePair<string, ParentRef> => [
           name,
           {
             depth: 0,
@@ -99,8 +102,8 @@ export default function<T extends PartialResolvedPackage> (
     })
   }
 
-  R.values(depGraph).forEach((node) => {
-    node.children = R.keys(node.children).reduce((acc, alias) => {
+  Object.values(depGraph).forEach((node) => {
+    node.children = Object.keys(node.children).reduce((acc, alias) => {
       acc[alias] = pathsByNodeId[node.children[alias]] ?? node.children[alias]
       return acc
     }, {})
@@ -108,7 +111,7 @@ export default function<T extends PartialResolvedPackage> (
 
   const dependenciesByProjectId: {[id: string]: {[alias: string]: string}} = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
-    dependenciesByProjectId[id] = R.keys(directNodeIdsByAlias).reduce((rootPathsByAlias, alias) => {
+    dependenciesByProjectId[id] = Object.keys(directNodeIdsByAlias).reduce((rootPathsByAlias, alias) => {
       rootPathsByAlias[alias] = pathsByNodeId[directNodeIdsByAlias[alias]]
       return rootPathsByAlias
     }, {})
@@ -153,7 +156,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (
     ctx.purePkgs.has(resolvedPackage.depPath) &&
     ctx.depGraph[resolvedPackage.depPath].depth <= node.depth &&
-    R.isEmpty(resolvedPackage.peerDependencies)
+    isEmpty(resolvedPackage.peerDependencies)
   ) {
     ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
     return { resolvedPeers: {}, missingPeers: [] }
@@ -162,7 +165,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     node.children = node.children()
   }
   const children = node.children
-  const parentPkgs = R.isEmpty(children)
+  const parentPkgs = isEmpty(children)
     ? parentParentPkgs
     : {
       ...parentParentPkgs,
@@ -195,7 +198,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
     return {
       missingPeers: hit.missingPeers,
-      resolvedPeers: R.fromPairs(hit.resolvedPeers),
+      resolvedPeers: fromPairs(hit.resolvedPeers),
     }
   }
 
@@ -204,7 +207,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     missingPeers: missingPeersOfChildren,
   } = resolvePeersOfChildren(children, parentPkgs, ctx)
 
-  const { resolvedPeers, missingPeers } = R.isEmpty(resolvedPackage.peerDependencies)
+  const { resolvedPeers, missingPeers } = isEmpty(resolvedPackage.peerDependencies)
     ? { resolvedPeers: {}, missingPeers: [] }
     : resolvePeers({
       currentDepth: node.depth,
@@ -221,7 +224,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const allMissingPeers = Array.from(new Set([...missingPeersOfChildren, ...missingPeers]))
 
   let depPath: string
-  if (R.isEmpty(allResolvedPeers)) {
+  if (isEmpty(allResolvedPeers)) {
     depPath = resolvedPackage.depPath
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
@@ -233,7 +236,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.lockfileDir))
   const modules = path.join(localLocation, 'node_modules')
-  const isPure = R.isEmpty(allResolvedPeers) && allMissingPeers.length === 0
+  const isPure = isEmpty(allResolvedPeers) && allMissingPeers.length === 0
   if (isPure) {
     ctx.purePkgs.add(resolvedPackage.depPath)
   } else {
@@ -333,13 +336,13 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const allResolvedPeers: Record<string, string> = {}
   const allMissingPeers = new Set<string>()
 
-  for (const childNodeId of R.values(children)) {
+  for (const childNodeId of Object.values(children)) {
     const { resolvedPeers, missingPeers } = resolvePeersOfNode(childNodeId, parentPkgs, ctx)
     Object.assign(allResolvedPeers, resolvedPeers)
     missingPeers.forEach((missingPeer) => allMissingPeers.add(missingPeer))
   }
 
-  const unknownResolvedPeersOfChildren = R.keys(allResolvedPeers)
+  const unknownResolvedPeersOfChildren = Object.keys(allResolvedPeers)
     .filter((alias) => !children[alias])
     .reduce((acc, peer) => {
       acc[peer] = allResolvedPeers[peer]
@@ -419,7 +422,7 @@ function packageFriendlyId (manifest: {name: string, version: string}) {
 
 function nodeIdToFriendlyPath<T extends PartialResolvedPackage> (nodeId: string, dependenciesTree: DependenciesTree<T>) {
   const parts = splitNodeId(nodeId).slice(0, -1)
-  const result = R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
+  const result = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
     .slice(2)
     .map((nid) => (dependenciesTree[nid].resolvedPackage as ResolvedPackage).name)
     .join(' > ')

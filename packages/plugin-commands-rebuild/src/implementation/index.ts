@@ -25,7 +25,6 @@ import runGroups from 'run-groups'
 import npa from '@zkochan/npm-package-arg'
 import graphSequencer from 'graph-sequencer'
 import pLimit from 'p-limit'
-import * as R from 'ramda'
 import semver from 'semver'
 import extendOptions, {
   RebuildOptions,
@@ -252,7 +251,7 @@ async function _rebuild (
 
   for (const depPath of nodesToBuildAndTransitiveArray) {
     const pkgSnapshot = pkgSnapshots[depPath]
-    graph.set(depPath, R.toPairs({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
+    graph.set(depPath, Object.entries({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
       .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
       .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
   }

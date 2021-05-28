@@ -2,12 +2,12 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { handler as list, ListCommandOptions } from './list'
 
 export function rcOptionsTypes () {
-  return R.pick([
+  return pick([
     'dev',
     'global-dir',
     'global',

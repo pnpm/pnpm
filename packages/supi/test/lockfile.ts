@@ -18,7 +18,6 @@ import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import exists from 'path-exists'
-import * as R from 'ramda'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
 import {
@@ -608,7 +607,7 @@ test('dev properties are correctly updated on named install', async () => {
 
   const lockfile = await project.readLockfile()
   expect(
-    R.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined')
+    Object.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined')
   ).toStrictEqual([])
 })
 
@@ -619,7 +618,7 @@ test('optional properties are correctly updated on named install', async () => {
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const lockfile = await project.readLockfile()
-  expect(R.values(lockfile.packages).filter((dep) => typeof dep.optional !== 'undefined')).toStrictEqual([])
+  expect(Object.values(lockfile.packages).filter((dep) => typeof dep.optional !== 'undefined')).toStrictEqual([])
 })
 
 test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async () => {
@@ -937,7 +936,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
 
   const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
 
-  expect(R.keys(currentLockfile['importers'])).toStrictEqual(['pkg2'])
+  expect(Object.keys(currentLockfile['importers'])).toStrictEqual(['pkg2'])
 
   await mutateModules(
     [

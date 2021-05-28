@@ -21,7 +21,8 @@ import {
 } from 'supi'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
-import * as R from 'ramda'
+import pick from 'ramda/src/pick'
+import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
 import * as installCommand from './install'
 import getSaveType from './getSaveType'
@@ -33,7 +34,7 @@ const installLimit = pLimit(4)
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return R.pick([
+  return pick([
     'global-dir',
     'global',
     'only',
@@ -117,7 +118,7 @@ export async function handler (
     return
   }
 
-  const [pkgPaths, pkgNames] = R.partition((inp) => isFilespec.test(inp), params)
+  const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
   if (pkgNames.length > 0) {
     let globalPkgNames!: string[]
