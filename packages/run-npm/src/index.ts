@@ -3,10 +3,14 @@ import path from 'path'
 import spawn from 'cross-spawn'
 import PATH from 'path-name'
 
-export default function runNpm (npmPath: string | undefined, args: string[]) {
+export interface RunNPMOptions {
+  cwd?: string
+}
+
+export default function runNpm (npmPath: string | undefined, args: string[], options?: RunNPMOptions) {
   const npm = npmPath ?? 'npm'
   return runScriptSync(npm, args, {
-    cwd: process.cwd(),
+    cwd: options?.cwd ?? process.cwd(),
     stdio: 'inherit',
     userAgent: undefined,
   })

@@ -277,6 +277,57 @@ test('publish: package with all possible fields in publishConfig', async () => {
   })
 })
 
+test('publish: package with publishConfig.directory', async () => {
+  const packages = preparePackages([
+    {
+      name: 'test-publish-config-directory',
+      version: '1.0.0',
+
+      publishConfig: {
+        directory: 'dist',
+      },
+    },
+  ])
+
+  const testPublishConfigDirectory = packages['test-publish-config-directory']
+
+  expect(testPublishConfigDirectory).toBeTruthy()
+
+  await fs.mkdir(path.join(testPublishConfigDirectory.dir(), 'dist'))
+
+  await fs.writeFile(
+    path.join(testPublishConfigDirectory.dir(), 'dist/package.json'),
+    `
+    {
+      "name": "publish_config_directory_dist_package",
+      "version": "1.0.0"
+    }
+  `,
+    {
+      encoding: 'utf-8',
+    }
+  )
+
+  process.chdir('test-publish-config-directory')
+
+  await publish.handler(
+    {
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      dir: process.cwd(),
+    },
+    []
+  )
+
+  crossSpawn.sync(pnpmBin, ['add', 'publish_config_directory_dist_package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+
+  expect(JSON.parse(await fs.readFile('node_modules/publish_config_directory_dist_package/package.json', { encoding: 'utf-8' })))
+    .toStrictEqual({
+      name: 'publish_config_directory_dist_package',
+      version: '1.0.0',
+    })
+})
+
 test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {
   preparePackages([
     {

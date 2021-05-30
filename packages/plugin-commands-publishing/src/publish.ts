@@ -188,7 +188,12 @@ Do you want to continue?`,
         }
       }
 
-      const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...args])
+      const cwd = manifest.publishConfig?.directory ? path.join(dir, manifest.publishConfig.directory) : undefined
+
+      const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...args], {
+        cwd,
+      })
+
       _status = status!
     }
   )
