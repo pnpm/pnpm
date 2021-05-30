@@ -104,6 +104,8 @@ export function handler (
   },
   params: string[]
 ) {
+  // We can only support TCP at the moment because node-fetch does not support IPC
+  opts.protocol = 'tcp'
   switch (params[0]) {
   case 'start':
     return start(opts)

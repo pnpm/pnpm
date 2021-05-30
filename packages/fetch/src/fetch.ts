@@ -1,7 +1,6 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, RetryTimeoutOptions } from '@zkochan/retry'
-import { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
-import fetch from 'node-fetch-unix'
+import fetch, { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
 
 // retry settings
 const MIN_TIMEOUT = 10
