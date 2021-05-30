@@ -35,7 +35,6 @@ export default async function (config: Config) {
       retries: 0,
     },
     storeDir,
-    timeout: 3000,
   })
   const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
     lockfileDir: config.lockfileDir ?? config.dir,
