@@ -1643,13 +1643,13 @@ importers:
       '@pnpm/find-workspace-dir': workspace:3.0.1
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': ^3.0.29
-      didyoumean2: ^4.1.0
+      didyoumean2: ^5.0.0
       nopt: ^5.0.0
       tempy: ^1.0.0
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/find-workspace-dir': link:../find-workspace-dir
-      didyoumean2: 4.2.0
+      didyoumean2: 5.0.0
       nopt: 5.0.0
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
@@ -7175,12 +7175,12 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /didyoumean2/4.2.0:
-    resolution: {integrity: sha512-o8KZ9RERbXaPgvXklxuLwD4RotaV5trShsNXaA/y1h5e4u6qmtv5I6enJsst9l8R1b/eqFQFwfPAiTf+FgHAQQ==}
-    engines: {node: '>=10.13'}
+  /didyoumean2/5.0.0:
+    resolution: {integrity: sha512-Plha9WCF08aSGB39IsOhlk0AHecwcXtq/gMbHgylRNEv7JV3lnlt7akfdax7mnUHndEuuh57CmBaKSSXns7+YA==}
+    engines: {node: '>=12.13'}
     dependencies:
       '@babel/runtime': 7.14.0
-      leven: 3.1.0
+      fastest-levenshtein: 1.0.12
       lodash.deburr: 4.1.0
     dev: false
 
@@ -7958,6 +7958,10 @@ packages:
 
   /fast-safe-stringify/2.0.7:
     resolution: {integrity: sha512-Utm6CdzT+6xsDk2m8S6uL8VHxNwI6Jub+e9NYTcAms28T84pTa25GJQV9j0CY0N1rM8hK4x6grpF2BQf+2qwVA==}
+
+  /fastest-levenshtein/1.0.12:
+    resolution: {integrity: sha512-On2N+BpYJ15xIC974QNVuYGMOlEVt4s0EOI3wwMqOmK1fdDY+FN/zltPV8vosq4ad4c/gJ1KHScUn/6AWIgiow==}
+    dev: false
 
   /fastq/1.11.0:
     resolution: {integrity: sha512-7Eczs8gIPDrVzT+EksYBcupqMyxSHXXrHOLRRxU2/DicV8789MRBRR8+Hc2uWzUupOs4YS4JzBmBxjjCVBxD/g==}
@@ -10111,6 +10115,7 @@ packages:
   /leven/3.1.0:
     resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==}
     engines: {node: '>=6'}
+    dev: true
 
   /levn/0.3.0:
     resolution: {integrity: sha1-OwmSTt+fCDwEkP3UwLxEIeBHZO4=}
