@@ -1,5 +1,11 @@
 # pkgs-graph
 
+## 6.1.2
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
 ## 6.1.1
 
 ### Patch Changes

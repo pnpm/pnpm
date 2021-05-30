@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 15.0.3
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
 ## 15.0.2
 
 ### Patch Changes

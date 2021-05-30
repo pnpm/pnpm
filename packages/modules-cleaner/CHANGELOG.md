@@ -1,5 +1,14 @@
 # @pnpm/modules-cleaner
 
+## 11.0.5
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/filter-lockfile@5.0.4
+  - @pnpm/lockfile-utils@3.0.4
+
 ## 11.0.4
 
 ### Patch Changes

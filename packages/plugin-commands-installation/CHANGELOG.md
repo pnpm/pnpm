@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 4.1.10
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/filter-workspace-packages@4.0.5
+  - @pnpm/outdated@8.0.9
+  - @pnpm/plugin-commands-rebuild@4.0.6
+  - supi@0.46.13
+  - @pnpm/cli-utils@0.6.6
+  - @pnpm/store-connection-manager@2.1.7
+  - @pnpm/package-store@12.0.8
+  - @pnpm/find-workspace-packages@3.0.6
+
 ## 4.1.9
 
 ### Patch Changes

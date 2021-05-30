@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 4.1.7
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/lockfile-file@4.0.2
+  - @pnpm/outdated@8.0.9
+  - @pnpm/cli-utils@0.6.6
+
 ## 4.1.6
 
 ### Patch Changes

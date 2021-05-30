@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-nvm
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/tarball-fetcher@9.3.1
+  - @pnpm/package-store@12.0.8
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-store
 
+## 3.0.11
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/get-context@5.1.1
+  - @pnpm/lockfile-utils@3.0.4
+  - @pnpm/cli-utils@0.6.6
+  - @pnpm/store-connection-manager@2.1.7
+
 ## 3.0.10
 
 ### Patch Changes

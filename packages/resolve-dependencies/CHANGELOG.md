@@ -1,5 +1,14 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.8
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/lockfile-utils@3.0.4
+  - @pnpm/prune-lockfile@3.0.4
+
 ## 20.0.7
 
 ### Patch Changes

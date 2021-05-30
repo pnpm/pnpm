@@ -1,5 +1,26 @@
 # supi
 
+## 0.46.13
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/build-modules@7.0.2
+  - @pnpm/filter-lockfile@5.0.4
+  - @pnpm/get-context@5.1.1
+  - @pnpm/headless@16.0.10
+  - @pnpm/hoist@5.0.7
+  - @pnpm/link-bins@6.0.3
+  - @pnpm/lockfile-file@4.0.2
+  - @pnpm/lockfile-to-pnp@0.4.7
+  - @pnpm/lockfile-utils@3.0.4
+  - @pnpm/lockfile-walker@4.0.4
+  - @pnpm/modules-cleaner@11.0.5
+  - @pnpm/package-requester@15.0.3
+  - @pnpm/prune-lockfile@3.0.4
+  - @pnpm/resolve-dependencies@20.0.8
+
 ## 0.46.12
 
 ### Patch Changes

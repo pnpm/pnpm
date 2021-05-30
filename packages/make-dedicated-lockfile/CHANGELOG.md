@@ -1,5 +1,15 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.2.8
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/exportable-manifest@2.1.3
+  - @pnpm/lockfile-file@4.0.2
+  - @pnpm/prune-lockfile@3.0.4
+
 ## 0.2.7
 
 ### Patch Changes

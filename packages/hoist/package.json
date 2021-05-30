@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "5.0.6",
+  "version": "5.0.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -39,10 +39,10 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/link-bins": "workspace:6.0.2",
+    "@pnpm/link-bins": "workspace:6.0.3",
     "@pnpm/lockfile-types": "workspace:3.0.0",
-    "@pnpm/lockfile-utils": "workspace:3.0.3",
-    "@pnpm/lockfile-walker": "workspace:4.0.3",
+    "@pnpm/lockfile-utils": "workspace:3.0.4",
+    "@pnpm/lockfile-walker": "workspace:4.0.4",
     "@pnpm/matcher": "workspace:2.0.0",
     "@pnpm/symlink-dependency": "workspace:4.0.2",
     "@pnpm/types": "workspace:7.1.0",

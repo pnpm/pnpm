@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 4.2.2
+
+### Patch Changes
+
+- 05ed9ea63: Update didyoumean2 to v5.
+
 ## 4.2.1
 
 ### Patch Changes

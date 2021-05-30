@@ -1,5 +1,15 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.4.7
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/lockfile-file@4.0.2
+  - @pnpm/lockfile-utils@3.0.4
+
 ## 0.4.6
 
 ### Patch Changes

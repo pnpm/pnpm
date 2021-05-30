@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 9.3.1
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
 ## 9.3.0
 
 ### Minor Changes

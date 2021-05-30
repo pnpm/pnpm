@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-audit
 
+## 4.1.5
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/lockfile-file@4.0.2
+  - @pnpm/cli-utils@0.6.6
+  - @pnpm/audit@2.1.3
+
 ## 4.1.4
 
 ### Patch Changes

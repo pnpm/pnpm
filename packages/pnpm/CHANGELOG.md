@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.6.2
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
 ## 6.6.1
 
 ### Minor Changes

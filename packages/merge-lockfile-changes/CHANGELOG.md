@@ -1,5 +1,11 @@
 # @pnpm/merge-lockfile-changes
 
+## 2.0.1
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
 ## 2.0.0
 
 ### Major Changes

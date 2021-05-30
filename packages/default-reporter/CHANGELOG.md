@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 8.1.1
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+
 ## 8.1.0
 
 ### Minor Changes

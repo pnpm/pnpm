@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-listing
 
+## 3.0.9
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/list@6.2.1
+  - @pnpm/cli-utils@0.6.6
+
 ## 3.0.8
 
 ### Patch Changes

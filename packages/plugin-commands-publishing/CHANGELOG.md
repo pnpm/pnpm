@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 3.2.2
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/exportable-manifest@2.1.3
+  - @pnpm/cli-utils@0.6.6
+  - @pnpm/client@3.1.6
+
 ## 3.2.1
 
 ### Patch Changes

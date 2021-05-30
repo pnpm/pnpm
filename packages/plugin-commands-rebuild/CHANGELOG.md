@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 4.0.6
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/config@12.3.1
+  - @pnpm/get-context@5.1.1
+  - @pnpm/link-bins@6.0.3
+  - @pnpm/lockfile-utils@3.0.4
+  - @pnpm/lockfile-walker@4.0.4
+  - @pnpm/cli-utils@0.6.6
+  - @pnpm/store-connection-manager@2.1.7
+  - @pnpm/find-workspace-packages@3.0.6
+
 ## 4.0.5
 
 ### Patch Changes

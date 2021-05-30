@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 3.0.4
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
 ## 3.0.3
 
 ### Patch Changes

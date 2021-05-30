@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 5.1.1
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/lockfile-file@4.0.2
+  - @pnpm/read-projects-context@5.0.2
+
 ## 5.1.0
 
 ### Minor Changes

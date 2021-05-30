@@ -1,6 +1,6 @@
 {
   "name": "pkgs-graph",
-  "version": "6.1.1",
+  "version": "6.1.2",
   "description": "Create a graph from an array of packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

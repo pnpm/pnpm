@@ -1,5 +1,13 @@
 # @pnpm/lockfile-file
 
+## 4.0.2
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/merge-lockfile-changes@2.0.1
+
 ## 4.0.1
 
 ### Patch Changes

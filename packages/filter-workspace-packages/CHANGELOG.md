@@ -1,5 +1,14 @@
 # @pnpm/filter-workspace-packages
 
+## 4.0.5
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - pkgs-graph@6.1.2
+  - @pnpm/find-workspace-packages@3.0.6
+
 ## 4.0.4
 
 ### Patch Changes

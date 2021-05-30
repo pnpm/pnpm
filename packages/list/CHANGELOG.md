@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 6.2.1
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+  - dependencies-hierarchy@10.0.5
+
 ## 6.2.0
 
 ### Minor Changes

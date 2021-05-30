@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 2.1.3
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
 ## 2.1.2
 
 ### Patch Changes

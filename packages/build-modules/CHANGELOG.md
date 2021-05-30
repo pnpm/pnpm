@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 7.0.2
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/link-bins@6.0.3
+
 ## 7.0.1
 
 ### Patch Changes

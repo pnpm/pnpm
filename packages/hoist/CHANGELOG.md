@@ -1,5 +1,15 @@
 # @pnpm/hoist
 
+## 5.0.7
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/link-bins@6.0.3
+  - @pnpm/lockfile-utils@3.0.4
+  - @pnpm/lockfile-walker@4.0.4
+
 ## 5.0.6
 
 ### Patch Changes
