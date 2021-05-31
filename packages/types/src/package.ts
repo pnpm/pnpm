@@ -46,6 +46,10 @@ export interface PeerDependenciesMeta {
   }
 }
 
+export interface PublishConfig extends Record<string, unknown> {
+  directory?: string
+}
+
 interface BaseManifest {
   name?: string
   version?: string
@@ -76,7 +80,7 @@ interface BaseManifest {
   module?: string
   typings?: string
   types?: string
-  publishConfig?: Record<string, unknown>
+  publishConfig?: PublishConfig
 }
 
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
