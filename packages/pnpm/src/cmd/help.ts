@@ -96,6 +96,10 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Executes a shell command in scope of a project',
+            name: 'exec',
+          },
+          {
             description: 'Runs a defined package script',
             name: 'run',
           },
@@ -107,14 +111,6 @@ function getHelpText () {
           {
             description: 'Runs an arbitrary command specified in the package\'s "start" property of its "scripts" object',
             name: 'start',
-          },
-          {
-            description: 'Runs a package\'s "restart" script, if one was provided',
-            name: 'restart',
-          },
-          {
-            description: 'Runs a package\'s "stop" script, if one was provided',
-            name: 'stop',
           },
         ],
       },
