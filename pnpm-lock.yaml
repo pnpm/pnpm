@@ -1644,13 +1644,13 @@ importers:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': ^3.0.29
       didyoumean2: ^5.0.0
-      nopt: ^5.0.0
+      nopt: npm:@pnpm/nopt@^0.1.0
       tempy: ^1.0.0
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/find-workspace-dir': link:../find-workspace-dir
       didyoumean2: 5.0.0
-      nopt: 5.0.0
+      nopt: /@pnpm/nopt/0.1.0
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
@@ -2448,7 +2448,7 @@ importers:
       loud-rejection: ^2.2.0
       ncp: ^2.0.0
       node-gyp: ^8.0.0
-      nopt: ^5.0.0
+      nopt: npm:@pnpm/nopt@^0.1.0
       normalize-newline: 3.0.0
       npm-run-all: ^4.1.5
       p-any: 3.0.0
@@ -2541,7 +2541,7 @@ importers:
       load-json-file: 6.2.0
       loud-rejection: 2.2.0
       ncp: 2.0.0
-      nopt: 5.0.0
+      nopt: /@pnpm/nopt/0.1.0
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
       p-any: 3.0.0
@@ -4450,6 +4450,13 @@ packages:
       path-exists: 4.0.0
       write-json-file: 4.3.0
     dev: true
+
+  /@pnpm/nopt/0.1.0:
+    resolution: {integrity: sha512-313iEhCRJ5yQL1mK2rTUW8bVzP2j2P1ZtQ/UAAh2GHsgrTMvJ/3Z529/D4llkvKjs38O4XEIM3gGqhNIu7RIow==}
+    engines: {node: '>=6'}
+    hasBin: true
+    dependencies:
+      abbrev: 1.1.1
 
   /@pnpm/package-is-installable/4.0.19_@pnpm+logger@3.2.3:
     resolution: {integrity: sha512-+NYzUDuiBtXUpfoNM1INjXOQs/7imE4FC4iLwkXJrtYtGFPyA39maW44sGQSAmpR1uYih29EcTNdbFZkYVYvFA==}
@@ -10990,6 +10997,7 @@ packages:
     hasBin: true
     dependencies:
       abbrev: 1.1.1
+    dev: false
 
   /normalize-newline/3.0.0:
     resolution: {integrity: sha1-HL6oBKukNgAfg5OKsh7AOdaa6dM=}

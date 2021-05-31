@@ -245,3 +245,11 @@ test('--workspace-root fails if used outside of a workspace', async () => {
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NOT_IN_WORKSPACE')
 })
+
+test('everything after "exec" is a parameter', async () => {
+  const { params, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, ['-r', 'exec', 'rm', '-rf', 'node_modules'])
+  expect(cmd).toBe('exec')
+  expect(params).toStrictEqual(['rm', '-rf', 'node_modules'])
+})
