@@ -1,5 +1,11 @@
 # @pnpm/npm-registry-agent
 
+## 5.0.0
+
+### Major Changes
+
+- eeff424bd: strictSSL option renamed to strictSsl.
+
 ## 4.0.0
 
 ### Major Changes

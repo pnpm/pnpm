@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/core-loggers@6.0.2
+  - @pnpm/read-package-json@5.0.2
+
 ## 11.0.0
 
 ### Major Changes

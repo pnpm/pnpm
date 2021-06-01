@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-publishing
 
+## 3.3.0
+
+### Minor Changes
+
+- 724c5abd8: support "publishConfig.directory" field
+
+### Patch Changes
+
+- Updated dependencies [eeff424bd]
+- Updated dependencies [724c5abd8]
+  - @pnpm/client@4.0.0
+  - @pnpm/run-npm@3.1.0
+  - @pnpm/types@7.2.0
+  - @pnpm/cli-utils@0.6.7
+  - @pnpm/config@12.3.2
+  - @pnpm/exportable-manifest@2.1.4
+  - @pnpm/lifecycle@11.0.1
+  - @pnpm/pick-registry-for-package@2.0.2
+  - @pnpm/resolver-base@8.0.2
+  - @pnpm/sort-packages@2.0.2
+
 ## 3.2.2
 
 ### Patch Changes

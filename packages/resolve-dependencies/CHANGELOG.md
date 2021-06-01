@@ -1,5 +1,23 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.9
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/npm-resolver@11.1.3
+  - @pnpm/core-loggers@6.0.2
+  - dependency-path@8.0.1
+  - @pnpm/lockfile-utils@3.0.5
+  - @pnpm/manifest-utils@2.0.2
+  - @pnpm/package-is-installable@5.0.2
+  - @pnpm/pick-registry-for-package@2.0.2
+  - @pnpm/prune-lockfile@3.0.5
+  - @pnpm/read-package-json@5.0.2
+  - @pnpm/resolver-base@8.0.2
+  - @pnpm/store-controller-types@11.0.3
+
 ## 20.0.8
 
 ### Patch Changes

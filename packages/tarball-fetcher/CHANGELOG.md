@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 9.3.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.0.2
+- @pnpm/fetcher-base@11.0.1
+- @pnpm/prepare-package@1.0.1
+
 ## 9.3.1
 
 ### Patch Changes

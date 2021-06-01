@@ -1,5 +1,18 @@
 # @pnpm/fetch
 
+## 4.0.0
+
+### Major Changes
+
+- e7d9cd187: Do not use fetch does not support unix requests.
+- eeff424bd: strictSSL option renamed to strictSsl.
+
+### Patch Changes
+
+- Updated dependencies [eeff424bd]
+  - @pnpm/npm-registry-agent@5.0.0
+  - @pnpm/core-loggers@6.0.2
+
 ## 3.1.0
 
 ### Minor Changes

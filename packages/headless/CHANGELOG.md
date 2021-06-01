@@ -1,5 +1,30 @@
 # @pnpm/headless
 
+## 16.0.11
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/package-requester@15.0.4
+  - @pnpm/build-modules@7.0.3
+  - @pnpm/core-loggers@6.0.2
+  - dependency-path@8.0.1
+  - @pnpm/filter-lockfile@5.0.5
+  - @pnpm/hoist@5.0.8
+  - @pnpm/lifecycle@11.0.1
+  - @pnpm/link-bins@6.0.4
+  - @pnpm/lockfile-file@4.0.3
+  - @pnpm/lockfile-to-pnp@0.4.8
+  - @pnpm/lockfile-utils@3.0.5
+  - @pnpm/modules-cleaner@11.0.6
+  - @pnpm/modules-yaml@9.0.2
+  - @pnpm/package-is-installable@5.0.2
+  - @pnpm/read-package-json@5.0.2
+  - @pnpm/read-project-manifest@2.0.3
+  - @pnpm/store-controller-types@11.0.3
+  - @pnpm/symlink-dependency@4.0.3
+
 ## 16.0.10
 
 ### Patch Changes

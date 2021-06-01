@@ -1,5 +1,14 @@
 # @pnpm/assert-project
 
+## 2.2.5
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/modules-yaml@9.0.2
+  - @pnpm/assert-store@1.0.22
+
 ## 2.2.4
 
 ### Patch Changes

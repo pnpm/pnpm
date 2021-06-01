@@ -1,5 +1,21 @@
 # @pnpm/client
 
+## 4.0.0
+
+### Major Changes
+
+- eeff424bd: strictSSL option renamed to strictSsl.
+
+### Patch Changes
+
+- Updated dependencies [e7d9cd187]
+- Updated dependencies [eeff424bd]
+  - @pnpm/fetch@4.0.0
+  - @pnpm/default-resolver@12.0.5
+  - @pnpm/tarball-fetcher@9.3.2
+  - @pnpm/git-fetcher@4.1.2
+  - @pnpm/resolver-base@8.0.2
+
 ## 3.1.6
 
 ### Patch Changes

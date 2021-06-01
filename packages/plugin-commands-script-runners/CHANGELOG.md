@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-script-runners
 
+## 3.3.0
+
+### Minor Changes
+
+- 06f127503: `--` is ignored, when it is passed in as the first parameter to the exec command. This is for backward compatibility.
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/cli-utils@0.6.7
+  - @pnpm/config@12.3.2
+  - @pnpm/lifecycle@11.0.1
+  - @pnpm/read-project-manifest@2.0.3
+  - @pnpm/sort-packages@2.0.2
+
 ## 3.2.2
 
 ### Patch Changes

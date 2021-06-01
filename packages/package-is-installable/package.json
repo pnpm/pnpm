@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -27,9 +27,9 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:6.0.1",
+    "@pnpm/core-loggers": "workspace:6.0.2",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/types": "workspace:7.1.0",
+    "@pnpm/types": "workspace:7.2.0",
     "semver": "^7.3.4"
   },
   "devDependencies": {

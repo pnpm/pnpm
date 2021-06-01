@@ -1,5 +1,18 @@
 # @pnpm/modules-cleaner
 
+## 11.0.6
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/core-loggers@6.0.2
+  - dependency-path@8.0.1
+  - @pnpm/filter-lockfile@5.0.5
+  - @pnpm/lockfile-utils@3.0.5
+  - @pnpm/remove-bins@2.0.2
+  - @pnpm/store-controller-types@11.0.3
+
 ## 11.0.5
 
 ### Patch Changes

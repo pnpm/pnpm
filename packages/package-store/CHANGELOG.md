@@ -1,5 +1,18 @@
 # @pnpm/package-store
 
+## 12.0.9
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/package-requester@15.0.4
+  - @pnpm/core-loggers@6.0.2
+  - @pnpm/fetcher-base@11.0.1
+  - @pnpm/resolver-base@8.0.2
+  - @pnpm/store-controller-types@11.0.3
+  - @pnpm/cafs@3.0.5
+
 ## 12.0.8
 
 ### Patch Changes

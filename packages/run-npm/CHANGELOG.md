@@ -1,5 +1,11 @@
 # @pnpm/run-npm
 
+## 3.1.0
+
+### Minor Changes
+
+- 724c5abd8: support "publishConfig.directory" field
+
 ## 3.0.0
 
 ### Major Changes

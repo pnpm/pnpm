@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-nvm",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "pnpm commands for managing Node.js",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,11 +29,11 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-nvm#readme",
   "dependencies": {
-    "@pnpm/config": "workspace:12.3.1",
-    "@pnpm/fetch": "workspace:3.1.0",
-    "@pnpm/package-store": "workspace:12.0.8",
+    "@pnpm/config": "workspace:12.3.2",
+    "@pnpm/fetch": "workspace:4.0.0",
+    "@pnpm/package-store": "workspace:12.0.9",
     "@pnpm/store-path": "^5.0.0",
-    "@pnpm/tarball-fetcher": "workspace:9.3.1",
+    "@pnpm/tarball-fetcher": "workspace:9.3.2",
     "adm-zip": "^0.5.5",
     "load-json-file": "^6.2.0",
     "rename-overwrite": "^4.0.0",
@@ -42,7 +42,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/prepare": "workspace:0.0.23",
+    "@pnpm/prepare": "workspace:0.0.24",
     "@types/adm-zip": "^0.4.34"
   }
 }

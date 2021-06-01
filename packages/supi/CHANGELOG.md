@@ -1,5 +1,38 @@
 # supi
 
+## 0.46.14
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/headless@16.0.11
+  - @pnpm/package-requester@15.0.4
+  - @pnpm/build-modules@7.0.3
+  - @pnpm/core-loggers@6.0.2
+  - dependency-path@8.0.1
+  - @pnpm/filter-lockfile@5.0.5
+  - @pnpm/get-context@5.1.2
+  - @pnpm/hoist@5.0.8
+  - @pnpm/lifecycle@11.0.1
+  - @pnpm/link-bins@6.0.4
+  - @pnpm/lockfile-file@4.0.3
+  - @pnpm/lockfile-to-pnp@0.4.8
+  - @pnpm/lockfile-utils@3.0.5
+  - @pnpm/lockfile-walker@4.0.5
+  - @pnpm/manifest-utils@2.0.2
+  - @pnpm/modules-cleaner@11.0.6
+  - @pnpm/modules-yaml@9.0.2
+  - @pnpm/normalize-registries@2.0.2
+  - @pnpm/prune-lockfile@3.0.5
+  - @pnpm/read-package-json@5.0.2
+  - @pnpm/read-project-manifest@2.0.3
+  - @pnpm/remove-bins@2.0.2
+  - @pnpm/resolve-dependencies@20.0.9
+  - @pnpm/resolver-base@8.0.2
+  - @pnpm/store-controller-types@11.0.3
+  - @pnpm/symlink-dependency@4.0.3
+
 ## 0.46.13
 
 ### Patch Changes

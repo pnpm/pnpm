@@ -1,5 +1,17 @@
 # pnpm
 
+## 6.7.0
+
+### Minor Changes
+
+- Support the `publishConfig.directory` field in `package.json` [#3490](https://github.com/pnpm/pnpm/pull/3490).
+- There is no need to escape the command shell with `--`, when using the exec command. So just `pnpm exec rm -rf dir` instead of `pnpm exec -- rm -rf dir` [#3492](https://github.com/pnpm/pnpm/pull/3492).
+
+### Patch Changes
+
+- Mention `pnpm exec` in the generic help.
+- `pnpm outdated` should read the value of the `strict-ssl` setting [#3493](https://github.com/pnpm/pnpm/issues/3493).
+
 ## 6.6.2
 
 ### Patch Changes

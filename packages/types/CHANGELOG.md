@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.2.0
+
+### Minor Changes
+
+- 724c5abd8: support "publishConfig.directory" field
+
 ## 7.1.0
 
 ### Minor Changes

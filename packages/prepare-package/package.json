@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prepare-package",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Prepares a Git-hosted package",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/prepare-package#readme",
   "dependencies": {
-    "@pnpm/read-package-json": "workspace:5.0.1",
+    "@pnpm/read-package-json": "workspace:5.0.2",
     "@zkochan/rimraf": "^2.1.1",
     "execa": "^5.0.0",
     "preferred-pm": "^3.0.3"

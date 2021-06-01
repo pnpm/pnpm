@@ -1,5 +1,12 @@
 # @pnpm/parse-cli-args
 
+## 4.3.0
+
+### Minor Changes
+
+- 06f127503: A new option added: `escapeArgs`. `escapeArgs` is an array of arguments that stop arguments parsing.
+  By default, everything after `--` is not parsed as key-value. This option allows to add new keywords to stop parsing.
+
 ## 4.2.2
 
 ### Patch Changes
