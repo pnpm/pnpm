@@ -255,3 +255,12 @@ test('everything after an escape arg is a parameter', async () => {
   expect(options).toHaveProperty(['recursive'])
   expect(params).toStrictEqual(['rm', '-rf', 'node_modules'])
 })
+
+test('everything after an escape arg is a parameter, even if it has a help option', async () => {
+  const { params, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    escapeArgs: ['exec'],
+  }, ['exec', 'rm', '--help'])
+  expect(cmd).toBe('exec')
+  expect(params).toStrictEqual(['rm', '--help'])
+})
