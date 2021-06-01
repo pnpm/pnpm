@@ -36,8 +36,7 @@
     "@pnpm/fetching-types": "workspace:2.1.0",
     "@pnpm/npm-registry-agent": "workspace:4.0.0",
     "@zkochan/retry": "^0.2.0",
-    "node-fetch": "^2.6.1",
-    "node-fetch-unix": "2.3.0"
+    "node-fetch": "^2.6.1"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",

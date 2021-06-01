@@ -503,14 +503,12 @@ importers:
       cpy-cli: ^3.1.1
       nock: 12.0.3
       node-fetch: ^2.6.1
-      node-fetch-unix: 2.3.0
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/fetching-types': link:../fetching-types
       '@pnpm/npm-registry-agent': link:../npm-registry-agent
       '@zkochan/retry': 0.2.0
       node-fetch: 2.6.1
-      node-fetch-unix: 2.3.0
     devDependencies:
       '@pnpm/fetch': 'link:'
       '@pnpm/logger': 4.0.0
@@ -10921,11 +10919,6 @@ packages:
     dependencies:
       semver: 5.7.1
     dev: true
-
-  /node-fetch-unix/2.3.0:
-    resolution: {integrity: sha512-ngVgjZl1n1dZRR8BIX/UKU3Q0cfkQ4byUVcV132xW/+zPF79sVo2td2576mzIGJibi7E0Azcx2gpy66BoV2hrg==}
-    engines: {node: 4.x || >=6.0.0}
-    dev: false
 
   /node-fetch/2.6.1:
     resolution: {integrity: sha512-V4aYg89jEoVRxRb2fJdAg8FHvI7cEyYdVAh94HH0UIK8oJxUfkjlDQN9RbMx+bEjP7+ggMiFRprSti032Oipxw==}

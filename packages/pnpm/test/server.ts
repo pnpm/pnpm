@@ -131,7 +131,7 @@ skipOnWindows('pnpm server uses TCP when port specified', async () => {
   expect(await pathExists(serverJsonPath)).toBeFalsy()
 })
 
-test('pnpm server fails when trying to set --port for IPC protocol', async () => {
+test.skip('pnpm server fails when trying to set --port for IPC protocol', async () => {
   prepare()
 
   expect(execPnpmSync(['server', 'start', '--protocol', 'ipc', '--port', '7856']).status).toBe(1)
