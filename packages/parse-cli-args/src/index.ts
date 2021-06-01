@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
+import nopt from '@pnpm/nopt'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
-import nopt from 'nopt'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
@@ -22,6 +22,7 @@ export interface ParsedCliArgs {
 
 export default async function parseCliArgs (
   opts: {
+    escapeArgs?: string[]
     fallbackCommand?: string
     getCommandLongName: (commandName: string) => string | null
     getTypesByCommandName: (commandName: string) => object
@@ -46,7 +47,8 @@ export default async function parseCliArgs (
       ...opts.universalShorthands,
     },
     inputArgv,
-    0
+    0,
+    { escapeArgs: opts.escapeArgs }
   )
 
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
@@ -92,7 +94,8 @@ export default async function parseCliArgs (
       ...opts.shorthandsByCommandName[commandName],
     },
     inputArgv,
-    0
+    0,
+    { escapeArgs: opts.escapeArgs }
   )
 
   if (opts.renamedOptions != null) {

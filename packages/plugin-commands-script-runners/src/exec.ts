@@ -55,7 +55,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
         ],
       },
     ],
-    usages: ['pnpm exec -- <command> [args...]'],
+    usages: ['pnpm [-r] exec <command> [args...]'],
   })
 }
 
@@ -69,6 +69,10 @@ export async function handler (
   } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
+  // For backward compatibility
+  if (params[0] === '--') {
+    params.shift()
+  }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
   const result = {

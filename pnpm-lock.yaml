@@ -11,6 +11,7 @@ overrides:
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.4
   lodash@<4.17.19: ^4.17.9
   hosted-git-info@<3.0.8: ^3.0.8
+  nopt@5: npm:@pnpm/nopt@^0.2.1
 
 importers:
 
@@ -1641,19 +1642,17 @@ importers:
     specifiers:
       '@pnpm/error': workspace:2.0.0
       '@pnpm/find-workspace-dir': workspace:3.0.1
+      '@pnpm/nopt': ^0.2.1
       '@pnpm/parse-cli-args': 'link:'
-      '@types/nopt': ^3.0.29
       didyoumean2: ^5.0.0
-      nopt: ^5.0.0
       tempy: ^1.0.0
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/find-workspace-dir': link:../find-workspace-dir
+      '@pnpm/nopt': 0.2.1
       didyoumean2: 5.0.0
-      nopt: 5.0.0
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
-      '@types/nopt': 3.0.29
       tempy: 1.0.1
 
   packages/parse-wanted-dependency:
@@ -2396,6 +2395,7 @@ importers:
       '@pnpm/lockfile-types': workspace:3.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/modules-yaml': workspace:9.0.1
+      '@pnpm/nopt': ^0.2.1
       '@pnpm/parse-cli-args': workspace:4.2.2
       '@pnpm/pick-registry-for-package': workspace:2.0.1
       '@pnpm/plugin-commands-audit': workspace:4.1.5
@@ -2423,7 +2423,6 @@ importers:
       '@types/is-ci': ^3.0.0
       '@types/is-windows': ^1.0.0
       '@types/ncp': ^2.0.4
-      '@types/nopt': ^3.0.29
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
       '@types/which': ^2.0.0
@@ -2448,7 +2447,6 @@ importers:
       loud-rejection: ^2.2.0
       ncp: ^2.0.0
       node-gyp: ^8.0.0
-      nopt: ^5.0.0
       normalize-newline: 3.0.0
       npm-run-all: ^4.1.5
       p-any: 3.0.0
@@ -2490,6 +2488,7 @@ importers:
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/logger': 4.0.0
       '@pnpm/modules-yaml': link:../modules-yaml
+      '@pnpm/nopt': 0.2.1
       '@pnpm/parse-cli-args': link:../parse-cli-args
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
       '@pnpm/plugin-commands-audit': link:../plugin-commands-audit
@@ -2517,7 +2516,6 @@ importers:
       '@types/is-ci': 3.0.0
       '@types/is-windows': 1.0.0
       '@types/ncp': 2.0.4
-      '@types/nopt': 3.0.29
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.6
       '@types/which': 2.0.0
@@ -2541,7 +2539,6 @@ importers:
       load-json-file: 6.2.0
       loud-rejection: 2.2.0
       ncp: 2.0.0
-      nopt: 5.0.0
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
       p-any: 3.0.0
@@ -4451,6 +4448,13 @@ packages:
       write-json-file: 4.3.0
     dev: true
 
+  /@pnpm/nopt/0.2.1:
+    resolution: {integrity: sha512-zkgDE6q3Y6KeZPjqXCk/hRQ2t6iw9JXbdnYZghwpe/HR73e4VmV5JZ5QSFypmSd5Sx4+gjNfAqME5BVAOBCk9g==}
+    engines: {node: '>=6'}
+    hasBin: true
+    dependencies:
+      abbrev: 1.1.1
+
   /@pnpm/package-is-installable/4.0.19_@pnpm+logger@3.2.3:
     resolution: {integrity: sha512-+NYzUDuiBtXUpfoNM1INjXOQs/7imE4FC4iLwkXJrtYtGFPyA39maW44sGQSAmpR1uYih29EcTNdbFZkYVYvFA==}
     engines: {node: '>=10.16'}
@@ -4809,10 +4813,6 @@ packages:
 
   /@types/node/15.6.1:
     resolution: {integrity: sha512-7EIraBEyRHEe7CH+Fm1XvgqU6uwZN8Q7jppJGcqjROMT29qhAuuOxYB1uEY5UMYQKEmA5D+5tBnhdaPXSsLONA==}
-    dev: true
-
-  /@types/nopt/3.0.29:
-    resolution: {integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=}
     dev: true
 
   /@types/normalize-package-data/2.4.0:
@@ -10946,7 +10946,7 @@ packages:
       glob: 7.1.7
       graceful-fs: 4.2.6
       make-fetch-happen: 8.0.14
-      nopt: 5.0.0
+      nopt: /@pnpm/nopt/0.2.1
       npmlog: 4.1.2
       rimraf: 3.0.2
       semver: 7.3.5
@@ -10980,13 +10980,6 @@ packages:
 
   /nopt/1.0.10:
     resolution: {integrity: sha1-bd0hvSoxQXuScn3Vhfim83YI6+4=}
-    hasBin: true
-    dependencies:
-      abbrev: 1.1.1
-
-  /nopt/5.0.0:
-    resolution: {integrity: sha512-Tbj67rffqceeLpcRXrT7vKAN8CwfPeIBgM7E6iBkmKLV7bEMwpGgYLGv0jACUsECaa/vuxP0IjEont6umdMgtQ==}
-    engines: {node: '>=6'}
     hasBin: true
     dependencies:
       abbrev: 1.1.1

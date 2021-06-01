@@ -245,3 +245,22 @@ test('--workspace-root fails if used outside of a workspace', async () => {
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NOT_IN_WORKSPACE')
 })
+
+test('everything after an escape arg is a parameter', async () => {
+  const { params, options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    escapeArgs: ['exec'],
+  }, ['-r', 'exec', 'rm', '-rf', 'node_modules'])
+  expect(cmd).toBe('exec')
+  expect(options).toHaveProperty(['recursive'])
+  expect(params).toStrictEqual(['rm', '-rf', 'node_modules'])
+})
+
+test('everything after an escape arg is a parameter, even if it has a help option', async () => {
+  const { params, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    escapeArgs: ['exec'],
+  }, ['exec', 'rm', '--help'])
+  expect(cmd).toBe('exec')
+  expect(params).toStrictEqual(['rm', '--help'])
+})

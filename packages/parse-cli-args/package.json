@@ -28,14 +28,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/parse-cli-args#readme",
   "devDependencies": {
-    "@types/nopt": "^3.0.29",
     "tempy": "^1.0.0"
   },
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/find-workspace-dir": "workspace:3.0.1",
-    "didyoumean2": "^5.0.0",
-    "nopt": "^5.0.0"
+    "@pnpm/nopt": "^0.2.1",
+    "didyoumean2": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

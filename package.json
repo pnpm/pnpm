@@ -56,7 +56,8 @@
       "table@^6.0.3": "6.0.4",
       "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.4",
       "lodash@<4.17.19": "^4.17.9",
-      "hosted-git-info@<3.0.8": "^3.0.8"
+      "hosted-git-info@<3.0.8": "^3.0.8",
+      "nopt@5": "npm:@pnpm/nopt@^0.2.1"
     },
     "neverBuiltDependencies": [
       "core-js",

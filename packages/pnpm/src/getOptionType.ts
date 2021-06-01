@@ -1,4 +1,4 @@
-import nopt from 'nopt'
+import nopt from '@pnpm/nopt'
 import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
 
