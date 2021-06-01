@@ -22,6 +22,7 @@ export interface ParsedCliArgs {
 
 export default async function parseCliArgs (
   opts: {
+    escapeArgs?: string[]
     fallbackCommand?: string
     getCommandLongName: (commandName: string) => string | null
     getTypesByCommandName: (commandName: string) => object
@@ -46,7 +47,8 @@ export default async function parseCliArgs (
       ...opts.universalShorthands,
     },
     inputArgv,
-    0
+    0,
+    { escapeArgs: opts.escapeArgs }
   )
 
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
@@ -93,9 +95,7 @@ export default async function parseCliArgs (
     },
     inputArgv,
     0,
-    {
-      escapeArgs: ['exec'],
-    }
+    { escapeArgs: opts.escapeArgs }
   )
 
   if (opts.renamedOptions != null) {
