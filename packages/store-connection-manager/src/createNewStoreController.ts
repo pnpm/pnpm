@@ -57,7 +57,7 @@ export default async (
       retries: opts.fetchRetries,
     },
     storeDir: opts.storeDir,
-    strictSSL: opts.strictSsl ?? true,
+    strictSsl: opts.strictSsl ?? true,
     timeout: opts.fetchTimeout,
     userAgent: opts.userAgent,
     maxSockets: opts.networkConcurrency != null

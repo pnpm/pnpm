@@ -34,7 +34,7 @@ export default function (
       const agent = npmRegistryAgent(urlObject.href, {
         ...defaultOpts,
         ...opts,
-        strictSSL: defaultOpts.strictSSL ?? true,
+        strictSsl: defaultOpts.strictSsl ?? true,
       } as any) // eslint-disable-line
       headers['connection'] = agent ? 'keep-alive' : 'close'
 

@@ -25,7 +25,7 @@ const OPTS = {
   key: 'key',
   localAddress: 'localAddress',
   maxSockets: 5,
-  strictSSL: true,
+  strictSsl: true,
   timeout: 5,
 }
 

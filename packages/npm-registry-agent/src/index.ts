@@ -20,7 +20,7 @@ export interface AgentOptions {
   localAddress?: string
   maxSockets?: number
   noProxy?: boolean | string
-  strictSSL?: boolean
+  strictSsl?: boolean
   timeout?: number
 }
 
@@ -36,7 +36,7 @@ export default function getAgent (uri: string, opts: AgentOptions) {
       ? `proxy:${pxuri.protocol}//${pxuri.host}:${pxuri.port}`
       : '>no-proxy<',
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
-    `strict-ssl:${isHttps ? Boolean(opts.strictSSL).toString() : '>no-strict-ssl<'}`,
+    `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && opts.ca) || '>no-ca<'}`,
     `cert:${(isHttps && opts.cert) || '>no-cert<'}`,
     `key:${(isHttps && opts.key) || '>no-key<'}`,
@@ -67,7 +67,7 @@ export default function getAgent (uri: string, opts: AgentOptions) {
       key: opts.key,
       localAddress: opts.localAddress,
       maxSockets: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-      rejectUnauthorized: opts.strictSSL,
+      rejectUnauthorized: opts.strictSsl,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     : new HttpAgent({
@@ -143,7 +143,7 @@ function getProxy (
     timeout?: number
     localAddress?: string
     maxSockets?: number
-    strictSSL?: boolean
+    strictSsl?: boolean
   },
   isHttps: boolean
 ) {
@@ -158,7 +158,7 @@ function getProxy (
     path: proxyUrl.pathname,
     port: proxyUrl.port,
     protocol: proxyUrl.protocol,
-    rejectUnauthorized: opts.strictSSL,
+    rejectUnauthorized: opts.strictSsl,
     timeout: typeof opts.timeout !== 'number' || opts.timeout === 0 ? 0 : opts.timeout + 1,
   }
 
