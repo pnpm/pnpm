@@ -147,7 +147,8 @@ Do you want to continue?`,
     runNpm(opts.npmPath, ['publish', ...params])
     return
   }
-  const dir = (params.length > 0) && params[0] || opts.dir || process.cwd()
+  const dirInParams = (params.length > 0) && params[0]
+  const dir = dirInParams || opts.dir || process.cwd()
 
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: dir,
@@ -177,7 +178,7 @@ Do you want to continue?`,
     },
     async () => {
       let args = opts.argv.original.slice(1)
-      if (params.length > 0 && params[0] != null) {
+      if (dirInParams) {
         args = args.filter(arg => arg !== params[0])
       }
       const index = args.indexOf('--publish-branch')
