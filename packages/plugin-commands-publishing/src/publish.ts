@@ -176,7 +176,10 @@ Do you want to continue?`,
       workspaceDir: opts.workspaceDir ?? dir,
     },
     async () => {
-      const args = opts.argv.original.slice(1)
+      let args = opts.argv.original.slice(1)
+      if (params.length > 0 && params[0] != null) {
+        args = args.filter(arg => arg !== params[0])
+      }
       const index = args.indexOf('--publish-branch')
       if (index !== -1) {
         // If --publish-branch follows with another cli option, only remove this argument
