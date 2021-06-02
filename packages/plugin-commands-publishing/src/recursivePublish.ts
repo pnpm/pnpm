@@ -102,10 +102,10 @@ export default async function (
         const pkg = opts.selectedProjectsGraph[pkgDir].package
         const publishResult = await publish({
           ...opts,
+          dir: pkg.dir,
           argv: {
             original: [
               'publish',
-              pkg.dir,
               '--tag',
               tag,
               '--registry',
