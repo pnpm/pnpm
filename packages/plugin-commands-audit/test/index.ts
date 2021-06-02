@@ -1,5 +1,6 @@
 import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
+import nock from 'nock'
 import stripAnsi from 'strip-ansi'
 
 const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
@@ -82,4 +83,23 @@ test.skip('audit does not exit with code 1 if the found vulnerabilities are havi
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toBe(`1 vulnerabilities found
 Severity: 1 moderate`)
+})
+
+test('audit does not exit with code 1 if the registry responds with a non-200 reponse and ignoreRegistryErrors is used', async () => {
+  const registry = 'https://registry-error.com'
+  nock(registry)
+    .post('/-/npm/v1/security/audits')
+    .reply(500, { message: 'Something bad happened' })
+  const { output, exitCode } = await audit.handler({
+    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    dev: true,
+    ignoreRegistryErrors: true,
+    production: false,
+    registries: {
+      default: registry,
+    },
+  })
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toBe('The audit endpoint (at https://registry-error.com/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
 })

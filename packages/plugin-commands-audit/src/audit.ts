@@ -125,7 +125,10 @@ export async function handler (
     })
   } catch (err) {
     if (opts.ignoreRegistryErrors) {
-      return err.message
+      return {
+        exitCode: 0,
+        output: err.message,
+      }
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
