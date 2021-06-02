@@ -147,7 +147,7 @@ Do you want to continue?`,
     runNpm(opts.npmPath, ['publish', ...params])
     return
   }
-  const dir = (params.length > 0) && params[0] || process.cwd()
+  const dir = (params.length > 0) && params[0] || opts.dir || process.cwd()
 
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: dir,
@@ -188,7 +188,7 @@ Do you want to continue?`,
         }
       }
 
-      const cwd = manifest.publishConfig?.directory ? path.join(dir, manifest.publishConfig.directory) : opts.dir
+      const cwd = manifest.publishConfig?.directory ? path.join(dir, manifest.publishConfig.directory) : dir
 
       const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...args], {
         cwd,
