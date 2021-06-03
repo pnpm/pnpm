@@ -15,7 +15,7 @@ packages:
 
   /is-negative/1.0.0:
     resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
-    engines: {node: '>=10'}
+    engines: {node: '>=10', npm: \\"\\\\nfoo\\\\n\\"}
     cpu: [x86]
     os: [darwin]
     dependencies:
