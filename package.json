@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "bump": "changeset version && pnpm update-manifests && pnpm install",
+    "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
     "prepare": "pnpm --dir=verdaccio install && pnpm --dir=fixtures run prepareFixtures && husky install",
@@ -15,7 +15,7 @@
     "compile": "pnpm --workspace-concurrency=1 --filter=pnpm --filter=@pnpm/make-dedicated-lockfile --filter=@pnpm/mount-modules run compile && pnpm run update-manifests",
     "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile -- --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
-    "update-manifests": "pnpm --filter=@pnpm-private/updater compile && meta-updater ./utils/updater/lib/index.js"
+    "update-manifests": "pnpm --filter=@pnpm-private/updater compile && meta-updater ./utils/updater/lib/index.js && pnpm install"
   },
   "devDependencies": {
     "@babel/core": "^7.14.0",
