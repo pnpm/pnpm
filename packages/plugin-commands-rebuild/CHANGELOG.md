@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-rebuild
 
+## 4.0.8
+
+### Patch Changes
+
+- @pnpm/get-context@5.1.3
+
 ## 4.0.7
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-installation
 
+## 4.1.12
+
+### Patch Changes
+
+- @pnpm/outdated@8.0.11
+- supi@0.46.15
+- @pnpm/plugin-commands-rebuild@4.0.8
+
 ## 4.1.11
 
 ### Patch Changes

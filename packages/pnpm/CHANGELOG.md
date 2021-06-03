@@ -1,16 +1,18 @@
 # pnpm
 
-## 6.7.0
+## 6.7.1
 
 ### Minor Changes
 
 - Support the `publishConfig.directory` field in `package.json` [#3490](https://github.com/pnpm/pnpm/pull/3490).
 - There is no need to escape the command shell with `--`, when using the exec command. So just `pnpm exec rm -rf dir` instead of `pnpm exec -- rm -rf dir` [#3492](https://github.com/pnpm/pnpm/pull/3492).
+- `pnpm audit` supports a new option: `--ignore-registry-errors`. `pnpm audit --ignore-registry-errors` exits with exit code 0, when the registry responds with a non-200 status code [#3472](https://github.com/pnpm/pnpm/pull/3472).
 
 ### Patch Changes
 
 - Mention `pnpm exec` in the generic help.
 - `pnpm outdated` should read the value of the `strict-ssl` setting [#3493](https://github.com/pnpm/pnpm/issues/3493).
+- New lines in engine field should not break the lockfile [#3491](https://github.com/pnpm/pnpm/issues/3491).
 
 ## 6.6.2
 

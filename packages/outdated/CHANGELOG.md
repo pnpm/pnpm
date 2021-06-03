@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 8.0.11
+
+### Patch Changes
+
+- Updated dependencies [2dc5a7a4c]
+  - @pnpm/lockfile-file@4.0.4
+
 ## 8.0.10
 
 ### Patch Changes

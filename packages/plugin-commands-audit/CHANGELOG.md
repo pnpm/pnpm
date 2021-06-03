@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-audit
 
+## 4.2.0
+
+### Minor Changes
+
+- 448710f88: New CLI option added: `--ignore-registry-errors`. When used, audit exits with 0 exit code, when the registry responds with a non-200 status code.
+
+### Patch Changes
+
+- Updated dependencies [2dc5a7a4c]
+  - @pnpm/lockfile-file@4.0.4
+  - @pnpm/audit@2.1.4
+
 ## 4.1.6
 
 ### Patch Changes

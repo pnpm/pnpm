@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 3.3.1
+
+### Patch Changes
+
+- b5e9284c3: fix publishConfig.directory script
+
 ## 3.3.0
 
 ### Minor Changes

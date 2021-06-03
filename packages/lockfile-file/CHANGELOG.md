@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 4.0.4
+
+### Patch Changes
+
+- 2dc5a7a4c: Values of properties in the engines field should be written to single line.
+
 ## 4.0.3
 
 ### Patch Changes
