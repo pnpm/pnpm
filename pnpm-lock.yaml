@@ -8,7 +8,7 @@ overrides:
   istanbul-reports: npm:@zkochan/istanbul-reports
   http-errors: ^1.7.3
   table@^6.0.3: 6.0.4
-  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.4
+  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.5
   lodash@<4.17.19: ^4.17.9
   hosted-git-info@<3.0.8: ^3.0.8
   nopt@5: npm:@pnpm/nopt@^0.2.1
@@ -1053,7 +1053,7 @@ importers:
       '@types/write-file-atomic': ^3.0.1
       '@zkochan/rimraf': ^2.1.1
       comver-to-semver: ^1.0.0
-      js-yaml: npm:@zkochan/js-yaml@0.0.4
+      js-yaml: npm:@zkochan/js-yaml@0.0.5
       normalize-path: ^3.0.0
       ramda: ^0.27.1
       semver: ^7.3.4
@@ -1071,7 +1071,7 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.1
       comver-to-semver: 1.0.0
-      js-yaml: /@zkochan/js-yaml/0.0.4
+      js-yaml: /@zkochan/js-yaml/0.0.5
       normalize-path: 3.0.0
       ramda: 0.27.1
       semver: 7.3.5
@@ -5177,8 +5177,8 @@ packages:
       istanbul-lib-report: 3.0.0
     dev: true
 
-  /@zkochan/js-yaml/0.0.4:
-    resolution: {integrity: sha512-2QAnTstlkKBF9fjjDE9geNQKCBIGqXsm+aZrbsbH0tXgj5k2eE0gDFZK1kx2KBRk+XvivuzypRupdGyP2xSliQ==}
+  /@zkochan/js-yaml/0.0.5:
+    resolution: {integrity: sha512-/uaB1kf+t+UATNUSyzHSzy4JqKOh2Y77gdCnhQEKTX/vrpQp8qjvohvC6eG9X4spQf0a8TKL0qF5LiFNj+GrJw==}
     hasBin: true
     dependencies:
       argparse: 2.0.1
@@ -12127,7 +12127,7 @@ packages:
     resolution: {integrity: sha512-UkRNRIwnhG+y7hpqnycCL/xbTk7+ia9VuVTC0S+zVbwd65DI9eUpRMfsWIGrCWxTU/mi+JW8cHQCrv+zfCbEPQ==}
     engines: {node: '>=10.13'}
     dependencies:
-      js-yaml: /@zkochan/js-yaml/0.0.4
+      js-yaml: /@zkochan/js-yaml/0.0.5
       strip-bom: 4.0.0
 
   /readable-stream/2.3.7:
@@ -13992,7 +13992,7 @@ packages:
       fast-safe-stringify: 2.0.7
       handlebars: 4.7.7
       http-errors: 1.8.0
-      js-yaml: /@zkochan/js-yaml/0.0.4
+      js-yaml: /@zkochan/js-yaml/0.0.5
       JSONStream: 1.3.5
       jsonwebtoken: 8.5.1
       kleur: 4.1.4
@@ -14045,7 +14045,7 @@ packages:
       fast-safe-stringify: 2.0.7
       handlebars: 4.7.7
       http-errors: 1.8.0
-      js-yaml: /@zkochan/js-yaml/0.0.4
+      js-yaml: /@zkochan/js-yaml/0.0.5
       JSONStream: 1.3.5
       jsonwebtoken: 8.5.1
       kleur: 4.1.4
@@ -14404,7 +14404,7 @@ packages:
     resolution: {integrity: sha512-LwyucHy0uhWqbrOkh9cBluZBeNVxzHjDaE9mwepZG3n3ZlbM4v3ndrFw51zW/NXYFFqP+QWZ72ihtLWTh05e4Q==}
     engines: {node: '>=10.13'}
     dependencies:
-      js-yaml: /@zkochan/js-yaml/0.0.4
+      js-yaml: /@zkochan/js-yaml/0.0.5
       write-file-atomic: 3.0.3
 
   /ws/7.4.6:

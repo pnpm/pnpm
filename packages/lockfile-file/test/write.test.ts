@@ -34,6 +34,7 @@ test('writeLockfiles()', async () => {
         cpu: ['x86'],
         engines: {
           node: '>=10',
+          npm: '\nfoo\n',
         },
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',

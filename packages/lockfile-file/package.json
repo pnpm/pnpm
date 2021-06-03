@@ -50,7 +50,7 @@
     "@pnpm/types": "workspace:7.2.0",
     "@zkochan/rimraf": "^2.1.1",
     "comver-to-semver": "^1.0.0",
-    "js-yaml": "npm:@zkochan/js-yaml@0.0.4",
+    "js-yaml": "npm:@zkochan/js-yaml@0.0.5",
     "normalize-path": "^3.0.0",
     "ramda": "^0.27.1",
     "semver": "^7.3.4",
