@@ -1,4 +1,4 @@
-import audit, { AuditVulnerabilityCounts } from '@pnpm/audit'
+import audit, { AuditReport, AuditVulnerabilityCounts } from '@pnpm/audit'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { Config, types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -39,6 +39,7 @@ export function cliOptionsTypes () {
       'registry',
     ], allTypes),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
+    'ignore-registry-errors': Boolean,
   }
 }
 
@@ -79,6 +80,10 @@ export function help () {
             description: 'Don\'t audit "optionalDependencies"',
             name: '--no-optional',
           },
+          {
+            description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should fail because the registry has issues.',
+            name: '--ignore-registry-errors',
+          },
         ],
       },
     ],
@@ -90,6 +95,7 @@ export function help () {
 export async function handler (
   opts: Pick<UniversalOptions, 'dir'> & {
     auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+    ignoreRegistryErrors?: boolean
     json?: boolean
     lockfileDir?: string
     registries: Registries
@@ -104,17 +110,27 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  const auditReport = await audit(lockfile, {
-    include,
-    registry: opts.registries.default,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
-  })
+  let auditReport!: AuditReport
+  try {
+    auditReport = await audit(lockfile, {
+      include,
+      registry: opts.registries.default,
+      retry: {
+        factor: opts.fetchRetryFactor,
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+        retries: opts.fetchRetries,
+      },
+      timeout: opts.fetchTimeout,
+    })
+  } catch (err) {
+    if (opts.ignoreRegistryErrors) {
+      return {
+        exitCode: 0,
+        output: err.message,
+      }
+    }
+  }
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const totalVulnerabilityCount = Object.values(vulnerabilities)
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
