@@ -76,7 +76,7 @@ async function getRepoRefs (repo: string, ref: string | null) {
 }
 
 async function resolveRef (repo: string, ref: string, range?: string) {
-  if (ref.match(/^[0-9a-f]{40}$/) != null) {
+  if (ref.match(/^[0-9a-f]{7,40}$/) != null) {
     return ref
   }
   const refs = await getRepoRefs(repo, range ? null : ref)
