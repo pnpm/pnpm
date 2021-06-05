@@ -47,22 +47,26 @@ export async function handler (
 async function setupShell (configFile: string, pnpmHomeDir: string) {
   if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
   const configContent = await fs.promises.readFile(configFile, 'utf8')
-  if (configContent.includes('PNPM_HOME')) return ''
+  if (configContent.includes('PNPM_HOME')) {
+    return `PNPM_HOME is already in ${configFile}`
+  }
   await fs.promises.writeFile(configFile, `${configContent}
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
 `, 'utf8')
-  return ''
+  return `Updated ${configFile}`
 }
 
 async function setupFishShell (pnpmHomeDir: string) {
   const configFile = path.join(os.homedir(), '.config/fish/config.fish')
   if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
   const configContent = await fs.promises.readFile(configFile, 'utf8')
-  if (configContent.includes('PNPM_HOME')) return ''
+  if (configContent.includes('PNPM_HOME')) {
+    return `PNPM_HOME is already in ${configFile}`
+  }
   await fs.promises.writeFile(configFile, `${configContent}
 set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
 `, 'utf8')
-  return ''
+  return `Updated ${configFile}`
 }
