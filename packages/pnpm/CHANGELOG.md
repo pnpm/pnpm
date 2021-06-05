@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.7.2
+
+### Patch Changes
+
+- It should be possible to install a Git-hosted package that uses a default branch other than "master" [#3506](https://github.com/pnpm/pnpm/pull/3506).
+- It should be possible to install a Git-hosted package by using only part of the Git commit hash [#3507](https://github.com/pnpm/pnpm/pull/3507).
+
 ## 6.7.1
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/client
 
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/default-resolver@12.0.6
+
 ## 4.0.0
 
 ### Major Changes

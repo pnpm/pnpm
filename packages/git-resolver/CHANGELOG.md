@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 5.1.0
+
+### Minor Changes
+
+- 69ffc4099: It should be possible to install a Git-hosted dependency that names the default branch not "master".
+
 ## 5.0.2
 
 ### Patch Changes

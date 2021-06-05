@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-rebuild
 
+## 4.0.9
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@2.1.9
+
 ## 4.0.8
 
 ### Patch Changes

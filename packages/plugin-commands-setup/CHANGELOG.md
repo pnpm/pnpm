@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 0.1.3
+
+### Patch Changes
+
+- 6a64c1ff5: A summary should be printed.
+
 ## 0.1.2
 
 ### Patch Changes
