@@ -36,6 +36,18 @@ test('resolveFromGit() with no commit', async () => {
   }
 })
 
+test('resolveFromGit() with no commit, when main branch is not master', async () => {
+  const resolveResult = await resolveFromGit({ pref: 'zoli-forks/cmd-shim' })
+  expect(resolveResult).toStrictEqual({
+    id: 'github.com/zoli-forks/cmd-shim/a00a83a1593edb6e395d3ce41f2ef70edf7e2cf5',
+    normalizedPref: 'github:zoli-forks/cmd-shim',
+    resolution: {
+      tarball: 'https://codeload.github.com/zoli-forks/cmd-shim/tar.gz/a00a83a1593edb6e395d3ce41f2ef70edf7e2cf5',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
 test('resolveFromGit() with branch', async () => {
   const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#canary' })
   expect(resolveResult).toStrictEqual({

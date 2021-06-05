@@ -16,7 +16,7 @@ export default function (
     if (parsedSpec == null) return null
 
     const pref = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
-      ? 'master'
+      ? 'HEAD'
       : parsedSpec.gitCommittish
     const commit = await resolveRef(parsedSpec.fetchSpec, pref, parsedSpec.gitRange)
     let resolution
@@ -58,16 +58,17 @@ function resolveVTags (vTags: string[], range: string) {
 }
 
 async function getRepoRefs (repo: string, ref: string | null) {
-  const gitArgs = ['ls-remote', '--refs', repo]
+  const gitArgs = [repo]
+  if (ref !== 'HEAD') {
+    gitArgs.unshift('--refs')
+  }
   if (ref) {
     gitArgs.push(ref)
   }
   // graceful-git by default retries 10 times, reduce to single retry
-  const result = await git(gitArgs, { retries: 1 })
+  const result = await git(['ls-remote', ...gitArgs], { retries: 1 })
   const refs = result.stdout.split('\n').reduce((obj: object, line: string) => {
-    const commitAndRef = line.split('\t')
-    const commit = commitAndRef[0]
-    const refName = commitAndRef[1]
+    const [commit, refName] = line.split('\t')
     obj[refName] = commit
     return obj
   }, {})
