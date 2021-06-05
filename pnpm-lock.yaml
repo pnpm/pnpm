@@ -816,7 +816,7 @@ importers:
       path-exists: ^4.0.0
       ramda: ^0.27.1
       realpath-missing: ^1.1.0
-      sinon: ^9.2.2
+      sinon: ^11.1.1
       tempy: ^1.0.0
       write-json-file: ^4.3.0
     dependencies:
@@ -865,7 +865,7 @@ importers:
       isexe: 2.0.0
       load-json-file: 6.2.0
       npm-run-all: 4.1.5
-      sinon: 9.2.4
+      sinon: 11.1.1
       tempy: 1.0.1
       write-json-file: 4.3.0
 
@@ -1815,7 +1815,7 @@ importers:
       read-ini-file: ^3.1.0
       read-yaml-file: ^2.1.0
       render-help: ^1.0.1
-      sinon: ^9.2.2
+      sinon: ^11.1.1
       supi: workspace:0.46.15
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
@@ -1877,7 +1877,7 @@ importers:
       path-name: 1.0.0
       proxyquire: 2.1.3
       read-yaml-file: 2.1.0
-      sinon: 9.2.4
+      sinon: 11.1.1
       tempy: 1.0.1
       write-json-file: 4.3.0
       write-pkg: 4.0.0
@@ -2140,7 +2140,7 @@ importers:
       render-help: ^1.0.1
       run-groups: ^3.0.1
       semver: ^7.3.4
-      sinon: ^9.2.2
+      sinon: ^11.1.1
       write-yaml-file: ^4.2.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
@@ -2183,7 +2183,7 @@ importers:
       '@types/sinon': 9.0.11
       execa: 5.1.1
       path-exists: 4.0.0
-      sinon: 9.2.4
+      sinon: 11.1.1
       write-yaml-file: 4.2.0
 
   packages/plugin-commands-script-runners:
@@ -2335,7 +2335,7 @@ importers:
       path-exists: ^4.0.0
       ramda: ^0.27.1
       render-help: ^1.0.1
-      sinon: ^9.2.2
+      sinon: ^11.1.1
       ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
@@ -2372,7 +2372,7 @@ importers:
       execa: 5.1.1
       load-json-file: 6.2.0
       path-exists: 4.0.0
-      sinon: 9.2.4
+      sinon: 11.1.1
       ssri: 8.0.1
       tempy: 1.0.1
 
@@ -2988,7 +2988,7 @@ importers:
       run-groups: ^3.0.1
       semver: ^7.3.4
       semver-utils: ^1.1.4
-      sinon: ^9.2.2
+      sinon: ^11.1.1
       supi: 'link:'
       symlink-dir: ^5.0.0
       version-selector-type: ^3.0.0
@@ -3075,7 +3075,7 @@ importers:
       path-name: 1.0.0
       read-yaml-file: 2.1.0
       resolve-link-target: 2.0.0
-      sinon: 9.2.4
+      sinon: 11.1.1
       supi: 'link:'
       symlink-dir: 5.0.1
       write-json-file: 4.3.0
@@ -4556,20 +4556,14 @@ packages:
       type-detect: 4.0.8
     dev: true
 
-  /@sinonjs/fake-timers/6.0.1:
-    resolution: {integrity: sha512-MZPUxrmFubI36XS1DI3qmI0YdN1gks62JtFZvxR67ljjSNCeK6U08Zx4msEWOXuofgqUt6zPHSi1H9fbjR/NRA==}
-    dependencies:
-      '@sinonjs/commons': 1.8.3
-    dev: true
-
   /@sinonjs/fake-timers/7.1.2:
     resolution: {integrity: sha512-iQADsW4LBMISqZ6Ci1dupJL9pprqwcVFTcOsEmQOEhW+KLCVn/Y4Jrvg2k19fIHCp+iFprriYPTdRcQR8NbUPg==}
     dependencies:
       '@sinonjs/commons': 1.8.3
     dev: true
 
-  /@sinonjs/samsam/5.3.1:
-    resolution: {integrity: sha512-1Hc0b1TtyfBu8ixF/tpfSHTVWKwCBLY4QJbkgnE7HcwyvT2xArDxb4K7dMgqRm3szI+LJbzmW/s4xxEhv6hwDg==}
+  /@sinonjs/samsam/6.0.2:
+    resolution: {integrity: sha512-jxPRPp9n93ci7b8hMfJOFDPRLFYadN6FSpeROFTR4UNF4i5b+EK6m4QXPO46BDhFgRy1JuS87zAnFOzCUwMJcQ==}
     dependencies:
       '@sinonjs/commons': 1.8.3
       lodash.get: 4.4.2
@@ -7153,6 +7147,11 @@ packages:
 
   /diff/4.0.2:
     resolution: {integrity: sha512-58lmxKSA4BNyLz+HHMUzlOEpg09FV+ev6ZMe3vJihgdxzgcwZ8VoEEPmALCZG9LmqfVoNMMKpttIYTVG6uDY7A==}
+    engines: {node: '>=0.3.1'}
+    dev: true
+
+  /diff/5.0.0:
+    resolution: {integrity: sha512-/VTCrvm5Z0JGty/BWHljh+BAiw3IK+2j87NGMu8Nwc/f48WoDAC395uomO9ZD117ZOBaHmkX1oyLvkVM/aIT3w==}
     engines: {node: '>=0.3.1'}
     dev: true
 
@@ -10824,11 +10823,11 @@ packages:
     resolution: {integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==}
     dev: true
 
-  /nise/4.1.0:
-    resolution: {integrity: sha512-eQMEmGN/8arp0xsvGoQ+B1qvSkR73B1nWSCh7nOt5neMCtwcQVYQGdzQMhcNscktTsWB54xnlSQFzOAPJD8nXA==}
+  /nise/5.1.0:
+    resolution: {integrity: sha512-W5WlHu+wvo3PaKLsJJkgPup2LrsXCcm7AWwyNZkUnn5rwPkuPBi3Iwk5SQtN0mv+K65k7nKKjwNQ30wg3wLAQQ==}
     dependencies:
       '@sinonjs/commons': 1.8.3
-      '@sinonjs/fake-timers': 6.0.1
+      '@sinonjs/fake-timers': 7.1.2
       '@sinonjs/text-encoding': 0.7.1
       just-extend: 4.2.1
       path-to-regexp: 1.8.0
@@ -12658,14 +12657,14 @@ packages:
       simple-concat: 1.0.1
     dev: true
 
-  /sinon/9.2.4:
-    resolution: {integrity: sha512-zljcULZQsJxVra28qIAL6ow1Z9tpattkCTEJR4RBP3TGc00FcttsP5pK284Nas5WjMZU5Yzy3kAIp3B3KRf5Yg==}
+  /sinon/11.1.1:
+    resolution: {integrity: sha512-ZSSmlkSyhUWbkF01Z9tEbxZLF/5tRC9eojCdFh33gtQaP7ITQVaMWQHGuFM7Cuf/KEfihuh1tTl3/ABju3AQMg==}
     dependencies:
       '@sinonjs/commons': 1.8.3
-      '@sinonjs/fake-timers': 6.0.1
-      '@sinonjs/samsam': 5.3.1
-      diff: 4.0.2
-      nise: 4.1.0
+      '@sinonjs/fake-timers': 7.1.2
+      '@sinonjs/samsam': 6.0.2
+      diff: 5.0.0
+      nise: 5.1.0
       supports-color: 7.2.0
     dev: true
 
