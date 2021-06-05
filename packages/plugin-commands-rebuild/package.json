@@ -41,7 +41,7 @@
     "@types/sinon": "^9.0.11",
     "execa": "^5.0.0",
     "path-exists": "^4.0.0",
-    "sinon": "^9.2.2",
+    "sinon": "^11.1.1",
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
