@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.7.3
+
+### Patch Changes
+
+- When publishing in a workspace, pass the `.npmrc` file from the root of the workspace to npm [#3511](https://github.com/pnpm/pnpm/pull/3511).
+
 ## 6.7.2
 
 ### Patch Changes

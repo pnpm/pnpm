@@ -119,9 +119,9 @@ importers:
   packages/beta:
     specifiers:
       '@pnpm/beta': 'link:'
-      '@pnpm/linux-x64': workspace:0.0.2-6.7.2
-      '@pnpm/macos-x64': workspace:0.0.2-6.7.2
-      '@pnpm/win-x64': workspace:0.0.2-6.7.2
+      '@pnpm/linux-x64': workspace:0.0.2-6.7.3
+      '@pnpm/macos-x64': workspace:0.0.2-6.7.3
+      '@pnpm/win-x64': workspace:0.0.2-6.7.3
     optionalDependencies:
       '@pnpm/linux-x64': link:../artifacts/linux-x64
       '@pnpm/macos-x64': link:../artifacts/macos-x64
@@ -2404,7 +2404,7 @@ importers:
       '@pnpm/plugin-commands-listing': workspace:3.0.11
       '@pnpm/plugin-commands-nvm': workspace:0.2.2
       '@pnpm/plugin-commands-outdated': workspace:4.1.10
-      '@pnpm/plugin-commands-publishing': workspace:3.3.2
+      '@pnpm/plugin-commands-publishing': workspace:3.3.3
       '@pnpm/plugin-commands-rebuild': workspace:4.0.9
       '@pnpm/plugin-commands-script-runners': workspace:3.3.0
       '@pnpm/plugin-commands-server': workspace:3.0.13

@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 3.3.3
+
+### Patch Changes
+
+- 40ce0eb6b: Copy the `.npmrc` from the root of the repository.
+
 ## 3.3.2
 
 ### Patch Changes
