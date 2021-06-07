@@ -67,8 +67,7 @@ test('recursive publish', async () => {
     },
   ])
 
-  await fs.writeFile(path.join(pkg1.name, '.npmrc'), CREDENTIALS, 'utf8')
-  await fs.writeFile(path.join(pkg2.name, '.npmrc'), CREDENTIALS, 'utf8')
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -250,8 +249,7 @@ test('recursive publish writes publish summary', async () => {
     },
   ])
 
-  await fs.writeFile('@pnpmtest/test-recursive-publish-project-3/.npmrc', CREDENTIALS, 'utf8')
-  await fs.writeFile('@pnpmtest/test-recursive-publish-project-4/.npmrc', CREDENTIALS, 'utf8')
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({

@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
@@ -193,10 +193,18 @@ Do you want to continue?`,
       }
 
       const cwd = manifest.publishConfig?.directory ? path.join(dir, manifest.publishConfig.directory) : dir
+      const localNpmrc = path.join(cwd, '.npmrc')
+      const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
+      if (copyNpmrc && opts.workspaceDir) {
+        await fs.copyFile(path.join(opts.workspaceDir, '.npmrc'), localNpmrc)
+      }
 
       const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...args], {
         cwd,
       })
+      if (copyNpmrc) {
+        await rimraf(localNpmrc)
+      }
 
       _status = status!
     }
