@@ -80,20 +80,19 @@ export async function handler (
     passes: 0,
   } as RecursiveSummary
 
-  const rootDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
   let chunks!: string[][]
   if (opts.recursive) {
     chunks = opts.sort
       ? sortPackages(opts.selectedProjectsGraph)
       : [Object.keys(opts.selectedProjectsGraph).sort()]
   } else {
-    chunks = [[rootDir]]
+    chunks = [[opts.dir]]
     opts.selectedProjectsGraph = {
-      [rootDir]: {
+      [opts.dir]: {
         dependencies: [],
         package: {
-          ...await readProjectManifest(rootDir),
-          dir: rootDir,
+          ...await readProjectManifest(opts.dir),
+          dir: opts.dir,
         },
       },
     }
@@ -116,7 +115,7 @@ export async function handler (
               ...extraEnv,
               [PATH]: [
                 ...opts.extraBinPaths,
-                path.join(rootDir, 'node_modules/.bin'),
+                path.join(opts.dir, 'node_modules/.bin'),
                 process.env[PATH],
               ].join(path.delimiter),
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix].package.manifest.name,

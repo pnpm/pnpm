@@ -74,6 +74,69 @@ test('pnpm recursive exec', async () => {
   expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })
 
+test('exec inside a workspace package', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output1.json',
+        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output1.json',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+      },
+    },
+  ])
+
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project-1'),
+    recursive: false,
+    selectedProjectsGraph: {},
+  }, ['npm', 'run', 'build'])
+
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const { default: outputs2 } = await import(path.resolve('output2.json'))
+
+  expect(outputs1).toStrictEqual(['project-1'])
+  expect(outputs2).toStrictEqual(['project-1'])
+})
+
 test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
   preparePackages([
     {
