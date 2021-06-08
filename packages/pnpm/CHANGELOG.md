@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.7.4
+
+### Patch Changes
+
+- `pnpm exec` should run the command in the right directory, when executed inside a workspace [#3514](https://github.com/pnpm/pnpm/pull/3514).
+
 ## 6.7.3
 
 ### Patch Changes

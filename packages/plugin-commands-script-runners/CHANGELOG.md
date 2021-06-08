@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 3.3.1
+
+### Patch Changes
+
+- 4add11a96: `pnpm exec` should be executed in the context of the current working directory.
+
 ## 3.3.0
 
 ### Minor Changes
