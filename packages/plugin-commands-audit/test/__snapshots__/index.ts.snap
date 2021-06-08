@@ -166,8 +166,19 @@ exports[`audit --audit-level 1`] = `
 ├─────────────────────┼───────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/1609 │
 └─────────────────────┴───────────────────────────────────┘
-22 vulnerabilities found
-Severity: 7 low | 4 moderate | 9 high | 2 critical"
+┌─────────────────────┬──────────────────────────────────────┐
+│ moderate            │ Regular expression denial of service │
+├─────────────────────┼──────────────────────────────────────┤
+│ Package             │ glob-parent                          │
+├─────────────────────┼──────────────────────────────────────┤
+│ Vulnerable versions │ <5.1.2                               │
+├─────────────────────┼──────────────────────────────────────┤
+│ Patched versions    │ >=5.1.2                              │
+├─────────────────────┼──────────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/1751    │
+└─────────────────────┴──────────────────────────────────────┘
+23 vulnerabilities found
+Severity: 7 low | 5 moderate | 9 high | 2 critical"
 `;
 
 exports[`audit --dev 1`] = `
@@ -364,6 +375,17 @@ exports[`audit 1`] = `
 │ More info           │ https://npmjs.com/advisories/1609 │
 └─────────────────────┴───────────────────────────────────┘
 ┌─────────────────────┬──────────────────────────────────────┐
+│ moderate            │ Regular expression denial of service │
+├─────────────────────┼──────────────────────────────────────┤
+│ Package             │ glob-parent                          │
+├─────────────────────┼──────────────────────────────────────┤
+│ Vulnerable versions │ <5.1.2                               │
+├─────────────────────┼──────────────────────────────────────┤
+│ Patched versions    │ >=5.1.2                              │
+├─────────────────────┼──────────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/1751    │
+└─────────────────────┴──────────────────────────────────────┘
+┌─────────────────────┬──────────────────────────────────────┐
 │ low                 │ Regular Expression Denial of Service │
 ├─────────────────────┼──────────────────────────────────────┤
 │ Package             │ timespan                             │
@@ -429,6 +451,6 @@ exports[`audit 1`] = `
 ├─────────────────────┼──────────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/1662    │
 └─────────────────────┴──────────────────────────────────────┘
-22 vulnerabilities found
-Severity: 7 low | 4 moderate | 9 high | 2 critical"
+23 vulnerabilities found
+Severity: 7 low | 5 moderate | 9 high | 2 critical"
 `;
