@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.7.5
+
+### Patch Changes
+
+- Generate a correct command shim on Windows if pnpm is installed to a directory with spaces in its name [#3519](https://github.com/pnpm/pnpm/issues/3519).
+
 ## 6.7.4
 
 ### Patch Changes
