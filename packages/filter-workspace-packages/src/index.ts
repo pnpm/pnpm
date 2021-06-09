@@ -1,7 +1,8 @@
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
-import isSubdir from 'is-subdir'
+import path from 'path'
+import multimatch from 'multimatch'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
@@ -261,7 +262,7 @@ function matchPackagesByPath<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string
 ) {
-  return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
+  return Object.keys(graph).filter((parentDir) => multimatch([path.join(parentDir, '/')], [pathStartsWith]).length > 0)
 }
 
 function pickSubgraph (
