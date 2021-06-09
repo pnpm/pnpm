@@ -590,7 +590,6 @@ importers:
       execa: ^5.0.0
       find-up: ^5.0.0
       is-ci: ^3.0.0
-      is-subdir: ^1.1.1
       is-windows: ^1.0.2
       micromatch: ^4.0.2
       multimatch: ^5.0.0
@@ -604,7 +603,6 @@ importers:
       '@pnpm/matcher': link:../matcher
       execa: 5.0.0
       find-up: 5.0.0
-      is-subdir: 1.2.0
       micromatch: 4.0.4
       multimatch: 5.0.0
       pkgs-graph: link:../pkgs-graph
