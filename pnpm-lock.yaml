@@ -943,7 +943,7 @@ importers:
       '@types/node': ^14.14.33
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
-      '@zkochan/cmd-shim': ^5.1.1
+      '@zkochan/cmd-shim': ^5.1.2
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
       ncp: ^2.0.0
@@ -959,7 +959,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
-      '@zkochan/cmd-shim': 5.1.1
+      '@zkochan/cmd-shim': 5.1.2
       is-subdir: 1.2.0
       is-windows: 1.0.2
       normalize-path: 3.0.0
@@ -5129,8 +5129,8 @@ packages:
       individual: 3.0.0
     dev: true
 
-  /@zkochan/cmd-shim/5.1.1:
-    resolution: {integrity: sha512-XseQtjICCHZts+6cnLPIe15afYXXv+tlhKfQYMdJt6CQNNO6+Hnw7TGXhEtUjAs/t7e/WfQG+vaYBng4nCSJfA==}
+  /@zkochan/cmd-shim/5.1.2:
+    resolution: {integrity: sha512-Kj7Aq8jicNuzBSqipQk/3e28paJu2D9e+H8tnNXRff9KKLmacyOWBVM7Nb6NFrSpjokBoxenDonFBHepgKEGAA==}
     engines: {node: '>=10.13'}
     dependencies:
       is-windows: 1.0.2
