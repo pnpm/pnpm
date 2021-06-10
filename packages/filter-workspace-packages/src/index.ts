@@ -1,7 +1,8 @@
+import path from 'path'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
-import path from 'path'
+import isSubdir from 'is-subdir'
 import multimatch from 'multimatch'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
@@ -56,6 +57,7 @@ export async function filterPackages<T> (
     prefix: string
     workspaceDir: string
     testPattern?: string[]
+    useBetaCli?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -73,6 +75,7 @@ export async function filterPkgsBySelectorObjects<T> (
     linkWorkspacePackages?: boolean
     workspaceDir: string
     testPattern?: string[]
+    useBetaCli?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -88,6 +91,7 @@ export async function filterPkgsBySelectorObjects<T> (
       filteredGraph = await filterGraph(graph, allPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
+        useBetaCli: opts.useBetaCli,
       })
     }
 
@@ -98,6 +102,7 @@ export async function filterPkgsBySelectorObjects<T> (
       prodFilteredGraph = await filterGraph(graph, prodPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
+        useBetaCli: opts.useBetaCli,
       })
     }
 
@@ -123,6 +128,7 @@ export default async function filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
+    useBetaCli?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -151,6 +157,7 @@ async function _filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
+    useBetaCli?: boolean
   },
   packageSelectors: PackageSelector[]
 ): Promise<{
@@ -175,7 +182,8 @@ async function _filterGraph<T> (
         includeDependents: false,
       }, ignoreDependentForPkgs)
     } else if (selector.parentDir) {
-      entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
+      const useBetaCli = opts.useBetaCli ? opts.useBetaCli : false
+      entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir, useBetaCli)
     }
     if (selector.namePattern) {
       if (entryPackages == null) {
@@ -260,9 +268,13 @@ function matchPackages<T> (
 
 function matchPackagesByPath<T> (
   graph: PackageGraph<T>,
-  pathStartsWith: string
+  pathStartsWith: string,
+  useBetaCli: boolean
 ) {
-  return Object.keys(graph).filter((parentDir) => multimatch([path.join(parentDir, '/')], [pathStartsWith]).length > 0)
+  if (useBetaCli) {
+    return Object.keys(graph).filter((parentDir) => multimatch([path.join(parentDir, '/')], [pathStartsWith]).length > 0)
+  }
+  return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
 
 function pickSubgraph (

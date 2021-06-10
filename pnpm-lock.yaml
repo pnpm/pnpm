@@ -591,6 +591,7 @@ importers:
       execa: ^5.0.0
       find-up: ^5.0.0
       is-ci: ^3.0.0
+      is-subdir: ^1.1.1
       is-windows: ^1.0.2
       micromatch: ^4.0.2
       multimatch: ^5.0.0
@@ -604,6 +605,7 @@ importers:
       '@pnpm/matcher': link:../matcher
       execa: 5.1.1
       find-up: 5.0.0
+      is-subdir: 1.2.0
       micromatch: 4.0.4
       multimatch: 5.0.0
       pkgs-graph: link:../pkgs-graph
@@ -4869,7 +4871,7 @@ packages:
     dev: true
 
   /@types/table/6.0.0:
-    resolution: {integrity: sha512-RSmRiYetRzpcZcgNo4x6C1VSsPGBHCGGDO7Rbnz5esVLbGONxBP1CUcn8JhAkVzUVLO+AY8yOSkb27jvfauLyg==}
+    resolution: {integrity: sha512-RSmRiYetRzpcZcgNo4x6C1VSsPGBHCGGDO7Rbnz5esVLbGONxBP1CUcn8JhAkVzUVLO+AY8yOSkb27jvfauLyg==, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/@types/table/-/table-6.0.0.tgz}
     dev: true
 
   /@types/tar-stream/2.2.0:
@@ -5122,7 +5124,7 @@ packages:
     dev: false
 
   /@zkochan/bole/3.0.4:
-    resolution: {integrity: sha512-3iPQz6Z7A2aiKc9cxB+I4X0nKxOagBxWAl91+ukUyJ9El+DgejYgbfd4PtzUyam+JRXXydUCkKGKiWYj8EzrGw==}
+    resolution: {integrity: sha512-3iPQz6Z7A2aiKc9cxB+I4X0nKxOagBxWAl91+ukUyJ9El+DgejYgbfd4PtzUyam+JRXXydUCkKGKiWYj8EzrGw==, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/@zkochan/bole/-/bole-3.0.4.tgz}
     dependencies:
       fast-safe-stringify: 1.1.13
       individual: 3.0.0
@@ -5142,7 +5144,7 @@ packages:
     dev: false
 
   /@zkochan/istanbul-reports/3.0.2:
-    resolution: {integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==}
+    resolution: {integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/@zkochan/istanbul-reports/-/istanbul-reports-3.0.2.tgz}
     engines: {node: '>=8'}
     dependencies:
       html-escaper: 2.0.2
@@ -5150,7 +5152,7 @@ packages:
     dev: true
 
   /@zkochan/js-yaml/0.0.5:
-    resolution: {integrity: sha512-/uaB1kf+t+UATNUSyzHSzy4JqKOh2Y77gdCnhQEKTX/vrpQp8qjvohvC6eG9X4spQf0a8TKL0qF5LiFNj+GrJw==}
+    resolution: {integrity: sha512-/uaB1kf+t+UATNUSyzHSzy4JqKOh2Y77gdCnhQEKTX/vrpQp8qjvohvC6eG9X4spQf0a8TKL0qF5LiFNj+GrJw==, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/@zkochan/js-yaml/-/js-yaml-0.0.5.tgz}
     hasBin: true
     dependencies:
       argparse: 2.0.1
@@ -5733,7 +5735,7 @@ packages:
       sprintf-js: 1.0.3
 
   /argparse/2.0.1:
-    resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
+    resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/argparse/-/argparse-2.0.1.tgz}
 
   /arr-diff/4.0.0:
     resolution: {integrity: sha1-1kYQdP6/7HHn4VI1dhoyml3HxSA=}
@@ -7916,7 +7918,7 @@ packages:
     dev: true
 
   /fast-safe-stringify/1.1.13:
-    resolution: {integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=}
+    resolution: {integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/fast-safe-stringify/-/fast-safe-stringify-1.1.13.tgz}
     dev: true
 
   /fast-safe-stringify/2.0.7:
@@ -8671,7 +8673,7 @@ packages:
     dev: true
 
   /html-escaper/2.0.2:
-    resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
+    resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/html-escaper/-/html-escaper-2.0.2.tgz}
     dev: true
 
   /http-cache-semantics/4.1.0:
@@ -8826,7 +8828,7 @@ packages:
     engines: {node: '>=8'}
 
   /individual/3.0.0:
-    resolution: {integrity: sha1-58pPhfiVewGHNPKFdQ3CLsL5hi0=}
+    resolution: {integrity: sha1-58pPhfiVewGHNPKFdQ3CLsL5hi0=, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/individual/-/individual-3.0.0.tgz}
 
   /infer-owner/1.0.4:
     resolution: {integrity: sha512-IClj+Xz94+d7irH5qRyfJonOdfTzuDaifE6ZPWfx0N0+/ATZCbuTPq2prFl526urkQd90WyUKIh1DfBQ2hMz9A==}
@@ -9179,7 +9181,7 @@ packages:
     engines: {node: '>= 0.4'}
 
   /is-subdir/1.2.0:
-    resolution: {integrity: sha512-2AT6j+gXe/1ueqbW6fLZJiIw3F8iXGJtt0yDrZaBhAZEG1raiTxKWU+IPqMCzQAXOUCKdA4UDMgacKH25XG2Cw==}
+    resolution: {integrity: sha512-2AT6j+gXe/1ueqbW6fLZJiIw3F8iXGJtt0yDrZaBhAZEG1raiTxKWU+IPqMCzQAXOUCKdA4UDMgacKH25XG2Cw==, tarball: https://nexus.core.cvent.org/nexus/repository/npm-public/is-subdir/-/is-subdir-1.2.0.tgz}
     engines: {node: '>=4'}
     dependencies:
       better-path-resolve: 1.0.0

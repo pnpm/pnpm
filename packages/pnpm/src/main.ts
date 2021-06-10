@@ -184,6 +184,7 @@ export default async function run (inputArgv: string[]) {
       prefix: process.cwd(),
       workspaceDir: wsDir,
       testPattern: config.testPattern,
+      useBetaCli: config.useBetaCli,
     })
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (isEmpty(config.selectedProjectsGraph)) {
