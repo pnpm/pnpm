@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.7.5
+## 6.7.6
 
 ### Patch Changes
 
