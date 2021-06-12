@@ -38,7 +38,7 @@ test('finds packages by default pattern', async () => {
   const pkgs = await findPackages(root)
 
   expect(pkgs).toHaveLength(4)
-  expect([pkgs[0].manifest.name, pkgs[1].manifest.name, pkgs[2].manifest.name].sort()).toStrictEqual(['component-1', 'component-2', 'many-pkgs-2'])
+  expect(pkgs.map(({ manifest }) => manifest.name).sort()).toStrictEqual(['component-1', 'component-2', 'foo', 'many-pkgs-2'])
 })
 
 test('ignore packages by patterns', async () => {
