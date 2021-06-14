@@ -21,6 +21,8 @@ import getSaveType from './getSaveType'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+import logger from '@pnpm/logger'
+import { sequenceGraph } from '@pnpm/sort-packages'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -120,6 +122,18 @@ when running add/update with the --workspace option')
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
+      const sequencedGraph = sequenceGraph(selectedProjectsGraph)
+      // Check and warn if there are cyclic dependencies
+      if (!sequencedGraph.safe) {
+        const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
+          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
+          : ''
+        logger.warn({
+          message: `There are cyclic dependencies${cyclicDependenciesInfo}`,
+          prefix: opts.workspaceDir,
+        })
+      }
+
       await recursive(allProjects,
         params,
         {

@@ -1,7 +1,8 @@
 import { ProjectsGraph } from '@pnpm/types'
 import graphSequencer from 'graph-sequencer'
+import type { Result as GraphSequencerResult } from 'graph-sequencer'
 
-export default function sortPackages (pkgGraph: ProjectsGraph): string[][] {
+export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<string> {
   const keys = Object.keys(pkgGraph)
   const setOfKeys = new Set(keys)
   const graph = new Map(
@@ -60,9 +61,13 @@ export default function sortPackages (pkgGraph: ProjectsGraph): string[][] {
         setOfKeys.has(d))]
     )
   )
-  const graphSequencerResult = graphSequencer({
+  return graphSequencer({
     graph,
     groups: [keys],
   })
+}
+
+export default function sortPackages (pkgGraph: ProjectsGraph): string[][] {
+  const graphSequencerResult = sequenceGraph(pkgGraph)
   return graphSequencerResult.chunks
 }
