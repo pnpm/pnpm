@@ -128,12 +128,15 @@ export async function handler (
   | 'allProjects'
   | 'bail'
   | 'bin'
+  | 'dev'
   | 'engineStrict'
   | 'globalPnpmfile'
   | 'ignorePnpmfile'
-  | 'lockfileDir'
   | 'linkWorkspacePackages'
+  | 'lockfileDir'
+  | 'optional'
   | 'pnpmfile'
+  | 'production'
   | 'rawLocalConfig'
   | 'registries'
   | 'saveDev'
@@ -147,14 +150,20 @@ export async function handler (
   params: string[]
 ) {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
-    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir }, 'remove')
+    await recursive(opts.allProjects, params, { ...opts, include, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir }, 'remove')
     return
   }
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
     storeController: store.ctrl,
     storeDir: store.dir,
+    include,
   })
   if (!opts.ignorePnpmfile) {
     removeOpts['hooks'] = requireHooks(opts.lockfileDir ?? opts.dir, opts)
