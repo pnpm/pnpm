@@ -224,7 +224,7 @@ test('select by parentDir using glob', async () => {
       excludeSelf: false,
       parentDir: '/packages/*',
     },
-  ], { workspaceDir: process.cwd(), useGlobDirectoryFiltering: true })
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0', '/packages/project-1'])
 })
@@ -235,7 +235,7 @@ test('select by parentDir using globstar', async () => {
       excludeSelf: false,
       parentDir: '/project-5/**',
     },
-  ], { workspaceDir: process.cwd(), useGlobDirectoryFiltering: true })
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-5', '/project-5/packages/project-6'])
 })
@@ -246,7 +246,7 @@ test('select by parentDir with no glob', async () => {
       excludeSelf: false,
       parentDir: '/project-5',
     },
-  ], { workspaceDir: process.cwd(), useGlobDirectoryFiltering: true })
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-5'])
 })
@@ -435,7 +435,7 @@ test('select by parentDir with glob and exclude one package by pattern', async (
       includeDependents: false,
       namePattern: '*-1',
     },
-  ], { workspaceDir: process.cwd(), useGlobDirectoryFiltering: true })
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0'])
 })

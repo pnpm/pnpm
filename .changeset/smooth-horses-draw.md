@@ -1,5 +1,5 @@
 ---
-"@pnpm/filter-workspace-packages": major
+"@pnpm/filter-workspace-packages": minor
 ---
 
-Filter packages based on glob pattern when filtering by directories. Subdirectories are now not automatically included when filtering packages by directory, they must be specified via a glob pattern
+New option add: useGlobDirFiltering. When `true`, directory filtering is done using globs.

@@ -57,7 +57,7 @@ export async function filterPackages<T> (
     prefix: string
     workspaceDir: string
     testPattern?: string[]
-    useGlobDirectoryFiltering?: boolean
+    useGlobDirFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -75,7 +75,7 @@ export async function filterPkgsBySelectorObjects<T> (
     linkWorkspacePackages?: boolean
     workspaceDir: string
     testPattern?: string[]
-    useGlobDirectoryFiltering?: boolean
+    useGlobDirFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -91,7 +91,7 @@ export async function filterPkgsBySelectorObjects<T> (
       filteredGraph = await filterGraph(graph, allPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
-        useGlobDirectoryFiltering: opts.useGlobDirectoryFiltering,
+        useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
 
@@ -102,7 +102,7 @@ export async function filterPkgsBySelectorObjects<T> (
       prodFilteredGraph = await filterGraph(graph, prodPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
-        useGlobDirectoryFiltering: opts.useGlobDirectoryFiltering,
+        useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
 
@@ -128,7 +128,7 @@ export default async function filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
-    useGlobDirectoryFiltering?: boolean
+    useGlobDirFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -157,7 +157,7 @@ async function _filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
-    useGlobDirectoryFiltering?: boolean
+    useGlobDirFiltering?: boolean
   },
   packageSelectors: PackageSelector[]
 ): Promise<{
@@ -171,6 +171,9 @@ async function _filterGraph<T> (
   const graph = pkgGraphToGraph(pkgGraph)
   const unmatchedFilters = [] as string[]
   let reversedGraph: Graph | undefined
+  const matchPackagesByPath = opts.useGlobDirFiltering === true
+    ? matchPackagesByGlob
+    : matchPackagesByExactPath
   for (const selector of packageSelectors) {
     let entryPackages: string[] | null = null
     if (selector.diff) {
@@ -182,8 +185,7 @@ async function _filterGraph<T> (
         includeDependents: false,
       }, ignoreDependentForPkgs)
     } else if (selector.parentDir) {
-      const useGlobDirectoryFiltering = opts.useGlobDirectoryFiltering ? opts.useGlobDirectoryFiltering : false
-      entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir, useGlobDirectoryFiltering)
+      entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
     }
     if (selector.namePattern) {
       if (entryPackages == null) {
@@ -266,15 +268,18 @@ function matchPackages<T> (
   return Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
 }
 
-function matchPackagesByPath<T> (
+function matchPackagesByExactPath<T> (
   graph: PackageGraph<T>,
-  pathStartsWith: string,
-  useGlobDirectoryFiltering: boolean
+  pathStartsWith: string
 ) {
-  if (useGlobDirectoryFiltering) {
-    return Object.keys(graph).filter((parentDir) => micromatch.isMatch(path.join(parentDir, '/'), path.join(pathStartsWith, '/')))
-  }
   return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
+}
+
+function matchPackagesByGlob<T> (
+  graph: PackageGraph<T>,
+  pathStartsWith: string
+) {
+  return Object.keys(graph).filter((parentDir) => micromatch.isMatch(path.join(parentDir, '/'), path.join(pathStartsWith, '/')))
 }
 
 function pickSubgraph (
