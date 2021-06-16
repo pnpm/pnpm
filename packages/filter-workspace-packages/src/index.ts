@@ -3,10 +3,10 @@ import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
 import isSubdir from 'is-subdir'
-import multimatch from 'multimatch'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
+import * as micromatch from 'micromatch'
 import getChangedPkgs from './getChangedPackages'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
 
@@ -57,7 +57,7 @@ export async function filterPackages<T> (
     prefix: string
     workspaceDir: string
     testPattern?: string[]
-    useBetaCli?: boolean
+    useGlobDirectoryFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -75,7 +75,7 @@ export async function filterPkgsBySelectorObjects<T> (
     linkWorkspacePackages?: boolean
     workspaceDir: string
     testPattern?: string[]
-    useBetaCli?: boolean
+    useGlobDirectoryFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -91,7 +91,7 @@ export async function filterPkgsBySelectorObjects<T> (
       filteredGraph = await filterGraph(graph, allPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
-        useBetaCli: opts.useBetaCli,
+        useGlobDirectoryFiltering: opts.useGlobDirectoryFiltering,
       })
     }
 
@@ -102,7 +102,7 @@ export async function filterPkgsBySelectorObjects<T> (
       prodFilteredGraph = await filterGraph(graph, prodPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
-        useBetaCli: opts.useBetaCli,
+        useGlobDirectoryFiltering: opts.useGlobDirectoryFiltering,
       })
     }
 
@@ -128,7 +128,7 @@ export default async function filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
-    useBetaCli?: boolean
+    useGlobDirectoryFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -157,7 +157,7 @@ async function _filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
-    useBetaCli?: boolean
+    useGlobDirectoryFiltering?: boolean
   },
   packageSelectors: PackageSelector[]
 ): Promise<{
@@ -182,8 +182,8 @@ async function _filterGraph<T> (
         includeDependents: false,
       }, ignoreDependentForPkgs)
     } else if (selector.parentDir) {
-      const useBetaCli = opts.useBetaCli ? opts.useBetaCli : false
-      entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir, useBetaCli)
+      const useGlobDirectoryFiltering = opts.useGlobDirectoryFiltering ? opts.useGlobDirectoryFiltering : false
+      entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir, useGlobDirectoryFiltering)
     }
     if (selector.namePattern) {
       if (entryPackages == null) {
@@ -269,10 +269,10 @@ function matchPackages<T> (
 function matchPackagesByPath<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string,
-  useBetaCli: boolean
+  useGlobDirectoryFiltering: boolean
 ) {
-  if (useBetaCli) {
-    return Object.keys(graph).filter((parentDir) => multimatch([path.join(parentDir, '/')], [pathStartsWith]).length > 0)
+  if (useGlobDirectoryFiltering) {
+    return Object.keys(graph).filter((parentDir) => micromatch.isMatch(path.join(parentDir, '/'), path.join(pathStartsWith, '/')))
   }
   return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
