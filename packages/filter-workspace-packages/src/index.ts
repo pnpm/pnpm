@@ -1,4 +1,3 @@
-import path from 'path'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
@@ -279,7 +278,9 @@ function matchPackagesByGlob<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string
 ) {
-  return Object.keys(graph).filter((parentDir) => micromatch.isMatch(path.join(parentDir, '/'), path.join(pathStartsWith, '/')), { posixSlashes: true })
+  const format = (str: string) => str.replace(/\/$/, '')
+  const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
+  return Object.keys(graph).filter((parentDir) => micromatch.isMatch(parentDir, formattedFilter, { format }))
 }
 
 function pickSubgraph (
