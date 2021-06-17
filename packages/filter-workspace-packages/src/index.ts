@@ -272,7 +272,7 @@ function matchPackagesByPath<T> (
   useGlobDirectoryFiltering: boolean
 ) {
   if (useGlobDirectoryFiltering) {
-    return Object.keys(graph).filter((parentDir) => micromatch.isMatch(path.join(parentDir, '/'), path.join(pathStartsWith, '/')), {posixSlashes: true})
+    return Object.keys(graph).filter((parentDir) => micromatch.isMatch(path.join(parentDir, '/'), path.join(pathStartsWith, '/')), { posixSlashes: true })
   }
   return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
