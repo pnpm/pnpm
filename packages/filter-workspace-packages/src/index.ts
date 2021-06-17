@@ -5,6 +5,7 @@ import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
+import * as micromatch from 'micromatch'
 import getChangedPkgs from './getChangedPackages'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
 
@@ -55,6 +56,7 @@ export async function filterPackages<T> (
     prefix: string
     workspaceDir: string
     testPattern?: string[]
+    useGlobDirFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -72,6 +74,7 @@ export async function filterPkgsBySelectorObjects<T> (
     linkWorkspacePackages?: boolean
     workspaceDir: string
     testPattern?: string[]
+    useGlobDirFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -87,6 +90,7 @@ export async function filterPkgsBySelectorObjects<T> (
       filteredGraph = await filterGraph(graph, allPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
+        useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
 
@@ -97,6 +101,7 @@ export async function filterPkgsBySelectorObjects<T> (
       prodFilteredGraph = await filterGraph(graph, prodPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
+        useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
 
@@ -122,6 +127,7 @@ export default async function filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
+    useGlobDirFiltering?: boolean
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -150,6 +156,7 @@ async function _filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
+    useGlobDirFiltering?: boolean
   },
   packageSelectors: PackageSelector[]
 ): Promise<{
@@ -163,6 +170,9 @@ async function _filterGraph<T> (
   const graph = pkgGraphToGraph(pkgGraph)
   const unmatchedFilters = [] as string[]
   let reversedGraph: Graph | undefined
+  const matchPackagesByPath = opts.useGlobDirFiltering === true
+    ? matchPackagesByGlob
+    : matchPackagesByExactPath
   for (const selector of packageSelectors) {
     let entryPackages: string[] | null = null
     if (selector.diff) {
@@ -257,11 +267,20 @@ function matchPackages<T> (
   return Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
 }
 
-function matchPackagesByPath<T> (
+function matchPackagesByExactPath<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string
 ) {
   return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
+}
+
+function matchPackagesByGlob<T> (
+  graph: PackageGraph<T>,
+  pathStartsWith: string
+) {
+  const format = (str: string) => str.replace(/\/$/, '')
+  const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
+  return Object.keys(graph).filter((parentDir) => micromatch.isMatch(parentDir, formattedFilter, { format }))
 }
 
 function pickSubgraph (

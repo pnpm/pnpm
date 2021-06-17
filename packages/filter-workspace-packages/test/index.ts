@@ -102,6 +102,20 @@ const PKGS_GRAPH: PackageGraph<{}> = {
       },
     },
   },
+  '/project-5/packages/project-6': {
+    dependencies: [],
+    package: {
+      dir: '/project-5/packages/project-6',
+      manifest: {
+        name: 'project-6',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+  },
 }
 
 test('select only package dependencies (excluding the package itself)', async () => {
@@ -202,6 +216,39 @@ test('select by parentDir', async () => {
   ], { workspaceDir: process.cwd() })
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0', '/packages/project-1'])
+})
+
+test('select by parentDir using glob', async () => {
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: false,
+      parentDir: '/packages/*',
+    },
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0', '/packages/project-1'])
+})
+
+test('select by parentDir using globstar', async () => {
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: false,
+      parentDir: '/project-5/**',
+    },
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-5', '/project-5/packages/project-6'])
+})
+
+test('select by parentDir with no glob', async () => {
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: false,
+      parentDir: '/project-5',
+    },
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-5'])
 })
 
 test('select changed packages', async () => {
@@ -338,11 +385,11 @@ test('should return unmatched filters', async () => {
     {
       excludeSelf: true,
       includeDependencies: true,
-      namePattern: 'project-6',
+      namePattern: 'project-7',
     },
   ], { workspaceDir: process.cwd() })
 
-  expect(unmatchedFilters).toStrictEqual(['project-6'])
+  expect(unmatchedFilters).toStrictEqual(['project-7'])
 })
 
 test('select all packages except one', async () => {
@@ -372,6 +419,23 @@ test('select by parentDir and exclude one package by pattern', async () => {
       namePattern: '*-1',
     },
   ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0'])
+})
+
+test('select by parentDir with glob and exclude one package by pattern', async () => {
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: false,
+      parentDir: '/packages/*',
+    },
+    {
+      exclude: true,
+      excludeSelf: false,
+      includeDependents: false,
+      namePattern: '*-1',
+    },
+  ], { workspaceDir: process.cwd(), useGlobDirFiltering: true })
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/project-0'])
 })
