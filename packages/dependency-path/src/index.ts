@@ -31,9 +31,9 @@ export function tryGetPackageId (registries: Registries, relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
   }
-  const lastUnderscore = relDepPath.lastIndexOf('_')
-  if (lastUnderscore > relDepPath.lastIndexOf('/')) {
-    return resolve(registries, relDepPath.substr(0, lastUnderscore))
+  const underscoreIndex = relDepPath.indexOf('_', relDepPath.lastIndexOf('/'))
+  if (underscoreIndex !== -1) {
+    return resolve(registries, relDepPath.substr(0, underscoreIndex))
   }
   return resolve(registries, relDepPath)
 }
