@@ -173,11 +173,7 @@ async function interactiveUpdate (
   input: string[],
   opts: UpdateCommandOptions
 ) {
-  const include = {
-    dependencies: opts.production !== false,
-    devDependencies: opts.dev !== false,
-    optionalDependencies: opts.optional !== false,
-  }
+  const include = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const projects = (opts.selectedProjectsGraph != null)
     ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     : [
@@ -245,10 +241,11 @@ async function update (
   dependencies: string[],
   opts: UpdateCommandOptions
 ) {
-  const includeDirect = {
-    dependencies: opts.production !== false,
-    devDependencies: opts.dev !== false,
-    optionalDependencies: opts.optional !== false,
+  const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
+  const include = {
+    dependencies: opts.rawConfig.production !== false,
+    devDependencies: opts.rawConfig.dev !== false,
+    optionalDependencies: opts.rawConfig.optional !== false,
   }
   const depth = opts.depth ?? Infinity
   return installDeps({
@@ -256,10 +253,23 @@ async function update (
     allowNew: false,
     depth,
     includeDirect,
+    include,
     update: true,
     updateMatching: (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
       ? matcher(dependencies)
       : undefined,
     updatePackageManifest: opts.save !== false,
   }, dependencies)
+}
+
+function makeIncludeDependenciesFromCLI (opts: {
+  production?: boolean
+  dev?: boolean
+  optional?: boolean
+}) {
+  return {
+    dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
+    devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
+    optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
+  }
 }

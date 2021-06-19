@@ -35,6 +35,7 @@
     "@pnpm/lockfile-types": "workspace:3.0.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/matcher": "workspace:2.0.0",
+    "@pnpm/modules-yaml": "workspace:9.0.2",
     "@pnpm/prepare": "workspace:0.0.24",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-ci": "^3.0.0",
