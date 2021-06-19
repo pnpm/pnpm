@@ -7,6 +7,7 @@ import {
   refToRelative,
   relative,
   resolve,
+  tryGetPackageId,
 } from 'dependency-path'
 
 test('isAbsolute()', () => {
@@ -73,6 +74,14 @@ test('parse()', () => {
     version: '1.0.0',
   })
 
+  expect(parse('/foo/1.0.0_@types+babel__core@7.1.14')).toStrictEqual({
+    host: undefined,
+    isAbsolute: false,
+    name: 'foo',
+    peersSuffix: '@types+babel__core@7.1.14',
+    version: '1.0.0',
+  })
+
   expect(() => parse('/foo/bar')).toThrow(/\/foo\/bar is an invalid relative dependency path/)
 })
 
@@ -129,4 +138,8 @@ test('depPathToFilename()', () => {
 
   expect(depPathToFilename('abcd/'.repeat(200), process.cwd())).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+_27524303f1ddd808db67f175ff83606e')
   expect(depPathToFilename('/JSONSteam/1.0.0', process.cwd())).toBe('JSONSteam@1.0.0_4b2567ab922fbdf01171f59fab8f6fef')
+})
+
+test('tryGetPackageId', () => {
+  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0_@types+babel__core@7.1.14')).toEqual('registry.npmjs.org/foo/1.0.0')
 })
