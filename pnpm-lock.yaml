@@ -1782,6 +1782,7 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/manifest-utils': workspace:2.0.2
       '@pnpm/matcher': workspace:2.0.0
+      '@pnpm/modules-yaml': workspace:9.0.2
       '@pnpm/outdated': workspace:8.0.12
       '@pnpm/package-store': workspace:12.0.9
       '@pnpm/parse-wanted-dependency': workspace:2.0.0
@@ -1868,6 +1869,7 @@ importers:
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/logger': 4.0.0
       '@pnpm/matcher': link:../matcher
+      '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures

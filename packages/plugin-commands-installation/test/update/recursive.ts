@@ -1,6 +1,7 @@
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
+import * as modulesYaml from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -79,6 +80,7 @@ test('recursive update prod dependencies only', async () => {
     allProjects,
     dir: process.cwd(),
     lockfileDir: process.cwd(),
+    optional: false,
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -90,11 +92,17 @@ test('recursive update prod dependencies only', async () => {
   await update.handler({
     ...DEFAULT_OPTS,
     allProjects,
-    dev: false,
+    cliOptions: {
+      dev: false,
+      optional: false,
+      production: true,
+    },
     dir: process.cwd(),
     lockfileDir: process.cwd(),
-    optional: false,
-    production: true,
+    rawConfig: {
+      ...DEFAULT_OPTS.rawConfig,
+      optional: false,
+    },
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -106,6 +114,12 @@ test('recursive update prod dependencies only', async () => {
   ).toStrictEqual(
     ['/bar/100.0.0', '/foo/100.1.0']
   )
+  const modules = await modulesYaml.read('./node_modules')
+  expect(modules?.included).toStrictEqual({
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: false,
+  })
 })
 
 test('recursive update with pattern', async () => {
