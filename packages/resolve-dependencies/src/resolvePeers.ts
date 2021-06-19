@@ -228,10 +228,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     depPath = resolvedPackage.depPath
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
-      Object.keys(allResolvedPeers).map((alias) => ({
-        name: alias,
-        version: ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage.version,
-      })))
+      Object.keys(allResolvedPeers)
+        .map((alias) => ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage)
+        .map(({ name, version }) => ({ name, version })))
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.lockfileDir))
