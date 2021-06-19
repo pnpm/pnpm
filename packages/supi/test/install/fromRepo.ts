@@ -120,14 +120,14 @@ test('a subdependency is from a github repo with different name', async () => {
 
   const lockfile = await project.readLockfile()
   expect(lockfile.packages['/has-aliased-git-dependency/1.0.0'].dependencies).toStrictEqual({
-    'has-say-hi-peer': '1.0.0_say-hi@1.0.0',
+    'has-say-hi-peer': '1.0.0_hi@1.0.0',
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   })
 
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/hi')
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/szia')
 
-  expect(await exists(path.resolve('node_modules/.pnpm/has-say-hi-peer@1.0.0_say-hi@1.0.0/node_modules/has-say-hi-peer'))).toBeTruthy()
+  expect(await exists(path.resolve('node_modules/.pnpm/has-say-hi-peer@1.0.0_hi@1.0.0/node_modules/has-say-hi-peer'))).toBeTruthy()
 })
 
 test('from a git repo', async () => {

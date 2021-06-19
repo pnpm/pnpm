@@ -755,8 +755,8 @@ test('peer dependency is resolved from parent package via its alias', async () =
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
-    '/has-tango-as-peer-dep/1.0.0_tango@1.0.0',
-    '/tango-tango/1.0.0_tango@1.0.0',
+    '/has-tango-as-peer-dep/1.0.0_tango-tango@1.0.0',
+    '/tango-tango/1.0.0_tango-tango@1.0.0',
   ])
 })
 
