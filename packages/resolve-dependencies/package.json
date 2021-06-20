@@ -44,7 +44,6 @@
     "dependency-path": "workspace:8.0.1",
     "encode-registry": "^3.0.0",
     "get-npm-tarball-url": "^2.0.2",
-    "import-from": "^3.0.0",
     "path-exists": "^4.0.0",
     "ramda": "^0.27.1",
     "replace-string": "^3.1.0",

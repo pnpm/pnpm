@@ -4,7 +4,6 @@ import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { Dependencies } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
-import importFrom from 'import-from'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
@@ -66,28 +65,15 @@ export default function<T extends PartialResolvedPackage> (
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = {}
+  const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
+  const rootProject = opts.projects.length > 1 ? opts.projects.find(({ id }) => id === '.') : null
+  const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
 
   for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {
-    const pkgsByName = Object.assign(
-      fromPairs(
-        topParents.map(({ name, version }: {name: string, version: string}): KeyValuePair<string, ParentRef> => [
-          name,
-          {
-            depth: 0,
-            version,
-          },
-        ])
-      ),
-      toPkgByName(
-        Object
-          .keys(directNodeIdsByAlias)
-          .map((alias) => ({
-            alias,
-            node: opts.dependenciesTree[directNodeIdsByAlias[alias]],
-            nodeId: directNodeIdsByAlias[alias],
-          }))
-      )
-    )
+    const pkgsByName = {
+      ...rootPkgsByName,
+      ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
+    }
 
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       dependenciesTree: opts.dependenciesTree,
@@ -120,6 +106,35 @@ export default function<T extends PartialResolvedPackage> (
     dependenciesGraph: depGraph,
     dependenciesByProjectId,
   }
+}
+
+function createPkgsByName<T extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<T>,
+  { directNodeIdsByAlias, topParents }: {
+    directNodeIdsByAlias: {[alias: string]: string}
+    topParents: Array<{name: string, version: string}>
+  }
+) {
+  return Object.assign(
+    fromPairs(
+      topParents.map(({ name, version }): KeyValuePair<string, ParentRef> => [
+        name,
+        {
+          depth: 0,
+          version,
+        },
+      ])
+    ),
+    toPkgByName(
+      Object
+        .keys(directNodeIdsByAlias)
+        .map((alias) => ({
+          alias,
+          node: dependenciesTree[directNodeIdsByAlias[alias]],
+          nodeId: directNodeIdsByAlias[alias],
+        }))
+    )
+  )
 }
 
 interface PeersCacheItem {
@@ -367,34 +382,26 @@ function resolvePeers<T extends PartialResolvedPackage> (
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName]
 
-    let resolved = ctx.parentPkgs[peerName]
+    const resolved = ctx.parentPkgs[peerName]
 
     if (!resolved) {
       missingPeers.push(peerName)
-      try {
-        const { version } = importFrom(ctx.rootDir, `${peerName}/package.json`) as { version: string }
-        resolved = {
-          depth: -1,
-          version,
-        }
-      } catch (err) {
-        if (
-          ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
-        ) {
-          continue
-        }
-        const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
-        const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
-requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
-        if (ctx.strictPeerDependencies) {
-          throw new PnpmError('MISSING_PEER_DEPENDENCY', message)
-        }
-        logger.warn({
-          message,
-          prefix: ctx.rootDir,
-        })
+      if (
+        ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
+      ) {
         continue
       }
+      const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
+      const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
+requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
+      if (ctx.strictPeerDependencies) {
+        throw new PnpmError('MISSING_PEER_DEPENDENCY', message)
+      }
+      logger.warn({
+        message,
+        prefix: ctx.rootDir,
+      })
+      continue
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
