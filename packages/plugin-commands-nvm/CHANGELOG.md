@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-nvm
 
+## 0.2.3
+
+### Patch Changes
+
+- @pnpm/package-store@12.0.10
+- @pnpm/tarball-fetcher@9.3.2
+
 ## 0.2.2
 
 ### Patch Changes

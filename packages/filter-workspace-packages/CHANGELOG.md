@@ -1,5 +1,11 @@
 # @pnpm/filter-workspace-packages
 
+## 4.1.0
+
+### Minor Changes
+
+- c86fad004: New option added: `useGlobDirFiltering`. When `true`, directory filtering is done using globs.
+
 ## 4.0.6
 
 ### Patch Changes

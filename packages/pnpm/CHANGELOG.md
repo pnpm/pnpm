@@ -1,5 +1,18 @@
 # pnpm
 
+## 6.8.0
+
+### Minor Changes
+
+- When `use-beta-cli` is `true`, filtering by directories supports globs [#3521](https://github.com/pnpm/pnpm/pull/3521).
+
+### Patch Changes
+
+- The `pnpm remove` and `pnpm update` commands do not fail when the `dev`, `production`, or `optional` settings are set.
+- Use the real package names of the peer dependencies when creating the paths in the virtual store [#3545](https://github.com/pnpm/pnpm/pull/3545).
+- The lockfile should not break on peer dependencies that have underscores in their name [#3546](https://github.com/pnpm/pnpm/pull/3546).
+- Resolve peer dependencies from the dependencies of the root project of the workspace [#3549](https://github.com/pnpm/pnpm/pull/3549).
+
 ## 6.7.6
 
 ### Patch Changes

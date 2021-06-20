@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 5.0.0
+
+### Major Changes
+
+- 5950459d7: The update command reads the production/dev/optional options from the cliOptions. So when the settings are set via the config file, they are ignored by the update command.
+
+### Patch Changes
+
+- 72c0dd7be: The remove command should read the production/optional/dev options.
+- Updated dependencies [c86fad004]
+  - @pnpm/filter-workspace-packages@4.1.0
+  - @pnpm/outdated@8.0.13
+  - @pnpm/plugin-commands-rebuild@4.0.10
+  - supi@0.46.16
+  - @pnpm/package-store@12.0.10
+  - @pnpm/store-connection-manager@2.1.10
+
 ## 4.1.13
 
 ### Patch Changes

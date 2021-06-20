@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 8.0.13
+
+### Patch Changes
+
+- Updated dependencies [6c418943c]
+  - dependency-path@8.0.2
+  - @pnpm/lockfile-utils@3.0.6
+
 ## 8.0.12
 
 ### Patch Changes

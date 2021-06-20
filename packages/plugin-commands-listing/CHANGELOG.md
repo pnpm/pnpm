@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-listing
 
+## 3.0.12
+
+### Patch Changes
+
+- @pnpm/list@6.2.4
+
 ## 3.0.11
 
 ### Patch Changes

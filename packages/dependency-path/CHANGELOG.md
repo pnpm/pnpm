@@ -1,5 +1,11 @@
 # dependency-path
 
+## 8.0.2
+
+### Patch Changes
+
+- 6c418943c: Fix `tryGetPackageId()`, it should parse correctly a dependency path that has peer dependency names with underscores.
+
 ## 8.0.1
 
 ### Patch Changes

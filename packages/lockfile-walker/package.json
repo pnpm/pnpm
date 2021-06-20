@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-walker",
-  "version": "4.0.5",
+  "version": "4.0.6",
   "description": "Walk over all the dependencies in a lockfile",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/lockfile-types": "workspace:3.0.0",
     "@pnpm/types": "workspace:7.2.0",
-    "dependency-path": "workspace:8.0.1",
+    "dependency-path": "workspace:8.0.2",
     "ramda": "^0.27.1"
   },
   "funding": "https://opencollective.com/pnpm"

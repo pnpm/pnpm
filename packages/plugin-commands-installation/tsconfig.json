@@ -55,6 +55,9 @@
       "path": "../matcher"
     },
     {
+      "path": "../modules-yaml"
+    },
+    {
       "path": "../outdated"
     },
     {

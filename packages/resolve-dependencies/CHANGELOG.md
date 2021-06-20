@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.10
+
+### Patch Changes
+
+- c1cdc0184: Peer dependencies should get resolved from the workspace root.
+- 060c73677: Use the real package names of the peer dependencies, when creating the paths in the virtual store.
+- Updated dependencies [6c418943c]
+  - dependency-path@8.0.2
+  - @pnpm/lockfile-utils@3.0.6
+  - @pnpm/prune-lockfile@3.0.6
+
 ## 20.0.9
 
 ### Patch Changes
