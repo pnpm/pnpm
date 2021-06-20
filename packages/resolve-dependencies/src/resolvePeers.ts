@@ -66,7 +66,7 @@ export default function<T extends PartialResolvedPackage> (
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
-  const rootProject = opts.projects.find(({ id }) => id === '.')
+  const rootProject = opts.projects.length > 1 ? opts.projects.find(({ id }) => id === '.') : null
   const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
 
   for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {

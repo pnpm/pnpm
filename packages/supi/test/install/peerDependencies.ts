@@ -178,25 +178,53 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
   ).rejects.toThrow(/ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed./)
 })
 
-test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async () => {
-  prepareEmpty()
+test('peer dependency is resolved from the dependencies of the workspace root project', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'pkg',
+      package: {},
+    },
+  ])
+  const reporter = jest.fn()
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
 
-  const manifest = await addDependenciesToPackage({}, ['ajv@4.10.0'], await testDefaults())
+        dependencies: {
+          ajv: '4.10.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
 
-  await fs.mkdir('pkg')
+        dependencies: {
+          'ajv-keywords': '1.5.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('pkg'),
+    },
+  ], await testDefaults({ reporter }))
 
-  process.chdir('pkg')
-
-  const reporter = sinon.spy()
-
-  await addDependenciesToPackage(manifest, ['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
-
-  const logMatcher = sinon.match({
+  expect(reporter).not.toHaveBeenCalledWith({
     message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
   })
-  const reportedTimes = reporter.withArgs(logMatcher).callCount
 
-  expect(reportedTimes).toBe(0)
+  const lockfile = await projects.root.readLockfile()
+  expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords']).toBe('1.5.0_ajv@4.10.0')
 })
 
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
