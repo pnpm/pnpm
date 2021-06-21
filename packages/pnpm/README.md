@@ -1,4 +1,4 @@
-[中文](https://pnpm.io/zh/) | [Italiano](https://pnpm.io/it/)
+[中文](https://pnpm.io/zh/) | [Italiano](https://pnpm.io/it/) | [Türkçe](https://pnpm.io/tr/)
 
 ![](https://i.imgur.com/qlW1eEG.png)
 
