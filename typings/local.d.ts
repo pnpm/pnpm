@@ -84,8 +84,26 @@ declare module 'graceful-git' {
 }
 
 declare module 'graph-sequencer' {
-  const anything: any;
-  export = anything;
+  namespace graphSequencer {
+    type Graph<T> = Map<T, T[]>;
+    type Groups<T> = Array<T[]>;
+
+    interface Options<T> {
+      graph: Graph<T>;
+      groups: Groups<T>;
+    }
+
+    interface Result<T> {
+      safe: boolean;
+      chunks: Groups<T>;
+      cycles: Groups<T>;
+    }
+
+    type GraphSequencer = <T>(opts: Options<T>) => Result<T>;
+  }
+
+  const graphSequencer: graphSequencer.GraphSequencer;
+  export = graphSequencer;
 }
 
 declare module 'is-inner-link' {
