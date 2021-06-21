@@ -52,12 +52,14 @@ import pLimit from 'p-limit'
 import fromPairs from 'ramda/src/fromPairs'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
+import pipe from 'ramda/src/pipe'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
 import allProjectsAreUpToDate from './allProjectsAreUpToDate'
+import createPackageExtender from './createPackageExtender'
 import createVersionsOverrider from './createVersionsOverrider'
 import extendOptions, {
   InstallOptions,
@@ -156,13 +158,21 @@ export async function mutateModules (
     ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
   const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
+  const hooks: ReadPackageHook[] = []
   if (!isEmpty(overrides ?? {})) {
-    const versionsOverrider = createVersionsOverrider(overrides!, opts.lockfileDir)
+    hooks.push(createVersionsOverrider(overrides!, opts.lockfileDir))
+  }
+  const packageExtensions = rootProjectManifest?.pnpm?.packageExtensions
+  if (!isEmpty(packageExtensions ?? {})) {
+    hooks.push(createPackageExtender(packageExtensions!))
+  }
+  if (hooks.length > 0) {
+    const readPackageAndExtend = hooks.length === 1 ? hooks[0] : pipe(hooks[0], hooks[1]) as ReadPackageHook
     if (opts.hooks.readPackage != null) {
       const readPackage = opts.hooks.readPackage
-      opts.hooks.readPackage = ((manifest: ProjectManifest, dir?: string) => versionsOverrider(readPackage(manifest, dir), dir)) as ReadPackageHook
+      opts.hooks.readPackage = ((manifest: ProjectManifest, dir?: string) => readPackageAndExtend(readPackage(manifest, dir), dir)) as ReadPackageHook
     } else {
-      opts.hooks.readPackage = versionsOverrider
+      opts.hooks.readPackage = readPackageAndExtend
     }
   }
   const ctx = await getContext(projects, opts)
@@ -188,9 +198,11 @@ export async function mutateModules (
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
     let needsFullResolution = !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
-      !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())
+      !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
+      !equals(ctx.wantedLockfile.packageExtensions ?? {}, packageExtensions ?? {})
     ctx.wantedLockfile.overrides = overrides
     ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
+    ctx.wantedLockfile.packageExtensions = packageExtensions
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (

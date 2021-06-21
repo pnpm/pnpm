@@ -85,10 +85,13 @@ interface BaseManifest {
 
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
 
+export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDependencies' | 'peerDependencies' | 'peerDependenciesMeta'>
+
 export type ProjectManifest = BaseManifest & {
   pnpm?: {
     neverBuiltDependencies?: string[]
     overrides?: Record<string, string>
+    packageExtensions?: Record<string, PackageExtension>
   }
   private?: boolean
   resolutions?: Record<string, string>
