@@ -1,5 +1,4 @@
 ---
-"@pnpm/lockfile-types": minor
 "@pnpm/lockfile-file": minor
 ---
 
