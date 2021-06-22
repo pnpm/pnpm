@@ -42,6 +42,7 @@ import {
 import {
   DependenciesField,
   DependencyManifest,
+  PackageExtension,
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
@@ -158,23 +159,13 @@ export async function mutateModules (
     ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
   const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
-  const hooks: ReadPackageHook[] = []
-  if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, opts.lockfileDir))
-  }
   const packageExtensions = rootProjectManifest?.pnpm?.packageExtensions
-  if (!isEmpty(packageExtensions ?? {})) {
-    hooks.push(createPackageExtender(packageExtensions!))
-  }
-  if (hooks.length > 0) {
-    const readPackageAndExtend = hooks.length === 1 ? hooks[0] : pipe(hooks[0], hooks[1]) as ReadPackageHook
-    if (opts.hooks.readPackage != null) {
-      const readPackage = opts.hooks.readPackage
-      opts.hooks.readPackage = ((manifest: ProjectManifest, dir?: string) => readPackageAndExtend(readPackage(manifest, dir), dir)) as ReadPackageHook
-    } else {
-      opts.hooks.readPackage = readPackageAndExtend
-    }
-  }
+  opts.hooks.readPackage = createReadPackageHook({
+    readPackageHook: opts.hooks.readPackage,
+    overrides,
+    lockfileDir: opts.lockfileDir,
+    packageExtensions,
+  })
   const ctx = await getContext(projects, opts)
   const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
@@ -483,6 +474,36 @@ export async function mutateModules (
 
     return result
   }
+}
+
+function createReadPackageHook (
+  {
+    lockfileDir,
+    overrides,
+    packageExtensions,
+    readPackageHook,
+  }: {
+    lockfileDir: string
+    overrides?: Record<string, string>
+    packageExtensions?: Record<string, PackageExtension>
+    readPackageHook?: ReadPackageHook
+  }
+) {
+  const hooks: ReadPackageHook[] = []
+  if (!isEmpty(overrides ?? {})) {
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
+  }
+  if (!isEmpty(packageExtensions ?? {})) {
+    hooks.push(createPackageExtender(packageExtensions!))
+  }
+  if (hooks.length === 0) {
+    return readPackageHook
+  }
+  const readPackageAndExtend = hooks.length === 1 ? hooks[0] : pipe(hooks[0], hooks[1]) as ReadPackageHook
+  if (readPackageHook != null) {
+    return ((manifest: ProjectManifest, dir?: string) => readPackageAndExtend(readPackageHook(manifest, dir), dir)) as ReadPackageHook
+  }
+  return readPackageAndExtend
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number) {
