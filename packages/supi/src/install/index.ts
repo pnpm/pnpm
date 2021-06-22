@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import path from 'path'
 import buildModules, { linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
@@ -188,12 +189,13 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
+    const packageExtensionsChecksum = isEmpty(packageExtensions ?? {}) ? undefined : createObjectChecksum(packageExtensions!)
     let needsFullResolution = !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
       !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
-      !equals(ctx.wantedLockfile.packageExtensions ?? {}, packageExtensions ?? {})
+      ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum
     ctx.wantedLockfile.overrides = overrides
     ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
-    ctx.wantedLockfile.packageExtensions = packageExtensions
+    ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
@@ -474,6 +476,11 @@ export async function mutateModules (
 
     return result
   }
+}
+
+export function createObjectChecksum (obj: Object) {
+  const s = JSON.stringify(obj)
+  return crypto.createHash('md5').update(s).digest('hex')
 }
 
 function createReadPackageHook (
