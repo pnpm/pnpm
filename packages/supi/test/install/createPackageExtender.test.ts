@@ -22,6 +22,12 @@ const packageExtender = createPackageExtender({
       d: '1',
     },
   },
+  qar: {
+    dependencies: {
+      e: '1',
+      f: '1',
+    },
+  },
 })
 
 test('createPackageExtender() extends the supported fields', () => {
@@ -68,6 +74,25 @@ test('createPackageExtender() matches by version', () => {
     version: '1.0.0',
     dependencies: {
       d: '1',
+    },
+  })
+})
+
+test('createPackageExtender() does not override existing fields', () => {
+  expect(
+    packageExtender({
+      name: 'qar',
+      version: '1.0.0',
+      dependencies: {
+        e: '100',
+      },
+    })
+  ).toStrictEqual({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      e: '100',
+      f: '1',
     },
   })
 })

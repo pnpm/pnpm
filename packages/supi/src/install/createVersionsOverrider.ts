@@ -86,7 +86,7 @@ function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies, 
   }
 }
 
-export function isSubRange (superRange: string | undefined, subRange: string) {
+function isSubRange (superRange: string | undefined, subRange: string) {
   return !superRange ||
   subRange === superRange ||
   semver.validRange(subRange) != null &&

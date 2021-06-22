@@ -1,10 +1,10 @@
 import { PackageManifest, PackageExtension, ReadPackageHook } from '@pnpm/types'
 import parseWantedDependency from '@pnpm/parse-wanted-dependency'
-import { isSubRange } from './createVersionsOverrider'
+import semver from 'semver'
 
 interface PackageExtensionMatch {
   packageExtension: PackageExtension
-  pref: string | undefined
+  range: string | undefined
 }
 
 export default function (
@@ -17,23 +17,25 @@ export default function (
       if (!extensionsByPkgName[alias!]) {
         extensionsByPkgName[alias!] = []
       }
-      extensionsByPkgName[alias!].push({ packageExtension, pref })
+      extensionsByPkgName[alias!].push({ packageExtension, range: pref })
     })
-  return ((manifest: PackageManifest) => {
-    const extensions = extensionsByPkgName[manifest.name]
-    if (extensions == null) return manifest
-    extendPkg(manifest, extensions)
-    return manifest
-  }) as ReadPackageHook
+  return extendPkgHook.bind(null, extensionsByPkgName) as ReadPackageHook
+}
+
+function extendPkgHook (extensionsByPkgName: Record<string, PackageExtensionMatch[]>, manifest: PackageManifest) {
+  const extensions = extensionsByPkgName[manifest.name]
+  if (extensions == null) return manifest
+  extendPkg(manifest, extensions)
+  return manifest
 }
 
 function extendPkg (manifest: PackageManifest, extensions: PackageExtensionMatch[]) {
-  for (const extension of extensions) {
-    if (extension.pref != null && !isSubRange(extension.pref, manifest.version)) continue
+  for (const { range, packageExtension } of extensions) {
+    if (range != null && !semver.satisfies(manifest.version, range)) continue
     for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta']) {
-      if (!extension.packageExtension[field]) continue
+      if (!packageExtension[field]) continue
       manifest[field] = {
-        ...extension.packageExtension[field],
+        ...packageExtension[field],
         ...manifest[field],
       }
     }
