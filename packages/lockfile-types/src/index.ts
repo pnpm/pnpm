@@ -4,6 +4,7 @@ export interface Lockfile {
   packages?: PackageSnapshots
   neverBuiltDependencies?: string[]
   overrides?: Record<string, string>
+  packageExtensionsChecksum?: string
 }
 
 export interface ProjectSnapshot {

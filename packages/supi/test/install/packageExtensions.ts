@@ -1,0 +1,102 @@
+import PnpmError from '@pnpm/error'
+import { prepareEmpty } from '@pnpm/prepare'
+import { addDependenciesToPackage, mutateModules } from 'supi'
+import { createObjectChecksum } from 'supi/lib/install/index'
+import {
+  testDefaults,
+} from '../utils'
+
+test('manifests are extended with fields specified by pnpm.packageExtensions', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({
+    pnpm: {
+      packageExtensions: {
+        'is-positive': {
+          dependencies: {
+            bar: '100.1.0',
+          },
+        },
+      },
+    },
+  }, ['is-positive@1.0.0'], await testDefaults())
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packages['/is-positive/1.0.0'].dependencies?.['bar']).toBe('100.1.0')
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
+      'is-positive': {
+        dependencies: {
+          bar: '100.1.0',
+        },
+      },
+    }))
+    const currentLockfile = await project.readCurrentLockfile()
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
+  }
+
+  // The lockfile is updated if the overrides are changed
+  manifest.pnpm!.packageExtensions!['is-positive'].dependencies!['foobar'] = '100.0.0'
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults())
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packages['/is-positive/1.0.0'].dependencies?.['foobar']).toBe('100.0.0')
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
+      'is-positive': {
+        dependencies: {
+          bar: '100.1.0',
+          foobar: '100.0.0',
+        },
+      },
+    }))
+    const currentLockfile = await project.readCurrentLockfile()
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
+  }
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ frozenLockfile: true }))
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
+      'is-positive': {
+        dependencies: {
+          bar: '100.1.0',
+          foobar: '100.0.0',
+        },
+      },
+    }))
+    const currentLockfile = await project.readCurrentLockfile()
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
+  }
+
+  manifest.pnpm!.packageExtensions!['is-positive'].dependencies!['bar'] = '100.0.1'
+  await expect(
+    mutateModules([
+      {
+        buildIndex: 0,
+        manifest,
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ], await testDefaults({ frozenLockfile: true }))
+  ).rejects.toThrow(
+    new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
+      'Cannot perform a frozen installation because the lockfile needs updates'
+    )
+  )
+})

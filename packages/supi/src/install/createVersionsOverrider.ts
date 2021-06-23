@@ -4,7 +4,10 @@ import parseWantedDependency from '@pnpm/parse-wanted-dependency'
 import normalizePath from 'normalize-path'
 import semver from 'semver'
 
-export default function (overrides: Record<string, string>, rootDir: string): ReadPackageHook {
+export default function (
+  overrides: Record<string, string>,
+  rootDir: string
+): ReadPackageHook {
   const genericVersionOverrides = [] as VersionOverride[]
   const versionOverrides = [] as VersionOverrideWithParent[]
   Object.entries(overrides)

@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import path from 'path'
 import buildModules, { linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
@@ -42,6 +43,7 @@ import {
 import {
   DependenciesField,
   DependencyManifest,
+  PackageExtension,
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
@@ -52,12 +54,14 @@ import pLimit from 'p-limit'
 import fromPairs from 'ramda/src/fromPairs'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
+import pipe from 'ramda/src/pipe'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
 import allProjectsAreUpToDate from './allProjectsAreUpToDate'
+import createPackageExtender from './createPackageExtender'
 import createVersionsOverrider from './createVersionsOverrider'
 import extendOptions, {
   InstallOptions,
@@ -156,15 +160,13 @@ export async function mutateModules (
     ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
   const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
-  if (!isEmpty(overrides ?? {})) {
-    const versionsOverrider = createVersionsOverrider(overrides!, opts.lockfileDir)
-    if (opts.hooks.readPackage != null) {
-      const readPackage = opts.hooks.readPackage
-      opts.hooks.readPackage = ((manifest: ProjectManifest, dir?: string) => versionsOverrider(readPackage(manifest, dir), dir)) as ReadPackageHook
-    } else {
-      opts.hooks.readPackage = versionsOverrider
-    }
-  }
+  const packageExtensions = rootProjectManifest?.pnpm?.packageExtensions
+  opts.hooks.readPackage = createReadPackageHook({
+    readPackageHook: opts.hooks.readPackage,
+    overrides,
+    lockfileDir: opts.lockfileDir,
+    packageExtensions,
+  })
   const ctx = await getContext(projects, opts)
   const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
@@ -187,10 +189,13 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
+    const packageExtensionsChecksum = isEmpty(packageExtensions ?? {}) ? undefined : createObjectChecksum(packageExtensions!)
     let needsFullResolution = !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
-      !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())
+      !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
+      ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum
     ctx.wantedLockfile.overrides = overrides
     ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
+    ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
@@ -471,6 +476,41 @@ export async function mutateModules (
 
     return result
   }
+}
+
+export function createObjectChecksum (obj: Object) {
+  const s = JSON.stringify(obj)
+  return crypto.createHash('md5').update(s).digest('hex')
+}
+
+function createReadPackageHook (
+  {
+    lockfileDir,
+    overrides,
+    packageExtensions,
+    readPackageHook,
+  }: {
+    lockfileDir: string
+    overrides?: Record<string, string>
+    packageExtensions?: Record<string, PackageExtension>
+    readPackageHook?: ReadPackageHook
+  }
+) {
+  const hooks: ReadPackageHook[] = []
+  if (!isEmpty(overrides ?? {})) {
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
+  }
+  if (!isEmpty(packageExtensions ?? {})) {
+    hooks.push(createPackageExtender(packageExtensions!))
+  }
+  if (hooks.length === 0) {
+    return readPackageHook
+  }
+  const readPackageAndExtend = hooks.length === 1 ? hooks[0] : pipe(hooks[0], hooks[1]) as ReadPackageHook
+  if (readPackageHook != null) {
+    return ((manifest: ProjectManifest, dir?: string) => readPackageAndExtend(readPackageHook(manifest, dir), dir)) as ReadPackageHook
+  }
+  return readPackageAndExtend
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number) {

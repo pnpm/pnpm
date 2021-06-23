@@ -33,6 +33,7 @@ const ROOT_KEYS_ORDER = {
   lockfileVersion: 1,
   neverBuiltDependencies: 2,
   overrides: 3,
+  packageExtensionsChecksum: 4,
   specifiers: 10,
   dependencies: 11,
   optionalDependencies: 12,
