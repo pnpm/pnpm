@@ -1,5 +1,17 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+- Updated dependencies [8e76690f4]
+  - @pnpm/lockfile-file@4.1.0
+  - @pnpm/types@7.3.0
+  - @pnpm/exportable-manifest@2.1.5
+  - @pnpm/prune-lockfile@3.0.7
+  - @pnpm/read-project-manifest@2.0.4
+
 ## 0.2.11
 
 ### Patch Changes

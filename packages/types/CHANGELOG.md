@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.3.0
+
+### Minor Changes
+
+- 8e76690f4: New optional field added to the manifest type (`package.json`): `pnpm.packageExtensions.
+
 ## 7.2.0
 
 ### Minor Changes

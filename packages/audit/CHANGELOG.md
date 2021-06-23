@@ -1,5 +1,15 @@
 # @pnpm/audit
 
+## 2.1.6
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+  - @pnpm/types@7.3.0
+  - @pnpm/lockfile-utils@3.0.7
+  - @pnpm/lockfile-walker@4.0.7
+  - @pnpm/fetch@4.0.1
+
 ## 2.1.5
 
 ### Patch Changes

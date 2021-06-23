@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-audit",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "description": "pnpm commands for dependencies audit",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,19 +29,19 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-audit#readme",
   "devDependencies": {
-    "@pnpm/types": "workspace:7.2.0",
+    "@pnpm/types": "workspace:7.3.0",
     "@types/ramda": "0.27.39",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
     "nock": "12.0.3",
     "strip-ansi": "^6.0.0"
   },
   "dependencies": {
-    "@pnpm/audit": "workspace:2.1.5",
-    "@pnpm/cli-utils": "workspace:0.6.7",
-    "@pnpm/config": "workspace:12.3.2",
+    "@pnpm/audit": "workspace:2.1.6",
+    "@pnpm/cli-utils": "workspace:0.6.8",
+    "@pnpm/config": "workspace:12.3.3",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/lockfile-file": "workspace:4.0.4",
+    "@pnpm/lockfile-file": "workspace:4.1.0",
     "@zkochan/table": "^1.0.0",
     "chalk": "^4.1.0",
     "ramda": "^0.27.1",

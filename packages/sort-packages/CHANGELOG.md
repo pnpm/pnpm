@@ -1,5 +1,16 @@
 # @pnpm/sort-packages
 
+## 2.1.0
+
+### Minor Changes
+
+- 1442f8786: Expose raw graph-sequencer result through sequenceGraph
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+  - @pnpm/types@7.3.0
+
 ## 2.0.2
 
 ### Patch Changes

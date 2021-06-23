@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-outdated
 
+## 4.1.12
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+  - @pnpm/lockfile-file@4.1.0
+  - @pnpm/outdated@8.0.14
+  - @pnpm/cli-utils@0.6.8
+  - @pnpm/config@12.3.3
+  - @pnpm/modules-yaml@9.0.3
+  - @pnpm/default-resolver@12.0.7
+
 ## 4.1.11
 
 ### Patch Changes

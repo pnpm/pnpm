@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-package-json",
-  "version": "5.0.2",
+  "version": "5.0.3",
   "description": "Read a package.json",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-package-json#readme",
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/types": "workspace:7.2.0",
+    "@pnpm/types": "workspace:7.3.0",
     "load-json-file": "^6.2.0",
     "normalize-package-data": "^3.0.2"
   },

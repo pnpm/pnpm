@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-installation
 
+## 5.1.0
+
+### Minor Changes
+
+- 1442f8786: Warn about cyclic dependencies on install
+
+### Patch Changes
+
+- Updated dependencies [1442f8786]
+- Updated dependencies [8e76690f4]
+- Updated dependencies [8e76690f4]
+  - @pnpm/sort-packages@2.1.0
+  - supi@0.46.17
+  - @pnpm/types@7.3.0
+  - @pnpm/outdated@8.0.14
+  - @pnpm/plugin-commands-rebuild@4.0.11
+  - @pnpm/cli-utils@0.6.8
+  - @pnpm/config@12.3.3
+  - @pnpm/find-workspace-packages@3.0.8
+  - @pnpm/manifest-utils@2.0.3
+  - @pnpm/package-store@12.0.11
+  - @pnpm/pnpmfile@1.0.4
+  - @pnpm/resolver-base@8.0.3
+  - @pnpm/store-connection-manager@2.1.11
+  - @pnpm/filter-workspace-packages@4.1.1
+
 ## 5.0.0
 
 ### Major Changes

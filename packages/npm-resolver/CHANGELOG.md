@@ -1,5 +1,14 @@
 # @pnpm/npm-resolver
 
+## 11.1.4
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+  - @pnpm/types@7.3.0
+  - @pnpm/core-loggers@6.0.3
+  - @pnpm/resolver-base@8.0.3
+
 ## 11.1.3
 
 ### Patch Changes

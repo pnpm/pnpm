@@ -1,5 +1,16 @@
 # @pnpm/lockfile-file
 
+## 4.1.0
+
+### Minor Changes
+
+- 8e76690f4: New optional field added to the lockfile: `packageExtensionsChecksum`.
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+  - @pnpm/types@7.3.0
+
 ## 4.0.4
 
 ### Patch Changes

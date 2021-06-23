@@ -1,5 +1,40 @@
 # supi
 
+## 0.46.17
+
+### Patch Changes
+
+- 8e76690f4: A new optional field supported in the root `package.json` file: `pnpm.packageExtensions`. This new field allows to extend manifests of dependencies during installation.
+- Updated dependencies [8e76690f4]
+- Updated dependencies [8e76690f4]
+  - @pnpm/lockfile-file@4.1.0
+  - @pnpm/types@7.3.0
+  - @pnpm/get-context@5.1.4
+  - @pnpm/headless@16.0.14
+  - @pnpm/lockfile-to-pnp@0.4.11
+  - @pnpm/build-modules@7.0.4
+  - @pnpm/core-loggers@6.0.3
+  - dependency-path@8.0.3
+  - @pnpm/filter-lockfile@5.0.7
+  - @pnpm/hoist@5.0.10
+  - @pnpm/lifecycle@11.0.2
+  - @pnpm/link-bins@6.0.5
+  - @pnpm/lockfile-utils@3.0.7
+  - @pnpm/lockfile-walker@4.0.7
+  - @pnpm/manifest-utils@2.0.3
+  - @pnpm/modules-cleaner@11.0.8
+  - @pnpm/modules-yaml@9.0.3
+  - @pnpm/normalize-registries@2.0.3
+  - @pnpm/package-requester@15.0.6
+  - @pnpm/prune-lockfile@3.0.7
+  - @pnpm/read-package-json@5.0.3
+  - @pnpm/read-project-manifest@2.0.4
+  - @pnpm/remove-bins@2.0.3
+  - @pnpm/resolve-dependencies@20.0.11
+  - @pnpm/resolver-base@8.0.3
+  - @pnpm/store-controller-types@11.0.4
+  - @pnpm/symlink-dependency@4.0.4
+
 ## 0.46.16
 
 ### Patch Changes

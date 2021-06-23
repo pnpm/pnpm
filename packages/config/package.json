@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "12.3.2",
+  "version": "12.3.3",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/global-bin-dir": "workspace:2.0.0",
-    "@pnpm/types": "workspace:7.2.0",
+    "@pnpm/types": "workspace:7.3.0",
     "@zkochan/npm-conf": "2.0.2",
     "camelcase": "^6.2.0",
     "can-write-to-dir": "^1.1.1",
@@ -43,7 +43,7 @@
     "which": "^2.0.2"
   },
   "devDependencies": {
-    "@pnpm/prepare": "workspace:0.0.24",
+    "@pnpm/prepare": "workspace:0.0.25",
     "@types/ramda": "0.27.39",
     "@types/which": "^2.0.0",
     "symlink-dir": "^5.0.0"

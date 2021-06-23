@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-bins",
-  "version": "5.0.2",
+  "version": "5.0.3",
   "description": "Returns bins of a package",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-bins#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:7.2.0",
+    "@pnpm/types": "workspace:7.3.0",
     "fast-glob": "^3.2.4",
     "is-subdir": "^1.1.1"
   },
