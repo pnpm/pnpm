@@ -40,6 +40,7 @@ import {
 import * as dp from 'dependency-path'
 import exists from 'path-exists'
 import isEmpty from 'ramda/src/isEmpty'
+import omit from 'ramda/src/omit'
 import semver from 'semver'
 import encodePkgId from './encodePkgId'
 import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
@@ -726,7 +727,8 @@ async function resolveDependency (
     hasBin = currentPkg.dependencyLockfile.hasBin === true
     pkg = {
       ...nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile),
-      ...currentPkg.dependencyLockfile,
+      ...omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'], currentPkg.dependencyLockfile),
+      // ...currentPkg.dependencyLockfile,
       ...pkg,
     }
   } else {

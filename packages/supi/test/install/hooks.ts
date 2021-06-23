@@ -3,6 +3,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
+  mutateModules,
   PackageManifest,
 } from 'supi'
 import sinon from 'sinon'
@@ -47,4 +48,37 @@ test('readPackage, afterAllResolved hooks', async () => {
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
+})
+
+test('readPackage converts optional dependencies to regular ones', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-good-optional@1.0.0'], await testDefaults({}))
+
+  function readPackage (manifest: PackageManifest) {
+    switch (manifest.name) {
+    case 'pkg-with-good-optional':
+      manifest.dependencies!['is-positive'] = manifest.optionalDependencies!['is-positive']
+      delete manifest.optionalDependencies!['is-positive']
+      break
+    }
+    return manifest
+  }
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({
+    hooks: { readPackage },
+    update: true,
+    depth: 100,
+  }))
+
+  const wantedLockfile = await project.readLockfile()
+  expect(wantedLockfile.packages['/pkg-with-good-optional/1.0.0'].optionalDependencies).toBeFalsy()
+  expect(wantedLockfile.packages['/pkg-with-good-optional/1.0.0'].dependencies).toHaveProperty(['is-positive'])
 })
