@@ -116,7 +116,7 @@ export default async function<T> (
     // This may be optimized.
     // We only need to proceed resolving every dependency
     // if the newly added dependency has peer dependencies.
-    const proceed = importer.hasRemovedDependencies === true || importer.wantedDependencies.some((wantedDep) => wantedDep['isNew'])
+    const proceed = importer.id === '.' || importer.hasRemovedDependencies === true || importer.wantedDependencies.some((wantedDep) => wantedDep['isNew'])
     const resolveOpts = {
       currentDepth: 0,
       parentPkg: {
