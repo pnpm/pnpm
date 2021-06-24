@@ -16,6 +16,8 @@ overrides:
   table@^6.0.3: 6.0.4
   trim-newlines@1: ^3.0.1
 
+packageExtensionsChecksum: 2d55debdafabed8922cdcc2ffb8100dc
+
 importers:
 
   .:
