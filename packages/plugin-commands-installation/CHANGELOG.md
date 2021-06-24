@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 5.1.1
+
+### Patch Changes
+
+- supi@0.46.18
+
 ## 5.1.0
 
 ### Minor Changes

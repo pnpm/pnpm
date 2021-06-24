@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.9.1
+
+### Patch Changes
+
+- Dependencies from the root workspace package should be used to resolve peer dependencies of any projects in the workspace.
+
 ## 6.9.0
 
 ### Minor Changes

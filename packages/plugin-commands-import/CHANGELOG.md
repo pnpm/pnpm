@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-import
 
+## 2.0.20
+
+### Patch Changes
+
+- supi@0.46.18
+
 ## 2.0.19
 
 ### Patch Changes

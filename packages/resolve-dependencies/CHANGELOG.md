@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.12
+
+### Patch Changes
+
+- 389858509: Dependencies from the root workspace package should be used to resolve peer dependencies of any projects in the workspace.
+
 ## 20.0.11
 
 ### Patch Changes

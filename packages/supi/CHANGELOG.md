@@ -1,5 +1,12 @@
 # supi
 
+## 0.46.18
+
+### Patch Changes
+
+- Updated dependencies [389858509]
+  - @pnpm/resolve-dependencies@20.0.12
+
 ## 0.46.17
 
 ### Patch Changes
