@@ -17,6 +17,10 @@
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pnpm --filter=@pnpm-private/updater compile && meta-updater ./utils/updater/lib/index.js && pnpm install"
   },
+   "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm.git"
+  },
   "devDependencies": {
     "@babel/core": "^7.14.0",
     "@changesets/cli": "^2.16.0",
