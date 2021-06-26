@@ -201,7 +201,7 @@ export default async function run (inputArgv: string[]) {
   }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
-  const [output, exitCode] = await new Promise((resolve, reject) => {
+  let { output, exitCode }: { output: string | null, exitCode: number } = await new Promise((resolve, reject) => {
     setTimeout(async () => {
       if (!isCI && !selfUpdate && !config.offline && !config.preferOffline && !config.fallbackCommandUsed) {
         checkForUpdates(config).catch(() => { /* Ignore */ })
@@ -241,20 +241,23 @@ export default async function run (inputArgv: string[]) {
           result = await result
         }
         if (!result) {
-          resolve([null, 0])
+          resolve({ output: null, exitCode: 0 })
           return
         }
         if (typeof result === 'string') {
-          resolve([result, 0])
+          resolve({ output: result, exitCode: 0 })
           return
         }
-        resolve([result['output'], result['exitCode']])
+        resolve({ output: result['output'], exitCode: result['exitCode'] })
       } catch (err) {
         reject(err)
       }
     }, 0)
   })
   if (output) {
+    if (!output.endsWith('\n')) {
+      output = `${output}\n`
+    }
     write(output)
   }
   if (!cmd) {
