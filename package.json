@@ -17,7 +17,7 @@
     "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile -- --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pnpm run meta-updater && pnpm install",
-    "meta-updater": "pnpm --filter=@pnpm-private/updater compile && meta-updater",
+    "meta-updater": "pnpm --filter=@pnpm-private/updater compile && pnpm --config.use-node-version=16.4.0 exec meta-updater",
     "lint:meta": "pnpm run meta-updater -- --test"
   },
   "devDependencies": {

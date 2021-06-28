@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "compile": "tsc"
+    "compile": "tsc --build"
   },
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:4.1.0",
