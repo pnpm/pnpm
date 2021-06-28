@@ -28,7 +28,7 @@ importers:
       '@commitlint/config-conventional': ^12.1.1
       '@commitlint/prompt-cli': ^12.1.1
       '@pnpm/eslint-config': workspace:*
-      '@pnpm/meta-updater': 0.0.2
+      '@pnpm/meta-updater': 0.0.3
       '@pnpm/registry-mock': ^2.5.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.23
@@ -56,7 +56,7 @@ importers:
       '@commitlint/config-conventional': 12.1.4
       '@commitlint/prompt-cli': 12.1.4
       '@pnpm/eslint-config': link:utils/eslint-config
-      '@pnpm/meta-updater': 0.0.2
+      '@pnpm/meta-updater': 0.0.3
       '@pnpm/registry-mock': 2.5.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.23
@@ -4466,8 +4466,8 @@ packages:
       - '@pnpm/logger'
     dev: true
 
-  /@pnpm/meta-updater/0.0.2:
-    resolution: {integrity: sha512-aLHSGw4v2pw1EjIqskUV8douTsgt4TPW6Z2P99L64v3X+bIsW5RMYHNkPo858RNQXsY0bqOoAH4qIZ2VcNGkaw==}
+  /@pnpm/meta-updater/0.0.3:
+    resolution: {integrity: sha512-KyNrbcDlBdeVf+1KsLXBmcRSR4l5ii7+rS7GDl+MZgwgl8TmMYOibzpuev0QcM2qVhzMiRNCynDvTfTwJk61Mg==}
     engines: {node: '>=10.12'}
     hasBin: true
     dependencies:
