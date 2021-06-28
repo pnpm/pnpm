@@ -2,18 +2,19 @@
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
     "outDir": "lib",
-    "rootDir": "src"
+    "rootDir": "src",
+    "module": "ES2020"
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../typings/**/*.d.ts"
   ],
   "references": [
     {
-      "path": "../../packages/lockfile-file"
+      "path": "../packages/lockfile-file"
     },
     {
-      "path": "../../packages/types"
+      "path": "../packages/types"
     }
   ]
 }

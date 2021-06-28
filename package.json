@@ -17,7 +17,7 @@
     "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile -- --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pnpm run meta-updater && pnpm install",
-    "meta-updater": "pnpm --filter=@pnpm-private/updater compile && meta-updater ./utils/updater/lib/index.js",
+    "meta-updater": "pnpm --filter=@pnpm-private/updater compile && meta-updater",
     "lint:meta": "pnpm run meta-updater -- --test"
   },
   "devDependencies": {
@@ -27,7 +27,7 @@
     "@commitlint/config-conventional": "^12.1.1",
     "@commitlint/prompt-cli": "^12.1.1",
     "@pnpm/eslint-config": "workspace:*",
-    "@pnpm/meta-updater": "0.0.1",
+    "@pnpm/meta-updater": "0.0.2",
     "@pnpm/registry-mock": "^2.5.0",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "^26.0.23",

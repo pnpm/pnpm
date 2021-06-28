@@ -4,6 +4,7 @@ packages:
   - privatePackages/*
   - typings
   - tools
+  - .meta-updater
   - utils/*
   - "!**/__package_previews__/**"
   - "!**/example/**"
