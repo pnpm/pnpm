@@ -28,7 +28,7 @@ importers:
       '@commitlint/config-conventional': ^12.1.1
       '@commitlint/prompt-cli': ^12.1.1
       '@pnpm/eslint-config': workspace:*
-      '@pnpm/meta-updater': ^0.0.0
+      '@pnpm/meta-updater': 0.0.1
       '@pnpm/registry-mock': ^2.5.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.23
@@ -56,7 +56,7 @@ importers:
       '@commitlint/config-conventional': 12.1.4
       '@commitlint/prompt-cli': 12.1.4
       '@pnpm/eslint-config': link:utils/eslint-config
-      '@pnpm/meta-updater': 0.0.0
+      '@pnpm/meta-updater': 0.0.1
       '@pnpm/registry-mock': 2.5.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.23
@@ -4466,8 +4466,8 @@ packages:
       - '@pnpm/logger'
     dev: true
 
-  /@pnpm/meta-updater/0.0.0:
-    resolution: {integrity: sha512-1bXsDuMzZRq73VniwQuGs5ZwdLKwJf5D7VwRjIiPVo0r117Gcjyjm8oTZpVll2iJlDldv2o8IVWJ60beB5/lOg==}
+  /@pnpm/meta-updater/0.0.1:
+    resolution: {integrity: sha512-cY7/yNkRKwYSVmQbRVw13eloPBclII4zsq7+RuGM4j4Jpw2XTiayUxGQM20cCHUQxfNubSpGnsVGFqTXFSXF7g==}
     engines: {node: '>=10.12'}
     hasBin: true
     dependencies:
@@ -4476,7 +4476,10 @@ packages:
       '@pnpm/logger': 3.2.3
       '@pnpm/types': 6.4.0
       load-json-file: 6.2.0
+      meow: 9.0.0
       path-exists: 4.0.0
+      print-diff: 1.0.0
+      ramda: 0.27.1
       write-json-file: 4.3.0
     dev: true
 
@@ -10518,6 +10521,24 @@ packages:
       yargs-parser: 20.2.7
     dev: true
 
+  /meow/9.0.0:
+    resolution: {integrity: sha512-+obSblOQmRhcyBt62furQqRAQpNyWXo8BuQ5bN7dG8wmwQ+vwHKp/rCFD4CrTP8CsDQD1sjoZ94K417XEUk8IQ==}
+    engines: {node: '>=10'}
+    dependencies:
+      '@types/minimist': 1.2.1
+      camelcase-keys: 6.2.2
+      decamelize: 1.2.0
+      decamelize-keys: 1.1.0
+      hard-rejection: 2.1.0
+      minimist-options: 4.1.0
+      normalize-package-data: 3.0.2
+      read-pkg-up: 7.0.1
+      redent: 3.0.0
+      trim-newlines: 3.0.1
+      type-fest: 0.18.1
+      yargs-parser: 20.2.7
+    dev: true
+
   /merge-descriptors/1.0.1:
     resolution: {integrity: sha1-sAqqVW3YtEVoFQ7J0blT8/kMu2E=}
     dev: true
@@ -11713,6 +11734,13 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       parse-ms: 2.1.0
+
+  /print-diff/1.0.0:
+    resolution: {integrity: sha512-tvYT1pVzXxTOMLDRyu6ncaF2LL69d0EAchmGGGJoLc/2GOcnRKcO4PV89l7/s3Er1CpXTgFv7jB4XDgd+yxBjA==}
+    engines: {node: '>=8.3'}
+    dependencies:
+      diff: 4.0.2
+    dev: true
 
   /printable-characters/1.0.42:
     resolution: {integrity: sha1-Pxjpd6m9jrN/zE/1ZZ176Qhos9g=}
