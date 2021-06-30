@@ -72,6 +72,8 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
   switch (params[0]) {
   case 'status':
     return statusCmd(opts)
+  case 'path':
+    return storePath(opts.dir, opts.storeDir)
   case 'prune': {
     store = await createOrConnectStoreController(opts)
     const storePruneOptions = Object.assign(opts, {
