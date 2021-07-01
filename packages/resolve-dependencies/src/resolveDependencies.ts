@@ -446,6 +446,11 @@ function getDepsToResolve (
           allPeers.add(peerName)
         })
       }
+      if (infoFromLockfile?.dependencyLockfile?.transitivePeerDependencies?.length) {
+        infoFromLockfile.dependencyLockfile.transitivePeerDependencies.forEach((peerName) => {
+          allPeers.add(peerName)
+        })
+      }
       proceed = true
       proceedAll = true
       for (const extendedWantedDep of extendedWantedDeps) {
