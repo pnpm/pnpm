@@ -400,7 +400,6 @@ function getDepsToResolve (
   // is to get information about the existing dependencies, so that they can
   // be merged with the resolved peers.
   let proceedAll = options.proceed
-  const allPeers = new Set<string>()
   const satisfiesWanted2Args = referenceSatisfiesWantedSpec.bind(null, {
     lockfile: wantedLockfile,
     prefix: options.prefix,
@@ -441,11 +440,6 @@ function getDepsToResolve (
         )
       )
     ) {
-      if ((infoFromLockfile?.dependencyLockfile?.peerDependencies) != null) {
-        Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
-          allPeers.add(peerName)
-        })
-      }
       proceed = true
       proceedAll = true
       for (const extendedWantedDep of extendedWantedDeps) {
@@ -459,13 +453,6 @@ function getDepsToResolve (
       proceed,
       wantedDependency,
     })
-  }
-  if (!proceedAll && allPeers.size) {
-    for (const extendedWantedDep of extendedWantedDeps) {
-      if (!extendedWantedDep.proceed && allPeers.has(extendedWantedDep.wantedDependency.alias)) {
-        extendedWantedDep.proceed = true
-      }
-    }
   }
   return extendedWantedDeps
 }
