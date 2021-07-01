@@ -38,7 +38,7 @@ test('should warn about cyclic dependencies', async () => {
 
   expect(logger.warn).toHaveBeenCalledTimes(1)
   expect(logger.warn).toHaveBeenCalledWith({
-    message: expect.stringMatching(/^There are cyclic dependencies: /),
+    message: expect.stringMatching(/^There are cyclic workspace dependencies: /),
     prefix: process.cwd(),
   })
 })
