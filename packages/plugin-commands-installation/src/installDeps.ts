@@ -129,7 +129,7 @@ when running add/update with the --workspace option')
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''
         logger.warn({
-          message: `There are cyclic dependencies${cyclicDependenciesInfo}`,
+          message: `There are cyclic workspace dependencies${cyclicDependenciesInfo}`,
           prefix: opts.workspaceDir,
         })
       }
