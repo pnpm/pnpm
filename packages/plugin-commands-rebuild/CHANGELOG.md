@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 4.0.12
+
+### Patch Changes
+
+- Updated dependencies [a5bde0aa2]
+  - @pnpm/find-workspace-packages@3.1.0
+
 ## 4.0.11
 
 ### Patch Changes

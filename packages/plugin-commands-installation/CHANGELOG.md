@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-installation
 
+## 5.2.0
+
+### Minor Changes
+
+- 5565dd5f4: Use a more detailed cyclic dependencies warning
+
+### Patch Changes
+
+- Updated dependencies [a5bde0aa2]
+  - @pnpm/find-workspace-packages@3.1.0
+  - @pnpm/filter-workspace-packages@4.1.2
+  - @pnpm/plugin-commands-rebuild@4.0.12
+
 ## 5.1.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.10.0-0
+
+### Minor Changes
+
+- New command added: `pnpm store path` [#3571](https://github.com/pnpm/pnpm/pull/3571).
+
 ## 6.9.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-packages
 
+## 3.1.0
+
+### Minor Changes
+
+- a5bde0aa2: Export findWorkspacePackagesNoCheck() for finding packages and skipping engine checks.
+
 ## 3.0.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-store
 
+## 3.1.0
+
+### Minor Changes
+
+- f5ec0a96f: Add `pnpm store path` command that prints the path to the current store directory.
+
 ## 3.0.16
 
 ### Patch Changes
