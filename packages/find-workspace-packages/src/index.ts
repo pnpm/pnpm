@@ -14,6 +14,15 @@ export default async (
     patterns?: string[]
   }
 ) => {
+  const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
+  for (const pkg of pkgs) {
+    packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {})
+  }
+
+  return pkgs
+}
+
+export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
   let patterns = opts?.patterns
   if (patterns == null) {
     const packagesManifest = await requirePackagesManifest(workspaceRoot)
@@ -28,11 +37,7 @@ export default async (
     patterns,
   })
   pkgs.sort((pkg1: {dir: string}, pkg2: {dir: string}) => pkg1.dir.localeCompare(pkg2.dir))
-  for (const pkg of pkgs) {
-    packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {})
-  }
-
-  return pkgs as Project[]
+  return pkgs
 }
 
 async function requirePackagesManifest (dir: string): Promise<{packages?: string[]} | null> {

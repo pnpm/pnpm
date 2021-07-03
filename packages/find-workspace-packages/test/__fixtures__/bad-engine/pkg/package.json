@@ -1,0 +1,7 @@
+{
+  "name": "pkg",
+  "version": "1.0.0",
+  "engines": {
+    "pnpm": "10000.0.0"
+  }
+}
