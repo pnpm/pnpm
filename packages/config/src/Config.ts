@@ -90,6 +90,7 @@ export interface Config {
 
   // pnpm specific configs
   cacheDir: string
+  stateDir: string
   storeDir?: string
   virtualStoreDir?: string
   verifyStoreIntegrity?: boolean

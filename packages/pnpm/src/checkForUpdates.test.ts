@@ -5,14 +5,6 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import checkForUpdates from './checkForUpdates'
 
-jest.mock('os', () => {
-  const os = jest.requireActual('os')
-  return {
-    ...os,
-    homedir: () => process.cwd(),
-  }
-})
-
 jest.mock('@pnpm/core-loggers', () => ({
   updateCheckLogger: { debug: jest.fn() },
 }))
@@ -31,14 +23,17 @@ test('check for updates when no pnpm state file is present', async () => {
       version: '1.0.0',
     },
   })
-  await checkForUpdates(config)
+  await checkForUpdates({
+    ...config,
+    stateDir: process.cwd(),
+  })
 
   expect(updateCheckLogger.debug).toBeCalledWith({
     currentVersion: expect.any(String),
     latestVersion: expect.any(String),
   })
 
-  const state = await loadJsonFile('.pnpm-state.json')
+  const state = await loadJsonFile('pnpm-state.json')
   expect(state).toEqual({
     lastUpdateCheck: expect.any(String),
   })
@@ -48,7 +43,7 @@ test('do not check for updates when last update check happened recently', async 
   prepareEmpty()
 
   const lastUpdateCheck = new Date().toUTCString()
-  await writeJsonFile('.pnpm-state.json', { lastUpdateCheck })
+  await writeJsonFile('pnpm-state.json', { lastUpdateCheck })
 
   const { config } = await getConfig({
     cliOptions: {},
@@ -57,11 +52,14 @@ test('do not check for updates when last update check happened recently', async 
       version: '1.0.0',
     },
   })
-  await checkForUpdates(config)
+  await checkForUpdates({
+    ...config,
+    stateDir: process.cwd(),
+  })
 
   expect(updateCheckLogger.debug).not.toBeCalled()
 
-  const state = await loadJsonFile('.pnpm-state.json')
+  const state = await loadJsonFile('pnpm-state.json')
   expect(state).toStrictEqual({ lastUpdateCheck })
 })
 
@@ -71,7 +69,7 @@ test('check for updates when last update check happened two days ago', async () 
   const lastUpdateCheckDate = new Date()
   lastUpdateCheckDate.setDate(lastUpdateCheckDate.getDate() - 2)
   const initialLastUpdateCheck = lastUpdateCheckDate.toUTCString()
-  await writeJsonFile('.pnpm-state.json', {
+  await writeJsonFile('pnpm-state.json', {
     lastUpdateCheck: initialLastUpdateCheck,
   })
 
@@ -82,14 +80,17 @@ test('check for updates when last update check happened two days ago', async () 
       version: '1.0.0',
     },
   })
-  await checkForUpdates(config)
+  await checkForUpdates({
+    ...config,
+    stateDir: process.cwd(),
+  })
 
   expect(updateCheckLogger.debug).toBeCalledWith({
     currentVersion: expect.any(String),
     latestVersion: expect.any(String),
   })
 
-  const state = await loadJsonFile<{ lastUpdateCheck: string }>('.pnpm-state.json')
+  const state = await loadJsonFile<{ lastUpdateCheck: string }>('pnpm-state.json')
   expect(state.lastUpdateCheck).toBeDefined()
   expect(state.lastUpdateCheck).not.toEqual(initialLastUpdateCheck)
 })
