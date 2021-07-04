@@ -1,5 +1,4 @@
 import path from 'path'
-
 import PnpmError from '@pnpm/error'
 import { store } from '@pnpm/plugin-commands-store'
 import prepare from '@pnpm/prepare'
