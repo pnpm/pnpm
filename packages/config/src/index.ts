@@ -13,7 +13,7 @@ import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 import findBestGlobalPrefix from './findBestGlobalPrefix'
-import getCacheDir from './getCacheDir'
+import { getCacheDir, getStateDir } from './dirs'
 import {
   Config,
   ConfigWithDeprecatedSettings,
@@ -361,6 +361,9 @@ export default async (
   }
   if (!pnpmConfig.cacheDir) {
     pnpmConfig.cacheDir = getCacheDir(process)
+  }
+  if (!pnpmConfig.stateDir) {
+    pnpmConfig.stateDir = getStateDir(process)
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
