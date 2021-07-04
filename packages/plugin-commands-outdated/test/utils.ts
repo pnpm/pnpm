@@ -10,6 +10,7 @@ export const DEFAULT_OPTS = {
   bail: false,
   bin: 'node_modules/.bin',
   ca: undefined,
+  cacheDir: '../cache',
   cert: undefined,
   cliOptions: {},
   fetchRetries: 2,

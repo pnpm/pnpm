@@ -9,6 +9,7 @@ export const DEFAULT_OPTS = {
   },
   bail: false,
   ca: undefined,
+  cacheDir: '../cache',
   cert: undefined,
   cliOptions: {},
   fetchRetries: 2,

@@ -15,6 +15,7 @@ const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
 test('rebuilds dependencies', async () => {
   const project = prepareEmpty()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
   await execa('node', [
@@ -38,6 +39,7 @@ test('rebuilds dependencies', async () => {
 
   await rebuild.handler({
     ...DEFAULT_OPTS,
+    cacheDir,
     dir: process.cwd(),
     pending: false,
     storeDir,
@@ -69,6 +71,7 @@ test('rebuilds dependencies', async () => {
 
 test('rebuild does not fail when a linked package is present', async () => {
   prepareEmpty()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
 
@@ -86,6 +89,7 @@ test('rebuild does not fail when a linked package is present', async () => {
 
   await rebuild.handler({
     ...DEFAULT_OPTS,
+    cacheDir,
     dir: process.cwd(),
     pending: false,
     storeDir,
@@ -96,6 +100,7 @@ test('rebuild does not fail when a linked package is present', async () => {
 
 test('rebuilds specific dependencies', async () => {
   const project = prepareEmpty()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await execa('node', [
     pnpmBin,
@@ -112,6 +117,7 @@ test('rebuilds specific dependencies', async () => {
 
   await rebuild.handler({
     ...DEFAULT_OPTS,
+    cacheDir,
     dir: process.cwd(),
     pending: false,
     storeDir,
@@ -129,6 +135,7 @@ test('rebuilds specific dependencies', async () => {
 
 test('rebuild with pending option', async () => {
   const project = prepareEmpty()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await execa('node', [
     pnpmBin,
@@ -165,6 +172,7 @@ test('rebuild with pending option', async () => {
 
   await rebuild.handler({
     ...DEFAULT_OPTS,
+    cacheDir,
     dir: process.cwd(),
     pending: true,
     storeDir,
@@ -193,6 +201,7 @@ test('rebuild with pending option', async () => {
 
 test('rebuild dependencies in correct order', async () => {
   const project = prepareEmpty()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
   await execa('node', [
@@ -215,6 +224,7 @@ test('rebuild dependencies in correct order', async () => {
 
   await rebuild.handler({
     ...DEFAULT_OPTS,
+    cacheDir,
     dir: process.cwd(),
     pending: false,
     storeDir,
@@ -229,6 +239,7 @@ test('rebuild dependencies in correct order', async () => {
 
 test('rebuild links bins', async () => {
   const project = prepareEmpty()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
   await execa('node', [
@@ -252,6 +263,7 @@ test('rebuild links bins', async () => {
 
   await rebuild.handler({
     ...DEFAULT_OPTS,
+    cacheDir,
     dir: process.cwd(),
     pending: true,
     storeDir,
@@ -272,6 +284,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
       'not-compatible-with-any-os': '1.0.0',
     },
   })
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
   await execa('node', [
@@ -288,6 +301,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
 
   await rebuild.handler({
     ...DEFAULT_OPTS,
+    cacheDir,
     dir: process.cwd(),
     pending: true,
     reporter,

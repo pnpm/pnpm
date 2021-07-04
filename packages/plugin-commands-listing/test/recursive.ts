@@ -38,6 +38,7 @@ test('recursive list', async () => {
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -99,6 +100,7 @@ test('recursive list with shared-workspace-lockfile', async () => {
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -163,6 +165,7 @@ test('recursive list --filter', async () => {
   await install.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -216,6 +219,7 @@ test('recursive list --filter link-workspace-packages=false', async () => {
   await install.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), [], { linkWorkspacePackages: false }),
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: false,
     recursive: true,

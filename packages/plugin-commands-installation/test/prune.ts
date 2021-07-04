@@ -36,6 +36,7 @@ test('prune removes external link that is not in package.json', async () => {
 
   await link.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     storeDir,
   }, ['./local'])
@@ -44,6 +45,7 @@ test('prune removes external link that is not in package.json', async () => {
 
   await prune.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     storeDir,
   })
@@ -60,6 +62,7 @@ test('prune removes dev dependencies', async () => {
 
   await install.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: true,
     storeDir,
@@ -67,6 +70,7 @@ test('prune removes dev dependencies', async () => {
 
   await prune.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dev: false,
     dir: process.cwd(),
     storeDir,

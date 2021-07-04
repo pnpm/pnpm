@@ -1473,7 +1473,6 @@ importers:
       '@pnpm/modules-yaml': workspace:9.0.3
       '@pnpm/outdated': 'link:'
       '@pnpm/pick-registry-for-package': workspace:2.0.3
-      '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.3.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
@@ -1491,7 +1490,6 @@ importers:
       '@pnpm/matcher': link:../matcher
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
-      '@pnpm/store-path': 5.0.0
       '@pnpm/types': link:../types
       dependency-path: link:../dependency-path
       ramda: 0.27.1
@@ -2063,7 +2061,6 @@ importers:
       '@pnpm/resolver-base': workspace:8.0.3
       '@pnpm/run-npm': workspace:3.1.0
       '@pnpm/sort-packages': workspace:2.1.0
-      '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.3.0
       '@types/cross-spawn': ^6.0.2
       '@types/proxyquire': ^1.3.28
@@ -2097,7 +2094,6 @@ importers:
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/run-npm': link:../run-npm
       '@pnpm/sort-packages': link:../sort-packages
-      '@pnpm/store-path': 5.0.0
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.1
       cp-file: 9.1.0

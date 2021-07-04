@@ -1,16 +1,18 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import path from 'path'
 import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import tempy from 'tempy'
 
 describe('store.importPackage()', () => {
   it('selects import method automatically', async () => {
-    const storeDir = tempy.directory()
+    const tmp = tempy.directory()
+    const storeDir = path.join(tmp, 'store')
     const registry = 'https://registry.npmjs.org/'
     const authConfig = { registry }
     const { resolve, fetchers } = createClient({
       authConfig,
-      storeDir,
+      cacheDir: path.join(tmp, 'cache'),
     })
     const storeController = await createStore(resolve, fetchers, {
       storeDir,
@@ -39,12 +41,13 @@ describe('store.importPackage()', () => {
   })
 
   it('uses copying', async () => {
-    const storeDir = tempy.directory()
+    const tmp = tempy.directory()
+    const storeDir = path.join(tmp, 'store')
     const registry = 'https://registry.npmjs.org/'
     const authConfig = { registry }
     const { resolve, fetchers } = createClient({
       authConfig,
-      storeDir,
+      cacheDir: path.join(tmp, 'cache'),
     })
     const storeController = await createStore(resolve, fetchers, {
       packageImportMethod: 'copy',

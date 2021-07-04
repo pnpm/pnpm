@@ -17,6 +17,7 @@ const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
 test('remove unreferenced packages', async () => {
   const project = prepare()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
@@ -26,6 +27,7 @@ test('remove unreferenced packages', async () => {
 
   const reporter = sinon.spy()
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: REGISTRY,
@@ -44,6 +46,7 @@ test('remove unreferenced packages', async () => {
 
   reporter.resetHistory()
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: REGISTRY,
@@ -61,6 +64,7 @@ test('remove unreferenced packages', async () => {
 
 test.skip('remove packages that are used by project that no longer exist', async () => {
   prepare()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store', STORE_VERSION)
   const { cafsHas, cafsHasNot } = assertStore(storeDir)
 
@@ -72,6 +76,7 @@ test.skip('remove packages that are used by project that no longer exist', async
 
   const reporter = sinon.spy()
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: REGISTRY,
@@ -91,6 +96,7 @@ test.skip('remove packages that are used by project that no longer exist', async
 
 test('keep dependencies used by others', async () => {
   const project = prepare()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'camelcase-keys@3.0.0', '--store-dir', storeDir, '--registry', REGISTRY])
   await execa('node', [pnpmBin, 'add', 'hastscript@3.0.0', '--save-dev', '--store-dir', storeDir, '--registry', REGISTRY])
@@ -111,6 +117,7 @@ test('keep dependencies used by others', async () => {
   Object.entries(lockfile.packages ?? {}).forEach(([depPath, dep]) => expect(dep.dev).toBeTruthy())
 
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: REGISTRY,
@@ -126,11 +133,13 @@ test('keep dependencies used by others', async () => {
 
 test('keep dependency used by package', async () => {
   const project = prepare()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
   await execa('node', [pnpmBin, 'remove', 'is-not-positive', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
 
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: REGISTRY,
@@ -144,11 +153,13 @@ test('keep dependency used by package', async () => {
 
 test('prune will skip scanning non-directory in storeDir', async () => {
   prepare()
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
   fs.writeFileSync(path.join(storeDir, STORE_VERSION, 'files/.DS_store'), 'foobar')
 
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: REGISTRY,

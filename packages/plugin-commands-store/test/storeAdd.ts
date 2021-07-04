@@ -10,9 +10,11 @@ const STORE_VERSION = 'v3'
 test('pnpm store add express@4.16.3', async () => {
   tempDir()
 
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -28,9 +30,11 @@ test('pnpm store add express@4.16.3', async () => {
 test('pnpm store add scoped package that uses not the standard registry', async () => {
   tempDir()
 
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: 'https://registry.npmjs.org/',
@@ -50,11 +54,13 @@ test('should fail if some packages can not be added', async () => {
   tempDir()
   fs.mkdirSync('_')
   process.chdir('_')
+  const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('pnpm-store')
 
   let thrown = false
   try {
     await store.handler({
+      cacheDir,
       dir: process.cwd(),
       rawConfig: {
         registry: 'https://registry.npmjs.org/',
