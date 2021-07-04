@@ -1,3 +1,4 @@
+import path from 'path'
 import createClient from '@pnpm/client'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
@@ -22,7 +23,9 @@ export default async function testDefaults (
   fetchOpts?: any, // eslint-disable-line
   storeOpts?: any, // eslint-disable-line
 ): Promise<HeadlessOptions> {
-  let storeDir = opts?.storeDir ?? tempy.directory()
+  const tmp = tempy.directory()
+  let storeDir = opts?.storeDir ?? path.join(tmp, 'store')
+  const cacheDir = path.join(tmp, 'cache')
   const lockfileDir = opts?.lockfileDir ?? process.cwd()
   const { include, pendingBuilds, projects, registries } = await readProjectsContext(
     [
@@ -37,7 +40,7 @@ export default async function testDefaults (
   const { resolve, fetchers } = createClient({
     authConfig,
     retry: retryOpts,
-    storeDir,
+    cacheDir,
     ...resolveOpts,
     ...fetchOpts,
   })

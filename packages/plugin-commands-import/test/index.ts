@@ -14,10 +14,12 @@ const ncp = promisify(ncpCB)
 const fixtures = path.join(__dirname, '../../../fixtures')
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
+const TMP = tempy.directory()
 
 const DEFAULT_OPTS = {
   alwaysAuth: false,
   ca: undefined,
+  cacheDir: path.join(TMP, 'cache'),
   cert: undefined,
   fetchRetries: 2,
   fetchRetryFactor: 90,
@@ -34,7 +36,7 @@ const DEFAULT_OPTS = {
   rawConfig: { registry: REGISTRY },
   registries: { default: REGISTRY },
   registry: REGISTRY,
-  storeDir: tempy.directory(),
+  storeDir: path.join(TMP, 'store'),
   strictSsl: false,
   userAgent: 'pnpm',
   useRunningStoreServer: false,

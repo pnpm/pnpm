@@ -1,9 +1,11 @@
 import { add, install } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import path from 'path'
 import tempy from 'tempy'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const TMP = tempy.directory()
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -11,6 +13,7 @@ const DEFAULT_OPTIONS = {
   },
   bail: false,
   bin: 'node_modules/.bin',
+  cacheDir: path.join(TMP, 'cache'),
   cliOptions: {},
   include: {
     dependencies: true,
@@ -25,7 +28,7 @@ const DEFAULT_OPTIONS = {
     default: REGISTRY_URL,
   },
   sort: true,
-  storeDir: tempy.directory(),
+  storeDir: path.join(TMP, 'store'),
   workspaceConcurrency: 1,
 }
 

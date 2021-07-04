@@ -57,6 +57,7 @@ test('interactively update', async () => {
   const storeDir = path.resolve('pnpm-store')
   await add.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: true,
     save: false,
@@ -75,6 +76,7 @@ test('interactively update', async () => {
   // t.comment('update to compatible versions')
   await update.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     interactive: true,
     linkWorkspacePackages: true,
@@ -113,6 +115,7 @@ test('interactively update', async () => {
   prompt.mockClear()
   await update.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     interactive: true,
     latest: true,
@@ -179,6 +182,7 @@ test('interactive update of dev dependencies only', async () => {
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     allProjects,
     dir: process.cwd(),
     linkWorkspacePackages: true,
@@ -190,6 +194,7 @@ test('interactive update of dev dependencies only', async () => {
   })
   await update.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     allProjects,
     cliOptions: {
       dev: true,

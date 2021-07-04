@@ -13,13 +13,14 @@ import isPortReachable from 'is-port-reachable'
 const registry = 'https://registry.npmjs.org/'
 
 async function createStoreController (storeDir?: string) {
+  const tmp = tempy.directory()
   if (!storeDir) {
-    storeDir = tempy.directory()
+    storeDir = path.join(tmp, 'store')
   }
   const authConfig = { registry }
   const { resolve, fetchers } = createClient({
     authConfig,
-    storeDir,
+    cacheDir: path.join(tmp, 'cache'),
   })
   return createStore(resolve, fetchers, {
     networkConcurrency: 1,

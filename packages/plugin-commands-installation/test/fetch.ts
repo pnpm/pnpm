@@ -39,6 +39,7 @@ test('fetch dependencies', async () => {
 
   await install.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: true,
     storeDir,
@@ -52,6 +53,7 @@ test('fetch dependencies', async () => {
 
   await fetch.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     storeDir,
   })
@@ -68,6 +70,7 @@ test('fetch production dependencies', async () => {
   const storeDir = path.resolve('store')
   await install.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: true,
     storeDir,
@@ -81,6 +84,7 @@ test('fetch production dependencies', async () => {
 
   await fetch.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dev: true,
     dir: process.cwd(),
     storeDir,
@@ -98,6 +102,7 @@ test('fetch only dev dependencies', async () => {
   const storeDir = path.resolve('store')
   await install.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: true,
     storeDir,
@@ -111,6 +116,7 @@ test('fetch only dev dependencies', async () => {
 
   await fetch.handler({
     ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
     dev: true,
     dir: process.cwd(),
     storeDir,

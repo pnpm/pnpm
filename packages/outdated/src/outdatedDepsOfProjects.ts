@@ -5,7 +5,6 @@ import {
 } from '@pnpm/lockfile-file'
 import matcher from '@pnpm/matcher'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
-import storePath from '@pnpm/store-path'
 import {
   IncludedDependencies,
   ProjectManifest,
@@ -17,10 +16,10 @@ import outdated, { OutdatedPackage } from './outdated'
 export default async function outdatedDepsOfProjects (
   pkgs: Array<{dir: string, manifest: ProjectManifest}>,
   args: string[],
-  opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'storeDir' | 'lockfileDir'> & {
+  opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
     compatible?: boolean
     include: IncludedDependencies
-  } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'storeDir' | 'lockfileDir'>>
+  } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
     return unnest(await Promise.all(
@@ -34,12 +33,10 @@ export default async function outdatedDepsOfProjects (
   const virtualStoreDir = modules?.virtualStoreDir ?? path.join(lockfileDir, 'node_modules/.pnpm')
   const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
-  const storeDir = await storePath(opts.dir, opts.storeDir)
   const getLatestManifest = createManifestGetter({
     ...opts,
     fullMetadata: opts.fullMetadata === true,
     lockfileDir,
-    storeDir,
   })
   return Promise.all(pkgs.map(async ({ dir, manifest }) => {
     const match = (args.length > 0) && matcher(args) || undefined

@@ -38,7 +38,7 @@ export const DEFAULT_OPTS = {
   registries: { default: REGISTRY },
   registry: REGISTRY,
   sort: true,
-  storeDir: '../store',
+  cacheDir: '../cache',
   strictSsl: false,
   userAgent: 'pnpm',
   useRunningStoreServer: false,

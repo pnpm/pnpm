@@ -20,9 +20,9 @@ test('install with lockfileOnly = true', async () => {
   const { cafsHas } = assertStore(opts.storeDir)
 
   await cafsHas('pkg-with-1-dep', '100.0.0')
-  expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()
+  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()
   await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
-  expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
+  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
   await project.hasNot('pkg-with-1-dep')
 
   expect(manifest.dependencies!['pkg-with-1-dep']).toBeTruthy()
@@ -39,9 +39,9 @@ test('install with lockfileOnly = true', async () => {
   await install(manifest, opts)
 
   await cafsHas('pkg-with-1-dep', '100.0.0')
-  expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()
+  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()
   await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
-  expect(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
+  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
   await project.hasNot('pkg-with-1-dep')
 
   expect(await project.readCurrentLockfile()).toBeFalsy()

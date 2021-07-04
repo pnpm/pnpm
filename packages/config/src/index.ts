@@ -13,6 +13,7 @@ import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 import findBestGlobalPrefix from './findBestGlobalPrefix'
+import getCacheDir from './getCacheDir'
 import {
   Config,
   ConfigWithDeprecatedSettings,
@@ -357,6 +358,9 @@ export default async (
   if (!pnpmConfig.storeDir && pnpmConfig['store']) {
     warnings.push('The "store" setting has been renamed to "store-dir". Please use the new name.')
     pnpmConfig.storeDir = pnpmConfig['store']
+  }
+  if (!pnpmConfig.cacheDir) {
+    pnpmConfig.cacheDir = getCacheDir(process)
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern

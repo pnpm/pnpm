@@ -12,7 +12,9 @@ const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
 test('CLI fails when store status finds modified packages', async () => {
   prepare()
-  const storeDir = tempy.directory()
+  const tmp = tempy.directory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
 
   await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
@@ -21,6 +23,7 @@ test('CLI fails when store status finds modified packages', async () => {
   let err!: PnpmError
   try {
     await store.handler({
+      cacheDir,
       dir: process.cwd(),
       rawConfig: {
         registry: REGISTRY,
@@ -38,7 +41,9 @@ test('CLI fails when store status finds modified packages', async () => {
 
 test('CLI does not fail when store status does not find modified packages', async () => {
   prepare()
-  const storeDir = tempy.directory()
+  const tmp = tempy.directory()
+  const cacheDir = path.join(tmp, 'cache')
+  const storeDir = path.join(tmp, 'store')
 
   await execa('node', [
     pnpmBin,
@@ -58,6 +63,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
   await execa('node', [pnpmBin, 'add', 'not-compatible-with-any-os', '--save-optional', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
   await store.handler({
+    cacheDir,
     dir: process.cwd(),
     rawConfig: {
       registry: REGISTRY,

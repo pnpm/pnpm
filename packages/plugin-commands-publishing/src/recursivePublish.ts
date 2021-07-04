@@ -5,7 +5,6 @@ import logger from '@pnpm/logger'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import sortPackages from '@pnpm/sort-packages'
-import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import pFilter from 'p-filter'
 import pick from 'ramda/src/pick'
@@ -13,6 +12,7 @@ import writeJsonFile from 'write-json-file'
 import { handler as publish } from './publish'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
+| 'cacheDir'
 | 'cliOptions'
 | 'dir'
 | 'rawConfig'
@@ -40,7 +40,6 @@ Partial<Pick<Config,
 | 'npmPath'
 | 'offline'
 | 'selectedProjectsGraph'
-| 'storeDir'
 | 'strictSsl'
 | 'userAgent'
 | 'verifyStoreIntegrity'
@@ -56,7 +55,6 @@ export default async function (
   opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>
 ) {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-  const storeDir = await storePath(opts.workspaceDir, opts.storeDir)
   const resolve = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
@@ -66,7 +64,6 @@ export default async function (
       minTimeout: opts.fetchRetryMintimeout,
       retries: opts.fetchRetries,
     },
-    storeDir,
     timeout: opts.fetchTimeout,
   }) as unknown as ResolveFunction
   const pkgsToPublish = await pFilter(pkgs, async (pkg) => {

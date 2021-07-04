@@ -28,22 +28,24 @@ export default async function testDefaults<T> (
 ): Promise<
   InstallOptions &
   {
+    cacheDir: string
     registries: Registries
     storeController: StoreController
     storeDir: string
   } &
   T
   > {
-  let storeDir = opts?.storeDir ?? path.resolve('.store')
-  storeDir = await storePath(opts?.prefix ?? process.cwd(), storeDir)
   const authConfig = { registry }
+  const cacheDir = path.resolve('cache')
   const { resolve, fetchers } = createClient({
     authConfig,
     retry: retryOpts,
-    storeDir,
+    cacheDir,
     ...resolveOpts,
     ...fetchOpts,
   })
+  let storeDir = opts?.storeDir ?? path.resolve('.store')
+  storeDir = await storePath(opts?.prefix ?? process.cwd(), storeDir)
   const storeController = await createStore(
     resolve,
     fetchers,
@@ -55,6 +57,7 @@ export default async function testDefaults<T> (
     }
   )
   const result = {
+    cacheDir,
     registries: {
       default: registry,
     },
@@ -64,6 +67,7 @@ export default async function testDefaults<T> (
   } as (
     InstallOptions &
     {
+      cacheDir: string
       registries: Registries
       storeController: StoreController
       storeDir: string

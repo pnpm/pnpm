@@ -24,7 +24,7 @@ const authConfig = { registry }
 
 const { resolve, fetchers } = createClient({
   authConfig,
-  storeDir: '.store',
+  cacheDir: '.store',
 })
 
 test('request package', async () => {
@@ -530,7 +530,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
   const noRetry = createClient({
     authConfig,
     retry: { retries: 0 },
-    storeDir: '.pnpm',
+    cacheDir: '.pnpm',
   })
 
   const storeDir = tempy.directory()
