@@ -13,6 +13,7 @@ import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 import findBestGlobalPrefix from './findBestGlobalPrefix'
+import getCacheDir from './getCacheDir'
 import {
   Config,
   ConfigWithDeprecatedSettings,
@@ -359,7 +360,7 @@ export default async (
     pnpmConfig.storeDir = pnpmConfig['store']
   }
   if (!pnpmConfig.cacheDir) {
-    pnpmConfig.cacheDir = getCacheDir()
+    pnpmConfig.cacheDir = getCacheDir(process)
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
@@ -470,14 +471,4 @@ function firstWithWriteAccess (dirs: string[]) {
     throw new PnpmError('NO_SUITABLE_GLOBAL_DIR', `pnpm has no write access to global direcotry. Tried locations: ${dirs.join(', ')}`)
   }
   return first
-}
-
-function getCacheDir () {
-  if (process.env.XDG_CACHE_HOME) {
-    return path.join(process.env.XDG_CACHE_HOME, 'pnpm')
-  }
-  if (process.platform === 'win32') {
-    return path.join(os.homedir(), '.pnpm-cache')
-  }
-  return path.join(os.homedir(), '.cache/pnpm')
 }
