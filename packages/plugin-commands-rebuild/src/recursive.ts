@@ -5,6 +5,7 @@ import {
 } from '@pnpm/cli-utils'
 import {
   Config,
+  getWorkspaceConcurrency
 } from '@pnpm/config'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
@@ -112,7 +113,7 @@ export default async function recursive (
     )
     return
   }
-  const limitRebuild = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitRebuild = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   for (const chunk of chunks) {
     await Promise.all(chunk.map(async (rootDir: string) =>
       limitRebuild(async () => {

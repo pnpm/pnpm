@@ -1,6 +1,6 @@
 import path from 'path'
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
-import { Config, types } from '@pnpm/config'
+import { Config, types, getWorkspaceConcurrency } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import readProjectManifest from '@pnpm/read-project-manifest'
@@ -73,7 +73,7 @@ export async function handler (
   if (params[0] === '--') {
     params.shift()
   }
-  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
 
   const result = {
     fails: [],

@@ -19,7 +19,9 @@ import {
   ConfigWithDeprecatedSettings,
   UniversalOptions,
 } from './Config'
+import { getWorkspaceConcurrency } from './concurrency'
 
+export { getWorkspaceConcurrency }
 export { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
@@ -446,6 +448,8 @@ export default async (
       warnings.push(`Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`)
     }
   }
+
+  pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
   return { config: pnpmConfig, warnings }
 }

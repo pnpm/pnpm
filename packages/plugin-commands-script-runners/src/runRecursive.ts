@@ -1,6 +1,6 @@
 import path from 'path'
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
-import { Config } from '@pnpm/config'
+import { Config, getWorkspaceConcurrency } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks, {
   makeNodeRequireOption,
@@ -43,9 +43,10 @@ export default async (
     passes: 0,
   } as RecursiveSummary
 
-  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+  const workspaceConcurrency = getWorkspaceConcurrency(opts.workspaceConcurrency)
+  const limitRun = pLimit(workspaceConcurrency)
   const stdio = (
-    opts.workspaceConcurrency === 1 ||
+    workspaceConcurrency === 1 ||
     packageChunks.length === 1 && packageChunks[0].length === 1
   )
     ? 'inherit'
