@@ -36,6 +36,15 @@ test('versions are replaced with versions specified through pnpm.overrides field
     const currentLockfile = await project.readCurrentLockfile()
     expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
   }
+  // shall be able to install when package manifest is ignored
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], { ...await testDefaults(), ignorePackageManifest: true })
 
   // The lockfile is updated if the overrides are changed
   manifest.pnpm!.overrides!['bar@^100.0.0'] = '100.0.0'

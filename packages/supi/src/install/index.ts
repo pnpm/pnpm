@@ -190,12 +190,15 @@ export async function mutateModules (
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
     const packageExtensionsChecksum = isEmpty(packageExtensions ?? {}) ? undefined : createObjectChecksum(packageExtensions!)
-    let needsFullResolution = !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
+    let needsFullResolution = !maybeOpts.ignorePackageManifest && (
+      !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
       !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
-      ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum
-    ctx.wantedLockfile.overrides = overrides
-    ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
-    ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
+      ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum)
+    if (needsFullResolution) {
+      ctx.wantedLockfile.overrides = overrides
+      ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
+      ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
+    }
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
