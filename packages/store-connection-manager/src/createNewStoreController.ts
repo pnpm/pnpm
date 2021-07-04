@@ -12,7 +12,7 @@ type CreateResolverOptions = Pick<Config,
 | 'offline'
 | 'rawConfig'
 | 'verifyStoreIntegrity'
-> & Required<Pick<Config, 'storeDir'>>
+> & Required<Pick<Config, 'cacheDir' | 'storeDir'>>
 
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
 | 'ca'
@@ -41,6 +41,7 @@ export default async (
   const { resolve, fetchers } = createClient({
     authConfig: opts.rawConfig,
     ca: opts.ca,
+    cacheDir: opts.cacheDir,
     cert: opts.cert,
     fullMetadata: false,
     httpProxy: opts.httpProxy,
@@ -56,7 +57,6 @@ export default async (
       minTimeout: opts.fetchRetryMintimeout,
       retries: opts.fetchRetries,
     },
-    storeDir: opts.storeDir,
     strictSsl: opts.strictSsl ?? true,
     timeout: opts.fetchTimeout,
     userAgent: opts.userAgent,

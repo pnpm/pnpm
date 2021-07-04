@@ -358,6 +358,9 @@ export default async (
     warnings.push('The "store" setting has been renamed to "store-dir". Please use the new name.')
     pnpmConfig.storeDir = pnpmConfig['store']
   }
+  if (!pnpmConfig.cacheDir) {
+    pnpmConfig.cacheDir = getCacheDir()
+  }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
   }
@@ -467,4 +470,14 @@ function firstWithWriteAccess (dirs: string[]) {
     throw new PnpmError('NO_SUITABLE_GLOBAL_DIR', `pnpm has no write access to global direcotry. Tried locations: ${dirs.join(', ')}`)
   }
   return first
+}
+
+function getCacheDir () {
+  if (process.env.XDG_CACHE_HOME) {
+    return path.join(process.env.XDG_CACHE_HOME, 'pnpm')
+  }
+  if (process.platform === 'win32') {
+    return path.join(os.homedir(), '.pnpm-cache')
+  }
+  return path.join(os.homedir(), '.cache/pnpm')
 }

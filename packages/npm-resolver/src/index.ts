@@ -54,7 +54,7 @@ const META_DIR = 'metadata'
 const FULL_META_DIR = 'metadata-full'
 
 export interface ResolverFactoryOptions {
-  storeDir: string
+  cacheDir: string
   fullMetadata?: boolean
   offline?: boolean
   preferOffline?: boolean
@@ -67,8 +67,8 @@ export default function createResolver (
   getCredentials: GetCredentials,
   opts: ResolverFactoryOptions
 ) {
-  if (typeof opts.storeDir !== 'string') { // eslint-disable-line
-    throw new TypeError('`opts.storeDir` is required and needs to be a string')
+  if (typeof opts.cacheDir !== 'string') { // eslint-disable-line
+    throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
   const fetchOpts = {
     retry: opts.retry ?? {},
@@ -91,7 +91,7 @@ export default function createResolver (
       metaDir: opts.fullMetadata ? FULL_META_DIR : META_DIR,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
-      storeDir: opts.storeDir,
+      cacheDir: opts.cacheDir,
     }),
   })
 }

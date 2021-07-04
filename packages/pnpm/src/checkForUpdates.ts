@@ -4,7 +4,6 @@ import packageManager from '@pnpm/cli-meta'
 import { Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
-import storePath from '@pnpm/store-path'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
@@ -27,14 +26,12 @@ export default async function (config: Config) {
     (Date.now() - new Date(state.lastUpdateCheck).valueOf()) < UPDATE_CHECK_FREQUENCY
   ) return
 
-  const storeDir = await storePath(config.dir, config.storeDir)
   const resolve = createResolver({
     ...config,
     authConfig: config.rawConfig,
     retry: {
       retries: 0,
     },
-    storeDir,
   })
   const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
     lockfileDir: config.lockfileDir ?? config.dir,

@@ -57,7 +57,7 @@ export default async (
     fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>
     metaDir: string
     metaCache: PackageMetaCache
-    storeDir: string
+    cacheDir: string
     offline?: boolean
     preferOffline?: boolean
   },
@@ -77,7 +77,7 @@ export default async (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.storeDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.json`)
+  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.json`)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   let metaCachedInStore: PackageMeta | null | undefined
