@@ -4,7 +4,7 @@ import {
   RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { Config, getWorkspaceConcurrency } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
@@ -263,7 +263,7 @@ export default async function recursive (
     ? chunks[0]
     : Object.keys(opts.selectedProjectsGraph).sort()
 
-  const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
+  const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map(async (rootDir: string) =>
     limitInstallation(async () => {
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
