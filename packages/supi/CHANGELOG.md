@@ -1,5 +1,19 @@
 # supi
 
+## 0.47.0
+
+### Minor Changes
+
+- 691f64713: New required option added: cacheDir.
+
+### Patch Changes
+
+- b3478c756: Never do full resolution when package manifest is ignored
+  - @pnpm/lockfile-to-pnp@0.4.12
+  - @pnpm/headless@16.0.15
+  - @pnpm/package-requester@15.0.6
+  - @pnpm/resolve-dependencies@20.0.13
+
 ## 0.46.18
 
 ### Patch Changes

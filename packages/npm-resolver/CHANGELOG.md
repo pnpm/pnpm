@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 12.0.0
+
+### Major Changes
+
+- 691f64713: New required option added: cacheDir.
+
 ## 11.1.4
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @pnpm/store-connection-manager
 
+## 3.0.0
+
+### Major Changes
+
+- 691f64713: New required option added: cacheDir.
+
+### Patch Changes
+
+- Updated dependencies [25f6968d4]
+- Updated dependencies [691f64713]
+- Updated dependencies [691f64713]
+- Updated dependencies [5aaf3e3fa]
+  - @pnpm/config@12.4.0
+  - @pnpm/client@5.0.0
+  - @pnpm/package-store@12.0.11
+  - @pnpm/server@11.0.4
+
 ## 2.1.11
 
 ### Patch Changes

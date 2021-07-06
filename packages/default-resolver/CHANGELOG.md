@@ -1,5 +1,16 @@
 # @pnpm/default-resolver
 
+## 13.0.0
+
+### Major Changes
+
+- 691f64713: New required option added: cacheDir.
+
+### Patch Changes
+
+- Updated dependencies [691f64713]
+  - @pnpm/npm-resolver@12.0.0
+
 ## 12.0.7
 
 ### Patch Changes

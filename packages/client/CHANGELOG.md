@@ -1,5 +1,20 @@
 # @pnpm/client
 
+## 5.0.0
+
+### Major Changes
+
+- 691f64713: New required option added: cacheDir.
+
+### Minor Changes
+
+- 691f64713: New config setting added: cacheDir.
+
+### Patch Changes
+
+- Updated dependencies [691f64713]
+  - @pnpm/default-resolver@13.0.0
+
 ## 4.0.2
 
 ### Patch Changes

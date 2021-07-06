@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-import
 
+## 3.0.0
+
+### Major Changes
+
+- 691f64713: New required option added: cacheDir.
+
+### Patch Changes
+
+- Updated dependencies [691f64713]
+- Updated dependencies [b3478c756]
+  - @pnpm/store-connection-manager@3.0.0
+  - supi@0.47.0
+  - @pnpm/cli-utils@0.6.9
+
 ## 2.0.20
 
 ### Patch Changes

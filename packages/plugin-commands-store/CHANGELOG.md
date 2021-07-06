@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-store
 
+## 4.0.0
+
+### Major Changes
+
+- 691f64713: New required option added: cacheDir.
+
+### Patch Changes
+
+- Updated dependencies [25f6968d4]
+- Updated dependencies [691f64713]
+- Updated dependencies [5aaf3e3fa]
+  - @pnpm/config@12.4.0
+  - @pnpm/store-connection-manager@3.0.0
+  - @pnpm/cli-utils@0.6.9
+
 ## 3.1.0
 
 ### Minor Changes

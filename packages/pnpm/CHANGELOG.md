@@ -1,10 +1,17 @@
 # pnpm
 
-## 6.10.0-0
+## 6.10.0-1
 
 ### Minor Changes
 
 - New command added: `pnpm store path` [#3571](https://github.com/pnpm/pnpm/pull/3571).
+- New setting added: `cache-dir`. `cache-dir` is the location of the package metadata cache. Previously this cache was stored in the store directory. By default, the cache directory is created in the `XDG_CACHE_HOME` directory [#3578](https://github.com/pnpm/pnpm/pull/3578).
+- New setting added: `state-dir`. `state-dir` is the directory where pnpm creates the `pnpm-state.json` file that is currently used only by the update checker. By default, the state directory is created in the `XDG_STATE_HOME` directory [#3580](https://github.com/pnpm/pnpm/pull/3580).
+- `workspace-concurrency` is based on CPU cores amount, when set to 0 or a negative number. The concurrency limit is set as `max((amount of cores) - abs(workspace-concurrency), 1)` [#3574](https://github.com/pnpm/pnpm/pull/3574).
+
+### Patch Changes
+
+- Never do full resolution when package manifest is ignored [#3576](https://github.com/pnpm/pnpm/issues/3576).
 
 ## 6.9.1
 

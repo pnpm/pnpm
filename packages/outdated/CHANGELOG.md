@@ -1,5 +1,17 @@
 # @pnpm/outdated
 
+## 9.0.0
+
+### Major Changes
+
+- 691f64713: New required option added: cacheDir.
+
+### Patch Changes
+
+- Updated dependencies [691f64713]
+- Updated dependencies [691f64713]
+  - @pnpm/client@5.0.0
+
 ## 8.0.14
 
 ### Patch Changes

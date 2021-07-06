@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 12.4.0
+
+### Minor Changes
+
+- 25f6968d4: Add `workspace-concurrency` based on CPU cores amount, just set `workspace-concurrency` as zero or negative, the concurrency limit is set as `max((amount of cores) - abs(workspace-concurrency), 1)`
+- 5aaf3e3fa: New setting added: stateDir.
+
 ## 12.3.3
 
 ### Patch Changes
