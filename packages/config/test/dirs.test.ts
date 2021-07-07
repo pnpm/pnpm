@@ -14,6 +14,10 @@ test('getCacheDir()', () => {
     platform: 'linux',
   })).toBe(path.join(os.homedir(), '.cache/pnpm'))
   expect(getCacheDir({
+    env: {},
+    platform: 'darwin',
+  })).toBe(path.join(os.homedir(), 'Library/Caches/pnpm'))
+  expect(getCacheDir({
     env: {
       LOCALAPPDATA: '/localappdata',
     },
@@ -36,6 +40,10 @@ test('getStateDir()', () => {
     env: {},
     platform: 'linux',
   })).toBe(path.join(os.homedir(), '.local/state/pnpm'))
+  expect(getStateDir({
+    env: {},
+    platform: 'darwin',
+  })).toBe(path.join(os.homedir(), '.pnpm-state'))
   expect(getStateDir({
     env: {
       LOCALAPPDATA: '/localappdata',
