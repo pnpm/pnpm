@@ -8,6 +8,7 @@ import {
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { StoreController } from '@pnpm/package-store'
@@ -106,6 +107,9 @@ export async function handler (
 
   // pnpm link
   if ((params == null) || (params.length === 0)) {
+    if (path.relative(linkOpts.dir, cwd) === '') {
+      throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
+    }
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,

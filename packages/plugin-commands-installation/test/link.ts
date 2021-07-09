@@ -177,3 +177,14 @@ test('link --production', async () => {
   await projects['target'].has('is-positive')
   await projects['target'].has('is-negative')
 })
+
+test('link fails if nothing is linked', async () => {
+  prepare()
+
+  await expect(
+    link.handler({
+      ...DEFAULT_OPTS,
+      dir: '',
+    }, [])
+  ).rejects.toThrow(/You must provide a parameter/)
+})
