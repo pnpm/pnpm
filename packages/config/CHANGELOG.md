@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.4.1
+
+### Patch Changes
+
+- 2264bfdf4: Choose proper default state-dir and cache-dir on macOS.
+
 ## 12.4.0
 
 ### Minor Changes

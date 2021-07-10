@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-nvm
 
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [2264bfdf4]
+  - @pnpm/config@12.4.1
+
 ## 0.2.5
 
 ### Patch Changes

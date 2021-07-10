@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.10.0-1
+## 6.10.0
 
 ### Minor Changes
 
@@ -12,6 +12,7 @@
 ### Patch Changes
 
 - Never do full resolution when package manifest is ignored [#3576](https://github.com/pnpm/pnpm/issues/3576).
+- An error is thrown if `pnpm link` is executed. `pnpm link` needs at least one argument or option [#3590](https://github.com/pnpm/pnpm/pull/3590).
 
 ## 6.9.1
 

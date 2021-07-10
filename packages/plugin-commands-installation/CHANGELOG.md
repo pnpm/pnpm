@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 6.0.1
+
+### Patch Changes
+
+- 8678e2553: An error should be thrown if `pnpm link` is executed with no parameters and no options.
+- Updated dependencies [2264bfdf4]
+  - @pnpm/config@12.4.1
+  - @pnpm/cli-utils@0.6.10
+  - @pnpm/plugin-commands-rebuild@5.0.1
+  - @pnpm/store-connection-manager@3.0.1
+  - @pnpm/find-workspace-packages@3.1.2
+  - supi@0.47.1
+  - @pnpm/filter-workspace-packages@4.1.4
+
 ## 6.0.0
 
 ### Major Changes

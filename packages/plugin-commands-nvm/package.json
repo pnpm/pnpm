@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-nvm",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "pnpm commands for managing Node.js",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-nvm#readme",
   "dependencies": {
-    "@pnpm/config": "workspace:12.4.0",
+    "@pnpm/config": "workspace:12.4.1",
     "@pnpm/fetch": "workspace:4.0.1",
     "@pnpm/package-store": "workspace:12.0.11",
     "@pnpm/store-path": "^5.0.0",
