@@ -200,61 +200,57 @@ export default async function run (inputArgv: string[]) {
     config.workspaceDir = wsDir
   }
 
-  // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
-  const [output, exitCode] = await new Promise((resolve, reject) => {
-    setTimeout(async () => {
-      if (!isCI && !selfUpdate && !config.offline && !config.preferOffline && !config.fallbackCommandUsed) {
-        checkForUpdates(config).catch(() => { /* Ignore */ })
-      }
+  let { output, exitCode }: { output: string | null, exitCode: number } = await (async () => {
+    // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
+    await new Promise<void>((resolve) => setTimeout(() => resolve(), 0))
+    if (!isCI && !selfUpdate && !config.offline && !config.preferOffline && !config.fallbackCommandUsed) {
+      checkForUpdates(config).catch(() => { /* Ignore */ })
+    }
 
-      if (config.force === true && !config.fallbackCommandUsed) {
-        logger.warn({
-          message: 'using --force I sure hope you know what you are doing',
-          prefix: config.dir,
-        })
-      }
-
-      scopeLogger.debug({
-        ...(
-          !cliOptions['recursive']
-            ? { selected: 1 }
-            : {
-              selected: Object.keys(config.selectedProjectsGraph!).length,
-              total: config.allProjects!.length,
-            }
-        ),
-        ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
+    if (config.force === true && !config.fallbackCommandUsed) {
+      logger.warn({
+        message: 'using --force I sure hope you know what you are doing',
+        prefix: config.dir,
       })
+    }
 
-      try {
-        if (config.useNodeVersion != null) {
-          const nodePath = await node.getNodeDir(config)
-          config.extraBinPaths.push(nodePath)
-        }
-        let result = pnpmCmds[cmd ?? 'help'](
-          // TypeScript doesn't currently infer that the type of config
-          // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
-          config as Omit<typeof config, 'reporter'>,
-          cliParams
-        )
-        if (result instanceof Promise) {
-          result = await result
-        }
-        if (!result) {
-          resolve([null, 0])
-          return
-        }
-        if (typeof result === 'string') {
-          resolve([result, 0])
-          return
-        }
-        resolve([result['output'], result['exitCode']])
-      } catch (err) {
-        reject(err)
-      }
-    }, 0)
-  })
+    scopeLogger.debug({
+      ...(
+        !cliOptions['recursive']
+          ? { selected: 1 }
+          : {
+            selected: Object.keys(config.selectedProjectsGraph!).length,
+            total: config.allProjects!.length,
+          }
+      ),
+      ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
+    })
+
+    if (config.useNodeVersion != null) {
+      const nodePath = await node.getNodeDir(config)
+      config.extraBinPaths.push(nodePath)
+    }
+    let result = pnpmCmds[cmd ?? 'help'](
+      // TypeScript doesn't currently infer that the type of config
+      // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
+      config as Omit<typeof config, 'reporter'>,
+      cliParams
+    )
+    if (result instanceof Promise) {
+      result = await result
+    }
+    if (!result) {
+      return { output: null, exitCode: 0 }
+    }
+    if (typeof result === 'string') {
+      return { output: result, exitCode: 0 }
+    }
+    return result
+  })()
   if (output) {
+    if (!output.endsWith('\n')) {
+      output = `${output}\n`
+    }
     write(output)
   }
   if (!cmd) {
