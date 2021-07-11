@@ -83,7 +83,6 @@ export async function handler (
   | 'saveOptional'
   | 'saveProd'
   | 'workspaceDir'
-  | 'registries'
   > & Partial<Pick<Config, 'linkWorkspacePackages'>>,
   params?: string[]
 ) {
@@ -187,6 +186,7 @@ export async function handler (
   const storeL = await createOrConnectStoreControllerCached(storeControllerCache, linkConfig)
   const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkConfig,
+    targetDependenciesField: linkOpts.targetDependenciesField,
     storeController: storeL.ctrl,
     storeDir: storeL.dir,
     manifest,
