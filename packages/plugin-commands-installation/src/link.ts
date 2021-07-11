@@ -17,6 +17,7 @@ import {
   install,
   InstallOptions,
   link,
+  LinkFunctionOptions,
   linkToGlobal,
   WorkspacePackages,
 } from 'supi'
@@ -124,27 +125,6 @@ export async function handler (
 
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
-  if (pkgNames.length > 0) {
-    let globalPkgNames!: string[]
-    if (opts.workspaceDir) {
-      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
-
-      const pkgsFoundInWorkspace = workspacePackagesArr
-        .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))
-      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
-
-      if ((pkgsFoundInWorkspace.length > 0) && !linkOpts.targetDependenciesField) {
-        linkOpts.targetDependenciesField = 'dependencies'
-      }
-
-      globalPkgNames = pkgNames.filter((pkgName) => !pkgsFoundInWorkspace.some((pkgFromWorkspace) => pkgFromWorkspace.manifest.name === pkgName))
-    } else {
-      globalPkgNames = pkgNames
-    }
-    const globalPkgPath = pathAbsolute(opts.dir)
-    globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
-  }
-
   await Promise.all(
     pkgPaths.map(async (dir) => installLimit(async () => {
       const s = await createOrConnectStoreControllerCached(storeControllerCache, opts)
@@ -171,12 +151,46 @@ export async function handler (
       )
     }))
   )
+
+  if (pkgNames.length > 0) {
+    let globalPkgNames!: string[]
+    if (opts.workspaceDir) {
+      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+
+      const pkgsFoundInWorkspace = workspacePackagesArr
+        .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))
+      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
+
+      if ((pkgsFoundInWorkspace.length > 0) && !linkOpts.targetDependenciesField) {
+        linkOpts.targetDependenciesField = 'dependencies'
+      }
+
+      globalPkgNames = pkgNames.filter((pkgName) => !pkgsFoundInWorkspace.some((pkgFromWorkspace) => pkgFromWorkspace.manifest.name === pkgName))
+    } else {
+      globalPkgNames = pkgNames
+    }
+    const globalPkgPath = pathAbsolute(opts.dir)
+    globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
+  }
+
   const { manifest, writeProjectManifest } = await readProjectManifest(cwd, opts)
 
+  const linkConfig = await getConfig(
+    { ...opts.cliOptions, dir: cwd },
+    {
+      excludeReporter: true,
+      rcOptionsTypes: installCommand.rcOptionsTypes(),
+      workspaceDir: await findWorkspaceDir(cwd),
+    }
+  )
+  const storeL = await createOrConnectStoreControllerCached(storeControllerCache, linkConfig)
   const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
-    ...linkOpts,
+    ...linkConfig,
+    targetDependenciesField: linkOpts.targetDependenciesField,
+    storeController: storeL.ctrl,
+    storeDir: storeL.dir,
     manifest,
-  })
+  } as LinkFunctionOptions)
   await writeProjectManifest(newManifest)
 
   await Promise.all(
