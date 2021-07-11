@@ -37,13 +37,17 @@ import {
   LinkOptions,
 } from './options'
 
+type LinkFunctionOptions = LinkOptions & {
+  linkToBin?: string
+  dir: string
+}
+
+export { LinkFunctionOptions }
+
 export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,
   destModules: string,
-  maybeOpts: LinkOptions & {
-    linkToBin?: string
-    dir: string
-  }
+  maybeOpts: LinkFunctionOptions
 ) {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
@@ -53,7 +57,7 @@ export default async function link (
   const ctx = await getContextForSingleImporter(opts.manifest, {
     ...opts,
     extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
-  })
+  }, true)
 
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
   const currentLockfile = clone(ctx.currentLockfile)

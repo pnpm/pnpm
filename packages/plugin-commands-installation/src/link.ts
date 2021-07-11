@@ -17,6 +17,7 @@ import {
   install,
   InstallOptions,
   link,
+  LinkFunctionOptions,
   linkToGlobal,
   WorkspacePackages,
 } from 'supi'
@@ -82,6 +83,7 @@ export async function handler (
   | 'saveOptional'
   | 'saveProd'
   | 'workspaceDir'
+  | 'registries'
   > & Partial<Pick<Config, 'linkWorkspacePackages'>>,
   params?: string[]
 ) {
@@ -174,10 +176,21 @@ export async function handler (
 
   const { manifest, writeProjectManifest } = await readProjectManifest(cwd, opts)
 
+  const linkConfig = await getConfig(
+    { ...opts.cliOptions, dir: cwd },
+    {
+      excludeReporter: true,
+      rcOptionsTypes: installCommand.rcOptionsTypes(),
+      workspaceDir: await findWorkspaceDir(cwd),
+    }
+  )
+  const storeL = await createOrConnectStoreControllerCached(storeControllerCache, linkConfig)
   const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
-    ...linkOpts,
+    ...linkConfig,
+    storeController: storeL.ctrl,
+    storeDir: storeL.dir,
     manifest,
-  })
+  } as LinkFunctionOptions)
   await writeProjectManifest(newManifest)
 
   await Promise.all(
