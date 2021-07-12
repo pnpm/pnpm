@@ -1,5 +1,11 @@
 # supi
 
+## 0.47.2
+
+### Patch Changes
+
+- d3ec941d2: Linking should not fail on context checks.
+
 ## 0.47.1
 
 ### Patch Changes

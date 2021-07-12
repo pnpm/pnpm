@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-installation
 
+## 6.0.2
+
+### Patch Changes
+
+- d3ec941d2: `pnpm link -g <pkg>` should not break node_modules of the target project.
+- d3ec941d2: Do not run installation in the global package, when linking a dependency using `pnpm link -g <pkg name>`.
+- Updated dependencies [d3ec941d2]
+  - supi@0.47.2
+
 ## 6.0.1
 
 ### Patch Changes

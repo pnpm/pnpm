@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.10.1
+
+### Patch Changes
+
+- A trailing newline should always be added to the output [#3565](https://github.com/pnpm/pnpm/pull/3565).
+- `pnpm link --global` should not break global dependencies [#3462](https://github.com/pnpm/pnpm/issues/3462).
+
 ## 6.10.0
 
 ### Minor Changes
