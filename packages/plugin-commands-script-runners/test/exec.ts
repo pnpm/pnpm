@@ -3,7 +3,7 @@ import path from 'path'
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { exec } from '@pnpm/plugin-commands-script-runners'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
@@ -296,6 +296,20 @@ test('pnpm recursive exec --no-sort', async () => {
 
 test('pnpm exec on single project', async () => {
   prepare({})
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: false,
+    selectedProjectsGraph: {},
+  }, ['node', '-e', 'require("fs").writeFileSync("output.json", "[]", "utf8")'])
+
+  const { default: outputs } = await import(path.resolve('output.json'))
+  expect(outputs).toStrictEqual([])
+})
+
+test('pnpm exec outside of projects', async () => {
+  prepareEmpty()
 
   await exec.handler({
     ...DEFAULT_OPTS,

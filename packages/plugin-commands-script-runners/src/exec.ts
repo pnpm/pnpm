@@ -122,7 +122,7 @@ export async function handler (
                 path.join(opts.dir, 'node_modules/.bin'),
                 process.env[PATH],
               ].join(path.delimiter),
-              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix].package.manifest.name,
+              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
             },
             stdio: 'inherit',
           })
