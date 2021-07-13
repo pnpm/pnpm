@@ -3,8 +3,9 @@ import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
-import readProjectManifest from '@pnpm/read-project-manifest'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import sortPackages from '@pnpm/sort-packages'
+import { Project } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
 import PATH from 'path-name'
@@ -87,14 +88,17 @@ export async function handler (
       : [Object.keys(opts.selectedProjectsGraph).sort()]
   } else {
     chunks = [[opts.dir]]
-    opts.selectedProjectsGraph = {
-      [opts.dir]: {
-        dependencies: [],
-        package: {
-          ...await readProjectManifest(opts.dir),
-          dir: opts.dir,
+    const project = await tryReadProjectManifest(opts.dir)
+    if (project.manifest != null) {
+      opts.selectedProjectsGraph = {
+        [opts.dir]: {
+          dependencies: [],
+          package: {
+            ...project,
+            dir: opts.dir,
+          } as Project,
         },
-      },
+      }
     }
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
@@ -118,7 +122,7 @@ export async function handler (
                 path.join(opts.dir, 'node_modules/.bin'),
                 process.env[PATH],
               ].join(path.delimiter),
-              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix].package.manifest.name,
+              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
             },
             stdio: 'inherit',
           })
