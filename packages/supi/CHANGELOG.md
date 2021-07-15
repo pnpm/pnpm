@@ -1,5 +1,11 @@
 # supi
 
+## 0.47.3
+
+### Patch Changes
+
+- caf453dd3: Overriding should work, when the range selector contains the ">" symbol.
+
 ## 0.47.2
 
 ### Patch Changes

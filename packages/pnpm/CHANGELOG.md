@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.10.2
+
+### Patch Changes
+
+- `pnpm exec` should work outside of Node.js projects [#3597](https://github.com/pnpm/pnpm/pull/3597).
+- Overriding should work when the range selector contains `>`.
+
 ## 6.10.1
 
 ### Patch Changes

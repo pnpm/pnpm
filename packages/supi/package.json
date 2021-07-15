@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.47.2",
+  "version": "0.47.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

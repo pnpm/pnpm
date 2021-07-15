@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.0.2
+
+### Patch Changes
+
+- 9476d5ac5: `pnpm exec` should work outside of Node.js projects.
+
 ## 4.0.1
 
 ### Patch Changes
