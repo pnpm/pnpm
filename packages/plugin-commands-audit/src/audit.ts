@@ -9,6 +9,7 @@ import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import fix from './fix'
 
 // eslint-disable
 const AUDIT_LEVEL_NUMBER = {
@@ -99,7 +100,8 @@ export async function handler (
     json?: boolean
     lockfileDir?: string
     registries: Registries
-  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor' | 'fetchTimeout' | 'production' | 'dev' | 'optional'>
+  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor' | 'fetchTimeout' | 'production' | 'dev' | 'optional'>,
+  params?: string[]
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -129,6 +131,13 @@ export async function handler (
         exitCode: 0,
         output: err.message,
       }
+    }
+  }
+  if (params?.[0] === 'fix') {
+    await fix(opts.dir, auditReport)
+    return {
+      exitCode: 0,
+      output: '',
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities

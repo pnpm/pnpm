@@ -28,6 +28,9 @@
       "path": "../lockfile-file"
     },
     {
+      "path": "../read-project-manifest"
+    },
+    {
       "path": "../types"
     }
   ]

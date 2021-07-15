@@ -42,6 +42,7 @@
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/lockfile-file": "workspace:4.1.0",
+    "@pnpm/read-project-manifest": "workspace:2.0.4",
     "@zkochan/table": "^1.0.0",
     "chalk": "^4.1.0",
     "ramda": "^0.27.1",
