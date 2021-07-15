@@ -4,12 +4,17 @@ import createVersionsOverrider from 'supi/lib/install/createVersionsOverrider'
 test('createVersionsOverrider() matches subranges', () => {
   const overrider = createVersionsOverrider({
     'foo@2': '2.12.0',
+    'qar@>2': '1.0.0',
   }, process.cwd())
   expect(
     overrider({
       dependencies: { foo: '^2.10.0' },
+      optionalDependencies: { qar: '^4.0.0' },
     })
-  ).toStrictEqual({ dependencies: { foo: '2.12.0' } })
+  ).toStrictEqual({
+    dependencies: { foo: '2.12.0' },
+    optionalDependencies: { qar: '1.0.0' },
+  })
 })
 
 test('createVersionsOverrider() does not fail on non-range selectors', () => {
@@ -35,6 +40,7 @@ test('createVersionsOverrider() does not fail on non-range selectors', () => {
 test('createVersionsOverrider() overrides dependencies of specified packages only', () => {
   const overrider = createVersionsOverrider({
     'foo@1>bar@^1.2.0': '3.0.0',
+    'qar@1>bar@>4': '3.0.0',
   }, process.cwd())
   expect(overrider({
     name: 'foo',
@@ -60,6 +66,32 @@ test('createVersionsOverrider() overrides dependencies of specified packages onl
     version: '2.0.0',
     dependencies: {
       bar: '^1.2.0',
+    },
+  })
+  expect(overrider({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^10.0.0',
+    },
+  })).toStrictEqual({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      bar: '3.0.0',
+    },
+  })
+  expect(overrider({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^4.0.0',
+    },
+  })).toStrictEqual({
+    name: 'qar',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^4.0.0',
     },
   })
 })
