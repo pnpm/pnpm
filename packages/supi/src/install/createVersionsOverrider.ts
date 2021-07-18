@@ -16,7 +16,7 @@ export default function (
       if (newPref.startsWith('link:')) {
         linkTarget = path.join(rootDir, newPref.substring(5))
       }
-      if (selector.includes('>') && selector.indexOf('>') < selector.lastIndexOf('@')) {
+      if (selector.includes('>') && (!selector.includes('@') || selector.indexOf('>') < selector.lastIndexOf('@'))) {
         const delimiterIndex = selector.indexOf('>')
         const parentSelector = selector.substring(0, delimiterIndex)
         const childSelector = selector.substring(delimiterIndex + 1)
