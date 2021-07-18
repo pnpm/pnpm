@@ -34,7 +34,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/filter-workspace-packages": "workspace:4.1.4",
-    "@pnpm/plugin-commands-installation": "workspace:6.0.3",
+    "@pnpm/plugin-commands-installation": "workspace:6.0.4",
     "@pnpm/prepare": "workspace:0.0.25",
     "@pnpm/types": "workspace:7.3.0",
     "@types/lru-cache": "^5.1.0",

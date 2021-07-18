@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.10.3
+
+### Patch Changes
+
+- Overriding packages by parent package and no range. Fixes a regression introduced in v6.10.2
+
 ## 6.10.2
 
 ### Patch Changes

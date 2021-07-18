@@ -1,5 +1,11 @@
 # supi
 
+## 0.47.4
+
+### Patch Changes
+
+- ca67f6004: Override packages, when the parent package is set but no version range.
+
 ## 0.47.3
 
 ### Patch Changes
