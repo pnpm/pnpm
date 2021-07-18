@@ -81,10 +81,6 @@ function getHelpText () {
             name: 'audit',
           },
           {
-            description: 'Creates overrides that force vulnerability fixes in dependencies',
-            name: 'audit fix',
-          },
-          {
             description: 'Print all the versions of packages that are installed, as well as their dependencies, in a tree-structure',
             name: 'list',
             shortAlias: 'ls',

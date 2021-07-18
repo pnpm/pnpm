@@ -12,10 +12,11 @@ test('overrides are added for vulnerable dependencies', async () => {
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
     dir: tmp,
+    fix: true,
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-  }, ['fix'])
+  })
 
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
@@ -31,10 +32,11 @@ test('no overrides are added if no vulnerabilities are found', async () => {
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
     dir: tmp,
+    fix: true,
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-  }, ['fix'])
+  })
 
   expect(exitCode).toBe(0)
   expect(output).toBe('No fixes were made')

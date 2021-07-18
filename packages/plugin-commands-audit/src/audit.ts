@@ -40,6 +40,7 @@ export function cliOptionsTypes () {
       'registry',
     ], allTypes),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
+    fix: Boolean,
     'ignore-registry-errors': Boolean,
   }
 }
@@ -53,12 +54,16 @@ export const commandNames = ['audit']
 
 export function help () {
   return renderHelp({
-    description: 'Checks for known security issues with the installed packages. When the "fix" subcommand is executed, overrides are added to the package.json file in order to fix non-vulnerable versions of the dependencies.',
+    description: 'Checks for known security issues with the installed packages.',
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
+          {
+            description: 'Add overrides to the package.json file in order to force non-vulnerable versions of the dependencies',
+            name: '--fix',
+          },
           {
             description: 'Output audit report in JSON format',
             name: '--json',
@@ -89,22 +94,19 @@ export function help () {
       },
     ],
     url: docsUrl('audit'),
-    usages: [
-      'pnpm audit [options]',
-      'pnpm audit fix [options]',
-    ],
+    usages: ['pnpm audit [options]'],
   })
 }
 
 export async function handler (
   opts: Pick<UniversalOptions, 'dir'> & {
     auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+    fix?: boolean
     ignoreRegistryErrors?: boolean
     json?: boolean
     lockfileDir?: string
     registries: Registries
-  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor' | 'fetchTimeout' | 'production' | 'dev' | 'optional'>,
-  params?: string[]
+  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor' | 'fetchTimeout' | 'production' | 'dev' | 'optional'>
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -136,7 +138,7 @@ export async function handler (
       }
     }
   }
-  if (params?.[0] === 'fix') {
+  if (opts.fix) {
     const newOverrides = await fix(opts.dir, auditReport)
     if (Object.values(newOverrides).length === 0) {
       return {
