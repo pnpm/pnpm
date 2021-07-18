@@ -9,7 +9,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   const tmp = tempy.directory()
   await copyFixture('has-vulnerabilities', tmp, __dirname)
 
-  await audit.handler({
+  const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
     dir: tmp,
     registries: {
@@ -17,6 +17,25 @@ test('overrides are added for vulnerable dependencies', async () => {
     },
   }, ['fix'])
 
+  expect(exitCode).toBe(0)
+  expect(output).toMatch(/Run "pnpm install"/)
+
   const manifest = await loadJsonFile<ProjectManifest>(path.join(tmp, 'package.json'))
   expect(manifest.pnpm?.overrides?.['axios@<0.18.1']).toBe('>=0.18.1')
+})
+
+test('no overrides are added if no vulnerabilities are found', async () => {
+  const tmp = tempy.directory()
+  await copyFixture('fixture', tmp, __dirname)
+
+  const { exitCode, output } = await audit.handler({
+    auditLevel: 'moderate',
+    dir: tmp,
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  }, ['fix'])
+
+  expect(exitCode).toBe(0)
+  expect(output).toBe('No fixes were made')
 })

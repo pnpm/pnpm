@@ -4,16 +4,19 @@ import fromPairs from 'ramda/src/fromPairs'
 
 export default async function fix (dir: string, auditReport: AuditReport) {
   const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  const vulnOverrides = createOverrides(Object.values(auditReport.advisories))
+  if (Object.values(vulnOverrides).length === 0) return vulnOverrides
   await writeProjectManifest({
     ...manifest,
     pnpm: {
       ...manifest.pnpm,
       overrides: {
         ...manifest.pnpm?.overrides,
-        ...createOverrides(Object.values(auditReport.advisories)),
+        ...vulnOverrides,
       },
     },
   })
+  return vulnOverrides
 }
 
 function createOverrides (advisories: AuditAdvisory[]) {

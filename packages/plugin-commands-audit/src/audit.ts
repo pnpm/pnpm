@@ -134,10 +134,20 @@ export async function handler (
     }
   }
   if (params?.[0] === 'fix') {
-    await fix(opts.dir, auditReport)
+    const newOverrides = await fix(opts.dir, auditReport)
+    if (Object.values(newOverrides).length === 0) {
+      return {
+        exitCode: 0,
+        output: 'No fixes were made',
+      }
+    }
     return {
       exitCode: 0,
-      output: '',
+      output: `${Object.values(newOverrides).length} overrides were added to package.json to fix vulnerabilities.
+Run "pnpm install" to apply the fixes.
+
+The added overrides:
+${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
