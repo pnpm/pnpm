@@ -53,7 +53,7 @@ export const commandNames = ['audit']
 
 export function help () {
   return renderHelp({
-    description: 'Checks for known security issues with the installed packages.',
+    description: 'Checks for known security issues with the installed packages. When the "fix" subcommand is executed, overrides are added to the package.json file in order to fix non-vulnerable versions of the dependencies.',
     descriptionLists: [
       {
         title: 'Options',
@@ -89,7 +89,10 @@ export function help () {
       },
     ],
     url: docsUrl('audit'),
-    usages: ['pnpm audit [options]'],
+    usages: [
+      'pnpm audit [options]',
+      'pnpm audit fix [options]',
+    ],
   })
 }
 
