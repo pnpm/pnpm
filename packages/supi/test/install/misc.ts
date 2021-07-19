@@ -841,8 +841,8 @@ test('reinstalls missing packages to node_modules', async () => {
   expect(reporter.calledWithMatch(missingDepLog)).toBeFalsy()
 
   await rimraf('pnpm-lock.yaml')
-  await rimraf(depLocation)
   await rimraf('node_modules/is-positive')
+  await rimraf(depLocation)
 
   await project.hasNot('is-positive')
 
@@ -870,8 +870,8 @@ test('reinstalls missing packages to node_modules during headless install', asyn
 
   expect(reporter.calledWithMatch(missingDepLog)).toBeFalsy()
 
-  await rimraf(depLocation)
   await rimraf('node_modules/is-positive')
+  await rimraf(depLocation)
 
   await project.hasNot('is-positive')
 
