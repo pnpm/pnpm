@@ -8,7 +8,7 @@ const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
 // The audits give different results on Node 10, for some reason
 skipOnNode10('audit', async () => {
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     registries: {
       default: 'https://registry.npmjs.org/',
     },
@@ -19,7 +19,7 @@ skipOnNode10('audit', async () => {
 
 test('audit --dev', async () => {
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
     production: false,
     registries: {
@@ -34,7 +34,7 @@ test('audit --dev', async () => {
 test('audit --audit-level', async () => {
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
-    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     registries: {
       default: 'https://registry.npmjs.org/',
     },
@@ -58,7 +58,7 @@ test('audit: no vulnerabilities', async () => {
 
 test('audit --json', async () => {
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     json: true,
     registries: {
       default: 'https://registry.npmjs.org/',
@@ -73,7 +73,7 @@ test('audit --json', async () => {
 test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async () => {
   const { output, exitCode } = await audit.handler({
     auditLevel: 'high',
-    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
     registries: {
       default: 'https://registry.npmjs.org/',
@@ -91,7 +91,7 @@ test('audit does not exit with code 1 if the registry responds with a non-200 re
     .post('/-/npm/v1/security/audits')
     .reply(500, { message: 'Something bad happened' })
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
     ignoreRegistryErrors: true,
     production: false,

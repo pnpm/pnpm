@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
       "path": "../audit"
     },
     {
@@ -26,6 +29,9 @@
     },
     {
       "path": "../lockfile-file"
+    },
+    {
+      "path": "../read-project-manifest"
     },
     {
       "path": "../types"

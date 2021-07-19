@@ -9,6 +9,7 @@ import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import fix from './fix'
 
 // eslint-disable
 const AUDIT_LEVEL_NUMBER = {
@@ -39,6 +40,7 @@ export function cliOptionsTypes () {
       'registry',
     ], allTypes),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
+    fix: Boolean,
     'ignore-registry-errors': Boolean,
   }
 }
@@ -58,6 +60,10 @@ export function help () {
         title: 'Options',
 
         list: [
+          {
+            description: 'Add overrides to the package.json file in order to force non-vulnerable versions of the dependencies',
+            name: '--fix',
+          },
           {
             description: 'Output audit report in JSON format',
             name: '--json',
@@ -95,6 +101,7 @@ export function help () {
 export async function handler (
   opts: Pick<UniversalOptions, 'dir'> & {
     auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+    fix?: boolean
     ignoreRegistryErrors?: boolean
     json?: boolean
     lockfileDir?: string
@@ -129,6 +136,23 @@ export async function handler (
         exitCode: 0,
         output: err.message,
       }
+    }
+  }
+  if (opts.fix) {
+    const newOverrides = await fix(opts.dir, auditReport)
+    if (Object.values(newOverrides).length === 0) {
+      return {
+        exitCode: 0,
+        output: 'No fixes were made',
+      }
+    }
+    return {
+      exitCode: 0,
+      output: `${Object.values(newOverrides).length} overrides were added to package.json to fix vulnerabilities.
+Run "pnpm install" to apply the fixes.
+
+The added overrides:
+${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities

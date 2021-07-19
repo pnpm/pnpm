@@ -5,14 +5,14 @@ import ncpCB from 'ncp'
 
 const ncp = promisify(ncpCB)
 
-export async function copyFixture (fixtureName: string, dest: string) {
-  const fixturePath = pathToLocalPkg(fixtureName)
+export async function copyFixture (fixtureName: string, dest: string, searchFromDir?: string) {
+  const fixturePath = pathToLocalPkg(fixtureName, searchFromDir)
   if (!fixturePath) throw new Error(`${fixtureName} not found`)
   return ncp(fixturePath, dest)
 }
 
-export function pathToLocalPkg (pkgName: string) {
-  let dir = __dirname
+export function pathToLocalPkg (pkgName: string, _dir?: string) {
+  let dir = _dir ?? __dirname
   const { root } = path.parse(dir)
   while (true) {
     const checkDir = path.join(dir, 'fixtures', pkgName)
