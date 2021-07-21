@@ -32,6 +32,8 @@ test('publish: package with package.json', async () => {
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
   }, [])
+
+  expect(await exists('test-publish-package.json-0.0.0.tgz')).toBeFalsy()
 })
 
 test('publish: package with package.yaml', async () => {

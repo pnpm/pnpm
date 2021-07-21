@@ -186,6 +186,7 @@ Do you want to continue?`,
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', tarballName, ...args], {
     cwd,
   })
+  await rimraf(path.join(cwd, tarballName))
   if (copyNpmrc) {
     await rimraf(localNpmrc)
   }

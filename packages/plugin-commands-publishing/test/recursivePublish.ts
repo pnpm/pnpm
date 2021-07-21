@@ -17,9 +17,12 @@ registry=http://localhost:${REGISTRY_MOCK_PORT}/
 //localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}
 //localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`
 
+// This suffix is added to the package name to avoid issue if Jest reruns the test
+const SUFFIX = Date.now()
+
 test('recursive publish', async () => {
   const pkg1 = {
-    name: '@pnpmtest/test-recursive-publish-project-1',
+    name: `@pnpmtest/test-recursive-publish-project-1-${SUFFIX}`,
     version: '1.0.0',
 
     dependencies: {
@@ -27,7 +30,7 @@ test('recursive publish', async () => {
     },
   }
   const pkg2 = {
-    name: '@pnpmtest/test-recursive-publish-project-2',
+    name: `@pnpmtest/test-recursive-publish-project-2-${SUFFIX}`,
     version: '1.0.0',
 
     dependencies: {
