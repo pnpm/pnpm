@@ -2077,7 +2077,6 @@ importers:
       '@types/ramda': 0.27.39
       '@types/sinon': ^9.0.11
       '@zkochan/rimraf': ^2.1.1
-      cp-file: ^9.0.0
       cross-spawn: ^7.0.3
       enquirer: ^2.3.6
       execa: ^5.0.0
@@ -2109,7 +2108,6 @@ importers:
       '@pnpm/sort-packages': link:../sort-packages
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.1
-      cp-file: 9.1.0
       enquirer: 2.3.6
       fast-glob: 3.2.7
       gunzip-maybe: 1.4.2
@@ -6844,6 +6842,7 @@ packages:
       make-dir: 3.1.0
       nested-error-stacks: 2.1.0
       p-event: 4.2.0
+    dev: true
 
   /cpr/3.0.1:
     resolution: {integrity: sha1-uaVQOLfNgaNcF7l2GJW9hJau8eU=}
@@ -10885,6 +10884,7 @@ packages:
 
   /nested-error-stacks/2.1.0:
     resolution: {integrity: sha512-AO81vsIO1k1sM4Zrd6Hu7regmJN1NSiAja10gc4bX3F0wd+9rQmcuHQaHVQCYIEC8iFXnE+mavh23GOt7wBgug==}
+    dev: true
 
   /next-path/1.0.0:
     resolution: {integrity: sha1-gixFgNer54PfGZZbeJYiyoAWA+Q=}
@@ -11299,6 +11299,7 @@ packages:
     engines: {node: '>=8'}
     dependencies:
       p-timeout: 3.2.0
+    dev: true
 
   /p-every/2.0.0:
     resolution: {integrity: sha512-MCz9DqD5opPC48Zsd+BHm56O/HfhYIQQtupfDzhXoVgQdg/Ux4F8/JcdRuQ+arq7zD5fB6zP3axbH3d9Nr8dlw==}

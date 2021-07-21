@@ -3,6 +3,7 @@ import path from 'path'
 import { types as allTypes, UniversalOptions, Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import exportableManifest from '@pnpm/exportable-manifest'
+import fg from 'fast-glob'
 import gunzip from 'gunzip-maybe'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -10,7 +11,10 @@ import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import packlist from 'npm-packlist'
 import fromPairs from 'ramda/src/fromPairs'
-import { findLicenses, runScriptsIfPresent } from './publish'
+import { runScriptsIfPresent } from './publish'
+
+const LICENSE_GLOB = 'LICEN{S,C}E{,.*}'
+const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
 export function rcOptionsTypes () {
   return {
@@ -35,7 +39,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'extraBinPaths' | 'ignoreScripts' | 'rawConfig'> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig'> & Partial<Pick<Config, 'extraBinPaths'>> & {
     argv: {
       original: string[]
     }
@@ -54,7 +58,12 @@ export async function handler (
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   })
   if (!opts.ignoreScripts) {
-    await _runScriptsIfPresent(['prepack', 'prepare'], manifest)
+    await _runScriptsIfPresent([
+      'prepublish',
+      'prepare',
+      'prepublishOnly',
+      'prepack',
+    ], manifest)
   }
   const tarballName = `${manifest.name!.replace('@', '').replace('/', '-')}-${manifest.version!}.tgz`
   const files = await packlist({ path: opts.dir })
