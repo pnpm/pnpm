@@ -77,9 +77,9 @@ test('pack: runs prepack, prepare, and postpack', async () => {
     name: 'test-publish-package.json',
     version: '0.0.0',
     scripts: {
-      prepack: 'node -e "require(`fs`).writeFileSync(`prepack`, ``)"',
-      prepare: 'node -e "require(`fs`).writeFileSync(`prepare`, ``)"',
-      postpack: 'node -e "require(`fs`).writeFileSync(`postpack`, ``)"',
+      prepack: 'node -e "require(\'fs\').writeFileSync(\'prepack\', \'\')"',
+      prepare: 'node -e "require(\'fs\').writeFileSync(\'prepare\', \'\')"',
+      postpack: 'node -e "require(\'fs\').writeFileSync(\'postpack\', \'\')"',
     },
   })
 
