@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { types as allTypes, UniversalOptions, Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
+import exportableManifest from '@pnpm/exportable-manifest'
 import gunzip from 'gunzip-maybe'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -9,7 +10,7 @@ import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import packlist from 'npm-packlist'
 import fromPairs from 'ramda/src/fromPairs'
-import { fakeRegularManifest, runScriptsIfPresent } from './publish'
+import { findLicenses, runScriptsIfPresent } from './publish'
 
 export function rcOptionsTypes () {
   return {
@@ -56,24 +57,30 @@ export async function handler (
     await _runScriptsIfPresent(['prepack', 'prepare'], manifest)
   }
   const tarballName = `${manifest.name!.replace('@', '').replace('/', '-')}-${manifest.version!}.tgz`
-  await fakeRegularManifest({
-    dir: opts.dir,
-    engineStrict: opts.engineStrict,
-    workspaceDir: opts.workspaceDir ?? opts.dir,
-  }, async () => {
-    const files = await packlist({ path: opts.dir })
-    const filesMap: Record<string, string> = fromPairs(files.map((file) => [`package/${file}`, path.join(opts.dir, file)]))
-    await packPkg(path.join(opts.dir, tarballName), filesMap)
-  })
+  const files = await packlist({ path: opts.dir })
+  const filesMap: Record<string, string> = fromPairs(files.map((file) => [`package/${file}`, path.join(opts.dir, file)]))
+  if (opts.workspaceDir != null && opts.dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
+    const licenses = await findLicenses({ cwd: opts.workspaceDir })
+    for (const license of licenses) {
+      filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
+    }
+  }
+  await packPkg(path.join(opts.dir, tarballName), filesMap, opts.dir)
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], manifest)
   }
   return tarballName
 }
 
-async function packPkg (destFile: string, filesMap: Record<string, string>): Promise<void> {
+async function packPkg (destFile: string, filesMap: Record<string, string>, projectDir: string): Promise<void> {
   const pack = tar.pack()
   for (const [name, source] of Object.entries(filesMap)) {
+    if (/^package\/package\.(json|json5|yaml)/.test(name)) {
+      const { manifest } = await readProjectManifest(projectDir, {})
+      const publishManifest = await exportableManifest(projectDir, manifest)
+      pack.entry({ name: 'package/package.json' }, JSON.stringify(publishManifest, null, 2))
+      continue
+    }
     pack.entry({ name }, fs.readFileSync(source))
   }
   const tarball = fs.createWriteStream(destFile)

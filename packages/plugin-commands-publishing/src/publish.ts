@@ -233,7 +233,7 @@ export async function runScriptsIfPresent (
 }
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}'
-const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
+export const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
 export async function fakeRegularManifest (
   opts: {
