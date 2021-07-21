@@ -17,10 +17,10 @@ registry=http://localhost:${REGISTRY_MOCK_PORT}/
 //localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}
 //localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`
 
-// This suffix is added to the package name to avoid issue if Jest reruns the test
-const SUFFIX = Date.now()
-
 test('recursive publish', async () => {
+  // This suffix is added to the package name to avoid issue if Jest reruns the test
+  const SUFFIX = Date.now()
+
   const pkg1 = {
     name: `@pnpmtest/test-recursive-publish-project-1-${SUFFIX}`,
     version: '1.0.0',
@@ -99,11 +99,11 @@ test('recursive publish', async () => {
 
   {
     const { stdout } = await execa('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(JSON.parse(stdout.toString())).toStrictEqual([pkg1.version])
+    expect(JSON.parse(stdout.toString())).toStrictEqual(pkg1.version)
   }
   {
     const { stdout } = await execa('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(JSON.parse(stdout.toString())).toStrictEqual([pkg2.version])
+    expect(JSON.parse(stdout.toString())).toStrictEqual(pkg2.version)
   }
 
   await projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
