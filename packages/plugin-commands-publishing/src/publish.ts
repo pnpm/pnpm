@@ -221,7 +221,7 @@ Do you want to continue?`,
   return { manifest }
 }
 
-async function runScriptsIfPresent (
+export async function runScriptsIfPresent (
   opts: RunLifecycleHookOptions,
   scriptNames: string[],
   manifest: ProjectManifest
