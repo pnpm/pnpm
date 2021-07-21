@@ -55,6 +55,7 @@ export async function handler (
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['prepack', 'prepare'], manifest)
   }
+  const tarballName = `${manifest.name!.replace('@', '').replace('/', '-')}-${manifest.version!}.tgz`
   await fakeRegularManifest({
     dir: opts.dir,
     engineStrict: opts.engineStrict,
@@ -62,11 +63,12 @@ export async function handler (
   }, async () => {
     const files = await packlist({ path: opts.dir })
     const filesMap: Record<string, string> = fromPairs(files.map((file) => [`package/${file}`, path.join(opts.dir, file)]))
-    await packPkg(path.join(opts.dir, `${manifest.name!}-${manifest.version!}.tgz`), filesMap)
+    await packPkg(path.join(opts.dir, tarballName), filesMap)
   })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], manifest)
   }
+  return tarballName
 }
 
 async function packPkg (destFile: string, filesMap: Record<string, string>): Promise<void> {

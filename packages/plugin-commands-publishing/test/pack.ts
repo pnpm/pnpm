@@ -56,6 +56,22 @@ test('pack: package with package.json5', async () => {
   expect(await exists('package.json')).toBeFalsy()
 })
 
+test('pack a package with scoped name', async () => {
+  prepare({
+    name: '@pnpm/test-scope',
+    version: '0.0.0',
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  expect(await exists('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
+})
+
 test('pack: runs prepack, prepare, and postpack', async () => {
   prepare({
     name: 'test-publish-package.json',
