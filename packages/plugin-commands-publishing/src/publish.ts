@@ -3,19 +3,15 @@ import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import exportableManifest from '@pnpm/exportable-manifest'
 import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import runNpm from '@pnpm/run-npm'
 import { ProjectManifest } from '@pnpm/types'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
-import cpFile from 'cp-file'
-import fg from 'fast-glob'
-import equals from 'ramda/src/equals'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import writeJsonFile from 'write-json-file'
+import * as pack from './pack'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 
@@ -159,58 +155,44 @@ Do you want to continue?`,
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   })
-  let _status!: number
   const { manifest } = await readProjectManifest(dir, opts)
   // Unfortunately, we cannot support postpack at the moment
-  if (!opts.ignoreScripts) {
-    await _runScriptsIfPresent([
-      'prepublish',
-      'prepare',
-      'prepublishOnly',
-      'prepack',
-    ], manifest)
+  let args = opts.argv.original.slice(1)
+  if (dirInParams) {
+    args = args.filter(arg => arg !== params[0])
   }
-  await fakeRegularManifest(
-    {
-      dir,
-      engineStrict: opts.engineStrict,
-      workspaceDir: opts.workspaceDir ?? dir,
-    },
-    async () => {
-      let args = opts.argv.original.slice(1)
-      if (dirInParams) {
-        args = args.filter(arg => arg !== params[0])
-      }
-      const index = args.indexOf('--publish-branch')
-      if (index !== -1) {
-        // If --publish-branch follows with another cli option, only remove this argument
-        // otherwise remove the following argument as well
-        if (args[index + 1]?.startsWith('-')) {
-          args.splice(index, 1)
-        } else {
-          args.splice(index, 2)
-        }
-      }
-
-      const cwd = manifest.publishConfig?.directory ? path.join(dir, manifest.publishConfig.directory) : dir
-      const localNpmrc = path.join(cwd, '.npmrc')
-      const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
-      if (copyNpmrc && opts.workspaceDir) {
-        await fs.copyFile(path.join(opts.workspaceDir, '.npmrc'), localNpmrc)
-      }
-
-      const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...args], {
-        cwd,
-      })
-      if (copyNpmrc) {
-        await rimraf(localNpmrc)
-      }
-
-      _status = status!
+  const index = args.indexOf('--publish-branch')
+  if (index !== -1) {
+    // If --publish-branch follows with another cli option, only remove this argument
+    // otherwise remove the following argument as well
+    if (args[index + 1]?.startsWith('-')) {
+      args.splice(index, 1)
+    } else {
+      args.splice(index, 2)
     }
-  )
-  if (_status !== 0) {
-    process.exit(_status)
+  }
+
+  const cwd = manifest.publishConfig?.directory ? path.join(dir, manifest.publishConfig.directory) : dir
+  const localNpmrc = path.join(cwd, '.npmrc')
+  const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
+  if (copyNpmrc && opts.workspaceDir) {
+    await fs.copyFile(path.join(opts.workspaceDir, '.npmrc'), localNpmrc)
+  }
+
+  const tarballName = await pack.handler({
+    ...opts,
+    dir: cwd,
+  })
+  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', tarballName, ...args], {
+    cwd,
+  })
+  await rimraf(path.join(cwd, tarballName))
+  if (copyNpmrc) {
+    await rimraf(localNpmrc)
+  }
+
+  if (status != null && status !== 0) {
+    process.exit(status)
   }
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
@@ -221,7 +203,7 @@ Do you want to continue?`,
   return { manifest }
 }
 
-async function runScriptsIfPresent (
+export async function runScriptsIfPresent (
   opts: RunLifecycleHookOptions,
   scriptNames: string[],
   manifest: ProjectManifest
@@ -230,55 +212,4 @@ async function runScriptsIfPresent (
     if (!manifest.scripts?.[scriptName]) continue
     await runLifecycleHooks(scriptName, manifest, opts)
   }
-}
-
-const LICENSE_GLOB = 'LICEN{S,C}E{,.*}'
-const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
-
-export async function fakeRegularManifest (
-  opts: {
-    engineStrict?: boolean
-    dir: string
-    workspaceDir: string
-  },
-  fn: () => Promise<void>
-) {
-  // If a workspace package has no License of its own,
-  // license files from the root of the workspace are used
-  const copiedLicenses: string[] = opts.dir !== opts.workspaceDir && (await findLicenses({ cwd: opts.dir })).length === 0
-    ? await copyLicenses(opts.workspaceDir, opts.dir)
-    : []
-
-  const { fileName, manifest, writeProjectManifest } = await readProjectManifest(opts.dir, opts)
-  const publishManifest = await exportableManifest(opts.dir, manifest)
-  const replaceManifest = fileName !== 'package.json' || !equals(manifest, publishManifest)
-  if (replaceManifest) {
-    await rimraf(path.join(opts.dir, fileName))
-    await writeJsonFile(path.join(opts.dir, 'package.json'), publishManifest)
-  }
-  await fn()
-  if (replaceManifest) {
-    await rimraf(path.join(opts.dir, 'package.json'))
-    await writeProjectManifest(manifest, true)
-  }
-  await Promise.all(
-    copiedLicenses.map(async (copiedLicense) => fs.unlink(copiedLicense))
-  )
-}
-
-async function copyLicenses (sourceDir: string, destDir: string) {
-  const licenses = await findLicenses({ cwd: sourceDir })
-  if (licenses.length === 0) return []
-
-  const copiedLicenses: string[] = []
-  await Promise.all(
-    licenses
-      .map((licenseRelPath) => path.join(sourceDir, licenseRelPath))
-      .map((licensePath) => {
-        const licenseCopyDest = path.join(destDir, path.basename(licensePath))
-        copiedLicenses.push(licenseCopyDest)
-        return cpFile(licensePath, licenseCopyDest)
-      })
-  )
-  return copiedLicenses
 }

@@ -26,7 +26,7 @@
     "rename-overwrite": "^4.0.0",
     "ssri": "^8.0.1",
     "strip-bom": "^4.0.0",
-    "tar-stream": "^2.1.4"
+    "tar-stream": "^2.2.0"
   },
   "devDependencies": {
     "@types/concat-stream": "^1.6.0",

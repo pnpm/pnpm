@@ -32,6 +32,8 @@ test('publish: package with package.json', async () => {
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
   }, [])
+
+  expect(await exists('test-publish-package.json-0.0.0.tgz')).toBeFalsy()
 })
 
 test('publish: package with package.yaml', async () => {
@@ -106,10 +108,22 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
   await fs.writeFile('project-2/LICENSE', 'project-2 license', 'utf8')
 
   process.chdir('project-1')
-  await pack.handler({ argv: { original: [] }, dir: process.cwd(), workspaceDir })
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    workspaceDir,
+  })
 
   process.chdir('../project-2')
-  await pack.handler({ argv: { original: [] }, dir: process.cwd(), workspaceDir })
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    workspaceDir,
+  })
 
   process.chdir('../target')
 
