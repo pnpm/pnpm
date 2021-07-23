@@ -1,8 +1,26 @@
 import { nameVerFromPkgSnapshot, PackageSnapshots } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { PreferredVersions } from '@pnpm/resolver-base'
-import { Dependencies, ProjectManifest } from '@pnpm/types'
+import { Dependencies, DependencyManifest, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
+
+export function getAllUniqueSpecs (manifests: DependencyManifest[]) {
+  const allSpecs: Record<string, string> = {}
+  const ignored = new Set<string>()
+  for (const manifest of manifests) {
+    const specs = getAllDependenciesFromManifest(manifest)
+    for (const [name, spec] of Object.entries(specs)) {
+      if (ignored.has(name)) continue
+      if (allSpecs[name] != null && allSpecs[name] !== spec || spec.includes(':')) {
+        ignored.add(name)
+        delete allSpecs[name]
+        continue
+      }
+      allSpecs[name] = spec
+    }
+  }
+  return allSpecs
+}
 
 export default function getPreferredVersionsFromPackage (
   pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>

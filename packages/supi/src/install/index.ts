@@ -51,6 +51,7 @@ import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
+import flatten from 'ramda/src/flatten'
 import fromPairs from 'ramda/src/fromPairs'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
@@ -67,7 +68,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import getPreferredVersionsFromPackage, { getPreferredVersionsFromLockfile } from './getPreferredVersions'
+import getPreferredVersionsFromPackage, { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
 import getWantedDependencies, {
   PinnedVersion,
   WantedDependency,
@@ -316,6 +317,8 @@ export async function mutateModules (
       unsafePerm: opts.unsafePerm || false,
     }
 
+    let preferredSpecs: Record<string, string> | null = null
+
     // TODO: make it concurrent
     for (const project of ctx.projects) {
       switch (project.mutation) {
@@ -431,6 +434,9 @@ export async function mutateModules (
       const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromManifest(project.manifest)
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
+      if (preferredSpecs == null) {
+        preferredSpecs = getAllUniqueSpecs(flatten(Object.values(opts.workspacePackages).map(obj => Object.values(obj))).map(({ manifest }) => manifest))
+      }
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
         currentPrefs,
@@ -440,6 +446,7 @@ export async function mutateModules (
         optional: project.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
         updateWorkspaceDependencies: opts.update,
+        preferredSpecs,
       })
       projectsToInstall.push({
         pruneDirectDependencies: false,

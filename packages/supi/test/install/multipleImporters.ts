@@ -3,6 +3,7 @@ import assertProject from '@pnpm/assert-project'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { ProjectManifest } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   MutatedProject,
@@ -1242,4 +1243,74 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
     frozenLockfile: true,
     workspacePackages,
   }))
+})
+
+test('install the dependency that is already present in the workspace when adding a new direct dependency', async () => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  const manifest1: ProjectManifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '^100.0.0',
+    },
+  }
+  const manifest2: ProjectManifest = { name: 'project-2' }
+
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults())
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await mutateModules([
+    importers[0],
+    {
+      ...importers[1],
+      dependencySelectors: ['dep-of-pkg-with-1-dep'],
+      mutation: 'installSome',
+    },
+  ], await testDefaults({
+    lockfileDir: process.cwd(),
+    workspacePackages: {
+      'project-1': {
+        '1.0.0': {
+          dir: path.resolve('project-1'),
+          manifest: manifest1,
+        },
+      },
+    },
+  }))
+
+  const rootModules = assertProject(process.cwd())
+  const currentLockfile = await rootModules.readCurrentLockfile()
+
+  expect(currentLockfile.importers['project-1'].specifiers?.['dep-of-pkg-with-1-dep']).toBe('^100.0.0')
+  expect(currentLockfile.importers['project-2'].specifiers?.['dep-of-pkg-with-1-dep']).toBe('^100.0.0')
+
+  expect(currentLockfile.importers['project-1'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(currentLockfile.importers['project-2'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })

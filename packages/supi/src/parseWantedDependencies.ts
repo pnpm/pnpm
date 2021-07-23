@@ -14,6 +14,7 @@ export default function parseWantedDependencies (
     optional: boolean
     optionalDependencies: Dependencies
     updateWorkspaceDependencies?: boolean
+    preferredSpecs?: Record<string, string>
   }
 ): WantedDependency[] {
   return rawWantedDependencies
@@ -35,13 +36,29 @@ export default function parseWantedDependencies (
         }
         pinnedVersion = guessPinnedVersionFromExistingSpec(opts.currentPrefs[alias])
       }
-      return {
+      const result = {
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
         pinnedVersion,
-        pref: pref ?? opts.defaultTag,
         raw: rawWantedDependency,
+      }
+      if (pref) {
+        return {
+          ...result,
+          pref,
+        }
+      }
+      if (alias && opts.preferredSpecs?.[alias]) {
+        return {
+          ...result,
+          pref: opts.preferredSpecs[alias],
+          raw: `${rawWantedDependency}@${opts.preferredSpecs[alias]}`,
+        }
+      }
+      return {
+        ...result,
+        pref: opts.defaultTag,
       }
     })
     .filter((wd) => wd !== null) as WantedDependency[]
