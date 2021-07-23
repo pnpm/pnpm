@@ -1059,3 +1059,36 @@ ${WARN} 2 other warnings`)
     },
   })
 })
+
+test('warnings are not collapsed when append-only is true', (done) => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    reportingOptions: {
+      appendOnly: true,
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.warn({ message: 'Some issue 1', prefix })
+  logger.warn({ message: 'Some issue 2', prefix })
+  logger.warn({ message: 'Some issue 3', prefix })
+  logger.warn({ message: 'Some issue 4', prefix })
+  logger.warn({ message: 'Some issue 5', prefix })
+  logger.warn({ message: 'Some issue 6', prefix })
+  logger.warn({ message: 'Some issue 7', prefix })
+
+  expect.assertions(1)
+
+  output$.pipe(skip(6), take(1)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(`${WARN} Some issue 7`)
+    },
+  })
+})

@@ -73,6 +73,7 @@ export default function (
     reportMisc(
       log$,
       {
+        appendOnly: opts.appendOnly === true,
         config: opts.config,
         cwd,
         logLevel: opts.logLevel,

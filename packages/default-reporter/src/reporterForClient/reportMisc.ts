@@ -25,6 +25,7 @@ export default (
     other: Rx.Observable<Log>
   },
   opts: {
+    appendOnly: boolean
     cwd: string
     logLevel?: LogLevel
     config?: Config
@@ -61,6 +62,7 @@ export default (
 // so pnpm will only print a few warnings and report the total number of the unprinted warnings.
 function makeWarningReporter (
   opts: {
+    appendOnly: boolean
     cwd: string
     zoomOutCurrent: boolean
   }
@@ -69,7 +71,7 @@ function makeWarningReporter (
   let collapsedWarnings: Rx.Subject<{ msg: string }>
   return (obj: { prefix: string, message: string }) => {
     warningsCounter++
-    if (warningsCounter <= MAX_SHOWN_WARNINGS) {
+    if (opts.appendOnly || warningsCounter <= MAX_SHOWN_WARNINGS) {
       return Rx.of({ msg: autozoom(opts.cwd, obj.prefix, formatWarn(obj.message), opts) })
     }
     const warningMsg = formatWarn(`${warningsCounter - MAX_SHOWN_WARNINGS} other warnings`)
