@@ -1295,6 +1295,14 @@ test('install the dependency that is already present in the workspace when addin
     },
   ], await testDefaults({
     lockfileDir: process.cwd(),
+    workspacePackages: {
+      'project-1': {
+        '1.0.0': {
+          dir: path.resolve('project-1'),
+          manifest: manifest1,
+        },
+      },
+    },
   }))
 
   const rootModules = assertProject(process.cwd())
