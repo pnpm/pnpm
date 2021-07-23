@@ -51,6 +51,7 @@ import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
+import flatten from 'ramda/src/flatten'
 import fromPairs from 'ramda/src/fromPairs'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
@@ -316,7 +317,7 @@ export async function mutateModules (
       unsafePerm: opts.unsafePerm || false,
     }
 
-    const preferredSpecs = getAllUniqueSpecs(ctx.projects.map(({ manifest }) => manifest))
+    const preferredSpecs = getAllUniqueSpecs(flatten(Object.values(opts.workspacePackages).map(obj => Object.values(obj))).map(({ manifest }) => manifest))
 
     // TODO: make it concurrent
     for (const project of ctx.projects) {
