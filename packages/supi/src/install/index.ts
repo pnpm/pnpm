@@ -317,7 +317,7 @@ export async function mutateModules (
       unsafePerm: opts.unsafePerm || false,
     }
 
-    const preferredSpecs = getAllUniqueSpecs(flatten(Object.values(opts.workspacePackages).map(obj => Object.values(obj))).map(({ manifest }) => manifest))
+    let preferredSpecs: Record<string, string> | null = null
 
     // TODO: make it concurrent
     for (const project of ctx.projects) {
@@ -434,6 +434,9 @@ export async function mutateModules (
       const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromManifest(project.manifest)
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
+      if (preferredSpecs == null) {
+        preferredSpecs = getAllUniqueSpecs(flatten(Object.values(opts.workspacePackages).map(obj => Object.values(obj))).map(({ manifest }) => manifest))
+      }
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
         currentPrefs,
