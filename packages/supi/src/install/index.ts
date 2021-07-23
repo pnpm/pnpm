@@ -67,7 +67,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import getPreferredVersionsFromPackage, { getPreferredVersionsFromLockfile } from './getPreferredVersions'
+import getPreferredVersionsFromPackage, { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
 import getWantedDependencies, {
   PinnedVersion,
   WantedDependency,
@@ -316,6 +316,8 @@ export async function mutateModules (
       unsafePerm: opts.unsafePerm || false,
     }
 
+    const preferredSpecs = getAllUniqueSpecs(ctx.projects.map(({ manifest }) => manifest))
+
     // TODO: make it concurrent
     for (const project of ctx.projects) {
       switch (project.mutation) {
@@ -440,6 +442,7 @@ export async function mutateModules (
         optional: project.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
         updateWorkspaceDependencies: opts.update,
+        preferredSpecs,
       })
       projectsToInstall.push({
         pruneDirectDependencies: false,

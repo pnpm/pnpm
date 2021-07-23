@@ -4,6 +4,23 @@ import { PreferredVersions } from '@pnpm/resolver-base'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 
+export function getAllUniqueSpecs (manifests: ProjectManifest[]) {
+  const allSpecs: Record<string, string> = {}
+  const ignored = new Set<string>()
+  for (const manifest of manifests) {
+    const specs = getAllDependenciesFromManifest(manifest)
+    for (const [name, spec] of Object.entries(specs)) {
+      if (ignored.has(name)) continue
+      if (allSpecs[name] || spec.includes(':')) {
+        ignored.add(name)
+        continue
+      }
+      allSpecs[name] = spec
+    }
+  }
+  return allSpecs
+}
+
 export default function getPreferredVersionsFromPackage (
   pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>
 ): PreferredVersions {
