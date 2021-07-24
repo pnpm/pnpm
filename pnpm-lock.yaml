@@ -2063,6 +2063,7 @@ importers:
       '@pnpm/filter-workspace-packages': workspace:4.1.5
       '@pnpm/lifecycle': workspace:11.0.2
       '@pnpm/logger': ^4.0.0
+      '@pnpm/package-bins': workspace:5.0.3
       '@pnpm/pick-registry-for-package': workspace:2.0.3
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': workspace:0.0.25
@@ -2075,6 +2076,7 @@ importers:
       '@types/proxyquire': ^1.3.28
       '@types/ramda': 0.27.39
       '@types/sinon': ^9.0.11
+      '@types/tar': ^4.0.5
       '@zkochan/rimraf': ^2.1.1
       cross-spawn: ^7.0.3
       enquirer: ^2.3.6
@@ -2089,6 +2091,7 @@ importers:
       ramda: ^0.27.1
       realpath-missing: ^1.1.0
       render-help: ^1.0.1
+      tar: ^6.1.1
       tar-stream: ^2.2.0
       tempy: ^1.0.0
       write-json-file: ^4.3.0
@@ -2100,6 +2103,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/exportable-manifest': link:../exportable-manifest
       '@pnpm/lifecycle': link:../lifecycle
+      '@pnpm/package-bins': link:../package-bins
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/run-npm': link:../run-npm
@@ -2125,12 +2129,14 @@ importers:
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.39
       '@types/sinon': 9.0.11
+      '@types/tar': 4.0.5
       cross-spawn: 7.0.3
       execa: 5.1.1
       is-ci: 3.0.0
       is-windows: 1.0.2
       load-json-file: 6.2.0
       path-exists: 4.0.0
+      tar: 6.1.1
       tempy: 1.0.1
       write-yaml-file: 4.2.0
 
@@ -4825,6 +4831,12 @@ packages:
     resolution: {integrity: sha512-jhuKLIRrhvCPLqwPcx6INqmKeiA5EWrsCOPhrlFSrbrmU4ZMPjj5Ul/oLCMDO98XRUIwVm78xICz4EPCektzeQ==}
     dev: true
 
+  /@types/minipass/2.2.1:
+    resolution: {integrity: sha512-0bI74UwEJ+JjGqzkyoiCxLVGK5C3Vy5MYdDB6VCtUAulcrulHvqhIrQP9lh/gvMgaNzvvJljMW97rRHVvbTe8Q==}
+    dependencies:
+      '@types/node': 16.4.2
+    dev: true
+
   /@types/mz/2.7.4:
     resolution: {integrity: sha512-Zs0imXxyWT20j3Z2NwKpr0IO2LmLactBblNyLua5Az4UHuqOQ02V3jPTgyKwDkuc33/ahw+C3O1PIZdrhFMuQA==}
     dependencies:
@@ -4857,6 +4869,10 @@ packages:
 
   /@types/node/16.4.1:
     resolution: {integrity: sha512-UW7cbLqf/Wu5XH2RKKY1cHwUNLicIDRLMraYKz+HHAerJ0ZffUEk+fMnd8qU2JaS6cAy0r8tsaf7yqHASf/Y0Q==}
+
+  /@types/node/16.4.2:
+    resolution: {integrity: sha512-vxyhOzFCm+jC/T5KugbVsYy1DbQM0h3NCFUrVbu0+pYa/nr+heeucpqxpa8j4pUmIGLPYzboY9zIdOF0niFAjQ==}
+    dev: true
 
   /@types/normalize-package-data/2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -4937,6 +4953,13 @@ packages:
     resolution: {integrity: sha512-zhcfACZ4HavArMutfAB1/ApfSx44kNF2zyytU4mbO1dGCT/y9kL2IZwRDRyYYtBUxW6LRparZpLoX8i67b6IZw==}
     dependencies:
       '@types/node': 14.17.5
+    dev: true
+
+  /@types/tar/4.0.5:
+    resolution: {integrity: sha512-cgwPhNEabHaZcYIy5xeMtux2EmYBitfqEceBUi2t5+ETy4dW6kswt6WX4+HqLeiiKOo42EXbGiDmVJ2x+vi37Q==}
+    dependencies:
+      '@types/minipass': 2.2.1
+      '@types/node': 16.4.2
     dev: true
 
   /@types/touch/3.1.2:
@@ -6443,7 +6466,6 @@ packages:
   /chownr/2.0.0:
     resolution: {integrity: sha512-bIomtDF5KGpdogkLd9VspvFzk9KfpyyGlS8YFVZl7TGPBHL5snIOnxeshwVgPteQ9b4Eydl+pVbIyE1DcvCWgQ==}
     engines: {node: '>=10'}
-    dev: false
 
   /ci-info/2.0.0:
     resolution: {integrity: sha512-5tK7EtrZ0N+OLFMthtqOj4fI2Jeb88C4CAZPu25LDVUgXJ0A3Js4PMGqrn0JU1W0Mh1/Z8wZzYPxqUrXeBboCQ==}
@@ -8286,7 +8308,6 @@ packages:
     engines: {node: '>= 8'}
     dependencies:
       minipass: 3.1.3
-    dev: false
 
   /fs-mkdirp-stream/1.0.0:
     resolution: {integrity: sha1-C3gV/DIBxqaeFNuYzgmMFpNSWes=}
@@ -10723,7 +10744,6 @@ packages:
     dependencies:
       minipass: 3.1.3
       yallist: 4.0.0
-    dev: false
 
   /mixin-deep/1.3.2:
     resolution: {integrity: sha512-WRoDn//mXBiJ1H40rqa3vH0toePwSsGb45iInWlTySa+Uu4k3tYUSxa2v1KqAiLtvlrSzaExqS1gtk96A9zvEA==}
@@ -13298,7 +13318,6 @@ packages:
       minizlib: 2.1.2
       mkdirp: 1.0.4
       yallist: 4.0.0
-    dev: false
 
   /temp-dir/2.0.0:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}

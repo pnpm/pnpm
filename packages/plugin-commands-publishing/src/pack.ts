@@ -4,6 +4,8 @@ import { createGzip } from 'zlib'
 import { types as allTypes, UniversalOptions, Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import exportableManifest from '@pnpm/exportable-manifest'
+import binify from '@pnpm/package-bins'
+import { DependencyManifest } from '@pnpm/types'
 import fg from 'fast-glob'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -26,7 +28,9 @@ export function rcOptionsTypes () {
 }
 
 export function cliOptionsTypes () {
-  return {}
+  return {
+    'pack-destination': String,
+  }
 }
 
 export const commandNames = ['pack']
@@ -35,6 +39,18 @@ export function help () {
   return renderHelp({
     description: 'Creates a compressed gzip archive of package dependencies.',
     usages: ['pnpm pack'],
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Directory in which `pnpm pack` will save tarballs. The default is the current working directory.',
+            name: 'pack-destination',
+          },
+        ],
+      },
+    ],
   })
 }
 
@@ -44,6 +60,7 @@ export async function handler (
       original: string[]
     }
     engineStrict?: boolean
+    packDestination?: string
     workspaceDir?: string
   }
 ) {
@@ -74,7 +91,10 @@ export async function handler (
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
     }
   }
-  await packPkg(path.join(opts.dir, tarballName), filesMap, opts.dir)
+  const destDir = opts.packDestination
+    ? (path.isAbsolute(opts.packDestination) ? opts.packDestination : path.join(opts.dir, opts.packDestination ?? '.'))
+    : opts.dir
+  await packPkg(path.join(destDir, tarballName), filesMap, opts.dir)
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], manifest)
   }
@@ -82,15 +102,19 @@ export async function handler (
 }
 
 async function packPkg (destFile: string, filesMap: Record<string, string>, projectDir: string): Promise<void> {
+  const { manifest } = await readProjectManifest(projectDir, {})
+  const bins = await binify(manifest as DependencyManifest, projectDir)
+  const mtime = new Date('1985-10-26T08:15:00.000Z')
   const pack = tar.pack()
   for (const [name, source] of Object.entries(filesMap)) {
+    const isExecutable = bins.some((bin) => path.relative(bin.path, source) === '')
+    const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
-      const { manifest } = await readProjectManifest(projectDir, {})
       const publishManifest = await exportableManifest(projectDir, manifest)
-      pack.entry({ name: 'package/package.json' }, JSON.stringify(publishManifest, null, 2))
+      pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(publishManifest, null, 2))
       continue
     }
-    pack.entry({ name }, fs.readFileSync(source))
+    pack.entry({ mode, mtime, name }, fs.readFileSync(source))
   }
   const tarball = fs.createWriteStream(destFile)
   pack.pipe(createGzip()).pipe(tarball)
