@@ -2071,7 +2071,6 @@ importers:
       '@pnpm/sort-packages': workspace:2.1.0
       '@pnpm/types': workspace:7.3.0
       '@types/cross-spawn': ^6.0.2
-      '@types/gunzip-maybe': ^1.4.0
       '@types/npm-packlist': ^1.1.2
       '@types/proxyquire': ^1.3.28
       '@types/ramda': 0.27.39
@@ -2081,7 +2080,6 @@ importers:
       enquirer: ^2.3.6
       execa: ^5.0.0
       fast-glob: ^3.2.4
-      gunzip-maybe: ^1.4.2
       is-ci: ^3.0.0
       is-windows: ^1.0.2
       load-json-file: ^6.2.0
@@ -2110,7 +2108,6 @@ importers:
       '@zkochan/rimraf': 2.1.1
       enquirer: 2.3.6
       fast-glob: 3.2.7
-      gunzip-maybe: 1.4.2
       npm-packlist: 2.2.2
       p-filter: 2.1.0
       ramda: 0.27.1
@@ -2124,7 +2121,6 @@ importers:
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/cross-spawn': 6.0.2
-      '@types/gunzip-maybe': 1.4.0
       '@types/npm-packlist': 1.1.2
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.39
@@ -4742,12 +4738,6 @@ packages:
     resolution: {integrity: sha512-anKkLmZZ+xm4p8JWBf4hElkM4XR+EZeA2M9BAkkTldmcyDY4mbdIJnRghDJH3Ov5ooY7/UAoENtmdMSkaAd7Cw==}
     dependencies:
       '@types/node': 14.17.5
-    dev: true
-
-  /@types/gunzip-maybe/1.4.0:
-    resolution: {integrity: sha512-dFP9GrYAR9KhsjTkWJ8q8Gsfql75YIKcg9DuQOj/IrlPzR7W+1zX+cclw1McV82UXAQ+Lpufvgk3e9bC8+HzgA==}
-    dependencies:
-      '@types/node': 16.4.1
     dev: true
 
   /@types/hosted-git-info/3.0.2:
