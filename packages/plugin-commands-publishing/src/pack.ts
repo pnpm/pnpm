@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
+import { createGzip } from 'zlib'
 import { types as allTypes, UniversalOptions, Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import exportableManifest from '@pnpm/exportable-manifest'
 import fg from 'fast-glob'
-import gunzip from 'gunzip-maybe'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
@@ -93,7 +93,7 @@ async function packPkg (destFile: string, filesMap: Record<string, string>, proj
     pack.entry({ name }, fs.readFileSync(source))
   }
   const tarball = fs.createWriteStream(destFile)
-  pack.pipe(gunzip()).pipe(tarball)
+  pack.pipe(createGzip()).pipe(tarball)
   pack.finalize()
   return new Promise((resolve, reject) => {
     tarball.on('close', () => resolve()).on('error', reject)
