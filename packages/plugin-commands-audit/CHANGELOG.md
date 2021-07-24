@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-audit
 
+## 5.1.0
+
+### Minor Changes
+
+- a5f698290: New command added: `pnpm audit --fix`. This command adds overrides to `package.json` that force versions of packages that do not have the vulnerabilities.
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.11
+
 ## 5.0.1
 
 ### Patch Changes

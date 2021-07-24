@@ -1,5 +1,11 @@
 # supi
 
+## 0.47.5
+
+### Patch Changes
+
+- 040124530: When adding a new dependency to a workspace, and the dependency is already present in the workspace (in another project), use the already present spec.
+
 ## 0.47.4
 
 ### Patch Changes

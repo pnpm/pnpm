@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.1.6
+
+### Patch Changes
+
+- 67c6a67f9: Do not collapse warnings when reporting is append-only.
+
 ## 8.1.5
 
 ### Patch Changes

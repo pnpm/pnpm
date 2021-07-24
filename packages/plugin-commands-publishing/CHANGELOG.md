@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.1.0
+
+### Minor Changes
+
+- f63c034c6: `pnpm pack` uses its own inhouse implementation. `pnpm pack` is not using `npm pack`.
+- f63c034c6: Run prepublish and prepublishOnly before packing a package.
+
+### Patch Changes
+
+- f63c034c6: Do not modify the package.json file before packing the package. Do not copy LICENSE files from the root of the workspace (the files are still packed).
+  - @pnpm/cli-utils@0.6.11
+
 ## 4.0.1
 
 ### Patch Changes

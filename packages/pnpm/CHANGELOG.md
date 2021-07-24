@@ -1,5 +1,17 @@
 # pnpm
 
+## 6.11.0-0
+
+### Minor Changes
+
+- New command added: `pnpm audit --fix`. This command adds overrides to `package.json` that force versions of packages that do not have the vulnerabilities [#3598](https://github.com/pnpm/pnpm/pull/3598).
+- Own implementation of `pnpm pack` is added. It is not passed through to `npm pack` anymore [#3608](https://github.com/pnpm/pnpm/pull/3608).
+- When `pnpm add pkg` is executed in a workspace and `pkg` is already in the dependencies of one of the workspace projects, pnpm uses that already present version range to add the new dependency [#3614](https://github.com/pnpm/pnpm/pull/3614).
+
+### Patch Changes
+
+- Don't collapse warnings when `--reporter append-only` is used.
+
 ## 6.10.3
 
 ### Patch Changes
