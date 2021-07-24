@@ -1311,6 +1311,6 @@ test('install the dependency that is already present in the workspace when addin
   expect(currentLockfile.importers['project-1'].specifiers?.['dep-of-pkg-with-1-dep']).toBe('^100.0.0')
   expect(currentLockfile.importers['project-2'].specifiers?.['dep-of-pkg-with-1-dep']).toBe('^100.0.0')
 
-  expect(currentLockfile.importers['project-1'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.1.0')
-  expect(currentLockfile.importers['project-2'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(currentLockfile.importers['project-1'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.0.0')
+  expect(currentLockfile.importers['project-2'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.0.0')
 })

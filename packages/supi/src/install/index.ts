@@ -469,7 +469,6 @@ export async function mutateModules (
       neverBuiltDependencies,
       overrides,
       pruneVirtualStore,
-      update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
     })
 
