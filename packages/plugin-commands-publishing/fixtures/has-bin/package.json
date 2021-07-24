@@ -1,0 +1,5 @@
+{
+  "name": "has-bin",
+  "version": "0.0.0",
+  "bin": "exec"
+}

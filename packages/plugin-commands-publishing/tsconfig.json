@@ -34,6 +34,9 @@
       "path": "../lifecycle"
     },
     {
+      "path": "../package-bins"
+    },
+    {
       "path": "../pick-registry-for-package"
     },
     {
