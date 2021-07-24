@@ -101,7 +101,7 @@ test('pack: runs prepack, prepare, and postpack', async () => {
 
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
-test('the mode of executable is changed', async () => {
+;(process.platform === 'win32' ? test.skip : test)('the mode of executable is changed', async () => {
   tempDir()
 
   await pack.handler({
