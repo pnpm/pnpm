@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.11.0-0
+## 6.11.0
 
 ### Minor Changes
 

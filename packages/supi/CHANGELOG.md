@@ -1,5 +1,11 @@
 # supi
 
+## 0.47.6
+
+### Patch Changes
+
+- 3c044519e: When adding new dependency to a workspace, prefer versions that are already installed in the workspace.
+
 ## 0.47.5
 
 ### Patch Changes

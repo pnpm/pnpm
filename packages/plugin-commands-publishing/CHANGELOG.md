@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.1.1
+
+### Patch Changes
+
+- efca3896c: Use the correct compression algorithm to pack.
+
 ## 4.1.0
 
 ### Minor Changes
