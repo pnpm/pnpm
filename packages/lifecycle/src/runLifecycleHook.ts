@@ -1,4 +1,5 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
+import { globalWarn } from '@pnpm/logger'
 import { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import lifecycle from '@zkochan/npm-lifecycle'
 
@@ -70,7 +71,7 @@ export default async function runLifecycleHook (
       showProgress: noop,
       silly: npmLog,
       verbose: npmLog,
-      warn: noop,
+      warn: (...msg: string[]) => globalWarn(msg.join(' ')),
     },
     runConcurrently: true,
     scriptShell: opts.scriptShell,
