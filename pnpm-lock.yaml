@@ -933,7 +933,7 @@ importers:
       '@pnpm/read-package-json': workspace:5.0.3
       '@pnpm/types': workspace:7.3.0
       '@types/rimraf': ^3.0.0
-      '@zkochan/npm-lifecycle': ^5.0.1
+      '@zkochan/npm-lifecycle': ^5.1.0
       json-append: 1.1.1
       load-json-file: ^6.2.0
       path-exists: ^4.0.0
@@ -942,7 +942,7 @@ importers:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/types': link:../types
-      '@zkochan/npm-lifecycle': 5.0.1
+      '@zkochan/npm-lifecycle': 5.1.0
       path-exists: 4.0.0
       run-groups: 3.0.1
     devDependencies:
@@ -5258,8 +5258,8 @@ packages:
     dependencies:
       config-chain: 1.1.13
 
-  /@zkochan/npm-lifecycle/5.0.1:
-    resolution: {integrity: sha512-xVTHhdESQJmrvm9GWRr2FavRFxNGI7quU8Bz90DyIB1pDXCIHDZAqT7Qq0ECaOjCpVcU6po1vwFWQVWpHrLqcA==}
+  /@zkochan/npm-lifecycle/5.1.0:
+    resolution: {integrity: sha512-p5HoYfZQGWLvtv6yL6/FpQJdxtWX/1t/UitVMEHxXWSQvTrjpTruY2P3HJ2a39uvxoy3mYFv7ojZgLfb+PFUUw==}
     engines: {node: '>=12.17'}
     dependencies:
       '@yarnpkg/shell': 2.4.1
