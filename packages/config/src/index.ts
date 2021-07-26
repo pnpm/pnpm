@@ -25,6 +25,8 @@ export { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
 
+const PNPM_GLOBAL = 'pnpm-global'
+
 async function which (cmd: string) {
   return new Promise<string>((resolve, reject) => {
     whichcb(cmd, (err, resolvedPath) => (err != null) ? reject(err) : resolve(resolvedPath!))
@@ -254,22 +256,29 @@ export default async (
     : pnpmConfig['sharedWorkspaceLockfile']
 
   if (cliOptions['global']) {
-    const npmGlobalPrefix: string = findBestGlobalPrefix(npmConfig.globalPrefix, process.env)
+    const knownGlobalBinDirCandidates: string[] = []
+    let npmGlobalPrefix: string = findBestGlobalPrefix(npmConfig.globalPrefix, process.env)
+    const globalDirName = `${path.sep}${PNPM_GLOBAL}${path.sep}`
+    if (npmGlobalPrefix.includes(globalDirName)) {
+      npmGlobalPrefix = npmGlobalPrefix.substring(0, npmGlobalPrefix.indexOf(globalDirName))
+    } else {
+      const npmGlobalBinDir = process.platform === 'win32'
+        ? npmGlobalPrefix
+        : path.resolve(npmGlobalPrefix, 'bin')
+      knownGlobalBinDirCandidates.push(npmGlobalBinDir)
+    }
     const globalDirRoot = pnpmConfig['globalDir']
       ? pnpmConfig['globalDir']
-      : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), 'pnpm-global')
+      : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
-    const npmGlobalBinDir = process.platform === 'win32'
-      ? npmGlobalPrefix
-      : path.resolve(npmGlobalPrefix, 'bin')
     pnpmConfig.bin = cliOptions.dir
       ? (
         process.platform === 'win32'
           ? cliOptions.dir
           : path.resolve(cliOptions.dir, 'bin')
       )
-      : globalBinDir([npmGlobalBinDir], { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+      : globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
     pnpmConfig.save = true
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
