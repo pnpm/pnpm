@@ -1,6 +1,7 @@
 import { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { env } from '@pnpm/plugin-commands-env'
 import { importCommand } from '@pnpm/plugin-commands-import'
 import { add, fetch, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
@@ -61,6 +62,7 @@ const commands: Array<{
   add,
   audit,
   bin,
+  env,
   exec,
   fetch,
   importCommand,

@@ -13,7 +13,13 @@
       "path": "../../privatePackages/prepare"
     },
     {
+      "path": "../cli-utils"
+    },
+    {
       "path": "../config"
+    },
+    {
+      "path": "../error"
     },
     {
       "path": "../fetch"

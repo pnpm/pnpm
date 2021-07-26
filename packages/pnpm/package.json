@@ -43,7 +43,7 @@
     "@pnpm/plugin-commands-import": "workspace:3.0.8",
     "@pnpm/plugin-commands-installation": "workspace:6.0.8",
     "@pnpm/plugin-commands-listing": "workspace:4.0.4",
-    "@pnpm/plugin-commands-nvm": "workspace:0.2.8",
+    "@pnpm/plugin-commands-env": "workspace:0.2.8",
     "@pnpm/plugin-commands-outdated": "workspace:5.0.4",
     "@pnpm/plugin-commands-publishing": "workspace:4.2.0",
     "@pnpm/plugin-commands-rebuild": "workspace:5.0.4",

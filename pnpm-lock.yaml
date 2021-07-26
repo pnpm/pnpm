@@ -1758,6 +1758,49 @@ importers:
       strip-ansi: 6.0.0
       tempy: 1.0.1
 
+  packages/plugin-commands-env:
+    specifiers:
+      '@pnpm/cli-utils': workspace:0.6.13
+      '@pnpm/config': workspace:12.4.3
+      '@pnpm/error': workspace:2.0.0
+      '@pnpm/fetch': workspace:4.0.2
+      '@pnpm/package-store': workspace:12.0.12
+      '@pnpm/plugin-commands-env': 'link:'
+      '@pnpm/prepare': workspace:0.0.26
+      '@pnpm/store-path': ^5.0.0
+      '@pnpm/tarball-fetcher': workspace:9.3.4
+      '@types/adm-zip': ^0.4.34
+      '@zkochan/cmd-shim': ^5.1.3
+      adm-zip: ^0.5.5
+      execa: ^5.0.0
+      load-json-file: ^6.2.0
+      path-name: ^1.0.0
+      rename-overwrite: ^4.0.0
+      render-help: ^1.0.1
+      tempy: ^1.0.0
+      write-json-file: ^4.3.0
+    dependencies:
+      '@pnpm/cli-utils': link:../cli-utils
+      '@pnpm/config': link:../config
+      '@pnpm/error': link:../error
+      '@pnpm/fetch': link:../fetch
+      '@pnpm/package-store': link:../package-store
+      '@pnpm/store-path': 5.0.0
+      '@pnpm/tarball-fetcher': link:../tarball-fetcher
+      '@zkochan/cmd-shim': 5.1.3
+      adm-zip: 0.5.5
+      load-json-file: 6.2.0
+      rename-overwrite: 4.0.0
+      render-help: 1.0.2
+      tempy: 1.0.1
+      write-json-file: 4.3.0
+    devDependencies:
+      '@pnpm/plugin-commands-env': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
+      '@types/adm-zip': 0.4.34
+      execa: 5.1.1
+      path-name: 1.0.0
+
   packages/plugin-commands-import:
     specifiers:
       '@pnpm/assert-project': workspace:*
@@ -1956,37 +1999,6 @@ importers:
       execa: 5.1.1
       strip-ansi: 6.0.0
       write-yaml-file: 4.2.0
-
-  packages/plugin-commands-nvm:
-    specifiers:
-      '@pnpm/config': workspace:12.4.3
-      '@pnpm/fetch': workspace:4.0.2
-      '@pnpm/package-store': workspace:12.0.12
-      '@pnpm/plugin-commands-nvm': 'link:'
-      '@pnpm/prepare': workspace:0.0.26
-      '@pnpm/store-path': ^5.0.0
-      '@pnpm/tarball-fetcher': workspace:9.3.4
-      '@types/adm-zip': ^0.4.34
-      adm-zip: ^0.5.5
-      load-json-file: ^6.2.0
-      rename-overwrite: ^4.0.0
-      tempy: ^1.0.0
-      write-json-file: ^4.3.0
-    dependencies:
-      '@pnpm/config': link:../config
-      '@pnpm/fetch': link:../fetch
-      '@pnpm/package-store': link:../package-store
-      '@pnpm/store-path': 5.0.0
-      '@pnpm/tarball-fetcher': link:../tarball-fetcher
-      adm-zip: 0.5.5
-      load-json-file: 6.2.0
-      rename-overwrite: 4.0.0
-      tempy: 1.0.1
-      write-json-file: 4.3.0
-    devDependencies:
-      '@pnpm/plugin-commands-nvm': 'link:'
-      '@pnpm/prepare': link:../../privatePackages/prepare
-      '@types/adm-zip': 0.4.34
 
   packages/plugin-commands-outdated:
     specifiers:
@@ -2440,10 +2452,10 @@ importers:
       '@pnpm/parse-cli-args': workspace:4.3.0
       '@pnpm/pick-registry-for-package': workspace:2.0.4
       '@pnpm/plugin-commands-audit': workspace:5.1.2
+      '@pnpm/plugin-commands-env': workspace:0.2.8
       '@pnpm/plugin-commands-import': workspace:3.0.8
       '@pnpm/plugin-commands-installation': workspace:6.0.8
       '@pnpm/plugin-commands-listing': workspace:4.0.4
-      '@pnpm/plugin-commands-nvm': workspace:0.2.8
       '@pnpm/plugin-commands-outdated': workspace:5.0.4
       '@pnpm/plugin-commands-publishing': workspace:4.2.0
       '@pnpm/plugin-commands-rebuild': workspace:5.0.4
@@ -2533,10 +2545,10 @@ importers:
       '@pnpm/parse-cli-args': link:../parse-cli-args
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
       '@pnpm/plugin-commands-audit': link:../plugin-commands-audit
+      '@pnpm/plugin-commands-env': link:../plugin-commands-env
       '@pnpm/plugin-commands-import': link:../plugin-commands-import
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-listing': link:../plugin-commands-listing
-      '@pnpm/plugin-commands-nvm': link:../plugin-commands-nvm
       '@pnpm/plugin-commands-outdated': link:../plugin-commands-outdated
       '@pnpm/plugin-commands-publishing': link:../plugin-commands-publishing
       '@pnpm/plugin-commands-rebuild': link:../plugin-commands-rebuild
@@ -4665,7 +4677,7 @@ packages:
   /@types/adm-zip/0.4.34:
     resolution: {integrity: sha512-8ToYLLAYhkRfcmmljrKi22gT2pqu7hGMDtORP1emwIEGmgUTZOsaDjzWFzW5N2frcFRz/50CWt4zA1CxJ73pmQ==}
     dependencies:
-      '@types/node': 16.4.1
+      '@types/node': 16.4.2
     dev: true
 
   /@types/archy/0.0.31:

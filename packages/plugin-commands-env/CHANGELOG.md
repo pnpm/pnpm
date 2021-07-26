@@ -1,4 +1,4 @@
-# @pnpm/plugin-commands-nvm
+# @pnpm/plugin-commands-env
 
 ## 0.2.8
 

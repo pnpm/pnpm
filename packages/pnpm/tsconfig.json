@@ -73,6 +73,9 @@
       "path": "../plugin-commands-audit"
     },
     {
+      "path": "../plugin-commands-env"
+    },
+    {
       "path": "../plugin-commands-import"
     },
     {
@@ -80,9 +83,6 @@
     },
     {
       "path": "../plugin-commands-listing"
-    },
-    {
-      "path": "../plugin-commands-nvm"
     },
     {
       "path": "../plugin-commands-outdated"
