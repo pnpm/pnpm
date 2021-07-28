@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 16.0.17
+
+### Patch Changes
+
+- Updated dependencies [7af16a011]
+  - @pnpm/lifecycle@11.0.3
+  - @pnpm/build-modules@7.0.5
+  - @pnpm/lockfile-to-pnp@0.4.14
+
 ## 16.0.16
 
 ### Patch Changes

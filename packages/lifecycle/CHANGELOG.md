@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 11.0.3
+
+### Patch Changes
+
+- 7af16a011: Print a warning, when a lifecycle script is skipped.
+
 ## 11.0.2
 
 ### Patch Changes

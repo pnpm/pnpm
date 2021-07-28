@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.1.2
+
+### Patch Changes
+
+- f9152ab3c: Fix the help description of the pack command.
+- Updated dependencies [7af16a011]
+- Updated dependencies [73c1f802e]
+  - @pnpm/lifecycle@11.0.3
+  - @pnpm/config@12.4.2
+  - @pnpm/cli-utils@0.6.12
+
 ## 4.1.1
 
 ### Patch Changes

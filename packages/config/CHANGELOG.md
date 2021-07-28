@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.4.2
+
+### Patch Changes
+
+- 73c1f802e: Choose the right location for global dir.
+
 ## 12.4.1
 
 ### Patch Changes

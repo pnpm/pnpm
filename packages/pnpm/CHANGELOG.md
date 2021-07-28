@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.11.1
+
+### Patch Changes
+
+- Print a warning when a lifecycle script is skipped [#3619](https://github.com/pnpm/pnpm/pull/3619).
+
 ## 6.11.0
 
 ### Minor Changes

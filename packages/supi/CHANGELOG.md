@@ -1,5 +1,15 @@
 # supi
 
+## 0.47.7
+
+### Patch Changes
+
+- Updated dependencies [7af16a011]
+  - @pnpm/lifecycle@11.0.3
+  - @pnpm/build-modules@7.0.5
+  - @pnpm/headless@16.0.17
+  - @pnpm/lockfile-to-pnp@0.4.14
+
 ## 0.47.6
 
 ### Patch Changes
