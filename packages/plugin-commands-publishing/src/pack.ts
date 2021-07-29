@@ -65,7 +65,6 @@ export async function handler (
   }
 ) {
   const { manifest: entryManifest } = await readProjectManifest(opts.dir, opts)
-  const dir = entryManifest.publishConfig?.directory ? path.join(opts.dir, entryManifest.publishConfig.directory) : opts.dir
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
@@ -83,6 +82,9 @@ export async function handler (
       'prepack',
     ], entryManifest)
   }
+  const dir = entryManifest.publishConfig?.directory
+    ? path.join(opts.dir, entryManifest.publishConfig.directory)
+    : opts.dir
   const manifest = (opts.dir !== dir) ? (await readProjectManifest(dir, opts)).manifest : entryManifest
   const tarballName = `${manifest.name!.replace('@', '').replace('/', '-')}-${manifest.version!}.tgz`
   const files = await packlist({ path: dir })
