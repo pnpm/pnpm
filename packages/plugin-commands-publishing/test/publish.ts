@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { existsSync, promises as fs } from 'fs'
 import path from 'path'
 import execa from 'execa'
 import isCI from 'is-ci'
@@ -297,6 +297,10 @@ test('publish: package with publishConfig.directory', async () => {
       name: 'test-publish-config-directory',
       version: '1.0.0',
 
+      scripts: {
+        prepublishOnly: 'node --eval="const fs=require(\'fs\');fs.mkdirSync(\'dist\',{recursive:true});fs.writeFileSync(\'dist/prepublishOnly\', \'\', \'utf8\')"',
+      },
+
       publishConfig: {
         directory: 'dist',
       },
@@ -311,12 +315,10 @@ test('publish: package with publishConfig.directory', async () => {
 
   await fs.writeFile(
     path.join(testPublishConfigDirectory.dir(), 'dist/package.json'),
-    `
-    {
-      "name": "publish_config_directory_dist_package",
-      "version": "1.0.0"
-    }
-  `,
+    JSON.stringify({
+      name: 'publish_config_directory_dist_package',
+      version: '1.0.0',
+    }),
     {
       encoding: 'utf-8',
     }
@@ -340,6 +342,7 @@ test('publish: package with publishConfig.directory', async () => {
       name: 'publish_config_directory_dist_package',
       version: '1.0.0',
     })
+  expect(existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
 })
 
 test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {

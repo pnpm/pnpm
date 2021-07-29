@@ -64,7 +64,7 @@ export async function handler (
     workspaceDir?: string
   }
 ) {
-  const { manifest } = await readProjectManifest(opts.dir, opts)
+  const { manifest: entryManifest } = await readProjectManifest(opts.dir, opts)
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
@@ -80,25 +80,29 @@ export async function handler (
       'prepare',
       'prepublishOnly',
       'prepack',
-    ], manifest)
+    ], entryManifest)
   }
+  const dir = entryManifest.publishConfig?.directory
+    ? path.join(opts.dir, entryManifest.publishConfig.directory)
+    : opts.dir
+  const manifest = (opts.dir !== dir) ? (await readProjectManifest(dir, opts)).manifest : entryManifest
   const tarballName = `${manifest.name!.replace('@', '').replace('/', '-')}-${manifest.version!}.tgz`
-  const files = await packlist({ path: opts.dir })
-  const filesMap: Record<string, string> = fromPairs(files.map((file) => [`package/${file}`, path.join(opts.dir, file)]))
-  if (opts.workspaceDir != null && opts.dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
+  const files = await packlist({ path: dir })
+  const filesMap: Record<string, string> = fromPairs(files.map((file) => [`package/${file}`, path.join(dir, file)]))
+  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
     const licenses = await findLicenses({ cwd: opts.workspaceDir })
     for (const license of licenses) {
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
     }
   }
   const destDir = opts.packDestination
-    ? (path.isAbsolute(opts.packDestination) ? opts.packDestination : path.join(opts.dir, opts.packDestination ?? '.'))
-    : opts.dir
-  await packPkg(path.join(destDir, tarballName), filesMap, opts.dir)
+    ? (path.isAbsolute(opts.packDestination) ? opts.packDestination : path.join(dir, opts.packDestination ?? '.'))
+    : dir
+  await packPkg(path.join(destDir, tarballName), filesMap, dir)
   if (!opts.ignoreScripts) {
-    await _runScriptsIfPresent(['postpack'], manifest)
+    await _runScriptsIfPresent(['postpack'], entryManifest)
   }
-  return tarballName
+  return path.relative(opts.dir, path.join(dir, tarballName))
 }
 
 async function packPkg (destFile: string, filesMap: Record<string, string>, projectDir: string): Promise<void> {

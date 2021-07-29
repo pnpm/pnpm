@@ -172,21 +172,20 @@ Do you want to continue?`,
     }
   }
 
-  const cwd = manifest.publishConfig?.directory ? path.join(dir, manifest.publishConfig.directory) : dir
-  const localNpmrc = path.join(cwd, '.npmrc')
+  const tarballName = await pack.handler({
+    ...opts,
+    dir,
+  })
+  const tarballDir = path.dirname(path.join(dir, tarballName))
+  const localNpmrc = path.join(tarballDir, '.npmrc')
   const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
   if (copyNpmrc && opts.workspaceDir) {
     await fs.copyFile(path.join(opts.workspaceDir, '.npmrc'), localNpmrc)
   }
-
-  const tarballName = await pack.handler({
-    ...opts,
-    dir: cwd,
+  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
+    cwd: tarballDir,
   })
-  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', tarballName, ...args], {
-    cwd,
-  })
-  await rimraf(path.join(cwd, tarballName))
+  await rimraf(path.join(dir, tarballName))
   if (copyNpmrc) {
     await rimraf(localNpmrc)
   }
