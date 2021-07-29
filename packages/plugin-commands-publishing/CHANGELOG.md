@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.1.3
+
+### Patch Changes
+
+- 47ed7b163: Scripts should be executed upon the original package.json, when publishConfig.directory is set.
+
 ## 4.1.2
 
 ### Patch Changes

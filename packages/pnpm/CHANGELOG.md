@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.11.2
+
+### Patch Changes
+
+- Fix a regression introduced in v6.11.0 [#3627](https://github.com/pnpm/pnpm/pull/3627).
+
 ## 6.11.1
 
 ### Patch Changes
