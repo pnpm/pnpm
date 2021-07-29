@@ -172,7 +172,10 @@ Do you want to continue?`,
     }
   }
 
-  const tarballName = await pack.handler(opts)
+  const tarballName = await pack.handler({
+    ...opts,
+    dir,
+  })
   const tarballDir = path.dirname(path.join(dir, tarballName))
   const localNpmrc = path.join(tarballDir, '.npmrc')
   const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
@@ -182,7 +185,7 @@ Do you want to continue?`,
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: tarballDir,
   })
-  await rimraf(path.join(opts.dir, tarballName))
+  await rimraf(path.join(dir, tarballName))
   if (copyNpmrc) {
     await rimraf(localNpmrc)
   }
