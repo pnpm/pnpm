@@ -67,11 +67,11 @@ export async function handler (
   const { manifest: entryManifest } = await readProjectManifest(opts.dir, opts)
   const dir = entryManifest.publishConfig?.directory ? path.join(opts.dir, entryManifest.publishConfig.directory) : opts.dir
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
-    depPath: dir,
+    depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
-    pkgRoot: dir,
+    pkgRoot: opts.dir,
     rawConfig: opts.rawConfig,
-    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    rootModulesDir: await realpathMissing(path.join(opts.dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   })

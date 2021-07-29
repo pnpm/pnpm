@@ -298,7 +298,7 @@ test('publish: package with publishConfig.directory', async () => {
       version: '1.0.0',
 
       scripts: {
-        prepublishOnly: 'node --eval="const fs=require(\'fs\');fs.mkdirSync(\'dist\');fs.writeFileSync(\'dist/prepublishOnly\', \'\', \'utf8\')"',
+        prepublishOnly: 'node --eval="const fs=require(\'fs\');fs.mkdirSync(\'dist\',{recursive:true});fs.writeFileSync(\'dist/prepublishOnly\', \'\', \'utf8\')"',
       },
 
       publishConfig: {
