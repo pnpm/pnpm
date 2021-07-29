@@ -48,6 +48,7 @@ export interface PeerDependenciesMeta {
 
 export interface PublishConfig extends Record<string, unknown> {
   directory?: string
+  executableFiles?: string[]
 }
 
 interface BaseManifest {

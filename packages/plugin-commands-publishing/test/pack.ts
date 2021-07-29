@@ -119,6 +119,10 @@ const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
     expect(modeIsExecutable(stat.mode)).toBeTruthy()
   }
   {
+    const stat = fs.statSync(path.resolve('package/other-exec'))
+    expect(modeIsExecutable(stat.mode)).toBeTruthy()
+  }
+  {
     const stat = fs.statSync(path.resolve('package/index.js'))
     expect(modeIsExecutable(stat.mode)).toBeFalsy()
   }
