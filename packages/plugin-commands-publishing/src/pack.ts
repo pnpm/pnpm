@@ -107,11 +107,15 @@ export async function handler (
 
 async function packPkg (destFile: string, filesMap: Record<string, string>, projectDir: string): Promise<void> {
   const { manifest } = await readProjectManifest(projectDir, {})
-  const bins = await binify(manifest as DependencyManifest, projectDir)
+  const bins = [
+    ...(await binify(manifest as DependencyManifest, projectDir)).map(({ path }) => path),
+    ...(manifest.publishConfig?.executableFiles ?? [])
+      .map((executableFile) => path.join(projectDir, executableFile)),
+  ]
   const mtime = new Date('1985-10-26T08:15:00.000Z')
   const pack = tar.pack()
   for (const [name, source] of Object.entries(filesMap)) {
-    const isExecutable = bins.some((bin) => path.relative(bin.path, source) === '')
+    const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
     const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
       const publishManifest = await exportableManifest(projectDir, manifest)
