@@ -1,8 +1,10 @@
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
+import fetch from '@pnpm/fetch'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
+import semver from 'semver'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
 
 export function rcOptionsTypes () {
@@ -49,18 +51,35 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     if (!opts.global) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
+    const nodeVersion = await resolveNodeVersion(params[1])
+    if (!nodeVersion) {
+      throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js of version ${params[1]}`)
+    }
     const nodeDir = await getNodeDir({
       ...opts,
-      useNodeVersion: params[1],
+      useNodeVersion: nodeVersion,
     })
     const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'node')
     const dest = path.join(opts.bin, 'node')
     await cmdShim(src, dest)
-    return `Node.js ${params[1]} is activated
+    return `Node.js ${nodeVersion} is activated
   ${dest} -> ${src}`
   }
   default: {
     throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
   }
   }
+}
+
+interface NodeVersion {
+  version: string
+  lts: false | string
+}
+
+async function resolveNodeVersion (range: string) {
+  const response = await fetch('https://nodejs.org/download/release/index.json')
+  const versions = (await response.json()) as NodeVersion[]
+  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), range)
+  if (!pickedVersion) return pickedVersion
+  return pickedVersion.substring(1)
 }
