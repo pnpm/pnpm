@@ -39,6 +39,9 @@ export function help () {
     url: docsUrl('env'),
     usages: [
       'pnpm env use --global <version>',
+      'pnpm env use --global 16',
+      'pnpm env use --global lts',
+      'pnpm env use --global argon',
     ],
   })
 }
@@ -77,20 +80,29 @@ interface NodeVersion {
   lts: false | string
 }
 
-async function resolveNodeVersion (versionSelector: string) {
+async function resolveNodeVersion (rawVersionSelector: string) {
   const response = await fetch('https://nodejs.org/download/release/index.json')
-  let versions = (await response.json()) as NodeVersion[]
+  const allVersions = (await response.json()) as NodeVersion[]
+  const { versions, versionSelector } = filterVersions(allVersions, rawVersionSelector)
+  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector)
+  if (!pickedVersion) return null
+  return pickedVersion.substring(1)
+}
+
+function filterVersions (versions: NodeVersion[], versionSelector: string) {
   if (versionSelector === 'lts') {
-    versions = versions.filter(({ lts }) => lts !== false)
-    versionSelector = '*'
-  } else {
-    const vst = versionSelectorType(versionSelector)
-    if (vst?.type === 'tag') {
-      versions = versions.filter(({ lts }) => typeof lts === 'string' && lts.toLowerCase() === vst.normalized.toLowerCase())
-      versionSelector = '*'
+    return {
+      versions: versions.filter(({ lts }) => lts !== false),
+      versionSelector: '*',
     }
   }
-  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector)
-  if (!pickedVersion) return pickedVersion
-  return pickedVersion.substring(1)
+  const vst = versionSelectorType(versionSelector)
+  if (vst?.type === 'tag') {
+    const wantedLtsVersion = vst.normalized.toLowerCase()
+    return {
+      versions: versions.filter(({ lts }) => typeof lts === 'string' && lts.toLowerCase() === wantedLtsVersion),
+      versionSelector: '*',
+    }
+  }
+  return { versions, versionSelector }
 }
