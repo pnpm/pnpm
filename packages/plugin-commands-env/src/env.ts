@@ -5,6 +5,7 @@ import fetch from '@pnpm/fetch'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
 import semver from 'semver'
+import versionSelectorType from 'version-selector-type'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
 
 export function rcOptionsTypes () {
@@ -76,10 +77,20 @@ interface NodeVersion {
   lts: false | string
 }
 
-async function resolveNodeVersion (range: string) {
+async function resolveNodeVersion (versionSelector: string) {
   const response = await fetch('https://nodejs.org/download/release/index.json')
-  const versions = (await response.json()) as NodeVersion[]
-  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), range)
+  let versions = (await response.json()) as NodeVersion[]
+  if (versionSelector === 'lts') {
+    versions = versions.filter(({ lts }) => lts !== false)
+    versionSelector = '*'
+  } else {
+    const vst = versionSelectorType(versionSelector)
+    if (vst?.type === 'tag') {
+      versions = versions.filter(({ lts }) => typeof lts === 'string' && lts.toLowerCase() === vst.normalized.toLowerCase())
+      versionSelector = '*'
+    }
+  }
+  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector)
   if (!pickedVersion) return pickedVersion
   return pickedVersion.substring(1)
 }
