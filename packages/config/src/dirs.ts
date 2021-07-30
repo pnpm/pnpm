@@ -39,3 +39,21 @@ export function getStateDir (
   }
   return path.join(os.homedir(), '.pnpm-state')
 }
+
+export function getDataDir (
+  opts: {
+    env: NodeJS.ProcessEnv
+    platform: string
+  }
+) {
+  if (opts.env.XDG_DATA_HOME) {
+    return path.join(opts.env.XDG_DATA_HOME, 'pnpm')
+  }
+  if (opts.platform !== 'win32' && opts.platform !== 'darwin') {
+    return path.join(os.homedir(), '.local/share/pnpm')
+  }
+  if (opts.env.LOCALAPPDATA) {
+    return path.join(opts.env.LOCALAPPDATA, 'pnpm')
+  }
+  return path.join(os.homedir(), '.pnpm')
+}
