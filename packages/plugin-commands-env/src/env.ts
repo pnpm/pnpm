@@ -53,7 +53,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     }
     const nodeVersion = await resolveNodeVersion(params[1])
     if (!nodeVersion) {
-      throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js of version ${params[1]}`)
+      throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[1]}`)
     }
     const nodeDir = await getNodeDir({
       ...opts,
