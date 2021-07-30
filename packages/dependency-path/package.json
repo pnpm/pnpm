@@ -1,6 +1,6 @@
 {
   "name": "dependency-path",
-  "version": "8.0.3",
+  "version": "8.0.4",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependency-path#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:7.3.0",
+    "@pnpm/types": "workspace:7.4.0",
     "encode-registry": "^3.0.0",
     "normalize-path": "^3.0.0",
     "semver": "^7.3.4"

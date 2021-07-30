@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.4.0
+
+### Minor Changes
+
+- b734b45ea: Add `publishConfig.executableFiles`.
+
 ## 7.3.0
 
 ### Minor Changes

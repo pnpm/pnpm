@@ -1,5 +1,33 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.2.0
+
+### Minor Changes
+
+- b734b45ea: By default, for portability reasons, no files except those listed in the bin field will be marked as executable in the resulting package archive. The executableFiles field lets you declare additional fields that must have the executable flag (+x) set even if they aren't directly accessible through the bin field.
+
+  ```json
+  "publishConfig": {
+    "executableFiles": [
+      "./dist/shim.js",
+    ]
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [b734b45ea]
+  - @pnpm/types@7.4.0
+  - @pnpm/cli-utils@0.6.13
+  - @pnpm/config@12.4.3
+  - @pnpm/exportable-manifest@2.1.6
+  - @pnpm/lifecycle@11.0.4
+  - @pnpm/package-bins@5.0.4
+  - @pnpm/pick-registry-for-package@2.0.4
+  - @pnpm/resolver-base@8.0.4
+  - @pnpm/sort-packages@2.1.1
+  - @pnpm/client@5.0.1
+
 ## 4.1.3
 
 ### Patch Changes

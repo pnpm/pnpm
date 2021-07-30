@@ -1,5 +1,22 @@
 # pnpm
 
+## 6.11.5
+
+### Minor Changes
+
+- New `package.json` setting added: `publishConfig.executableFiles`. By default, for portability reasons, no files except those listed in the bin field will be marked as executable in the resulting package archive. The `executableFiles` field lets you declare additional fields that must have the executable flag (+x) set even if they aren't directly accessible through the bin field.
+
+  ```json
+  {
+    ...
+    "publishConfig": {
+      "executableFiles": [
+        "./dist/shim.js",
+      ]
+    }
+  }
+  ```
+
 ## 6.11.2
 
 ### Patch Changes

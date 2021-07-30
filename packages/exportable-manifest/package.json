@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exportable-manifest",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Creates an exportable manifest",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,8 +32,8 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/read-project-manifest": "workspace:2.0.4",
-    "@pnpm/types": "workspace:7.3.0",
+    "@pnpm/read-project-manifest": "workspace:2.0.5",
+    "@pnpm/types": "workspace:7.4.0",
     "ramda": "^0.27.1"
   },
   "funding": "https://opencollective.com/pnpm"

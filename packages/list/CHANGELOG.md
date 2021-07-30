@@ -1,5 +1,15 @@
 # @pnpm/list
 
+## 6.2.6
+
+### Patch Changes
+
+- Updated dependencies [b734b45ea]
+  - @pnpm/types@7.4.0
+  - dependencies-hierarchy@10.0.10
+  - @pnpm/read-package-json@5.0.4
+  - @pnpm/read-project-manifest@2.0.5
+
 ## 6.2.5
 
 ### Patch Changes

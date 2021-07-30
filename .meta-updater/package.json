@@ -1,14 +1,14 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "type": "module",
   "scripts": {
     "compile": "tsc --build"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:4.1.0",
-    "@pnpm/types": "workspace:7.3.0",
+    "@pnpm/lockfile-file": "workspace:4.1.1",
+    "@pnpm/types": "workspace:7.4.0",
     "@types/normalize-path": "^3.0.0",
     "is-subdir": "^1.1.1",
     "load-json-file": "^6.2.0",

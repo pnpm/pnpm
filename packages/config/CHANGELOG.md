@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 12.4.3
+
+### Patch Changes
+
+- Updated dependencies [b734b45ea]
+  - @pnpm/types@7.4.0
+
 ## 12.4.2
 
 ### Patch Changes

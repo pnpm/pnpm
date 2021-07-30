@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pnpmfile",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Reading a .pnpmfile.cjs",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,9 +31,9 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:6.0.3",
+    "@pnpm/core-loggers": "workspace:6.0.4",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/types": "workspace:7.3.0",
+    "@pnpm/types": "workspace:7.4.0",
     "chalk": "^4.1.0",
     "path-absolute": "^1.0.1"
   },
