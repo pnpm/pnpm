@@ -105,6 +105,8 @@ export async function handler (
   return path.relative(opts.dir, path.join(dir, tarballName))
 }
 
+const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
+
 async function packPkg (destFile: string, filesMap: Record<string, string>, projectDir: string): Promise<void> {
   const { manifest } = await readProjectManifest(projectDir, {})
   const bins = [
@@ -115,7 +117,11 @@ async function packPkg (destFile: string, filesMap: Record<string, string>, proj
   const mtime = new Date('1985-10-26T08:15:00.000Z')
   const pack = tar.pack()
   for (const [name, source] of Object.entries(filesMap)) {
-    const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
+    let isExecutable = bins.some((bin) => path.relative(bin, source) === '')
+    if (!isExecutable) {
+      const { mode: existingMode } = await fs.promises.stat(source)
+      isExecutable = modeIsExecutable(existingMode)
+    }
     const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
       const publishManifest = await exportableManifest(projectDir, manifest)
