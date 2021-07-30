@@ -1,8 +1,11 @@
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
+import fetch from '@pnpm/fetch'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
+import semver from 'semver'
+import versionSelectorType from 'version-selector-type'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
 
 export function rcOptionsTypes () {
@@ -36,6 +39,9 @@ export function help () {
     url: docsUrl('env'),
     usages: [
       'pnpm env use --global <version>',
+      'pnpm env use --global 16',
+      'pnpm env use --global lts',
+      'pnpm env use --global argon',
     ],
   })
 }
@@ -49,18 +55,54 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     if (!opts.global) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
+    const nodeVersion = await resolveNodeVersion(params[1])
+    if (!nodeVersion) {
+      throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[1]}`)
+    }
     const nodeDir = await getNodeDir({
       ...opts,
-      useNodeVersion: params[1],
+      useNodeVersion: nodeVersion,
     })
     const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'node')
     const dest = path.join(opts.bin, 'node')
     await cmdShim(src, dest)
-    return `Node.js ${params[1]} is activated
+    return `Node.js ${nodeVersion} is activated
   ${dest} -> ${src}`
   }
   default: {
     throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
   }
   }
+}
+
+interface NodeVersion {
+  version: string
+  lts: false | string
+}
+
+async function resolveNodeVersion (rawVersionSelector: string) {
+  const response = await fetch('https://nodejs.org/download/release/index.json')
+  const allVersions = (await response.json()) as NodeVersion[]
+  const { versions, versionSelector } = filterVersions(allVersions, rawVersionSelector)
+  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector)
+  if (!pickedVersion) return null
+  return pickedVersion.substring(1)
+}
+
+function filterVersions (versions: NodeVersion[], versionSelector: string) {
+  if (versionSelector === 'lts') {
+    return {
+      versions: versions.filter(({ lts }) => lts !== false),
+      versionSelector: '*',
+    }
+  }
+  const vst = versionSelectorType(versionSelector)
+  if (vst?.type === 'tag') {
+    const wantedLtsVersion = vst.normalized.toLowerCase()
+    return {
+      versions: versions.filter(({ lts }) => typeof lts === 'string' && lts.toLowerCase() === wantedLtsVersion),
+      versionSelector: '*',
+    }
+  }
+  return { versions, versionSelector }
 }

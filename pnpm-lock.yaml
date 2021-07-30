@@ -1777,7 +1777,9 @@ importers:
       path-name: ^1.0.0
       rename-overwrite: ^4.0.0
       render-help: ^1.0.1
+      semver: ^7.3.4
       tempy: ^1.0.0
+      version-selector-type: ^3.0.0
       write-json-file: ^4.3.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
@@ -1792,7 +1794,9 @@ importers:
       load-json-file: 6.2.0
       rename-overwrite: 4.0.0
       render-help: 1.0.2
+      semver: 7.3.5
       tempy: 1.0.1
+      version-selector-type: 3.0.0
       write-json-file: 4.3.0
     devDependencies:
       '@pnpm/plugin-commands-env': 'link:'
