@@ -4,5 +4,8 @@
   "private": true,
   "dependencies": {
     "pkg-rpm": "^1.0.3"
+  },
+  "scripts": {
+    "build": "shx rm -rf dist && pnpm -w compile && node main.mjs"
   }
 }
