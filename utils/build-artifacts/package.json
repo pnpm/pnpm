@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
+    "pkg-deb": "^1.1.2",
     "pkg-rpm": "^1.0.3"
   },
   "scripts": {

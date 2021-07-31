@@ -3311,8 +3311,10 @@ importers:
 
   utils/build-artifacts:
     specifiers:
+      pkg-deb: ^1.1.2
       pkg-rpm: ^1.0.3
     dependencies:
+      pkg-deb: 1.1.2
       pkg-rpm: 1.0.3
 
   utils/eslint-config:
@@ -11706,6 +11708,21 @@ packages:
     dependencies:
       node-modules-regexp: 1.0.0
     dev: true
+
+  /pkg-deb/1.1.2:
+    resolution: {integrity: sha512-PY0Xy/9b8HXcTH6O40wH77uDt0YL71dUuxoT70TgMeS5aQZW5VdgS2pHtLpZcmqSH7fBGBsJ8x+OLQ4kx2AGTw==}
+    engines: {node: '>= 10.0.0'}
+    dependencies:
+      debug: 4.3.2
+      fs-extra: 9.1.0
+      get-folder-size: 2.0.1
+      lodash.template: 4.5.0
+      parse-author: 2.0.0
+      tmp-promise: 3.0.2
+      word-wrap: 1.2.3
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
 
   /pkg-dir/2.0.0:
     resolution: {integrity: sha1-9tXREJ4Z1j7fQo4L1X4Sd3YVM0s=}
