@@ -1,5 +1,18 @@
 # supi
 
+## 0.47.9
+
+### Patch Changes
+
+- Updated dependencies [71aab049d]
+  - @pnpm/read-modules-dir@3.0.1
+  - @pnpm/link-bins@6.0.7
+  - @pnpm/modules-cleaner@11.0.10
+  - @pnpm/lockfile-to-pnp@0.4.16
+  - @pnpm/build-modules@7.0.7
+  - @pnpm/headless@16.0.19
+  - @pnpm/hoist@5.0.12
+
 ## 0.47.8
 
 ### Patch Changes

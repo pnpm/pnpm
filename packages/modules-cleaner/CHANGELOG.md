@@ -1,5 +1,12 @@
 # @pnpm/modules-cleaner
 
+## 11.0.10
+
+### Patch Changes
+
+- Updated dependencies [71aab049d]
+  - @pnpm/read-modules-dir@3.0.1
+
 ## 11.0.9
 
 ### Patch Changes

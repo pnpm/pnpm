@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 7.0.7
+
+### Patch Changes
+
+- @pnpm/link-bins@6.0.7
+
 ## 7.0.6
 
 ### Patch Changes

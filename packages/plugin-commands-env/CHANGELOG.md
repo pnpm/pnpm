@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-env
 
+## 0.2.9
+
+### Patch Changes
+
+- 27e6331c6: Allow to install a Node.js version using a semver range.
+- af8b5716e: New command added: `pnpm env use --global <version>`. This command installs the specified Node.js version globally.
+- Updated dependencies [af8b5716e]
+  - @pnpm/config@12.4.4
+  - @pnpm/cli-utils@0.6.14
+
 ## 0.2.8
 
 ### Patch Changes

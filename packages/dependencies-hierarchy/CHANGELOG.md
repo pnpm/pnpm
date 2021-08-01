@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 10.0.11
+
+### Patch Changes
+
+- Updated dependencies [71aab049d]
+  - @pnpm/read-modules-dir@3.0.1
+
 ## 10.0.10
 
 ### Patch Changes

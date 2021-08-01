@@ -1,5 +1,28 @@
 # pnpm
 
+## 6.12.0-0
+
+### Minor Changes
+
+- A new command added for installing Node.js: `pnpm env use --global <version>`.
+
+  You may install Node.js using an exact version, version range, LTS, or LTS name (e.g. `argon`).
+
+  Examples:
+
+  ```
+  pnpm env use --global 16.5.0
+  pnpm env use --global 16
+  pnpm env use --global lts
+  pnpm env use --global argon
+  ```
+
+  Related PR: [#3620](https://github.com/pnpm/pnpm/pull/3620).
+
+### Patch Changes
+
+- Avoid too many open files error [#3637](https://github.com/pnpm/pnpm/pull/3637).
+
 ## 6.11.5
 
 ### Minor Changes

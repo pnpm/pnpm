@@ -1,5 +1,11 @@
 # @pnpm/read-modules-dir
 
+## 3.0.1
+
+### Patch Changes
+
+- 71aab049d: Fix EMFILE error.
+
 ## 3.0.0
 
 ### Major Changes

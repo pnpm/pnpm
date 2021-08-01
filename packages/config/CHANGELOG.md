@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.4.4
+
+### Patch Changes
+
+- af8b5716e: pnpm should always have write access to its home directory
+
 ## 12.4.3
 
 ### Patch Changes
