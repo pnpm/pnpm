@@ -19,7 +19,8 @@
     "update-manifests": "pnpm run meta-updater && pnpm install",
     "meta-updater": "pnpm --filter=@pnpm-private/updater compile && pnpm --config.use-node-version=16.4.0 exec meta-updater",
     "lint:meta": "pnpm run meta-updater -- --test",
-    "copy-artifacts": "shx rm -rf dist && shx mkdir dist && shx cp packages/artifacts/linux-x64/pnpm dist/pnpm-linux-x64 && shx cp packages/artifacts/macos-x64/pnpm dist/pnpm-macos-x64 && shx cp packages/artifacts/win-x64/pnpm.exe dist/pnpm-win-x64.exe"
+    "copy-artifacts": "shx rm -rf dist && shx mkdir dist && shx cp packages/artifacts/linux-x64/pnpm dist/pnpm-linux-x64 && shx cp packages/artifacts/macos-x64/pnpm dist/pnpm-macos-x64 && shx cp packages/artifacts/win-x64/pnpm.exe dist/pnpm-win-x64.exe",
+    "make-release-description": "pnpm run write-release-text --filter @pnpm/get-release-text"
   },
   "devDependencies": {
     "@babel/core": "^7.14.0",
@@ -64,7 +65,8 @@
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",
       "rimraf@<3": "3",
       "table@^6.0.3": "6.0.4",
-      "trim-newlines@1": "^3.0.1"
+      "trim-newlines@1": "^3.0.1",
+      "trim@<0.0.3": ">=0.0.3"
     },
     "packageExtensions": {
       "@babel/parser": {
@@ -75,6 +77,16 @@
       "jest-circus": {
         "dependencies": {
           "slash": "3"
+        }
+      },
+      "remark-stringify": {
+        "peerDependencies": {
+          "unified": "*"
+        }
+      },
+      "remark-parse": {
+        "peerDependencies": {
+          "unified": "*"
         }
       }
     },

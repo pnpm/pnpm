@@ -1,0 +1,16 @@
+{
+  "name": "@pnpm/get-release-text",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "write-release-text": "node --loader ts-node/esm src/main.ts",
+    "lint": "eslint -c ../../eslint.json src/**/*.ts"
+  },
+  "dependencies": {
+    "mdast-util-to-string": "^1.0.6",
+    "remark-parse": "^7.0.1",
+    "remark-stringify": "^7.0.3",
+    "unified": "^8.3.2"
+  }
+}

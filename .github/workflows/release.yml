@@ -18,8 +18,12 @@ jobs:
         run: pnpm install
       - name: Build Artifacts
         run: pnpm run compile && pnpm run copy-artifacts
+      - name: Generate release description
+        run: pnpm run make-release-description
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           prerelease: contains(github.ref, '-')
           files: dist/*
+          body_path: RELEASE.md
+

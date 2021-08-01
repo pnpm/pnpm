@@ -160,3 +160,8 @@ declare module 'stream-cache' {
   const anything: any;
   export = anything;
 }
+
+declare module 'mdast-util-to-string' {
+  const anything: any;
+  export = anything;
+}

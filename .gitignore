@@ -38,3 +38,5 @@ privatePackages/store
 storage
 
 yarn.lock
+
+RELEASE.md
