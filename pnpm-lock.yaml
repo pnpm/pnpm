@@ -2676,6 +2676,9 @@ importers:
   packages/read-modules-dir:
     specifiers:
       '@pnpm/read-modules-dir': 'link:'
+      graceful-fs: ^4.2.6
+    dependencies:
+      graceful-fs: 4.2.6
     devDependencies:
       '@pnpm/read-modules-dir': 'link:'
 

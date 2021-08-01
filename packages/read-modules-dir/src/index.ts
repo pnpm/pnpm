@@ -1,5 +1,8 @@
-import { promises as fs } from 'fs'
+import gracefulFs from 'graceful-fs'
 import path from 'path'
+import util from 'util'
+
+const readdir = util.promisify(gracefulFs.readdir)
 
 export default async function readModulesDir (modulesDir: string) {
   try {
@@ -16,7 +19,7 @@ async function _readModulesDir (
 ) {
   let pkgNames: string[] = []
   const parentDir = scope ? path.join(modulesDir, scope) : modulesDir
-  for (const dir of await fs.readdir(parentDir, { withFileTypes: true })) {
+  for (const dir of await readdir(parentDir, { withFileTypes: true })) {
     if (dir.isFile() || dir.name[0] === '.') continue
 
     if (!scope && dir.name[0] === '@') {
