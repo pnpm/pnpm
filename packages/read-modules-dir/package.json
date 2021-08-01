@@ -25,5 +25,8 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "dependencies": {
+    "graceful-fs": "^4.2.6"
+  }
 }
