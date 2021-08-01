@@ -23,7 +23,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          prerelease: contains(github.ref, '-')
+          draft: true
           files: dist/*
           body_path: RELEASE.md
 
