@@ -1,0 +1,25 @@
+name: Main
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: install pnpm and npm
+        run: |
+          curl -L https://get.pnpm.io/v6.js | node - add --global pnpm@next npm@7
+      - name: pnpm install
+        run: pnpm install
+      - name: Build Artifacts
+        run: pnpm run compile && pnpm run copy-artifacts
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+

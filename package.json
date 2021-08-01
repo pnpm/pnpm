@@ -18,7 +18,8 @@
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pnpm run meta-updater && pnpm install",
     "meta-updater": "pnpm --filter=@pnpm-private/updater compile && pnpm --config.use-node-version=16.4.0 exec meta-updater",
-    "lint:meta": "pnpm run meta-updater -- --test"
+    "lint:meta": "pnpm run meta-updater -- --test",
+    "copy-artifacts": "shx rm -rf dist && shx mkdir dist && shx cp packages/artifacts/linux-x64/pnpm dist/pnpm-linux-x64 && shx cp packages/artifacts/macos-x64/pnpm dist/pnpm-macos-x64 && shx cp packages/artifacts/win-x64/pnpm.exe dist/pnpm-win-x64.exe"
   },
   "devDependencies": {
     "@babel/core": "^7.14.0",
