@@ -17,7 +17,7 @@ jobs:
       - name: pnpm install
         run: pnpm install
       - name: Build Artifacts
-        run: pnpm run compile && pnpm run copy-artifacts
+        run: pnpm run compile && pnpm run copy-artifacts && node utils/build-artifacts/main.mjs deb
       - name: Generate release description
         run: pnpm run make-release-description
       - name: Release

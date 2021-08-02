@@ -13,12 +13,13 @@ const pnpmManifest = JSON.parse(fs.readFileSync(path.join(pnpmDir, 'package.json
 const opts = {
   name: 'pnpm',
   version: pnpmManifest.version,
-  dest: path.join(__dirname, 'dist'),
+  dest: path.join(__dirname, '../../dist'),
   src: pnpmDir,
   input: path.join(artifactDir, 'pnpm'),
   arch: 'x86_64',
   logger: console.log,
 }
-await pkgRhel(opts)
-await pkgDeb(opts)
+
+if (process.argv.includes('rpm')) await pkgRhel(opts)
+if (process.argv.includes('deb')) await pkgDeb(opts)
 
