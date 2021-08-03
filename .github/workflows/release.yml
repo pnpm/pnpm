@@ -19,11 +19,14 @@ jobs:
       - name: Build Artifacts
         run: pnpm run compile && pnpm run copy-artifacts
       - name: Create deb package
-        uses: skynet-core/nfpm@v1.5
+        uses: kentik/pkg@v1.0.0-rc7
         with:
-          config: "utils/nfpm-configs/amd64.yaml"
-          packager: "deb"
-          target: "./dist/pnpm-amd64.deb"
+          name: pnpm
+          version: 1.0.0
+          package: "utils/nfpm-configs/amd64.yaml"
+          format: deb
+      - name: Move package
+        run: mv pnpm_1.0.0_amd64.deb dist/pnpm-amd64.deb
       - name: Generate release description
         run: pnpm run make-release-description
       - name: Release
