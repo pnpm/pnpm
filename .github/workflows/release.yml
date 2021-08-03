@@ -17,7 +17,13 @@ jobs:
       - name: pnpm install
         run: pnpm install
       - name: Build Artifacts
-        run: pnpm run compile && pnpm run copy-artifacts && node utils/build-artifacts/main.mjs deb
+        run: pnpm run compile && pnpm run copy-artifacts
+      - name: Create deb package
+        uses: skynet-core/nfpm@v1.5
+        with:
+          config: "utils/nfpm-configs/amd64.yaml"
+          packager: "deb"
+          target: "./dist/pnpm-amd64.deb"
       - name: Generate release description
         run: pnpm run make-release-description
       - name: Release
@@ -26,4 +32,3 @@ jobs:
           draft: true
           files: dist/*
           body_path: RELEASE.md
-

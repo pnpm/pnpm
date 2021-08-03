@@ -1,0 +1,20 @@
+# nfpm example config file
+#
+# check https://nfpm.goreleaser.com/configuration for detailed usage
+#
+name: "pnpm"
+arch: "amd64"
+platform: "linux"
+version: "v1.0.0"
+section: "default"
+priority: "extra"
+maintainer: "Zoltan Kochan <z@kochan.io>"
+description: |
+  FooBar is the great foo and bar software.
+    And this can be in multiple lines!
+vendor: "pnpm"
+homepage: "https://pnpm.io/"
+license: "MIT"
+contents:
+- src: ./packages/artifacts/linux-x64/pnpm
+  dst: /usr/local/bin/pnpm
