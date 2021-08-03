@@ -48,7 +48,7 @@
     "is-windows": "^1.0.2",
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
-    "tar": "^6.1.1",
+    "tar": "^6.1.4",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0"
   },
