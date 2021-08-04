@@ -16,7 +16,7 @@ const opts = {
   dest: path.join(__dirname, '../../dist'),
   src: pnpmDir,
   input: path.join(artifactDir, 'pnpm'),
-  arch: 'x64',
+  arch: 'amd64',
   logger: console.log,
 }
 
