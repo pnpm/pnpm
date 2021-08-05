@@ -178,6 +178,9 @@ export default async function run (inputArgv: string[]) {
       ...config.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
       ...config.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
     ]
+    if (config.useBetaCli && (cmd === 'run' || cmd === 'exec' || cmd === 'add')) {
+      filters.push({ filter: `!{${path.relative(process.cwd(), wsDir) || '.'}}`, followProdDepsOnly: false })
+    }
 
     const filterResults = await filterPackages(allProjects, filters, {
       linkWorkspacePackages: !!config.linkWorkspacePackages,
