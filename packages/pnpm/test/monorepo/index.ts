@@ -1366,3 +1366,30 @@ test('pnpm run should ignore the root project', async () => {
 
   expect(await exists('project/test')).toBeTruthy()
 })
+
+test('pnpm run should include the workspace root when --workspace-root option is used', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        scripts: {
+          test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+        },
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+      scripts: {
+        test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['--filter=project', '--workspace-root', 'test'])
+
+  expect(await exists('test')).toBeTruthy()
+  expect(await exists('project/test')).toBeTruthy()
+})
