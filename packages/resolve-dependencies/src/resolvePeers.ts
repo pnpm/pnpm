@@ -442,14 +442,14 @@ function nodeIdToFriendlyPath<T extends PartialResolvedPackage> (
   }
 ) {
   const parts = splitNodeId(nodeId).slice(0, -1)
-  const result = [
-    path.relative(lockfileDir, rootDir),
-    ...scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
-      .slice(2)
-      .map((nid) => (dependenciesTree[nid].resolvedPackage as ResolvedPackage).name),
-  ]
-    .join(' > ')
-  return result
+  const result = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
+    .slice(2)
+    .map((nid) => (dependenciesTree[nid].resolvedPackage as ResolvedPackage).name)
+  const projectPath = path.relative(lockfileDir, rootDir)
+  if (projectPath) {
+    result.unshift(projectPath)
+  }
+  return result.join(' > ')
 }
 
 interface ParentRefs {
