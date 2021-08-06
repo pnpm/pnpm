@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.12.0-1
+## 6.12.0-2
 
 ### Minor Changes
 
@@ -18,6 +18,12 @@
   ```
 
   Related PR: [#3620](https://github.com/pnpm/pnpm/pull/3620).
+
+- Exclude the root package, when running `pnpm exec|run|add`. This change is only active when `use-beta-cli` is set to `true` [#3647](https://github.com/pnpm/pnpm/pull/3647).
+
+- When `--workspace-root` is used, the workspace root package is selected even if the command is executed with filters [#3647](https://github.com/pnpm/pnpm/pull/3647).
+
+  For example: `pnpm --workspace-root --filter=foo run lint`
 
 ### Patch Changes
 
