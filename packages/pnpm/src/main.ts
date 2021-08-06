@@ -178,6 +178,12 @@ export default async function run (inputArgv: string[]) {
       ...config.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
       ...config.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
     ]
+    const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
+    if (config.workspaceRoot) {
+      filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: false })
+    } else if (config.useBetaCli && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+      filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: false })
+    }
 
     const filterResults = await filterPackages(allProjects, filters, {
       linkWorkspacePackages: !!config.linkWorkspacePackages,
