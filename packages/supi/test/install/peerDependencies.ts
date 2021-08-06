@@ -156,16 +156,17 @@ test('the right peer dependency is used in every workspace package', async () =>
 test('warning is reported when cannot resolve peer dependency for top-level dependency', async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
-  const logMatcher = sinon.match({
-    message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
-  })
-  const reportedTimes = reporter.withArgs(logMatcher).callCount
-
-  expect(reportedTimes).toBe(1)
+  expect(reporter).toBeCalledWith(
+    expect.objectContaining({
+      level: 'warn',
+      name: 'pnpm',
+      message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
+    })
+  )
 })
 
 test('strict-peer-dependencies: error is thrown when cannot resolve peer dependency for top-level dependency', async () => {

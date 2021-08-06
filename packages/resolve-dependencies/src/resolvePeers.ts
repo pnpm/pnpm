@@ -227,6 +227,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     : resolvePeers({
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
+      lockfileDir: ctx.lockfileDir,
       nodeId,
       parentPkgs,
       resolvedPackage,
@@ -369,6 +370,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
 function resolvePeers<T extends PartialResolvedPackage> (
   ctx: {
     currentDepth: number
+    lockfileDir: string
     nodeId: string
     parentPkgs: ParentRefs
     resolvedPackage: T
@@ -391,7 +393,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
       ) {
         continue
       }
-      const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
+      const friendlyPath = nodeIdToFriendlyPath(ctx)
       const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
 requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
       if (ctx.strictPeerDependencies) {
@@ -405,7 +407,7 @@ requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
-      const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
+      const friendlyPath = nodeIdToFriendlyPath(ctx)
       const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
 requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
       if (ctx.strictPeerDependencies) {
@@ -426,13 +428,28 @@ function packageFriendlyId (manifest: {name: string, version: string}) {
   return `${manifest.name}@${manifest.version}`
 }
 
-function nodeIdToFriendlyPath<T extends PartialResolvedPackage> (nodeId: string, dependenciesTree: DependenciesTree<T>) {
+function nodeIdToFriendlyPath<T extends PartialResolvedPackage> (
+  {
+    dependenciesTree,
+    lockfileDir,
+    nodeId,
+    rootDir,
+  }: {
+    dependenciesTree: DependenciesTree<T>
+    lockfileDir: string
+    nodeId: string
+    rootDir: string
+  }
+) {
   const parts = splitNodeId(nodeId).slice(0, -1)
   const result = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
     .slice(2)
     .map((nid) => (dependenciesTree[nid].resolvedPackage as ResolvedPackage).name)
-    .join(' > ')
-  return result
+  const projectPath = path.relative(lockfileDir, rootDir)
+  if (projectPath) {
+    result.unshift(projectPath)
+  }
+  return result.join(' > ')
 }
 
 interface ParentRefs {
