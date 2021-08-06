@@ -217,6 +217,7 @@ export default async (
   ]) as unknown as ConfigWithDeprecatedSettings
   const cwd = (cliOptions.dir && path.resolve(cliOptions.dir)) ?? npmConfig.localPrefix
   pnpmConfig.workspaceDir = opts.workspaceDir
+  pnpmConfig.workspaceRoot = cliOptions.workspaceRoot as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
