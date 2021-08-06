@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.12.0-next
+## 6.12.0
 
 ### Minor Changes
 

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-env",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "pnpm commands for managing Node.js",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,8 +29,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-env#readme",
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.14",
-    "@pnpm/config": "workspace:12.4.4",
+    "@pnpm/cli-utils": "workspace:0.6.15",
+    "@pnpm/config": "workspace:12.4.5",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/fetch": "workspace:4.0.2",
     "@pnpm/package-store": "workspace:12.0.12",

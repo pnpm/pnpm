@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.15
+
+### Patch Changes
+
+- 135d53827: Include the path to the project in which the peer dependency is missing.
+
 ## 20.0.14
 
 ### Patch Changes

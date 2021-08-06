@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.4.5
+
+### Patch Changes
+
+- 051296a16: workspaceRoot should only be read for CLI options.
+
 ## 12.4.4
 
 ### Patch Changes

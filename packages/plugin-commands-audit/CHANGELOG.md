@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-audit
 
+## 5.1.4
+
+### Patch Changes
+
+- 92ed1272e: If a package has no fixes, do not add it to the overrides.
+- Updated dependencies [051296a16]
+  - @pnpm/config@12.4.5
+  - @pnpm/cli-utils@0.6.15
+
 ## 5.1.3
 
 ### Patch Changes
