@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.12.0-2
+## 6.12.0-next
 
 ### Minor Changes
 
@@ -28,6 +28,8 @@
 ### Patch Changes
 
 - Avoid too many open files error [#3637](https://github.com/pnpm/pnpm/pull/3637).
+- `pnpm audit --fix` should not add overrides for packages with vulnerabilities that do not have fixes [#3649](https://github.com/pnpm/pnpm/pull/3649).
+- When a peer dependency issue happens, the warning should contain the path to the project with the issue [#3650](https://github.com/pnpm/pnpm/pull/3650).
 
 ## 6.11.5
 
