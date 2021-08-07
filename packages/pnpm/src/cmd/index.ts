@@ -9,6 +9,7 @@ import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import {
+  dlx,
   exec,
   restart,
   run,
@@ -62,6 +63,7 @@ const commands: Array<{
   add,
   audit,
   bin,
+  dlx,
   env,
   exec,
   fetch,
