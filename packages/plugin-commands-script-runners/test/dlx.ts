@@ -9,3 +9,13 @@ test('dlx', async () => {
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })
+
+test('dlx --package <pkg>', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    package: 'zkochan/for-testing-pnpm-dlx',
+  }, ['foo'])
+
+  expect(fs.existsSync('foo')).toBeTruthy()
+})

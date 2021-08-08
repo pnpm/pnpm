@@ -6,10 +6,6 @@ import execa from 'execa'
 import PATH from 'path-name'
 import renderHelp from 'render-help'
 
-export const shorthands = {
-  p: '--package',
-}
-
 export const commandNames = ['dlx']
 
 export function rcOptionsTypes () {
@@ -31,7 +27,6 @@ export function help () {
           {
             description: 'The package to install before running the command',
             name: '--package',
-            shortAlias: '-p',
           },
         ],
       },
