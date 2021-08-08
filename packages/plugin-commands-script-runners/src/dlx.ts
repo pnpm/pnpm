@@ -16,7 +16,9 @@ export function rcOptionsTypes () {
   return {}
 }
 
-export const cliOptionsTypes = () => ({})
+export const cliOptionsTypes = () => ({
+  package: String,
+})
 
 export function help () {
   return renderHelp({
@@ -39,7 +41,9 @@ export function help () {
 }
 
 export async function handler (
-  opts: {},
+  opts: {
+    package?: string
+  },
   params: string[]
 ) {
   const cache = path.join(await storePath(process.cwd(), '~/.pnpm-store'), 'tmp')
@@ -57,7 +61,8 @@ export async function handler (
     } catch (err) { }
   })
   await rimraf(bins)
-  await execa('pnpm', ['add', params[0], '--global', '--global-dir', prefix, '--dir', prefix], {
+  const pkg = opts.package ?? params[0]
+  await execa('pnpm', ['add', pkg, '--global', '--global-dir', prefix, '--dir', prefix], {
     stdio: 'inherit',
   })
   await execa(params[0], params.slice(1), {
