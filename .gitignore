@@ -40,3 +40,6 @@ storage
 yarn.lock
 
 RELEASE.md
+
+## Bootstrapping
+buildtime-bin/
