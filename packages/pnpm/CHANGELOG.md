@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.12.1
+
+##  Patch Changes
+
+- Fix a regression introduced in v6.12.0: `--workspace-root` optional should not be ignored.
+
 ## 6.12.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.4.6
+
+### Patch Changes
+
+- 3fb74c618: Don't ignore the `--workspace-root` option.
+
 ## 12.4.5
 
 ### Patch Changes
