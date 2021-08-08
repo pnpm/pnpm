@@ -61,7 +61,6 @@ export async function handler (
     stdio: 'inherit',
   })
   await execa(params[0], params.slice(1), {
-    cwd: prefix,
     env: {
       ...process.env,
       [PATH]: [
