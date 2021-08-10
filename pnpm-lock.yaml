@@ -2275,6 +2275,7 @@ importers:
       '@pnpm/prepare': workspace:0.0.26
       '@pnpm/read-project-manifest': workspace:2.0.5
       '@pnpm/sort-packages': workspace:2.1.1
+      '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.4.0
       '@types/ramda': 0.27.39
       '@zkochan/rimraf': ^2.1.1
@@ -2296,6 +2297,7 @@ importers:
       '@pnpm/lifecycle': link:../lifecycle
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/sort-packages': link:../sort-packages
+      '@pnpm/store-path': 5.0.0
       '@pnpm/types': link:../types
       p-limit: 3.1.0
       path-exists: 4.0.0

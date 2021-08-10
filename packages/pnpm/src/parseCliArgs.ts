@@ -17,7 +17,7 @@ const RENAMED_OPTIONS = {
 export default async function parseCliArgs (inputArgv: string[]) {
   return parseCliArgsLib({
     fallbackCommand: 'run',
-    escapeArgs: ['exec'],
+    escapeArgs: ['dlx', 'exec'],
     getCommandLongName: getCommandFullName,
     getTypesByCommandName: getCliOptionsTypes,
     renamedOptions: RENAMED_OPTIONS,
