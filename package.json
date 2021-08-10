@@ -51,6 +51,9 @@
     "verdaccio": "^5.1.0",
     "yarn": "^1.22.10"
   },
+  "overrides": {
+    "pkg-fetch": "3.1.1"
+  },
   "engines": {
     "pnpm": ">=6"
   },
