@@ -14,8 +14,8 @@
   "cpu": [
     "x64"
   ],
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linuxstatic-x64",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linuxstatic-x64#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   }
