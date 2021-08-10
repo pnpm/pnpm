@@ -167,11 +167,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
 && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts \
 && shx cp -r node_modules/ps-list/vendor dist/vendor \
-&& pkg ./dist/pnpm.cjs --out-path=../artifacts/win-x64 --targets=node14-win-x64 \
-&& pkg ./dist/pnpm.cjs --out-path=../artifacts/linux-x64 --targets=node14-linux-x64 \
-&& pkg ./dist/pnpm.cjs --out-path=../artifacts/linuxstatic-x64 --targets=node14-linuxstatic-x64 \
-&& pkg ./dist/pnpm.cjs --out-path=../artifacts/macos-x64 --targets=node14-macos-x64 \
-&& pkg ./dist/pnpm.cjs --out-path=../artifacts/macos-arm64 --targets=node14-macos-arm64'
+&& ts-node ./scripts/build-artifacts.ts'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
