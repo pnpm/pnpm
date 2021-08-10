@@ -105,6 +105,18 @@ importers:
     devDependencies:
       '@pnpm/linux-x64': 'link:'
 
+  packages/artifacts/linuxstatic-x64:
+    specifiers:
+      '@pnpm/linuxstatic-x64': 'link:'
+    devDependencies:
+      '@pnpm/linuxstatic-x64': 'link:'
+
+  packages/artifacts/macos-arm64:
+    specifiers:
+      '@pnpm/macos-arm64': 'link:'
+    devDependencies:
+      '@pnpm/macos-arm64': 'link:'
+
   packages/artifacts/macos-x64:
     specifiers:
       '@pnpm/macos-x64': 'link:'
@@ -2485,7 +2497,6 @@ importers:
       '@types/semver': ^7.3.4
       '@types/which': ^2.0.0
       '@zkochan/libnpx': ^13.1.5
-      '@zkochan/pkg': 0.0.0-1
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^2.1.1
       anonymous-npm-registry-client: 0.1.2
@@ -2511,6 +2522,7 @@ importers:
       p-defer: ^3.0.0
       path-exists: ^4.0.0
       path-name: ^1.0.0
+      pkg: ^5.3.1
       pkgs-graph: workspace:6.1.2
       ps-list: ^7.2.0
       ramda: ^0.27.1
@@ -2578,7 +2590,6 @@ importers:
       '@types/semver': 7.3.8
       '@types/which': 2.0.1
       '@zkochan/libnpx': 13.1.5
-      '@zkochan/pkg': 0.0.0-1
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 2.1.1
       anonymous-npm-registry-client: 0.1.2
@@ -2603,6 +2614,7 @@ importers:
       p-defer: 3.0.0
       path-exists: 4.0.0
       path-name: 1.0.0
+      pkg: 5.3.1
       pkgs-graph: link:../pkgs-graph
       ps-list: 7.2.0
       ramda: 0.27.1
@@ -5326,34 +5338,6 @@ packages:
       semver: 7.3.5
       validate-npm-package-name: 3.0.0
 
-  /@zkochan/pkg/0.0.0-1:
-    resolution: {integrity: sha512-Z3JNUGfvEIJ8H0XHOLllEQDxeB6bU2jtNy0ketV1MkJVU8Hu3TZdDWvNgCUeUJ6I8A9UH6gbSLficly3PPkaDA==}
-    hasBin: true
-    peerDependencies:
-      node-notifier: '>=9.0.1'
-    peerDependenciesMeta:
-      node-notifier:
-        optional: true
-    dependencies:
-      '@babel/parser': 7.13.13_@babel+types@7.13.12
-      '@babel/types': 7.13.12
-      chalk: 4.1.1
-      escodegen: 2.0.0
-      fs-extra: 9.1.0
-      globby: 11.0.4
-      into-stream: 6.0.0
-      minimist: 1.2.5
-      multistream: 4.1.0
-      pkg-fetch: 3.0.4
-      prebuild-install: 6.0.1
-      progress: 2.0.3
-      resolve: 1.20.0
-      stream-meter: 1.0.4
-      tslib: 2.1.0
-    transitivePeerDependencies:
-      - debug
-    dev: true
-
   /@zkochan/retry/0.2.0:
     resolution: {integrity: sha512-WhB+2B/ZPlW2Xy/kMJBrMbqecWXcbDDgn0K0wKBAgO2OlBTz1iLJrRWduo+DGGn0Akvz1Lu4Xvls7dJojximWw==}
     engines: {node: '>=10'}
@@ -6011,14 +5995,6 @@ packages:
 
   /aws4/1.11.0:
     resolution: {integrity: sha512-xh1Rl34h6Fi1DC2WWKfxUTVqRsNnr6LsKz2+hfwDxQJWmrx8+c7ylaqBMcHfl1U1r2dsifOvKX3LQuLNZ+XSvA==}
-    dev: true
-
-  /axios/0.21.1:
-    resolution: {integrity: sha512-dKQiRHxGD9PPRIUNIWvZhPTPpl1rf/OxTYKsqKUDjBwYylTvV7SjSHJb9ratfyzM6wCdLCOYLzs73qpg5c4iGA==}
-    dependencies:
-      follow-redirects: 1.14.1
-    transitivePeerDependencies:
-      - debug
     dev: true
 
   /babel-jest/27.0.6_@babel+core@7.14.8:
@@ -8256,16 +8232,6 @@ packages:
     dependencies:
       inherits: 2.0.4
       readable-stream: 2.3.7
-    dev: true
-
-  /follow-redirects/1.14.1:
-    resolution: {integrity: sha512-HWqDgT7ZEkqRzBvc2s64vSZ/hfOceEol3ac/7tKwzuvEyWx3/4UegXh5oBOIotkGsObyk3xznnSRVADBgWSQVg==}
-    engines: {node: '>=4.0'}
-    peerDependencies:
-      debug: '*'
-    peerDependenciesMeta:
-      debug:
-        optional: true
     dev: true
 
   /for-in/0.1.8:
@@ -11862,18 +11828,19 @@ packages:
     dependencies:
       find-up: 4.1.0
 
-  /pkg-fetch/3.0.4:
-    resolution: {integrity: sha512-XgMXcco5hy0/Q7OXfQ/FbBnPvS4e7gWB9BCcUWUgaHYo3JretihmJjr62EZWmxAjvodoWLGMZ3E7XHf8Q2LfBg==}
+  /pkg-fetch/3.2.2:
+    resolution: {integrity: sha512-bLhFNT4cNnONxzbHo1H2mCCKuQkCR4dgQtv0gUZnWtp8TDP0v0UAXKHG7DXhAoTC5IYP3slLsFJtIda9ksny8g==}
     hasBin: true
     dependencies:
-      axios: 0.21.1
-      chalk: 4.1.1
+      chalk: 4.1.2
       fs-extra: 9.1.0
+      https-proxy-agent: 5.0.0
+      node-fetch: 2.6.1
       progress: 2.0.3
       semver: 7.3.5
       yargs: 16.2.0
     transitivePeerDependencies:
-      - debug
+      - supports-color
     dev: true
 
   /pkg-rpm/1.0.3:
@@ -11898,6 +11865,34 @@ packages:
     dependencies:
       find-up: 2.1.0
     dev: false
+
+  /pkg/5.3.1:
+    resolution: {integrity: sha512-jT/sptM1ZG++FNk+jnJYNoWLDQXYd7hqpnBhd5j18SNW1jJzNYo55RahuCiD0KN0PX9mb53GWCqKM0ia/mJytA==}
+    hasBin: true
+    peerDependencies:
+      node-notifier: '>=9.0.1'
+    peerDependenciesMeta:
+      node-notifier:
+        optional: true
+    dependencies:
+      '@babel/parser': 7.13.13_@babel+types@7.13.12
+      '@babel/types': 7.13.12
+      chalk: 4.1.2
+      escodegen: 2.0.0
+      fs-extra: 9.1.0
+      globby: 11.0.4
+      into-stream: 6.0.0
+      minimist: 1.2.5
+      multistream: 4.1.0
+      pkg-fetch: 3.2.2
+      prebuild-install: 6.0.1
+      progress: 2.0.3
+      resolve: 1.20.0
+      stream-meter: 1.0.4
+      tslib: 2.1.0
+    transitivePeerDependencies:
+      - supports-color
+    dev: true
 
   /pkginfo/0.4.1:
     resolution: {integrity: sha1-tUGO8EOd5UJfxJlQQtztFPsqhP8=}
