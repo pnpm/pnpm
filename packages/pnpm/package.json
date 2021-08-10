@@ -92,7 +92,7 @@
     "p-defer": "^3.0.0",
     "path-exists": "^4.0.0",
     "path-name": "^1.0.0",
-    "pkg": "^5.3.1",
+    "pkg": "5.2.1",
     "pkgs-graph": "workspace:6.1.2",
     "ps-list": "^7.2.0",
     "ramda": "^0.27.1",

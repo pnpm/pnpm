@@ -158,10 +158,14 @@ importers:
     specifiers:
       '@pnpm/beta': 'link:'
       '@pnpm/linux-x64': workspace:0.0.2-6.12.1
+      '@pnpm/linuxstatic-x64': workspace:0.0.2-6.12.1
+      '@pnpm/macos-arm64': workspace:0.0.2-6.12.1
       '@pnpm/macos-x64': workspace:0.0.2-6.12.1
       '@pnpm/win-x64': workspace:0.0.2-6.12.1
     optionalDependencies:
       '@pnpm/linux-x64': link:../artifacts/linux-x64
+      '@pnpm/linuxstatic-x64': link:../artifacts/linuxstatic-x64
+      '@pnpm/macos-arm64': link:../artifacts/macos-arm64
       '@pnpm/macos-x64': link:../artifacts/macos-x64
       '@pnpm/win-x64': link:../artifacts/win-x64
     devDependencies:
@@ -2522,7 +2526,7 @@ importers:
       p-defer: ^3.0.0
       path-exists: ^4.0.0
       path-name: ^1.0.0
-      pkg: ^5.3.1
+      pkg: 5.2.1
       pkgs-graph: workspace:6.1.2
       ps-list: ^7.2.0
       ramda: ^0.27.1
@@ -2614,7 +2618,7 @@ importers:
       p-defer: 3.0.0
       path-exists: 4.0.0
       path-name: 1.0.0
-      pkg: 5.3.1
+      pkg: 5.2.1
       pkgs-graph: link:../pkgs-graph
       ps-list: 7.2.0
       ramda: 0.27.1
@@ -11828,8 +11832,8 @@ packages:
     dependencies:
       find-up: 4.1.0
 
-  /pkg-fetch/3.2.2:
-    resolution: {integrity: sha512-bLhFNT4cNnONxzbHo1H2mCCKuQkCR4dgQtv0gUZnWtp8TDP0v0UAXKHG7DXhAoTC5IYP3slLsFJtIda9ksny8g==}
+  /pkg-fetch/3.1.1:
+    resolution: {integrity: sha512-3GfpNwbwoTxge2TrVp6Oyz/FZJOoxF1r0+1YikOhnBXa2Di/VOJKtUObFHap76BFnyFo1fwh5vARWFR9TzLKUg==}
     hasBin: true
     dependencies:
       chalk: 4.1.2
@@ -11866,8 +11870,8 @@ packages:
       find-up: 2.1.0
     dev: false
 
-  /pkg/5.3.1:
-    resolution: {integrity: sha512-jT/sptM1ZG++FNk+jnJYNoWLDQXYd7hqpnBhd5j18SNW1jJzNYo55RahuCiD0KN0PX9mb53GWCqKM0ia/mJytA==}
+  /pkg/5.2.1:
+    resolution: {integrity: sha512-kQ5Fla+76rdmFJNrEOgoklxAURl3uvhvX+m4LCQCRrI+q2lOgsx9pS02NhNuDVnyXsthluAuXCh5SKcMyw+cWw==}
     hasBin: true
     peerDependencies:
       node-notifier: '>=9.0.1'
@@ -11884,7 +11888,7 @@ packages:
       into-stream: 6.0.0
       minimist: 1.2.5
       multistream: 4.1.0
-      pkg-fetch: 3.2.2
+      pkg-fetch: 3.1.1
       prebuild-install: 6.0.1
       progress: 2.0.3
       resolve: 1.20.0
