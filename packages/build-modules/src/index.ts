@@ -217,6 +217,10 @@ export async function linkBinsOfDependencies (
         }
       })
   )
+  pkgs.push({
+    location: depNode.dir,
+    manifest: await depNode.fetchingBundledManifest?.() ?? (await readPackageFromDir(depNode.dir) as DependencyManifest),
+  })
 
   await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
 
