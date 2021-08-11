@@ -20,14 +20,14 @@ devDependencies:
 
 packages:
 
-  /balanced-match/1.0.0:
-    resolution: {integrity: sha1-ibTRmasr7kneFk6gK4nORi1xt2c=}
+  /balanced-match/1.0.2:
+    resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
     dev: false
 
   /brace-expansion/1.1.11:
     resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
     dependencies:
-      balanced-match: 1.0.0
+      balanced-match: 1.0.2
       concat-map: 0.0.1
     dev: false
 
@@ -45,8 +45,8 @@ packages:
     resolution: {integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=}
     dev: false
 
-  /glob/7.1.6:
-    resolution: {integrity: sha512-LwaxwyZ72Lk7vZINtNNrywX0ZuLyStrdDtabefZKAY5ZGJhVtgdznluResxNmPitE0SAO+O26sWTHeKSI2wMBA==}
+  /glob/7.1.7:
+    resolution: {integrity: sha512-OvD9ENzPLbegENnYP5UUfJIirTg4+XwMWGaQfQTY0JenxNvvIKP3U3/tAQSPIu/lHxXYSZmpXlUHeqAIdKzBLQ==}
     dependencies:
       fs.realpath: 1.0.0
       inflight: 1.0.6
@@ -57,7 +57,7 @@ packages:
     dev: false
 
   /hello-world-js-bin/1.0.0:
-    resolution: {integrity: sha512-/ENgcDSnEOz7y99zf3U9IrvQ0WQL+Ddr5Z3nqrrBkr6jaFFu7ujJye0Ne1/4lziovy6UiXMbjVp6vv6P7etKSA==}
+    resolution: {integrity: sha512-g9DaVvwKClJZUDrsYc7DRhvwMuGLzWlKOJlrHWZz5qiT/RdE1jdT+7Fh1T5XNKW7Oa/pbyxHNz7fK1+vLXe/3w==}
     hasBin: true
     dev: false
 
@@ -100,7 +100,7 @@ packages:
     dev: false
 
   /pkg-with-peer-having-bin/1.0.0:
-    resolution: {integrity: sha512-UrbRC+vOD2Rs32vSzpZFXuzHm/ewvz9Fst9/uu13SrCOc4o6ioj+DBN+fdyG6JxD46EFSGP3bSlev3RRL2c3XQ==}
+    resolution: {integrity: sha512-nkUSkBlH/EOCd3WhpWCeDLsl5In3oXLLQ83miHtqDzg7VG9ODhMcz/vYIUhSy9b7d8csEYS/0O30zjA/evqvrA==}
     peerDependencies:
       peer-with-bin: ^1.0.0
     dependencies:
@@ -111,7 +111,7 @@ packages:
     resolution: {integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==}
     hasBin: true
     dependencies:
-      glob: 7.1.6
+      glob: 7.1.7
     dev: false
 
   /wrappy/1.0.2:

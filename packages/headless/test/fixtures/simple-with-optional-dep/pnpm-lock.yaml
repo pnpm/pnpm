@@ -12,8 +12,8 @@ optionalDependencies:
 
 packages:
 
-  /dep-of-pkg-with-1-dep/100.0.0:
-    resolution: {integrity: sha512-lKXGmfrRNYKcd0+oWS8lZb08dbTm3WRbB5Lq3O35WigqJHNSsYIQB/lLrdTyJDBil9tS8SACdXp64zJXGk72jA==}
+  /dep-of-pkg-with-1-dep/101.0.0:
+    resolution: {integrity: sha512-t0/gFM29VnZhyyDu0ay/u42e8tPi2lkJtdbBXdUujfFFeXxvSJXISpddbVRwjNkKSX6fUROMek29b9b+MqYDxA==}
     dev: false
 
   /is-positive/1.0.0:
@@ -23,9 +23,9 @@ packages:
     optional: true
 
   /pkg-with-good-optional/1.0.0:
-    resolution: {integrity: sha512-gos9k175h8q97LuQKrjZrdUiYsbWeCfG8g6jKDX4UU/D3IhpaEqbEoSlXC/W5NiojUNo/pZXikGrdnJl8miusw==}
+    resolution: {integrity: sha512-wDCpH6PTS5BCNi3ugdM0xzVYNEeKcl8o5Zm+FxQuNU4WJsTCrRrPXN9r8T4UNT+kgIZzIY5bx8rcPlAzYYWOXw==}
     dependencies:
-      dep-of-pkg-with-1-dep: 100.0.0
+      dep-of-pkg-with-1-dep: 101.0.0
     optionalDependencies:
       is-positive: 1.0.0
     dev: false
