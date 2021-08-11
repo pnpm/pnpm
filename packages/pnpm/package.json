@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "6.12.1",
+  "version": "6.13.0-0",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -47,7 +47,7 @@
     "@pnpm/plugin-commands-outdated": "workspace:5.0.7",
     "@pnpm/plugin-commands-publishing": "workspace:4.2.3",
     "@pnpm/plugin-commands-rebuild": "workspace:5.0.7",
-    "@pnpm/plugin-commands-script-runners": "workspace:4.0.8",
+    "@pnpm/plugin-commands-script-runners": "workspace:4.1.0",
     "@pnpm/plugin-commands-server": "workspace:3.0.23",
     "@pnpm/plugin-commands-setup": "workspace:^0.1.12",
     "@pnpm/plugin-commands-store": "workspace:4.0.7",

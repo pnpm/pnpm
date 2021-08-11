@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.1.0
+
+### Minor Changes
+
+- 376c30485: New command added for running packages in a tempory environment: `pnpm dlx <command> ...`
+
+### Patch Changes
+
+- bd442ecb5: fix: add "run" to NO_SCRIPT error example
+
 ## 4.0.8
 
 ### Patch Changes

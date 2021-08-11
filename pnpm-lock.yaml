@@ -158,11 +158,11 @@ importers:
   packages/beta:
     specifiers:
       '@pnpm/beta': 'link:'
-      '@pnpm/linux-x64': workspace:0.0.2-6.12.1
-      '@pnpm/linuxstatic-x64': workspace:0.0.2-6.12.1
-      '@pnpm/macos-arm64': workspace:0.0.2-6.12.1
-      '@pnpm/macos-x64': workspace:0.0.2-6.12.1
-      '@pnpm/win-x64': workspace:0.0.2-6.12.1
+      '@pnpm/linux-x64': workspace:0.0.2-6.13.0-0
+      '@pnpm/linuxstatic-x64': workspace:0.0.2-6.13.0-0
+      '@pnpm/macos-arm64': workspace:0.0.2-6.13.0-0
+      '@pnpm/macos-x64': workspace:0.0.2-6.13.0-0
+      '@pnpm/win-x64': workspace:0.0.2-6.13.0-0
     optionalDependencies:
       '@pnpm/linux-x64': link:../artifacts/linux-x64
       '@pnpm/linuxstatic-x64': link:../artifacts/linuxstatic-x64
@@ -2483,7 +2483,7 @@ importers:
       '@pnpm/plugin-commands-outdated': workspace:5.0.7
       '@pnpm/plugin-commands-publishing': workspace:4.2.3
       '@pnpm/plugin-commands-rebuild': workspace:5.0.7
-      '@pnpm/plugin-commands-script-runners': workspace:4.0.8
+      '@pnpm/plugin-commands-script-runners': workspace:4.1.0
       '@pnpm/plugin-commands-server': workspace:3.0.23
       '@pnpm/plugin-commands-setup': workspace:^0.1.12
       '@pnpm/plugin-commands-store': workspace:4.0.7

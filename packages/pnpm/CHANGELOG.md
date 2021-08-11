@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.13.0-0
+
+### Minor Changes
+
+- New command added for running packages in a tempory environment: `pnpm dlx <command> ...` [#3652](https://github.com/pnpm/pnpm/pull/3652).
+
+### Patch Changes
+
+- Add `run` to NO_SCRIPT error example [#3660](https://github.com/pnpm/pnpm/pull/3660).
+
 ## 6.12.1
 
 ### Patch Changes
