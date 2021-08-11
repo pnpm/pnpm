@@ -200,7 +200,7 @@ export async function linkBinsOfDependencies (
 
   const pkgNodes = [
     ...Object.entries(childrenToLink)
-      .map(([alias, childKey]) => ({ alias, dep: depGraph[childrenToLink[childKey]] }))
+      .map(([alias, childDepPath]) => ({ alias, dep: depGraph[childDepPath] }))
       .filter(({ alias, dep }) => {
         if (!dep) {
           // TODO: Try to reproduce this issue with a test in supi
