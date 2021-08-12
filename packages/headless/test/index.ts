@@ -563,7 +563,10 @@ test('installing with hoistPattern=*', async () => {
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: await loadJsonFile(path.join(prefix, 'package.json')),
+    updated: expect.objectContaining({
+      name: 'simple-shamefully-flatten',
+      version: '1.0.0',
+    }),
   } as PackageManifestLog))
   expect(reporter).toBeCalledWith(expect.objectContaining({
     added: 17,
@@ -592,7 +595,7 @@ test('installing with hoistPattern=*', async () => {
 
   const modules = await project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.0']).toStrictEqual({ 'balanced-match': 'private' })
+  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
 })
 
 test('installing with publicHoistPattern=*', async () => {
