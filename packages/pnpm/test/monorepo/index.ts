@@ -1393,3 +1393,32 @@ test('pnpm run should include the workspace root when --workspace-root option is
   expect(await exists('test')).toBeTruthy()
   expect(await exists('project/test')).toBeTruthy()
 })
+
+test('peer dependencies are resolved from the root of the workspace when a new dependency is added to a workspace project', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          ajv: '4.10.4',
+        },
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  process.chdir('project-2')
+
+  await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies'])
+
+  const lockfile = await projects['project-1'].readLockfile()
+  expect(lockfile.packages).toHaveProperty(['/ajv-keywords/1.5.0_ajv@4.10.4'])
+})
