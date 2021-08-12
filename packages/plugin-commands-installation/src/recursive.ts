@@ -241,7 +241,7 @@ export default async function recursive (
         } as MutatedProject)
       }
     }))
-    if (!opts.selectedProjectsGraph[opts.workspaceDir]) {
+    if (!opts.selectedProjectsGraph[opts.workspaceDir] && manifestsByPath[opts.workspaceDir] != null) {
       const localConfig = await memReadLocalConfig(opts.workspaceDir)
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest, writeProjectManifest } = manifestsByPath[opts.workspaceDir]
