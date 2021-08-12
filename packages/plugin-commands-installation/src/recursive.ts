@@ -96,7 +96,7 @@ export default async function recursive (
     return false
   }
   const manifestsByPath: { [dir: string]: Omit<Project, 'dir'> } = {}
-  for (const { dir, manifest, writeProjectManifest } of pkgs) {
+  for (const { dir, manifest, writeProjectManifest } of allProjects) {
     manifestsByPath[dir] = { manifest, writeProjectManifest }
   }
 
@@ -241,6 +241,19 @@ export default async function recursive (
         } as MutatedProject)
       }
     }))
+    if (!opts.selectedProjectsGraph[opts.workspaceDir] && manifestsByPath[opts.workspaceDir] != null) {
+      const localConfig = await memReadLocalConfig(opts.workspaceDir)
+      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
+      const { manifest, writeProjectManifest } = manifestsByPath[opts.workspaceDir]
+      writeProjectManifests.push(writeProjectManifest)
+      mutatedImporters.push({
+        buildIndex: 0,
+        manifest,
+        modulesDir,
+        mutation: 'install',
+        rootDir: opts.workspaceDir,
+      } as MutatedProject)
+    }
     if ((mutatedImporters.length === 0) && cmdFullName === 'update') {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
