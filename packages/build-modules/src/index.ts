@@ -198,10 +198,10 @@ export async function linkBinsOfDependencies (
 
   const binPath = path.join(depNode.dir, 'node_modules/.bin')
 
-  const pkgs = await Promise.all(
-    Object.keys(childrenToLink)
-      .filter((alias) => {
-        const dep = depGraph[childrenToLink[alias]]
+  const pkgNodes = [
+    ...Object.entries(childrenToLink)
+      .map(([alias, childDepPath]) => ({ alias, dep: depGraph[childDepPath] }))
+      .filter(({ alias, dep }) => {
         if (!dep) {
           // TODO: Try to reproduce this issue with a test in supi
           logger.debug({ message: `Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.` })
@@ -209,13 +209,14 @@ export async function linkBinsOfDependencies (
         }
         return dep.hasBin && dep.installable !== false
       })
-      .map(async (alias) => {
-        const dep = depGraph[childrenToLink[alias]]
-        return {
-          location: dep.dir,
-          manifest: await dep.fetchingBundledManifest?.() ?? (await readPackageFromDir(dep.dir) as DependencyManifest),
-        }
-      })
+      .map(({ dep }) => dep),
+    depNode,
+  ]
+  const pkgs = await Promise.all(pkgNodes
+    .map(async (dep) => ({
+      location: dep.dir,
+      manifest: await dep.fetchingBundledManifest?.() ?? (await readPackageFromDir(dep.dir) as DependencyManifest),
+    }))
   )
 
   await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })

@@ -9,12 +9,12 @@ dependencies:
 packages:
 
   /dep-of-optional-pkg/1.0.0:
-    resolution: {integrity: sha512-tjuG0SSHFpKfpCtJWdc5OHa1N79sigKT7QQPuweVHKljKZivDKbYj7WNasweHROUm99ui+8eX95a5Q90v2mbyQ==}
+    resolution: {integrity: sha512-fsFDBo/KrUZ9ljybu85d3mkr17LoTh3zV9TLncEddZkJ9GD9ql0ZVdftdAlsS46LdfeNKgte/2erZ8euekhWKQ==}
     dev: false
     optional: true
 
   /not-compatible-with-any-os/1.0.0:
-    resolution: {integrity: sha512-nmRtxRbdUBglmxurx7soaPoZXcGW5v5yPgVev4g462E2FaAX2mxGTjgn5oKLYV95h85ZW4HHiil3D0OjzBWnOQ==}
+    resolution: {integrity: sha512-vTrzbhOeYAAhfduz8iCEmTC+512IDxBAaDLl3C6d3S+KOIKhSInhQbaTO3di+h7NND/2YpGUG4WmgGvAhzAcrA==}
     os: [this-os-does-not-exist]
     dependencies:
       dep-of-optional-pkg: 1.0.0
@@ -22,7 +22,7 @@ packages:
     optional: true
 
   /pkg-with-optional/1.0.0:
-    resolution: {integrity: sha512-7AWJ2Klh/yO1j5Gm0I1z67Wfc7nRm5gjT/y8WMGzWi2CaByepwP00VAbs1QHJtmiccGT0UEC8Oz2So+lCjHdvA==}
+    resolution: {integrity: sha512-gGOtjrYcYG9FHYHHzaerrVwi5bRmPwrjYlm89lqr4j4HgtYNPXUN8skpzHjKvntregnF3K9dn0z2XxMQrLtydA==}
     optionalDependencies:
       not-compatible-with-any-os: 1.0.0
     dev: false

@@ -541,7 +541,7 @@ test('installation of a dependency that has a resolved peer in subdeps', async (
 
 test('installing with hoistPattern=*', async () => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await headless(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*' }))
 
@@ -560,39 +560,42 @@ test('installing with hoistPattern=*', async () => {
   expect(await project.readCurrentLockfile()).toBeTruthy()
   expect(await project.readModulesManifest()).toBeTruthy()
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: await loadJsonFile(path.join(prefix, 'package.json')),
-  } as PackageManifestLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+    updated: expect.objectContaining({
+      name: 'simple-shamefully-flatten',
+      version: '1.0.0',
+    }),
+  } as PackageManifestLog))
+  expect(reporter).toBeCalledWith(expect.objectContaining({
     added: 17,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StageLog))
+  expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
     requester: prefix,
     status: 'resolved',
-  })).toBeTruthy()
+  }))
 
   const modules = await project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.0']).toStrictEqual({ 'balanced-match': 'private' })
+  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
 })
 
 test('installing with publicHoistPattern=*', async () => {
@@ -649,7 +652,7 @@ test('installing with publicHoistPattern=*', async () => {
 
   const modules = await project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.0']).toStrictEqual({ 'balanced-match': 'public' })
+  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({ 'balanced-match': 'public' })
 })
 
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {

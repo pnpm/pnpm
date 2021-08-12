@@ -497,3 +497,13 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
     expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
   }
 })
+
+test('lifecycle scripts have access to package\'s own binary by binary name', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({},
+    ['runs-own-bin'],
+    await testDefaults({ fastUnpack: false })
+  )
+
+  await project.isExecutable('.pnpm/runs-own-bin@1.0.0/node_modules/runs-own-bin/node_modules/.bin/runs-own-bin')
+})
