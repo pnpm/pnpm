@@ -314,5 +314,6 @@ function getIntegrity (dist: {
   if (dist.integrity) {
     return dist.integrity
   }
-  return ssri.fromHex(dist.shasum, 'sha1').toString()
+  const integrity = ssri.fromHex(dist.shasum, 'sha1')
+  return integrity != null ? integrity.toString() : undefined
 }
