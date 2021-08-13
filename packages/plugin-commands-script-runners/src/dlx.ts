@@ -1,6 +1,6 @@
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
-import storePath from '@pnpm/store-path'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import PATH from 'path-name'
@@ -41,8 +41,7 @@ export async function handler (
   },
   params: string[]
 ) {
-  const cache = path.join(await storePath(process.cwd(), '~/.pnpm-store'), 'tmp')
-  const prefix = path.join(cache, `dlx-${process.pid.toString()}`)
+  const prefix = path.join(os.tmpdir(), `dlx-${process.pid.toString()}`)
   const bins = process.platform === 'win32'
     ? prefix
     : path.join(prefix, 'bin')
