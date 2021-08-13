@@ -1,0 +1,41 @@
+{
+  "versions": {
+      "1.0.0": {
+          "name": "is-positive",
+          "version": "1.0.0",
+          "devDependencies": {
+              "ava": "^0.0.4"
+          },
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "shasum": "a",
+              "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz"
+          },
+          "engines": {
+              "node": ">=0.10.0"
+          }
+      },
+      "2.0.0": {
+          "name": "is-positive",
+          "version": "2.0.0",
+          "devDependencies": {
+              "ava": "^0.0.4"
+          },
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "shasum": "",
+              "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz"
+          },
+          "engines": {
+              "node": ">=0.10.0"
+          }
+      }
+  },
+  "name": "is-positive",
+  "dist-tags": {
+      "latest": "1.0.0"
+  },
+  "modified": "2017-08-17T19:26:00.508Z"
+}
