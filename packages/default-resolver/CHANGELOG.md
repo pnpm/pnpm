@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [a4fed2798]
+  - @pnpm/npm-resolver@12.0.2
+
 ## 13.0.1
 
 ### Patch Changes

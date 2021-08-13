@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "12.0.1",
+  "version": "12.0.2",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

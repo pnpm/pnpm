@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 6.0.12
+
+### Patch Changes
+
+- c3d2746ac: Peer depednencies are resolved from the root of the workspace when a new dependency is added to the root of the workspace.
+  - supi@0.47.12
+  - @pnpm/outdated@9.0.2
+  - @pnpm/package-store@12.0.12
+  - @pnpm/store-connection-manager@3.0.7
+  - @pnpm/plugin-commands-rebuild@5.0.8
+
 ## 6.0.11
 
 ### Patch Changes

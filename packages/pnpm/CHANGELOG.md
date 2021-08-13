@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.13.0-0
+## 6.13.0
 
 ### Minor Changes
 
@@ -8,6 +8,10 @@
 
 ### Patch Changes
 
+- Link the package's own binaries before running its lifecycle scripts [#3662](https://github.com/pnpm/pnpm/pull/3662).
+- Resolve peer dependencies from the root of the workspace when adding a new dependency or updating [#3667](https://github.com/pnpm/pnpm/pull/3667).
+- Ignore empty shasum in entries in package metadata [#3666](https://github.com/pnpm/pnpm/pull/3666).
+- Throw a meaningful error if a package has invalid shasum in its metadata [#3666](https://github.com/pnpm/pnpm/pull/3666).
 - Add `run` to NO_SCRIPT error example [#3660](https://github.com/pnpm/pnpm/pull/3660).
 
 ## 6.12.1

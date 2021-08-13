@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 7.0.8
+
+### Patch Changes
+
+- 6208e2a71: Link own binaries of package before running its lifecycle scripts.
+
 ## 7.0.7
 
 ### Patch Changes

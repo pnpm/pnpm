@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 12.0.2
+
+### Patch Changes
+
+- a4fed2798: Do not fail if a package has no shasum in the metadata.
+
+  Fail if a package has broken shasum in the metadata.
+
 ## 12.0.1
 
 ### Patch Changes

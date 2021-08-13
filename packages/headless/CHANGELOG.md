@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 16.0.22
+
+### Patch Changes
+
+- Updated dependencies [6208e2a71]
+  - @pnpm/build-modules@7.0.8
+  - @pnpm/package-requester@15.0.7
+
 ## 16.0.21
 
 ### Patch Changes

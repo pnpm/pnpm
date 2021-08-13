@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 20.0.16
+
+### Patch Changes
+
+- Updated dependencies [a4fed2798]
+  - @pnpm/npm-resolver@12.0.2
+
 ## 20.0.15
 
 ### Patch Changes

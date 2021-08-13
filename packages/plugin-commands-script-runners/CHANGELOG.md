@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.1.1
+
+### Patch Changes
+
+- b17096a36: `pnpm dlx` should not fail when pnpm has no write access to the CWD.
+
 ## 4.1.0
 
 ### Minor Changes
