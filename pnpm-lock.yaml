@@ -163,6 +163,8 @@ importers:
       '@pnpm/macos-arm64': workspace:0.0.2-6.13.0
       '@pnpm/macos-x64': workspace:0.0.2-6.13.0
       '@pnpm/win-x64': workspace:0.0.2-6.13.0
+      '@zkochan/pkg': 0.0.0-2
+      execa: ^5.0.0
     optionalDependencies:
       '@pnpm/linux-x64': link:../artifacts/linux-x64
       '@pnpm/linuxstatic-x64': link:../artifacts/linuxstatic-x64
@@ -171,6 +173,8 @@ importers:
       '@pnpm/win-x64': link:../artifacts/win-x64
     devDependencies:
       '@pnpm/beta': 'link:'
+      '@zkochan/pkg': 0.0.0-2
+      execa: 5.1.1
 
   packages/build-modules:
     specifiers:
@@ -2504,7 +2508,6 @@ importers:
       '@types/semver': ^7.3.4
       '@types/which': ^2.0.0
       '@zkochan/libnpx': ^13.1.5
-      '@zkochan/pkg': 0.0.0-2
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^2.1.1
       anonymous-npm-registry-client: 0.1.2
@@ -2597,7 +2600,6 @@ importers:
       '@types/semver': 7.3.8
       '@types/which': 2.0.1
       '@zkochan/libnpx': 13.1.5
-      '@zkochan/pkg': 0.0.0-2
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 2.1.1
       anonymous-npm-registry-client: 0.1.2
@@ -7936,7 +7938,7 @@ packages:
       cross-spawn: 7.0.3
       get-stream: 6.0.1
       human-signals: 2.1.0
-      is-stream: 2.0.0
+      is-stream: 2.0.1
       merge-stream: 2.0.0
       npm-run-path: 4.0.1
       onetime: 5.1.2
@@ -9393,10 +9395,6 @@ packages:
     resolution: {integrity: sha1-EtSj3U5o4Lec6428hBc66A2RykQ=}
     engines: {node: '>=0.10.0'}
     dev: true
-
-  /is-stream/2.0.0:
-    resolution: {integrity: sha512-XCoy+WlUr7d1+Z8GgSuXmpuUFC9fOhRXglJMx+dwLKTkL44Cjd4W1Z5P+BQZpr+cR93aGP4S/s7Ftw6Nd/kiEw==}
-    engines: {node: '>=8'}
 
   /is-stream/2.0.1:
     resolution: {integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==}

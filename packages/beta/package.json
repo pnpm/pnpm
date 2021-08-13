@@ -2,8 +2,10 @@
   "name": "@pnpm/beta",
   "description": "Fast, disk space efficient package manager",
   "version": "0.0.2-6.13.0",
-  "bin": {
-    "pnpm": "pnpm"
+  "publishConfig": {
+    "bin": {
+      "pnpm": "pnpm"
+    }
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -15,6 +17,10 @@
     "@pnpm/macos-x64": "workspace:0.0.2-6.13.0",
     "@pnpm/win-x64": "workspace:0.0.2-6.13.0"
   },
+  "devDependencies": {
+    "@zkochan/pkg": "0.0.0-2",
+    "execa": "^5.0.0"
+  },
   "funding": "https://opencollective.com/pnpm",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/beta#readme",
   "license": "MIT",
@@ -22,6 +28,7 @@
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/beta",
   "scripts": {
     "preinstall": "node setup.js",
-    "prepare": "node prepare.js"
+    "prepare": "node prepare.js",
+    "prepublishOnly": "pnpm run compile --filter pnpm && ts-node ./scripts/build-artifacts.ts"
   }
 }
