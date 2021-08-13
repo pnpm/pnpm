@@ -15,6 +15,22 @@
           "engines": {
               "node": ">=0.10.0"
           }
+      },
+      "2.0.0": {
+          "name": "is-positive",
+          "version": "2.0.0",
+          "devDependencies": {
+              "ava": "^0.0.4"
+          },
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "shasum": "",
+              "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz"
+          },
+          "engines": {
+              "node": ">=0.10.0"
+          }
       }
   },
   "name": "is-positive",

@@ -314,6 +314,12 @@ function getIntegrity (dist: {
   if (dist.integrity) {
     return dist.integrity
   }
+  if (!dist.shasum) {
+    return undefined
+  }
   const integrity = ssri.fromHex(dist.shasum, 'sha1')
-  return integrity != null ? integrity.toString() : undefined
+  if (!integrity) {
+    throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum: ${dist.shasum}`)
+  }
+  return integrity.toString()
 }

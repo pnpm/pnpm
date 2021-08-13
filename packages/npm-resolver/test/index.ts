@@ -1650,7 +1650,7 @@ test('resolve workspace:~', async () => {
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 })
 
-test('resolveFromNpm() does not fail if the meta file contains broken integrity information', async () => {
+test('resolveFromNpm() does not fail if the meta file contains no integrity information', async () => {
   nock(registry)
     .get('/is-positive')
     .reply(200, brokenIntegrity)
@@ -1659,19 +1659,33 @@ test('resolveFromNpm() does not fail if the meta file contains broken integrity 
   const resolve = createResolveFromNpm({
     cacheDir,
   })
-  const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, {
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '2.0.0' }, {
     registry,
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive/2.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: undefined,
     registry,
-    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
   expect(resolveResult!.manifest!.name).toBe('is-positive')
-  expect(resolveResult!.manifest!.version).toBe('1.0.0')
+  expect(resolveResult!.manifest!.version).toBe('2.0.0')
+})
+
+test('resolveFromNpm() fails if the meta file contains invalid shasum', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, brokenIntegrity)
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  await expect(
+    resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
+  ).rejects.toThrow('Tarball "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz" has invalid shasum: a')
 })
