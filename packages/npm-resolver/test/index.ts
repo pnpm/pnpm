@@ -1687,5 +1687,5 @@ test('resolveFromNpm() fails if the meta file contains invalid shasum', async ()
   })
   await expect(
     resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
-  ).rejects.toThrow('Tarball "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz" has invalid shasum: a')
+  ).rejects.toThrow('Tarball "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz" has invalid shasum specified in its metadata: a')
 })
