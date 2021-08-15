@@ -73,6 +73,10 @@ export default async function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
   initOpts: {
+    engineStrict?: boolean
+    force?: boolean
+    nodeVersion?: string
+    pnpmVersion?: string
     ignoreFile?: (filename: string) => boolean
     storeDir: string
     networkConcurrency?: number
@@ -83,6 +87,10 @@ export default async function (
   const storeDir = initOpts.storeDir
   const cafs = createCafsStore(storeDir, initOpts)
   const packageRequester = createPackageRequester({
+    force: initOpts.force,
+    engineStrict: initOpts.engineStrict,
+    nodeVersion: initOpts.nodeVersion,
+    pnpmVersion: initOpts.pnpmVersion,
     resolve,
     fetchers,
     cafs,

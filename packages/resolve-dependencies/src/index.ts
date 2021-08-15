@@ -176,7 +176,7 @@ export default async function (
   const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
 
   // waiting till package requests are finished
-  const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ finishing }) => finishing()))
+  const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ finishing }) => finishing?.()))
 
   return {
     dependenciesByProjectId,
@@ -197,22 +197,27 @@ async function finishLockfileUpdates (
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
-    if (depNode.fetchingBundledManifest == null) {
+    if (depNode.optional) {
+      // We assume that all optional dependencies have to be built.
+      // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
+      depNode.requiresBuild = true
+    } else if (depNode.fetchingBundledManifest != null) {
+      const filesResponse = await depNode.fetchingFiles()
+      // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+      const pkgJson = await depNode.fetchingBundledManifest()
+      depNode.requiresBuild = Boolean(
+        pkgJson.scripts != null && (
+          Boolean(pkgJson.scripts.preinstall) ||
+          Boolean(pkgJson.scripts.install) ||
+          Boolean(pkgJson.scripts.postinstall)
+        ) ||
+        filesResponse.filesIndex['binding.gyp'] ||
+          Object.keys(filesResponse.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
+      )
+    } else {
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
     }
-    const filesResponse = await depNode.fetchingFiles()
-    // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-    const pkgJson = await depNode.fetchingBundledManifest()
-    depNode.requiresBuild = Boolean(
-      pkgJson.scripts != null && (
-        Boolean(pkgJson.scripts.preinstall) ||
-        Boolean(pkgJson.scripts.install) ||
-        Boolean(pkgJson.scripts.postinstall)
-      ) ||
-      filesResponse.filesIndex['binding.gyp'] ||
-        Object.keys(filesResponse.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
-    )
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
     // It is an edge that probably happens if the entry is removed during lockfile prune

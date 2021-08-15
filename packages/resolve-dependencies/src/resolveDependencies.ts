@@ -16,7 +16,6 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
-import packageIsInstallable from '@pnpm/package-is-installable'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import {
   DirectoryResolution,
@@ -752,22 +751,12 @@ async function resolveDependency (
     ? pkgResponse.body.id
     : createNodeId(options.parentPkg.nodeId, depPath)
 
-  const currentIsInstallable = (
-    ctx.force ||
-      packageIsInstallable(pkgResponse.body.id, pkg, {
-        engineStrict: ctx.engineStrict,
-        lockfileDir: ctx.lockfileDir,
-        nodeVersion: ctx.nodeVersion,
-        optional: wantedDependency.optional,
-        pnpmVersion: ctx.pnpmVersion,
-      })
-  )
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
-  const installable = parentIsInstallable && currentIsInstallable !== false
+  const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
   const isNew = !ctx.resolvedPackagesByDepPath[depPath]
 
   if (isNew) {
-    if (currentIsInstallable !== true || !parentIsInstallable) {
+    if (pkgResponse.body.isInstallable === false || !parentIsInstallable) {
       ctx.skipped.add(pkgResponse.body.id)
     }
     progressLogger.debug({
