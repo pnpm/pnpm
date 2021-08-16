@@ -165,11 +165,9 @@ test('skip optional dependency that does not support the current pnpm version', 
       'for-legacy-pnpm': '*',
     },
   }, await testDefaults({
-    packageManager: {
-      name: 'pnpm',
-      version: '4.0.0',
-    },
     reporter,
+  }, {}, {}, {
+    pnpmVersion: '4.0.0',
   }))
 
   await project.hasNot('for-legacy-pnpm')
@@ -194,9 +192,7 @@ test('don\'t skip optional dependency that does not support the current OS when 
     optionalDependencies: {
       'not-compatible-with-any-os': '*',
     },
-  }, await testDefaults({
-    force: true,
-  }))
+  }, await testDefaults({}, {}, {}, { force: true }))
 
   await project.has('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
