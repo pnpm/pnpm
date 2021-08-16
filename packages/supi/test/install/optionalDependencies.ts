@@ -74,6 +74,11 @@ test('skip optional dependency that does not support the current OS', async () =
 
   const lockfile = await project.readLockfile()
   expect(lockfile.packages['/not-compatible-with-any-os/1.0.0']).toBeTruthy()
+
+  // optional dependencies always get requiresBuild: true
+  // this is to resolve https://github.com/pnpm/pnpm/issues/2038
+  expect(lockfile.packages['/not-compatible-with-any-os/1.0.0'].requiresBuild).toBeTruthy()
+
   expect(lockfile.packages['/dep-of-optional-pkg/1.0.0']).toBeTruthy()
 
   const currentLockfile = await project.readCurrentLockfile()
