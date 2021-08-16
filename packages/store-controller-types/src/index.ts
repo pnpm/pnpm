@@ -66,7 +66,7 @@ export interface FetchPackageToStoreOptions {
 }
 
 export type RequestPackageFunction = (
-  wantedDependency: WantedDependency,
+  wantedDependency: WantedDependency & { optional?: boolean },
   options: RequestPackageOptions
 ) => Promise<PackageResponse>
 
@@ -98,6 +98,7 @@ export interface PackageResponse {
   finishing?: () => Promise<void> // a package request is finished once its integrity is generated and saved
   body: {
     isLocal: boolean
+    isInstallable?: boolean
     resolution: Resolution
     manifest?: PackageManifest
     id: string

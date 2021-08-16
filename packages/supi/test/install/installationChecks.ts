@@ -6,15 +6,13 @@ import { testDefaults } from '../utils'
 test('fail if installed package does not support the current engine and engine-strict = true', async () => {
   const project = prepareEmpty()
 
-  try {
-    await addDependenciesToPackage({}, ['not-compatible-with-any-os'], await testDefaults({
+  await expect(
+    addDependenciesToPackage({}, ['not-compatible-with-any-os'], await testDefaults({}, {}, {}, {
       engineStrict: true,
     }))
-    throw new Error('tests failed')
-  } catch (err) {
-    await project.hasNot('not-compatible-with-any-os')
-    await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
-  }
+  ).rejects.toThrow()
+  await project.hasNot('not-compatible-with-any-os')
+  await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
 })
 
 test('do not fail if installed package does not support the current engine and engine-strict = false', async () => {

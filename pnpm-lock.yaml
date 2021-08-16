@@ -1566,6 +1566,7 @@ importers:
       '@pnpm/fetcher-base': workspace:11.0.3
       '@pnpm/graceful-fs': workspace:1.0.0
       '@pnpm/logger': ^4.0.0
+      '@pnpm/package-is-installable': workspace:5.0.4
       '@pnpm/package-requester': 'link:'
       '@pnpm/package-store': workspace:12.0.12
       '@pnpm/read-package-json': workspace:5.0.4
@@ -1597,6 +1598,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/graceful-fs': link:../graceful-fs
+      '@pnpm/package-is-installable': link:../package-is-installable
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/store-controller-types': link:../store-controller-types
@@ -2812,7 +2814,6 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/manifest-utils': workspace:2.0.4
       '@pnpm/npm-resolver': workspace:12.0.2
-      '@pnpm/package-is-installable': workspace:5.0.4
       '@pnpm/pick-registry-for-package': workspace:2.0.4
       '@pnpm/prune-lockfile': workspace:3.0.8
       '@pnpm/read-package-json': workspace:5.0.4
@@ -2838,7 +2839,6 @@ importers:
       '@pnpm/lockfile-utils': link:../lockfile-utils
       '@pnpm/manifest-utils': link:../manifest-utils
       '@pnpm/npm-resolver': link:../npm-resolver
-      '@pnpm/package-is-installable': link:../package-is-installable
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
       '@pnpm/prune-lockfile': link:../prune-lockfile
       '@pnpm/read-package-json': link:../read-package-json

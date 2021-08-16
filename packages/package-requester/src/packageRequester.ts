@@ -20,6 +20,7 @@ import {
 } from '@pnpm/fetcher-base'
 import gfs from '@pnpm/graceful-fs'
 import logger from '@pnpm/logger'
+import packageIsInstallable from '@pnpm/package-is-installable'
 import readPackage from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
@@ -68,6 +69,10 @@ const pickBundledManifest = pick([
 
 export default function (
   opts: {
+    engineStrict?: boolean
+    force?: boolean
+    nodeVersion?: string
+    pnpmVersion?: string
     resolve: ResolveFunction
     fetchers: {[type: string]: FetchFunction}
     cafs: Cafs
@@ -103,6 +108,10 @@ export default function (
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
   const requestPackage = resolveAndFetch.bind(null, {
+    engineStrict: opts.engineStrict,
+    nodeVersion: opts.nodeVersion,
+    pnpmVersion: opts.pnpmVersion,
+    force: opts.force,
     fetchPackageToStore,
     requestsQueue,
     resolve: opts.resolve,
@@ -115,13 +124,17 @@ export default function (
 
 async function resolveAndFetch (
   ctx: {
+    engineStrict?: boolean
+    force?: boolean
+    nodeVersion?: string
+    pnpmVersion?: string
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>}
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
     storeDir: string
     verifyStoreIntegrity: boolean
   },
-  wantedDependency: WantedDependency,
+  wantedDependency: WantedDependency & { optional?: boolean },
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
   let latest: string | undefined
@@ -139,7 +152,7 @@ async function resolveAndFetch (
   // When we don't fetch, the only way to get the package's manifest is via resolving it.
   //
   // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:'))) {
+  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
@@ -188,13 +201,28 @@ async function resolveAndFetch (
     }
   }
 
+  const isInstallable = (
+    ctx.force === true ||
+      (
+        manifest == null
+          ? undefined
+          : packageIsInstallable(id, manifest, {
+            engineStrict: ctx.engineStrict,
+            lockfileDir: options.lockfileDir,
+            nodeVersion: ctx.nodeVersion,
+            optional: wantedDependency.optional === true,
+            pnpmVersion: ctx.pnpmVersion,
+          })
+      )
+  )
   // We can skip fetching the package only if the manifest
   // is present after resolution
-  if (options.skipFetch && (manifest != null)) {
+  if ((options.skipFetch === true || isInstallable === false) && (manifest != null)) {
     return {
       body: {
         id,
         isLocal: false as const,
+        isInstallable: isInstallable ?? undefined,
         latest,
         manifest,
         normalizedPref,

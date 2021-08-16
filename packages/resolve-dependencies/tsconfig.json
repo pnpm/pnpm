@@ -34,9 +34,6 @@
       "path": "../npm-resolver"
     },
     {
-      "path": "../package-is-installable"
-    },
-    {
       "path": "../pick-registry-for-package"
     },
     {

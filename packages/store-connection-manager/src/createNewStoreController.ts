@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import createClient from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import createStore from '@pnpm/package-store'
+import pnpm from '@pnpm/cli-meta'
 
 type CreateResolverOptions = Pick<Config,
 | 'fetchRetries'
@@ -17,6 +18,9 @@ type CreateResolverOptions = Pick<Config,
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
 | 'ca'
 | 'cert'
+| 'engineStrict'
+| 'force'
+| 'nodeVersion'
 | 'fetchTimeout'
 | 'httpProxy'
 | 'httpsProxy'
@@ -67,6 +71,10 @@ export default async (
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
     ctrl: await createStore(resolve, fetchers, {
+      engineStrict: opts.engineStrict,
+      force: opts.force,
+      nodeVersion: opts.nodeVersion,
+      pnpmVersion: pnpm.version,
       ignoreFile: opts.ignoreFile,
       networkConcurrency: opts.networkConcurrency,
       packageImportMethod: opts.packageImportMethod,

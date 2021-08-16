@@ -7,6 +7,7 @@ import createClient from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/package-store'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import { depPathToFilename } from 'dependency-path'
@@ -16,7 +17,7 @@ import nock from 'nock'
 import normalize from 'normalize-path'
 import tempy from 'tempy'
 
-const registry = 'https://registry.npmjs.org/'
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
 const ncp = promisify(ncpCB as any) // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -52,7 +53,7 @@ test('request package', async () => {
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
   expect(pkgResponse.body.resolvedVia).toBe('npm-registry')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
@@ -60,8 +61,8 @@ test('request package', async () => {
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-    registry: 'https://registry.npmjs.org/',
-    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
   const files = await pkgResponse.files!()
@@ -97,15 +98,15 @@ test('request package but skip fetching', async () => {
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-    registry: 'https://registry.npmjs.org/',
-    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
   expect(pkgResponse.files).toBeFalsy()
@@ -130,11 +131,11 @@ test('request package but skip fetching, when resolution is already available', 
     currentPkg: {
       name: 'is-positive',
       version: '1.0.0',
-      id: 'registry.npmjs.org/is-positive/1.0.0',
+      id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
     downloadPriority: 0,
@@ -156,15 +157,15 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-    registry: 'https://registry.npmjs.org/',
-    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
   expect(pkgResponse.files).toBeFalsy()
@@ -383,7 +384,7 @@ test('fetchPackageToStore()', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
     lockfileDir: tempy.directory(),
@@ -393,8 +394,8 @@ test('fetchPackageToStore()', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -421,8 +422,8 @@ test('fetchPackageToStore()', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -454,7 +455,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
   const projectDir1 = tempy.directory()
   const projectDir2 = tempy.directory()
   const fetchResults = await Promise.all([
@@ -467,8 +468,8 @@ test('fetchPackageToStore() concurrency check', async () => {
         id: pkgId,
         resolution: {
           integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-          registry: 'https://registry.npmjs.org/',
-          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
     }),
@@ -481,8 +482,8 @@ test('fetchPackageToStore() concurrency check', async () => {
         id: pkgId,
         resolution: {
           integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-          registry: 'https://registry.npmjs.org/',
-          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
     }),
@@ -544,7 +545,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
 
   const badRequest = packageRequester.fetchPackageToStore({
     force: false,
@@ -555,8 +556,8 @@ test('fetchPackageToStore() does not cache errors', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -571,8 +572,8 @@ test('fetchPackageToStore() does not cache errors', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -618,11 +619,11 @@ test('always return a package manifest in the response', async () => {
       currentPkg: {
         name: 'is-positive',
         version: '1.0.0',
-        id: 'registry.npmjs.org/is-positive/1.0.0',
+        id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
         resolution: {
           integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-          registry: 'https://registry.npmjs.org/',
-          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
       downloadPriority: 0,
@@ -663,10 +664,10 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
   const resolution = {
-    registry: 'https://registry.npmjs.org/',
-    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   }
   const fetchResults = await Promise.all([
     packageRequester.fetchPackageToStore({
@@ -702,10 +703,10 @@ test('refetch package to store if it has been modified', async () => {
   const cafsDir = path.join(storeDir, 'files')
   const lockfileDir = tempy.directory()
 
-  const pkgId = 'registry.npmjs.org/magic-hook/2.0.0'
+  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/magic-hook/2.0.0`
   const resolution = {
-    registry: 'https://registry.npmjs.org/',
-    tarball: 'https://registry.npmjs.org/magic-hook/-/magic-hook-2.0.0.tgz',
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/magic-hook/-/magic-hook-2.0.0.tgz`,
   }
 
   let indexJsFile!: string
@@ -779,4 +780,36 @@ test('refetch package to store if it has been modified', async () => {
     name: 'pnpm:package-requester',
     prefix: lockfileDir,
   }))
+})
+
+test('do not fetch an optional package that is not installable', async () => {
+  const storeDir = '.store'
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+  })
+  expect(typeof requestPackage).toBe('function')
+
+  const projectDir = tempy.directory()
+  const pkgResponse = await requestPackage({ alias: 'not-compatible-with-any-os', optional: true, pref: '*' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    registry,
+  })
+
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
+
+  expect(pkgResponse.body.isInstallable).toBe(false)
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/not-compatible-with-any-os/1.0.0`)
+
+  expect(pkgResponse.files).toBeFalsy()
+  expect(pkgResponse.finishing).toBeFalsy()
 })

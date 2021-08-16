@@ -34,7 +34,6 @@
     "@pnpm/lockfile-utils": "workspace:3.0.8",
     "@pnpm/manifest-utils": "workspace:2.0.4",
     "@pnpm/npm-resolver": "workspace:12.0.2",
-    "@pnpm/package-is-installable": "workspace:5.0.4",
     "@pnpm/pick-registry-for-package": "workspace:2.0.4",
     "@pnpm/prune-lockfile": "workspace:3.0.8",
     "@pnpm/read-package-json": "workspace:5.0.4",

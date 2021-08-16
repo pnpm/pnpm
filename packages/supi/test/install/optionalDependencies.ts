@@ -74,6 +74,11 @@ test('skip optional dependency that does not support the current OS', async () =
 
   const lockfile = await project.readLockfile()
   expect(lockfile.packages['/not-compatible-with-any-os/1.0.0']).toBeTruthy()
+
+  // optional dependencies always get requiresBuild: true
+  // this is to resolve https://github.com/pnpm/pnpm/issues/2038
+  expect(lockfile.packages['/not-compatible-with-any-os/1.0.0'].requiresBuild).toBeTruthy()
+
   expect(lockfile.packages['/dep-of-optional-pkg/1.0.0']).toBeTruthy()
 
   const currentLockfile = await project.readCurrentLockfile()
@@ -165,11 +170,9 @@ test('skip optional dependency that does not support the current pnpm version', 
       'for-legacy-pnpm': '*',
     },
   }, await testDefaults({
-    packageManager: {
-      name: 'pnpm',
-      version: '4.0.0',
-    },
     reporter,
+  }, {}, {}, {
+    pnpmVersion: '4.0.0',
   }))
 
   await project.hasNot('for-legacy-pnpm')
@@ -194,9 +197,7 @@ test('don\'t skip optional dependency that does not support the current OS when 
     optionalDependencies: {
       'not-compatible-with-any-os': '*',
     },
-  }, await testDefaults({
-    force: true,
-  }))
+  }, await testDefaults({}, {}, {}, { force: true }))
 
   await project.has('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
