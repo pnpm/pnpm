@@ -12,7 +12,6 @@
   },
   "optionalDependencies": {
     "@pnpm/linux-x64": "workspace:0.0.2-6.13.0",
-    "@pnpm/linuxstatic-x64": "workspace:0.0.2-6.13.0",
     "@pnpm/macos-arm64": "workspace:0.0.2-6.13.0",
     "@pnpm/macos-x64": "workspace:0.0.2-6.13.0",
     "@pnpm/win-x64": "workspace:0.0.2-6.13.0"

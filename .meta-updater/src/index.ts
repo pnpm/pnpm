@@ -24,7 +24,7 @@ export default async (workspaceDir: string) => {
       if (dir.includes('artifacts') || manifest.name === '@pnpm/beta') {
         manifest.version = artifactVersion
         if (manifest.name === '@pnpm/beta') {
-          for (const depName of ['@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-x64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
+          for (const depName of ['@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
             manifest.optionalDependencies![depName] = `workspace:${artifactVersion}`
           }
         }
