@@ -31,7 +31,7 @@ importers:
       '@commitlint/prompt-cli': ^12.1.1
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': ^2.6.0
+      '@pnpm/registry-mock': ^2.6.1
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.23
       '@types/node': ^14.14.33
@@ -59,7 +59,7 @@ importers:
       '@commitlint/prompt-cli': 12.1.4
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.6.0
+      '@pnpm/registry-mock': 2.6.1
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.24
       '@types/node': 14.17.5
@@ -4611,13 +4611,14 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.6.0:
-    resolution: {integrity: sha512-4uvHCRI10A/cP7xfV3ky+I5Es5K891MKmZV6JaDurhd+QNkaQCtLiAi9rCh2TjcmB1oaPshRaXvqHF7Zh4O5Vw==}
+  /@pnpm/registry-mock/2.6.1:
+    resolution: {integrity: sha512-LDB1V02L2ytC38qsJqw+wD8evAmFsfGQMF1jOPD9gN09uNBJ09QA4Pg1VEVUldlBiaVKyKK4T90Nk60ssc29mA==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
+      execa: 5.1.1
       read-yaml-file: 2.1.0
       rimraf: 3.0.2
       tempy: 1.0.1
