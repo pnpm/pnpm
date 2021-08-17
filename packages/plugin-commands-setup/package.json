@@ -33,7 +33,11 @@
     "render-help": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
+  "peerDependencies": {
+    "@pnpm/logger": "^4.0.0"
+  },
   "devDependencies": {
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.26"
   }
 }
