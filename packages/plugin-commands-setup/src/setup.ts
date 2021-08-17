@@ -40,6 +40,7 @@ function moveCli (currentLocation: string, targetDir: string) {
     message: `Moving pnpm CLI from ${currentLocation} to ${newExecPath}`,
     prefix: process.cwd(),
   })
+  fs.mkdirSync(targetDir, { recursive: true })
   try {
     fs.renameSync(currentLocation, newExecPath)
   } catch (err) {
