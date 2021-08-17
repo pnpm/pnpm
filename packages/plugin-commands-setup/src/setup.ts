@@ -2,6 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
+import logger from '@pnpm/logger'
 import renderHelp from 'render-help'
 
 export const rcOptionsTypes = () => ({})
@@ -22,12 +23,43 @@ export function help () {
   })
 }
 
+function getExecPath () {
+  if (process['pkg'] != null) {
+    // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
+    // because in that case the js is in a virtual filesystem inside the executor.
+    // Instead, we use the path to the exe file.
+    return process.execPath
+  }
+  return (require.main != null) ? require.main.filename : process.cwd()
+}
+
+function moveCli (currentLocation: string, targetDir: string) {
+  const newExecPath = path.join(targetDir, path.basename(currentLocation))
+  if (path.relative(newExecPath, currentLocation) === '') return
+  logger.info({
+    message: `Moving pnpm CLI from ${currentLocation} to ${newExecPath}`,
+    prefix: process.cwd(),
+  })
+  try {
+    fs.renameSync(currentLocation, newExecPath)
+  } catch (err) {
+    fs.copyFileSync(currentLocation, newExecPath)
+    try {
+      fs.unlinkSync(currentLocation)
+    } catch (err) {}
+  }
+}
+
 export async function handler (
   opts: {
     pnpmHomeDir: string
   }
 ) {
   const currentShell = process.env.SHELL ? path.basename(process.env.SHELL) : null
+  const execPath = getExecPath()
+  if (execPath.match(/\.[cm]?js$/) == null) {
+    moveCli(execPath, opts.pnpmHomeDir)
+  }
   switch (currentShell) {
   case 'bash': {
     const configFile = path.join(os.homedir(), '.bashrc')

@@ -2366,6 +2366,7 @@ importers:
   packages/plugin-commands-setup:
     specifiers:
       '@pnpm/cli-utils': workspace:0.6.16
+      '@pnpm/logger': ^4.0.0
       '@pnpm/plugin-commands-setup': 'link:'
       '@pnpm/prepare': workspace:0.0.26
       render-help: ^1.0.1
@@ -2373,6 +2374,7 @@ importers:
       '@pnpm/cli-utils': link:../cli-utils
       render-help: 1.0.2
     devDependencies:
+      '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-setup': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
 
