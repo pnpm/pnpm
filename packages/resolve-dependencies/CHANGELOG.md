@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 21.0.0
+
+### Major Changes
+
+- 07e7b1c0c: Optional dependencies are always marked as `requiresBuild` as they are not always fetched and as a result there is no way to check whethere they need to be built or not.
+
 ## 20.0.16
 
 ### Patch Changes

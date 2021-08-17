@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.14.0-0
+
+### Minor Changes
+
+- Backward-compatible change to the lockfile format. Optional dependencies will always have the `requiresBuild` field set to `true`. This change is needed to allow skipping optional dependency downloads, when the optional dependency is not compatible with the target system [#2038](https://github.com/pnpm/pnpm/issues/2038)
+
+### Patch Changes
+
+- Those optional dependencies that don't support the target system should not be downloaded from the registry [#2038](https://github.com/pnpm/pnpm/issues/2038).
+
 ## 6.13.0
 
 ### Minor Changes

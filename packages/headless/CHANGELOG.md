@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 16.0.23
+
+### Patch Changes
+
+- Updated dependencies [07e7b1c0c]
+  - @pnpm/package-requester@15.1.0
+
 ## 16.0.22
 
 ### Patch Changes

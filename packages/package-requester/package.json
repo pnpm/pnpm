@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "15.0.7",
+  "version": "15.1.0",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -61,7 +61,7 @@
   "devDependencies": {
     "@pnpm/client": "workspace:5.0.2",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.0.12",
+    "@pnpm/package-store": "workspace:12.0.13",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",

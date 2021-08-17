@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 15.1.0
+
+### Minor Changes
+
+- 07e7b1c0c: Do not fetch optional packages that are not installable on the target system.
+
 ## 15.0.7
 
 ### Patch Changes
