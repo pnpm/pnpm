@@ -70,7 +70,7 @@ test('getDataDir()', () => {
   expect(getDataDir({
     env: {},
     platform: 'darwin',
-  })).toBe(path.join(os.homedir(), '.pnpm'))
+  })).toBe(path.join(os.homedir(), 'Library/pnpm'))
   expect(getDataDir({
     env: {
       LOCALAPPDATA: '/localappdata',

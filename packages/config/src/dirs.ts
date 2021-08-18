@@ -49,7 +49,10 @@ export function getDataDir (
   if (opts.env.XDG_DATA_HOME) {
     return path.join(opts.env.XDG_DATA_HOME, 'pnpm')
   }
-  if (opts.platform !== 'win32' && opts.platform !== 'darwin') {
+  if (opts.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library/pnpm')
+  }
+  if (opts.platform !== 'win32') {
     return path.join(os.homedir(), '.local/share/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
