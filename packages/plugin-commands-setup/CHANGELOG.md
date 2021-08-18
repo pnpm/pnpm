@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 0.2.0
+
+### Minor Changes
+
+- 8d038f8f1: pnpm setup moves the CLI to the pnpm home directory.
+
 ## 0.1.12
 
 ### Patch Changes
