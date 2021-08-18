@@ -585,6 +585,7 @@ async function resolveDependency (
     return null
   }
 
+  const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   let pkgResponse!: PackageResponse
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
@@ -606,7 +607,8 @@ async function resolveDependency (
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
-      skipFetch: false,
+      // Unless it is an optional dependency
+      skipFetch: !parentIsInstallable,
       update: options.update,
       workspacePackages: options.workspacePackages,
     })
@@ -751,7 +753,6 @@ async function resolveDependency (
     ? pkgResponse.body.id
     : createNodeId(options.parentPkg.nodeId, depPath)
 
-  const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
   const isNew = !ctx.resolvedPackagesByDepPath[depPath]
 

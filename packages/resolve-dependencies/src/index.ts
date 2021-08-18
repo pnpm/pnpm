@@ -1,5 +1,4 @@
 import path from 'path'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -215,8 +214,7 @@ async function finishLockfileUpdates (
           Object.keys(filesResponse.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
       )
     } else {
-      // This should never ever happen
-      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
+      depNode.requiresBuild = true
     }
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile

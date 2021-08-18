@@ -248,6 +248,7 @@ async function resolveAndFetch (
     body: {
       id,
       isLocal: false as const,
+      isInstallable: isInstallable ?? undefined,
       latest,
       manifest,
       normalizedPref,
