@@ -1,8 +1,8 @@
 import { install } from '@pnpm/plugin-commands-installation'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { preparePackages } from '@pnpm/prepare'
-import { DEFAULT_OPTS } from './utils'
 import logger from '@pnpm/logger'
+import { DEFAULT_OPTS } from './utils'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')

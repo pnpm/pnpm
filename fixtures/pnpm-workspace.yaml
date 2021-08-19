@@ -8,3 +8,4 @@ packages:
   - '!has-outdated-deps'
   - '!has-package-lock-json'
   - '!hello-world-js-bin'
+  - '!has-yarn-lock'
