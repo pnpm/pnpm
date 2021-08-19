@@ -16,13 +16,13 @@ import {
   mutateModules,
   WorkspacePackages,
 } from 'supi'
+import logger from '@pnpm/logger'
+import { sequenceGraph } from '@pnpm/sort-packages'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import logger from '@pnpm/logger'
-import { sequenceGraph } from '@pnpm/sort-packages'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,

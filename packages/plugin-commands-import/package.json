@@ -36,6 +36,8 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/prepare": "workspace:0.0.26",
     "@types/ncp": "^2.0.4",
+    "@types/yarnpkg__lockfile": "^1.1.5",
+    "@yarnpkg/lockfile": "^1.1.0",
     "ncp": "^2.0.0",
     "tempy": "^1.0.0"
   },
@@ -44,9 +46,11 @@
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/read-project-manifest": "workspace:2.0.5",
+    "@pnpm/graceful-fs": "workspace:1.0.0",
     "@pnpm/store-connection-manager": "workspace:3.0.8",
     "@zkochan/rimraf": "^2.1.1",
     "load-json-file": "^6.2.0",
+    "path-exists": "^4.0.0",
     "render-help": "^1.0.1",
     "supi": "workspace:0.47.13"
   },

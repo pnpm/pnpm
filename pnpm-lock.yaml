@@ -1827,14 +1827,18 @@ importers:
       '@pnpm/cli-utils': workspace:0.6.16
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
+      '@pnpm/graceful-fs': workspace:1.0.0
       '@pnpm/plugin-commands-import': 'link:'
       '@pnpm/prepare': workspace:0.0.26
       '@pnpm/read-project-manifest': workspace:2.0.5
       '@pnpm/store-connection-manager': workspace:3.0.8
       '@types/ncp': ^2.0.4
+      '@types/yarnpkg__lockfile': ^1.1.5
+      '@yarnpkg/lockfile': ^1.1.0
       '@zkochan/rimraf': ^2.1.1
       load-json-file: ^6.2.0
       ncp: ^2.0.0
+      path-exists: ^4.0.0
       render-help: ^1.0.1
       supi: workspace:0.47.13
       tempy: ^1.0.0
@@ -1842,10 +1846,12 @@ importers:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
+      '@pnpm/graceful-fs': link:../graceful-fs
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/store-connection-manager': link:../store-connection-manager
       '@zkochan/rimraf': 2.1.1
       load-json-file: 6.2.0
+      path-exists: 4.0.0
       render-help: 1.0.2
       supi: link:../supi
     devDependencies:
@@ -1853,6 +1859,8 @@ importers:
       '@pnpm/plugin-commands-import': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/ncp': 2.0.5
+      '@types/yarnpkg__lockfile': 1.1.5
+      '@yarnpkg/lockfile': 1.1.0
       ncp: 2.0.0
       tempy: 1.0.1
 
@@ -5074,6 +5082,10 @@ packages:
       '@types/yargs-parser': 20.2.1
     dev: true
 
+  /@types/yarnpkg__lockfile/1.1.5:
+    resolution: {integrity: sha512-8NYnGOctzsI4W0ApsP/BIHD/LnxpJ6XaGf2AZmz4EyDYJMxtprN4279dLNI1CPZcwC9H18qYcaFv4bXi0wmokg==}
+    dev: true
+
   /@typescript-eslint/eslint-plugin/4.29.2_eslint@7.32.0+typescript@4.3.5:
     resolution: {integrity: sha512-x4EMgn4BTfVd9+Z+r+6rmWxoAzBaapt4QFqE+d8L8sUtYZYLDTK6VG/y/SMMWA5t1/BVU5Kf+20rX4PtWzUYZg==}
     engines: {node: ^10.12.0 || >=12.0.0}
@@ -5245,6 +5257,10 @@ packages:
       '@types/emscripten': 1.39.5
       tslib: 1.14.1
     dev: false
+
+  /@yarnpkg/lockfile/1.1.0:
+    resolution: {integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==}
+    dev: true
 
   /@yarnpkg/parsers/2.4.0:
     resolution: {integrity: sha512-XWgiNGh4MkhdBTJVEbXEqzk66JKjvxTtKGeLPqo3rnJ7JiJnRaK2n9MLTKQB0uoRMWYzPlISdIlok6H9OdlOVQ==}

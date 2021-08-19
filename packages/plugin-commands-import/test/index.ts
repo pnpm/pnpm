@@ -64,6 +64,27 @@ test('import from package-lock.json', async () => {
   await project.hasNot('pkg-with-1-dep')
 })
 
+test('import from yarn.lock', async () => {
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  tempDir()
+
+  await ncp(path.join(fixtures, 'has-yarn-lock'), process.cwd())
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  const project = assertProject(process.cwd())
+  const lockfile = await project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+
+  // node_modules is not created
+  await project.hasNot('dep-of-pkg-with-1-dep')
+  await project.hasNot('pkg-with-1-dep')
+})
+
 test('import from npm-shrinkwrap.json', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   tempDir()
@@ -85,18 +106,15 @@ test('import from npm-shrinkwrap.json', async () => {
   await project.hasNot('pkg-with-1-dep')
 })
 
-test('import fails when no npm lockfiles are found', async () => {
+test('import fails when no lockfiles are found', async () => {
   prepare(undefined)
 
-  let err!: PnpmError
-  try {
-    await importCommand.handler({
+  await expect(
+    importCommand.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
     })
-  } catch (_err) {
-    err = _err
-  }
-
-  expect(err.message.toString()).toMatch(/No package-lock.json or npm-shrinkwrap.json found/)
+  ).rejects.toThrow(
+    new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
+  )
 })
