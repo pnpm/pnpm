@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-import
 
+## 3.1.0
+
+### Minor Changes
+
+- f815dabd9: Converting a `yarn.lock` to a `pnpm-lock.yaml`.
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.17
+- @pnpm/store-connection-manager@3.0.9
+- supi@0.47.14
+
 ## 3.0.13
 
 ### Patch Changes

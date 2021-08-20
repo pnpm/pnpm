@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.4.7
+
+### Patch Changes
+
+- 655af55ba: The default home directory for pnpm on macOS should be at `~/Library/pnpm`.
+
 ## 12.4.6
 
 ### Patch Changes

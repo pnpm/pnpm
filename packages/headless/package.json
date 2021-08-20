@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "16.0.23",
+  "version": "16.0.24",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -18,7 +18,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:5.0.2",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.0.13",
+    "@pnpm/package-store": "workspace:12.0.14",
     "@pnpm/prepare": "workspace:0.0.26",
     "@pnpm/read-projects-context": "workspace:5.0.6",
     "@pnpm/store-path": "^5.0.0",
@@ -75,12 +75,12 @@
     "@pnpm/lifecycle": "workspace:11.0.4",
     "@pnpm/link-bins": "workspace:6.0.7",
     "@pnpm/lockfile-file": "workspace:4.1.1",
-    "@pnpm/lockfile-to-pnp": "workspace:0.4.18",
+    "@pnpm/lockfile-to-pnp": "workspace:0.4.19",
     "@pnpm/lockfile-utils": "workspace:3.0.8",
     "@pnpm/modules-cleaner": "workspace:11.0.10",
     "@pnpm/modules-yaml": "workspace:9.0.4",
     "@pnpm/package-is-installable": "workspace:5.0.4",
-    "@pnpm/package-requester": "workspace:15.1.0",
+    "@pnpm/package-requester": "workspace:15.1.1",
     "@pnpm/read-package-json": "workspace:5.0.4",
     "@pnpm/read-project-manifest": "workspace:2.0.5",
     "@pnpm/store-controller-types": "workspace:11.0.5",

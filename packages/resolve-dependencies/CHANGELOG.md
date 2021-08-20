@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 21.0.1
+
+### Patch Changes
+
+- 31e01d9a9: Fetch a package if it is not installable as optional but also exists as not optional.
+
 ## 21.0.0
 
 ### Major Changes

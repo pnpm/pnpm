@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 15.1.1
+
+### Patch Changes
+
+- 31e01d9a9: isInstallable should be always returned by `packageRequester()`.
+
 ## 15.1.0
 
 ### Minor Changes

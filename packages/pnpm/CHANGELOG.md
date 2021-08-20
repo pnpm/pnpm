@@ -1,9 +1,10 @@
 # pnpm
 
-## 6.14.0-3
+## 6.14.0
 
 ### Minor Changes
 
+- `pnpm import` can convert a `yarn.lock` to a `pnpm-lock.yaml` [#3655](https://github.com/pnpm/pnpm/pull/3655).
 - Backward-compatible change to the lockfile format. Optional dependencies will always have the `requiresBuild` field set to `true`. This change is needed to allow skipping optional dependency downloads, when the optional dependency is not compatible with the target system [#2038](https://github.com/pnpm/pnpm/issues/2038)
 
 ### Patch Changes
