@@ -764,21 +764,7 @@ async function resolveDependency (
       requester: ctx.lockfileDir,
       status: 'resolved',
     })
-    if (pkgResponse.files != null) {
-      pkgResponse.files()
-        .then((fetchResult: PackageFilesResponse) => {
-          progressLogger.debug({
-            packageId: pkgResponse.body.id,
-            requester: ctx.lockfileDir,
-            status: fetchResult.fromStore
-              ? 'found_in_store'
-              : 'fetched',
-          })
-        })
-        .catch(() => {
-          // Ignore
-        })
-    }
+    logFetchResult(pkgResponse, ctx.lockfileDir)
 
     ctx.resolvedPackagesByDepPath[depPath] = getResolvedPackage({
       dependencyLockfile: currentPkg.dependencyLockfile,
@@ -795,6 +781,13 @@ async function resolveDependency (
     ctx.resolvedPackagesByDepPath[depPath].prod = ctx.resolvedPackagesByDepPath[depPath].prod || !wantedDependency.dev && !wantedDependency.optional
     ctx.resolvedPackagesByDepPath[depPath].dev = ctx.resolvedPackagesByDepPath[depPath].dev || wantedDependency.dev
     ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && wantedDependency.optional
+    if (ctx.resolvedPackagesByDepPath[depPath].fetchingFiles == null && pkgResponse.files != null) {
+      logFetchResult(pkgResponse, ctx.lockfileDir)
+      ctx.resolvedPackagesByDepPath[depPath].fetchingFiles = pkgResponse.files
+      ctx.resolvedPackagesByDepPath[depPath].filesIndexFile = pkgResponse.filesIndexFile!
+      ctx.resolvedPackagesByDepPath[depPath].finishing = pkgResponse.finishing!
+      ctx.resolvedPackagesByDepPath[depPath].fetchingBundledManifest = pkgResponse.bundledManifest!
+    }
 
     if (ctx.dependenciesTree[nodeId]) {
       ctx.dependenciesTree[nodeId].depth = Math.min(ctx.dependenciesTree[nodeId].depth, options.currentDepth)
@@ -824,6 +817,23 @@ async function resolveDependency (
     pkg,
     updated: pkgResponse.body.updated,
   }
+}
+
+function logFetchResult (pkgResponse: PackageResponse, lockfileDir: string) {
+  if (pkgResponse.files == null) return
+  pkgResponse.files()
+    .then((fetchResult: PackageFilesResponse) => {
+      progressLogger.debug({
+        packageId: pkgResponse.body.id,
+        requester: lockfileDir,
+        status: fetchResult.fromStore
+          ? 'found_in_store'
+          : 'fetched',
+      })
+    })
+    .catch(() => {
+      // Ignore
+    })
 }
 
 function pkgIsLeaf (pkg: PackageManifest) {
