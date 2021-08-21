@@ -50,22 +50,22 @@
     "p-memoize": "^4.0.1",
     "parse-npm-tarball-url": "^3.0.0",
     "path-temp": "^2.0.0",
-    "rename-overwrite": "^3.0.0",
-    "semver": "^7.3.4",
-    "ssri": "6.0.1",
+    "rename-overwrite": "^3.1.2",
+    "semver": "^7.3.5",
+    "ssri": "6.0.2",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:2.1.11",
     "@pnpm/logger": "^3.2.3",
-    "@types/lru-cache": "^5.1.0",
-    "@types/mz": "^2.7.3",
+    "@types/lru-cache": "^5.1.1",
+    "@types/mz": "^2.7.4",
     "@types/normalize-path": "^3.0.0",
-    "@types/semver": "^7.3.4",
-    "@types/ssri": "^7.1.0",
+    "@types/semver": "^7.3.8",
+    "@types/ssri": "^7.1.1",
     "nock": "12.0.3",
     "path-exists": "^4.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

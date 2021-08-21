@@ -31,13 +31,13 @@
     "@pnpm/package-bins": "workspace:4.1.0",
     "@pnpm/read-package-json": "workspace:4.0.0",
     "@pnpm/types": "workspace:6.4.0",
-    "@zkochan/rimraf": "^1.0.0",
+    "@zkochan/rimraf": "^1.0.1",
     "is-windows": "^1.0.2"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "^0.27.35"
+    "@types/ramda": "0.27.39"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

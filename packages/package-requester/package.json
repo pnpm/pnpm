@@ -52,22 +52,22 @@
     "path-temp": "^2.0.0",
     "promise-share": "^1.0.0",
     "ramda": "^0.27.1",
-    "rename-overwrite": "^3.0.0",
-    "ssri": "6.0.1"
+    "rename-overwrite": "^3.1.2",
+    "ssri": "6.0.2"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:2.0.24",
     "@pnpm/logger": "^3.2.3",
-    "@types/mz": "^2.7.3",
-    "@types/ncp": "^2.0.4",
+    "@types/mz": "^2.7.4",
+    "@types/ncp": "^2.0.5",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.35",
-    "@types/ssri": "^7.1.0",
+    "@types/ramda": "0.27.39",
+    "@types/ssri": "^7.1.1",
     "delay": "^5.0.0",
     "ncp": "^2.0.0",
     "nock": "12.0.3",
     "normalize-path": "^3.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

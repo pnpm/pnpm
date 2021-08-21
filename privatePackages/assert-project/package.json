@@ -19,7 +19,7 @@
   "devDependencies": {
     "@types/is-windows": "^1.0.0",
     "@types/isexe": "2.0.0",
-    "@types/node": "^14.14.22"
+    "@types/node": "^14.17.11"
   },
   "directories": {
     "test": "test"
@@ -42,17 +42,18 @@
     "test": "pnpm run tsc && jest"
   },
   "dependencies": {
+    "@pnpm/assert-project": "link:",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:4.1.0",
     "@pnpm/lockfile-types": "workspace:2.2.0",
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/types": "workspace:6.4.0",
-    "@types/mz": "^2.7.3",
+    "@types/mz": "^2.7.4",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",
     "mz": "^2.7.0",
     "path-exists": "^4.0.0",
-    "read-yaml-file": "^2.0.0",
+    "read-yaml-file": "^2.1.0",
     "write-pkg": "4.0.0"
   }
 }

@@ -30,13 +30,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pnpmfile#readme",
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
-    "@types/ramda": "^0.27.35"
+    "@types/ramda": "0.27.39"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:5.0.3",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/types": "workspace:6.4.0",
-    "chalk": "^4.1.0",
+    "chalk": "^4.1.2",
     "path-absolute": "^1.0.1",
     "ramda": "^0.27.1"
   },

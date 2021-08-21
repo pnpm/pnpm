@@ -30,7 +30,7 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
     "@pnpm/types": "workspace:6.4.0",
-    "@types/ramda": "^0.27.35"
+    "@types/ramda": "0.27.39"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.2",
@@ -40,7 +40,7 @@
     "@pnpm/manifest-utils": "workspace:1.1.5",
     "@pnpm/package-is-installable": "workspace:4.0.19",
     "@pnpm/read-project-manifest": "workspace:1.1.7",
-    "chalk": "^4.1.0",
+    "chalk": "^4.1.2",
     "load-json-file": "^6.2.0"
   },
   "peerDependencies": {

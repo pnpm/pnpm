@@ -37,15 +37,15 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/package-requester": "workspace:13.0.1",
     "@pnpm/package-store": "workspace:11.0.3",
-    "@types/mz": "^2.7.3",
-    "@types/node-fetch": "^2.5.7",
-    "@types/uuid": "^8.3.0",
-    "@zkochan/rimraf": "^1.0.0",
+    "@types/mz": "^2.7.4",
+    "@types/node-fetch": "^2.5.12",
+    "@types/uuid": "^8.3.1",
+    "@zkochan/rimraf": "^1.0.1",
     "is-port-reachable": "3.0.0",
     "load-json-file": "^6.2.0",
     "mz": "^2.7.0",
     "node-fetch": "^2.6.1",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "dependencies": {
     "@pnpm/fetch": "workspace:2.1.11",

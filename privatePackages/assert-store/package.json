@@ -41,6 +41,7 @@
     "test": "pnpm run compile && jest"
   },
   "dependencies": {
+    "@pnpm/assert-store": "link:",
     "@pnpm/cafs": "workspace:2.1.0",
     "path-exists": "^4.0.0"
   }

@@ -41,20 +41,20 @@
     "@zkochan/retry": "^0.2.0",
     "graceful-fs": "4.2.4",
     "mz": "^2.7.0",
-    "ssri": "6.0.1"
+    "ssri": "6.0.2"
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:2.1.0",
     "@pnpm/fetch": "workspace:2.1.11",
     "@pnpm/logger": "^3.2.3",
-    "@types/graceful-fs": "^4.1.4",
-    "@types/mz": "^2.7.3",
-    "@types/retry": "^0.12.0",
-    "@types/rimraf": "^3.0.0",
-    "@types/ssri": "^7.1.0",
-    "cp-file": "^9.0.0",
+    "@types/graceful-fs": "^4.1.5",
+    "@types/mz": "^2.7.4",
+    "@types/retry": "^0.12.1",
+    "@types/rimraf": "^3.0.2",
+    "@types/ssri": "^7.1.1",
+    "cp-file": "^9.1.0",
     "nock": "12.0.3",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

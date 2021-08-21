@@ -36,12 +36,12 @@
     "@pnpm/resolver-base": "workspace:7.1.1",
     "graceful-git": "^3.0.2",
     "hosted-git-info": "^3.0.8",
-    "semver": "^7.3.4"
+    "semver": "^7.3.5"
   },
   "devDependencies": {
-    "@types/hosted-git-info": "^3.0.1",
+    "@types/hosted-git-info": "^3.0.2",
     "@types/is-windows": "^1.0.0",
-    "@types/semver": "^7.3.4",
+    "@types/semver": "^7.3.8",
     "is-windows": "^1.0.2"
   },
   "funding": "https://opencollective.com/pnpm"

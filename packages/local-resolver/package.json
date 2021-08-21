@@ -38,12 +38,12 @@
     "@pnpm/types": "workspace:6.4.0",
     "graceful-fs": "4.2.4",
     "normalize-path": "^3.0.0",
-    "ssri": "6.0.1"
+    "ssri": "6.0.2"
   },
   "devDependencies": {
-    "@types/graceful-fs": "^4.1.4",
+    "@types/graceful-fs": "^4.1.5",
     "@types/normalize-path": "^3.0.0",
-    "@types/ssri": "^7.1.0"
+    "@types/ssri": "^7.1.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

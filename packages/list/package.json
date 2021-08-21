@@ -40,18 +40,18 @@
     "@pnpm/types": "workspace:6.4.0",
     "@zkochan/npm-package-arg": "^1.0.2",
     "archy": "^1.0.0",
-    "chalk": "^4.1.0",
+    "chalk": "^4.1.2",
     "cli-columns": "^3.1.2",
     "dependencies-hierarchy": "workspace:9.0.19",
     "p-limit": "^3.1.0",
     "ramda": "^0.27.1",
-    "semver": "^7.3.4"
+    "semver": "^7.3.5"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
     "@types/archy": "0.0.31",
-    "@types/ramda": "^0.27.35",
-    "@types/semver": "^7.3.4"
+    "@types/ramda": "0.27.39",
+    "@types/semver": "^7.3.8"
   },
   "funding": "https://opencollective.com/pnpm"
 }

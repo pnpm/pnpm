@@ -34,10 +34,10 @@
     "@pnpm/types": "workspace:6.4.0",
     "encode-registry": "^3.0.0",
     "normalize-path": "^3.0.0",
-    "semver": "^7.3.4"
+    "semver": "^7.3.5"
   },
   "devDependencies": {
-    "@types/semver": "^7.3.4"
+    "@types/semver": "^7.3.8"
   },
   "funding": "https://opencollective.com/pnpm"
 }

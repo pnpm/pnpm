@@ -24,10 +24,10 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "semver": "^7.3.4"
+    "semver": "^7.3.5"
   },
   "devDependencies": {
-    "@types/semver": "^7.3.4"
+    "@types/semver": "^7.3.8"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

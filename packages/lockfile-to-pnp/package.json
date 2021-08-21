@@ -36,9 +36,9 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
     "@pnpm/types": "workspace:6.4.0",
-    "@types/mz": "^2.7.3",
+    "@types/mz": "^2.7.4",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.35",
+    "@types/ramda": "0.27.39",
     "rimraf": "^3.0.2"
   },
   "dependencies": {

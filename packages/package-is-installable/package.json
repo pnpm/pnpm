@@ -31,11 +31,11 @@
     "@pnpm/core-loggers": "workspace:5.0.3",
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/types": "workspace:6.4.0",
-    "semver": "^7.3.4"
+    "semver": "^7.3.5"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
-    "@types/semver": "^7.3.4"
+    "@types/semver": "^7.3.8"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

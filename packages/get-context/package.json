@@ -31,8 +31,8 @@
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
     "@types/is-ci": "^3.0.0",
-    "@types/mz": "^2.7.3",
-    "@types/ramda": "^0.27.35"
+    "@types/mz": "^2.7.4",
+    "@types/ramda": "0.27.39"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.2.3"
@@ -45,7 +45,7 @@
     "@pnpm/modules-yaml": "workspace:8.0.6",
     "@pnpm/read-projects-context": "workspace:4.0.16",
     "@pnpm/types": "workspace:6.4.0",
-    "@zkochan/rimraf": "^1.0.0",
+    "@zkochan/rimraf": "^1.0.1",
     "is-ci": "^3.0.0",
     "mz": "^2.7.0",
     "path-absolute": "^1.0.1",

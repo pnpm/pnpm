@@ -38,16 +38,16 @@
     "@pnpm/logger": "^3.2.3",
     "@pnpm/prepare": "workspace:0.0.18",
     "@types/archy": "0.0.31",
-    "@types/ramda": "^0.27.35",
-    "@types/sinon": "^9.0.9",
-    "@types/ssri": "^7.1.0",
-    "@zkochan/rimraf": "^1.0.0",
-    "execa": "^5.0.0",
+    "@types/ramda": "0.27.39",
+    "@types/sinon": "^9.0.11",
+    "@types/ssri": "^7.1.1",
+    "@zkochan/rimraf": "^1.0.1",
+    "execa": "^5.1.1",
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
-    "sinon": "^9.2.2",
-    "ssri": "6.0.1",
-    "tempy": "^1.0.0"
+    "sinon": "^9.2.4",
+    "ssri": "6.0.2",
+    "tempy": "^1.0.1"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:2.1.0",
@@ -65,10 +65,10 @@
     "@pnpm/types": "workspace:6.4.0",
     "archy": "^1.0.0",
     "dependency-path": "workspace:5.1.1",
-    "dint": "^5.0.0",
+    "dint": "^5.1.0",
     "p-filter": "^2.1.0",
     "ramda": "^0.27.1",
-    "render-help": "^1.0.1"
+    "render-help": "^1.0.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.2.3"

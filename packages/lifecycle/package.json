@@ -38,13 +38,13 @@
     "@pnpm/core-loggers": "workspace:5.0.3",
     "@pnpm/read-package-json": "workspace:4.0.0",
     "@pnpm/types": "workspace:6.4.0",
-    "@zkochan/npm-lifecycle": "^4.1.1",
+    "@zkochan/npm-lifecycle": "^4.2.1",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
-    "@types/rimraf": "^3.0.0",
+    "@types/rimraf": "^3.0.2",
     "json-append": "1.1.1",
     "load-json-file": "^6.2.0"
   },

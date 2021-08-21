@@ -13,7 +13,7 @@
     "!*.map"
   ],
   "devDependencies": {
-    "@types/validate-npm-package-name": "^3.0.2"
+    "@types/validate-npm-package-name": "^3.0.3"
   },
   "keywords": [],
   "license": "MIT",

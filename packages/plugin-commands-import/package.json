@@ -36,9 +36,9 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/prepare": "workspace:0.0.18",
-    "@types/ncp": "^2.0.4",
+    "@types/ncp": "^2.0.5",
     "ncp": "^2.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.5.4",
@@ -46,9 +46,9 @@
     "@pnpm/error": "workspace:1.4.0",
     "@pnpm/read-project-manifest": "workspace:1.1.7",
     "@pnpm/store-connection-manager": "workspace:1.0.4",
-    "@zkochan/rimraf": "^1.0.0",
+    "@zkochan/rimraf": "^1.0.1",
     "load-json-file": "^6.2.0",
-    "render-help": "^1.0.1",
+    "render-help": "^1.0.2",
     "supi": "workspace:0.45.4"
   },
   "funding": "https://opencollective.com/pnpm"

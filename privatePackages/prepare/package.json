@@ -8,12 +8,12 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/types": "workspace:6.4.0",
     "unique-string": "^2.0.0",
-    "write-json5-file": "^3.0.1",
+    "write-json5-file": "^3.1.0",
     "write-pkg": "4.0.0",
-    "write-yaml-file": "^4.1.3"
+    "write-yaml-file": "^4.2.0"
   },
   "devDependencies": {
-    "@types/node": "^14.14.22",
+    "@types/node": "^14.17.11",
     "tslint-config-standard": "9.0.0",
     "tslint-eslint-rules": "5.4.0"
   },

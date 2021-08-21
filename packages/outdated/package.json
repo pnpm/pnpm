@@ -48,12 +48,12 @@
     "@pnpm/types": "workspace:6.4.0",
     "dependency-path": "workspace:5.1.1",
     "ramda": "^0.27.1",
-    "semver": "^7.3.4"
+    "semver": "^7.3.5"
   },
   "devDependencies": {
     "@pnpm/logger": "^3.2.3",
-    "@types/ramda": "^0.27.35",
-    "@types/semver": "^7.3.4",
+    "@types/ramda": "0.27.39",
+    "@types/semver": "^7.3.8",
     "npm-run-all": "^4.1.5"
   },
   "funding": "https://opencollective.com/pnpm"
