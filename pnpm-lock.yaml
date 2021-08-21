@@ -3172,7 +3172,6 @@ importers:
       read-yaml-file: ^2.1.0
       write-pkg: 4.0.0
     dependencies:
-      '@pnpm/assert-project': 'link:'
       '@pnpm/assert-store': link:../assert-store
       '@pnpm/constants': link:../../packages/constants
       '@pnpm/lockfile-types': link:../../packages/lockfile-types
@@ -3186,6 +3185,7 @@ importers:
       read-yaml-file: 2.1.0
       write-pkg: 4.0.0
     devDependencies:
+      '@pnpm/assert-project': 'link:'
       '@types/is-windows': 1.0.0
       '@types/isexe': 2.0.0
       '@types/node': 14.17.11
@@ -3196,9 +3196,10 @@ importers:
       '@pnpm/cafs': workspace:2.1.0
       path-exists: ^4.0.0
     dependencies:
-      '@pnpm/assert-store': 'link:'
       '@pnpm/cafs': link:../../packages/cafs
       path-exists: 4.0.0
+    devDependencies:
+      '@pnpm/assert-store': 'link:'
 
   privatePackages/prepare:
     specifiers:
@@ -3229,9 +3230,9 @@ importers:
       '@types/ncp': ^2.0.5
       ncp: ^2.0.0
     dependencies:
-      '@pnpm/test-fixtures': 'link:'
       ncp: 2.0.0
     devDependencies:
+      '@pnpm/test-fixtures': 'link:'
       '@types/ncp': 2.0.5
 
   typings:
@@ -3256,7 +3257,7 @@ importers:
   utils/tsconfig:
     specifiers:
       '@pnpm/tsconfig': 'link:'
-    dependencies:
+    devDependencies:
       '@pnpm/tsconfig': 'link:'
 
   utils/updater:

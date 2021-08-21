@@ -35,7 +35,6 @@
     "test": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/test-fixtures": "link:",
     "ncp": "^2.0.0"
   }
 }

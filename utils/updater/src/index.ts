@@ -15,6 +15,12 @@ export default async (workspaceDir: string) => {
   }
   return {
     'package.json': (manifest: ProjectManifest, dir: string) => {
+      if (manifest.name && manifest.dependencies?.[manifest.name]) {
+        delete manifest.dependencies[manifest.name]
+      }
+      if (manifest.name && manifest.devDependencies?.[manifest.name]) {
+        delete manifest.devDependencies[manifest.name]
+      }
       if (!isSubdir(pkgsDir, dir)) return manifest
       return updateManifest(workspaceDir, manifest, dir)
     },
