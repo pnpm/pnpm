@@ -586,6 +586,12 @@ async function resolveDependency (
   }
 
   let pkgResponse!: PackageResponse
+  if (!options.parentPkg.installable) {
+    wantedDependency = {
+      ...wantedDependency,
+      optional: true,
+    }
+  }
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,

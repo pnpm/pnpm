@@ -122,6 +122,7 @@ export default async function<T> (
       parentPkg: {
         installable: true,
         nodeId: `>${importer.id}>`,
+        optional: false,
         depPath: importer.id,
       },
       proceed,
