@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.18.10
+
+### Patch Changes
+
+- Updating dependencies to fix security vulnerability [CVE-2021-32803](https://nvd.nist.gov/vuln/detail/CVE-2021-32803).
+
 ## 5.18.9
 
 ### Patch Changes
