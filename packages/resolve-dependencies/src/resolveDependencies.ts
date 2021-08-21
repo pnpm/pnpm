@@ -155,6 +155,7 @@ export type PkgAddress = {
   pkgId: string
   normalizedPref?: string // is returned only for root dependencies
   installable: boolean
+  optional: boolean
   pkg: PackageManifest
   version?: string
   updated: boolean
@@ -198,7 +199,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'optional'>
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
@@ -611,7 +612,7 @@ async function resolveDependency (
       workspacePackages: options.workspacePackages,
     })
   } catch (err) {
-    if (wantedDependency.optional) {
+    if (wantedDependency.optional || options.parentPkg.optional) {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
@@ -809,6 +810,7 @@ async function resolveDependency (
     isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
+    optional: wantedDependency.optional || options.parentPkg.optional,
     pkgId: pkgResponse.body.id,
 
     // Next fields are actually only needed when isNew = true

@@ -538,3 +538,22 @@ test('skip optional dependency that does not support the current OS, when doing 
     '/not-compatible-with-any-os/1.0.0',
   ])
 })
+
+test('do not fail on bad dependency of optional dependency', async () => {
+  prepareEmpty()
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        manifest: {
+          dependencies: {
+            'electron-builder': '22.12.0',
+          },
+        },
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ],
+    await testDefaults({ fastUnpack: false }, {}, {}, { engineStrict: true })
+  )
+})
