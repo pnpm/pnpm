@@ -539,21 +539,25 @@ test('skip optional dependency that does not support the current OS, when doing 
   ])
 })
 
-test('do not fail on bad dependency of optional dependency', async () => {
-  prepareEmpty()
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest: {
-          dependencies: {
-            'electron-builder': '22.12.0',
-          },
-        },
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ fastUnpack: false }, {}, {}, { engineStrict: true })
+test('do not fail on unsupported dependency of optional dependency', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['not-compatible-with-not-compatible-dep@1.0.0'],
+    await testDefaults({ targetDependenciesField: 'optionalDependencies' }, {}, {}, { engineStrict: true })
   )
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.packages['/not-compatible-with-any-os/1.0.0'].optional).toBeTruthy()
+  expect(lockfile.packages['/dep-of-optional-pkg/1.0.0']).toBeTruthy()
+})
+
+test('fail on unsupported dependency of optional dependency', async () => {
+  prepareEmpty()
+  await expect(
+    addDependenciesToPackage(
+      {},
+      ['has-not-compatible-dep@1.0.0'],
+      await testDefaults({ targetDependenciesField: 'optionalDependencies' }, {}, {}, { engineStrict: true })
+    )
+  ).rejects.toThrow()
 })

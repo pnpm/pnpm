@@ -31,7 +31,7 @@ importers:
       '@commitlint/prompt-cli': ^12.1.1
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': ^2.6.1
+      '@pnpm/registry-mock': ^2.7.1
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.23
       '@types/node': ^14.14.33
@@ -59,7 +59,7 @@ importers:
       '@commitlint/prompt-cli': 12.1.4
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.6.1
+      '@pnpm/registry-mock': 2.7.1
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.24
       '@types/node': 14.17.10
@@ -4412,15 +4412,15 @@ packages:
       load-json-file: 6.2.0
     dev: true
 
-  /@pnpm/cli-utils/0.6.16_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-SLyGa/a5AWRS2u2gPXNAz43Qmaj1YV+Z3yunCCc9R8lP2JiqrwCHozNxgawj+geBwjatDKfjvkNEypyF7jDoUg==}
+  /@pnpm/cli-utils/0.6.17_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-4zsKAifcdt8rf66+GE6tpLwTwdPLU9TfeTxSbHSzqZwnFhCxUCN0FzuI+vv7RUOaxTS9D1wcTHIjtoqJCUbb4g==}
     engines: {node: '>=12.17'}
     peerDependencies:
       '@pnpm/logger': ^4.0.0
     dependencies:
       '@pnpm/cli-meta': 2.0.0
-      '@pnpm/config': 12.4.6
-      '@pnpm/default-reporter': 8.1.11_@pnpm+logger@4.0.0
+      '@pnpm/config': 12.4.7
+      '@pnpm/default-reporter': 8.1.12_@pnpm+logger@4.0.0
       '@pnpm/error': 2.0.0
       '@pnpm/logger': 4.0.0
       '@pnpm/manifest-utils': 2.0.4_@pnpm+logger@4.0.0
@@ -4437,8 +4437,8 @@ packages:
       chalk: 4.1.2
     dev: false
 
-  /@pnpm/config/12.4.6:
-    resolution: {integrity: sha512-Yv0QPVScuTFskRs3Z1mbLL1Phlzzw/6PYXeSNT+zQ3s9WgTbwaJNNF7mE4XJYON6DleCEo3LtYYQniYJupPsLA==}
+  /@pnpm/config/12.4.7:
+    resolution: {integrity: sha512-Y0yE/lYzJyNGdZFjmc1lzk/tECG+XRXi0CAVrroJIbwrCspmtuoLewSbujXj/49G2Eti0p520/OuWI9o/xbvgg==}
     engines: {node: '>=12.17'}
     dependencies:
       '@pnpm/constants': 5.0.0
@@ -4469,11 +4469,11 @@ packages:
       '@pnpm/types': 7.4.0
     dev: true
 
-  /@pnpm/default-reporter/8.1.11_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-61Y2YYpGfEjSz8EagSTdYdmpoU7J2pDcS4wBlT9VhMoLVlZSzOQBtA+QGhsQ0wWK7uKmrN0RzUOJSyPH04cnhA==}
+  /@pnpm/default-reporter/8.1.12_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-ZSgH5yyGKmRkJLfFHJ4ptxoNiUrLhEUxh9Ff67s978D97/DEWdg/DjwFx5TToCvPW9l7cT5Zo0nP+npbvmdQjQ==}
     engines: {node: '>=12.17'}
     dependencies:
-      '@pnpm/config': 12.4.6
+      '@pnpm/config': 12.4.7
       '@pnpm/core-loggers': 6.0.4_@pnpm+logger@4.0.0
       '@pnpm/error': 2.0.0
       '@pnpm/types': 7.4.0
@@ -4524,11 +4524,11 @@ packages:
       find-up: 5.0.0
     dev: true
 
-  /@pnpm/find-workspace-packages/3.1.8_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-5vxOeFCwtEDW/HRzLRa9RXh/3SU510/I/uuNKszfBtGHZiiyH/S3LZRtCdYNtjqoY522+fULrylnGSNOG+yghQ==}
+  /@pnpm/find-workspace-packages/3.1.9_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-N2xJqnux0cFhyvWxxE0oO0b26xJa0GyfsZI0qBVjzUb9m5kpPPahmSqYIECQTWmEfhxQeqbvgyTsVfmUmLV99A==}
     engines: {node: '>=12.17'}
     dependencies:
-      '@pnpm/cli-utils': 0.6.16_@pnpm+logger@4.0.0
+      '@pnpm/cli-utils': 0.6.17_@pnpm+logger@4.0.0
       '@pnpm/constants': 5.0.0
       '@pnpm/types': 7.4.0
       find-packages: 8.0.5
@@ -4577,7 +4577,7 @@ packages:
     hasBin: true
     dependencies:
       '@pnpm/find-workspace-dir': 3.0.1
-      '@pnpm/find-workspace-packages': 3.1.8_@pnpm+logger@4.0.0
+      '@pnpm/find-workspace-packages': 3.1.9_@pnpm+logger@4.0.0
       '@pnpm/logger': 4.0.0
       '@pnpm/types': 7.4.0
       load-json-file: 6.2.0
@@ -4625,8 +4625,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.6.1:
-    resolution: {integrity: sha512-LDB1V02L2ytC38qsJqw+wD8evAmFsfGQMF1jOPD9gN09uNBJ09QA4Pg1VEVUldlBiaVKyKK4T90Nk60ssc29mA==}
+  /@pnpm/registry-mock/2.7.1:
+    resolution: {integrity: sha512-rPZldydDKWuXjQ4PvRRmlXNTvMypY8ByH4/YbVKSVnmd0zou/LGa77qUcssWoL/oQguN6o7jN7iwVEi54Gbx3A==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:

@@ -587,6 +587,9 @@ async function resolveDependency (
   }
 
   let pkgResponse!: PackageResponse
+  if (!options.parentPkg.installable && options.parentPkg.optional) {
+    wantedDependency.optional = options.parentPkg.optional
+  }
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
@@ -612,7 +615,7 @@ async function resolveDependency (
       workspacePackages: options.workspacePackages,
     })
   } catch (err) {
-    if (wantedDependency.optional || options.parentPkg.optional) {
+    if (wantedDependency.optional) {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
