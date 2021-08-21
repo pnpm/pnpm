@@ -155,7 +155,6 @@ export type PkgAddress = {
   pkgId: string
   normalizedPref?: string // is returned only for root dependencies
   installable: boolean
-  optional: boolean
   pkg: PackageManifest
   version?: string
   updated: boolean
@@ -199,7 +198,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'optional'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath'>
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
@@ -587,8 +586,11 @@ async function resolveDependency (
   }
 
   let pkgResponse!: PackageResponse
-  if (!options.parentPkg.installable && options.parentPkg.optional) {
-    wantedDependency.optional = options.parentPkg.optional
+  if (!options.parentPkg.installable) {
+    wantedDependency = {
+      ...wantedDependency,
+      optional: true,
+    }
   }
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
@@ -813,7 +815,6 @@ async function resolveDependency (
     isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
-    optional: wantedDependency.optional || options.parentPkg.optional,
     pkgId: pkgResponse.body.id,
 
     // Next fields are actually only needed when isNew = true
