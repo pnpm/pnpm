@@ -22,7 +22,7 @@ export const commandNames = ['env']
 
 export function help () {
   return renderHelp({
-    description: 'Install and use the specified version of Node.js',
+    description: 'Install and use the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well.',
     descriptionLists: [
       {
         title: 'Options',

@@ -6,7 +6,7 @@ import { env } from '@pnpm/plugin-commands-env'
 import execa from 'execa'
 import PATH from 'path-name'
 
-test('install Node by exact version', async () => {
+test('install Node (and npm, npx) by exact version of Node.js', async () => {
   tempDir()
 
   await env.handler({
@@ -16,12 +16,26 @@ test('install Node by exact version', async () => {
     rawConfig: {},
   }, ['use', '16.4.0'])
 
-  const { stdout } = execa.sync('node', ['-v'], {
+  const opts = {
     env: {
       [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
     },
-  })
-  expect(stdout.toString()).toBe('v16.4.0')
+  }
+
+  {
+    const { stdout } = execa.sync('node', ['-v'], opts)
+    expect(stdout.toString()).toBe('v16.4.0')
+  }
+
+  {
+    const { stdout } = execa.sync('npm', ['-v'], opts)
+    expect(stdout.toString()).toBe('7.18.1')
+  }
+
+  {
+    const { stdout } = execa.sync('npx', ['-v'], opts)
+    expect(stdout.toString()).toBe('7.18.1')
+  }
 
   const dirs = fs.readdirSync(path.resolve('nodejs'))
   expect(dirs).toEqual(['16.4.0'])
