@@ -47,6 +47,18 @@ test('local file', async () => {
   })
 })
 
+test('local directory with no package.json', async () => {
+  const project = prepareEmpty()
+  await fs.mkdir('pkg')
+  await fs.writeFile('pkg/index.js', 'hello', 'utf8')
+
+  const manifest = await addDependenciesToPackage({}, ['file:./pkg'], await testDefaults())
+
+  const expectedSpecs = { pkg: 'link:pkg' }
+  expect(manifest.dependencies).toStrictEqual(expectedSpecs)
+  await project.has('pkg')
+})
+
 test('local file via link:', async () => {
   const project = prepareEmpty()
   await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
