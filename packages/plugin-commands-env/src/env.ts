@@ -67,8 +67,13 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     const dest = path.join(opts.bin, 'node')
     await cmdShim(src, dest)
     try {
-      await cmdShim(path.join(nodeDir, 'lib/node_modules/npm/bin/npm-cli.js'), path.join(opts.bin, 'npm'))
-      await cmdShim(path.join(nodeDir, 'lib/node_modules/npm/bin/npx-cli.js'), path.join(opts.bin, 'npx'))
+      let npmDir = nodeDir
+      if (process.platform !== 'win32') {
+        npmDir = path.join(npmDir, 'lib')
+      }
+      npmDir = path.join(npmDir, 'node_modules/npm/bin')
+      await cmdShim(path.join(npmDir, 'npm-cli.js'), path.join(opts.bin, 'npm'))
+      await cmdShim(path.join(npmDir, 'npx-cli.js'), path.join(opts.bin, 'npx'))
     } catch (err) {
       // ignore
     }
