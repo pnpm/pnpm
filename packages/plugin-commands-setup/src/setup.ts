@@ -61,17 +61,27 @@ export async function handler (
   if (execPath.match(/\.[cm]?js$/) == null) {
     moveCli(execPath, opts.pnpmHomeDir)
   }
+  const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir)
+  if (updateOutput === false) {
+    return 'Could not infer shell type.'
+  }
+  return `${updateOutput}
+
+Setup complete. Open a new terminal to start using pnpm.`
+}
+
+async function updateShell (currentShell: string | null, pnpmHomeDir: string): Promise<string | false> {
   switch (currentShell) {
   case 'bash': {
     const configFile = path.join(os.homedir(), '.bashrc')
-    return setupShell(configFile, opts.pnpmHomeDir)
+    return setupShell(configFile, pnpmHomeDir)
   }
   case 'zsh': {
     const configFile = path.join(os.homedir(), '.zshrc')
-    return setupShell(configFile, opts.pnpmHomeDir)
+    return setupShell(configFile, pnpmHomeDir)
   }
   case 'fish': {
-    return setupFishShell(opts.pnpmHomeDir)
+    return setupFishShell(pnpmHomeDir)
   }
   }
   return 'Could not infer shell type.'
