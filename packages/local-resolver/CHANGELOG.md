@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 6.1.0
+
+### Minor Changes
+
+- 3f0178b4c: Allow to link a directory that has no manifest file.
+
 ## 6.0.5
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 21.0.2
+
+### Patch Changes
+
+- ee589ab9b: Installation should not fail if a non-optional dependency of a skipped dependency is not installable.
+
 ## 21.0.1
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # supi
 
+## 0.47.15
+
+### Patch Changes
+
+- Updated dependencies [ee589ab9b]
+  - @pnpm/resolve-dependencies@21.0.2
+  - @pnpm/headless@16.0.24
+  - @pnpm/package-requester@15.1.1
+
 ## 0.47.14
 
 ### Patch Changes

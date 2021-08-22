@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.14.1
+
+### Patch Changes
+
+- Don't crash on unsupported packages that are only dependencies of skipped optional dependencies [#3640](https://github.com/pnpm/pnpm/issues/3640).
+- Allow to symlink a directory that has no `package.json` [#3691](https://github.com/pnpm/pnpm/issues/3691).
+
 ## 6.14.0
 
 ### Minor Changes
