@@ -53,7 +53,7 @@ export default async function resolveLocal (
     localDependencyManifest = await readProjectManifestOnly(spec.fetchSpec) as DependencyManifest
   } catch (internalErr) {
     if (!existsSync(spec.fetchSpec)) {
-      throw new PnpmError('PACKAGE_DIRECTORY_NOT_FOUND',
+      throw new PnpmError('LINKED_PKG_DIR_NOT_FOUND',
         `Could not install from "${spec.fetchSpec}" as it does not exist.`)
     }
     switch (internalErr.code) {
