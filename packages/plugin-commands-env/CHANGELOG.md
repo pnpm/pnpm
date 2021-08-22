@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-env
 
+## 1.0.0
+
+### Major Changes
+
+- 25a2d6e5c: When installing Node.js, also link the npm CLI that is bundled with Node.js.
+
 ## 0.2.13
 
 ### Patch Changes

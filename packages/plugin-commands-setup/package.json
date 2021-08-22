@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-setup",
-  "version": "0.2.1",
+  "version": "1.0.0",
   "description": "pnpm commands for setting up pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

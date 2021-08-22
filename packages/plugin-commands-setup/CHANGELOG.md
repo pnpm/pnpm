@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 1.0.0
+
+### Major Changes
+
+- 71cc21832: Print info message about the requirment to open a new terminal.
+
 ## 0.2.1
 
 ### Patch Changes

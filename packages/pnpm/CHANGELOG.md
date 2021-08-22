@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.14.2
+
+### Patch Changes
+
+- `pnpm setup` prints an info message that suggests to open a new terminal [#3698](https://github.com/pnpm/pnpm/pull/3698).
+- `pnpm env use -g <version>` links `npm` as well, when installing Node.js [#3696](https://github.com/pnpm/pnpm/pull/3696).
+
 ## 6.14.1
 
 ### Patch Changes
