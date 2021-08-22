@@ -63,9 +63,15 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       ...opts,
       useNodeVersion: nodeVersion,
     })
-    const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'node')
+    const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
     const dest = path.join(opts.bin, 'node')
     await cmdShim(src, dest)
+    try {
+      await cmdShim(path.join(nodeDir, 'lib/node_modules/npm/bin/npm-cli.js'), path.join(opts.bin, 'npm'))
+      await cmdShim(path.join(nodeDir, 'lib/node_modules/npm/bin/npx-cli.js'), path.join(opts.bin, 'npx'))
+    } catch (err) {
+      // ignore
+    }
     return `Node.js ${nodeVersion} is activated
   ${dest} -> ${src}`
   }
