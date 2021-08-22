@@ -35,6 +35,11 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'pnpmHomeDir'
 >
 
+export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
+  const nodeDir = await getNodeDir(opts)
+  return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
+}
+
 export async function getNodeDir (opts: NvmNodeCommandOptions) {
   const nodesDir = path.join(opts.pnpmHomeDir, 'nodejs')
   let wantedNodeVersion = opts.useNodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
@@ -53,7 +58,7 @@ export async function getNodeDir (opts: NvmNodeCommandOptions) {
   if (!fs.existsSync(versionDir)) {
     await installNode(wantedNodeVersion, versionDir, opts)
   }
-  return process.platform === 'win32' ? versionDir : path.join(versionDir, 'bin')
+  return versionDir
 }
 
 async function installNode (wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions) {

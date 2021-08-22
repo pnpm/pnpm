@@ -22,7 +22,7 @@ export const commandNames = ['env']
 
 export function help () {
   return renderHelp({
-    description: 'Install and use the specified version of Node.js',
+    description: 'Install and use the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well.',
     descriptionLists: [
       {
         title: 'Options',
@@ -63,9 +63,20 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       ...opts,
       useNodeVersion: nodeVersion,
     })
-    const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'node')
+    const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
     const dest = path.join(opts.bin, 'node')
     await cmdShim(src, dest)
+    try {
+      let npmDir = nodeDir
+      if (process.platform !== 'win32') {
+        npmDir = path.join(npmDir, 'lib')
+      }
+      npmDir = path.join(npmDir, 'node_modules/npm/bin')
+      await cmdShim(path.join(npmDir, 'npm-cli.js'), path.join(opts.bin, 'npm'))
+      await cmdShim(path.join(npmDir, 'npx-cli.js'), path.join(opts.bin, 'npx'))
+    } catch (err) {
+      // ignore
+    }
     return `Node.js ${nodeVersion} is activated
   ${dest} -> ${src}`
   }
