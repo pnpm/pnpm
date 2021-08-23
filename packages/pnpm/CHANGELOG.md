@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.14.3
+
+### Patch Changes
+
+- Downgrade `@yarnpkg/parsers` to v2.3.0 from v2.4.0 to fix a regression in script running, when `shell-emulator` is `true` [#3700](https://github.com/pnpm/pnpm/issues/3700).
+
 ## 6.14.2
 
 ### Patch Changes
