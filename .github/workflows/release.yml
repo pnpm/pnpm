@@ -11,6 +11,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Install ldid
+        run: |
+          sudo apt-get update
+          sudo apt-get install git build-essential libplist-dev libssl-dev openssl qemu-user-binfmt
+          cd /tmp
+          git clone git://git.saurik.com/ldid.git
+          cd ldid
+          git submodule update --init
+          gcc -I. -c -o lookup2.o lookup2.c
+          g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto -lplist -lxml2
+          sudo mv ldid /usr/local/bin
       - name: install pnpm and npm
         run: |
           curl -L https://get.pnpm.io/v6.js | node - add --global pnpm@next npm@7
