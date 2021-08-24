@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: release
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -27,8 +28,14 @@ jobs:
           curl -L https://get.pnpm.io/v6.js | node - add --global pnpm@next npm@7
       - name: pnpm install
         run: pnpm install
-      - name: Build Artifacts
-        run: pnpm run compile && pnpm run --filter=@pnpm/beta prepublishOnly && pnpm run copy-artifacts
+      - name: Publish Packages
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          pnpm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+          pnpm release
+      - name: Copy Artifacts
+        run: pnpm run copy-artifacts
       - name: Generate release description
         run: pnpm run make-release-description
       - name: Release
@@ -37,4 +44,3 @@ jobs:
           draft: true
           files: dist/*
           body_path: RELEASE.md
-
