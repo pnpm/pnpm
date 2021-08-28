@@ -113,7 +113,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['noop'])
+  }, ['noop@^0.2.2'])
 
   expect(projects['project-1'].requireModule('noop')).toBeTruthy()
   expect(projects['project-2'].requireModule('noop')).toBeTruthy()
