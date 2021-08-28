@@ -10,11 +10,14 @@ test('dlx', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test('dlx --package <pkg>', async () => {
+test('dlx --package <pkg1> [--package <pkg2>]', async () => {
   prepareEmpty()
 
   await dlx.handler({
-    package: 'zkochan/for-testing-pnpm-dlx',
+    package: [
+      'zkochan/for-testing-pnpm-dlx',
+      'is-positive',
+    ],
   }, ['foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()

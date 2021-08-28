@@ -13,7 +13,7 @@ export function rcOptionsTypes () {
 }
 
 export const cliOptionsTypes = () => ({
-  package: String,
+  package: [String, Array],
 })
 
 export function help () {
@@ -37,7 +37,7 @@ export function help () {
 
 export async function handler (
   opts: {
-    package?: string
+    package?: string[]
   },
   params: string[]
 ) {
@@ -55,8 +55,8 @@ export async function handler (
     } catch (err) { }
   })
   await rimraf(bins)
-  const pkg = opts.package ?? params[0]
-  await execa('pnpm', ['add', pkg, '--global', '--global-dir', prefix, '--dir', prefix], {
+  const pkgs = opts.package ?? params.slice(0, 1)
+  await execa('pnpm', ['add', ...pkgs, '--global', '--global-dir', prefix, '--dir', prefix], {
     stdio: 'inherit',
   })
   await execa(params[0], params.slice(1), {
