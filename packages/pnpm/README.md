@@ -43,13 +43,19 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 On macOS, Linux, or Windows Subsystem for Linux:
 
 ```
-curl -f https://get.pnpm.io/v6.js | node - add --global pnpm
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+```
+
+If you don't have curl installed, you would like to use wget:
+
+```
+wget -qO- https://get.pnpm.io/install.sh | sh -
 ```
 
 On Windows (using PowerShell):
 
 ```
-(Invoke-WebRequest 'https://get.pnpm.io/v6.js' -UseBasicParsing).Content | node - add --global pnpm
+(Invoke-WebRequest 'https://get.pnpm.io/v6.14.js' -UseBasicParsing).Content | node - add --global pnpm
 ```
 
 Using npm:
