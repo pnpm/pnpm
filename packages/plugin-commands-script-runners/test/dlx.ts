@@ -16,7 +16,7 @@ test('dlx --package <pkg1> [--package <pkg2>]', async () => {
   await dlx.handler({
     package: [
       'zkochan/for-testing-pnpm-dlx',
-      'zkochan/install-scripts-example',
+      'is-positive',
     ],
   }, ['foo'])
 
