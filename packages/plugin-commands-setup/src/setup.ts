@@ -33,22 +33,15 @@ function getExecPath () {
   return (require.main != null) ? require.main.filename : process.cwd()
 }
 
-function moveCli (currentLocation: string, targetDir: string) {
+function copyCli (currentLocation: string, targetDir: string) {
   const newExecPath = path.join(targetDir, path.basename(currentLocation))
   if (path.relative(newExecPath, currentLocation) === '') return
   logger.info({
-    message: `Moving pnpm CLI from ${currentLocation} to ${newExecPath}`,
+    message: `Copying pnpm CLI from ${currentLocation} to ${newExecPath}`,
     prefix: process.cwd(),
   })
   fs.mkdirSync(targetDir, { recursive: true })
-  try {
-    fs.renameSync(currentLocation, newExecPath)
-  } catch (err) {
-    fs.copyFileSync(currentLocation, newExecPath)
-    try {
-      fs.unlinkSync(currentLocation)
-    } catch (err) {}
-  }
+  fs.copyFileSync(currentLocation, newExecPath)
 }
 
 export async function handler (
@@ -59,7 +52,7 @@ export async function handler (
   const currentShell = process.env.SHELL ? path.basename(process.env.SHELL) : null
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
-    moveCli(execPath, opts.pnpmHomeDir)
+    copyCli(execPath, opts.pnpmHomeDir)
   }
   const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir)
   if (updateOutput === false) {
