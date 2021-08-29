@@ -35,6 +35,7 @@ async function which (cmd: string) {
 
 export const types = Object.assign({
   bail: Boolean,
+  'cache-dir': String,
   'child-concurrency': Number,
   color: ['always', 'auto', 'never'],
   dev: [null, true],
@@ -93,6 +94,7 @@ export const types = Object.assign({
   'side-effects-cache-readonly': Boolean,
   symlink: Boolean,
   sort: Boolean,
+  'state-dir': String,
   store: String, // TODO: deprecate
   'store-dir': String,
   stream: Boolean,
