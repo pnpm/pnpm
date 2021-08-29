@@ -29,13 +29,17 @@ function pickBestGlobalBinDir (
   shouldAllowWrite: boolean
 ) {
   const noWriteAccessDirs = [] as string[]
+  const pnpmDir = dirs.find((dir) => isUnderDir('pnpm', dir.toLowerCase()))
+  if (pnpmDir != null) {
+    if (canWriteToDirAndExists(pnpmDir)) return pnpmDir
+    throw new PnpmError('PNPM_DIR_NOT_WRITABLE', `The CLI has no write access to the pnpm home directory at ${pnpmDir}`)
+  }
   for (const dir of dirs) {
     const lowCaseDir = dir.toLowerCase()
     if ((
       isUnderDir('node', lowCaseDir) ||
       isUnderDir('nodejs', lowCaseDir) ||
       isUnderDir('npm', lowCaseDir) ||
-      isUnderDir('pnpm', lowCaseDir) ||
       knownCandidates.some((candidate) => areDirsEqual(candidate, dir)) ||
       dirHasNodeRelatedCommand(dir)
     ) && !isUnderDir('_npx', lowCaseDir)) {
