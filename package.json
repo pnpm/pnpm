@@ -19,7 +19,7 @@
     "update-manifests": "pnpm run meta-updater && pnpm install",
     "meta-updater": "pnpm --filter=@pnpm-private/updater compile && pnpm --config.use-node-version=16.4.0 exec meta-updater",
     "lint:meta": "pnpm run meta-updater -- --test",
-    "copy-artifacts": "shx rm -rf dist && shx mkdir dist && shx cp packages/artifacts/linux-x64/pnpm dist/pnpm-linux-x64 && shx cp packages/artifacts/linuxstatic-x64/pnpm dist/pnpm-linuxstatic-x64 && shx cp packages/artifacts/macos-x64/pnpm dist/pnpm-macos-x64 && shx cp packages/artifacts/macos-arm64/pnpm dist/pnpm-macos-arm64 && shx cp packages/artifacts/win-x64/pnpm.exe dist/pnpm-win-x64.exe",
+    "copy-artifacts": "ts-node utils/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm run write-release-text --filter @pnpm/get-release-text",
     "release": "pnpm --filter=@pnpm/beta publish && pnpm publish --filter=!pnpm --filter=!@pnpm/beta --access=public && pnpm publish --filter=pnpm --tag=next"
   },

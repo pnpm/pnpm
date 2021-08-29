@@ -3371,6 +3371,14 @@ importers:
       remark-stringify: 7.0.4_unified@8.4.2
       unified: 8.4.2
 
+  utils/scripts:
+    specifiers:
+      execa: ^5.0.0
+      make-empty-dir: ^2.0.0
+    dependencies:
+      execa: 5.1.1
+      make-empty-dir: 2.0.0
+
   utils/tsconfig:
     specifiers:
       '@pnpm/tsconfig': 'link:'
