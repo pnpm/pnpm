@@ -45,9 +45,6 @@ function moveCli (currentLocation: string, targetDir: string) {
     fs.renameSync(currentLocation, newExecPath)
   } catch (err) {
     fs.copyFileSync(currentLocation, newExecPath)
-    try {
-      fs.unlinkSync(currentLocation)
-    } catch (err) {}
   }
 }
 
