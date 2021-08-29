@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "16.0.25",
+  "version": "16.0.26",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -75,7 +75,7 @@
     "@pnpm/lifecycle": "workspace:11.0.4",
     "@pnpm/link-bins": "workspace:6.0.7",
     "@pnpm/lockfile-file": "workspace:4.1.1",
-    "@pnpm/lockfile-to-pnp": "workspace:0.4.20",
+    "@pnpm/lockfile-to-pnp": "workspace:0.4.21",
     "@pnpm/lockfile-utils": "workspace:3.0.8",
     "@pnpm/modules-cleaner": "workspace:11.0.10",
     "@pnpm/modules-yaml": "workspace:9.0.4",

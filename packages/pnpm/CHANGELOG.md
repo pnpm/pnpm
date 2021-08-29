@@ -1,12 +1,14 @@
 # pnpm
 
-## 6.14.4
+## 6.14.5
 
 ### Patch Changes
 
 - A broken `package.json` should not make pnpm exit without any message [#3705](https://github.com/pnpm/pnpm/issues/3705).
 - `pnpm dlx` should allow to pass multiple packages for installation [#3710](https://github.com/pnpm/pnpm/pull/3710).
 - The pnpm home directory should be always prefered when searching for a global bin directory [#3723](https://github.com/pnpm/pnpm/pull/3723).
+- `pnpm setup` should not remove the pnpm CLI executable, just copy it to the pnpm home directory [#3724](https://github.com/pnpm/pnpm/pull/3724).
+- It should be possible to set `cache-dir` and `state-dir` through config files [#3727](https://github.com/pnpm/pnpm/pull/3727).
 
 ## 6.14.3
 

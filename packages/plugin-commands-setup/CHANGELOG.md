@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-setup
 
+## 1.1.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.19
+
+## 1.1.0
+
+### Minor Changes
+
+- ade0fa92f: The original binary will not be removed after pnpm setup.
+
 ## 1.0.1
 
 ### Patch Changes
