@@ -14,6 +14,7 @@ jobs:
         platform:
           - ubuntu-latest
           - windows-latest
+          - macos-latest
 
     name: '${{matrix.platform}} / Node.js ${{ matrix.node }}'
     runs-on: ${{matrix.platform}}
