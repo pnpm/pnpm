@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 12.4.8
+
+### Patch Changes
+
+- Updated dependencies [47a1e9696]
+  - @pnpm/global-bin-dir@3.0.0
+
 ## 12.4.7
 
 ### Patch Changes

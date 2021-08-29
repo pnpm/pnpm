@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.14.4
+
+### Patch Changes
+
+- A broken `package.json` should not make pnpm exit without any message [#3705](https://github.com/pnpm/pnpm/issues/3705).
+- `pnpm dlx` should allow to pass multiple packages for installation [#3710](https://github.com/pnpm/pnpm/pull/3710).
+- The pnpm home directory should be always prefered when searching for a global bin directory [#3723](https://github.com/pnpm/pnpm/pull/3723).
+
 ## 6.14.3
 
 ### Patch Changes

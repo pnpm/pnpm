@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.1.13
+
+### Patch Changes
+
+- @pnpm/config@12.4.8
+
 ## 8.1.12
 
 ### Patch Changes

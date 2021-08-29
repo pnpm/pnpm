@@ -1,5 +1,11 @@
 # @pnpm/global-bin-dir
 
+## 3.0.0
+
+### Major Changes
+
+- 47a1e9696: Always prefer the pnpm home directory, when searching for global bin location.
+
 ## 2.0.0
 
 ### Major Changes

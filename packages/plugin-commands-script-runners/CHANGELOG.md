@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.2.0
+
+### Minor Changes
+
+- 7f097f26f: Support for multiple `--package` parameters added for `pnpm dlx` command
+
+### Patch Changes
+
+- @pnpm/config@12.4.8
+- @pnpm/cli-utils@0.6.18
+
 ## 4.1.2
 
 ### Patch Changes
