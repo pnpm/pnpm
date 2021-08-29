@@ -41,11 +41,7 @@ function moveCli (currentLocation: string, targetDir: string) {
     prefix: process.cwd(),
   })
   fs.mkdirSync(targetDir, { recursive: true })
-  try {
-    fs.renameSync(currentLocation, newExecPath)
-  } catch (err) {
-    fs.copyFileSync(currentLocation, newExecPath)
-  }
+  fs.copyFileSync(currentLocation, newExecPath)
 }
 
 export async function handler (
