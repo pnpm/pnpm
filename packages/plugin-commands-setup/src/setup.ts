@@ -1,6 +1,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import execa from 'execa'
 import { docsUrl } from '@pnpm/cli-utils'
 import logger from '@pnpm/logger'
 import renderHelp from 'render-help'
@@ -55,15 +56,12 @@ export async function handler (
     copyCli(execPath, opts.pnpmHomeDir)
   }
   const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir)
-  if (updateOutput === false) {
-    return 'Could not infer shell type.'
-  }
   return `${updateOutput}
 
 Setup complete. Open a new terminal to start using pnpm.`
 }
 
-async function updateShell (currentShell: string | null, pnpmHomeDir: string): Promise<string | false> {
+async function updateShell (currentShell: string | null, pnpmHomeDir: string): Promise<string> {
   switch (currentShell) {
   case 'bash': {
     const configFile = path.join(os.homedir(), '.bashrc')
@@ -77,10 +75,15 @@ async function updateShell (currentShell: string | null, pnpmHomeDir: string): P
     return setupFishShell(pnpmHomeDir)
   }
   }
+
+  if (process.platform === "win32") {
+    return setupEnvironmentPath(pnpmHomeDir)
+  }
+
   return 'Could not infer shell type.'
 }
 
-async function setupShell (configFile: string, pnpmHomeDir: string) {
+async function setupShell (configFile: string, pnpmHomeDir: string): Promise<string> {
   if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
   const configContent = await fs.promises.readFile(configFile, 'utf8')
   if (configContent.includes('PNPM_HOME')) {
@@ -93,7 +96,7 @@ export PATH="$PNPM_HOME:$PATH"
   return `Updated ${configFile}`
 }
 
-async function setupFishShell (pnpmHomeDir: string) {
+async function setupFishShell (pnpmHomeDir: string): Promise<string> {
   const configFile = path.join(os.homedir(), '.config/fish/config.fish')
   if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
   const configContent = await fs.promises.readFile(configFile, 'utf8')
@@ -105,4 +108,55 @@ set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
 `, 'utf8')
   return `Updated ${configFile}`
+}
+
+async function setupEnvironmentPath (pnpmHomeDir: string): Promise<string> {
+  const pathRegex = /^    (?<name>PATH)    (?<type>\w+)    (?<data>.*)$/gim
+  const pnpmHomeRegex = /^    (?<name>PNPM_HOME)    (?<type>\w+)    (?<data>.*)$/gim
+  const regKey = 'HKEY_CURRENT_USER\\Environment'
+
+  const queryResult = await execa('reg', ['query', regKey])
+
+  if (queryResult.failed) {
+    return `Win32 registry environment values could not be retrieved`
+  }
+
+  const queryOutput = queryResult.stdout
+  const pathValueMatch = [...queryOutput.matchAll(pathRegex)]
+  const homeValueMatch = [...queryOutput.matchAll(pnpmHomeRegex)]
+
+  const logger = [];
+  if (homeValueMatch?.length === 1) {
+    logger.push(`Currently 'PNPM_HOME' is set to '${homeValueMatch[0]?.groups?.data}'`)
+  }
+  else {
+    logger.push(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
+    const addResult = await execa('reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDir, '/f'])
+    if (addResult.failed) {
+      logger.push(`\t${addResult.stderr}`)
+    }
+    else {
+      logger.push(`\t${addResult.stdout}`)
+    }
+  }
+
+  if (pathValueMatch?.length === 1) {
+    const pathData = pathValueMatch[0]?.groups?.data ?? ''
+    const pathDataUpperCase = pathData.toUpperCase()
+    if (pathDataUpperCase.indexOf('%PNPM_HOME%') >= 0) {
+      logger.push(`PATH already contains 'PNPM_HOME'`)
+    }
+    else {
+      logger.push(`Updating 'PATH'`)
+      const addResult = await execa('reg', ['add', regKey, '/v', pathValueMatch[0].groups?.name ?? 'PATH', '/t', 'REG_EXPAND_SZ', '/d', `${pathData}%PNPM_HOME%;`, '/f'])
+      if (addResult.failed) {
+        logger.push(`\t${addResult.stderr}`)
+      }
+      else {
+        logger.push(`\t${addResult.stdout}`)
+      }
+    }
+  }
+
+  return logger.join('\n')
 }

@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/prepare": "workspace:0.0.26"
+    "@pnpm/prepare": "workspace:0.0.26",
+    "execa": "^5.0.0"
   }
 }

@@ -2,7 +2,8 @@
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
     "outDir": "lib",
-    "rootDir": "src"
+    "rootDir": "src",
+    "target": "es2020"
   },
   "include": [
     "src/**/*.ts",
