@@ -2382,12 +2382,12 @@ importers:
       render-help: ^1.0.1
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
+      execa: 5.1.1
       render-help: 1.0.2
     devDependencies:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-setup': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      execa: 5.1.1
 
   packages/plugin-commands-store:
     specifiers:
