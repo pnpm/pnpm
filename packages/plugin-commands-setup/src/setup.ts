@@ -110,7 +110,7 @@ set -gx PATH "$PNPM_HOME" $PATH
   return `Updated ${configFile}`
 }
 
-type IEnvironmentValueMatch = { groups : { name: string, type: string, data: string}} & RegExpMatchArray
+type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string}} & RegExpMatchArray
 
 async function setupEnvironmentPath (pnpmHomeDir: string): Promise<string> {
   const pathRegex = /^ {4}(?<name>PATH) {4}(?<type>\w+) {4}(?<data>.*)$/gim
