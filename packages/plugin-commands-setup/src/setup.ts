@@ -1,10 +1,10 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import execa from 'execa'
 import { docsUrl } from '@pnpm/cli-utils'
 import logger from '@pnpm/logger'
 import renderHelp from 'render-help'
+import { setupEnvironmentPath } from './setup.win32'
 
 export const rcOptionsTypes = () => ({})
 
@@ -50,7 +50,7 @@ export async function handler (
     pnpmHomeDir: string
   }
 ) {
-  const currentShell = process.env.SHELL ? path.basename(process.env.SHELL) : null
+  const currentShell = typeof process.env.SHELL === 'string' ? path.basename(process.env.SHELL) : null
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
@@ -108,59 +108,4 @@ set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
 `, 'utf8')
   return `Updated ${configFile}`
-}
-
-type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string}} & RegExpMatchArray
-
-async function setupEnvironmentPath (pnpmHomeDir: string): Promise<string> {
-  const pathRegex = /^ {4}(?<name>PATH) {4}(?<type>\w+) {4}(?<data>.*)$/gim
-  const pnpmHomeRegex = /^ {4}(?<name>PNPM_HOME) {4}(?<type>\w+) {4}(?<data>.*)$/gim
-  const regKey = 'HKEY_CURRENT_USER\\Environment'
-
-  const queryResult = await execa('reg', ['query', regKey])
-
-  if (queryResult.failed) {
-    return 'Win32 registry environment values could not be retrieved'
-  }
-
-  const queryOutput = queryResult.stdout
-  const pathValueMatch = [...queryOutput.matchAll(pathRegex)] as IEnvironmentValueMatch[]
-  const homeValueMatch = [...queryOutput.matchAll(pnpmHomeRegex)] as IEnvironmentValueMatch[]
-
-  const logger = []
-  if (homeValueMatch.length === 1) {
-    logger.push(`Currently 'PNPM_HOME' is set to '${homeValueMatch[0].groups.data}'`)
-  } else {
-    logger.push(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
-    const addResult = await execa('reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDir, '/f'])
-    if (addResult.failed) {
-      logger.push(`\t${addResult.stderr}`)
-    } else {
-      logger.push(`\t${addResult.stdout}`)
-    }
-  }
-
-  if (pathValueMatch.length === 1) {
-    const pathData = pathValueMatch[0].groups.data
-    if (pathData == null || pathData.trim() === '') {
-      logger.push('Current PATH is empty. No changes are applied')
-    } else {
-      const pathDataUpperCase = pathData.toUpperCase()
-      if (pathDataUpperCase.includes('%PNPM_HOME%')) {
-        logger.push('PATH already contains PNPM_HOME')
-      } else {
-        logger.push('Updating PATH')
-        const addResult = await execa('reg', ['add', regKey, '/v', pathValueMatch[0].groups.name, '/t', 'REG_EXPAND_SZ', '/d', `${pathData}%PNPM_HOME%;`, '/f'])
-        if (addResult.failed) {
-          logger.push(`\t${addResult.stderr}`)
-        } else {
-          logger.push(`\t${addResult.stdout}`)
-        }
-      }
-    }
-  } else {
-    logger.push('Current PATH is not set. No changes are applied')
-  }
-
-  return logger.join('\n')
 }
