@@ -3,6 +3,26 @@ import { setup } from '@pnpm/plugin-commands-setup'
 
 jest.mock('execa')
 
+let originalShell: string | undefined
+let originalPlatform = ''
+
+beforeAll(() => {
+  originalShell = process.env.SHELL
+  originalPlatform = process.platform
+
+  process.env.SHELL = ''
+  Object.defineProperty(process, 'platform', {
+    value: 'win32',
+  })
+})
+
+afterAll(() => {
+  process.env.SHELL = originalShell
+  Object.defineProperty(process, 'platform', {
+    value: originalPlatform,
+  })
+})
+
 test('Win32 registry environment values could not be retrieved', async () => {
   execa['mockResolvedValue']({
     failed: true,
@@ -107,7 +127,7 @@ test('Existing installation', async () => {
     stdout: `
 HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    .pnpm\\home
-    Path    REG_EXPAND_SZ    %USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;%PNPM_HOME%;C:\\Windows;
+    Path    REG_EXPAND_SZ    %USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;.pnpm\\home;C:\\Windows;
 `,
   }).mockResolvedValue({
     failed: true,
