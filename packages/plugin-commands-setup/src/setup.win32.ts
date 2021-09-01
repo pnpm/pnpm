@@ -17,15 +17,20 @@ export async function setupEnvironmentPath (pnpmHomeDir: string): Promise<string
   const pathValueMatch = [...queryOutput.matchAll(pathRegex)] as IEnvironmentValueMatch[]
   const homeValueMatch = [...queryOutput.matchAll(pnpmHomeRegex)] as IEnvironmentValueMatch[]
 
+  let commitNeeded = false
+  let homeDir = pnpmHomeDir
   const logger = []
+
   if (homeValueMatch.length === 1) {
-    logger.push(`Currently 'PNPM_HOME' is set to '${homeValueMatch[0].groups.data}'`)
+    homeDir = homeValueMatch[0].groups.data
+    logger.push(`Currently 'PNPM_HOME' is set to '${homeDir}'`)
   } else {
-    logger.push(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
-    const addResult = await execa('reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDir, '/f'])
+    logger.push(`Setting 'PNPM_HOME' to value '${homeDir}'`)
+    const addResult = await execa('reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', homeDir, '/f'])
     if (addResult.failed) {
       logger.push(`\t${addResult.stderr}`)
     } else {
+      commitNeeded = true
       logger.push(`\t${addResult.stdout}`)
     }
   }
@@ -36,20 +41,26 @@ export async function setupEnvironmentPath (pnpmHomeDir: string): Promise<string
       logger.push('Current PATH is empty. No changes to this environment variable are applied')
     } else {
       const pathDataUpperCase = pathData.toUpperCase()
-      if (pathDataUpperCase.includes('%PNPM_HOME%')) {
+      const homeDirUpperCase = `${homeDir.toUpperCase()};`
+      if (pathDataUpperCase.includes(homeDirUpperCase)) {
         logger.push('PATH already contains PNPM_HOME')
       } else {
         logger.push('Updating PATH')
-        const addResult = await execa('reg', ['add', regKey, '/v', pathValueMatch[0].groups.name, '/t', 'REG_EXPAND_SZ', '/d', `${pathData}%PNPM_HOME%;`, '/f'])
+        const addResult = await execa('reg', ['add', regKey, '/v', pathValueMatch[0].groups.name, '/t', 'REG_EXPAND_SZ', '/d', `${pathData}${homeDir};`, '/f'])
         if (addResult.failed) {
           logger.push(`\t${addResult.stderr}`)
         } else {
+          commitNeeded = true
           logger.push(`\t${addResult.stdout}`)
         }
       }
     }
   } else {
     logger.push('Current PATH is not set. No changes to this environment variable are applied')
+  }
+
+  if (commitNeeded) {
+    await execa('setx', ['PNPM_HOME', homeDir])
   }
 
   return logger.join('\n')
