@@ -77,7 +77,7 @@ async function updateShell (currentShell: string | null, pnpmHomeDir: string): P
   }
 
   if (process.platform === 'win32') {
-    return setupWindowsEnvironmentPath (pnpmHomeDir)
+    return setupWindowsEnvironmentPath(pnpmHomeDir)
   }
 
   return 'Could not infer shell type.'
