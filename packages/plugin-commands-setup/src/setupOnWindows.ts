@@ -1,4 +1,4 @@
-import path from 'path'
+import { win32 as path } from 'path'
 import execa from 'execa'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
