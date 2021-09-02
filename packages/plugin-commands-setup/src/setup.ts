@@ -4,7 +4,7 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import logger from '@pnpm/logger'
 import renderHelp from 'render-help'
-import { setupEnvironmentPath } from './setup.win32'
+import { setupWindowsEnvironmentPath  } from './setupOnWindows'
 
 export const rcOptionsTypes = () => ({})
 
@@ -77,7 +77,7 @@ async function updateShell (currentShell: string | null, pnpmHomeDir: string): P
   }
 
   if (process.platform === 'win32') {
-    return setupEnvironmentPath(pnpmHomeDir)
+    return setupWindowsEnvironmentPath (pnpmHomeDir)
   }
 
   return 'Could not infer shell type.'

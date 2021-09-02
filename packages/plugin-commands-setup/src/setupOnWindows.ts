@@ -2,7 +2,7 @@ import execa from 'execa'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
 
-export async function setupEnvironmentPath (pnpmHomeDir: string): Promise<string> {
+export async function setupWindowsEnvironmentPath  (pnpmHomeDir: string): Promise<string> {
   const pathRegex = /^ {4}(?<name>PATH) {4}(?<type>\w+) {4}(?<data>.*)$/gim
   const pnpmHomeRegex = /^ {4}(?<name>PNPM_HOME) {4}(?<type>\w+) {4}(?<data>.*)$/gim
   const regKey = 'HKEY_CURRENT_USER\\Environment'
