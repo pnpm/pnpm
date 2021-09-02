@@ -4,7 +4,7 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import logger from '@pnpm/logger'
 import renderHelp from 'render-help'
-import { setupWindowsEnvironmentPath  } from './setupOnWindows'
+import { setupWindowsEnvironmentPath } from './setupOnWindows'
 
 export const rcOptionsTypes = () => ({})
 

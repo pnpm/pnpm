@@ -1,8 +1,9 @@
+import path from 'path'
 import execa from 'execa'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
 
-export async function setupWindowsEnvironmentPath  (pnpmHomeDir: string): Promise<string> {
+export async function setupWindowsEnvironmentPath (pnpmHomeDir: string): Promise<string> {
   const pathRegex = /^ {4}(?<name>PATH) {4}(?<type>\w+) {4}(?<data>.*)$/gim
   const pnpmHomeRegex = /^ {4}(?<name>PNPM_HOME) {4}(?<type>\w+) {4}(?<data>.*)$/gim
   const regKey = 'HKEY_CURRENT_USER\\Environment'
@@ -40,13 +41,19 @@ export async function setupWindowsEnvironmentPath  (pnpmHomeDir: string): Promis
     if (pathData == null || pathData.trim() === '') {
       logger.push('Current PATH is empty. No changes to this environment variable are applied')
     } else {
-      const pathDataUpperCase = pathData.toUpperCase()
-      const homeDirUpperCase = `${homeDir.toUpperCase()};`
-      if (pathDataUpperCase.includes(homeDirUpperCase)) {
+      const homeDirPath = path.parse(path.normalize(homeDir))
+
+      if (pathData
+        .split(path.delimiter)
+        .map(p => path.normalize(p))
+        .map(p => path.parse(p))
+        .map(p => `${p.dir}${path.sep}${p.base}`.toUpperCase())
+        .filter(p => p !== '')
+        .includes(`${homeDirPath.dir}${path.sep}${homeDirPath.base}`.toUpperCase())) {
         logger.push('PATH already contains PNPM_HOME')
       } else {
         logger.push('Updating PATH')
-        const addResult = await execa('reg', ['add', regKey, '/v', pathValueMatch[0].groups.name, '/t', 'REG_EXPAND_SZ', '/d', `${pathData}${homeDir};`, '/f'])
+        const addResult = await execa('reg', ['add', regKey, '/v', pathValueMatch[0].groups.name, '/t', 'REG_EXPAND_SZ', '/d', `${homeDir}${path.delimiter}${pathData}`, '/f'])
         if (addResult.failed) {
           logger.push(`\t${addResult.stderr}`)
         } else {
