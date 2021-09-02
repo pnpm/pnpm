@@ -10,7 +10,7 @@ import writeJsonFile from 'write-json-file'
 
 export default async (workspaceDir: string) => {
   const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'packages/pnpm/package.json'))
-  const artifactVersion = `0.0.5-${pnpmManifest!['version']}` // eslint-disable-line
+  const artifactVersion = `0.0.6-${pnpmManifest!['version']}` // eslint-disable-line
   const pkgsDir = path.join(workspaceDir, 'packages')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
