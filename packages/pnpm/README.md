@@ -43,13 +43,13 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 On macOS, Linux, or Windows Subsystem for Linux:
 
 ```
-curl -f https://get.pnpm.io/v6.js | node - add --global pnpm
+curl -f https://get.pnpm.io/v6.14.js | node - add --global pnpm
 ```
 
 On Windows (using PowerShell):
 
 ```
-(Invoke-WebRequest 'https://get.pnpm.io/v6.js' -UseBasicParsing).Content | node - add --global pnpm
+(Invoke-WebRequest 'https://get.pnpm.io/v6.14.js' -UseBasicParsing).Content | node - add --global pnpm
 ```
 
 Using npm:
@@ -70,10 +70,10 @@ Just use pnpm in place of npm/Yarn. E.g., install dependencies via:
 pnpm install
 ```
 
-Also, pnpx instead of npx:
+Also, `pnpm dlx` instead of npx:
 
 ```
-pnpx create-react-app my-cool-new-app
+pnpm dlx create-react-app my-cool-new-app
 ```
 
 For more advanced usage, read [pnpm CLI](https://pnpm.io/pnpm-cli) on our website, or run `pnpm help`.
