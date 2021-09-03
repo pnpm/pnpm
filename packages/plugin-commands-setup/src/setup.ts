@@ -4,6 +4,7 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import logger from '@pnpm/logger'
 import renderHelp from 'render-help'
+import { setupWindowsEnvironmentPath } from './setupOnWindows'
 
 export const rcOptionsTypes = () => ({})
 
@@ -49,21 +50,18 @@ export async function handler (
     pnpmHomeDir: string
   }
 ) {
-  const currentShell = process.env.SHELL ? path.basename(process.env.SHELL) : null
+  const currentShell = typeof process.env.SHELL === 'string' ? path.basename(process.env.SHELL) : null
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
   }
   const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir)
-  if (updateOutput === false) {
-    return 'Could not infer shell type.'
-  }
   return `${updateOutput}
 
 Setup complete. Open a new terminal to start using pnpm.`
 }
 
-async function updateShell (currentShell: string | null, pnpmHomeDir: string): Promise<string | false> {
+async function updateShell (currentShell: string | null, pnpmHomeDir: string): Promise<string> {
   switch (currentShell) {
   case 'bash': {
     const configFile = path.join(os.homedir(), '.bashrc')
@@ -77,10 +75,15 @@ async function updateShell (currentShell: string | null, pnpmHomeDir: string): P
     return setupFishShell(pnpmHomeDir)
   }
   }
+
+  if (process.platform === 'win32') {
+    return setupWindowsEnvironmentPath(pnpmHomeDir)
+  }
+
   return 'Could not infer shell type.'
 }
 
-async function setupShell (configFile: string, pnpmHomeDir: string) {
+async function setupShell (configFile: string, pnpmHomeDir: string): Promise<string> {
   if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
   const configContent = await fs.promises.readFile(configFile, 'utf8')
   if (configContent.includes('PNPM_HOME')) {
@@ -93,7 +96,7 @@ export PATH="$PNPM_HOME:$PATH"
   return `Updated ${configFile}`
 }
 
-async function setupFishShell (pnpmHomeDir: string) {
+async function setupFishShell (pnpmHomeDir: string): Promise<string> {
   const configFile = path.join(os.homedir(), '.config/fish/config.fish')
   if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
   const configContent = await fs.promises.readFile(configFile, 'utf8')
