@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 1.1.2
+
+### Patch Changes
+
+- cee8b73f1: Set `PATH` environment variable to `PNPM_HOME` on Win32 platform
+
 ## 1.1.1
 
 ### Patch Changes

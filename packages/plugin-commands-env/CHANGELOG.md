@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-env
 
+## 1.0.3
+
+### Patch Changes
+
+- 869b1afcb: Do not create powershell command shims for node, npm, and npx.
+
 ## 1.0.2
 
 ### Patch Changes

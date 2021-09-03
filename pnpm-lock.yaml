@@ -153,10 +153,10 @@ importers:
   packages/beta:
     specifiers:
       '@pnpm/beta': 'link:'
-      '@pnpm/linux-x64': workspace:0.0.6-6.14.5
-      '@pnpm/macos-arm64': workspace:0.0.6-6.14.5
-      '@pnpm/macos-x64': workspace:0.0.6-6.14.5
-      '@pnpm/win-x64': workspace:0.0.6-6.14.5
+      '@pnpm/linux-x64': workspace:0.0.6-6.14.6
+      '@pnpm/macos-arm64': workspace:0.0.6-6.14.6
+      '@pnpm/macos-x64': workspace:0.0.6-6.14.6
+      '@pnpm/win-x64': workspace:0.0.6-6.14.6
       '@zkochan/pkg': 0.0.0-2
       execa: ^5.0.0
     optionalDependencies:
@@ -1841,7 +1841,7 @@ importers:
       ncp: ^2.0.0
       path-exists: ^4.0.0
       render-help: ^1.0.1
-      supi: workspace:0.47.17
+      supi: workspace:0.47.18
       tempy: ^1.0.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
@@ -1920,7 +1920,7 @@ importers:
       read-yaml-file: ^2.1.0
       render-help: ^1.0.1
       sinon: ^11.1.1
-      supi: workspace:0.47.17
+      supi: workspace:0.47.18
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
       write-json-file: ^4.3.0
@@ -1998,7 +1998,7 @@ importers:
       '@pnpm/filter-workspace-packages': workspace:4.1.13
       '@pnpm/list': workspace:6.2.7
       '@pnpm/logger': ^4.0.0
-      '@pnpm/plugin-commands-installation': workspace:6.0.17
+      '@pnpm/plugin-commands-installation': workspace:6.0.18
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': workspace:0.0.26
       '@pnpm/types': workspace:7.4.0
@@ -2044,7 +2044,7 @@ importers:
       '@pnpm/matcher': workspace:2.0.0
       '@pnpm/modules-yaml': workspace:9.0.4
       '@pnpm/outdated': workspace:9.0.3
-      '@pnpm/plugin-commands-installation': workspace:6.0.17
+      '@pnpm/plugin-commands-installation': workspace:6.0.18
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': workspace:0.0.26
       '@pnpm/semver-diff': ^1.0.2
@@ -2487,16 +2487,16 @@ importers:
       '@pnpm/parse-cli-args': workspace:4.3.0
       '@pnpm/pick-registry-for-package': workspace:2.0.4
       '@pnpm/plugin-commands-audit': workspace:5.1.8
-      '@pnpm/plugin-commands-env': workspace:1.0.2
-      '@pnpm/plugin-commands-import': workspace:3.1.3
-      '@pnpm/plugin-commands-installation': workspace:6.0.17
+      '@pnpm/plugin-commands-env': workspace:1.0.3
+      '@pnpm/plugin-commands-import': workspace:3.1.4
+      '@pnpm/plugin-commands-installation': workspace:6.0.18
       '@pnpm/plugin-commands-listing': workspace:4.0.10
       '@pnpm/plugin-commands-outdated': workspace:5.0.12
       '@pnpm/plugin-commands-publishing': workspace:4.2.8
       '@pnpm/plugin-commands-rebuild': workspace:5.0.13
       '@pnpm/plugin-commands-script-runners': workspace:4.2.1
       '@pnpm/plugin-commands-server': workspace:3.0.29
-      '@pnpm/plugin-commands-setup': workspace:1.1.1
+      '@pnpm/plugin-commands-setup': workspace:1.1.2
       '@pnpm/plugin-commands-store': workspace:4.0.13
       '@pnpm/prepare': workspace:0.0.26
       '@pnpm/read-package-json': workspace:5.0.4

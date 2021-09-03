@@ -1,5 +1,11 @@
 # supi
 
+## 0.47.18
+
+### Patch Changes
+
+- ccf2f295d: Fix overrides that specify the parent package with a range.
+
 ## 0.47.17
 
 ### Patch Changes

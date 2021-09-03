@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.14.6
+
+### Patch Changes
+
+- `pnpm setup` should add pnpm to the PATH on Windows [#3734](https://github.com/pnpm/pnpm/pull/3734).
+- `pnpm env` should not create PowerShell command shims to fix issues on Windows [#3711](https://github.com/pnpm/pnpm/issues/3711).
+- `overrides` should work with selectors that specify the parent package with a version range [#3732](https://github.com/pnpm/pnpm/issues/3732).
+
 ## 6.14.5
 
 ### Patch Changes
