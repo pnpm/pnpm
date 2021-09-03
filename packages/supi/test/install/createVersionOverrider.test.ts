@@ -147,3 +147,45 @@ test('createVersionsOverrider() overrides dependencies with links', () => {
     },
   })
 })
+
+test('createVersionsOverrider() overrides dependency of pkg matched by name and version', () => {
+  const overrider = createVersionsOverrider({
+    'yargs@^7.1.0>yargs-parser': '^20.0.0',
+  }, process.cwd())
+  expect(
+    overrider({
+      name: 'yargs',
+      version: '7.1.0',
+      dependencies: {
+        'yargs-parser': '19',
+      },
+    })
+  ).toStrictEqual({
+    name: 'yargs',
+    version: '7.1.0',
+    dependencies: {
+      'yargs-parser': '^20.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() does not override dependency of pkg matched by name and version', () => {
+  const overrider = createVersionsOverrider({
+    'yargs@^8.1.0>yargs-parser': '^20.0.0',
+  }, process.cwd())
+  expect(
+    overrider({
+      name: 'yargs',
+      version: '7.1.0',
+      dependencies: {
+        'yargs-parser': '19',
+      },
+    })
+  ).toStrictEqual({
+    name: 'yargs',
+    version: '7.1.0',
+    dependencies: {
+      'yargs-parser': '19',
+    },
+  })
+})
