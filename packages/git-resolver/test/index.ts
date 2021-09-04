@@ -265,7 +265,7 @@ test('resolveFromGit() gitlab with commit', async () => {
     id: 'gitlab.com/pnpm/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc',
     normalizedPref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
     resolution: {
-      tarball: 'https://gitlab.com/pnpm/git-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
+      tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
     },
     resolvedVia: 'git-repository',
   })
