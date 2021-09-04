@@ -1,5 +1,6 @@
 ---
-"@pnpm/fetch": patch
+"@pnpm/npm-resolver": patch
 ---
 
-Always specify that gzip and deflate encoding are accepted.
+The metadata file should be requested in compressed state.
+

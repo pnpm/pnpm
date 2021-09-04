@@ -20,7 +20,6 @@ export default function (
   return async (url, opts): Promise<Response> => {
     const headers = {
       'user-agent': USER_AGENT,
-      'accept-encoding': 'gzip,deflate',
       ...getHeaders({
         auth: opts?.authHeaderValue,
         fullMetadata: defaultOpts.fullMetadata,
@@ -44,7 +43,7 @@ export default function (
       const response = await fetch(urlObject, {
         agent,
         // if verifying integrity, node-fetch must not decompress
-        compress: false,
+        compress: opts?.compress ?? false,
         headers,
         redirect: 'manual',
         retry: opts?.retry,
