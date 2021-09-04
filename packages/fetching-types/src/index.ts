@@ -7,6 +7,7 @@ export type FetchFromRegistry = (
   url: string,
   opts?: {
     authHeaderValue?: string
+    compress?: boolean
     retry?: RetryTimeoutOptions
     timeout?: number
   }

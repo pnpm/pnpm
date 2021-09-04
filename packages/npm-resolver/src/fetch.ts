@@ -54,6 +54,7 @@ export default async function fromRegistry (
       try {
         response = await fetch(uri, {
           authHeaderValue,
+          compress: true,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         }) as RegistryResponse

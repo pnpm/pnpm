@@ -43,7 +43,7 @@ export default function (
       const response = await fetch(urlObject, {
         agent,
         // if verifying integrity, node-fetch must not decompress
-        compress: false,
+        compress: opts?.compress ?? false,
         headers,
         redirect: 'manual',
         retry: opts?.retry,
