@@ -20,6 +20,7 @@ export default function (
   return async (url, opts): Promise<Response> => {
     const headers = {
       'user-agent': USER_AGENT,
+      'accept-encoding': 'gzip,deflate',
       ...getHeaders({
         auth: opts?.authHeaderValue,
         fullMetadata: defaultOpts.fullMetadata,
