@@ -51,6 +51,7 @@ test('prints generic error when recursive install fails', (done) => {
     next: output => {
       expect(output).toBe(`/home/src/:
 ${ERROR} ${chalk.red('some error')}
+
 ${new StackTracey(err.stack).pretty as string}`)
     },
   })
@@ -413,6 +414,7 @@ test('prints error with packages stacktrace - depth 2', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+
 This error happened while installing the dependencies of foo@1.0.0
  at bar@1.0.0`)
     },
@@ -435,6 +437,7 @@ test('prints error and hint', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+
 some hint`)
     },
   })
@@ -468,6 +471,7 @@ test('prints authorization error with auth settings', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+
 some hint
 
 These authorization settings were found:
@@ -501,6 +505,7 @@ test('prints authorization error without auth settings, where there are none', (
     error: done,
     next: output => {
       expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+
 some hint
 
 No authorization settings were found in the configs.
