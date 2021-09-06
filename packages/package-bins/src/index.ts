@@ -48,7 +48,7 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string) {
     ]
   }
   return Object.keys(bin)
-    .filter((commandName) => encodeURIComponent(commandName) === commandName)
+    .filter((commandName) => encodeURIComponent(commandName) === commandName || commandName === '$')
     .map((commandName) => ({
       name: commandName,
       path: path.join(pkgPath, bin[commandName]),
