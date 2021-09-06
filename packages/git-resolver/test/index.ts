@@ -265,7 +265,7 @@ test('resolveFromGit() gitlab with commit', async () => {
     id: 'gitlab.com/pnpm/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc',
     normalizedPref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
     resolution: {
-      tarball: 'https://gitlab.com/pnpm/git-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
+      tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
     },
     resolvedVia: 'git-repository',
   })
@@ -279,7 +279,7 @@ test('resolveFromGit() gitlab with no commit', async () => {
     id: `gitlab.com/pnpm/git-resolver/${hash}`,
     normalizedPref: 'gitlab:pnpm/git-resolver',
     resolution: {
-      tarball: `https://gitlab.com/pnpm/git-resolver/repository/archive.tar.gz?ref=${hash}`,
+      tarball: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
     },
     resolvedVia: 'git-repository',
   })
@@ -293,7 +293,7 @@ test('resolveFromGit() gitlab with branch', async () => {
     id: `gitlab.com/pnpm/git-resolver/${hash}`,
     normalizedPref: 'gitlab:pnpm/git-resolver#master',
     resolution: {
-      tarball: `https://gitlab.com/pnpm/git-resolver/repository/archive.tar.gz?ref=${hash}`,
+      tarball: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
     },
     resolvedVia: 'git-repository',
   })
@@ -305,7 +305,7 @@ test('resolveFromGit() gitlab with tag', async () => {
     id: 'gitlab.com/pnpm/git-resolver/87cf6a67064d2ce56e8cd20624769a5512b83ff9',
     normalizedPref: 'gitlab:pnpm/git-resolver#0.3.4',
     resolution: {
-      tarball: 'https://gitlab.com/pnpm/git-resolver/repository/archive.tar.gz?ref=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
+      tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
     },
     resolvedVia: 'git-repository',
   })

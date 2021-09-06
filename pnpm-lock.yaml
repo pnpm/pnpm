@@ -8,6 +8,7 @@ overrides:
   '@yarnpkg/parsers@2': 2.3.0
   glob-parent@3: ^5.1.2
   hosted-git-info@<3.0.8: ^3.0.8
+  hosted-git-info@4: npm:@zkochan/hosted-git-info@^4.0.2
   http-errors: ^1.7.3
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.5
@@ -770,14 +771,14 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/semver': ^7.3.4
       graceful-git: ^3.0.2
-      hosted-git-info: ^4.0.1
+      hosted-git-info: npm:@zkochan/hosted-git-info@^4.0.2
       is-windows: ^1.0.2
       semver: ^7.3.4
     dependencies:
       '@pnpm/fetch': link:../fetch
       '@pnpm/resolver-base': link:../resolver-base
       graceful-git: 3.0.2
-      hosted-git-info: 4.0.2
+      hosted-git-info: /@zkochan/hosted-git-info/4.0.2
       semver: 7.3.5
     devDependencies:
       '@pnpm/git-resolver': 'link:'
@@ -5333,6 +5334,12 @@ packages:
       spawno: 2.1.1
     dev: false
 
+  /@zkochan/hosted-git-info/4.0.2:
+    resolution: {integrity: sha512-DviFQfIuMzstXzcutxWP5uaAdzEg6AtAWtMKFkqVSgx6otqZ2hJaSML6saK1a1cVOfhu/ZqjV7qTSnYAdX2nhw==}
+    engines: {node: '>=10'}
+    dependencies:
+      lru-cache: 6.0.0
+
   /@zkochan/istanbul-reports/3.0.2:
     resolution: {integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==}
     engines: {node: '>=8'}
@@ -5388,7 +5395,7 @@ packages:
     resolution: {integrity: sha512-VvK3/jS9m/quSU970L5sZSvX9wmmhXnEu/GfffCz0/ZcMAUs471FFz2UJu56T/8N8hcKPODYuKHz8wL5xZZY3w==}
     engines: {node: '>=10.13'}
     dependencies:
-      hosted-git-info: 4.0.2
+      hosted-git-info: /@zkochan/hosted-git-info/4.0.2
       semver: 7.3.5
       validate-npm-package-name: 3.0.0
 
@@ -8894,12 +8901,6 @@ packages:
     dependencies:
       lru-cache: 6.0.0
 
-  /hosted-git-info/4.0.2:
-    resolution: {integrity: sha512-c9OGXbZ3guC/xOlCg1Ci/VgWlwsqDv1yMQL1CWqXDL0hDjXuNcq0zuR4xqPSuasI3kqFDhqSyTjREz5gzq0fXg==}
-    engines: {node: '>=10'}
-    dependencies:
-      lru-cache: 6.0.0
-
   /html-encoding-sniffer/1.0.2:
     resolution: {integrity: sha512-71lZziiDnsuabfdYiUeWdCVyKuqwWi23L8YeIgV9jSSZHCtb6wB1BKWooH7L3tn4/FuZJMVWyNaIDr4RGmaSYw==}
     dependencies:
@@ -11277,7 +11278,7 @@ packages:
     resolution: {integrity: sha512-p2W1sgqij3zMMyRC067Dg16bfzVH+w7hyegmpIvZ4JNjqtGOVAIvLmjBx3yP7YTe9vKJgkoNOPjwQGogDoMXFA==}
     engines: {node: '>=10'}
     dependencies:
-      hosted-git-info: 4.0.2
+      hosted-git-info: /@zkochan/hosted-git-info/4.0.2
       is-core-module: 2.6.0
       semver: 7.3.5
       validate-npm-package-license: 3.0.4
