@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "Remove bins from .bin",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.0.4",
-    "@pnpm/package-bins": "workspace:5.0.4",
+    "@pnpm/package-bins": "workspace:5.0.5",
     "@pnpm/read-package-json": "workspace:5.0.4",
     "@pnpm/types": "workspace:7.4.0",
     "@zkochan/rimraf": "^2.1.1",

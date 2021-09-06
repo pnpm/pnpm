@@ -1,5 +1,11 @@
 # @pnpm/package-bins
 
+## 5.0.5
+
+### Patch Changes
+
+- 97f90e537: Allow the \$ sign to be a command name.
+
 ## 5.0.4
 
 ### Patch Changes

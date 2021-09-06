@@ -1,5 +1,14 @@
 # pnpm
 
+## 6.14.7
+
+### Patch Changes
+
+- Use correct GitLab tarball URL [#3643](https://github.com/pnpm/pnpm/issues/3643).
+- Accept gzip and deflate encoding from the registry [#3745](https://github.com/pnpm/pnpm/pull/3745).
+- Print error codes in error messages [#3748](https://github.com/pnpm/pnpm/pull/3748).
+- Allow the $ sign to be a command name [#3679](https://github.com/pnpm/pnpm/issues/3679).
+
 ## 6.14.6
 
 ### Patch Changes

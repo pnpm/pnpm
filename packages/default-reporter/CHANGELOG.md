@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.2.0
+
+### Minor Changes
+
+- e0aa55140: Print error codes in error messages.
+
 ## 8.1.14
 
 ### Patch Changes

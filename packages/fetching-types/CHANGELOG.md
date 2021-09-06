@@ -1,5 +1,11 @@
 # @pnpm/fetching-types
 
+## 2.2.0
+
+### Minor Changes
+
+- eadf0e505: New optional option added: compress.
+
 ## 2.1.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # @pnpm/fetch
 
+## 4.1.0
+
+### Minor Changes
+
+- eadf0e505: New optional option added: compress.
+
+### Patch Changes
+
+- Updated dependencies [eadf0e505]
+  - @pnpm/fetching-types@2.2.0
+
 ## 4.0.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-script-runners#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:4.1.13",
+    "@pnpm/filter-workspace-packages": "workspace:4.1.14",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.26",
     "@types/ramda": "0.27.39",
@@ -42,7 +42,7 @@
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.19",
+    "@pnpm/cli-utils": "workspace:0.6.20",
     "@pnpm/command": "workspace:2.0.0",
     "@pnpm/common-cli-options-help": "workspace:0.6.0",
     "@pnpm/config": "workspace:12.4.9",

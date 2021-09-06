@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 6.0.8
+
+### Patch Changes
+
+- Updated dependencies [97f90e537]
+  - @pnpm/package-bins@5.0.5
+
 ## 6.0.7
 
 ### Patch Changes

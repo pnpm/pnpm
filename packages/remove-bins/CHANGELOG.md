@@ -1,5 +1,12 @@
 # @pnpm/remove-bins
 
+## 2.0.5
+
+### Patch Changes
+
+- Updated dependencies [97f90e537]
+  - @pnpm/package-bins@5.0.5
+
 ## 2.0.4
 
 ### Patch Changes

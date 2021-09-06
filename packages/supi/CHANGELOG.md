@@ -1,5 +1,18 @@
 # supi
 
+## 0.47.19
+
+### Patch Changes
+
+- @pnpm/link-bins@6.0.8
+- @pnpm/remove-bins@2.0.5
+- @pnpm/resolve-dependencies@21.0.3
+- @pnpm/headless@16.0.27
+- @pnpm/package-requester@15.1.1
+- @pnpm/build-modules@7.0.9
+- @pnpm/hoist@5.0.13
+- @pnpm/modules-cleaner@11.0.11
+
 ## 0.47.18
 
 ### Patch Changes

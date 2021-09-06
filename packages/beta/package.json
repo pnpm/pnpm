@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/beta",
   "description": "Fast, disk space efficient package manager",
-  "version": "0.0.6-6.14.6",
+  "version": "0.0.6-6.14.7",
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"
@@ -11,10 +11,10 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "optionalDependencies": {
-    "@pnpm/linux-x64": "workspace:0.0.6-6.14.6",
-    "@pnpm/macos-arm64": "workspace:0.0.6-6.14.6",
-    "@pnpm/macos-x64": "workspace:0.0.6-6.14.6",
-    "@pnpm/win-x64": "workspace:0.0.6-6.14.6"
+    "@pnpm/linux-x64": "workspace:0.0.6-6.14.7",
+    "@pnpm/macos-arm64": "workspace:0.0.6-6.14.7",
+    "@pnpm/macos-x64": "workspace:0.0.6-6.14.7",
+    "@pnpm/win-x64": "workspace:0.0.6-6.14.7"
   },
   "devDependencies": {
     "@zkochan/pkg": "0.0.0-2",

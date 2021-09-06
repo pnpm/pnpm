@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 12.0.3
+
+### Patch Changes
+
+- eadf0e505: The metadata file should be requested in compressed state.
+- Updated dependencies [eadf0e505]
+  - @pnpm/fetching-types@2.2.0
+
 ## 12.0.2
 
 ### Patch Changes
