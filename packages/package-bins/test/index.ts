@@ -15,6 +15,22 @@ test('getBinsFromPkg()', async () => {
   )
 })
 
+test('getBinsFromPkg() should allow $ as command name', async () => {
+  expect(
+    await getBinsFromPkg({
+      bin: {
+        $: './undollar.js',
+      },
+      name: 'undollar',
+      version: '1.0.0',
+    }, process.cwd())).toStrictEqual(
+    [{
+      name: '$',
+      path: path.resolve('undollar.js'),
+    }]
+  )
+})
+
 test('find all the bin files from a bin directory', async () => {
   const fixtures = path.join(__dirname, 'fixtures')
   expect(
