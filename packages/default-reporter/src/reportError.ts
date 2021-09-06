@@ -17,7 +17,7 @@ const colorPath = chalk.gray
 
 export default function reportError (logObj: Log, config?: Config) {
   const errorInfo = getErrorInfo(logObj, config)
-  let output = formatErrorSummary(errorInfo.title)
+  let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
   if (errorInfo.body) {
     output += `\n\n${errorInfo.body}`
   }
@@ -54,7 +54,7 @@ function getErrorInfo (logObj: Log, config?: Config): {
     case 'ELIFECYCLE':
       return reportLifecycleError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_UNSUPPORTED_ENGINE':
-      return reportEngineError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
     case 'ERR_PNPM_FETCH_403':
       return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -233,8 +233,8 @@ function formatGenericError (errorMessage: string, stack: object) {
   return { title: errorMessage }
 }
 
-function formatErrorSummary (message: string) {
-  return `${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(message)}`
+function formatErrorSummary (message: string, code?: string) {
+  return `${chalk.bgRed.black(`\u2009${code ?? 'ERROR'}\u2009`)} ${chalk.red(message)}`
 }
 
 function reportModifiedDependency (msg: { modified: string[] }) {
@@ -301,7 +301,6 @@ function reportLifecycleError (
 }
 
 function reportEngineError (
-  err: Error,
   msg: {
     message: string
     current: {
@@ -317,7 +316,10 @@ function reportEngineError (
 ) {
   let output = ''
   if (msg.wanted.pnpm) {
-    output += `Expected version: ${msg.wanted.pnpm}
+    output += `\
+Your pnpm version is incompatible with "${msg.packageId}".
+
+Expected version: ${msg.wanted.pnpm}
 Got: ${msg.current.pnpm}
 
 This is happening because the package's manifest has an engines.pnpm field specified.
@@ -329,7 +331,7 @@ To check your pnpm version, run "pnpm -v".`
   if (msg.wanted.node) {
     if (output) output += EOL + EOL
     output += `\
-${formatErrorSummary(`Your Node version is incompatible with "${msg.packageId}".`)}
+Your Node version is incompatible with "${msg.packageId}".
 
 Expected version: ${msg.wanted.node}
 Got: ${msg.current.node}
@@ -337,13 +339,10 @@ Got: ${msg.current.node}
 This is happening because the package's manifest has an engines.node field specified.
 To fix this issue, install the required Node version.`
   }
-  if (output) {
-    return {
-      title: `Your pnpm version is incompatible with "${msg.packageId}".`,
-      body: output,
-    }
+  return {
+    title: 'Unsupported environment (bad pnpm and/or Node.js version)',
+    body: output,
   }
-  return { title: err.message }
 }
 
 function reportAuthError (

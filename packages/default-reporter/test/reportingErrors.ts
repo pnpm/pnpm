@@ -10,7 +10,9 @@ import loadJsonFile from 'load-json-file'
 import normalizeNewline from 'normalize-newline'
 import StackTracey from 'stacktracey'
 
-const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
+const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
+
+const ERROR = formatErrorCode('ERROR')
 
 test('prints generic error', (done) => {
   const output$ = toOutput$({
@@ -99,7 +101,7 @@ test('prints no matching version error when only the latest dist-tag exists', (d
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('No matching version found for is-positive@1000.0.0')}
+      expect(output).toBe(`${formatErrorCode('ERR_PNPM_NO_MATCHING_VERSION')} ${chalk.red('No matching version found for is-positive@1000.0.0')}
 
 The latest release of is-positive is "3.1.0".
 
@@ -124,7 +126,7 @@ test('prints suggestions when an internet-connection related error happens', (do
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
+      expect(output).toBe(`${formatErrorCode('ERR_PNPM_BAD_TARBALL_SIZE')} ${chalk.red('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
 
 Seems like you have internet connection issues.
 Try running the same command again.
@@ -161,7 +163,7 @@ test('prints test error', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('Test failed. See above for more details.')}`)
+      expect(output).toBe(`${formatErrorCode('ELIFECYCLE')} ${chalk.red('Test failed. See above for more details.')}`)
     },
   })
 
@@ -183,7 +185,7 @@ test('prints command error with exit code', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('Command failed with exit code 100.')}`)
+      expect(output).toBe(`${formatErrorCode('ELIFECYCLE')} ${chalk.red('Command failed with exit code 100.')}`)
     },
   })
 
@@ -206,7 +208,7 @@ test('prints command error without exit code', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('Command failed.')}`)
+      expect(output).toBe(`${formatErrorCode('ELIFECYCLE')} ${chalk.red('Command failed.')}`)
     },
   })
 
@@ -228,7 +230,9 @@ test('prints unsupported pnpm version error', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+      expect(output).toBe(`${formatErrorCode('ERR_PNPM_UNSUPPORTED_ENGINE')} Unsupported environment (bad pnpm and/or Node.js version)
+
+Your pnpm version is incompatible with "/home/zoltan/project".
 
 Expected version: 2
 Got: 3.0.0
@@ -260,7 +264,9 @@ test('prints unsupported Node version error', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+      expect(output).toBe(`${formatErrorCode('ERR_PNPM_UNSUPPORTED_ENGINE')} Unsupported environment (bad pnpm and/or Node.js version)
+
+Your Node version is incompatible with "/home/zoltan/project".
 
 Expected version: >=12
 Got: 10.0.0
@@ -289,7 +295,9 @@ test('prints unsupported pnpm and Node versions error', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+      expect(output).toBe(`${formatErrorCode('ERR_PNPM_UNSUPPORTED_ENGINE')} Unsupported environment (bad pnpm and/or Node.js version)
+
+Your pnpm version is incompatible with "/home/zoltan/project".
 
 Expected version: 2
 Got: 3.0.0
@@ -299,7 +307,7 @@ To fix this issue, install the required pnpm version globally.
 
 To install the latest version of pnpm, run "pnpm i -g pnpm".
 To check your pnpm version, run "pnpm -v".` + '\n\n' + `\
-${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+Your Node version is incompatible with "/home/zoltan/project".
 
 Expected version: >=12
 Got: 10.0.0
@@ -331,7 +339,7 @@ test('prints error even if the error object not passed in through the message ob
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}`)
+      expect(output).toBe(formatErrorCode('ERR_PNPM_SOME_ERROR') + ' ' + `${chalk.red('some error')}`)
     },
   })
 })
@@ -352,7 +360,7 @@ test('prints error without packages stacktrace when pkgsStack is empty', (done) 
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}`)
+      expect(output).toBe(formatErrorCode('ERR_PNPM_SOME_ERROR') + ' ' + `${chalk.red('some error')}`)
     },
   })
 })
@@ -379,7 +387,7 @@ test('prints error with packages stacktrace - depth 1 and hint', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(formatErrorCode('ERR_PNPM_SOME_ERROR') + ' ' + `${chalk.red('some error')}
 This error happened while installing the dependencies of foo@1.0.0
 hint`)
     },
@@ -413,7 +421,7 @@ test('prints error with packages stacktrace - depth 2', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(formatErrorCode('ERR_PNPM_SOME_ERROR') + ' ' + `${chalk.red('some error')}
 
 This error happened while installing the dependencies of foo@1.0.0
  at bar@1.0.0`)
@@ -436,7 +444,7 @@ test('prints error and hint', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(formatErrorCode('ERR_PNPM_SOME_ERROR') + ' ' + `${chalk.red('some error')}
 
 some hint`)
     },
@@ -470,7 +478,7 @@ test('prints authorization error with auth settings', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(formatErrorCode('ERR_PNPM_FETCH_401') + ' ' + `${chalk.red('some error')}
 
 some hint
 
@@ -504,7 +512,7 @@ test('prints authorization error without auth settings, where there are none', (
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(ERROR + ' ' + `${chalk.red('some error')}
+      expect(output).toBe(formatErrorCode('ERR_PNPM_FETCH_401') + ' ' + `${chalk.red('some error')}
 
 some hint
 
