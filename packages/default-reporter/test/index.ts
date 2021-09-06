@@ -20,8 +20,10 @@ import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
 import repeat from 'ramda/src/repeat'
 
+const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
+
+const ERROR = formatErrorCode('ERROR')
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
-const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
 const DEPRECATED = chalk.red('deprecated')
 const versionColor = chalk.grey
 const ADD = chalk.green('+')
@@ -989,7 +991,7 @@ test('logLevel=warn', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(`${WARN} Some issue
-${ERROR} ${chalk.red('some error')}`)
+${formatErrorCode('ERR_PNPM_SOME_CODE')} ${chalk.red('some error')}`)
     },
   })
 })
@@ -1018,7 +1020,7 @@ test('logLevel=error', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${ERROR} ${chalk.red('some error')}`)
+      expect(output).toBe(`${formatErrorCode('ERR_PNPM_SOME_CODE')} ${chalk.red('some error')}`)
     },
   })
 })

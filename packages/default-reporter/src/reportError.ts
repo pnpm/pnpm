@@ -16,6 +16,18 @@ const highlight = chalk.yellow
 const colorPath = chalk.gray
 
 export default function reportError (logObj: Log, config?: Config) {
+  const errorInfo = getErrorInfo(logObj, config)
+  let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
+  if (errorInfo.body) {
+    output += `\n\n${errorInfo.body}`
+  }
+  return output
+}
+
+function getErrorInfo (logObj: Log, config?: Config): {
+  title: string
+  body?: string
+} {
   if (logObj['err']) {
     const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
@@ -32,7 +44,7 @@ export default function reportError (logObj: Log, config?: Config) {
     case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
       return reportLockfileBreakingChange(err, logObj)
     case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
-      return formatErrorSummary(err.message)
+      return { title: err.message }
     case 'ERR_PNPM_NO_MATCHING_VERSION':
       return formatNoMatchingVersion(err, logObj)
     case 'ERR_PNPM_RECURSIVE_FAIL':
@@ -42,7 +54,7 @@ export default function reportError (logObj: Log, config?: Config) {
     case 'ELIFECYCLE':
       return reportLifecycleError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_UNSUPPORTED_ENGINE':
-      return reportEngineError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
     case 'ERR_PNPM_FETCH_403':
       return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -51,18 +63,21 @@ export default function reportError (logObj: Log, config?: Config) {
       if (!err.code?.startsWith?.('ERR_PNPM_')) {
         return formatGenericError(err.message ?? logObj['message'], err.stack)
       }
-      let errorOutput = formatErrorSummary(err.message)
+      const errorOutput = []
       if (logObj['pkgsStack']?.length) {
-        errorOutput += `${EOL}${formatPkgsStack(logObj['pkgsStack'])}`
+        errorOutput.push(formatPkgsStack(logObj['pkgsStack']))
       }
       if (logObj['hint']) {
-        errorOutput += `${EOL}${logObj['hint'] as string}`
+        errorOutput.push(logObj['hint'] as string)
       }
-      return errorOutput
+      return {
+        title: err.message ?? '',
+        body: errorOutput.join(EOL),
+      }
     }
     }
   }
-  return formatErrorSummary(logObj['message'])
+  return { title: logObj['message'] }
 }
 
 function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: string }>) {
@@ -77,10 +92,7 @@ function formatNoMatchingVersion (err: Error, msg: object) {
     'dist-tags': Record<string, string> & { latest: string }
     versions: Record<string, object>
   } = msg['packageMeta']
-  let output = `\
-${formatErrorSummary(err.message)}
-
-The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
+  let output = `The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
 
   if (!equals(Object.keys(meta['dist-tags']), ['latest'])) {
     output += EOL + 'Other releases are:' + EOL
@@ -93,7 +105,10 @@ The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
 
   output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "$ pnpm view ${meta.name} versions".`
 
-  return output
+  return {
+    title: err.message,
+    body: output,
+  }
 }
 
 function reportUnexpectedStore (
@@ -104,16 +119,17 @@ function reportUnexpectedStore (
     modulesDir: string
   }
 ) {
-  return `${formatErrorSummary(err.message)}
-
-The dependencies at "${msg.modulesDir}" are currently linked from the store at "${msg.expectedStorePath}".
+  return {
+    title: err.message,
+    body: `The dependencies at "${msg.modulesDir}" are currently linked from the store at "${msg.expectedStorePath}".
 
 pnpm now wants to use the store at "${msg.actualStorePath}" to link dependencies.
 
 If you want to use the new store location, reinstall your dependencies with "pnpm install".
 
 You may change the global store location by running "pnpm config set store-dir <dir>".
-(This error may happen if the node_modules was installed with a different major version of pnpm)`
+(This error may happen if the node_modules was installed with a different major version of pnpm)`,
+  }
 }
 
 function reportUnexpectedVirtualStoreDir (
@@ -124,15 +140,16 @@ function reportUnexpectedVirtualStoreDir (
     modulesDir: string
   }
 ) {
-  return `${formatErrorSummary(err.message)}
-
-The dependencies at "${msg.modulesDir}" are currently symlinked from the virtual store directory at "${msg.expected}".
+  return {
+    title: err.message,
+    body: `The dependencies at "${msg.modulesDir}" are currently symlinked from the virtual store directory at "${msg.expected}".
 
 pnpm now wants to use the virtual store at "${msg.actual}" to link dependencies from the store.
 
 If you want to use the new virtual store location, reinstall your dependencies with "pnpm install".
 
-You may change the virtual store location by changing the value of the virtual-store-dir config.`
+You may change the virtual store location by changing the value of the virtual-store-dir config.`,
+  }
 }
 
 function reportStoreBreakingChange (msg: {
@@ -141,9 +158,7 @@ function reportStoreBreakingChange (msg: {
   relatedIssue?: number
   relatedPR?: number
 }) {
-  let output = `\
-${formatErrorSummary('The store used for the current node_modules is incomatible with the current version of pnpm')}
-Store path: ${colorPath(msg.storePath)}
+  let output = `Store path: ${colorPath(msg.storePath)}
 
 Run "pnpm install" to recreate node_modules.`
 
@@ -152,7 +167,10 @@ Run "pnpm install" to recreate node_modules.`
   }
 
   output += formatRelatedSources(msg)
-  return output
+  return {
+    title: 'The store used for the current node_modules is incomatible with the current version of pnpm',
+    body: output,
+  }
 }
 
 function reportModulesBreakingChange (msg: {
@@ -161,9 +179,7 @@ function reportModulesBreakingChange (msg: {
   relatedIssue?: number
   relatedPR?: number
 }) {
-  let output = `\
-${formatErrorSummary('The current version of pnpm is not compatible with the available node_modules structure')}
-node_modules path: ${colorPath(msg.modulesPath)}
+  let output = `node_modules path: ${colorPath(msg.modulesPath)}
 
 Run ${highlight('pnpm install')} to recreate node_modules.`
 
@@ -172,7 +188,10 @@ Run ${highlight('pnpm install')} to recreate node_modules.`
   }
 
   output += formatRelatedSources(msg)
-  return output
+  return {
+    title: 'The current version of pnpm is not compatible with the available node_modules structure',
+    body: output,
+  }
 }
 
 function formatRelatedSources (msg: {
@@ -205,31 +224,34 @@ function formatGenericError (errorMessage: string, stack: object) {
       prettyStack = undefined
     }
     if (prettyStack) {
-      return `${formatErrorSummary(errorMessage)}${EOL}${prettyStack}`
+      return {
+        title: errorMessage,
+        body: prettyStack,
+      }
     }
   }
-  return formatErrorSummary(errorMessage)
+  return { title: errorMessage }
 }
 
-function formatErrorSummary (message: string) {
-  return `${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(message)}`
+function formatErrorSummary (message: string, code?: string) {
+  return `${chalk.bgRed.black(`\u2009${code ?? 'ERROR'}\u2009`)} ${chalk.red(message)}`
 }
 
 function reportModifiedDependency (msg: { modified: string[] }) {
-  return `\
-${formatErrorSummary('Packages in the store have been mutated')}
-
-These packages are modified:
+  return {
+    title: 'Packages in the store have been mutated',
+    body: `These packages are modified:
 ${msg.modified.map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
 
-You can run ${highlight('pnpm install')} to refetch the modified packages`
+You can run ${highlight('pnpm install')} to refetch the modified packages`,
+  }
 }
 
 function reportLockfileBreakingChange (err: Error, msg: object) {
-  return `\
-${formatErrorSummary(err.message)}
-
-Run with the ${highlight('--force')} parameter to recreate the lockfile.`
+  return {
+    title: err.message,
+    body: `Run with the ${highlight('--force')} parameter to recreate the lockfile.`,
+  }
 }
 
 function formatRecursiveCommandSummary (msg: { fails: Array<Error & {prefix: string}>, passes: number }) {
@@ -237,14 +259,16 @@ function formatRecursiveCommandSummary (msg: { fails: Array<Error & {prefix: str
     msg.fails.map((fail) => {
       return fail.prefix + ':' + EOL + formatErrorSummary(fail.message)
     }).join(EOL + EOL)
-  return output
+  return {
+    title: '',
+    body: output,
+  }
 }
 
 function reportBadTarballSize (err: Error, msg: object) {
-  return `\
-${formatErrorSummary(err.message)}
-
-Seems like you have internet connection issues.
+  return {
+    title: err.message,
+    body: `Seems like you have internet connection issues.
 Try running the same command again.
 If that doesn't help, try one of the following:
 
@@ -257,7 +281,8 @@ If that doesn't help, try one of the following:
     delete the config once the internet connection is good again: \`pnpm config delete network-concurrency\`
 
 NOTE: You may also override configs via flags.
-For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\``
+For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\``,
+  }
 }
 
 function reportLifecycleError (
@@ -267,16 +292,15 @@ function reportLifecycleError (
   }
 ) {
   if (msg.stage === 'test') {
-    return formatErrorSummary('Test failed. See above for more details.')
+    return { title: 'Test failed. See above for more details.' }
   }
   if (typeof msg.errno === 'number') {
-    return formatErrorSummary(`Command failed with exit code ${msg.errno}.`)
+    return { title: `Command failed with exit code ${msg.errno}.` }
   }
-  return formatErrorSummary('Command failed.')
+  return { title: 'Command failed.' }
 }
 
 function reportEngineError (
-  err: Error,
   msg: {
     message: string
     current: {
@@ -293,7 +317,7 @@ function reportEngineError (
   let output = ''
   if (msg.wanted.pnpm) {
     output += `\
-${formatErrorSummary(`Your pnpm version is incompatible with "${msg.packageId}".`)}
+Your pnpm version is incompatible with "${msg.packageId}".
 
 Expected version: ${msg.wanted.pnpm}
 Got: ${msg.current.pnpm}
@@ -307,7 +331,7 @@ To check your pnpm version, run "pnpm -v".`
   if (msg.wanted.node) {
     if (output) output += EOL + EOL
     output += `\
-${formatErrorSummary(`Your Node version is incompatible with "${msg.packageId}".`)}
+Your Node version is incompatible with "${msg.packageId}".
 
 Expected version: ${msg.wanted.node}
 Got: ${msg.current.node}
@@ -315,7 +339,10 @@ Got: ${msg.current.node}
 This is happening because the package's manifest has an engines.node field specified.
 To fix this issue, install the required Node version.`
   }
-  return output || formatErrorSummary(err.message)
+  return {
+    title: 'Unsupported environment (bad pnpm and/or Node.js version)',
+    body: output,
+  }
 }
 
 function reportAuthError (
@@ -340,9 +367,8 @@ function reportAuthError (
       foundSettings.push(`${key}=${hideSecureInfo(key, value)}`)
     }
   }
-  let output = `${formatErrorSummary(err.message)}${msg.hint ? `${EOL}${msg.hint}` : ''}
+  let output = msg.hint ? `${msg.hint}${EOL}${EOL}` : ''
 
-`
   if (foundSettings.length === 0) {
     output += `No authorization settings were found in the configs.
 Try to log in to the registry by running "pnpm login"
@@ -351,7 +377,10 @@ or add the auth tokens manually to the ~/.npmrc file.`
     output += `These authorization settings were found:
 ${foundSettings.join('\n')}`
   }
-  return output
+  return {
+    title: err.message,
+    body: output,
+  }
 }
 
 function hideSecureInfo (key: string, value: string) {
