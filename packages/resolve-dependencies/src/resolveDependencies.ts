@@ -526,7 +526,9 @@ function getInfoFromLockfile (
       dependencyLockfile,
       depPath,
       pkgId: packageIdFromSnapshot(depPath, dependencyLockfile, registries),
-      resolution: pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
+      // resolution may not exist if lockfile is broken, and an unexcepted error will be throwed
+      // if resolution is not existed, return undefined so it can be auto fixed later
+      resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
     }
   } else {
     return {

@@ -194,7 +194,8 @@ export async function mutateModules (
     let needsFullResolution = !maybeOpts.ignorePackageManifest && (
       !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
       !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
-      ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum)
+      ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum) ||
+      opts.fixLockfile
     if (needsFullResolution) {
       ctx.wantedLockfile.overrides = overrides
       ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
@@ -206,6 +207,7 @@ export async function mutateModules (
       !ctx.lockfileHadConflicts &&
       !opts.lockfileOnly &&
       !opts.update &&
+      !opts.fixLockfile &&
       installsOnly &&
       (
         frozenLockfile ||
@@ -725,6 +727,23 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     workspacePackages: opts.workspacePackages,
   })
   const projectsToResolve = await Promise.all(projects.map(async (project) => _toResolveImporter(project)))
+
+  // Ignore some field when fixing lockfile, so this filed can be regenereated
+  // and make sure it's up-to-date
+  if (
+    opts.fixLockfile &&
+    (ctx.wantedLockfile.packages != null) &&
+    !isEmpty(ctx.wantedLockfile.packages)
+  ) {
+    ctx.wantedLockfile.packages = Object.entries(ctx.wantedLockfile.packages).reduce((pre, [depPath, snapshot]) => ({
+      ...pre,
+      [depPath]: {
+        name: snapshot.name,
+        version: snapshot.version,
+      },
+    }), {})
+  }
+
   let {
     dependenciesGraph,
     dependenciesByProjectId,

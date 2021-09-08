@@ -21,6 +21,7 @@ export interface StrictInstallOptions {
   useLockfile: boolean
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
+  fixLockfile: boolean
   ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean

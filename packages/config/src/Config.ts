@@ -55,6 +55,7 @@ export interface Config {
   loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug'
   frozenLockfile?: boolean
   preferFrozenLockfile?: boolean
+  fixLockfile?: boolean
   only?: 'prod' | 'production' | 'dev' | 'development'
   packageManager: {
     name: string

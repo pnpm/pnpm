@@ -173,7 +173,15 @@ export default async function (
       }
     }
   }
-  const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
+
+  // If forceFullResolution is specified, the previous lockfile's packages is ignored
+  // and the packages field(all field execept version) will be generated from the new resolved depNode
+  const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.forceFullResolution
+    ? {
+      importers: opts.wantedLockfile.importers,
+      lockfileVersion: opts.wantedLockfile.lockfileVersion,
+    }
+    : opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
 
   // waiting till package requests are finished
   const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ finishing }) => finishing?.()))
