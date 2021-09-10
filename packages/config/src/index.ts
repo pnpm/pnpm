@@ -71,6 +71,7 @@ export const types = Object.assign({
   offline: Boolean,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   pnpmfile: String,
+  'pnpm-bin': String,
   'prefer-frozen-lockfile': Boolean,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
@@ -207,6 +208,8 @@ export default async (
     'workspace-prefix': opts.workspaceDir,
   })
 
+  npmConfig.addFile(path.resolve(npmConfig.globalPrefix, 'etc', 'pnpmrc'), 'pnpmrc')
+
   delete cliOptions.prefix
 
   process.execPath = originalExecPath
@@ -275,13 +278,18 @@ export default async (
       : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
+    const pnpmBinDir = npmConfig.get('pnpm-bin')
+    if (typeof pnpmBinDir === 'string') {
+      fs.mkdirSync(pnpmBinDir, { recursive: true })
+    }
+
     pnpmConfig.bin = cliOptions.dir
       ? (
         process.platform === 'win32'
           ? cliOptions.dir
           : path.resolve(cliOptions.dir, 'bin')
       )
-      : globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+      : pnpmBinDir || globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
     pnpmConfig.save = true
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
