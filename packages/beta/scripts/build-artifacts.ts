@@ -12,6 +12,8 @@ build('win-x64')
 build('linux-x64')
 build('linuxstatic-x64')
 build('macos-x64')
-if (process.platform === 'linux' || process.platform === 'darwin') {
+
+const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
+if (process.platform === 'linux' || isM1Mac) {
   build('macos-arm64')
 }
