@@ -3,13 +3,16 @@ import path from 'path'
 import { homedir } from 'os'
 import getConfig from '@pnpm/config'
 
+const isWindows = process.platform === 'win32'
+
 jest.mock('@zkochan/npm-conf/lib/conf', () => {
   const originalModule = jest.requireActual('@zkochan/npm-conf/lib/conf')
   class MockedConf extends originalModule {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     constructor (base: any, types: any) {
       super(base, types)
-      this.prefix = this.globalPrefix = path.join(__dirname, 'global-bin-dir')
+      const globalPrefixDirName = isWindows ? 'global-bin-dir-windows' : 'global-bin-dir'
+      this.prefix = this.globalPrefix = path.join(__dirname, globalPrefixDirName)
       this.localPrefix = __dirname
     }
 
