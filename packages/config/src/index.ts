@@ -49,6 +49,7 @@ export const types = Object.assign({
   'frozen-lockfile': Boolean,
   'frozen-shrinkwrap': Boolean,
   'git-checks': Boolean,
+  'global-bin-dir': String,
   'global-dir': String,
   'global-path': String,
   'global-pnpmfile': String,
@@ -71,7 +72,6 @@ export const types = Object.assign({
   offline: Boolean,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   pnpmfile: String,
-  'pnpm-bin': String,
   'prefer-frozen-lockfile': Boolean,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
@@ -276,9 +276,9 @@ export default async (
       : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
-    const pnpmBinDir = npmConfig.get('pnpm-bin')
-    if (typeof pnpmBinDir === 'string') {
-      fs.mkdirSync(pnpmBinDir, { recursive: true })
+    const npmConfiGlobalBinDir = npmConfig.get('global-bin-dir')
+    if (typeof npmConfigGlobalBinDir === 'string') {
+      fs.mkdirSync(npmConfigGlobalBinDir, { recursive: true })
     }
 
     pnpmConfig.bin = cliOptions.dir
@@ -287,7 +287,7 @@ export default async (
           ? cliOptions.dir
           : path.resolve(cliOptions.dir, 'bin')
       )
-      : pnpmBinDir || globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+      : npmConfigGlobalBinDir || globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
     pnpmConfig.save = true
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
