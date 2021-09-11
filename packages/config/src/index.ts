@@ -276,22 +276,19 @@ export default async (
       : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
-    let preferredGlobalBinDir
     const npmConfigGlobalBinDir = npmConfig.get('global-bin-dir')
     if (typeof npmConfigGlobalBinDir === 'string') {
       fs.mkdirSync(npmConfigGlobalBinDir, { recursive: true })
-      preferredGlobalBinDir = npmConfigGlobalBinDir
+      pnpmConfig.bin = npmConfigGlobalBinDir
     } else {
-      preferredGlobalBinDir = globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+      pnpmConfig.bin = cliOptions.dir
+        ? (
+          process.platform === 'win32'
+            ? cliOptions.dir
+            : path.resolve(cliOptions.dir, 'bin')
+        )
+        : globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
     }
-
-    pnpmConfig.bin = cliOptions.dir
-      ? (
-        process.platform === 'win32'
-          ? cliOptions.dir
-          : path.resolve(cliOptions.dir, 'bin')
-      )
-      : preferredGlobalBinDir
     pnpmConfig.save = true
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
