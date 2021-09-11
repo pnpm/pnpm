@@ -176,6 +176,13 @@ export default async function (
 
   const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
 
+  if (opts.forceFullResolution && opts.wantedLockfile != null) {
+    for (const [depPath, pkg] of Object.entries(dependenciesGraph)) {
+      if (opts.wantedLockfile.packages?.[depPath] == null || pkg.requiresBuild) continue
+      pendingRequiresBuilds.push(depPath)
+    }
+  }
+
   // waiting till package requests are finished
   const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ finishing }) => finishing?.()))
 
