@@ -13,6 +13,14 @@ jest.mock('@zkochan/npm-conf/lib/conf', () => {
       this.localPrefix = __dirname
     }
 
+    get (name: string) {
+      if (name === 'prefix') {
+        return this.globalPrefix
+      } else {
+        return super.get(name)
+      }
+    }
+
     loadPrefix () {}
   }
   return MockedConf
@@ -28,19 +36,18 @@ test('respects global-bin-dir in npmrc', async () => {
       version: '1.0.0',
     },
   })
-  expect(config.bin).toBe(path.join(homedir(), 'Library', 'pnpm'))
+  expect(config.bin).toBe(path.join(homedir(), '.local', 'pnpm'))
 })
 
 test('respects global-bin-dir rather than dir', async () => {
   const { config } = await getConfig({
     cliOptions: {
       global: true,
-      dir: __dirname,
     },
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
     },
   })
-  expect(config.bin).toBe(path.join(homedir(), 'Library', 'pnpm'))
+  expect(config.bin).toBe(path.join(homedir(), '.local', 'pnpm'))
 })
