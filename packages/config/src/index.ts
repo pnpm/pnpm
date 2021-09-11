@@ -276,7 +276,7 @@ export default async (
       : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
-    const npmConfiGlobalBinDir = npmConfig.get('global-bin-dir')
+    const npmConfigGlobalBinDir = npmConfig.get('global-bin-dir')
     if (typeof npmConfigGlobalBinDir === 'string') {
       fs.mkdirSync(npmConfigGlobalBinDir, { recursive: true })
     }
