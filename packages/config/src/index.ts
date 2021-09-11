@@ -49,6 +49,7 @@ export const types = Object.assign({
   'frozen-lockfile': Boolean,
   'frozen-shrinkwrap': Boolean,
   'git-checks': Boolean,
+  'global-bin-dir': String,
   'global-dir': String,
   'global-path': String,
   'global-pnpmfile': String,
@@ -275,13 +276,19 @@ export default async (
       : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
-    pnpmConfig.bin = cliOptions.dir
-      ? (
-        process.platform === 'win32'
-          ? cliOptions.dir
-          : path.resolve(cliOptions.dir, 'bin')
-      )
-      : globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+    const npmConfigGlobalBinDir = npmConfig.get('global-bin-dir')
+    if (typeof npmConfigGlobalBinDir === 'string') {
+      fs.mkdirSync(npmConfigGlobalBinDir, { recursive: true })
+      pnpmConfig.bin = npmConfigGlobalBinDir
+    } else {
+      pnpmConfig.bin = cliOptions.dir
+        ? (
+          process.platform === 'win32'
+            ? cliOptions.dir
+            : path.resolve(cliOptions.dir, 'bin')
+        )
+        : globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+    }
     pnpmConfig.save = true
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true

@@ -41,7 +41,7 @@ export async function handler (
   },
   params: string[]
 ) {
-  const prefix = path.join(os.tmpdir(), `dlx-${process.pid.toString()}`)
+  const prefix = path.join(fs.realpathSync(os.tmpdir()), `dlx-${process.pid.toString()}`)
   const bins = process.platform === 'win32'
     ? prefix
     : path.join(prefix, 'bin')
