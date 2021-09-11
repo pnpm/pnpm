@@ -42,8 +42,6 @@ export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPacka
 export {
   LinkedDependency,
   ResolvedPackage,
-  updateLockfile,
-  finishLockfileUpdates,
 }
 
 interface ProjectToLink {

@@ -35,8 +35,6 @@ import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
   DependenciesGraph,
   DependenciesGraphNode,
-  finishLockfileUpdates as originalFinishLockfileUpdates,
-  updateLockfile,
 } from '@pnpm/resolve-dependencies'
 import {
   PreferredVersions,
@@ -797,16 +795,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
-  if (opts.fixLockfile) {
-    // regenerate all lockfile fields from resolved depNode
-    // so all field will be autofixed
-    const { newLockfile: fixedLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, {
-      importers: newLockfile.importers,
-      lockfileVersion: newLockfile.lockfileVersion,
-    }, ctx.virtualStoreDir, opts.registries)
-    await originalFinishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, fixedLockfile)
-    await writeWantedLockfile(ctx.lockfileDir, fixedLockfile, lockfileOpts)
-  } else if (!opts.lockfileOnly && opts.enableModulesDir) {
+  if (!opts.lockfileOnly && opts.enableModulesDir) {
     const result = await linkPackages(
       projectsToResolve,
       dependenciesGraph,
