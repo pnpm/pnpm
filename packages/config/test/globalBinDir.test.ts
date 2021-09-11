@@ -15,7 +15,7 @@ jest.mock('@zkochan/npm-conf/lib/conf', () => {
 
     get (name: string) {
       if (name === 'prefix') {
-        return this.globalPrefix
+        return this.prefix
       } else {
         return super.get(name)
       }
@@ -43,6 +43,7 @@ test('respects global-bin-dir rather than dir', async () => {
   const { config } = await getConfig({
     cliOptions: {
       global: true,
+      dir: __dirname,
     },
     packageManager: {
       name: 'pnpm',
