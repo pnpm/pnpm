@@ -234,7 +234,7 @@ async function resolveAndFetch (
   }
 
   const fetchResult = ctx.fetchPackageToStore({
-    fetchRawManifest: updated || (manifest == null),
+    fetchRawManifest: true,
     force: forceFetch,
     lockfileDir: options.lockfileDir,
     pkg: {
