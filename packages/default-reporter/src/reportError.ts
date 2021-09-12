@@ -234,7 +234,7 @@ function formatGenericError (errorMessage: string, stack: object) {
 }
 
 function formatErrorSummary (message: string, code?: string) {
-  return `${chalk.bgRed.black(`\u2009${code ?? 'ERROR'}\u2009`)} ${chalk.red(message)}`
+  return chalk.red.bold(`${chalk.bgRed.black(`(!!) ${code ?? 'ERROR'} `)} ${message}`)
 }
 
 function reportModifiedDependency (msg: { modified: string[] }) {
