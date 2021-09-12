@@ -32,7 +32,6 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
-    'fix-lockfile',
     'modules-dir',
     'network-concurrency',
     'noproxy',
@@ -68,6 +67,7 @@ export function rcOptionsTypes () {
 export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
+  'fix-lockfile': Boolean,
   recursive: Boolean,
 })
 
@@ -267,7 +267,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'rawLocalConfig'
 | 'lockfileDir'
 | 'lockfileOnly'
-| 'fixLockfile'
 | 'pnpmfile'
 | 'production'
 | 'registries'
@@ -292,6 +291,7 @@ export type InstallCommandOptions = Pick<Config,
   argv: {
     original: string[]
   }
+  fixLockfile?: boolean
   useBetaCli?: boolean
   recursive?: boolean
   workspace?: boolean
