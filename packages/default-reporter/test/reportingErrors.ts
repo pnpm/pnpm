@@ -10,11 +10,11 @@ import loadJsonFile from 'load-json-file'
 import normalizeNewline from 'normalize-newline'
 import StackTracey from 'stacktracey'
 
-const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
+const formatErrorCode = (code: string) => chalk.bgRed.black(`(!) ${code} `)
 const formatError = (code: string, message: string) => {
-  return `${formatErrorCode(code)} ${chalk.red(message)}`
+  return `${chalk.red.bold(`${formatErrorCode(code)} ${message}`)}`
 }
-const ERROR_PAD = ''
+const ERROR_PAD = `${chalk.red.bold('(!)')} `
 
 test('prints generic error', (done) => {
   const output$ = toOutput$({

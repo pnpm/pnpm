@@ -19,7 +19,7 @@ export default function reportError (logObj: Log, config?: Config) {
   const errorInfo = getErrorInfo(logObj, config)
   let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
   if (errorInfo.body) {
-    output += `\n\n${errorInfo.body}`
+    output += `\n\n${errorInfo.body}`.split('\n').join(`\n${chalk.red.bold('(!)')} `)
   }
   return output
 }
@@ -234,7 +234,7 @@ function formatGenericError (errorMessage: string, stack: object) {
 }
 
 function formatErrorSummary (message: string, code?: string) {
-  return chalk.red.bold(`${chalk.bgRed.black(`(!!) ${code ?? 'ERROR'} `)} ${message}`)
+  return chalk.red.bold(`${chalk.bgRed.black(`(!) ${code ?? 'ERROR'} `)} ${message}`)
 }
 
 function reportModifiedDependency (msg: { modified: string[] }) {
