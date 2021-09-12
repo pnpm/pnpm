@@ -543,13 +543,13 @@ importers:
       '@zkochan/retry': ^0.2.0
       cpy-cli: ^3.1.1
       nock: 12.0.3
-      node-fetch: ^2.6.1
+      node-fetch: 3.0.0-beta.9
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/fetching-types': link:../fetching-types
       '@pnpm/npm-registry-agent': link:../npm-registry-agent
       '@zkochan/retry': 0.2.0
-      node-fetch: 2.6.1
+      node-fetch: 3.0.0-beta.9
     devDependencies:
       '@pnpm/fetch': 'link:'
       '@pnpm/logger': 4.0.0
@@ -2914,7 +2914,7 @@ importers:
       '@zkochan/rimraf': ^2.1.1
       is-port-reachable: 3.0.0
       load-json-file: ^6.2.0
-      node-fetch: ^2.6.1
+      node-fetch: 3.0.0-beta.9
       p-limit: ^3.1.0
       promise-share: ^1.0.0
       tempy: ^1.0.0
@@ -2938,7 +2938,7 @@ importers:
       '@zkochan/rimraf': 2.1.1
       is-port-reachable: 3.0.0
       load-json-file: 6.2.0
-      node-fetch: 2.6.1
+      node-fetch: 3.0.0-beta.9
       tempy: 1.0.1
 
   packages/sort-packages:
@@ -7164,6 +7164,10 @@ packages:
   /data-uri-to-buffer/2.0.2:
     resolution: {integrity: sha512-ND9qDTLc6diwj+Xe5cdAgVTbLVdXbtxTJRXRhli8Mowuaan+0EJOtdqJ0QCHNSSPyoXGx9HX2/VMnKeC34AChA==}
 
+  /data-uri-to-buffer/3.0.1:
+    resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
+    engines: {node: '>= 6'}
+
   /data-urls/1.1.0:
     resolution: {integrity: sha512-YTWYI9se1P55u58gL5GkQHW4P6VJBJ5iBT+B5a7i2Tjadhv52paJG0qHX4A0OR6/t52odI64KP2YvFpkDOi3eQ==}
     dependencies:
@@ -8204,6 +8208,15 @@ packages:
     dependencies:
       bser: 2.1.1
     dev: true
+
+  /fetch-blob/2.1.2:
+    resolution: {integrity: sha512-YKqtUDwqLyfyMnmbw8XD6Q8j9i/HggKtPEI+pZ1+8bvheBu78biSmNaXWusx1TauGqtUUGx/cBb1mKdq2rLYow==}
+    engines: {node: ^10.17.0 || >=12.3.0}
+    peerDependencies:
+      domexception: '*'
+    peerDependenciesMeta:
+      domexception:
+        optional: true
 
   /figures/1.7.0:
     resolution: {integrity: sha1-y+Hjr/zxzUS4DK3+0o3Hk6lwHS4=}
@@ -11207,6 +11220,16 @@ packages:
   /node-fetch/2.6.1:
     resolution: {integrity: sha512-V4aYg89jEoVRxRb2fJdAg8FHvI7cEyYdVAh94HH0UIK8oJxUfkjlDQN9RbMx+bEjP7+ggMiFRprSti032Oipxw==}
     engines: {node: 4.x || >=6.0.0}
+    dev: true
+
+  /node-fetch/3.0.0-beta.9:
+    resolution: {integrity: sha512-RdbZCEynH2tH46+tj0ua9caUHVWrd/RHnRfvly2EVdqGmI3ndS1Vn/xjm5KuGejDt2RNDQsVRLPNd2QPwcewVg==}
+    engines: {node: ^10.17 || >=12.3}
+    dependencies:
+      data-uri-to-buffer: 3.0.1
+      fetch-blob: 2.1.2
+    transitivePeerDependencies:
+      - domexception
 
   /node-gyp-build/4.2.3:
     resolution: {integrity: sha512-MN6ZpzmfNCRM+3t57PTJHgHyw/h4OWnZ6mR8P5j/uZtqQr46RRuDE/P+g3n0YR/AiYXeWixZZzaip77gdICfRg==}
