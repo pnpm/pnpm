@@ -29,6 +29,7 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string): Promise
     logger.push(`Setting 'PNPM_HOME' to value '${homeDir}'`)
     const addResult = await execa('reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', homeDir, '/f'])
     if (addResult.failed) {
+      /* eslint-disable @typescript-eslint/restrict-template-expressions */
       logger.push(`\t${addResult.stderr}`)
     } else {
       commitNeeded = true

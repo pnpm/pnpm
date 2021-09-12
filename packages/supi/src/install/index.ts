@@ -463,6 +463,18 @@ export async function mutateModules (
       ctx.existsWantedLockfile && !ctx.existsCurrentLockfile ||
       !ctx.currentLockfileIsUpToDate
     )
+
+    if (!opts.ignoreScripts) {
+      if (opts.enablePnp) {
+        scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
+      }
+      await runLifecycleHooksConcurrently(['preinstall'],
+        projectsToBeInstalled,
+        opts.childConcurrency,
+        scriptsOpts
+      )
+    }
+
     const result = await installInContext(projectsToInstall, ctx, {
       ...opts,
       currentLockfileIsUpToDate: !ctx.existsWantedLockfile || ctx.currentLockfileIsUpToDate,
@@ -475,10 +487,7 @@ export async function mutateModules (
     })
 
     if (!opts.ignoreScripts) {
-      if (opts.enablePnp) {
-        scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
-      }
-      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],
+      await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepare'],
         projectsToBeInstalled,
         opts.childConcurrency,
         scriptsOpts
