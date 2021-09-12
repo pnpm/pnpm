@@ -67,6 +67,7 @@ export function rcOptionsTypes () {
 export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
+  'fix-lockfile': Boolean,
   recursive: Boolean,
 })
 
@@ -130,6 +131,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: `The directory in which the ${WANTED_LOCKFILE} of the package will be created. Several projects may share a single lockfile.`,
             name: '--lockfile-dir <dir>',
+          },
+          {
+            description: 'Fix broken lockfile entries automatically',
+            name: '--fix-lockfile',
           },
           {
             description: 'The directory in which dependencies will be installed (instead of node_modules)',
@@ -286,6 +291,7 @@ export type InstallCommandOptions = Pick<Config,
   argv: {
     original: string[]
   }
+  fixLockfile?: boolean
   useBetaCli?: boolean
   recursive?: boolean
   workspace?: boolean
