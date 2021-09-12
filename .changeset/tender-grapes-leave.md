@@ -1,7 +1,6 @@
 ---
 "@pnpm/config": minor
 "@pnpm/plugin-commands-installation": minor
-"@pnpm/resolve-dependencies": minor
 "supi": minor
 ---
 
