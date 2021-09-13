@@ -726,12 +726,9 @@ test('fail when installing with useLockfile: false and lockfileOnly: true', asyn
 test('fail when installing when ignoreScripts: false and lockfileOnly: true', async () => {
   prepareEmpty()
 
-  try {
-    await install({}, await testDefaults({ ignoreScripts: false, lockfileOnly: true }))
-    throw new Error('installation should have failed')
-  } catch (err) {
-    expect(err.message).toBe('Cannot execute the scripts because lockfileOnly is set to false')
-  }
+  await expect(
+    install({}, await testDefaults({ ignoreScripts: false, lockfileOnly: true }))
+  ).rejects.toThrow('Cannot execute the scripts because lockfileOnly is set to false')
 })
 
 test("don't remove packages during named install when useLockfile: false", async () => {
