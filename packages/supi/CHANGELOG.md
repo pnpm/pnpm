@@ -1,5 +1,17 @@
 # supi
 
+## 0.47.20
+
+### Patch Changes
+
+- 11a934da1: Adding --fix-lockfile for the install command to support autofix broken lockfile
+- Updated dependencies [11a934da1]
+- Updated dependencies [11a934da1]
+  - @pnpm/package-requester@15.1.2
+  - @pnpm/resolve-dependencies@21.0.4
+  - @pnpm/lockfile-to-pnp@0.4.22
+  - @pnpm/headless@16.0.28
+
 ## 0.47.19
 
 ### Patch Changes

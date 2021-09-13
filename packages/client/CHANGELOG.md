@@ -1,5 +1,16 @@
 # @pnpm/client
 
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [bab172385]
+  - @pnpm/fetch@4.1.1
+  - @pnpm/fetching-types@2.2.1
+  - @pnpm/default-resolver@13.0.5
+  - @pnpm/tarball-fetcher@9.3.6
+  - @pnpm/git-fetcher@4.1.4
+
 ## 5.0.4
 
 ### Patch Changes

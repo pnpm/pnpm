@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.5.0
+
+### Minor Changes
+
+- 6681fdcbc: New setting added: `global-bin-dir`. `global-bin-dir` allows to set the target directory for the bin files of globally installed packages.
+
 ## 12.4.9
 
 ### Patch Changes

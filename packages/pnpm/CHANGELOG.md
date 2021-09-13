@@ -1,5 +1,16 @@
 # pnpm
 
+## 6.15.0
+
+### Minor Changes
+
+- `pnpm install --fix-lockfile` allows to fix a broken lockfile [#3729](https://github.com/pnpm/pnpm/pull/3729).
+- New setting supported: `global-bin-dir`. `global-bin-dir` allows to set the target directory for the bin files of globally installed packages [#3762](https://github.com/pnpm/pnpm/pull/3762).
+
+### Patch Changes
+
+- The pnpm CLI should not silently exit on bad HTTPS requests [#3768](https://github.com/pnpm/pnpm/pull/3768).
+
 ## 6.14.7
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 12.0.15
+
+### Patch Changes
+
+- Updated dependencies [11a934da1]
+  - @pnpm/package-requester@15.1.2
+
 ## 12.0.14
 
 ### Patch Changes

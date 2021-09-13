@@ -1,5 +1,13 @@
 # @pnpm/server
 
+## 11.0.7
+
+### Patch Changes
+
+- bab172385: The Node.js process should not silently exit on some broken HTTPS requests.
+- Updated dependencies [bab172385]
+  - @pnpm/fetch@4.1.1
+
 ## 11.0.6
 
 ### Patch Changes

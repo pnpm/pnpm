@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 12.0.4
+
+### Patch Changes
+
+- Updated dependencies [bab172385]
+  - @pnpm/fetching-types@2.2.1
+
 ## 12.0.3
 
 ### Patch Changes

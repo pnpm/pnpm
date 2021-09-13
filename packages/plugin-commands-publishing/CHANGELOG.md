@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.2.10
+
+### Patch Changes
+
+- Updated dependencies [6681fdcbc]
+  - @pnpm/config@12.5.0
+  - @pnpm/cli-utils@0.6.21
+  - @pnpm/client@5.0.5
+
 ## 4.2.9
 
 ### Patch Changes

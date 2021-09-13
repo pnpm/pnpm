@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 9.3.6
+
+### Patch Changes
+
+- Updated dependencies [bab172385]
+  - @pnpm/fetching-types@2.2.1
+
 ## 9.3.5
 
 ### Patch Changes

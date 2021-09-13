@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-installation
 
+## 6.1.0
+
+### Minor Changes
+
+- 11a934da1: Adding --fix-lockfile for the install command to support autofix broken lockfile
+
+### Patch Changes
+
+- Updated dependencies [6681fdcbc]
+- Updated dependencies [11a934da1]
+  - @pnpm/config@12.5.0
+  - supi@0.47.20
+  - @pnpm/cli-utils@0.6.21
+  - @pnpm/plugin-commands-rebuild@5.0.15
+  - @pnpm/store-connection-manager@3.0.14
+  - @pnpm/package-store@12.0.15
+  - @pnpm/find-workspace-packages@3.1.13
+  - @pnpm/outdated@9.0.5
+  - @pnpm/filter-workspace-packages@4.1.15
+
 ## 6.0.19
 
 ### Patch Changes

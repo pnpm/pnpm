@@ -1,5 +1,14 @@
 # @pnpm/default-resolver
 
+## 13.0.5
+
+### Patch Changes
+
+- Updated dependencies [bab172385]
+  - @pnpm/fetching-types@2.2.1
+  - @pnpm/git-resolver@5.1.4
+  - @pnpm/npm-resolver@12.0.4
+
 ## 13.0.4
 
 ### Patch Changes

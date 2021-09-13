@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 15.1.2
+
+### Patch Changes
+
+- 11a934da1: Always fetch the bundled manifest.
+
 ## 15.1.1
 
 ### Patch Changes

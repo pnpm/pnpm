@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 21.0.4
+
+### Patch Changes
+
+- 11a934da1: `requiresBuild` fields should be updated when a full resolution is forced.
+  - @pnpm/npm-resolver@12.0.4
+
 ## 21.0.3
 
 ### Patch Changes
