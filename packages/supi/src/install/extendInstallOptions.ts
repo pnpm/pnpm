@@ -167,20 +167,11 @@ export default async (
     ...opts,
     storeDir: defaultOpts.storeDir,
   }
-  if (!extendedOpts.useLockfile && extendedOpts.lockfileOnly) {
-    throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
-      `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
+  if (extendedOpts.lockfileOnly) {
+    extendedOpts.ignoreScripts = true
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
-  }
-  if (extendedOpts.lockfileOnly && !extendedOpts.ignoreScripts) {
-    if (opts.ignoreScripts === false) {
-      throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_IGNORE_SCRIPTS',
-        'Cannot execute the scripts because lockfileOnly is set to false')
-    } else {
-      extendedOpts.ignoreScripts = true
-    }
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default // eslint-disable-line @typescript-eslint/dot-notation
