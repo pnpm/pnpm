@@ -683,7 +683,8 @@ test('error is thrown when package is not found in the registry', async () => {
         },
         {
           status: 404,
-          statusText: 'Not Found',
+          // statusText: 'Not Found',
+          statusText: '',
         },
         notExistingPackage
       )
@@ -720,7 +721,8 @@ test('extra info is shown if package has valid semver appended', async () => {
         },
         {
           status: 404,
-          statusText: 'Not Found',
+          // statusText: 'Not Found',
+          statusText: '',
         },
         notExistingPackage
       )
@@ -761,7 +763,8 @@ test('error is thrown when package needs authorization', async () => {
         },
         {
           status: 403,
-          statusText: 'Forbidden',
+          // statusText: 'Forbidden',
+          statusText: '',
         },
         'needs-auth'
       )

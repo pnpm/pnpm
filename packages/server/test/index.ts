@@ -292,7 +292,7 @@ test('server should only allow POST', async () => {
     // Ensure 405 error is received
     const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: method })
     expect(response.status).toBe(405)
-    expect((await response.json()).error).toBeTruthy()
+    expect((await response.json() as any).error).toBeTruthy() // eslint-disable-line
   }
 
   await server.close()
@@ -315,7 +315,7 @@ test('server route not found', async () => {
   const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
   // Ensure error is correct
   expect(response.status).toBe(404)
-  expect((await response.json()).error).toBeTruthy()
+  expect((await response.json() as any).error).toBeTruthy() // eslint-disable-line
 
   await server.close()
   await storeCtrlForServer.close()

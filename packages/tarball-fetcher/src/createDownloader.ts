@@ -167,20 +167,20 @@ export default (
           ? opts.onProgress
           : undefined
         let downloaded = 0
-        res.body.on('data', (chunk: Buffer) => {
+        res.body!.on('data', (chunk: Buffer) => {
           downloaded += chunk.length
           if (onProgress != null) onProgress(downloaded)
         })
 
         // eslint-disable-next-line no-async-promise-executor
         return await new Promise<FetchResult>(async (resolve, reject) => {
-          const stream = res.body
+          const stream = res.body!
             .on('error', reject)
 
           try {
             const [integrityCheckResult, filesIndex] = await Promise.all([
               opts.integrity ? safeCheckStream(res.body, opts.integrity, url) : true,
-              opts.cafs.addFilesFromTarball(res.body, opts.manifest),
+              opts.cafs.addFilesFromTarball(res.body!, opts.manifest),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
             if (integrityCheckResult !== true) {

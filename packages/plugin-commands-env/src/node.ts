@@ -46,7 +46,7 @@ export async function getNodeDir (opts: NvmNodeCommandOptions) {
   await fs.promises.mkdir(nodesDir, { recursive: true })
   if (wantedNodeVersion == null) {
     const response = await fetch('https://registry.npmjs.org/node')
-    wantedNodeVersion = (await response.json())['dist-tags'].lts
+    wantedNodeVersion = (await response.json() as any)['dist-tags'].lts // eslint-disable-line
     if (wantedNodeVersion == null) {
       throw new Error('Could not resolve LTS version of Node.js')
     }
@@ -104,7 +104,7 @@ async function downloadAndUnpackZip (
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
   const dest = fs.createWriteStream(tmp)
   await new Promise((resolve, reject) => {
-    response.body.pipe(dest).on('error', reject).on('close', resolve)
+    response.body!.pipe(dest).on('error', reject).on('close', resolve)
   })
   const zip = new AdmZip(tmp)
   const nodeDir = path.dirname(targetDir)
