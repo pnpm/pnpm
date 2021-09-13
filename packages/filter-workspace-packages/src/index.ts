@@ -87,11 +87,10 @@ export async function filterPkgsBySelectorObjects<T> (
 
     if (allPackageSelectors.length > 0) {
       const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
-      const { workspaceDir, testPattern, useGlobDirFiltering } = opts
       filteredGraph = await filterGraph(graph, allPackageSelectors, {
-        workspaceDir,
-        testPattern,
-        useGlobDirFiltering,
+        workspaceDir: opts.workspaceDir,
+        testPattern: opts.testPattern,
+        useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
 
@@ -99,11 +98,10 @@ export async function filterPkgsBySelectorObjects<T> (
 
     if (prodPackageSelectors.length > 0) {
       const { graph } = createPkgGraph<T>(pkgs, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
-      const { workspaceDir, testPattern, useGlobDirFiltering } = opts
       prodFilteredGraph = await filterGraph(graph, prodPackageSelectors, {
-        workspaceDir,
-        testPattern,
-        useGlobDirFiltering,
+        workspaceDir: opts.workspaceDir,
+        testPattern: opts.testPattern,
+        useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
 
