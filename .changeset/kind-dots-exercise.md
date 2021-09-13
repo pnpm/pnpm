@@ -2,4 +2,4 @@
 "supi": patch
 ---
 
-fix: ignoreScripts should be true when lockfileonly set true in the install process
+Scripts should always be ignored when only the lockfile is being updated.

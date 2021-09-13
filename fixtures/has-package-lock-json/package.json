@@ -4,5 +4,8 @@
   "dependencies": {
     "dep-of-pkg-with-1-dep": "^101.0.0",
     "pkg-with-1-dep": "*"
+  },
+  "scripts": {
+    "prepare": "exit 1"
   }
 }
