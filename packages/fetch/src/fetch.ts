@@ -39,7 +39,7 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
     return await new Promise((resolve, reject) => op.attempt(async (attempt) => {
       try {
         // this will be retried
-        const res = await fetch(url, opts)
+        const res = await fetch(url as any, opts) // eslint-disable-line
         if ((res.status >= 500 && res.status < 600) || res.status === 429) {
           throw new ResponseError(res)
         } else {

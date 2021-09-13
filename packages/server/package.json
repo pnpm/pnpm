@@ -37,7 +37,6 @@
     "@pnpm/package-requester": "workspace:15.1.1",
     "@pnpm/package-store": "workspace:12.0.14",
     "@types/mz": "^2.7.3",
-    "@types/node-fetch": "^2.5.7",
     "@types/uuid": "^8.3.0",
     "@zkochan/rimraf": "^2.1.1",
     "is-port-reachable": "3.0.0",

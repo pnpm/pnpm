@@ -539,7 +539,6 @@ importers:
       '@pnpm/fetching-types': workspace:2.2.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/npm-registry-agent': workspace:5.0.0
-      '@types/node-fetch': ^2.5.7
       '@zkochan/retry': ^0.2.0
       cpy-cli: ^3.1.1
       nock: 12.0.3
@@ -553,7 +552,6 @@ importers:
     devDependencies:
       '@pnpm/fetch': 'link:'
       '@pnpm/logger': 4.0.0
-      '@types/node-fetch': 2.5.12
       cpy-cli: 3.1.1
       nock: 12.0.3
 
@@ -573,11 +571,11 @@ importers:
   packages/fetching-types:
     specifiers:
       '@pnpm/fetching-types': 'link:'
-      '@types/node-fetch': ^2.5.7
       '@zkochan/retry': ^0.2.0
+      node-fetch: 3.0.0-beta.9
     dependencies:
-      '@types/node-fetch': 2.5.12
       '@zkochan/retry': 0.2.0
+      node-fetch: 3.0.0-beta.9
     devDependencies:
       '@pnpm/fetching-types': 'link:'
 
@@ -2909,7 +2907,6 @@ importers:
       '@pnpm/store-controller-types': workspace:11.0.5
       '@pnpm/types': workspace:7.4.0
       '@types/mz': ^2.7.3
-      '@types/node-fetch': ^2.5.7
       '@types/uuid': ^8.3.0
       '@zkochan/rimraf': ^2.1.1
       is-port-reachable: 3.0.0
@@ -2933,7 +2930,6 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/server': 'link:'
       '@types/mz': 2.7.4
-      '@types/node-fetch': 2.5.12
       '@types/uuid': 8.3.1
       '@zkochan/rimraf': 2.1.1
       is-port-reachable: 3.0.0
@@ -4952,12 +4948,6 @@ packages:
       '@types/node': 16.7.5
     dev: true
 
-  /@types/node-fetch/2.5.12:
-    resolution: {integrity: sha512-MKgC4dlq4kKNa/mYrwpKfzQMB5X3ee5U6fSprkKpToBqBmX4nFZL9cW5jl6sWn+xpRJ7ypWh2yyqqr8UUCstSw==}
-    dependencies:
-      '@types/node': 16.7.5
-      form-data: 3.0.1
-
   /@types/node/12.20.21:
     resolution: {integrity: sha512-Qk7rOvV2A4vNgXNS88vEvbJE1NDFPCQ8AU+pNElrU2bA4yrRDef3fg3SUe+xkwyin3Bpg/Xh5JkNWTlsOcS2tA==}
     dev: true
@@ -6066,6 +6056,7 @@ packages:
 
   /asynckit/0.4.0:
     resolution: {integrity: sha1-x57Zf380y48robyXkLzDZkdLS3k=}
+    dev: true
 
   /at-least-node/1.0.0:
     resolution: {integrity: sha512-+q/t7Ekv1EDY2l6Gda6LLiX14rU9TV20Wa3ofeQmwPFZbOMo9DXrLbOjFaaclkXKWidIaopwAObQDqwWtGUjqg==}
@@ -6787,6 +6778,7 @@ packages:
     engines: {node: '>= 0.8'}
     dependencies:
       delayed-stream: 1.0.0
+    dev: true
 
   /command-exists/1.2.9:
     resolution: {integrity: sha512-LTQ/SGc+s0Xc0Fu5WaKnR0YiygZkm9eKFvyS+fRsU7/ZWFF8ykFM6Pc9aCVf1+xasOOZpO3BAVgVrKvsqKHV7w==}
@@ -7354,6 +7346,7 @@ packages:
   /delayed-stream/1.0.0:
     resolution: {integrity: sha1-3zrhmayt+31ECqrgsp4icrJOxhk=}
     engines: {node: '>=0.4.0'}
+    dev: true
 
   /delegates/1.0.0:
     resolution: {integrity: sha1-hMbhWbgZBP3KWaDvRM2HDTElD5o=}
@@ -8396,6 +8389,7 @@ packages:
       asynckit: 0.4.0
       combined-stream: 1.0.8
       mime-types: 2.1.32
+    dev: true
 
   /forwarded/0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -10906,12 +10900,14 @@ packages:
   /mime-db/1.49.0:
     resolution: {integrity: sha512-CIc8j9URtOVApSFCQIF+VBkX1RwXp/oMMOrqdyXSBXq5RWNEsRfyj1kiRnQgmNXmHxPoFIxOroKA3zcU9P+nAA==}
     engines: {node: '>= 0.6'}
+    dev: true
 
   /mime-types/2.1.32:
     resolution: {integrity: sha512-hJGaVS4G4c9TSMYh2n6SQAGrC4RnfU+daP8G7cSCmaqNjiOoUY0VHCMS42pxnQmVF1GWwFhbHWn3RIxCqTmZ9A==}
     engines: {node: '>= 0.6'}
     dependencies:
       mime-db: 1.49.0
+    dev: true
 
   /mime/1.6.0:
     resolution: {integrity: sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg==}
