@@ -5,7 +5,7 @@ import nock from 'nock'
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
-  const metadata = await res.json()
+  const metadata = await res.json() as any // eslint-disable-line
   expect(metadata.name).toEqual('is-positive')
   expect(metadata.versions['1.0.0'].scripts).not.toBeTruthy()
 })
@@ -13,7 +13,7 @@ test('fetchFromRegistry', async () => {
 test('fetchFromRegistry fullMetadata', async () => {
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
-  const metadata = await res.json()
+  const metadata = await res.json() as any // eslint-disable-line
   expect(metadata.name).toEqual('is-positive')
   expect(metadata.versions['1.0.0'].scripts).toBeTruthy()
 })
