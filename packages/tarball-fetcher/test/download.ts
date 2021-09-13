@@ -299,7 +299,8 @@ test('throw error when accessing private package w/o authorization', async () =>
       },
       {
         status: 403,
-        statusText: 'Forbidden',
+        // statusText: 'Forbidden',
+        statusText: '',
       }
     )
   )
