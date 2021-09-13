@@ -1,5 +1,6 @@
 ---
 "@pnpm/fetch": patch
+"@pnpm/fetching-types": patch
 "@pnpm/server": patch
 ---
 

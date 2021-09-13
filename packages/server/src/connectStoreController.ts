@@ -74,7 +74,7 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
     if (!response.ok) {
       throw await response.json()
     }
-    const json = await response.json()
+    const json = await response.json() as any // eslint-disable-line
     if (json.error) {
       throw json.error
     }
