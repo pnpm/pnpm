@@ -167,9 +167,12 @@ export default async (
     ...opts,
     storeDir: defaultOpts.storeDir,
   }
-  if (!extendedOpts.useLockfile && extendedOpts.lockfileOnly) {
-    throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
-      `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
+  if (extendedOpts.lockfileOnly) {
+    extendedOpts.ignoreScripts = true
+    if (!extendedOpts.useLockfile) {
+      throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
+        `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
+    }
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
