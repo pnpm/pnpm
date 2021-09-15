@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import prepare from '@pnpm/prepare'
 import PnpmError from '@pnpm/error'
-import execa from 'execa'
+import git from 'graceful-git'
 import tempy from 'tempy'
 
 // eslint-disable-next-line
@@ -30,12 +30,12 @@ test('publish: fails git check if branch is not on master or main', async () => 
     version: '0.0.0',
   })
 
-  await execa('git', ['init'])
-  await execa('git', ['checkout', '-b', 'test'])
-  await execa('git', ['config', 'user.email', 'x@y.z'])
-  await execa('git', ['config', 'user.name', 'xyz'])
-  await execa('git', ['add', '*'])
-  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await git.noRetry(['init'])
+  await git.noRetry(['checkout', '-b', 'test'])
+  await git.noRetry(['config', 'user.email', 'x@y.z'])
+  await git.noRetry(['config', 'user.name', 'xyz'])
+  await git.noRetry(['add', '*'])
+  await git.noRetry(['commit', '-m', 'init', '--no-gpg-sign'])
 
   prompt.mockResolvedValue({
     confirm: false,
@@ -58,12 +58,12 @@ test('publish: fails git check if branch is not on specified branch', async () =
     version: '0.0.0',
   })
 
-  await execa('git', ['init'])
-  await execa('git', ['checkout', '-b', 'master'])
-  await execa('git', ['config', 'user.email', 'x@y.z'])
-  await execa('git', ['config', 'user.name', 'xyz'])
-  await execa('git', ['add', '*'])
-  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await git.noRetry(['init'])
+  await git.noRetry(['checkout', '-b', 'master'])
+  await git.noRetry(['config', 'user.email', 'x@y.z'])
+  await git.noRetry(['config', 'user.name', 'xyz'])
+  await git.noRetry(['add', '*'])
+  await git.noRetry(['commit', '-m', 'init', '--no-gpg-sign'])
 
   prompt.mockResolvedValue({
     confirm: false,
@@ -87,11 +87,11 @@ test('publish: fails git check if branch is not clean', async () => {
     version: '0.0.0',
   })
 
-  await execa('git', ['init'])
-  await execa('git', ['config', 'user.email', 'x@y.z'])
-  await execa('git', ['config', 'user.name', 'xyz'])
-  await execa('git', ['add', '*'])
-  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await git.noRetry(['init'])
+  await git.noRetry(['config', 'user.email', 'x@y.z'])
+  await git.noRetry(['config', 'user.name', 'xyz'])
+  await git.noRetry(['add', '*'])
+  await git.noRetry(['commit', '-m', 'init', '--no-gpg-sign'])
 
   await fs.writeFile('LICENSE', 'workspace license', 'utf8')
 
@@ -114,16 +114,16 @@ test('publish: fails git check if branch is not up-to-date', async () => {
     version: '0.0.0',
   })
 
-  await execa('git', ['init'])
-  await execa('git', ['config', 'user.email', 'x@y.z'])
-  await execa('git', ['config', 'user.name', 'xyz'])
-  await execa('git', ['init', '--bare'], { cwd: remote })
-  await execa('git', ['add', '*'])
-  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
-  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
-  await execa('git', ['remote', 'add', 'origin', remote])
-  await execa('git', ['push', '-u', 'origin', 'master'])
-  await execa('git', ['reset', '--hard', 'HEAD~1'])
+  await git.noRetry(['init'])
+  await git.noRetry(['config', 'user.email', 'x@y.z'])
+  await git.noRetry(['config', 'user.name', 'xyz'])
+  await git.noRetry(['init', '--bare'], { cwd: remote })
+  await git.noRetry(['add', '*'])
+  await git.noRetry(['commit', '-m', 'init', '--no-gpg-sign'])
+  await git.noRetry(['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
+  await git.noRetry(['remote', 'add', 'origin', remote])
+  await git.noRetry(['push', '-u', 'origin', 'master'])
+  await git.noRetry(['reset', '--hard', 'HEAD~1'])
 
   await expect(
     publish.handler({

@@ -68,6 +68,7 @@
     "@zkochan/rimraf": "^2.1.1",
     "enquirer": "^2.3.6",
     "fast-glob": "^3.2.4",
+    "graceful-git": "^3.1.0",
     "npm-packlist": "^2.2.2",
     "p-filter": "^2.1.0",
     "ramda": "^0.27.1",

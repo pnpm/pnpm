@@ -1,7 +1,7 @@
 import path from 'path'
 import PnpmError from '@pnpm/error'
+import git from 'graceful-git'
 import * as micromatch from 'micromatch'
-import execa from 'execa'
 import findUp from 'find-up'
 
 type ChangeType = 'source' | 'test'
@@ -46,7 +46,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
   let diff!: string
   try {
     diff = (
-      await execa('git', [
+      await git.noRetry([
         'diff',
         '--name-only',
         commit,

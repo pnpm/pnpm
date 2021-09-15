@@ -2,7 +2,7 @@ import path from 'path'
 import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
 import preparePackage from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
-import execa from 'execa'
+import git from 'graceful-git'
 
 export default () => {
   return {
@@ -35,5 +35,5 @@ function prefixGitArgs (): string[] {
 
 function execGit (args: string[], opts?: object) {
   const fullArgs = prefixGitArgs().concat(args || [])
-  return execa('git', fullArgs, opts)
+  return git.noRetry(fullArgs, opts)
 }

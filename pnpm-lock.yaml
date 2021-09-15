@@ -625,8 +625,8 @@ importers:
       '@types/micromatch': ^4.0.1
       '@types/ramda': 0.27.39
       '@types/touch': ^3.1.1
-      execa: ^5.0.0
       find-up: ^5.0.0
+      graceful-git: ^3.1.0
       is-ci: ^3.0.0
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
@@ -639,8 +639,8 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/find-workspace-packages': link:../find-workspace-packages
       '@pnpm/matcher': link:../matcher
-      execa: 5.1.1
       find-up: 5.0.0
+      graceful-git: 3.1.0
       is-subdir: 1.2.0
       micromatch: 4.0.4
       pkgs-graph: link:../pkgs-graph
@@ -744,14 +744,14 @@ importers:
       '@pnpm/prepare-package': workspace:1.0.3
       '@pnpm/types': workspace:7.4.0
       '@zkochan/rimraf': ^2.1.1
-      execa: ^5.0.0
+      graceful-git: ^3.1.0
       p-defer: ^3.0.0
       tempy: ^1.0.0
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/prepare-package': link:../prepare-package
       '@zkochan/rimraf': 2.1.1
-      execa: 5.1.1
+      graceful-git: 3.1.0
     devDependencies:
       '@pnpm/cafs': link:../cafs
       '@pnpm/git-fetcher': 'link:'
@@ -768,14 +768,14 @@ importers:
       '@types/hosted-git-info': ^3.0.1
       '@types/is-windows': ^1.0.0
       '@types/semver': ^7.3.4
-      graceful-git: ^3.0.2
+      graceful-git: ^3.1.0
       hosted-git-info: npm:@zkochan/hosted-git-info@^4.0.2
       is-windows: ^1.0.2
       semver: ^7.3.4
     dependencies:
       '@pnpm/fetch': link:../fetch
       '@pnpm/resolver-base': link:../resolver-base
-      graceful-git: 3.0.2
+      graceful-git: 3.1.0
       hosted-git-info: /@zkochan/hosted-git-info/4.0.2
       semver: 7.3.5
     devDependencies:
@@ -2122,6 +2122,7 @@ importers:
       enquirer: ^2.3.6
       execa: ^5.0.0
       fast-glob: ^3.2.4
+      graceful-git: ^3.1.0
       is-ci: ^3.0.0
       is-windows: ^1.0.2
       load-json-file: ^6.2.0
@@ -2152,6 +2153,7 @@ importers:
       '@zkochan/rimraf': 2.1.1
       enquirer: 2.3.6
       fast-glob: 3.2.7
+      graceful-git: 3.1.0
       npm-packlist: 2.2.2
       p-filter: 2.1.0
       ramda: 0.27.1
@@ -2527,6 +2529,7 @@ importers:
       esbuild: ^0.12.0
       execa: ^5.0.0
       exists-link: 2.0.0
+      graceful-git: ^3.1.0
       is-ci: ^3.0.0
       is-windows: ^1.0.2
       load-json-file: ^6.2.0
@@ -2619,6 +2622,7 @@ importers:
       esbuild: 0.12.24
       execa: 5.1.1
       exists-link: 2.0.0
+      graceful-git: 3.1.0
       is-ci: 3.0.0
       is-windows: 1.0.2
       load-json-file: 6.2.0
@@ -5434,6 +5438,13 @@ packages:
       lodash: 4.17.21
       string-width: 4.2.2
     dev: false
+
+  /@zkochan/which/2.0.3:
+    resolution: {integrity: sha512-C1ReN7vt2/2O0fyTsx5xnbQuxBrmG5NMSbcIkPKCCfCTJgpZBsuRYzFXHj3nVq8vTfK7vxHUmzfCpSHgO7j4rg==}
+    engines: {node: '>= 8'}
+    hasBin: true
+    dependencies:
+      isexe: 2.0.0
 
   /JSONStream/1.3.5:
     resolution: {integrity: sha512-E+iruNOY8VV9s4JEbe1aNEm6MiszPRr/UfcHMz0TQh1BXSxHK+ASV1R6W4HpjBhSeS+54PIsAMCBmwD06LLsqQ==}
@@ -8755,13 +8766,13 @@ packages:
   /graceful-fs/4.2.8:
     resolution: {integrity: sha512-qkIilPUYcNhJpd33n0GBXTB1MMPp14TxEsEs0pTrsSVucApsYzW5V+Q8Qxhik6KU3evy+qkAAowTByymK0avdg==}
 
-  /graceful-git/3.0.2:
-    resolution: {integrity: sha512-fZ5zG+uT3zRqpRU7kXEUQkbRfIK66JRLfV528Glm703gr/qVfF0zppqC4ksuO1fLmlxBNAxLqQUfhF/vAriMtQ==}
+  /graceful-git/3.1.0:
+    resolution: {integrity: sha512-AVEgHKbEPyHHNdJyNjb044aH9AcH8vEQ1qz2o9C07ZzIMDE3sWkr03hfQcnoeFmMngQIGMF6LHmFD90PMrEwlg==}
     engines: {node: '>=10'}
     dependencies:
+      '@zkochan/which': 2.0.3
       execa: 5.1.1
       retry: 0.12.0
-    dev: false
 
   /graceful-readlink/1.0.1:
     resolution: {integrity: sha1-TK+tdrxi8C+gObL5Tpo906ORpyU=}
@@ -12858,7 +12869,6 @@ packages:
   /retry/0.12.0:
     resolution: {integrity: sha1-G0KmJmoh8HQh0bC1S33BZ7AcATs=}
     engines: {node: '>= 4'}
-    dev: false
 
   /reusify/1.0.4:
     resolution: {integrity: sha512-U9nH88a3fc/ekCF1l0/UP1IosiuIjyTh7hBvXVMHYgVcfGvt897Xguj2UOLDeI5BG2m7/uwyaLVT6fbtCwTyzw==}

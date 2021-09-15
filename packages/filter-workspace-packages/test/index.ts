@@ -3,7 +3,7 @@ import PnpmError from '@pnpm/error'
 import filterWorkspacePackages, { PackageGraph } from '@pnpm/filter-workspace-packages'
 import './parsePackageSelector'
 import fs from 'fs'
-import execa from 'execa'
+import git from 'graceful-git'
 import isCI from 'is-ci'
 import isWindows from 'is-windows'
 import path from 'path'
@@ -258,10 +258,10 @@ test('select changed packages', async () => {
   }
 
   const workspaceDir = tempy.directory()
-  await execa('git', ['init'], { cwd: workspaceDir })
-  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
-  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
-  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+  await git.noRetry(['init'], { cwd: workspaceDir })
+  await git.noRetry(['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await git.noRetry(['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+  await git.noRetry(['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
 
   const pkg1Dir = path.join(workspaceDir, 'package-1')
 
@@ -277,8 +277,8 @@ test('select changed packages', async () => {
 
   await mkdir(pkg3Dir)
 
-  await execa('git', ['add', '.'], { cwd: workspaceDir })
-  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+  await git.noRetry(['add', '.'], { cwd: workspaceDir })
+  await git.noRetry(['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
 
   const pkg20Dir = path.join(workspaceDir, 'package-20')
 

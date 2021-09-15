@@ -1,11 +1,11 @@
 import { existsSync, promises as fs } from 'fs'
 import path from 'path'
-import execa from 'execa'
 import isCI from 'is-ci'
 import isWindows from 'is-windows'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import git from 'graceful-git'
 import exists from 'path-exists'
 import crossSpawn from 'cross-spawn'
 import writeYamlFile from 'write-yaml-file'
@@ -707,12 +707,12 @@ test('publish: with specified publish branch name', async () => {
   })
 
   const branch = 'some-random-publish-branch'
-  await execa('git', ['init'])
-  await execa('git', ['checkout', '-b', branch])
-  await execa('git', ['config', 'user.email', 'x@y.z'])
-  await execa('git', ['config', 'user.name', 'xyz'])
-  await execa('git', ['add', '*'])
-  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await git.noRetry(['init'])
+  await git.noRetry(['checkout', '-b', branch])
+  await git.noRetry(['config', 'user.email', 'x@y.z'])
+  await git.noRetry(['config', 'user.name', 'xyz'])
+  await git.noRetry(['add', '*'])
+  await git.noRetry(['commit', '-m', 'init', '--no-gpg-sign'])
 
   await publish.handler({
     ...DEFAULT_OPTS,

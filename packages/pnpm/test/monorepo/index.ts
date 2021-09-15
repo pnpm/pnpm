@@ -11,8 +11,8 @@ import prepare, {
 } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
-import execa from 'execa'
 import rimraf from '@zkochan/rimraf'
+import git from 'graceful-git'
 import exists from 'path-exists'
 import tempy from 'tempy'
 import symlink from 'symlink-dir'
@@ -326,22 +326,22 @@ test('test-pattern is respected by the test script', async () => {
     },
   ])
 
-  await execa('git', ['init'])
-  await execa('git', ['config', 'user.email', 'x@y.z'])
-  await execa('git', ['config', 'user.name', 'xyz'])
-  await execa('git', ['init', '--bare'], { cwd: remote })
-  await execa('git', ['add', '*'])
-  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
-  await execa('git', ['remote', 'add', 'origin', remote])
-  await execa('git', ['push', '-u', 'origin', 'master'])
+  await git.noRetry(['init'])
+  await git.noRetry(['config', 'user.email', 'x@y.z'])
+  await git.noRetry(['config', 'user.name', 'xyz'])
+  await git.noRetry(['init', '--bare'], { cwd: remote })
+  await git.noRetry(['add', '*'])
+  await git.noRetry(['commit', '-m', 'init', '--no-gpg-sign'])
+  await git.noRetry(['remote', 'add', 'origin', remote])
+  await git.noRetry(['push', '-u', 'origin', 'master'])
 
   await fs.writeFile('project-2/file.js', '')
   await fs.writeFile('project-4/different-pattern.js', '')
   await fs.writeFile('.npmrc', 'test-pattern[]=*/file.js', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execa('git', ['add', '.'])
-  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
+  await git.noRetry(['add', '.'])
+  await git.noRetry(['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
 
   process.chdir('project-1')
 
