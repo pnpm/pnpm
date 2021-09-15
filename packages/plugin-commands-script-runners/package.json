@@ -37,7 +37,6 @@
     "@pnpm/prepare": "workspace:0.0.26",
     "@types/ramda": "0.27.39",
     "@zkochan/rimraf": "^2.1.1",
-    "execa": "^5.0.0",
     "is-windows": "^1.0.2",
     "write-yaml-file": "^4.2.0"
   },
@@ -52,6 +51,7 @@
     "@pnpm/sort-packages": "workspace:2.1.1",
     "@pnpm/store-path": "^5.0.0",
     "@pnpm/types": "workspace:7.4.0",
+    "execa": "npm:safe-execa@^0.1.1",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-name": "^1.0.0",

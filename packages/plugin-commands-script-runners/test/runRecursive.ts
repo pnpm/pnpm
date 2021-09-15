@@ -58,7 +58,7 @@ test('pnpm recursive run', async () => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
@@ -130,7 +130,7 @@ test('pnpm recursive run reversed', async () => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
@@ -182,7 +182,7 @@ test('pnpm recursive run concurrently', async () => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
@@ -234,7 +234,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
@@ -352,7 +352,7 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
   ])
 
   const { allProjects } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
@@ -409,7 +409,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async () =>
   ])
 
   const { allProjects } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
@@ -511,7 +511,7 @@ test('testing the bail config with "pnpm recursive run"', async () => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
@@ -592,7 +592,7 @@ test('pnpm recursive run with filtering', async () => {
     [{ namePattern: 'project-1' }],
     { workspaceDir: process.cwd() }
   )
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
@@ -629,7 +629,7 @@ test('`pnpm recursive run` should always trust the scripts', async () => {
     },
   ])
 
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',

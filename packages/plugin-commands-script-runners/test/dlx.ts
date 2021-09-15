@@ -5,7 +5,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 test('dlx', async () => {
   prepareEmpty()
 
-  await dlx.handler({}, ['touch', 'foo'])
+  await dlx.handler({}, ['shx', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })

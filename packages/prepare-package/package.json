@@ -29,7 +29,7 @@
   "dependencies": {
     "@pnpm/read-package-json": "workspace:5.0.4",
     "@zkochan/rimraf": "^2.1.1",
-    "execa": "^5.0.0",
+    "execa": "npm:safe-execa@^0.1.1",
     "preferred-pm": "^3.0.3"
   },
   "funding": "https://opencollective.com/pnpm"
