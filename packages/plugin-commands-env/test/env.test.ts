@@ -3,7 +3,7 @@ import path from 'path'
 import PnpmError from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
 import { env } from '@pnpm/plugin-commands-env'
-import execa from 'execa'
+import * as execa from 'execa'
 import PATH from 'path-name'
 
 test('install Node (and npm, npx) by exact version of Node.js', async () => {

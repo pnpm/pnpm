@@ -32,7 +32,7 @@
     "@pnpm/fetcher-base": "workspace:11.0.3",
     "@pnpm/prepare-package": "workspace:1.0.3",
     "@zkochan/rimraf": "^2.1.1",
-    "execa": "^5.0.0"
+    "execa": "npm:safe-execa@^0.1.1"
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:3.0.7",

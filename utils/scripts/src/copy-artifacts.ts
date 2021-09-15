@@ -1,5 +1,5 @@
 import fs from 'fs'
-import execa from 'execa'
+import * as execa from 'execa'
 import path from 'path'
 import makeEmptyDir from 'make-empty-dir'
 
