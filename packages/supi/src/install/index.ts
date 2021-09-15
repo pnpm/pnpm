@@ -152,7 +152,7 @@ export async function mutateModules (
   opts['forceNewModules'] = installsOnly
   const rootProjectManifest = projects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
-    // so reading its manifest explicitly hear.
+    // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
