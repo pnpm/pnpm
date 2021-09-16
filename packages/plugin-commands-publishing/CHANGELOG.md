@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.2.11
+
+### Patch Changes
+
+- 04b7f6086: Use safe-execa instead of execa to prevent binary planting attacks on Windows.
+  - @pnpm/client@5.0.6
+
 ## 4.2.10
 
 ### Patch Changes

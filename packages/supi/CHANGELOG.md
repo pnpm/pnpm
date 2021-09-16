@@ -1,5 +1,13 @@
 # supi
 
+## 0.47.21
+
+### Patch Changes
+
+- 141d2f02e: Scripts should always be ignored when only the lockfile is being updated.
+  - @pnpm/headless@16.0.28
+  - @pnpm/package-requester@15.1.2
+
 ## 0.47.20
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-outdated
 
+## 5.0.15
+
+### Patch Changes
+
+- @pnpm/default-resolver@13.0.6
+- @pnpm/outdated@9.0.6
+
 ## 5.0.14
 
 ### Patch Changes

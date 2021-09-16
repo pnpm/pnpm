@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 5.1.5
+
+### Patch Changes
+
+- 04b7f6086: Use safe-execa instead of execa to prevent binary planting attacks on Windows.
+
 ## 5.1.4
 
 ### Patch Changes

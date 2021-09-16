@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.2.4
+
+### Patch Changes
+
+- 04b7f6086: Use safe-execa instead of execa to prevent binary planting attacks on Windows.
+
 ## 4.2.3
 
 ### Patch Changes

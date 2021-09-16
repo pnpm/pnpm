@@ -1,5 +1,13 @@
 # @pnpm/client
 
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [04b7f6086]
+  - @pnpm/git-fetcher@4.1.5
+  - @pnpm/default-resolver@13.0.6
+
 ## 5.0.5
 
 ### Patch Changes

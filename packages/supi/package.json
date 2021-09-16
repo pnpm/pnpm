@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.47.20",
+  "version": "0.47.21",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -67,7 +67,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:3.0.7",
-    "@pnpm/client": "workspace:5.0.5",
+    "@pnpm/client": "workspace:5.0.6",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.0.15",
     "@pnpm/prepare": "workspace:0.0.26",

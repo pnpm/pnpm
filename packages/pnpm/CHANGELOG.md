@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.15.1
+
+### Patch Changes
+
+- A security vulnerabity fixed. When commands are executed on Windows, they should not be searched for in the current working directory.
+- `pnpm import` should never run scripts [#3750](https://github.com/pnpm/pnpm/issues/3750).
+
 ## 6.15.0
 
 ### Minor Changes

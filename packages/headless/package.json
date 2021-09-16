@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/client": "workspace:5.0.5",
+    "@pnpm/client": "workspace:5.0.6",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.0.15",
     "@pnpm/prepare": "workspace:0.0.26",

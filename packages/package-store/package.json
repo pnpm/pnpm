@@ -35,7 +35,7 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:5.0.5",
+    "@pnpm/client": "workspace:5.0.6",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.26",
     "@types/ramda": "0.27.39",
