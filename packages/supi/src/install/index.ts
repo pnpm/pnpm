@@ -728,7 +728,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
   const projectsToResolve = await Promise.all(projects.map(async (project) => _toResolveImporter(project)))
 
-  // Ignore some fields when fixing lockfile, so these fileds can be regenereated
+  // Ignore some fields when fixing lockfile, so these fields can be regenerated
   // and make sure it's up-to-date
   if (
     opts.fixLockfile &&
