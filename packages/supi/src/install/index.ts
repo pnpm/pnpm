@@ -728,7 +728,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
   const projectsToResolve = await Promise.all(projects.map(async (project) => _toResolveImporter(project)))
 
-  // Ignore some field when fixing lockfile, so this filed can be regenereated
+  // Ignore some fields when fixing lockfile, so these fileds can be regenereated
   // and make sure it's up-to-date
   if (
     opts.fixLockfile &&
@@ -738,8 +738,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.wantedLockfile.packages = Object.entries(ctx.wantedLockfile.packages).reduce((pre, [depPath, snapshot]) => ({
       ...pre,
       [depPath]: {
-        name: snapshot.name,
-        version: snapshot.version,
+        dependencies: snapshot.dependencies,
+        optionalDependencies: snapshot.optionalDependencies,
       },
     }), {})
   }
