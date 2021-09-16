@@ -6,7 +6,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
 import { DEFAULT_OPTS } from './utils'
 import crossSpawn = require('cross-spawn')
-import execa = require('execa')
+import execa from 'execa'
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 

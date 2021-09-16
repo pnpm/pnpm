@@ -5,7 +5,7 @@ import prepare, { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
 import { DEFAULT_OPTS } from './utils'
-import execa = require('execa')
+import execa from 'execa'
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')

@@ -3,7 +3,7 @@ import PnpmError from '@pnpm/error'
 import filterWorkspacePackages, { PackageGraph } from '@pnpm/filter-workspace-packages'
 import './parsePackageSelector'
 import fs = require('fs')
-import execa = require('execa')
+import execa from 'execa'
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import path = require('path')

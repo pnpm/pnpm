@@ -42,7 +42,7 @@
     "@types/sinon": "^9.0.11",
     "@types/ssri": "^7.1.1",
     "@zkochan/rimraf": "^1.0.1",
-    "execa": "^5.1.1",
+    "execa": "npm:safe-execa@^0.1.1",
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
     "sinon": "^9.2.4",

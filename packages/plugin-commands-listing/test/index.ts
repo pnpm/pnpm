@@ -3,7 +3,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 
-import execa = require('execa')
+import execa from 'execa'
 import fs = require('mz/fs')
 import path = require('path')
 import stripAnsi = require('strip-ansi')

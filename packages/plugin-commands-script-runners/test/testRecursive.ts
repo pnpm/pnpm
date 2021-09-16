@@ -3,7 +3,7 @@ import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 import path = require('path')
-import execa = require('execa')
+import execa from 'execa'
 
 test('pnpm recursive test', async () => {
   preparePackages([

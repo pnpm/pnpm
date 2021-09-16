@@ -79,7 +79,7 @@
     "delay": "^5.0.0",
     "dir-is-case-sensitive": "^1.0.2",
     "esbuild": "^0.8.57",
-    "execa": "^5.1.1",
+    "execa": "npm:safe-execa@^0.1.1",
     "exists-link": "2.0.0",
     "is-ci": "^3.0.0",
     "is-windows": "^1.0.2",

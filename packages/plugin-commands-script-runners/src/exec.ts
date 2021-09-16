@@ -9,7 +9,7 @@ import {
   shorthands as runShorthands,
 } from './run'
 import existsInDir from './existsInDir'
-import execa = require('execa')
+import execa from 'execa'
 import pLimit = require('p-limit')
 import R = require('ramda')
 import renderHelp = require('render-help')

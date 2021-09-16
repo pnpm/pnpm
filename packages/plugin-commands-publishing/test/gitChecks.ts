@@ -2,7 +2,7 @@ import PnpmError from '@pnpm/error'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils'
-import execa = require('execa')
+import execa from 'execa'
 import fs = require('mz/fs')
 import tempy = require('tempy')
 

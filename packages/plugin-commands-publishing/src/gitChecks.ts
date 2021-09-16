@@ -1,4 +1,4 @@
-import execa = require('execa')
+import execa from 'execa'
 
 // git checks logic is from https://github.com/sindresorhus/np/blob/master/source/git-tasks.js
 

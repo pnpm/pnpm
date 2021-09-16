@@ -4,7 +4,7 @@ import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
-import execa = require('execa')
+import execa from 'execa'
 import tempy = require('tempy')
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`

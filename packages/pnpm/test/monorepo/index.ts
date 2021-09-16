@@ -11,7 +11,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
 import { execPnpm, execPnpmSync, execPnpxSync } from '../utils'
 import path = require('path')
-import execa = require('execa')
+import execa from 'execa'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import exists = require('path-exists')

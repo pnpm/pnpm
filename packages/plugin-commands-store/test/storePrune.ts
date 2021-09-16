@@ -5,7 +5,7 @@ import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fs = require('fs')
 import rimraf = require('@zkochan/rimraf')
-import execa = require('execa')
+import execa from 'execa'
 import path = require('path')
 import R = require('ramda')
 import sinon = require('sinon')

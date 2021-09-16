@@ -10,7 +10,7 @@ import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 import path = require('path')
-import execa = require('execa')
+import execa from 'execa'
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import writeYamlFile = require('write-yaml-file')

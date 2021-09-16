@@ -5,7 +5,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 import path = require('path')
 import rimraf = require('@zkochan/rimraf')
-import execa = require('execa')
+import execa from 'execa'
 import fs = require('mz/fs')
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')

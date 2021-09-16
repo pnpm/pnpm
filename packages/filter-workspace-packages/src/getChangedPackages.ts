@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import * as micromatch from 'micromatch'
 import path = require('path')
-import execa = require('execa')
+import execa from 'execa'
 import findUp = require('find-up')
 
 type ChangeType = 'source' | 'test'

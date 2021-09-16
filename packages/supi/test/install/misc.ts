@@ -25,7 +25,7 @@ import {
 } from '../utils'
 import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
-import execa = require('execa')
+import execa from 'execa'
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import fs = require('mz/fs')

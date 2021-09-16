@@ -2,7 +2,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { DEFAULT_OPTS } from './utils'
-import execa = require('execa')
+import execa from 'execa'
 import path = require('path')
 import crossSpawn = require('cross-spawn')
 import fs = require('mz/fs')
