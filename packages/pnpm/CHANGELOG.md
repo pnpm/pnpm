@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.18.11
+
+### Patch Changes
+
+- A security vulnerabity fixed. When commands are executed on Windows, they should not be searched for in the current working directory.
+
 ## 5.18.10
 
 ### Patch Changes
