@@ -738,8 +738,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.wantedLockfile.packages = Object.entries(ctx.wantedLockfile.packages).reduce((pre, [depPath, snapshot]) => ({
       ...pre,
       [depPath]: {
+        // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
+        // If these fields are broken, they will also be regenerated
         dependencies: snapshot.dependencies,
         optionalDependencies: snapshot.optionalDependencies,
+        resolution: snapshot.resolution,
       },
     }), {})
   }
