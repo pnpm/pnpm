@@ -10,6 +10,7 @@ export interface PackageSpecObject {
   peer?: boolean
   pref?: string
   saveType?: DependenciesField
+  pinnedNode?: string
 }
 
 export async function updateProjectManifestObject (
@@ -37,6 +38,12 @@ export async function updateProjectManifestObject (
       const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
       packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
       packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
+    }
+    if (packageSpec.pinnedNode) {
+      if (packageManifest.dependenciesMeta == null) {
+        packageManifest.dependenciesMeta = {}
+      }
+      packageManifest.dependenciesMeta[packageSpec.alias] = { node: packageSpec.pinnedNode }
     }
   })
 

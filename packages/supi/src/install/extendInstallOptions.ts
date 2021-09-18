@@ -42,6 +42,7 @@ export interface StrictInstallOptions {
   rawConfig: object
   verifyStoreIntegrity: boolean
   engineStrict: boolean
+  pinnedNode?: string
   nodeVersion: string
   packageManager: {
     name: string

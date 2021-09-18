@@ -410,6 +410,7 @@ export async function mutateModules (
       const wantedDependencies = getWantedDependencies(project.manifest, {
         includeDirect: opts.includeDirect,
         updateWorkspaceDependencies: opts.update,
+        pinnedNode: opts.pinnedNode,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
@@ -453,7 +454,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true, updateSpec: true })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true, updateSpec: true, pinnedNode: opts.pinnedNode })),
       })
     }
 
@@ -890,6 +891,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
+          nodeByAlias: Object.entries(project.manifest.dependenciesMeta ?? {}).reduce((prev, [alias, meta]) => {
+            if (meta.node) {
+              prev[alias] = meta.node
+            }
+            return prev
+          }, {}),
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
@@ -906,10 +913,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         linkedPackages = await linkBinsOfPackages(
           (
             await Promise.all(
-              directPkgs.map(async (dep) => ({
-                location: dep.dir,
-                manifest: await dep.fetchingBundledManifest?.() ?? await safeReadProjectManifestOnly(dep.dir),
-              }))
+              directPkgs.map(async (dep) => {
+                const manifest = await dep.fetchingBundledManifest?.() ?? await safeReadProjectManifestOnly(dep.dir)
+                return {
+                  location: dep.dir,
+                  manifest,
+                  node: project.manifest.dependenciesMeta?.[manifest!.name!]?.node,
+                }
+              })
             )
           )
             .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
