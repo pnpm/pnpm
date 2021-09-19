@@ -184,7 +184,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string) {
   return cmdShim(cmd.path, externalBinPath, {
     createPwshFile: cmd.makePowerShellShim,
     nodePath,
-    nodeProg: cmd.node,
+    nodeExecPath: cmd.node,
   })
 }
 
