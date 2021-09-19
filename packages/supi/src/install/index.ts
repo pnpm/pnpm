@@ -889,14 +889,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     await Promise.all(projectsToResolve.map(async (project, index) => {
       let linkedPackages!: string[]
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
-        linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
-          allowExoticManifests: true,
-          nodeByAlias: Object.entries(project.manifest.dependenciesMeta ?? {}).reduce((prev, [alias, meta]) => {
-            if (meta.node) {
-              prev[alias] = meta.node
+        const nodeExecPathByAlias = Object.entries(project.manifest.dependenciesMeta ?? {})
+          .reduce((prev, [alias, { node }]) => {
+            if (node) {
+              prev[alias] = node
             }
             return prev
-          }, {}),
+          }, {})
+        linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
+          allowExoticManifests: true,
+          nodeExecPathByAlias,
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {

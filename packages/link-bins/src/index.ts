@@ -32,7 +32,7 @@ export default async (
   binsDir: string,
   opts: {
     allowExoticManifests?: boolean
-    nodeByAlias?: Record<string, string>
+    nodeExecPathByAlias?: Record<string, string>
     warn: WarnFunction
   }
 ): Promise<string[]> => {
@@ -46,11 +46,14 @@ export default async (
   const allCmds = unnest(
     (await Promise.all(
       allDeps
-        .map((depName) => ({ depDir: path.resolve(modulesDir, depName), node: opts.nodeByAlias?.[depName] }))
+        .map((alias) => ({
+          depDir: path.resolve(modulesDir, alias),
+          nodeExecPath: opts.nodeExecPathByAlias?.[alias],
+        }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(({ depDir, node }) => {
+        .map(({ depDir, nodeExecPath }) => {
           const target = normalizePath(depDir)
-          return getPackageBins(pkgBinOpts, target, node)
+          return getPackageBins(pkgBinOpts, target, nodeExecPath)
         })
     ))
       .filter((cmds: Command[]) => cmds.length)
@@ -62,7 +65,7 @@ export default async (
 export async function linkBinsOfPackages (
   pkgs: Array<{
     manifest: DependencyManifest
-    node?: string
+    nodeExecPath?: string
     location: string
   }>,
   binsTarget: string,
@@ -75,7 +78,7 @@ export async function linkBinsOfPackages (
   const allCmds = unnest(
     (await Promise.all(
       pkgs
-        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location, pkg.node))
+        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location, pkg.nodeExecPath))
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
@@ -87,7 +90,7 @@ type CommandInfo = Command & {
   ownName: boolean
   pkgName: string
   makePowerShellShim: boolean
-  node?: string
+  nodeExecPath?: string
 }
 
 async function linkBins (
@@ -136,7 +139,7 @@ async function getPackageBins (
     warn: WarnFunction
   },
   target: string,
-  node?: string
+  nodeExecPath?: string
 ): Promise<CommandInfo[]> {
   const manifest = opts.allowExoticManifests
     ? (await safeReadProjectManifestOnly(target) as DependencyManifest)
@@ -156,17 +159,17 @@ async function getPackageBins (
     throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${target} must have a name to get bin linked.`)
   }
 
-  return getPackageBinsFromManifest(manifest, target, node)
+  return getPackageBinsFromManifest(manifest, target, nodeExecPath)
 }
 
-async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, node?: string): Promise<CommandInfo[]> {
+async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
   const cmds = await binify(manifest, pkgDir)
   return cmds.map((cmd) => ({
     ...cmd,
     ownName: cmd.name === manifest.name,
     pkgName: manifest.name,
     makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
-    node,
+    nodeExecPath,
   }))
 }
 
@@ -184,7 +187,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string) {
   return cmdShim(cmd.path, externalBinPath, {
     createPwshFile: cmd.makePowerShellShim,
     nodePath,
-    nodeExecPath: cmd.node,
+    nodeExecPath: cmd.nodeExecPath,
   })
 }
 
