@@ -75,7 +75,7 @@ export async function linkBinsOfPackages (
   const allCmds = unnest(
     (await Promise.all(
       pkgs
-        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
+        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location, pkg.node))
     ))
       .filter((cmds: Command[]) => cmds.length)
   )

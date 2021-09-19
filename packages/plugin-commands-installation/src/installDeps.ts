@@ -177,7 +177,9 @@ when running add/update with the --workspace option')
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)
   }
-  // installOpts['pinnedNode'] = 'C:\\Users\\Zoltan\\AppData\\Local\\pnpm\\nodejs\\16.7.0\\node.exe'
+  if (opts.global) {
+    installOpts['pinnedNode'] = process.env.NODE ?? process.execPath
+  }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest === null) {
