@@ -22,7 +22,7 @@ export default function getWantedDependencies (
   pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'dependenciesMeta'>,
   opts?: {
     includeDirect?: IncludedDependencies
-    pinnedNode?: string
+    nodeExecPath?: string
     updateWorkspaceDependencies?: boolean
   }
 ): WantedDependency[] {
@@ -54,7 +54,7 @@ function getWantedDependenciesFromGivenSet (
     devDependencies: Dependencies
     optionalDependencies: Dependencies
     dependenciesMeta: DependenciesMeta
-    pinnedNode?: string
+    nodeExecPath?: string
     updatePref: (pref: string) => string
   }
 ): WantedDependency[] {
@@ -69,7 +69,7 @@ function getWantedDependenciesFromGivenSet (
       alias,
       dev: depType === 'dev',
       optional: depType === 'optional',
-      pinnedNode: opts.pinnedNode ?? opts.dependenciesMeta[alias]?.node,
+      nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pinnedVersion: guessPinnedVersionFromExistingSpec(deps[alias]),
       pref,
       raw: `${alias}@${pref}`,

@@ -178,7 +178,7 @@ when running add/update with the --workspace option')
     installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)
   }
   if (opts.global) {
-    installOpts['pinnedNode'] = process.env.NODE ?? process.execPath
+    installOpts['nodeExecPath'] = process.env.NODE ?? process.execPath
   }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)

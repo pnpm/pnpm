@@ -410,7 +410,7 @@ export async function mutateModules (
       const wantedDependencies = getWantedDependencies(project.manifest, {
         includeDirect: opts.includeDirect,
         updateWorkspaceDependencies: opts.update,
-        pinnedNode: opts.pinnedNode,
+        nodeExecPath: opts.nodeExecPath,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
@@ -454,7 +454,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true, updateSpec: true, pinnedNode: opts.pinnedNode })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true, updateSpec: true, nodeExecPath: opts.nodeExecPath })),
       })
     }
 

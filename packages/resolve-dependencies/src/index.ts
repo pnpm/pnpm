@@ -57,7 +57,7 @@ interface ProjectToLink {
 
 export type ImporterToResolve = Importer<{
   isNew?: boolean
-  pinnedNode?: string
+  nodeExecPath?: string
   pinnedVersion?: PinnedVersion
   raw: string
   updateSpec?: boolean

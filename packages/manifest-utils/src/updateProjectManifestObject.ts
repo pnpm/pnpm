@@ -7,10 +7,10 @@ import {
 
 export interface PackageSpecObject {
   alias: string
+  nodeExecPath?: string
   peer?: boolean
   pref?: string
   saveType?: DependenciesField
-  pinnedNode?: string
 }
 
 export async function updateProjectManifestObject (
@@ -39,11 +39,11 @@ export async function updateProjectManifestObject (
       packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
       packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
     }
-    if (packageSpec.pinnedNode) {
+    if (packageSpec.nodeExecPath) {
       if (packageManifest.dependenciesMeta == null) {
         packageManifest.dependenciesMeta = {}
       }
-      packageManifest.dependenciesMeta[packageSpec.alias] = { node: packageSpec.pinnedNode }
+      packageManifest.dependenciesMeta[packageSpec.alias] = { node: packageSpec.nodeExecPath }
     }
   })
 

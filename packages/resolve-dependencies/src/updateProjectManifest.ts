@@ -25,7 +25,7 @@ export default async function updateProjectManifest (
     .map((rdd, index) => {
       const wantedDep = importer.wantedDependencies[index]!
       return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw }, importer, {
-        pinnedNode: wantedDep.pinnedNode,
+        nodeExecPath: wantedDep.nodeExecPath,
         pinnedVersion: wantedDep.pinnedVersion ?? importer['pinnedVersion'] ?? 'major',
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -35,7 +35,7 @@ export default async function updateProjectManifest (
     if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
-        pinnedNode: pkgToInstall.pinnedNode,
+        nodeExecPath: pkgToInstall.nodeExecPath,
         peer: importer['peer'],
         saveType: importer['targetDependenciesField'],
       })
@@ -68,7 +68,7 @@ function resolvedDirectDepToSpecObject (
   }: ResolvedDirectDependency & { isNew?: Boolean, specRaw: string },
   importer: ImporterToResolve,
   opts: {
-    pinnedNode?: string
+    nodeExecPath?: string
     pinnedVersion: PinnedVersion
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: boolean
@@ -108,8 +108,8 @@ function resolvedDirectDepToSpecObject (
   }
   return {
     alias,
+    nodeExecPath: opts.nodeExecPath,
     peer: importer['peer'],
-    pinnedNode: opts.pinnedNode,
     pref,
     saveType: (isNew === true) ? importer['targetDependenciesField'] : undefined,
   }
