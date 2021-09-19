@@ -920,7 +920,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
                 return {
                   location: dep.dir,
                   manifest,
-                  node: project.manifest.dependenciesMeta?.[manifest!.name!]?.node,
+                  nodeExecPath: project.manifest.dependenciesMeta?.[manifest!.name!]?.node,
                 }
               })
             )

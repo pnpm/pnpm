@@ -48,7 +48,6 @@ test('globally installed package is linked with active version of Node.js', asyn
     manifest.dependenciesMeta['hello-world-js-bin']?.node
   ).toBeTruthy()
 
-  console.log(process.cwd())
   const shimContent = await fs.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
   expect(shimContent).toContain(process.env.NODE)
 })
