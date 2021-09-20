@@ -258,22 +258,28 @@ export default async (
   pnpmConfig.sharedWorkspaceLockfile = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
     ? pnpmConfig.sharedWorkspaceShrinkwrap
     : pnpmConfig['sharedWorkspaceLockfile']
+  pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions['global']) {
     const knownGlobalBinDirCandidates: string[] = []
-    let npmGlobalPrefix: string = findBestGlobalPrefix(npmConfig.globalPrefix, process.env)
-    const globalDirName = `${path.sep}${PNPM_GLOBAL}${path.sep}`
-    if (npmGlobalPrefix.includes(globalDirName)) {
-      npmGlobalPrefix = npmGlobalPrefix.substring(0, npmGlobalPrefix.indexOf(globalDirName))
+    let globalDirRoot
+    if (pnpmConfig['globalDir']) {
+      globalDirRoot = pnpmConfig['globalDir']
+    } else if (pnpmConfig.useBetaCli) {
+      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global-packages')
     } else {
-      const npmGlobalBinDir = process.platform === 'win32'
-        ? npmGlobalPrefix
-        : path.resolve(npmGlobalPrefix, 'bin')
-      knownGlobalBinDirCandidates.push(npmGlobalBinDir)
+      let npmGlobalPrefix: string = findBestGlobalPrefix(npmConfig.globalPrefix, process.env)
+      const globalDirName = `${path.sep}${PNPM_GLOBAL}${path.sep}`
+      if (npmGlobalPrefix.includes(globalDirName)) {
+        npmGlobalPrefix = npmGlobalPrefix.substring(0, npmGlobalPrefix.indexOf(globalDirName))
+      } else {
+        const npmGlobalBinDir = process.platform === 'win32'
+          ? npmGlobalPrefix
+          : path.resolve(npmGlobalPrefix, 'bin')
+        knownGlobalBinDirCandidates.push(npmGlobalBinDir)
+      }
+      globalDirRoot = path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
     }
-    const globalDirRoot = pnpmConfig['globalDir']
-      ? pnpmConfig['globalDir']
-      : path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
     const npmConfigGlobalBinDir = npmConfig.get('global-bin-dir')
@@ -437,7 +443,6 @@ export default async (
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
   pnpmConfig.enablePnp = pnpmConfig['nodeLinker'] === 'pnp'
-  pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (opts.checkUnknownSetting) {
     const settingKeys = Object.keys({
