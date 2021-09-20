@@ -8,6 +8,7 @@ const generalFixture = path.join(fixtures, 'general')
 const withPeerFixture = path.join(fixtures, 'with-peer')
 const circularFixture = path.join(fixtures, 'circular')
 const withFileDepFixture = path.join(fixtures, 'with-file-dep')
+const withNonPackageDepFixture = path.join(fixtures, 'with-non-package-dep')
 const withLinksOnlyFixture = path.join(fixtures, 'fixtureWithLinks/with-links-only')
 const withUnsavedDepsFixture = path.join(fixtures, 'with-unsaved-deps')
 const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
@@ -481,4 +482,40 @@ test('peer dependencies', async () => {
   const hierarchy = await dh([withPeerFixture], { depth: 1, lockfileDir: withPeerFixture })
   expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name).toEqual('ajv')
   expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer).toEqual(true)
+})
+
+// Test case for https://github.com/pnpm/pnpm/issues/1866
+test('dependency without a package.json', async () => {
+  const org = 'denolib'
+  const pkg = 'camelcase'
+  const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
+  const tree = await dh([withNonPackageDepFixture], { depth: 0, lockfileDir: withNonPackageDepFixture })
+  expect(tree).toStrictEqual({
+    [withNonPackageDepFixture]: {
+      dependencies: [
+        {
+          alias: 'camelcase',
+          dev: false,
+          isMissing: false,
+          isPeer: false,
+          isSkipped: false,
+          name: 'camelcase',
+          path: path.join(withNonPackageDepFixture, 'node_modules', '.pnpm', `github.com+${org}+${pkg}@${commit}`),
+          resolved: `https://codeload.github.com/${org}/${pkg}/tar.gz/${commit}`,
+          version: `${org}/${pkg}#${commit}`,
+        },
+      ],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+  })
+  // verify dependency without a package.json
+  expect(tree[withNonPackageDepFixture].dependencies).toBeDefined()
+  expect(Array.isArray(tree[withNonPackageDepFixture].dependencies)).toBeTruthy()
+  expect(tree[withNonPackageDepFixture].dependencies!.length).toBeGreaterThan(0)
+  expect(tree[withNonPackageDepFixture].dependencies![0]).toBeDefined()
+  // verify that dependency without a package.json has no further dependencies
+  expect(tree[withNonPackageDepFixture].dependencies![0]['dependencies']).toBeUndefined()
+  expect(tree[withNonPackageDepFixture].dependencies![0]['devDependencies']).toBeUndefined()
+  expect(tree[withNonPackageDepFixture].dependencies![0]['optionalDependencies']).toBeUndefined()
 })
