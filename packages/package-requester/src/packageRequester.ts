@@ -234,7 +234,7 @@ async function resolveAndFetch (
   }
 
   const fetchResult = ctx.fetchPackageToStore({
-    fetchRawManifest: true,
+    fetchRawManifest: !!manifest,
     force: forceFetch,
     lockfileDir: options.lockfileDir,
     pkg: {
@@ -256,7 +256,12 @@ async function resolveAndFetch (
       resolvedVia,
       updated,
     },
-    bundledManifest: fetchResult.bundledManifest,
+    bundledManifest: manifest
+      ? fetchResult.bundledManifest
+      : () => Promise.resolve({
+        name: wantedDependency.alias,
+        version: wantedDependency.pref,
+      } as DependencyManifest),
     files: fetchResult.files,
     filesIndexFile: fetchResult.filesIndexFile,
     finishing: fetchResult.finishing,
