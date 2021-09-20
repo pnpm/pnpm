@@ -1,5 +1,6 @@
 import path from 'path'
 import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
+import exists from 'path-exists'
 import preparePackage from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
@@ -20,9 +21,13 @@ export default () => {
       const tempLocation = await cafs.tempDir()
       await execGit(['clone', resolution.repo, tempLocation])
       await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-      await preparePackage(tempLocation)
       // removing /.git to make directory integrity calculation faster
       await rimraf(path.join(tempLocation, '.git'))
+      // invoke 'prepare' if package.json exists and defines a 'prepare' script
+      if (await exists(path.join(tempLocation, 'package.json'))) {
+        await preparePackage(tempLocation)
+      }
+
       const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)
       return { filesIndex }
     },

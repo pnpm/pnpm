@@ -747,12 +747,14 @@ importers:
       '@zkochan/rimraf': ^2.1.1
       execa: npm:safe-execa@^0.1.1
       p-defer: ^3.0.0
+      path-exists: ^4.0.0
       tempy: ^1.0.0
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/prepare-package': link:../prepare-package
       '@zkochan/rimraf': 2.1.1
       execa: /safe-execa/0.1.1
+      path-exists: 4.0.0
     devDependencies:
       '@pnpm/cafs': link:../cafs
       '@pnpm/git-fetcher': 'link:'

@@ -44,3 +44,23 @@ test('fetch a package from Git that has a prepare script', async () => {
   )
   expect(filesIndex[`dist${path.sep}index.js`]).toBeTruthy()
 })
+
+// Test case for https://github.com/pnpm/pnpm/issues/1866
+test('fetch a package without a package.json', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createFetcher().git
+  const manifest = pDefer<DependencyManifest>()
+  const { filesIndex } = await fetch(
+    createCafsStore(cafsDir),
+    {
+      // a small Deno library with a 'denolib.json' instead of a 'package.json'
+      commit: 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b',
+      repo: 'https://github.com/denolib/camelcase.git',
+      type: 'git',
+    },
+    {
+      manifest,
+    }
+  )
+  expect(filesIndex['denolib.json']).toBeTruthy()
+})
