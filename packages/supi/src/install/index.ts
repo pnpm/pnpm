@@ -410,6 +410,7 @@ export async function mutateModules (
       const wantedDependencies = getWantedDependencies(project.manifest, {
         includeDirect: opts.includeDirect,
         updateWorkspaceDependencies: opts.update,
+        nodeExecPath: opts.nodeExecPath,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
@@ -453,7 +454,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true, updateSpec: true })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true, updateSpec: true, nodeExecPath: opts.nodeExecPath })),
       })
     }
 
@@ -891,8 +892,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     await Promise.all(projectsToResolve.map(async (project, index) => {
       let linkedPackages!: string[]
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
+        const nodeExecPathByAlias = Object.entries(project.manifest.dependenciesMeta ?? {})
+          .reduce((prev, [alias, { node }]) => {
+            if (node) {
+              prev[alias] = node
+            }
+            return prev
+          }, {})
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
+          nodeExecPathByAlias,
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
@@ -909,10 +918,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         linkedPackages = await linkBinsOfPackages(
           (
             await Promise.all(
-              directPkgs.map(async (dep) => ({
-                location: dep.dir,
-                manifest: await dep.fetchingBundledManifest?.() ?? await safeReadProjectManifestOnly(dep.dir),
-              }))
+              directPkgs.map(async (dep) => {
+                const manifest = await dep.fetchingBundledManifest?.() ?? await safeReadProjectManifestOnly(dep.dir)
+                return {
+                  location: dep.dir,
+                  manifest,
+                  nodeExecPath: project.manifest.dependenciesMeta?.[manifest!.name!]?.node,
+                }
+              })
             )
           )
             .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,

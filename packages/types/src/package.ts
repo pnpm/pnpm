@@ -46,6 +46,12 @@ export interface PeerDependenciesMeta {
   }
 }
 
+export interface DependenciesMeta {
+  [dependencyName: string]: {
+    node?: string
+  }
+}
+
 export interface PublishConfig extends Record<string, unknown> {
   directory?: string
   executableFiles?: string[]
@@ -64,6 +70,7 @@ interface BaseManifest {
   optionalDependencies?: Dependencies
   peerDependencies?: Dependencies
   peerDependenciesMeta?: PeerDependenciesMeta
+  dependenciesMeta?: DependenciesMeta
   bundleDependencies?: string[]
   bundledDependencies?: string[]
   homepage?: string

@@ -33,6 +33,11 @@ export default async function (
       delete packageManifest.peerDependencies[removedDependency]
     }
   }
+  if (packageManifest.dependenciesMeta != null) {
+    for (const removedDependency of removedPackages) {
+      delete packageManifest.dependenciesMeta[removedDependency]
+    }
+  }
 
   packageManifestLogger.debug({
     prefix: opts.prefix,

@@ -177,6 +177,9 @@ when running add/update with the --workspace option')
   if (!opts.ignorePnpmfile) {
     installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)
   }
+  if (opts.global) {
+    installOpts['nodeExecPath'] = process.env.NODE ?? process.execPath
+  }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest === null) {

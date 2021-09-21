@@ -7,6 +7,7 @@ import {
 
 export interface PackageSpecObject {
   alias: string
+  nodeExecPath?: string
   peer?: boolean
   pref?: string
   saveType?: DependenciesField
@@ -37,6 +38,12 @@ export async function updateProjectManifestObject (
       const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
       packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
       packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
+    }
+    if (packageSpec.nodeExecPath) {
+      if (packageManifest.dependenciesMeta == null) {
+        packageManifest.dependenciesMeta = {}
+      }
+      packageManifest.dependenciesMeta[packageSpec.alias] = { node: packageSpec.nodeExecPath }
     }
   })
 

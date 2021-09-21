@@ -1,6 +1,7 @@
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import {
   Dependencies,
+  DependenciesMeta,
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
@@ -18,9 +19,10 @@ export interface WantedDependency {
 }
 
 export default function getWantedDependencies (
-  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'dependenciesMeta'>,
   opts?: {
     includeDirect?: IncludedDependencies
+    nodeExecPath?: string
     updateWorkspaceDependencies?: boolean
   }
 ): WantedDependency[] {
@@ -34,6 +36,7 @@ export default function getWantedDependencies (
     dependencies: pkg.dependencies ?? {},
     devDependencies: pkg.devDependencies ?? {},
     optionalDependencies: pkg.optionalDependencies ?? {},
+    dependenciesMeta: pkg.dependenciesMeta ?? {},
     updatePref: opts?.updateWorkspaceDependencies === true
       ? updateWorkspacePref
       : (pref) => pref,
@@ -50,6 +53,8 @@ function getWantedDependenciesFromGivenSet (
     dependencies: Dependencies
     devDependencies: Dependencies
     optionalDependencies: Dependencies
+    dependenciesMeta: DependenciesMeta
+    nodeExecPath?: string
     updatePref: (pref: string) => string
   }
 ): WantedDependency[] {
@@ -64,6 +69,7 @@ function getWantedDependenciesFromGivenSet (
       alias,
       dev: depType === 'dev',
       optional: depType === 'optional',
+      nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pinnedVersion: guessPinnedVersionFromExistingSpec(deps[alias]),
       pref,
       raw: `${alias}@${pref}`,
