@@ -6,3 +6,5 @@ contact_links:
   - name: Chat 🏘
     url: https://r.pnpm.io/chat
     about: For a quick question you should do it through our community chat
+  - name: My company is migrating to pnpm and we have several issues/feature requests
+    url: https://github.com/pnpm/pnpm/discussions/3787
