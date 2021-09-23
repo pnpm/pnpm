@@ -17,6 +17,7 @@ const artifactsDir = path.join(repoRoot, 'packages/artifacts')
   }
   copyArtifact('linux-x64/pnpm', 'pnpm-linux-x64')
   copyArtifact('linuxstatic-x64/pnpm', 'pnpm-linuxstatic-x64')
+  copyArtifact('linux-arm64/pnpm', 'pnpm-linux-arm64')
   copyArtifact('macos-x64/pnpm', 'pnpm-macos-x64')
   copyArtifact('macos-arm64/pnpm', 'pnpm-macos-arm64')
   copyArtifact('win-x64/pnpm.exe', 'pnpm-win-x64.exe')
