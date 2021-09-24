@@ -488,8 +488,13 @@ async function linkRootPackages (
             if (importerManifestsByImporterId[importerId]) {
               return importerManifestsByImporterId[importerId]
             }
-            // TODO: cover this case with a test
-            return await readProjectManifestOnly(packageDir) as DependencyManifest
+            try {
+              // TODO: cover this case with a test
+              return await readProjectManifestOnly(packageDir) as DependencyManifest
+            } catch (err) {
+              if (err['code'] !== 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') throw err
+              return { name: alias, version: '0.0.0' }
+            }
           })() as DependencyManifest
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
             fromDependenciesField: isDev && 'devDependencies' ||
