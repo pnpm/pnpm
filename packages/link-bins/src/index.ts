@@ -2,11 +2,12 @@ import { promises as fs } from 'fs'
 import Module from 'module'
 import path from 'path'
 import PnpmError from '@pnpm/error'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { DependencyManifest } from '@pnpm/types'
+import { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
 import isSubdir from 'is-subdir'
 import isWindows from 'is-windows'
@@ -32,8 +33,8 @@ export default async (
   binsDir: string,
   opts: {
     allowExoticManifests?: boolean
-    directDependencies?: Set<string>
     nodeExecPathByAlias?: Record<string, string>
+    projectManifest?: ProjectManifest
     warn: WarnFunction
   }
 ): Promise<string[]> => {
@@ -44,12 +45,15 @@ export default async (
     allowExoticManifests: false,
     ...opts,
   }
+  const directDependencies = opts.projectManifest == null
+    ? undefined
+    : new Set(Object.keys(getAllDependenciesFromManifest(opts.projectManifest)))
   const allCmds = unnest(
     (await Promise.all(
       allDeps
         .map((alias) => ({
           depDir: path.resolve(modulesDir, alias),
-          isDirectDependency: opts.directDependencies?.has(alias),
+          isDirectDependency: directDependencies?.has(alias),
           nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
@@ -63,7 +67,7 @@ export default async (
   )
 
   let cmdsToLink
-  if (opts.directDependencies != null) {
+  if (directDependencies != null) {
     const [directCmds, hoistedCmds] = partition((cmd) => cmd.isDirectDependency === true, allCmds)
     const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
     cmdsToLink = [

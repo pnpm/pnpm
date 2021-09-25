@@ -826,7 +826,6 @@ importers:
       '@pnpm/lockfile-to-pnp': workspace:0.4.22
       '@pnpm/lockfile-utils': workspace:3.0.8
       '@pnpm/logger': ^4.0.0
-      '@pnpm/manifest-utils': workspace:2.0.4
       '@pnpm/modules-cleaner': workspace:11.0.11
       '@pnpm/modules-yaml': workspace:9.0.4
       '@pnpm/package-is-installable': workspace:5.0.4
@@ -871,7 +870,6 @@ importers:
       '@pnpm/lockfile-file': link:../lockfile-file
       '@pnpm/lockfile-to-pnp': link:../lockfile-to-pnp
       '@pnpm/lockfile-utils': link:../lockfile-utils
-      '@pnpm/manifest-utils': link:../manifest-utils
       '@pnpm/modules-cleaner': link:../modules-cleaner
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/package-is-installable': link:../package-is-installable
@@ -972,6 +970,7 @@ importers:
     specifiers:
       '@pnpm/error': workspace:2.0.0
       '@pnpm/link-bins': 'link:'
+      '@pnpm/manifest-utils': workspace:2.0.4
       '@pnpm/package-bins': workspace:5.0.5
       '@pnpm/read-modules-dir': workspace:3.0.1
       '@pnpm/read-package-json': workspace:5.0.4
@@ -993,6 +992,7 @@ importers:
       tempy: ^1.0.0
     dependencies:
       '@pnpm/error': link:../error
+      '@pnpm/manifest-utils': link:../manifest-utils
       '@pnpm/package-bins': link:../package-bins
       '@pnpm/read-modules-dir': link:../read-modules-dir
       '@pnpm/read-package-json': link:../read-package-json

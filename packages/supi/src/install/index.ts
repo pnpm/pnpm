@@ -899,10 +899,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             }
             return prev
           }, {})
-        const directDependencies = new Set(Object.keys(getAllDependenciesFromManifest(project.manifest)))
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
-          directDependencies,
+          projectManifest: project.manifest,
           nodeExecPathByAlias,
           warn: binWarn.bind(null, project.rootDir),
         })

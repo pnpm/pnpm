@@ -58,9 +58,6 @@
       "path": "../lockfile-utils"
     },
     {
-      "path": "../manifest-utils"
-    },
-    {
       "path": "../modules-cleaner"
     },
     {
