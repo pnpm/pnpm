@@ -43,6 +43,7 @@ import logger, {
   LogBase,
   streamParser,
 } from '@pnpm/logger'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { prune } from '@pnpm/modules-cleaner'
 import {
   IncludedDependencies,
@@ -441,15 +442,18 @@ export default async (opts: HeadlessOptions) => {
 }
 
 async function linkBinsOfImporter (
-  { modulesDir, binsDir, rootDir }: {
+  { manifest, modulesDir, binsDir, rootDir }: {
     binsDir: string
+    manifest: ProjectManifest
     modulesDir: string
     rootDir: string
   }
 ) {
   const warn = (message: string) => logger.info({ message, prefix: rootDir })
+  const directDependencies = new Set(Object.keys(getAllDependenciesFromManifest(manifest)))
   return linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
+    directDependencies,
     warn,
   })
 }

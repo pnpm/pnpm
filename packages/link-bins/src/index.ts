@@ -32,6 +32,7 @@ export default async (
   binsDir: string,
   opts: {
     allowExoticManifests?: boolean
+    directDependencies?: Set<string>
     nodeExecPathByAlias?: Record<string, string>
     warn: WarnFunction
   }
@@ -48,18 +49,32 @@ export default async (
       allDeps
         .map((alias) => ({
           depDir: path.resolve(modulesDir, alias),
+          isDirectDependency: opts.directDependencies?.has(alias),
           nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(({ depDir, nodeExecPath }) => {
+        .map(async ({ depDir, isDirectDependency, nodeExecPath }) => {
           const target = normalizePath(depDir)
-          return getPackageBins(pkgBinOpts, target, nodeExecPath)
+          const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
+          return cmds.map((cmd) => ({ ...cmd, isDirectDependency }))
         })
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
 
-  return linkBins(allCmds, binsDir, opts)
+  let cmdsToLink
+  if (opts.directDependencies != null) {
+    const [directCmds, hoistedCmds] = partition((cmd) => cmd.isDirectDependency === true, allCmds)
+    const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
+    cmdsToLink = [
+      ...directCmds,
+      ...hoistedCmds.filter(({ name }) => !usedDirectCmds.has(name)),
+    ]
+  } else {
+    cmdsToLink = allCmds
+  }
+
+  return linkBins(cmdsToLink, binsDir, opts)
 }
 
 export async function linkBinsOfPackages (

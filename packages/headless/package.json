@@ -77,6 +77,7 @@
     "@pnpm/lockfile-file": "workspace:4.1.1",
     "@pnpm/lockfile-to-pnp": "workspace:0.4.22",
     "@pnpm/lockfile-utils": "workspace:3.0.8",
+    "@pnpm/manifest-utils": "workspace:2.0.4",
     "@pnpm/modules-cleaner": "workspace:11.0.11",
     "@pnpm/modules-yaml": "workspace:9.0.4",
     "@pnpm/package-is-installable": "workspace:5.0.4",
