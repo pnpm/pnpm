@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "4.2.11",
+  "version": "4.2.12",
   "description": "The pack and publish commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-publishing#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:4.1.16",
+    "@pnpm/filter-workspace-packages": "workspace:4.1.17",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.26",
     "@types/cross-spawn": "^6.0.2",
@@ -52,9 +52,9 @@
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.21",
+    "@pnpm/cli-utils": "workspace:0.6.22",
     "@pnpm/client": "workspace:5.0.6",
-    "@pnpm/config": "workspace:12.5.0",
+    "@pnpm/config": "workspace:12.6.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/exportable-manifest": "workspace:2.1.6",
     "@pnpm/lifecycle": "workspace:11.0.4",

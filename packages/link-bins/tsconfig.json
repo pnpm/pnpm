@@ -13,6 +13,9 @@
       "path": "../error"
     },
     {
+      "path": "../manifest-utils"
+    },
+    {
       "path": "../package-bins"
     },
     {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "9.0.6",
+  "version": "9.0.7",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -40,7 +40,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/lockfile-file": "workspace:4.1.1",
     "@pnpm/lockfile-utils": "workspace:3.0.8",
-    "@pnpm/manifest-utils": "workspace:2.0.4",
+    "@pnpm/manifest-utils": "workspace:2.1.0",
     "@pnpm/matcher": "workspace:2.0.0",
     "@pnpm/modules-yaml": "workspace:9.0.4",
     "@pnpm/pick-registry-for-package": "workspace:2.0.4",

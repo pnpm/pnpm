@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 7.0.10
+
+### Patch Changes
+
+- Updated dependencies [83e23601e]
+- Updated dependencies [553a5d840]
+  - @pnpm/link-bins@6.1.0
+
 ## 7.0.9
 
 ### Patch Changes

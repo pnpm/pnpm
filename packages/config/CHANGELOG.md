@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 12.6.0
+
+### Minor Changes
+
+- d62259d67: Use a subfolder of the pnpm homedir as the location of globally installed packages, when use-beta-cli is on.
+
 ## 12.5.0
 
 ### Minor Changes

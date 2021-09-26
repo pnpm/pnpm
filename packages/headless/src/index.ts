@@ -441,8 +441,9 @@ export default async (opts: HeadlessOptions) => {
 }
 
 async function linkBinsOfImporter (
-  { modulesDir, binsDir, rootDir }: {
+  { manifest, modulesDir, binsDir, rootDir }: {
     binsDir: string
+    manifest: ProjectManifest
     modulesDir: string
     rootDir: string
   }
@@ -450,6 +451,7 @@ async function linkBinsOfImporter (
   const warn = (message: string) => logger.info({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
+    projectManifest: manifest,
     warn,
   })
 }
