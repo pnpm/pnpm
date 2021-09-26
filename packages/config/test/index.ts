@@ -622,6 +622,42 @@ test('respects test-pattern', async () => {
   }
 })
 
+test('respects changed-files-ignore-pattern', async () => {
+  {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.changedFilesIgnorePattern).toBeUndefined()
+  }
+  {
+    prepareEmpty()
+
+    const npmrc = [
+      'changed-files-ignore-pattern[]=.github/**',
+      'changed-files-ignore-pattern[]=**/README.md',
+    ].join('\n')
+
+    await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {
+        global: false,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.changedFilesIgnorePattern).toEqual(['.github/**', '**/README.md'])
+  }
+})
+
 test('dir is resolved to real path', async () => {
   prepareEmpty()
   const realDir = path.resolve('real-path')
