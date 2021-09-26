@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 21.0.5
+
+### Patch Changes
+
+- Updated dependencies [553a5d840]
+  - @pnpm/manifest-utils@2.1.0
+
 ## 21.0.4
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/headless
 
+## 16.0.29
+
+### Patch Changes
+
+- 83e23601e: Do not override the bins of direct dependencies with the bins of hoisted dependencies.
+- b7e6f4428: Frozen install should not fail if the lockfile contains references to directories with no `package.json` file.
+- Updated dependencies [83e23601e]
+- Updated dependencies [553a5d840]
+  - @pnpm/link-bins@6.1.0
+  - @pnpm/build-modules@7.0.10
+  - @pnpm/hoist@5.0.14
+  - @pnpm/lockfile-to-pnp@0.4.23
+
 ## 16.0.28
 
 ### Patch Changes

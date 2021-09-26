@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 2.1.0
+
+### Minor Changes
+
+- 553a5d840: The path to Node.js executable is added to `dependenciesMeta` when `nodeExecPath` is specified in the`PackageSpecObject`.
+
 ## 2.0.4
 
 ### Patch Changes
