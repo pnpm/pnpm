@@ -66,19 +66,17 @@ export default async (
       .filter((cmds: Command[]) => cmds.length)
   )
 
-  let cmdsToLink
-  if (directDependencies != null) {
-    const [directCmds, hoistedCmds] = partition((cmd) => cmd.isDirectDependency === true, allCmds)
-    const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
-    cmdsToLink = [
-      ...directCmds,
-      ...hoistedCmds.filter(({ name }) => !usedDirectCmds.has(name)),
-    ]
-  } else {
-    cmdsToLink = allCmds
-  }
-
+  const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
   return linkBins(cmdsToLink, binsDir, opts)
+}
+
+function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
+  const [directCmds, hoistedCmds] = partition((cmd) => cmd.isDirectDependency === true, allCmds)
+  const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
+  return [
+    ...directCmds,
+    ...hoistedCmds.filter(({ name }) => !usedDirectCmds.has(name)),
+  ]
 }
 
 export async function linkBinsOfPackages (
