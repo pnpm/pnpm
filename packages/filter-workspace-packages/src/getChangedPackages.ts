@@ -8,9 +8,9 @@ type ChangeType = 'source' | 'test'
 
 interface ChangedDir { dir: string, changeType: ChangeType }
 
-export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, testPattern?: string[] }): Promise<[string[], string[]]> {
+export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }): Promise<[string[], string[]]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
-  const changedDirs = (await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern ?? []))
+  const changedDirs = (await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern ?? [], opts.changedFilesIgnorePattern ?? []))
     .map(changedDir => ({ ...changedDir, dir: path.join(repoRoot, changedDir.dir) }))
   const pkgChangeTypes = new Map<string, ChangeType | undefined>()
   for (const pkgDir of packageDirs) {
@@ -42,7 +42,7 @@ export default async function changedSince (packageDirs: string[], commit: strin
   return [changedPkgs, ignoreDependentForPkgs]
 }
 
-async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPattern: string[]): Promise<ChangedDir[]> {
+async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPattern: string[], changedFilesIgnorePattern: string[]): Promise<ChangedDir[]> {
   let diff!: string
   try {
     diff = (
@@ -63,7 +63,15 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
     return []
   }
 
-  const changedFiles = diff.split('\n')
+  const allChangedFiles = diff.split('\n')
+  const patterns = changedFilesIgnorePattern.filter(
+    (pattern) => pattern.length
+  )
+  const changedFiles = patterns.length
+    ? micromatch.not(allChangedFiles, patterns, {
+      dot: true,
+    })
+    : allChangedFiles
 
   for (const changedFile of changedFiles) {
     const dir = path.dirname(changedFile)

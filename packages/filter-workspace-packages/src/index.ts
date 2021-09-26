@@ -34,6 +34,7 @@ export async function readProjects (
   pkgSelectors: PackageSelector[],
   opts?: {
     linkWorkspacePackages?: boolean
+    changedFilesIgnorePattern?: string[]
   }
 ) {
   const allProjects = await findWorkspacePackages(workspaceDir, {})
@@ -43,6 +44,7 @@ export async function readProjects (
     {
       linkWorkspacePackages: opts?.linkWorkspacePackages,
       workspaceDir,
+      changedFilesIgnorePattern: opts?.changedFilesIgnorePattern,
     }
   )
   return { allProjects, selectedProjectsGraph }
@@ -56,6 +58,7 @@ export async function filterPackages<T> (
     prefix: string
     workspaceDir: string
     testPattern?: string[]
+    changedFilesIgnorePattern?: string[]
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
@@ -74,6 +77,7 @@ export async function filterPkgsBySelectorObjects<T> (
     linkWorkspacePackages?: boolean
     workspaceDir: string
     testPattern?: string[]
+    changedFilesIgnorePattern?: string[]
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
@@ -90,6 +94,7 @@ export async function filterPkgsBySelectorObjects<T> (
       filteredGraph = await filterGraph(graph, allPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
+        changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
         useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
@@ -101,6 +106,7 @@ export async function filterPkgsBySelectorObjects<T> (
       prodFilteredGraph = await filterGraph(graph, prodPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
+        changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
         useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
@@ -127,6 +133,7 @@ export default async function filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
+    changedFilesIgnorePattern?: string[]
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
@@ -156,6 +163,7 @@ async function _filterGraph<T> (
   opts: {
     workspaceDir: string
     testPattern?: string[]
+    changedFilesIgnorePattern?: string[]
     useGlobDirFiltering?: boolean
   },
   packageSelectors: PackageSelector[]
@@ -178,7 +186,7 @@ async function _filterGraph<T> (
     if (selector.diff) {
       let ignoreDependentForPkgs: string[] = []
         ;[entryPackages, ignoreDependentForPkgs] = await getChangedPkgs(Object.keys(pkgGraph),
-        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir, testPattern: opts.testPattern })
+        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir, testPattern: opts.testPattern, changedFilesIgnorePattern: opts.changedFilesIgnorePattern })
       selectEntries({
         ...selector,
         includeDependents: false,

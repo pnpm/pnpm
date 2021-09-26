@@ -105,6 +105,10 @@ export const FILTERING = {
       name: '--test-pattern <pattern>',
     },
     {
+      description: 'Defines files to ignore when filtering for changed projects since the specified commit/branch. Usage example: pnpm --filter="...[origin/master]" --changed-files-ignore-pattern="**/README.md" build',
+      name: '--changed-files-ignore-pattern <pattern>',
+    },
+    {
       description: 'Restricts the scope to package names matching the given pattern similar to --filter, but it ignores devDependencies when searching for dependencies and dependents.',
       name: '--filter-prod <pattern>',
     },

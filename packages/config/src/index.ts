@@ -111,6 +111,7 @@ export const types = Object.assign({
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,
   'test-pattern': [String, Array],
+  'changed-files-ignore-pattern': [String, Array],
 }, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }

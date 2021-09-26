@@ -190,6 +190,7 @@ export default async function run (inputArgv: string[]) {
       prefix: process.cwd(),
       workspaceDir: wsDir,
       testPattern: config.testPattern,
+      changedFilesIgnorePattern: config.changedFilesIgnorePattern,
       useGlobDirFiltering: config.useBetaCli,
     })
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
