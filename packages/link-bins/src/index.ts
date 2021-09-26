@@ -2,11 +2,12 @@ import { promises as fs } from 'fs'
 import Module from 'module'
 import path from 'path'
 import PnpmError from '@pnpm/error'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { DependencyManifest } from '@pnpm/types'
+import { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
 import isSubdir from 'is-subdir'
 import isWindows from 'is-windows'
@@ -33,6 +34,7 @@ export default async (
   opts: {
     allowExoticManifests?: boolean
     nodeExecPathByAlias?: Record<string, string>
+    projectManifest?: ProjectManifest
     warn: WarnFunction
   }
 ): Promise<string[]> => {
@@ -43,23 +45,38 @@ export default async (
     allowExoticManifests: false,
     ...opts,
   }
+  const directDependencies = opts.projectManifest == null
+    ? undefined
+    : new Set(Object.keys(getAllDependenciesFromManifest(opts.projectManifest)))
   const allCmds = unnest(
     (await Promise.all(
       allDeps
         .map((alias) => ({
           depDir: path.resolve(modulesDir, alias),
+          isDirectDependency: directDependencies?.has(alias),
           nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(({ depDir, nodeExecPath }) => {
+        .map(async ({ depDir, isDirectDependency, nodeExecPath }) => {
           const target = normalizePath(depDir)
-          return getPackageBins(pkgBinOpts, target, nodeExecPath)
+          const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
+          return cmds.map((cmd) => ({ ...cmd, isDirectDependency }))
         })
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
 
-  return linkBins(allCmds, binsDir, opts)
+  const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
+  return linkBins(cmdsToLink, binsDir, opts)
+}
+
+function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
+  const [directCmds, hoistedCmds] = partition((cmd) => cmd.isDirectDependency === true, allCmds)
+  const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
+  return [
+    ...directCmds,
+    ...hoistedCmds.filter(({ name }) => !usedDirectCmds.has(name)),
+  ]
 }
 
 export async function linkBinsOfPackages (

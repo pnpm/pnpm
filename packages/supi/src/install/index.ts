@@ -901,6 +901,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }, {})
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
+          projectManifest: project.manifest,
           nodeExecPathByAlias,
           warn: binWarn.bind(null, project.rootDir),
         })

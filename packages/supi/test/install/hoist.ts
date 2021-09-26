@@ -526,3 +526,23 @@ test('hoisting should not create a broken symlink to a skipped optional dependen
   await project.hasNot('dep-of-optional-pkg')
   expect(await rootModules.readCurrentLockfile()).toStrictEqual(await rootModules.readLockfile())
 })
+
+test('the hoisted packages should not override the bin files of the direct dependencies', async () => {
+  prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['hello-world-js-bin-parent'], await testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
+
+  {
+    const cmd = await fs.promises.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
+    expect(cmd).toContain('/hello-world-js-bin-parent/')
+  }
+
+  await rimraf('node_modules')
+
+  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, publicHoistPattern: '*' }))
+
+  {
+    const cmd = await fs.promises.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
+    expect(cmd).toContain('/hello-world-js-bin-parent/')
+  }
+})

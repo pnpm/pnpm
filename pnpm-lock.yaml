@@ -33,7 +33,7 @@ importers:
       '@commitlint/prompt-cli': ^12.1.1
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': ^2.7.1
+      '@pnpm/registry-mock': ^2.8.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.23
       '@types/node': ^14.14.33
@@ -61,7 +61,7 @@ importers:
       '@commitlint/prompt-cli': 12.1.4
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.7.1
+      '@pnpm/registry-mock': 2.8.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.24
       '@types/node': 14.17.19
@@ -970,6 +970,7 @@ importers:
     specifiers:
       '@pnpm/error': workspace:2.0.0
       '@pnpm/link-bins': 'link:'
+      '@pnpm/manifest-utils': workspace:2.0.4
       '@pnpm/package-bins': workspace:5.0.5
       '@pnpm/read-modules-dir': workspace:3.0.1
       '@pnpm/read-package-json': workspace:5.0.4
@@ -991,6 +992,7 @@ importers:
       tempy: ^1.0.0
     dependencies:
       '@pnpm/error': link:../error
+      '@pnpm/manifest-utils': link:../manifest-utils
       '@pnpm/package-bins': link:../package-bins
       '@pnpm/read-modules-dir': link:../read-modules-dir
       '@pnpm/read-package-json': link:../read-package-json
@@ -4644,8 +4646,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.7.1:
-    resolution: {integrity: sha512-rPZldydDKWuXjQ4PvRRmlXNTvMypY8ByH4/YbVKSVnmd0zou/LGa77qUcssWoL/oQguN6o7jN7iwVEi54Gbx3A==}
+  /@pnpm/registry-mock/2.8.0:
+    resolution: {integrity: sha512-Pfvl8wbcetA+m/95LwX3q0/Q+DupL6gHBc9yZJeLDlqZ6Q65B9PykeUR+xRw1qipXvBTr8OTJ7joQKkak0VqCQ==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
