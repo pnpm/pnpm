@@ -247,6 +247,7 @@ export async function mutateModules (
             currentLockfile: ctx.currentLockfile,
             enablePnp: opts.enablePnp,
             engineStrict: opts.engineStrict,
+            extendNodePath: opts.extendNodePath,
             extraBinPaths: opts.extraBinPaths,
             force: opts.force,
             hoistedDependencies: ctx.hoistedDependencies,
