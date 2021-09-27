@@ -27,6 +27,26 @@ test('run -r: pass the args to the command that is specfied in the build script'
   ])
 })
 
+test('run: pass the args to the command that is specfied in the build script', async () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      foo: 'node recordArgs',
+      postfoo: 'node recordArgs',
+      prefoo: 'node recordArgs',
+    },
+  })
+  await fs.writeFile('args.json', '[]', 'utf8')
+  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+
+  await execPnpm(['run', 'foo', 'arg', '--flag=true'])
+
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
+    ['arg', '--flag=true'],
+  ])
+})
+
 test('test -r: pass the args to the command that is specfied in the build script of a package.json manifest', async () => {
   preparePackages([{
     name: 'project',
