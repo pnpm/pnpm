@@ -2796,7 +2796,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/ramda': 0.27.39
       '@zkochan/rimraf': ^2.1.1
-      cmd-extension: ^1.0.1
+      cmd-extension: ^1.0.2
       is-windows: ^1.0.2
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
@@ -2804,7 +2804,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.1
-      cmd-extension: 1.0.1
+      cmd-extension: 1.0.2
       is-windows: 1.0.2
     devDependencies:
       '@pnpm/logger': 4.0.0
@@ -5319,7 +5319,7 @@ packages:
     resolution: {integrity: sha512-oBPLTj/T1t488X1hVv99HbX7AATpApeue/OWWtD37PYxcJN4YBEpFyf86KlYb/51JrqyPe9Rv7z3/3T3p9AERg==}
     engines: {node: '>=10.13'}
     dependencies:
-      cmd-extension: 1.0.1
+      cmd-extension: 1.0.2
       is-windows: 1.0.2
     dev: false
 
@@ -6736,8 +6736,8 @@ packages:
       readable-stream: 2.3.7
     dev: true
 
-  /cmd-extension/1.0.1:
-    resolution: {integrity: sha512-gZWHJ9fu2rBAGufA/3F5ousXFiXHyhXKkym2xmXNWaebMUOkhxE1vCQEdegaXyi95180A32b+j4lQaOv7LqzxA==}
+  /cmd-extension/1.0.2:
+    resolution: {integrity: sha512-iWDjmP8kvsMdBmLTHxFaqXikO8EdFRDfim7k6vUHglY/2xJ5jLrPsnQGijdfp4U+sr/BeecG0wKm02dSIAeQ1g==}
     engines: {node: '>=10'}
     dev: false
 
