@@ -134,6 +134,7 @@ export interface Config {
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
+  extendNodePath?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

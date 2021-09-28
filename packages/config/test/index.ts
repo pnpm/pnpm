@@ -48,7 +48,7 @@ test('throw error if --link-workspace-packages is used with --global', async () 
   }
 })
 
-test('"save" should always be true during global installation', async () => {
+test('correct settings on global install', async () => {
   const { config } = await getConfig({
     cliOptions: {
       global: true,
@@ -59,7 +59,8 @@ test('"save" should always be true during global installation', async () => {
       version: '1.0.0',
     },
   })
-  expect(config.save).toBeTruthy()
+  expect(config.save).toBe(true)
+  expect(config.extendNodePath).toBe(false)
 })
 
 test('throw error if --shared-workspace-lockfile is used with --global', async () => {

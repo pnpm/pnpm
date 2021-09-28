@@ -247,6 +247,7 @@ export async function mutateModules (
             currentLockfile: ctx.currentLockfile,
             enablePnp: opts.enablePnp,
             engineStrict: opts.engineStrict,
+            extendNodePath: opts.extendNodePath,
             extraBinPaths: opts.extraBinPaths,
             force: opts.force,
             hoistedDependencies: ctx.hoistedDependencies,
@@ -807,6 +808,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         currentLockfile: ctx.currentLockfile,
         dependenciesByProjectId,
         force: opts.force,
+        extendNodePath: opts.extendNodePath,
         hoistedDependencies: ctx.hoistedDependencies,
         hoistedModulesDir: ctx.hoistedModulesDir,
         hoistPattern: ctx.hoistPattern,
@@ -865,6 +867,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       await buildModules(dependenciesGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
+        extendNodePath: opts.extendNodePath,
         extraBinPaths: ctx.extraBinPaths,
         extraEnv,
         lockfileDir: ctx.lockfileDir,
@@ -901,6 +904,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }, {})
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
+          extendNodePath: opts.extendNodePath,
           projectManifest: project.manifest,
           nodeExecPathByAlias,
           warn: binWarn.bind(null, project.rootDir),
@@ -931,7 +935,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           )
             .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
           project.binsDir,
-          { warn: binWarn.bind(null, project.rootDir) }
+          { extendNodePath: opts.extendNodePath, warn: binWarn.bind(null, project.rootDir) }
         )
       }
       const projectToInstall = projects[index]

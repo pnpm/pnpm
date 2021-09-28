@@ -42,6 +42,7 @@ export const types = Object.assign({
   dir: String,
   'enable-modules-dir': Boolean,
   'enable-pre-post-scripts': Boolean,
+  'extend-node-path': Boolean,
   'fetch-timeout': Number,
   'fetching-concurrency': Number,
   filter: [String, Array],
@@ -167,6 +168,7 @@ export default async (
     bail: true,
     color: 'auto',
     'enable-modules-dir': true,
+    'extend-node-path': true,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
@@ -302,6 +304,7 @@ export default async (
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
+    pnpmConfig.extendNodePath = false
     if ((pnpmConfig.hoistPattern != null) && (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')) {
       if (opts.cliOptions['hoist-pattern']) {
         throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
