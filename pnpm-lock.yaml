@@ -981,7 +981,7 @@ importers:
       '@types/node': ^14.14.33
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
-      '@zkochan/cmd-shim': ^5.2.0
+      '@zkochan/cmd-shim': ^5.2.1
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
       ncp: ^2.0.0
@@ -998,7 +998,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
-      '@zkochan/cmd-shim': 5.2.0
+      '@zkochan/cmd-shim': 5.2.1
       is-subdir: 1.2.0
       is-windows: 1.0.2
       normalize-path: 3.0.0
@@ -1788,7 +1788,7 @@ importers:
       '@pnpm/store-path': ^5.0.0
       '@pnpm/tarball-fetcher': workspace:9.3.6
       '@types/adm-zip': ^0.4.34
-      '@zkochan/cmd-shim': ^5.2.0
+      '@zkochan/cmd-shim': ^5.2.1
       adm-zip: ^0.5.5
       execa: npm:safe-execa@^0.1.1
       load-json-file: ^6.2.0
@@ -1807,7 +1807,7 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/store-path': 5.0.0
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
-      '@zkochan/cmd-shim': 5.2.0
+      '@zkochan/cmd-shim': 5.2.1
       adm-zip: 0.5.6
       load-json-file: 6.2.0
       rename-overwrite: 4.0.0
@@ -2796,6 +2796,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/ramda': 0.27.39
       '@zkochan/rimraf': ^2.1.1
+      cmd-extension: ^1.0.2
       is-windows: ^1.0.2
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
@@ -2803,6 +2804,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.1
+      cmd-extension: 1.0.2
       is-windows: 1.0.2
     devDependencies:
       '@pnpm/logger': 4.0.0
@@ -4433,18 +4435,18 @@ packages:
       load-json-file: 6.2.0
     dev: true
 
-  /@pnpm/cli-utils/0.6.21_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-G0/YvHfNB+umbrEwJz6Pmd6GMxpm1xDsSeGaEu/aM/Ex31OzhiSZ8XOaIQiU160he/z3kGs9ySOPZDxhRJeLcQ==}
+  /@pnpm/cli-utils/0.6.22_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-QRmRwZGL0oJag9DBm8/2OMsbGSkAaxz133mAxmwxJR3xcPAwSxTcBL+HfDH/97/PlTpBfYd5fUTnfDCe1AW4Qg==}
     engines: {node: '>=12.17'}
     peerDependencies:
       '@pnpm/logger': ^4.0.0
     dependencies:
       '@pnpm/cli-meta': 2.0.0
-      '@pnpm/config': 12.5.0
-      '@pnpm/default-reporter': 8.2.1_@pnpm+logger@4.0.0
+      '@pnpm/config': 12.6.0
+      '@pnpm/default-reporter': 8.2.2_@pnpm+logger@4.0.0
       '@pnpm/error': 2.0.0
       '@pnpm/logger': 4.0.0
-      '@pnpm/manifest-utils': 2.0.4_@pnpm+logger@4.0.0
+      '@pnpm/manifest-utils': 2.1.0_@pnpm+logger@4.0.0
       '@pnpm/package-is-installable': 5.0.4_@pnpm+logger@4.0.0
       '@pnpm/read-project-manifest': 2.0.5
       chalk: 4.1.2
@@ -4458,8 +4460,8 @@ packages:
       chalk: 4.1.2
     dev: false
 
-  /@pnpm/config/12.5.0:
-    resolution: {integrity: sha512-xN+rCE0JkOu5rxgIGRUjpunJB1tn6SzINp7eLyat0v+slpuccweXIoPYKUt6QTDjJR2CRJHrWZ9lfG+zA8BYuQ==}
+  /@pnpm/config/12.6.0:
+    resolution: {integrity: sha512-L6lcYJ/ifVfTJCKVcUUyGPU3C55mQY79/aRmOpDaSTNpm3pZ197R5WRwv9vDZe2jenB4nfmuRHsRpIK4aG6KKA==}
     engines: {node: '>=12.17'}
     dependencies:
       '@pnpm/constants': 5.0.0
@@ -4490,11 +4492,11 @@ packages:
       '@pnpm/types': 7.4.0
     dev: true
 
-  /@pnpm/default-reporter/8.2.1_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-4yusyK4dGyk8kDJaVP1yCdsgSJnB7lS/9BSXLVh0iD2hrOwEMBKO6yBhEynuOVBYbGTcWxZ9BahnFMvrQGAS+w==}
+  /@pnpm/default-reporter/8.2.2_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-iOdYC2TrwFQiLL0sAOYtOtri6q1VRpZ9dOyZyFSTqig2kST1UyXCwj3fsGuI3IEUFazVgjjpBNDC+7l7WSwYeA==}
     engines: {node: '>=12.17'}
     dependencies:
-      '@pnpm/config': 12.5.0
+      '@pnpm/config': 12.6.0
       '@pnpm/core-loggers': 6.0.4_@pnpm+logger@4.0.0
       '@pnpm/error': 2.0.0
       '@pnpm/types': 7.4.0
@@ -4545,11 +4547,11 @@ packages:
       find-up: 5.0.0
     dev: true
 
-  /@pnpm/find-workspace-packages/3.1.13_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-WqqmNhlIv7utYie+gIAmho23bFPehKT08o2Jkg2n79Tz9rRCxXxyKqaPaUPObamClTgqDrZPEGVTxx7wbeOBpA==}
+  /@pnpm/find-workspace-packages/3.1.14_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-Ao/w5S6tezgChejTX+fHWYr4C/d9kXQCN1/XqW+0bt/z6VGDQm9lmYpmgdYalEpmzYWPykdrgudBqwZ266GLbg==}
     engines: {node: '>=12.17'}
     dependencies:
-      '@pnpm/cli-utils': 0.6.21_@pnpm+logger@4.0.0
+      '@pnpm/cli-utils': 0.6.22_@pnpm+logger@4.0.0
       '@pnpm/constants': 5.0.0
       '@pnpm/types': 7.4.0
       find-packages: 8.0.5
@@ -4581,8 +4583,8 @@ packages:
       bole: 4.0.0
       ndjson: 2.0.0
 
-  /@pnpm/manifest-utils/2.0.4_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-nhK+JF2vuTMTb8uX5v/cnEnjmh9r3SNOzceq9sDNa3t21v7sJLBtXn2XFIC2chYWksbyF1xmThtQ1ik/R/KTzw==}
+  /@pnpm/manifest-utils/2.1.0_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-LMW4ltqgJlC8Shrj6KBRiIA6cSmMP58IX02V6IDXCbn1DjEjAg75xsxBU+Oi0zxFolOe7okdCnaHC6x6J42t2A==}
     engines: {node: '>=12.17'}
     dependencies:
       '@pnpm/core-loggers': 6.0.4_@pnpm+logger@4.0.0
@@ -4598,7 +4600,7 @@ packages:
     hasBin: true
     dependencies:
       '@pnpm/find-workspace-dir': 3.0.1
-      '@pnpm/find-workspace-packages': 3.1.13_@pnpm+logger@4.0.0
+      '@pnpm/find-workspace-packages': 3.1.14_@pnpm+logger@4.0.0
       '@pnpm/logger': 4.0.0
       '@pnpm/types': 7.4.0
       load-json-file: 6.2.0
@@ -5313,10 +5315,11 @@ packages:
       tslib: 1.14.1
     dev: false
 
-  /@zkochan/cmd-shim/5.2.0:
-    resolution: {integrity: sha512-lY0gYPCG09RcrOjvQtJpABF8YCjsaLjoYMOjAxZhNK1vKKlr0/UPvHsp66z/Gsj96+L1DRHL1oqwaPTXf368jg==}
+  /@zkochan/cmd-shim/5.2.1:
+    resolution: {integrity: sha512-oBPLTj/T1t488X1hVv99HbX7AATpApeue/OWWtD37PYxcJN4YBEpFyf86KlYb/51JrqyPe9Rv7z3/3T3p9AERg==}
     engines: {node: '>=10.13'}
     dependencies:
+      cmd-extension: 1.0.2
       is-windows: 1.0.2
     dev: false
 
@@ -6732,6 +6735,11 @@ packages:
       process-nextick-args: 2.0.1
       readable-stream: 2.3.7
     dev: true
+
+  /cmd-extension/1.0.2:
+    resolution: {integrity: sha512-iWDjmP8kvsMdBmLTHxFaqXikO8EdFRDfim7k6vUHglY/2xJ5jLrPsnQGijdfp4U+sr/BeecG0wKm02dSIAeQ1g==}
+    engines: {node: '>=10'}
+    dev: false
 
   /co/4.6.0:
     resolution: {integrity: sha1-bqa989hTrlTMuOR7+gvz+QMfsYQ=}

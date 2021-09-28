@@ -31,6 +31,7 @@
     "@pnpm/read-package-json": "workspace:5.0.4",
     "@pnpm/types": "workspace:7.4.0",
     "@zkochan/rimraf": "^2.1.1",
+    "cmd-extension": "^1.0.2",
     "is-windows": "^1.0.2"
   },
   "devDependencies": {
