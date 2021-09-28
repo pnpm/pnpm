@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "0.6.22",
+  "version": "0.6.23",
   "description": "Utils for pnpm commands",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,8 +33,8 @@
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:2.0.0",
-    "@pnpm/config": "workspace:12.6.0",
-    "@pnpm/default-reporter": "workspace:8.2.2",
+    "@pnpm/config": "workspace:13.0.0",
+    "@pnpm/default-reporter": "workspace:8.2.3",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/manifest-utils": "workspace:2.1.0",
     "@pnpm/package-is-installable": "workspace:5.0.4",

@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 0.7.0
+
+### Minor Changes
+
+- fe5688dc0: Add option 'changed-files-ignore-pattern' to ignore changed files by glob patterns when filtering for changed projects since the specified commit/branch.
+
 ## 0.6.0
 
 ### Minor Changes

@@ -1,5 +1,15 @@
 # @pnpm/filter-workspace-packages
 
+## 4.2.0
+
+### Minor Changes
+
+- fe5688dc0: Add option 'changed-files-ignore-pattern' to ignore changed files by glob patterns when filtering for changed projects since the specified commit/branch.
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@3.1.15
+
 ## 4.1.17
 
 ### Patch Changes

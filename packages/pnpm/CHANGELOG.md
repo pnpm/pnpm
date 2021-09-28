@@ -1,5 +1,16 @@
 # pnpm
 
+## 6.16.0
+
+### Minor Changes
+
+- New setting added: `changed-files-ignore-pattern`. It allows to ignore changed files by glob patterns when filtering for changed projects since the specified commit/branch [#3797](https://github.com/pnpm/pnpm/pull/3797).
+- New setting added: `extend-node-path`. When it is set to `false`, pnpm does not set the `NODE_PATH` environment variable in the command shims [#3799](https://github.com/pnpm/pnpm/pull/3799).
+
+### Patch Changes
+
+- Pick the right extension for command files. It is important to write files with .CMD extension on case sensitive Windows drives [#3804](https://github.com/pnpm/pnpm/pull/3804).
+
 ## 6.15.2
 
 ### Patch Changes
@@ -35,7 +46,7 @@
 - Use correct GitLab tarball URL [#3643](https://github.com/pnpm/pnpm/issues/3643).
 - Accept gzip and deflate encoding from the registry [#3745](https://github.com/pnpm/pnpm/pull/3745).
 - Print error codes in error messages [#3748](https://github.com/pnpm/pnpm/pull/3748).
-- Allow the $ sign to be a command name [#3679](https://github.com/pnpm/pnpm/issues/3679).
+- Allow the \$ sign to be a command name [#3679](https://github.com/pnpm/pnpm/issues/3679).
 
 ## 6.14.6
 

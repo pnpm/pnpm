@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-env
 
+## 1.0.7
+
+### Patch Changes
+
+- 0d4a7c69e: Pick the right extension for command files. It is important to write files with .CMD extension on case sensitive Windows drives.
+- Updated dependencies [fe5688dc0]
+- Updated dependencies [c7081cbb4]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/config@13.0.0
+  - @pnpm/cli-utils@0.6.23
+
 ## 1.0.6
 
 ### Patch Changes

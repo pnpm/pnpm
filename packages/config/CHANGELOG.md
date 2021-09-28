@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 13.0.0
+
+### Major Changes
+
+- c7081cbb4: NODE_PATH is not set in the command shims of globally installed packages.
+
+### Minor Changes
+
+- fe5688dc0: Add option 'changed-files-ignore-pattern' to ignore changed files by glob patterns when filtering for changed projects since the specified commit/branch.
+- c7081cbb4: New option added: `extendNodePath`. When it is set to `false`, pnpm does not set the `NODE_PATH` environment variable in the command shims.
+
 ## 12.6.0
 
 ### Minor Changes

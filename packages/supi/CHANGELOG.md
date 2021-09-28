@@ -1,5 +1,20 @@
 # supi
 
+## 0.47.23
+
+### Patch Changes
+
+- c7081cbb4: New option added: `extendNodePath`. When it is set to `false`, pnpm does not set the `NODE_PATH` environment variable in the command shims.
+- Updated dependencies [0d4a7c69e]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/link-bins@6.2.0
+  - @pnpm/remove-bins@2.0.6
+  - @pnpm/build-modules@7.1.0
+  - @pnpm/headless@16.1.0
+  - @pnpm/hoist@5.1.0
+  - @pnpm/modules-cleaner@11.0.12
+  - @pnpm/lockfile-to-pnp@0.4.24
+
 ## 0.47.22
 
 ### Patch Changes
