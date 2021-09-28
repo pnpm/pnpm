@@ -982,6 +982,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
       '@zkochan/cmd-shim': ^5.2.1
+      cmd-extension: ^1.0.2
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
       ncp: ^2.0.0
@@ -1011,6 +1012,7 @@ importers:
       '@types/node': 14.17.19
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
+      cmd-extension: 1.0.2
       ncp: 2.0.0
       path-exists: 4.0.0
       tempy: 1.0.1
@@ -6739,7 +6741,6 @@ packages:
   /cmd-extension/1.0.2:
     resolution: {integrity: sha512-iWDjmP8kvsMdBmLTHxFaqXikO8EdFRDfim7k6vUHglY/2xJ5jLrPsnQGijdfp4U+sr/BeecG0wKm02dSIAeQ1g==}
     engines: {node: '>=10'}
-    dev: false
 
   /co/4.6.0:
     resolution: {integrity: sha1-bqa989hTrlTMuOR7+gvz+QMfsYQ=}

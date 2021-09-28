@@ -52,6 +52,7 @@
     "@types/node": "^14.14.33",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
+    "cmd-extension": "^1.0.2",
     "ncp": "^2.0.0",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0"

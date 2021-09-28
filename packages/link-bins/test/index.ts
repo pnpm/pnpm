@@ -5,6 +5,7 @@ import path from 'path'
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
+import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 import ncpcb from 'ncp'
 import normalizePath from 'normalize-path'
@@ -33,7 +34,7 @@ function getExpectedBins (bins: string[]) {
     bins.forEach((bin) => expectedBins.push(`${bin}.ps1`))
   }
   if (IS_WINDOWS) {
-    bins.forEach((bin) => expectedBins.push(`${bin}.cmd`))
+    bins.forEach((bin) => expectedBins.push(`${bin}${CMD_EXTENSION}`))
   }
   return expectedBins.sort()
 }
