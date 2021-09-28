@@ -6,6 +6,7 @@ import binify from '@pnpm/package-bins'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
+import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 
 async function removeOnWin (cmd: string) {
@@ -13,7 +14,7 @@ async function removeOnWin (cmd: string) {
   await Promise.all([
     rimraf(cmd),
     rimraf(`${cmd}.ps1`),
-    rimraf(`${cmd}.cmd`),
+    rimraf(`${cmd}${CMD_EXTENSION}`),
   ])
 }
 
