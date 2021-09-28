@@ -304,6 +304,7 @@ export default async (
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
+    pnpmConfig.extendNodePath = false
     if ((pnpmConfig.hoistPattern != null) && (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')) {
       if (opts.cliOptions['hoist-pattern']) {
         throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
