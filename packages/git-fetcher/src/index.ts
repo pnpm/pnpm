@@ -21,12 +21,12 @@ export default () => {
       const tempLocation = await cafs.tempDir()
       await execGit(['clone', resolution.repo, tempLocation])
       await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-      // removing /.git to make directory integrity calculation faster
-      await rimraf(path.join(tempLocation, '.git'))
       // invoke 'prepare' if package.json exists and defines a 'prepare' script
       if (await exists(path.join(tempLocation, 'package.json'))) {
         await preparePackage(tempLocation)
       }
+      // removing /.git to make directory integrity calculation faster
+      await rimraf(path.join(tempLocation, '.git'))
 
       const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)
       return { filesIndex }
