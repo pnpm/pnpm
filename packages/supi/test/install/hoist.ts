@@ -10,6 +10,8 @@ import {
 } from 'supi'
 import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import writeYamlFile from 'write-yaml-file'
 import { addDistTag, testDefaults } from '../utils'
 
 test('should hoist dependencies', async () => {
@@ -545,4 +547,93 @@ test('the hoisted packages should not override the bin files of the direct depen
     const cmd = await fs.promises.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
     expect(cmd).toContain('/hello-world-js-bin-parent/')
   }
+})
+
+test('only hoist packages which is in the dependencies tree of the selected projects when lockfile exists', async () => {
+  const { root } = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'project-1',
+      package: { name: 'project-1', dependencies: { 'is-positive': '2.0.0' } },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', dependencies: { 'is-positive': '3.0.0' } },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+      },
+      mutation: 'install',
+      rootDir: path.resolve('.'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '3.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+
+  /**
+   * project-1 locks is-positive@2.0.0 while project-2 locks is-positive@3.0.0
+   * when partial install project@3.0.0, is-positive@3.0.0 always should be hoisted
+   * instead of using is-positive@2.0.0 and does not hoist anything
+   */
+  await writeYamlFile(WANTED_LOCKFILE, {
+    lockfileVersion: 5.3,
+    importers: {
+      '.': {
+        specifiers: {},
+      },
+      'project-1': {
+        specifiers: {
+          'is-positive': '2.0.0',
+        },
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+      },
+      'project-2': {
+        specifiers: {
+          'is-positive': '3.0.0',
+        },
+        dependencies: {
+          'is-positive': '3.0.0',
+        },
+      },
+    },
+    packages: {
+      '/is-positive/2.0.0': {
+        resolution: { integrity: 'sha1-sU8GvS24EK5sixJ0HRNr+u8Nh70=' },
+        engines: { node: '>=0.10.0' },
+        dev: false,
+      },
+      '/is-positive/3.0.0': {
+        resolution: { integrity: 'sha1-jvDuIvfOJPdjP4kIAw7Ei2Ks9KM=' },
+        engines: { node: '>=0.10.0' },
+        dev: false,
+      },
+    },
+  }, { lineWidth: 1000 })
+
+  await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
+
+  await root.has('.pnpm/node_modules/is-positive')
+  const { version } = root.requireModule('.pnpm/node_modules/is-positive/package.json')
+  expect(version).toBe('3.0.0')
 })
