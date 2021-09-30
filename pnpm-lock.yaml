@@ -747,14 +747,12 @@ importers:
       '@zkochan/rimraf': ^2.1.1
       execa: npm:safe-execa@^0.1.1
       p-defer: ^3.0.0
-      path-exists: ^4.0.0
       tempy: ^1.0.0
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/prepare-package': link:../prepare-package
       '@zkochan/rimraf': 2.1.1
       execa: /safe-execa/0.1.1
-      path-exists: 4.0.0
     devDependencies:
       '@pnpm/cafs': link:../cafs
       '@pnpm/git-fetcher': 'link:'
@@ -3204,7 +3202,6 @@ importers:
       '@zkochan/retry': ^0.2.0
       cp-file: ^9.0.0
       nock: 12.0.3
-      path-exists: ^4.0.0
       ramda: ^0.27.1
       ssri: ^8.0.1
       tempy: ^1.0.0
@@ -3216,7 +3213,6 @@ importers:
       '@pnpm/graceful-fs': link:../graceful-fs
       '@pnpm/prepare-package': link:../prepare-package
       '@zkochan/retry': 0.2.0
-      path-exists: 4.0.0
       ramda: 0.27.1
       ssri: 8.0.1
     devDependencies:

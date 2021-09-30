@@ -41,8 +41,7 @@
     "@pnpm/prepare-package": "workspace:1.0.3",
     "@zkochan/retry": "^0.2.0",
     "ramda": "^0.27.1",
-    "ssri": "^8.0.1",
-    "path-exists": "^4.0.0"
+    "ssri": "^8.0.1"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:4.1.1",

@@ -1,6 +1,5 @@
 import { IncomingMessage } from 'http'
 import urlLib from 'url'
-import path from 'path'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError, { FetchError } from '@pnpm/error'
 import {
@@ -16,7 +15,6 @@ import * as retry from '@zkochan/retry'
 import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
 import ssri from 'ssri'
-import exists from 'path-exists'
 import { BadTarballError } from './errorTypes'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
@@ -241,10 +239,7 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
     },
     force: true,
   })
-  // prepare the package if a package.json exists
-  if (await exists(path.join(tempLocation, 'package.json'))) {
-    await preparePackage(tempLocation)
-  }
+  await preparePackage(tempLocation)
   const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
   return newFilesIndex
 }
