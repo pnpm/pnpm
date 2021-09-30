@@ -1,5 +1,5 @@
 import path from 'path'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import exists from 'path-exists'
 import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
 import runLifecycleHooksConcurrently, { RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
@@ -20,28 +20,32 @@ export {
 export async function runPostinstallHooks (
   opts: RunLifecycleHookOptions
 ): Promise<boolean> {
-  const pkg = await readPackageJsonFromDir(opts.pkgRoot)
-  if (pkg.scripts == null) {
-    pkg.scripts = {}
-  }
+  const pkg = await safeReadPackageFromDir(opts.pkgRoot)
+  if (pkg) {
+    if (pkg.scripts == null) {
+      pkg.scripts = {}
+    }
 
-  if (!pkg.scripts.install) {
-    await checkBindingGyp(opts.pkgRoot, pkg.scripts)
-  }
+    if (!pkg.scripts.install) {
+      await checkBindingGyp(opts.pkgRoot, pkg.scripts)
+    }
 
-  if (pkg.scripts.preinstall) {
-    await runLifecycleHook('preinstall', pkg, opts)
-  }
-  if (pkg.scripts.install) {
-    await runLifecycleHook('install', pkg, opts)
-  }
-  if (pkg.scripts.postinstall) {
-    await runLifecycleHook('postinstall', pkg, opts)
-  }
+    if (pkg.scripts.preinstall) {
+      await runLifecycleHook('preinstall', pkg, opts)
+    }
+    if (pkg.scripts.install) {
+      await runLifecycleHook('install', pkg, opts)
+    }
+    if (pkg.scripts.postinstall) {
+      await runLifecycleHook('postinstall', pkg, opts)
+    }
 
-  return pkg.scripts.preinstall != null ||
-    pkg.scripts.install != null ||
-    pkg.scripts.postinstall != null
+    return pkg.scripts.preinstall != null ||
+      pkg.scripts.install != null ||
+      pkg.scripts.postinstall != null
+  } else {
+    return false
+  }
 }
 
 /**
