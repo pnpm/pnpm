@@ -21,31 +21,28 @@ export async function runPostinstallHooks (
   opts: RunLifecycleHookOptions
 ): Promise<boolean> {
   const pkg = await safeReadPackageFromDir(opts.pkgRoot)
-  if (pkg) {
-    if (pkg.scripts == null) {
-      pkg.scripts = {}
-    }
-
-    if (!pkg.scripts.install) {
-      await checkBindingGyp(opts.pkgRoot, pkg.scripts)
-    }
-
-    if (pkg.scripts.preinstall) {
-      await runLifecycleHook('preinstall', pkg, opts)
-    }
-    if (pkg.scripts.install) {
-      await runLifecycleHook('install', pkg, opts)
-    }
-    if (pkg.scripts.postinstall) {
-      await runLifecycleHook('postinstall', pkg, opts)
-    }
-
-    return pkg.scripts.preinstall != null ||
-      pkg.scripts.install != null ||
-      pkg.scripts.postinstall != null
-  } else {
-    return false
+  if (pkg == null) return false
+  if (pkg.scripts == null) {
+    pkg.scripts = {}
   }
+
+  if (!pkg.scripts.install) {
+    await checkBindingGyp(opts.pkgRoot, pkg.scripts)
+  }
+
+  if (pkg.scripts.preinstall) {
+    await runLifecycleHook('preinstall', pkg, opts)
+  }
+  if (pkg.scripts.install) {
+    await runLifecycleHook('install', pkg, opts)
+  }
+  if (pkg.scripts.postinstall) {
+    await runLifecycleHook('postinstall', pkg, opts)
+  }
+
+  return pkg.scripts.preinstall != null ||
+    pkg.scripts.install != null ||
+    pkg.scripts.postinstall != null
 }
 
 /**
