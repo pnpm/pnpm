@@ -189,3 +189,66 @@ test('createVersionsOverrider() does not override dependency of pkg matched by n
     },
   })
 })
+
+test('createVersionsOverrider() should work for scoped parent and unscoped child', () => {
+  const overrider = createVersionsOverrider({
+    '@scoped/package>unscoped-package': 'workspace:*',
+  }, process.cwd())
+  expect(
+    overrider({
+      name: '@scoped/package',
+      version: '1.0.0',
+      dependencies: {
+        'unscoped-package': '1.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: '@scoped/package',
+    version: '1.0.0',
+    dependencies: {
+      'unscoped-package': 'workspace:*',
+    },
+  })
+})
+
+test('createVersionsOverrider() should work for unscoped parent and scoped child', () => {
+  const overrider = createVersionsOverrider({
+    'unscoped-package>@scoped/package': 'workspace:*',
+  }, process.cwd())
+  expect(
+    overrider({
+      name: 'unscoped-package',
+      version: '1.0.0',
+      dependencies: {
+        '@scoped/package': '1.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: 'unscoped-package',
+    version: '1.0.0',
+    dependencies: {
+      '@scoped/package': 'workspace:*',
+    },
+  })
+})
+
+test('createVersionsOverrider() should work for scoped parent and scoped child', () => {
+  const overrider = createVersionsOverrider({
+    '@scoped/package>@scoped/package2': 'workspace:*',
+  }, process.cwd())
+  expect(
+    overrider({
+      name: '@scoped/package',
+      version: '1.0.0',
+      dependencies: {
+        '@scoped/package2': '1.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: '@scoped/package',
+    version: '1.0.0',
+    dependencies: {
+      '@scoped/package2': 'workspace:*',
+    },
+  })
+})
