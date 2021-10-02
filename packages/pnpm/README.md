@@ -43,13 +43,13 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 On macOS, Linux, or Windows Subsystem for Linux:
 
 ```
-curl -f https://get.pnpm.io/v6.14.js | node - add --global pnpm
+curl -f https://get.pnpm.io/v6.16.js | node - add --global pnpm
 ```
 
 On Windows (using PowerShell):
 
 ```
-(Invoke-WebRequest 'https://get.pnpm.io/v6.14.js' -UseBasicParsing).Content | node - add --global pnpm
+(Invoke-WebRequest 'https://get.pnpm.io/v6.16.js' -UseBasicParsing).Content | node - add --global pnpm
 ```
 
 Using npm:
