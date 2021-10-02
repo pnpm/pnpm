@@ -19,7 +19,7 @@ export default async function hoistByLockfile (
     extendNodePath?: boolean
     lockfile: Lockfile
     lockfileDir: string
-    importerIds: string[]
+    importerIds?: string[]
     privateHoistPattern: string[]
     privateHoistedModulesDir: string
     publicHoistPattern: string[]
@@ -31,7 +31,7 @@ export default async function hoistByLockfile (
 
   const { directDeps, step } = lockfileWalker(
     opts.lockfile,
-    opts.importerIds
+    opts.importerIds ?? Object.keys(opts.lockfile.importers)
   )
   const deps = [
     {
