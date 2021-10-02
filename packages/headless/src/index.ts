@@ -288,6 +288,7 @@ export default async (opts: HeadlessOptions) => {
       newHoistedDependencies = await hoist({
         extendNodePath: opts.extendNodePath,
         lockfile: hoistLockfile,
+        importerIds,
         lockfileDir,
         privateHoistedModulesDir: hoistedModulesDir,
         privateHoistPattern: opts.hoistPattern ?? [],

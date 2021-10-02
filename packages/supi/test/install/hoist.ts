@@ -10,6 +10,8 @@ import {
 } from 'supi'
 import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import writeYamlFile from 'write-yaml-file'
 import { addDistTag, testDefaults } from '../utils'
 
 test('should hoist dependencies', async () => {
@@ -545,4 +547,198 @@ test('the hoisted packages should not override the bin files of the direct depen
     const cmd = await fs.promises.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
     expect(cmd).toContain('/hello-world-js-bin-parent/')
   }
+})
+
+test('hoist packages which is in the dependencies tree of the selected projects', async () => {
+  const { root } = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'project-1',
+      package: { name: 'project-1', dependencies: { 'is-positive': '2.0.0' } },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', dependencies: { 'is-positive': '3.0.0' } },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+      },
+      mutation: 'install',
+      rootDir: path.resolve('.'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '3.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+
+  /**
+   * project-1 locks is-positive@2.0.0 while project-2 locks is-positive@3.0.0
+   * when partial install project@3.0.0, is-positive@3.0.0 always should be hoisted
+   * instead of using is-positive@2.0.0 and does not hoist anything
+   */
+  await writeYamlFile(WANTED_LOCKFILE, {
+    lockfileVersion: 5.3,
+    importers: {
+      '.': {
+        specifiers: {},
+      },
+      'project-1': {
+        specifiers: {
+          'is-positive': '2.0.0',
+        },
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+      },
+      'project-2': {
+        specifiers: {
+          'is-positive': '3.0.0',
+        },
+        dependencies: {
+          'is-positive': '3.0.0',
+        },
+      },
+    },
+    packages: {
+      '/is-positive/2.0.0': {
+        resolution: { integrity: 'sha1-sU8GvS24EK5sixJ0HRNr+u8Nh70=' },
+        engines: { node: '>=0.10.0' },
+        dev: false,
+      },
+      '/is-positive/3.0.0': {
+        resolution: { integrity: 'sha1-jvDuIvfOJPdjP4kIAw7Ei2Ks9KM=' },
+        engines: { node: '>=0.10.0' },
+        dev: false,
+      },
+    },
+  }, { lineWidth: 1000 })
+
+  await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
+
+  await root.has('.pnpm/node_modules/is-positive')
+  const { version } = root.requireModule('.pnpm/node_modules/is-positive/package.json')
+  expect(version).toBe('3.0.0')
+})
+
+test('only hoist packages which is in the dependencies tree of the selected projects with sub dependencies', async () => {
+  const { root } = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'project-1',
+      package: { name: 'project-1', dependencies: { '@babel/runtime-corejs3': '7.15.3' } },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', dependencies: { '@babel/runtime-corejs3': '7.15.4' } },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          '@babel/runtime-corejs3': '7.15.4',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+
+  await writeYamlFile(WANTED_LOCKFILE, {
+    lockfileVersion: 5.3,
+    importers: {
+      '.': {
+        specifiers: {},
+      },
+      'project-1': {
+        specifiers: {
+          '@babel/runtime-corejs3': '7.15.3',
+        },
+        dependencies: {
+          '@babel/runtime-corejs3': '7.15.3',
+        },
+      },
+      'project-2': {
+        specifiers: {
+          '@babel/runtime-corejs3': '7.15.4',
+        },
+        dependencies: {
+          '@babel/runtime-corejs3': '7.15.4',
+        },
+      },
+    },
+    packages: {
+      '/@babel/runtime-corejs3/7.15.3': {
+        resolution: { integrity: 'sha512-30A3lP+sRL6ml8uhoJSs+8jwpKzbw8CqBvDc1laeptxPm5FahumJxirigcbD2qTs71Sonvj1cyZB0OKGAmxQ+A==' },
+        engines: { node: '>=6.9.0' },
+        dependencies: {
+          'core-js-pure': '3.17.2',
+          'regenerator-runtime': '0.13.9',
+        },
+        dev: false,
+      },
+      '/@babel/runtime-corejs3/7.15.4': {
+        resolution: { integrity: 'sha512-lWcAqKeB624/twtTc3w6w/2o9RqJPaNBhPGK6DKLSiwuVWC7WFkypWyNg+CpZoyJH0jVzv1uMtXZ/5/lQOLtCg==' },
+        engines: { node: '>=6.9.0' },
+        dependencies: {
+          'core-js-pure': '3.17.3',
+          'regenerator-runtime': '0.13.9',
+        },
+        dev: false,
+      },
+      '/core-js-pure/3.17.2': {
+        resolution: { integrity: 'sha512-2VV7DlIbooyTI7Bh+yzOOWL9tGwLnQKHno7qATE+fqZzDKYr6llVjVQOzpD/QLZFgXDPb8T71pJokHEZHEYJhQ==' },
+        requiresBuild: true,
+        dev: false,
+      },
+      '/core-js-pure/3.17.3': {
+        resolution: { integrity: 'sha512-YusrqwiOTTn8058JDa0cv9unbXdIiIgcgI9gXso0ey4WgkFLd3lYlV9rp9n7nDCsYxXsMDTjA4m1h3T348mdlQ==' },
+        requiresBuild: true,
+        dev: false,
+      },
+      '/regenerator-runtime/0.13.9': {
+        resolution: { integrity: 'sha512-p3VT+cOEgxFsRRA9X4lkI1E+k2/CtnKtU4gcxyaCUreilL/vqI6CdZ3wxVUx3UOUg+gnUOQQcRI7BmSI656MYA==' },
+        dev: false,
+      },
+    },
+  }, { lineWidth: 1000 })
+
+  await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
+
+  await root.has('.pnpm/node_modules/@babel/runtime-corejs3')
+  const { version: runtimeVersion } = root.requireModule('.pnpm/node_modules/@babel/runtime-corejs3/package.json')
+  expect(runtimeVersion).toBe('7.15.4')
+
+  await root.has('.pnpm/node_modules/core-js-pure')
+  const { version: coreJsVersion } = root.requireModule('.pnpm/node_modules/core-js-pure/package.json')
+  expect(coreJsVersion).toBe('3.17.3')
+
+  await root.has('.pnpm/node_modules/regenerator-runtime')
+  const { version: regeneratorVersion } = root.requireModule('.pnpm/node_modules/regenerator-runtime/package.json')
+  expect(regeneratorVersion).toBe('0.13.9')
 })
