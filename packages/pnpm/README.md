@@ -126,4 +126,4 @@ Support this project by becoming a sponsor. Your logo will show up here with a l
 
 ***
 
-Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
+Like this project? Let people know with a [tweet](https://r.pnpm.io/tweet).
