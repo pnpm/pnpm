@@ -46,7 +46,7 @@ On macOS, Linux, or Windows Subsystem for Linux:
 curl -f https://get.pnpm.io/v6.16.js | node - add --global pnpm
 ```
 
-On Windows (using Po'rShell):
+On Windows (using PowerShell):
 
 ```
 (Invoke-WebRequest 'https://get.pnpm.io/v6.16.js' -UseBasicParsing).Content | node - add --global pnpm
