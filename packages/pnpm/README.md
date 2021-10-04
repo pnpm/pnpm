@@ -14,7 +14,7 @@ Fast, disk space-efficient package manager:
   
 To quote the [Rush](https://rushjs.io/) team:
 
-> Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we've found it to be swift and reliable.
+> Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we´ve found it to be very fast and reliable.
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
 [![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://r.pnpm.io/chat)
