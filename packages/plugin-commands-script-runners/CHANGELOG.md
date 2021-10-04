@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.2.7
+
+### Patch Changes
+
+- Updated dependencies [4a4d42d8f]
+  - @pnpm/lifecycle@11.0.5
+
 ## 4.2.6
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.0.19
+
+### Patch Changes
+
+- Updated dependencies [4a4d42d8f]
+  - @pnpm/lifecycle@11.0.5
+  - @pnpm/store-connection-manager@3.0.18
+
 ## 5.0.18
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.16.1
+
+### Patch Changes
+
+- Installation should not fail if the installed package has no `package.json` [#3782](https://github.com/pnpm/pnpm/pull/3782).
+- Hoisting should work when the dependencies of only a subset of workspace projects are installed [#3806](https://github.com/pnpm/pnpm/pull/3806).
+- Upgraded ansi-regex to v5.0.1 in order to fix a security vulnerability [CVE-2021-3807](https://github.com/advisories/GHSA-93q8-gq69-wqmw).
+
 ## 6.16.0
 
 ### Minor Changes

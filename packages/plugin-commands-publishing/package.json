@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "4.2.13",
+  "version": "4.2.14",
   "description": "The pack and publish commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -53,11 +53,11 @@
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.6.23",
-    "@pnpm/client": "workspace:5.0.6",
+    "@pnpm/client": "workspace:5.0.7",
     "@pnpm/config": "workspace:13.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/exportable-manifest": "workspace:2.1.6",
-    "@pnpm/lifecycle": "workspace:11.0.4",
+    "@pnpm/lifecycle": "workspace:11.0.5",
     "@pnpm/package-bins": "workspace:5.0.5",
     "@pnpm/pick-registry-for-package": "workspace:2.0.4",
     "@pnpm/resolver-base": "workspace:8.0.4",

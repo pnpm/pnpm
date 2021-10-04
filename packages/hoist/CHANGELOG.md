@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 5.2.0
+
+### Minor Changes
+
+- 59a4152ce: allow to hoist packages based on importerIds, only hoist packages that are subdependencies of the specified importerIds
+
 ## 5.1.0
 
 ### Minor Changes

@@ -1,5 +1,19 @@
 # supi
 
+## 0.47.24
+
+### Patch Changes
+
+- 59a4152ce: fix that hoisting all packages in the dependencies tree when using filtering
+- Updated dependencies [4a4d42d8f]
+- Updated dependencies [59a4152ce]
+- Updated dependencies [59a4152ce]
+  - @pnpm/lifecycle@11.0.5
+  - @pnpm/hoist@5.2.0
+  - @pnpm/headless@16.1.1
+  - @pnpm/build-modules@7.1.1
+  - @pnpm/package-requester@15.1.2
+
 ## 0.47.23
 
 ### Patch Changes

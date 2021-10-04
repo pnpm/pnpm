@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 11.0.5
+
+### Patch Changes
+
+- 4a4d42d8f: Packages that have no `package.json` files should be skipped.
+
 ## 11.0.4
 
 ### Patch Changes
