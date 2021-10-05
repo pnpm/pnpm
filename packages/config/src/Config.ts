@@ -133,6 +133,8 @@ export interface Config {
   workspaceRoot: boolean
 
   testPattern?: string[]
+  changedFilesIgnorePattern?: string[]
+  extendNodePath?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

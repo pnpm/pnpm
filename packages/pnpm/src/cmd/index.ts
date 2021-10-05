@@ -39,6 +39,7 @@ export const GLOBAL_OPTIONS = pick([
   'reporter',
   'stream',
   'test-pattern',
+  'changed-files-ignore-pattern',
   'use-stderr',
   'workspace-packages',
   'workspace-root',

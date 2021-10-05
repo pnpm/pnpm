@@ -1,5 +1,11 @@
 # @pnpm/remove-bins
 
+## 2.0.6
+
+### Patch Changes
+
+- 0d4a7c69e: Pick the right extension for command files. It is important to write files with .CMD extension on case sensitive Windows drives.
+
 ## 2.0.5
 
 ### Patch Changes

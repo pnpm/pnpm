@@ -1,5 +1,27 @@
 # @pnpm/link-bins
 
+## 6.2.0
+
+### Minor Changes
+
+- c7081cbb4: New option added: `extendNodePath`. When it is set to `false`, pnpm does not set the `NODE_PATH` environment variable in the command shims.
+
+### Patch Changes
+
+- 0d4a7c69e: Pick the right extension for command files. It is important to write files with .CMD extension on case sensitive Windows drives.
+
+## 6.1.0
+
+### Minor Changes
+
+- 83e23601e: `linkBins()` accepts the project manifest and prioritizes the bins of its direct dependencies over the bin files of the hoisted dependencies.
+- 553a5d840: Allow to specify the path to Node.js executable that should be called from the command shim.
+
+### Patch Changes
+
+- Updated dependencies [553a5d840]
+  - @pnpm/manifest-utils@2.1.0
+
 ## 6.0.8
 
 ### Patch Changes

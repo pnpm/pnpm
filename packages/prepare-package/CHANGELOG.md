@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 1.0.4
+
+### Patch Changes
+
+- 4a4d42d8f: Packages that have no `package.json` files should be skipped.
+
 ## 1.0.3
 
 ### Patch Changes

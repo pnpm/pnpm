@@ -1,5 +1,25 @@
 # @pnpm/cli-utils
 
+## 0.6.23
+
+### Patch Changes
+
+- Updated dependencies [fe5688dc0]
+- Updated dependencies [c7081cbb4]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/config@13.0.0
+  - @pnpm/default-reporter@8.2.3
+
+## 0.6.22
+
+### Patch Changes
+
+- Updated dependencies [553a5d840]
+- Updated dependencies [d62259d67]
+  - @pnpm/manifest-utils@2.1.0
+  - @pnpm/config@12.6.0
+  - @pnpm/default-reporter@8.2.2
+
 ## 0.6.21
 
 ### Patch Changes

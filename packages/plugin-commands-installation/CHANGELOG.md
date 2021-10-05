@@ -1,5 +1,54 @@
 # @pnpm/plugin-commands-installation
 
+## 6.2.2
+
+### Patch Changes
+
+- Updated dependencies [59a4152ce]
+  - supi@0.47.24
+  - @pnpm/plugin-commands-rebuild@5.0.19
+  - @pnpm/outdated@9.0.8
+  - @pnpm/package-store@12.0.15
+  - @pnpm/store-connection-manager@3.0.18
+
+## 6.2.1
+
+### Patch Changes
+
+- Updated dependencies [fe5688dc0]
+- Updated dependencies [c7081cbb4]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/common-cli-options-help@0.7.0
+  - @pnpm/config@13.0.0
+  - @pnpm/filter-workspace-packages@4.2.0
+  - supi@0.47.23
+  - @pnpm/plugin-commands-rebuild@5.0.18
+  - @pnpm/cli-utils@0.6.23
+  - @pnpm/store-connection-manager@3.0.17
+  - @pnpm/find-workspace-packages@3.1.15
+
+## 6.2.0
+
+### Minor Changes
+
+- 553a5d840: Globally installed packages should always use the active version of Node.js. So if webpack is installed while Node.js 16 is active, webpack will be executed using Node.js 16 even if the active Node.js version is switched using `pnpm env`.
+
+### Patch Changes
+
+- Updated dependencies [83e23601e]
+- Updated dependencies [6cc1aa2c0]
+- Updated dependencies [553a5d840]
+- Updated dependencies [d62259d67]
+  - supi@0.47.22
+  - @pnpm/manifest-utils@2.1.0
+  - @pnpm/config@12.6.0
+  - @pnpm/cli-utils@0.6.22
+  - @pnpm/outdated@9.0.7
+  - @pnpm/plugin-commands-rebuild@5.0.17
+  - @pnpm/store-connection-manager@3.0.16
+  - @pnpm/find-workspace-packages@3.1.14
+  - @pnpm/filter-workspace-packages@4.1.17
+
 ## 6.1.1
 
 ### Patch Changes

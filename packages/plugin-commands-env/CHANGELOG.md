@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-env
 
+## 1.0.8
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@9.3.7
+- @pnpm/package-store@12.0.15
+
+## 1.0.7
+
+### Patch Changes
+
+- 0d4a7c69e: Pick the right extension for command files. It is important to write files with .CMD extension on case sensitive Windows drives.
+- Updated dependencies [fe5688dc0]
+- Updated dependencies [c7081cbb4]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/config@13.0.0
+  - @pnpm/cli-utils@0.6.23
+
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [d62259d67]
+  - @pnpm/config@12.6.0
+  - @pnpm/cli-utils@0.6.22
+
 ## 1.0.5
 
 ### Patch Changes

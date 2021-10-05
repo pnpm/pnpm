@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "6.0.8",
+  "version": "6.2.0",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,12 +33,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/link-bins#readme",
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
+    "@pnpm/manifest-utils": "workspace:2.1.0",
     "@pnpm/package-bins": "workspace:5.0.5",
     "@pnpm/read-modules-dir": "workspace:3.0.1",
     "@pnpm/read-package-json": "workspace:5.0.4",
     "@pnpm/read-project-manifest": "workspace:2.0.5",
     "@pnpm/types": "workspace:7.4.0",
-    "@zkochan/cmd-shim": "^5.2.0",
+    "@zkochan/cmd-shim": "^5.2.1",
     "is-subdir": "^1.1.1",
     "is-windows": "^1.0.2",
     "normalize-path": "^3.0.0",
@@ -51,6 +52,7 @@
     "@types/node": "^14.14.33",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
+    "cmd-extension": "^1.0.2",
     "ncp": "^2.0.0",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0"

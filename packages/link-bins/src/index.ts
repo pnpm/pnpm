@@ -2,11 +2,12 @@ import { promises as fs } from 'fs'
 import Module from 'module'
 import path from 'path'
 import PnpmError from '@pnpm/error'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { DependencyManifest } from '@pnpm/types'
+import { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
 import isSubdir from 'is-subdir'
 import isWindows from 'is-windows'
@@ -32,7 +33,9 @@ export default async (
   binsDir: string,
   opts: {
     allowExoticManifests?: boolean
+    extendNodePath?: boolean
     nodeExecPathByAlias?: Record<string, string>
+    projectManifest?: ProjectManifest
     warn: WarnFunction
   }
 ): Promise<string[]> => {
@@ -43,23 +46,38 @@ export default async (
     allowExoticManifests: false,
     ...opts,
   }
+  const directDependencies = opts.projectManifest == null
+    ? undefined
+    : new Set(Object.keys(getAllDependenciesFromManifest(opts.projectManifest)))
   const allCmds = unnest(
     (await Promise.all(
       allDeps
         .map((alias) => ({
           depDir: path.resolve(modulesDir, alias),
+          isDirectDependency: directDependencies?.has(alias),
           nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(({ depDir, nodeExecPath }) => {
+        .map(async ({ depDir, isDirectDependency, nodeExecPath }) => {
           const target = normalizePath(depDir)
-          return getPackageBins(pkgBinOpts, target, nodeExecPath)
+          const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
+          return cmds.map((cmd) => ({ ...cmd, isDirectDependency }))
         })
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
 
-  return linkBins(allCmds, binsDir, opts)
+  const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
+  return linkBins(cmdsToLink, binsDir, opts)
+}
+
+function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
+  const [directCmds, hoistedCmds] = partition((cmd) => cmd.isDirectDependency === true, allCmds)
+  const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
+  return [
+    ...directCmds,
+    ...hoistedCmds.filter(({ name }) => !usedDirectCmds.has(name)),
+  ]
 }
 
 export async function linkBinsOfPackages (
@@ -70,6 +88,7 @@ export async function linkBinsOfPackages (
   }>,
   binsTarget: string,
   opts: {
+    extendNodePath?: boolean
     warn: WarnFunction
   }
 ): Promise<string[]> {
@@ -97,6 +116,7 @@ async function linkBins (
   allCmds: CommandInfo[],
   binsDir: string,
   opts: {
+    extendNodePath?: boolean
     warn: WarnFunction
   }
 ): Promise<string[]> {
@@ -106,7 +126,7 @@ async function linkBins (
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = partition(({ ownName }) => ownName, allCmds)
 
-  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir)))
+  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir, opts)))
 
   const usedNames = fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
@@ -115,7 +135,7 @@ async function linkBins (
       return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
-    return linkBin(cmd, binsDir)
+    return linkBin(cmd, binsDir, opts)
   }))
 
   // We want to create all commands that we can create before throwing an exception
@@ -173,16 +193,19 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }))
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string) {
+async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePath?: boolean }) {
   const externalBinPath = path.join(binsDir, cmd.name)
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await fs.chmod(cmd.path, 0o755)
   }
-  let nodePath = await getBinNodePaths(cmd.path)
-  const binsParentDir = path.dirname(binsDir)
-  if (path.relative(cmd.path, binsParentDir) !== '') {
-    nodePath = union(nodePath, await getBinNodePaths(binsParentDir))
+  let nodePath: string[] | undefined
+  if (opts?.extendNodePath !== false) {
+    nodePath = await getBinNodePaths(cmd.path)
+    const binsParentDir = path.dirname(binsDir)
+    if (path.relative(cmd.path, binsParentDir) !== '') {
+      nodePath = union(nodePath, await getBinNodePaths(binsParentDir))
+    }
   }
   return cmdShim(cmd.path, externalBinPath, {
     createPwshFile: cmd.makePowerShellShim,

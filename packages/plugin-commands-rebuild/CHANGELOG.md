@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.0.19
+
+### Patch Changes
+
+- Updated dependencies [4a4d42d8f]
+  - @pnpm/lifecycle@11.0.5
+  - @pnpm/store-connection-manager@3.0.18
+
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies [0d4a7c69e]
+- Updated dependencies [fe5688dc0]
+- Updated dependencies [c7081cbb4]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/link-bins@6.2.0
+  - @pnpm/common-cli-options-help@0.7.0
+  - @pnpm/config@13.0.0
+  - @pnpm/cli-utils@0.6.23
+  - @pnpm/store-connection-manager@3.0.17
+  - @pnpm/find-workspace-packages@3.1.15
+
+## 5.0.17
+
+### Patch Changes
+
+- Updated dependencies [83e23601e]
+- Updated dependencies [553a5d840]
+- Updated dependencies [d62259d67]
+  - @pnpm/link-bins@6.1.0
+  - @pnpm/config@12.6.0
+  - @pnpm/cli-utils@0.6.22
+  - @pnpm/store-connection-manager@3.0.16
+  - @pnpm/find-workspace-packages@3.1.14
+
 ## 5.0.16
 
 ### Patch Changes

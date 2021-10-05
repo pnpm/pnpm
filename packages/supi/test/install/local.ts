@@ -57,6 +57,11 @@ test('local directory with no package.json', async () => {
   const expectedSpecs = { pkg: 'link:pkg' }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
   await project.has('pkg')
+
+  await rimraf('node_modules')
+
+  await install(manifest, await testDefaults({ frozenLockfile: true }))
+  await project.has('pkg')
 })
 
 test('local file via link:', async () => {

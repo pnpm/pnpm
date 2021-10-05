@@ -43,13 +43,13 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 On macOS, Linux, or Windows Subsystem for Linux:
 
 ```
-curl -f https://get.pnpm.io/v6.14.js | node - add --global pnpm
+curl -f https://get.pnpm.io/v6.16.js | node - add --global pnpm
 ```
 
 On Windows (using PowerShell):
 
 ```
-(Invoke-WebRequest 'https://get.pnpm.io/v6.14.js' -UseBasicParsing).Content | node - add --global pnpm
+(Invoke-WebRequest 'https://get.pnpm.io/v6.16.js' -UseBasicParsing).Content | node - add --global pnpm
 ```
 
 Using npm:
@@ -89,10 +89,8 @@ Benchmarks on an app with lots of dependencies:
 ## Support
 
 - [Frequently Asked Questions](https://pnpm.io/faq)
-- [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
 - [Chat](https://r.pnpm.io/chat)
 - [Twitter](https://twitter.com/pnpmjs)
-- [Awesome list](https://github.com/pnpm/awesome-pnpm)
 
 ## Contributors
 
@@ -126,4 +124,4 @@ Support this project by becoming a sponsor. Your logo will show up here with a l
 
 ***
 
-Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
+Like this project? Let people know with a [tweet](https://r.pnpm.io/tweet).

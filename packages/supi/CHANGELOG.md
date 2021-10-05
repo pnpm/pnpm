@@ -1,5 +1,53 @@
 # supi
 
+## 0.47.24
+
+### Patch Changes
+
+- 59a4152ce: fix that hoisting all packages in the dependencies tree when using filtering
+- Updated dependencies [4a4d42d8f]
+- Updated dependencies [59a4152ce]
+- Updated dependencies [59a4152ce]
+  - @pnpm/lifecycle@11.0.5
+  - @pnpm/hoist@5.2.0
+  - @pnpm/headless@16.1.1
+  - @pnpm/build-modules@7.1.1
+  - @pnpm/package-requester@15.1.2
+
+## 0.47.23
+
+### Patch Changes
+
+- c7081cbb4: New option added: `extendNodePath`. When it is set to `false`, pnpm does not set the `NODE_PATH` environment variable in the command shims.
+- Updated dependencies [0d4a7c69e]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/link-bins@6.2.0
+  - @pnpm/remove-bins@2.0.6
+  - @pnpm/build-modules@7.1.0
+  - @pnpm/headless@16.1.0
+  - @pnpm/hoist@5.1.0
+  - @pnpm/modules-cleaner@11.0.12
+  - @pnpm/lockfile-to-pnp@0.4.24
+
+## 0.47.22
+
+### Patch Changes
+
+- 83e23601e: Do not override the bins of direct dependencies with the bins of hoisted dependencies.
+- 6cc1aa2c0: `--fix-lockfile` should preserve existing lockfile's `dependencies` and `optionalDependencies`.
+- Updated dependencies [83e23601e]
+- Updated dependencies [553a5d840]
+- Updated dependencies [83e23601e]
+- Updated dependencies [553a5d840]
+- Updated dependencies [b7e6f4428]
+  - @pnpm/headless@16.0.29
+  - @pnpm/manifest-utils@2.1.0
+  - @pnpm/link-bins@6.1.0
+  - @pnpm/resolve-dependencies@21.0.5
+  - @pnpm/build-modules@7.0.10
+  - @pnpm/hoist@5.0.14
+  - @pnpm/lockfile-to-pnp@0.4.23
+
 ## 0.47.21
 
 ### Patch Changes

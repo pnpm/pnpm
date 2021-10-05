@@ -1,5 +1,34 @@
 # pnpm
 
+## 6.16.1
+
+### Patch Changes
+
+- Installation should not fail if the installed package has no `package.json` [#3782](https://github.com/pnpm/pnpm/pull/3782).
+- Hoisting should work when the dependencies of only a subset of workspace projects are installed [#3806](https://github.com/pnpm/pnpm/pull/3806).
+- Upgraded ansi-regex to v5.0.1 in order to fix a security vulnerability [CVE-2021-3807](https://github.com/advisories/GHSA-93q8-gq69-wqmw).
+
+## 6.16.0
+
+### Minor Changes
+
+- New setting added: `changed-files-ignore-pattern`. It allows to ignore changed files by glob patterns when filtering for changed projects since the specified commit/branch [#3797](https://github.com/pnpm/pnpm/pull/3797).
+- New setting added: `extend-node-path`. When it is set to `false`, pnpm does not set the `NODE_PATH` environment variable in the command shims [#3799](https://github.com/pnpm/pnpm/pull/3799).
+
+### Patch Changes
+
+- Pick the right extension for command files. It is important to write files with .CMD extension on case sensitive Windows drives [#3804](https://github.com/pnpm/pnpm/pull/3804).
+
+## 6.15.2
+
+### Patch Changes
+
+- `pnpm add --global <pkg>` should use an exact path to the Node.js executable to create the command shim. This way, the globally install package will work even if the system-wide Node.js is switched to another version [#3780](https://github.com/pnpm/pnpm/pull/3780).
+- `pnpm install --fix-lockfile` should not ignore the `dependencies` field in the existing lockfile [#3774](https://github.com/pnpm/pnpm/pull/3774).
+- When `use-beta-cli` is `true`, the global packages directory is inside the pnpm home directory [#3781](https://github.com/pnpm/pnpm/pull/3781).
+- `pnpm install --frozen-lockfile` should not fail if a project has a local directory dependency that has no manifest (`package.json` file) [#3793](https://github.com/pnpm/pnpm/pull/3793).
+- Don't override the bin files of direct dependencies with the bin files of hoisted dependencies [#3795](https://github.com/pnpm/pnpm/pull/3795).
+
 ## 6.15.1
 
 ### Patch Changes
@@ -25,7 +54,7 @@
 - Use correct GitLab tarball URL [#3643](https://github.com/pnpm/pnpm/issues/3643).
 - Accept gzip and deflate encoding from the registry [#3745](https://github.com/pnpm/pnpm/pull/3745).
 - Print error codes in error messages [#3748](https://github.com/pnpm/pnpm/pull/3748).
-- Allow the $ sign to be a command name [#3679](https://github.com/pnpm/pnpm/issues/3679).
+- Allow the \$ sign to be a command name [#3679](https://github.com/pnpm/pnpm/issues/3679).
 
 ## 6.14.6
 

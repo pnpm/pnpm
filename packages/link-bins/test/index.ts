@@ -5,6 +5,7 @@ import path from 'path'
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
+import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 import ncpcb from 'ncp'
 import normalizePath from 'normalize-path'
@@ -33,7 +34,7 @@ function getExpectedBins (bins: string[]) {
     bins.forEach((bin) => expectedBins.push(`${bin}.ps1`))
   }
   if (IS_WINDOWS) {
-    bins.forEach((bin) => expectedBins.push(`${bin}.cmd`))
+    bins.forEach((bin) => expectedBins.push(`${bin}${CMD_EXTENSION}`))
   }
   return expectedBins.sort()
 }
@@ -208,6 +209,37 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
     expect(await exists(binLocation)).toBe(true)
     const content = await fs.readFile(binLocation, 'utf8')
     expect(content).toMatch('node_modules/bar/index.js')
+  }
+
+  {
+    const binLocation = path.join(binTarget, 'foofoo')
+    expect(await exists(binLocation)).toBe(true)
+    const content = await fs.readFile(binLocation, 'utf8')
+    expect(content).toMatch('node_modules/foo/index.js')
+  }
+})
+
+test('linkBins() resolves conflicts. Prefer packages are direct dependencies', async () => {
+  const binTarget = tempy.directory()
+  const warn = jest.fn()
+
+  await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, {
+    projectManifest: {
+      dependencies: {
+        foo: '1.0.0',
+      },
+    },
+    warn,
+  })
+
+  expect(warn).not.toHaveBeenCalled() // With(`Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`, 'BINARIES_CONFLICT')
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
+
+  {
+    const binLocation = path.join(binTarget, 'bar')
+    expect(await exists(binLocation)).toBe(true)
+    const content = await fs.readFile(binLocation, 'utf8')
+    expect(content).toMatch('node_modules/foo/index.js')
   }
 
   {

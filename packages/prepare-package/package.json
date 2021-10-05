@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prepare-package",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Prepares a Git-hosted package",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

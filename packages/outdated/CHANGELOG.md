@@ -1,5 +1,18 @@
 # @pnpm/outdated
 
+## 9.0.8
+
+### Patch Changes
+
+- @pnpm/client@5.0.7
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [553a5d840]
+  - @pnpm/manifest-utils@2.1.0
+
 ## 9.0.6
 
 ### Patch Changes

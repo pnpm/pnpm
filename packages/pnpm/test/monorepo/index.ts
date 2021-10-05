@@ -353,6 +353,111 @@ test('test-pattern is respected by the test script', async () => {
   expect(output.sort()).toStrictEqual(['project-2', 'project-4'])
 })
 
+test('changed-files-ignore-pattern is respected', async () => {
+  const remote = tempy.directory()
+
+  preparePackages([
+    {
+      name: 'project-1-no-changes',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2-change-is-never-ignored',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-3-ignored-by-pattern',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-4-ignored-by-pattern',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-5-ignored-by-pattern',
+      version: '1.0.0',
+    },
+  ])
+
+  await execa('git', ['init'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
+  await execa('git', ['init', '--bare'], { cwd: remote })
+  await execa('git', ['add', '*'])
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await execa('git', ['remote', 'add', 'origin', remote])
+  await execa('git', ['push', '-u', 'origin', 'master'])
+
+  const npmrcLines = []
+  await fs.writeFile('project-2-change-is-never-ignored/index.js', '')
+
+  npmrcLines.push('changed-files-ignore-pattern[]=**/{*.spec.js,*.md}')
+  await fs.writeFile('project-3-ignored-by-pattern/index.spec.js', '')
+  await fs.writeFile('project-3-ignored-by-pattern/README.md', '')
+
+  npmrcLines.push('changed-files-ignore-pattern[]=**/buildscript.js')
+  await fs.mkdir('project-4-ignored-by-pattern/a/b/c', {
+    recursive: true,
+  })
+  await fs.writeFile('project-4-ignored-by-pattern/a/b/c/buildscript.js', '')
+
+  npmrcLines.push('changed-files-ignore-pattern[]=**/cache/**')
+  await fs.mkdir('project-5-ignored-by-pattern/cache/a/b', {
+    recursive: true,
+  })
+  await fs.writeFile('project-5-ignored-by-pattern/cache/a/b/index.js', '')
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execa('git', ['add', '.'])
+  await execa('git', [
+    'commit',
+    '--allow-empty-message',
+    '-m',
+    '',
+    '--no-gpg-sign',
+  ])
+
+  await fs.writeFile('.npmrc', npmrcLines.join('\n'), 'utf8')
+  await execPnpm(['install'])
+
+  const getChangedProjects = async (opts?: {
+    overrideChangedFilesIgnorePatternWithNoPattern: boolean
+  }) => {
+    const result = await execPnpmSync(
+      [
+        '--filter',
+        '[origin/master]',
+        opts?.overrideChangedFilesIgnorePatternWithNoPattern
+          ? '--changed-files-ignore-pattern='
+          : '',
+        'ls',
+        '--depth',
+        '-1',
+        '--json',
+      ].filter(Boolean)
+    )
+    return JSON.parse(result.stdout.toString())
+      .map((p: { name: string }) => p.name)
+      .sort()
+  }
+
+  expect(await getChangedProjects()).toStrictEqual([
+    'project-2-change-is-never-ignored',
+  ])
+
+  expect(
+    await getChangedProjects({
+      overrideChangedFilesIgnorePatternWithNoPattern: true,
+    })
+  ).toStrictEqual([
+    'project-2-change-is-never-ignored',
+    'project-3-ignored-by-pattern',
+    'project-4-ignored-by-pattern',
+    'project-5-ignored-by-pattern',
+  ])
+})
+
 test('do not get confused by filtered dependencies when searching for dependents in monorepo', async () => {
   /*
    In this test case, we are filtering for 'project-2' and its dependents with

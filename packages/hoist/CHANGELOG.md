@@ -1,5 +1,31 @@
 # @pnpm/hoist
 
+## 5.2.0
+
+### Minor Changes
+
+- 59a4152ce: allow to hoist packages based on importerIds, only hoist packages that are subdependencies of the specified importerIds
+
+## 5.1.0
+
+### Minor Changes
+
+- c7081cbb4: New option added: `extendNodePath`. When it is set to `false`, pnpm does not set the `NODE_PATH` environment variable in the command shims.
+
+### Patch Changes
+
+- Updated dependencies [0d4a7c69e]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/link-bins@6.2.0
+
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [83e23601e]
+- Updated dependencies [553a5d840]
+  - @pnpm/link-bins@6.1.0
+
 ## 5.0.13
 
 ### Patch Changes

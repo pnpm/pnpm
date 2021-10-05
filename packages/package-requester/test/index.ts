@@ -813,3 +813,39 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.files).toBeFalsy()
   expect(pkgResponse.finishing).toBeFalsy()
 })
+
+// Test case for https://github.com/pnpm/pnpm/issues/1866
+test('fetch a git package without a package.json', async () => {
+  // a small Deno library with a 'denolib.json' instead of a 'package.json'
+  const repo = 'denolib/camelcase'
+  const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
+
+  nock.cleanAll()
+  const storeDir = tempy.directory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+  })
+  expect(typeof requestPackage).toBe('function')
+  const projectDir = tempy.directory()
+
+  {
+    const pkgResponse = await requestPackage({ alias: 'camelcase', pref: `${repo}#${commit}` }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      registry,
+    }) as PackageResponse & {body: {manifest: {name: string}}}
+
+    expect(pkgResponse.body).toBeTruthy()
+    expect(pkgResponse.body.manifest).toBeUndefined()
+    expect(pkgResponse.body.isInstallable).toBeFalsy()
+    expect(pkgResponse.body.id).toBe(`github.com/${repo}/${commit}`)
+  }
+})

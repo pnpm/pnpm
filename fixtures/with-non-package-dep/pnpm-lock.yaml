@@ -1,0 +1,15 @@
+lockfileVersion: 5.3
+
+specifiers:
+  camelcase: denolib/camelcase#aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b
+
+dependencies:
+  camelcase: github.com/denolib/camelcase/aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b
+
+packages:
+
+  github.com/denolib/camelcase/aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b:
+    resolution: {tarball: https://codeload.github.com/denolib/camelcase/tar.gz/aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b}
+    name: camelcase
+    version: denolib/camelcase#aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b
+    dev: false
