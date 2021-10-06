@@ -103,6 +103,12 @@ importers:
       path-exists: 4.0.0
       write-json-file: 4.3.0
 
+  packages/artifacts/linux-arm64:
+    specifiers:
+      '@pnpm/linux-arm64': 'link:'
+    devDependencies:
+      '@pnpm/linux-arm64': 'link:'
+
   packages/artifacts/linux-x64:
     specifiers:
       '@pnpm/linux-x64': 'link:'
