@@ -1,3 +1,4 @@
+import * as create from './create'
 import * as dlx from './dlx'
 import * as exec from './exec'
 import * as restart from './restart'
@@ -9,4 +10,4 @@ const test = {
   ..._test,
 }
 
-export { dlx, exec, restart, run, test }
+export { create, dlx, exec, restart, run, test }
