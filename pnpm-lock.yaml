@@ -161,6 +161,7 @@ importers:
   packages/beta:
     specifiers:
       '@pnpm/beta': 'link:'
+      '@pnpm/linux-arm64': workspace:0.0.6-6.16.1
       '@pnpm/linux-x64': workspace:0.0.6-6.16.1
       '@pnpm/macos-arm64': workspace:0.0.6-6.16.1
       '@pnpm/macos-x64': workspace:0.0.6-6.16.1
@@ -168,6 +169,7 @@ importers:
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
+      '@pnpm/linux-arm64': link:../artifacts/linux-arm64
       '@pnpm/linux-x64': link:../artifacts/linux-x64
       '@pnpm/macos-arm64': link:../artifacts/macos-arm64
       '@pnpm/macos-x64': link:../artifacts/macos-x64
