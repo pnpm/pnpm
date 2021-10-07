@@ -22,7 +22,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(output).toMatch(/Run "pnpm install"/)
 
   const manifest = await loadJsonFile<ProjectManifest>(path.join(tmp, 'package.json'))
-  expect(manifest.pnpm?.overrides?.['axios@<0.18.1']).toBe('>=0.18.1')
+  expect(manifest.pnpm?.overrides?.['axios@<=0.18.0']).toBe('>=0.18.1')
   expect(manifest.pnpm?.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 })
 
