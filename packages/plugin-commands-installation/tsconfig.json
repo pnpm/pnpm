@@ -70,9 +70,6 @@
       "path": "../plugin-commands-rebuild"
     },
     {
-      "path": "../pnpmfile"
-    },
-    {
       "path": "../resolver-base"
     },
     {
