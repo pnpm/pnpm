@@ -3,7 +3,7 @@ import {
   ProjectsGraph,
   Registries,
 } from '@pnpm/types'
-import type { Hooks } from '@pnpm/pnpmfile';
+import type { Hooks } from '@pnpm/pnpmfile'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 

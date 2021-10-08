@@ -43,7 +43,7 @@ export default function requireHooks (
   globalHooks = globalHooks || {}
   hooks = hooks || {}
   const cookedHooks: CookedHooks = {}
-  if (globalHooks.readPackage || hooks.readPackage) {
+  if ((globalHooks.readPackage != null) || (hooks.readPackage != null)) {
     logger.info({
       message: 'readPackage hook is declared. Manifests of dependencies might get overridden',
       prefix,
