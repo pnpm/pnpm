@@ -102,7 +102,7 @@ export interface Config {
   repeatInstallDepth?: number
   ignorePnpmfile?: boolean
   pnpmfile: string
-  hooks: Hooks
+  hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
   hoistPattern?: string[]
   publicHoistPattern?: string[]

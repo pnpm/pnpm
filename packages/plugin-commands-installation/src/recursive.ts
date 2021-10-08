@@ -169,7 +169,6 @@ export default async function recursive (
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
-    const hooks = opts.hooks
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
@@ -260,7 +259,6 @@ export default async function recursive (
     }
     const mutatedPkgs = await mutateModules(mutatedImporters, {
       ...installOpts,
-      hooks,
       storeController: store.ctrl,
     })
     if (opts.save !== false) {
@@ -279,7 +277,6 @@ export default async function recursive (
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map(async (rootDir: string) =>
     limitInstallation(async () => {
-      const hooks = opts.hooks
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
           return
@@ -340,7 +337,6 @@ export default async function recursive (
             ...localConfig,
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
-            hooks,
             ignoreScripts: true,
             pinnedVersion: getPinnedVersion({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,

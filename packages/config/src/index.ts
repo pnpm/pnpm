@@ -467,7 +467,6 @@ export default async (
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
-  pnpmConfig.hooks = {}
   if (!pnpmConfig.ignorePnpmfile) {
     const hooks = requireHooks(pnpmConfig.lockfileDir ?? pnpmConfig.dir, pnpmConfig)
     pnpmConfig.hooks = hooks
