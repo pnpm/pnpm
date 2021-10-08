@@ -11293,6 +11293,7 @@ packages:
     resolution: {integrity: sha512-KG8SdcoAnw2d6augGwl1kOayALUrXW/P2uOAm2J2+nmW/HjZo7y+8TDg7LejxbekOOSv3kzhq+NSUYkIDAX8eA==}
     engines: {node: '>= 10.12.0'}
     hasBin: true
+    requiresBuild: true
     dependencies:
       env-paths: 2.2.1
       glob: 7.2.0

@@ -1,5 +1,5 @@
 import path from 'path'
-import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
+import { docsUrl, RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
@@ -56,6 +56,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
         ],
       },
     ],
+    url: docsUrl('exec'),
     usages: ['pnpm [-r] exec <command> [args...]'],
   })
 }

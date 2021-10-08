@@ -1,6 +1,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { docsUrl } from '@pnpm/cli-utils'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import PATH from 'path-name'
@@ -31,6 +32,7 @@ export function help () {
         ],
       },
     ],
+    url: docsUrl('dlx'),
     usages: ['pnpm dlx <command> [args...]'],
   })
 }

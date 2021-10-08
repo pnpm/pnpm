@@ -1,5 +1,6 @@
 import path from 'path'
 import { types as allTypes } from '@pnpm/config'
+import { docsUrl } from '@pnpm/cli-utils'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 
@@ -29,6 +30,7 @@ export function help () {
         ],
       },
     ],
+    url: docsUrl('root'),
     usages: ['pnpm root [-g]'],
   })
 }
