@@ -115,3 +115,27 @@ export const FILTERING = {
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }
+
+export const OUTPUT_OPTIONS = {
+  title: 'Output',
+
+  list: [
+    {
+      description: 'No output is logged to the console, except fatal errors',
+      name: '--silent, --reporter silent',
+      shortAlias: '-s',
+    },
+    {
+      description: 'The default reporter when the stdout is TTY',
+      name: '--reporter default',
+    },
+    {
+      description: 'The output is always appended to the end. No cursor manipulations are performed',
+      name: '--reporter append-only',
+    },
+    {
+      description: 'The most verbose reporter. Prints all logs in ndjson format',
+      name: '--reporter ndjson',
+    },
+  ],
+}

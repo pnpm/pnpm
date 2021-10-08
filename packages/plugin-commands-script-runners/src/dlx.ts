@@ -2,6 +2,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
+import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
+import { Config } from '@pnpm/config'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import PATH from 'path-name'
@@ -31,6 +33,7 @@ export function help () {
           },
         ],
       },
+      OUTPUT_OPTIONS,
     ],
     url: docsUrl('dlx'),
     usages: ['pnpm dlx <command> [args...]'],
@@ -40,7 +43,7 @@ export function help () {
 export async function handler (
   opts: {
     package?: string[]
-  },
+  } & Pick<Config, 'reporter'>,
   params: string[]
 ) {
   const prefix = path.join(fs.realpathSync(os.tmpdir()), `dlx-${process.pid.toString()}`)
@@ -58,7 +61,11 @@ export async function handler (
   })
   await rimraf(bins)
   const pkgs = opts.package ?? params.slice(0, 1)
-  await execa('pnpm', ['add', ...pkgs, '--global', '--global-dir', prefix, '--dir', prefix], {
+  const pnpmArgs = ['add', ...pkgs, '--global', '--global-dir', prefix, '--dir', prefix]
+  if (opts.reporter) {
+    pnpmArgs.push(`--reporter=${opts.reporter}`)
+  }
+  await execa('pnpm', pnpmArgs, {
     stdio: 'inherit',
   })
   await execa(params[0], params.slice(1), {

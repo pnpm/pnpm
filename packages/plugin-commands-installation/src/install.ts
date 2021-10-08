@@ -1,5 +1,5 @@
 import { docsUrl } from '@pnpm/cli-utils'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -207,29 +207,7 @@ by any dependencies, so it is an emulation of a flat node_modules',
           ...UNIVERSAL_OPTIONS,
         ],
       },
-      {
-        title: 'Output',
-
-        list: [
-          {
-            description: 'No output is logged to the console, except fatal errors',
-            name: '--silent, --reporter silent',
-            shortAlias: '-s',
-          },
-          {
-            description: 'The default reporter when the stdout is TTY',
-            name: '--reporter default',
-          },
-          {
-            description: 'The output is always appended to the end. No cursor manipulations are performed',
-            name: '--reporter append-only',
-          },
-          {
-            description: 'The most verbose reporter. Prints all logs in ndjson format',
-            name: '--reporter ndjson',
-          },
-        ],
-      },
+      OUTPUT_OPTIONS,
       FILTERING,
       {
         title: 'Experimental options',
