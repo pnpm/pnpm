@@ -10,13 +10,15 @@ interface HookContext {
 }
 
 interface Hooks {
-  // FIXME: use any since ReadPackageHook contains function override :(
+  // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile
 }
 
+// eslint-disable-next-line
 type Cook<T extends (...args: any[]) => any> = (
   arg: Parameters<T>[0],
+  // eslint-disable-next-line
   ...otherArgs: any[]
 ) => ReturnType<T>
 
