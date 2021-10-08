@@ -1903,6 +1903,7 @@ importers:
       '@pnpm/parse-wanted-dependency': workspace:2.0.0
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/plugin-commands-rebuild': workspace:5.0.19
+      '@pnpm/pnpmfile': workspace:1.0.5
       '@pnpm/prepare': workspace:0.0.26
       '@pnpm/resolver-base': workspace:8.0.4
       '@pnpm/semver-diff': ^1.0.2
@@ -1956,6 +1957,7 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/parse-wanted-dependency': link:../parse-wanted-dependency
       '@pnpm/plugin-commands-rebuild': link:../plugin-commands-rebuild
+      '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/sort-packages': link:../sort-packages

@@ -11,6 +11,7 @@ import logger from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import matcher from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
+import { requireHooks } from '@pnpm/pnpmfile'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
@@ -277,6 +278,7 @@ export default async function recursive (
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map(async (rootDir: string) =>
     limitInstallation(async () => {
+      const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
           return
@@ -337,6 +339,7 @@ export default async function recursive (
             ...localConfig,
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
+            hooks,
             ignoreScripts: true,
             pinnedVersion: getPinnedVersion({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
