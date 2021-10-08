@@ -106,6 +106,9 @@
       "path": "../plugin-commands-store"
     },
     {
+      "path": "../pnpmfile"
+    },
+    {
       "path": "../read-package-json"
     },
     {

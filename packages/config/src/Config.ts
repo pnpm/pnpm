@@ -3,6 +3,7 @@ import {
   ProjectsGraph,
   Registries,
 } from '@pnpm/types'
+import type { Hooks } from '@pnpm/pnpmfile'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
@@ -101,6 +102,7 @@ export interface Config {
   repeatInstallDepth?: number
   ignorePnpmfile?: boolean
   pnpmfile: string
+  hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
   hoistPattern?: string[]
   publicHoistPattern?: string[]

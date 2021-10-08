@@ -22,6 +22,9 @@
       "path": "../global-bin-dir"
     },
     {
+      "path": "../pnpmfile"
+    },
+    {
       "path": "../types"
     }
   ]

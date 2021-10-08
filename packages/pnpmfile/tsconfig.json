@@ -16,6 +16,9 @@
       "path": "../error"
     },
     {
+      "path": "../lockfile-types"
+    },
+    {
       "path": "../types"
     }
   ]

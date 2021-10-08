@@ -12,6 +12,7 @@ import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
+import { requireHooks } from '@pnpm/pnpmfile'
 import chalk from 'chalk'
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { rcOptionsTypes } from './cmd'
@@ -210,6 +211,13 @@ export default async function run (inputArgv: string[]) {
   let { output, exitCode }: { output: string | null, exitCode: number } = await (async () => {
     // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
     await new Promise<void>((resolve) => setTimeout(() => resolve(), 0))
+
+    // It would be nice to read the lockfile in @pnpm/config but in there reporting doesn't work yet
+    // and some info logs are printed when hooks are required.
+    if (!config.ignorePnpmfile) {
+      config.hooks = requireHooks(config.lockfileDir ?? config.dir, config)
+    }
+
     if (!isCI && !selfUpdate && !config.offline && !config.preferOffline && !config.fallbackCommandUsed) {
       checkForUpdates(config).catch(() => { /* Ignore */ })
     }

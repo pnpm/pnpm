@@ -44,6 +44,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'depth'
 | 'globalPnpmfile'
 | 'hoistPattern'
+| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
@@ -169,7 +170,6 @@ export default async function recursive (
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
-    const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
@@ -260,7 +260,6 @@ export default async function recursive (
     }
     const mutatedPkgs = await mutateModules(mutatedImporters, {
       ...installOpts,
-      hooks,
       storeController: store.ctrl,
     })
     if (opts.save !== false) {

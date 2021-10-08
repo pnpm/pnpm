@@ -34,6 +34,7 @@
     "@pnpm/core-loggers": "workspace:6.0.4",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/types": "workspace:7.4.0",
+    "@pnpm/lockfile-types": "workspace:3.0.0",
     "chalk": "^4.1.0",
     "path-absolute": "^1.0.1"
   },
