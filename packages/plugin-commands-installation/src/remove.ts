@@ -9,7 +9,6 @@ import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependenciesField } from '@pnpm/types'
 import {
@@ -131,6 +130,7 @@ export async function handler (
   | 'dev'
   | 'engineStrict'
   | 'globalPnpmfile'
+  | 'hooks'
   | 'ignorePnpmfile'
   | 'linkWorkspacePackages'
   | 'lockfileDir'
@@ -165,9 +165,6 @@ export async function handler (
     storeDir: store.dir,
     include,
   })
-  if (!opts.ignorePnpmfile) {
-    removeOpts['hooks'] = requireHooks(opts.lockfileDir ?? opts.dir, opts)
-  }
   removeOpts['workspacePackages'] = opts.workspaceDir
     ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined

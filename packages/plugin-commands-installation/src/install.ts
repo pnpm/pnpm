@@ -261,6 +261,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'engineStrict'
 | 'global'
 | 'globalPnpmfile'
+| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'

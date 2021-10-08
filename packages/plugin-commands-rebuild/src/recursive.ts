@@ -19,6 +19,7 @@ import { rebuild as rebuildAll, RebuildOptions, rebuildPkgs } from './implementa
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'hoistPattern'
+| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'lockfileDir'

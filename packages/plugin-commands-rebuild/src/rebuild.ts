@@ -69,6 +69,7 @@ export async function handler (
   | 'allProjects'
   | 'dir'
   | 'engineStrict'
+  | 'hooks'
   | 'rawLocalConfig'
   | 'registries'
   | 'scriptShell'

@@ -11,7 +11,6 @@ import logger from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import matcher from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
-import { requireHooks } from '@pnpm/pnpmfile'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
@@ -44,6 +43,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'depth'
 | 'globalPnpmfile'
 | 'hoistPattern'
+| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
@@ -169,7 +169,7 @@ export default async function recursive (
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
-    const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
+    const hooks = opts.hooks
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
@@ -279,7 +279,7 @@ export default async function recursive (
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map(async (rootDir: string) =>
     limitInstallation(async () => {
-      const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
+      const hooks = opts.hooks
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
           return

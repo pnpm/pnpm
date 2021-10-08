@@ -339,6 +339,7 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
       '@pnpm/global-bin-dir': workspace:3.0.0
+      '@pnpm/pnpmfile': workspace:1.0.5
       '@pnpm/prepare': workspace:0.0.26
       '@pnpm/types': workspace:7.4.0
       '@types/ramda': 0.27.39
@@ -355,6 +356,7 @@ importers:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
       '@pnpm/global-bin-dir': link:../global-bin-dir
+      '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/types': link:../types
       '@zkochan/npm-conf': 2.0.2
       camelcase: 6.2.0
@@ -1901,7 +1903,6 @@ importers:
       '@pnpm/parse-wanted-dependency': workspace:2.0.0
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/plugin-commands-rebuild': workspace:5.0.19
-      '@pnpm/pnpmfile': workspace:1.0.5
       '@pnpm/prepare': workspace:0.0.26
       '@pnpm/resolver-base': workspace:8.0.4
       '@pnpm/semver-diff': ^1.0.2
@@ -1955,7 +1956,6 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/parse-wanted-dependency': link:../parse-wanted-dependency
       '@pnpm/plugin-commands-rebuild': link:../plugin-commands-rebuild
-      '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/sort-packages': link:../sort-packages
@@ -2664,6 +2664,7 @@ importers:
     specifiers:
       '@pnpm/core-loggers': workspace:6.0.4
       '@pnpm/error': workspace:2.0.0
+      '@pnpm/lockfile-types': workspace:3.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/pnpmfile': 'link:'
       '@pnpm/types': workspace:7.4.0
@@ -2672,6 +2673,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/error': link:../error
+      '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/types': link:../types
       chalk: 4.1.2
       path-absolute: 1.0.1

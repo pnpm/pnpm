@@ -8,7 +8,6 @@ import PnpmError from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
-import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { IncludedDependencies, Project } from '@pnpm/types'
 import {
@@ -39,6 +38,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'engineStrict'
 | 'global'
 | 'globalPnpmfile'
+| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
@@ -173,9 +173,6 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
-  }
-  if (!opts.ignorePnpmfile) {
-    installOpts['hooks'] = requireHooks(opts.lockfileDir ?? dir, opts)
   }
   if (opts.global) {
     installOpts['nodeExecPath'] = process.env.NODE ?? process.execPath
