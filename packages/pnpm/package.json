@@ -51,6 +51,7 @@
     "@pnpm/plugin-commands-server": "workspace:3.0.35",
     "@pnpm/plugin-commands-setup": "workspace:1.1.7",
     "@pnpm/plugin-commands-store": "workspace:4.0.19",
+    "@pnpm/pnpmfile": "workspace:1.0.5",
     "@pnpm/prepare": "workspace:0.0.26",
     "@pnpm/read-package-json": "workspace:5.0.4",
     "@pnpm/read-project-manifest": "workspace:2.0.5",
