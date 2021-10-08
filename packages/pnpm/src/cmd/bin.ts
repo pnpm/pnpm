@@ -1,3 +1,4 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
@@ -28,6 +29,7 @@ export function help () {
         ],
       },
     ],
+    url: docsUrl('bin'),
     usages: ['pnpm bin [-g]'],
   })
 }
