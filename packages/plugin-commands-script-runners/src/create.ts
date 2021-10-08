@@ -1,12 +1,11 @@
 import renderHelp from 'render-help'
-import logger from '@pnpm/logger'
 import PnpmError from '@pnpm/error'
 import * as dlx from './dlx'
 
 export const commandNames = ['create']
 
 export async function handler (_opts: Record<string, never>, params: string[]) {
-  const [packageName, ...packageArgs] = params;
+  const [packageName, ...packageArgs] = params
   if (packageName === undefined) {
     throw new PnpmError(
       'MISSING_ARGS',
@@ -17,7 +16,7 @@ export async function handler (_opts: Record<string, never>, params: string[]) {
   }
 
   const createPackageName = convertToCreateName(packageName)
-  return await dlx.handler({}, [createPackageName, ...packageArgs])
+  return dlx.handler({}, [createPackageName, ...packageArgs])
 }
 
 export function rcOptionsTypes () {
@@ -54,7 +53,7 @@ const createPrefix = 'create-'
  *
  * For more info, see https://docs.npmjs.com/cli/v7/commands/npm-init#description
  */
-function convertToCreateName(packageName: string) {
+function convertToCreateName (packageName: string) {
   if (packageName.startsWith('@')) {
     const [scope, scopedPackage = ''] = packageName.split('/')
 

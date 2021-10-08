@@ -7,11 +7,11 @@ jest.mock('../src/dlx', () => ({ handler: jest.fn() }))
 // eslint-disable-next-line
 import * as dlx from '../src/dlx'
 
-test('throws an error if called without arguments', () => {
+test('throws an error if called without arguments', async () => {
   prepareEmpty();
   (dlx.handler as jest.Mock).mockClear()
 
-  expect(create.handler({}, [])).rejects.toThrow(PnpmError)
+  await expect(create.handler({}, [])).rejects.toThrow(PnpmError)
   expect(dlx.handler).not.toBeCalled()
 })
 
