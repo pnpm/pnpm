@@ -4,7 +4,7 @@ import { PackageManifest } from '@pnpm/types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
-import { execPnpm } from './utils'
+import { execPnpm, execPnpmSync } from './utils'
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
   const project = prepare()
@@ -78,4 +78,24 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
   await execPnpm(['remove', 'is-positive', '--filter', 'project-a'])
   pkg = await loadJsonFile(path.resolve('project-a/package.json'))
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
+})
+
+test('filterLog hook filters peer dependency warning', async () => {
+  prepare()
+  const pnpmfile = `
+      module.exports = { hooks: { filterLog } }
+      function filterLog (log) {
+        if (/requires a peer of rollup/.test(log.message)) {
+          return false
+        }
+        return true
+      }
+    `
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  const result = execPnpmSync(['add', '@rollup/pluginutils@3.1.0'])
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toEqual(
+    expect.not.stringContaining('requires a peer of rollup')
+  )
 })
