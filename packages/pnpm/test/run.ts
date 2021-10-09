@@ -77,3 +77,11 @@ test('silent run only prints the output of the child process', async () => {
 
   expect(result.stdout.toString().trim()).toBe('hi')
 })
+
+test('silent dlx prints the output of the child process only', async () => {
+  prepare({})
+
+  const result = execPnpmSync(['--silent', 'dlx', 'shx', 'echo', 'hi'])
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+})
