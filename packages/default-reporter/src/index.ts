@@ -2,7 +2,7 @@ import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
-import { map, mergeAll } from 'rxjs/operators'
+import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
 import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
@@ -177,6 +177,7 @@ export function toOutput$ (
       }
     })
   }, 0)
+  let filterLog: ((log: logs.Log) => boolean) | undefined
   const log$ = {
     context: Rx.from(contextPushStream),
     deprecation: Rx.from(deprecationPushStream),
@@ -185,7 +186,12 @@ export function toOutput$ (
     installCheck: Rx.from(installCheckPushStream),
     lifecycle: Rx.from(lifecyclePushStream),
     link: Rx.from(linkPushStream),
-    other: Rx.from(otherPushStream),
+    other: Rx.from(otherPushStream).pipe(
+      filter((log) => {
+        filterLog = filterLog ?? opts.context.config?.hooks?.filterLog
+        return (filterLog == null || filterLog(log))
+      })
+    ),
     packageImportMethod: Rx.from(packageImportMethodPushStream),
     packageManifest: Rx.from(packageManifestPushStream),
     progress: Rx.from(progressPushStream),
