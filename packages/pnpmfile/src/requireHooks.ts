@@ -3,6 +3,7 @@ import { hookLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
+import type { Log } from '@pnpm/core-loggers'
 import requirePnpmfile from './requirePnpmfile'
 
 interface HookContext {
@@ -13,6 +14,7 @@ interface Hooks {
   // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile
+  filterLog?: (log: Log) => boolean
 }
 
 // eslint-disable-next-line
@@ -25,6 +27,7 @@ type Cook<T extends (...args: any[]) => any> = (
 export interface CookedHooks {
   readPackage?: Cook<Required<Hooks>['readPackage']>
   afterAllResolved?: Cook<Required<Hooks>['afterAllResolved']>
+  filterLog?: Cook<Required<Hooks>['filterLog']>
 }
 
 export default function requireHooks (
@@ -51,7 +54,7 @@ export default function requireHooks (
       prefix,
     })
   }
-  for (const hookName of ['readPackage', 'afterAllResolved']) {
+  for (const hookName of ['readPackage', 'afterAllResolved', 'filterLog']) {
     if (globalHooks[hookName] && hooks[hookName]) {
       const globalHookContext = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
       const localHookContext = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
