@@ -177,7 +177,10 @@ export function toOutput$ (
       }
     })
   }, 0)
-  let filterLog: ((log: logs.Log) => boolean) | undefined
+  let other = Rx.from(otherPushStream)
+  if (opts.context.config?.hooks?.filterLog != null) {
+    other = other.pipe(filter(opts.context.config.hooks.filterLog))
+  }
   const log$ = {
     context: Rx.from(contextPushStream),
     deprecation: Rx.from(deprecationPushStream),
@@ -186,12 +189,7 @@ export function toOutput$ (
     installCheck: Rx.from(installCheckPushStream),
     lifecycle: Rx.from(lifecyclePushStream),
     link: Rx.from(linkPushStream),
-    other: Rx.from(otherPushStream).pipe(
-      filter((log) => {
-        filterLog = filterLog ?? opts.context.config?.hooks?.filterLog
-        return (filterLog == null || filterLog(log))
-      })
-    ),
+    other,
     packageImportMethod: Rx.from(packageImportMethodPushStream),
     packageManifest: Rx.from(packageManifestPushStream),
     progress: Rx.from(progressPushStream),
