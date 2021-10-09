@@ -1,4 +1,5 @@
 import renderHelp from 'render-help'
+import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
 import * as dlx from './dlx'
 
@@ -30,8 +31,7 @@ export function cliOptionsTypes () {
 export function help () {
   return renderHelp({
     description: 'Creates a project from a `create-*` starter kit.',
-    // TODO: add when the docs page is available
-    // url: docsUrl('create'),
+    url: docsUrl('create'),
     usages: [
       'pnpm create <name>',
       'pnpm create <name-without-create>',
@@ -40,7 +40,7 @@ export function help () {
   })
 }
 
-const createPrefix = 'create-'
+const CREATE_PREFIX = 'create-'
 
 /**
  * Defines the npm's algorithm for resolving a package name
@@ -59,16 +59,18 @@ function convertToCreateName (packageName: string) {
 
     if (scopedPackage === '') {
       return `${scope}/create`
-    } else if (scopedPackage.startsWith(createPrefix)) {
-      return packageName
     } else {
-      return `${scope}/${createPrefix}${scopedPackage}`
+      return `${scope}/${ensureCreatePrefixed(scopedPackage)}`
     }
   } else {
-    if (packageName.startsWith(createPrefix)) {
-      return packageName
-    } else {
-      return `${createPrefix}${packageName}`
-    }
+    return ensureCreatePrefixed(packageName)
+  }
+}
+
+function ensureCreatePrefixed (packageName: string) {
+  if (packageName.startsWith(CREATE_PREFIX)) {
+    return packageName
+  } else {
+    return `${CREATE_PREFIX}${packageName}`
   }
 }
