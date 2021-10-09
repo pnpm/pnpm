@@ -62,8 +62,8 @@ test('incorrect workspace manifest', async () => {
 
   await writeYamlFile('pnpm-workspace.yml', { packages: ['**', '!store/**'] })
 
-  const { status, stderr } = execPnpmSync(['install'])
-  expect(stderr.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
+  const { status, stdout } = execPnpmSync(['install'])
+  expect(stdout.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
   expect(status).toBe(1)
 })
 
