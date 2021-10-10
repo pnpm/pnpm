@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 8.3.0
+
+### Minor Changes
+
+- ef9d2719a: New hook supported for filtering out info and warning logs: `filterLog(log) => boolean`.
+
+### Patch Changes
+
+- Updated dependencies [4027a3c69]
+  - @pnpm/config@13.1.0
+
 ## 8.2.3
 
 ### Patch Changes

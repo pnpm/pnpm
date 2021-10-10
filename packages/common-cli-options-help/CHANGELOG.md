@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 0.7.1
+
+### Patch Changes
+
+- 1efaaf706: `OUTPUT_OPTIONS` added.
+
 ## 0.7.0
 
 ### Minor Changes

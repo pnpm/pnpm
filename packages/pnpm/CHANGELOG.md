@@ -1,5 +1,18 @@
 # pnpm
 
+## 6.17.0
+
+### Minor Changes
+
+- New hook supported for filtering out info and warning logs: `filterLog(log) => boolean` [#3802](https://github.com/pnpm/pnpm/pull/3802).
+- New command added: `pnpm create` is similar to `yarn create` [#3829](https://github.com/pnpm/pnpm/pull/3829).
+- `pnpm dlx` supports the `--silent` option [#3839](https://github.com/pnpm/pnpm/pull/3839).
+
+### Patch Changes
+
+- Add link to the docs to the help output of the dlx, exec, root, and bin commands [#3838](https://github.com/pnpm/pnpm/pull/3838).
+- Don't print anything except the JSON output, when the `--json` option is used [#3844](https://github.com/pnpm/pnpm/pull/3844).
+
 ## 6.16.1
 
 ### Patch Changes

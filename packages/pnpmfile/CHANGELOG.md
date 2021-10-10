@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 1.1.0
+
+### Minor Changes
+
+- ef9d2719a: New hook supported for filtering out info and warning logs: `filterLog(log) => boolean`.
+- 4027a3c69: Export interface for Hooks.
+
 ## 1.0.5
 
 ### Patch Changes

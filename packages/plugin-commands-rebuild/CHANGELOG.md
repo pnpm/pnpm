@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.1.0
+
+### Minor Changes
+
+- 4027a3c69: New optional option added: hooks.
+
+### Patch Changes
+
+- Updated dependencies [4027a3c69]
+- Updated dependencies [1efaaf706]
+  - @pnpm/config@13.1.0
+  - @pnpm/common-cli-options-help@0.7.1
+  - @pnpm/cli-utils@0.6.24
+  - @pnpm/store-connection-manager@3.0.19
+  - @pnpm/find-workspace-packages@3.1.16
+
 ## 5.0.19
 
 ### Patch Changes

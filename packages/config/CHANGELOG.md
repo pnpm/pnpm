@@ -1,5 +1,17 @@
 # @pnpm/config
 
+## 13.1.0
+
+### Minor Changes
+
+- 4027a3c69: New optional field added to the Config object: hooks.
+
+### Patch Changes
+
+- Updated dependencies [ef9d2719a]
+- Updated dependencies [4027a3c69]
+  - @pnpm/pnpmfile@1.1.0
+
 ## 13.0.0
 
 ### Major Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-listing",
-  "version": "4.0.14",
+  "version": "4.0.15",
   "description": "The list and why commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,9 +32,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-listing#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/filter-workspace-packages": "workspace:4.2.0",
+    "@pnpm/filter-workspace-packages": "workspace:4.2.1",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-installation": "workspace:6.2.2",
+    "@pnpm/plugin-commands-installation": "workspace:7.0.0",
     "@pnpm/prepare": "workspace:0.0.26",
     "@types/ramda": "0.27.39",
     "execa": "npm:safe-execa@^0.1.1",
@@ -42,9 +42,9 @@
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.23",
-    "@pnpm/common-cli-options-help": "workspace:0.7.0",
-    "@pnpm/config": "workspace:13.0.0",
+    "@pnpm/cli-utils": "workspace:0.6.24",
+    "@pnpm/common-cli-options-help": "workspace:0.7.1",
+    "@pnpm/config": "workspace:13.1.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/list": "workspace:6.2.7",
     "@pnpm/types": "workspace:7.4.0",

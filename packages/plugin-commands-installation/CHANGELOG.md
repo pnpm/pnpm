@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-installation
 
+## 7.0.0
+
+### Major Changes
+
+- 4027a3c69: Hooks are passed in to the installation plugin, except when recursive installation happens on projects with own `.pnpmfile.js` files.
+
+### Patch Changes
+
+- Updated dependencies [ef9d2719a]
+- Updated dependencies [4027a3c69]
+- Updated dependencies [4027a3c69]
+- Updated dependencies [1efaaf706]
+- Updated dependencies [4027a3c69]
+  - @pnpm/pnpmfile@1.1.0
+  - @pnpm/plugin-commands-rebuild@5.1.0
+  - @pnpm/config@13.1.0
+  - @pnpm/common-cli-options-help@0.7.1
+  - @pnpm/cli-utils@0.6.24
+  - @pnpm/store-connection-manager@3.0.19
+  - @pnpm/find-workspace-packages@3.1.16
+  - supi@0.47.25
+  - @pnpm/filter-workspace-packages@4.2.1
+
 ## 6.2.2
 
 ### Patch Changes

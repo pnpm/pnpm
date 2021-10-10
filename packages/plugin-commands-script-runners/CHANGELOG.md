@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.3.0
+
+### Minor Changes
+
+- c83488d01: New command added: create. `pnpm create` is similar to `yarn create`.
+- 1efaaf706: `pnpm dlx` supports the `--silent` option.
+
+### Patch Changes
+
+- 091ff5f12: Add link to the docs into the help output of dlx and exec.
+- Updated dependencies [4027a3c69]
+- Updated dependencies [1efaaf706]
+  - @pnpm/config@13.1.0
+  - @pnpm/common-cli-options-help@0.7.1
+  - @pnpm/cli-utils@0.6.24
+
 ## 4.2.7
 
 ### Patch Changes
