@@ -128,10 +128,13 @@ export default async function run (inputArgv: string[]) {
     return 'default'
   })()
 
-  initReporter(reporterType, {
-    cmd,
-    config,
-  })
+  const printLogs = !config['parseable'] && !config['json']
+  if (printLogs) {
+    initReporter(reporterType, {
+      cmd,
+      config,
+    })
+  }
   global['reporterInitialized'] = reporterType
 
   const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
@@ -165,7 +168,7 @@ export default async function run (inputArgv: string[]) {
     })
 
     if (allProjects.length === 0) {
-      if (!config['parseable']) {
+      if (printLogs) {
         console.log(`No projects found in "${wsDir}"`)
       }
       process.exit(0)
@@ -195,12 +198,12 @@ export default async function run (inputArgv: string[]) {
     })
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (isEmpty(config.selectedProjectsGraph)) {
-      if (!config['parseable']) {
+      if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
       process.exit(0)
     }
-    if (filterResults.unmatchedFilters.length !== 0 && !config['parseable']) {
+    if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
       console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
     }
     config.allProjects = allProjects
