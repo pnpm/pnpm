@@ -12,7 +12,6 @@ export default async (workspaceDir: string) => {
   const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'packages/pnpm/package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
   const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
-  const artifactVersion = `0.0.6-${pnpmVersion}`
   const pkgsDir = path.join(workspaceDir, 'packages')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
@@ -23,11 +22,11 @@ export default async (workspaceDir: string) => {
       if (!isSubdir(pkgsDir, dir)) {
         return manifest
       }
-      if (dir.includes('artifacts') || manifest.name === '@pnpm/beta') {
-        manifest.version = artifactVersion
-        if (manifest.name === '@pnpm/beta') {
+      if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
+        manifest.version = pnpmVersion
+        if (manifest.name === '@pnpm/exe') {
           for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
-            manifest.optionalDependencies![depName] = `workspace:${artifactVersion}`
+            manifest.optionalDependencies![depName] = `workspace:${pnpmVersion}`
           }
         }
         return manifest
