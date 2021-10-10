@@ -33,11 +33,12 @@ export async function readProjects (
   workspaceDir: string,
   pkgSelectors: PackageSelector[],
   opts?: {
+    engineStrict?: boolean
     linkWorkspacePackages?: boolean
     changedFilesIgnorePattern?: string[]
   }
 ) {
-  const allProjects = await findWorkspacePackages(workspaceDir, {})
+  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict })
   const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     pkgSelectors,
