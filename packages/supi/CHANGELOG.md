@@ -1,5 +1,11 @@
 # supi
 
+## 0.47.26
+
+### Patch Changes
+
+- e56cfaac8: `path-exists` should be a prod dependency.
+
 ## 0.47.25
 
 ### Patch Changes

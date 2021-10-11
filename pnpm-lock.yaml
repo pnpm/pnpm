@@ -1856,7 +1856,7 @@ importers:
       ncp: ^2.0.0
       path-exists: ^4.0.0
       render-help: ^1.0.1
-      supi: workspace:0.47.25
+      supi: workspace:0.47.26
       tempy: ^1.0.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
@@ -1935,7 +1935,7 @@ importers:
       read-yaml-file: ^2.1.0
       render-help: ^1.0.1
       sinon: ^11.1.1
-      supi: workspace:0.47.25
+      supi: workspace:0.47.26
       tempy: ^1.0.0
       version-selector-type: ^3.0.0
       write-json-file: ^4.3.0
