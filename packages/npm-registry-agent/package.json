@@ -39,5 +39,8 @@
   "engines": {
     "node": ">=12.17"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "keywords": [
+    "pnpm6"
+  ]
 }

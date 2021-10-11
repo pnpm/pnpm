@@ -47,6 +47,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-store#readme",
   "keywords": [
+    "pnpm6",
     "store",
     "storage",
     "global store",

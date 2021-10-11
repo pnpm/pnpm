@@ -18,7 +18,9 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/run-npm",
-  "keywords": [],
+  "keywords": [
+    "pnpm6"
+  ],
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

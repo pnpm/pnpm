@@ -21,6 +21,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/modules-yaml",
   "keywords": [
+    "pnpm6",
     "pnpm",
     "modules.yaml"
   ],

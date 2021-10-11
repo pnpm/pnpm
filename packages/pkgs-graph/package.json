@@ -33,5 +33,8 @@
     "@zkochan/npm-package-arg": "^2.0.1",
     "ramda": "^0.27.1"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "keywords": [
+    "pnpm6"
+  ]
 }

@@ -20,6 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/pnpmfile",
   "keywords": [
+    "pnpm6",
     "pnpm"
   ],
   "license": "MIT",
@@ -33,8 +34,8 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.0.4",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/types": "workspace:7.4.0",
     "@pnpm/lockfile-types": "workspace:3.0.0",
+    "@pnpm/types": "workspace:7.4.0",
     "chalk": "^4.1.0",
     "path-absolute": "^1.0.1"
   },

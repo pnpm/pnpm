@@ -20,6 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy",
   "keywords": [
+    "pnpm6",
     "hierarchy",
     "pnpm",
     "dependencies",

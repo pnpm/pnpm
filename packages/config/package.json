@@ -18,6 +18,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/config",
   "keywords": [
+    "pnpm6",
     "pnpm",
     "config"
   ],

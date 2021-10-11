@@ -14,7 +14,9 @@
   "devDependencies": {
     "@types/validate-npm-package-name": "^3.0.2"
   },
-  "keywords": [],
+  "keywords": [
+    "pnpm6"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=12.17"

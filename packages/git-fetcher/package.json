@@ -20,6 +20,7 @@
     "node": ">=12.17"
   },
   "keywords": [
+    "pnpm6",
     "pnpm",
     "fetcher"
   ],

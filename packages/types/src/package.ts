@@ -57,7 +57,7 @@ export interface PublishConfig extends Record<string, unknown> {
   executableFiles?: string[]
 }
 
-interface BaseManifest {
+export interface BaseManifest {
   name?: string
   version?: string
   bin?: PackageBin

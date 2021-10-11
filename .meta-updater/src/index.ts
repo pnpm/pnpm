@@ -10,14 +10,16 @@ import writeJsonFile from 'write-json-file'
 
 export default async (workspaceDir: string) => {
   const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'packages/pnpm/package.json'))
-  const artifactVersion = `0.0.6-${pnpmManifest!['version']}` // eslint-disable-line
+  const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
+  const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
+  const artifactVersion = `0.0.6-${pnpmVersion}`
   const pkgsDir = path.join(workspaceDir, 'packages')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')
   }
   return {
-    'package.json': (manifest: ProjectManifest, dir: string) => {
+    'package.json': (manifest: ProjectManifest & { keywords?: string[] }, dir: string) => {
       if (!isSubdir(pkgsDir, dir)) {
         return manifest
       }
@@ -30,6 +32,10 @@ export default async (workspaceDir: string) => {
         }
         return manifest
       }
+      manifest.keywords = [
+        pnpmMajorKeyword,
+        ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
+      ]
       return updateManifest(workspaceDir, manifest, dir)
     },
     'tsconfig.json': updateTSConfig.bind(null, {

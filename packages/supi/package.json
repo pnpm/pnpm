@@ -106,6 +106,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/supi#readme",
   "keywords": [
+    "pnpm6",
     "dependency manager",
     "install",
     "installer",

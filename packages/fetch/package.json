@@ -20,6 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/fetch",
   "keywords": [
+    "pnpm6",
     "fetch",
     "npm"
   ],

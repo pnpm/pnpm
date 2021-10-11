@@ -28,5 +28,8 @@
   "dependencies": {
     "@pnpm/resolver-base": "workspace:8.0.4"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "keywords": [
+    "pnpm6"
+  ]
 }

@@ -20,7 +20,9 @@
   "directories": {
     "test": "test"
   },
-  "keywords": [],
+  "keywords": [
+    "pnpm6"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=12.17"

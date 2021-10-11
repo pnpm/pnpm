@@ -113,6 +113,7 @@
   },
   "homepage": "https://pnpm.io",
   "keywords": [
+    "pnpm6",
     "dependency manager",
     "install",
     "installer",

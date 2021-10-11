@@ -19,6 +19,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/graceful-fs",
   "keywords": [
+    "pnpm6",
     "pnpm"
   ],
   "license": "MIT",

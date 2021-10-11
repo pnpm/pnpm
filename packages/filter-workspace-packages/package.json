@@ -20,6 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/filter-workspace-packages",
   "keywords": [
+    "pnpm6",
     "pnpm"
   ],
   "license": "MIT",
