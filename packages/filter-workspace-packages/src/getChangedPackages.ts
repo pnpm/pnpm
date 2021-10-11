@@ -67,7 +67,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
   const patterns = changedFilesIgnorePattern.filter(
     (pattern) => pattern.length
   )
-  const changedFiles = patterns.length
+  const changedFiles = (patterns.length > 0)
     ? micromatch.not(allChangedFiles, patterns, {
       dot: true,
     })
