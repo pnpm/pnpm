@@ -32,7 +32,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-listing#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/filter-workspace-packages": "workspace:4.2.1",
+    "@pnpm/filter-workspace-packages": "workspace:4.3.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-installation": "workspace:7.0.0",
     "@pnpm/prepare": "workspace:0.0.26",

@@ -1,5 +1,11 @@
 # @pnpm/filter-workspace-packages
 
+## 4.3.0
+
+### Minor Changes
+
+- dcc9cb746: New optional option added to `readProjects()`: engineStrict.
+
 ## 4.2.1
 
 ### Patch Changes

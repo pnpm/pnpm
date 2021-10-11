@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-publishing#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:4.2.1",
+    "@pnpm/filter-workspace-packages": "workspace:4.3.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:0.0.26",
     "@types/cross-spawn": "^6.0.2",
