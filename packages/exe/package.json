@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/beta",
+  "name": "@pnpm/exe",
   "description": "Fast, disk space efficient package manager",
-  "version": "0.0.6-6.17.0",
+  "version": "6.17.0",
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"
@@ -11,21 +11,21 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "optionalDependencies": {
-    "@pnpm/linux-arm64": "workspace:0.0.6-6.17.0",
-    "@pnpm/linux-x64": "workspace:0.0.6-6.17.0",
-    "@pnpm/macos-arm64": "workspace:0.0.6-6.17.0",
-    "@pnpm/macos-x64": "workspace:0.0.6-6.17.0",
-    "@pnpm/win-x64": "workspace:0.0.6-6.17.0"
+    "@pnpm/linux-arm64": "workspace:6.17.0",
+    "@pnpm/linux-x64": "workspace:6.17.0",
+    "@pnpm/macos-arm64": "workspace:6.17.0",
+    "@pnpm/macos-x64": "workspace:6.17.0",
+    "@pnpm/win-x64": "workspace:6.17.0"
   },
   "devDependencies": {
     "@zkochan/pkg": "0.0.0-2",
     "execa": "npm:safe-execa@^0.1.1"
   },
   "funding": "https://opencollective.com/pnpm",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/beta#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/exe#readme",
   "license": "MIT",
   "preferGlobal": true,
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/beta",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/exe",
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
