@@ -591,6 +591,21 @@ importers:
     devDependencies:
       '@pnpm/fetching-types': 'link:'
 
+  packages/file-reporter:
+    specifiers:
+      '@pnpm/file-reporter': 'link:'
+      exists-file: ^3.0.2
+      graceful-fs: ^4.2.6
+      ndjson: ^2.0.0
+      path-exists: ^4.0.0
+    dependencies:
+      graceful-fs: 4.2.8
+      path-exists: 4.0.0
+    devDependencies:
+      '@pnpm/file-reporter': 'link:'
+      exists-file: 3.0.2
+      ndjson: 2.0.0
+
   packages/filter-lockfile:
     specifiers:
       '@pnpm/constants': workspace:5.0.0
@@ -2491,7 +2506,7 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/core-loggers': workspace:6.0.4
       '@pnpm/default-reporter': workspace:8.3.0
-      '@pnpm/file-reporter': ^1.0.1
+      '@pnpm/file-reporter': workspace:1.0.1
       '@pnpm/filter-workspace-packages': workspace:4.3.0
       '@pnpm/find-workspace-dir': workspace:3.0.1
       '@pnpm/find-workspace-packages': workspace:3.1.16
@@ -2583,7 +2598,7 @@ importers:
       '@pnpm/constants': link:../constants
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/default-reporter': link:../default-reporter
-      '@pnpm/file-reporter': 1.0.1
+      '@pnpm/file-reporter': link:../file-reporter
       '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
       '@pnpm/find-workspace-dir': link:../find-workspace-dir
       '@pnpm/find-workspace-packages': link:../find-workspace-packages
@@ -4540,14 +4555,6 @@ packages:
       cross-spawn: 7.0.3
     dev: false
 
-  /@pnpm/file-reporter/1.0.1:
-    resolution: {integrity: sha512-gKjFTGdxvlrbRcsoNKigyW+55jOROo36OfNFjaTnond9x9eIdkKOyskNQwjFPzWYBEeCqLbullgzclqQy9APGQ==}
-    engines: {node: '>=10.13'}
-    dependencies:
-      graceful-fs: 4.2.8
-      path-exists: 4.0.0
-    dev: true
-
   /@pnpm/find-workspace-dir/3.0.1:
     resolution: {integrity: sha512-a0b9ASKKUI+/H0VgnA7v98LBpRoePuNyiq++vCSiFcMRRpi+w/cABsCokA+udfOmpjaSscpQILYlS4KkkUsOew==}
     engines: {node: '>=12.17'}
@@ -4857,7 +4864,7 @@ packages:
   /@types/graceful-fs/4.1.5:
     resolution: {integrity: sha512-anKkLmZZ+xm4p8JWBf4hElkM4XR+EZeA2M9BAkkTldmcyDY4mbdIJnRghDJH3Ov5ooY7/UAoENtmdMSkaAd7Cw==}
     dependencies:
-      '@types/node': 14.17.21
+      '@types/node': 16.10.3
     dev: true
 
   /@types/hosted-git-info/3.0.2:
@@ -6534,6 +6541,14 @@ packages:
     resolution: {integrity: sha1-G2gcIf+EAzyCZUMJBolCDRhxUdw=}
     dev: true
 
+  /cb2promise/1.1.1:
+    resolution: {integrity: sha512-ShCxBARPFJlSO+Y4pxSpbXh6y+tW54Dmy4jKf0gB1C7qUslRqWqFi80+W9416zSoj6RsqMsnKUcpkt3bOrZmDg==}
+    engines: {node: '>= 4'}
+    dependencies:
+      mimic-fn: 2.0.0
+      sliced: 1.0.1
+    dev: true
+
   /ccount/1.1.0:
     resolution: {integrity: sha512-vlNK021QdI7PNeiUh/lKkC/mNHHfV0m/Ad5JoI0TYtlBnJAslM/JIkm/tGC88bkLIwO6OQ5uV6ztS6kVAtCDlg==}
     dev: false
@@ -8024,6 +8039,13 @@ packages:
       onetime: 5.1.2
       signal-exit: 3.0.5
       strip-final-newline: 2.0.0
+
+  /exists-file/3.0.2:
+    resolution: {integrity: sha512-0mO5ZIWiJl35mTCkyyh/cU1ucn+17fOn7/P+QzNCby+/OLKOKKH9fR5kh+riKlNutxYTbZG+OHyYqFfQfpweGw==}
+    engines: {node: '>= 4'}
+    dependencies:
+      cb2promise: 1.1.1
+    dev: true
 
   /exists-link/2.0.0:
     resolution: {integrity: sha1-+7H6YzLnVm5Iivh+wUSuDQPASs8=}
@@ -10968,6 +10990,11 @@ packages:
     hasBin: true
     dev: true
 
+  /mimic-fn/2.0.0:
+    resolution: {integrity: sha512-jbex9Yd/3lmICXwYT6gA/j2mNQGU48wCh/VzRd+/Y/PjYQtlg1gLMdZqvu9s/xH7qKvngxRObl56XZR609IMbA==}
+    engines: {node: '>=6'}
+    dev: true
+
   /mimic-fn/2.1.0:
     resolution: {integrity: sha512-OqbOk5oEQeAZ8WXWydlu9HJjz9WVdEIvamMCcXmuqUYjTknH/sqsWvhQ3vgwKFRR1HpjvNBKQ37nbJgYzGqGcg==}
     engines: {node: '>=6'}
@@ -13207,6 +13234,10 @@ packages:
       ansi-styles: 4.3.0
       astral-regex: 2.0.0
       is-fullwidth-code-point: 3.0.0
+
+  /sliced/1.0.1:
+    resolution: {integrity: sha1-CzpmK10Ewxd7GSa+qCsD+Dei70E=}
+    dev: true
 
   /slide/1.1.6:
     resolution: {integrity: sha1-VusCfWW00tzmyy4tMsTUr8nh1wc=}
