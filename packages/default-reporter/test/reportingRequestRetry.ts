@@ -4,9 +4,7 @@ import {
   createStreamParser,
 } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
-import chalk from 'chalk'
-
-const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
+import formatWarn from '../src/reporterForClient/utils/formatWarn'
 
 test('print warning about request retry', (done) => {
   const output$ = toOutput$({
@@ -31,7 +29,7 @@ test('print warning about request retry', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${WARN} GET https://foo.bar/qar error (undefined). Will retry in 12.5 seconds. 4 retries left.`)
+      expect(output).toBe(formatWarn('GET https://foo.bar/qar error (undefined). Will retry in 12.5 seconds. 4 retries left.'))
     },
   })
 })

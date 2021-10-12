@@ -12,8 +12,8 @@ import logger, {
 import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
+import formatWarn from '../src/reporterForClient/utils/formatWarn'
 
-const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']
 
@@ -246,7 +246,7 @@ test('moves fixed line to the end', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${WARN} foo` + EOL +
+      expect(output).toBe(formatWarn('foo') + EOL +
         `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, added ${hlValue('0')}, done`)
     },
   })

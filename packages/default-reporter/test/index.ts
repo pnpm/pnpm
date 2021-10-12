@@ -19,11 +19,12 @@ import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
 import repeat from 'ramda/src/repeat'
+import formatWarn from '../src/reporterForClient/utils/formatWarn'
 
 const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
-
-const ERROR = formatErrorCode('ERROR')
-const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
+const formatError = (code: string, message: string) => {
+  return `${formatErrorCode(code)} ${chalk.red(message)}`
+}
 const DEPRECATED = chalk.red('deprecated')
 const versionColor = chalk.grey
 const ADD = chalk.green('+')
@@ -182,7 +183,7 @@ test('prints summary (of current package only)', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
-        `${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla${EOL}${EOL}` +
+        `${formatWarn(`${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla`)}${EOL}${EOL}` +
         `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
@@ -397,22 +398,22 @@ test('prints summary when some packages fail', (done) => {
       expect(output).toBe(EOL + `Summary: ${chalk.red('6 fails')}, 7 passes
 
 /a:
-${ERROR} ${chalk.red('a failed')}
+${formatError('ERROR', 'a failed')}
 
 /b:
-${ERROR} ${chalk.red('b failed')}
+${formatError('ERROR', 'b failed')}
 
 /c:
-${ERROR} ${chalk.red('c failed')}
+${formatError('ERROR', 'c failed')}
 
 /d:
-${ERROR} ${chalk.red('d failed')}
+${formatError('ERROR', 'd failed')}
 
 /e:
-${ERROR} ${chalk.red('e failed')}
+${formatError('ERROR', 'e failed')}
 
 /f:
-${ERROR} ${chalk.red('f failed')}`)
+${formatError('ERROR', 'f failed')}`)
     },
   })
 
@@ -718,15 +719,15 @@ test('prints added/removed stats and warnings during recursive installation', (d
     error: done,
     next: output => {
       expect(output).toBe(`\
-pkg-5                                    | ${WARN} Some issue
-.                                        | ${WARN} Some other issue
+pkg-5                                    | ${formatWarn('Some issue')}
+.                                        | ${formatWarn('Some other issue')}
 .                                        |   ${chalk.red('-1')} ${SUB}
 pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
-dir/pkg-2                                | ${WARN} ${DEPRECATED} bar@2.0.0
+dir/pkg-2                                | ${formatWarn(`${DEPRECATED} bar@2.0.0`)}
 dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
 .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
 ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
-.                                        | ${WARN} ${DEPRECATED} foo@1.0.0`)
+.                                        | ${formatWarn(`${DEPRECATED} foo@1.0.0`)}`)
     },
   })
 })
@@ -960,8 +961,8 @@ test('logLevel=default', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(`Info message
-${WARN} Some issue
-${ERROR} ${chalk.red('some error')}`)
+${formatWarn('Some issue')}
+${formatError('ERROR', 'some error')}`)
     },
   })
 })
@@ -990,8 +991,8 @@ test('logLevel=warn', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${WARN} Some issue
-${formatErrorCode('ERR_PNPM_SOME_CODE')} ${chalk.red('some error')}`)
+      expect(output).toBe(`${formatWarn('Some issue')}
+${formatError('ERR_PNPM_SOME_CODE', 'some error')}`)
     },
   })
 })
@@ -1020,7 +1021,7 @@ test('logLevel=error', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${formatErrorCode('ERR_PNPM_SOME_CODE')} ${chalk.red('some error')}`)
+      expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
     },
   })
 })
@@ -1052,12 +1053,12 @@ test('warnings are collapsed', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${WARN} Some issue 1
-${WARN} Some issue 2
-${WARN} Some issue 3
-${WARN} Some issue 4
-${WARN} Some issue 5
-${WARN} 2 other warnings`)
+      expect(output).toBe(`${formatWarn('Some issue 1')}
+${formatWarn('Some issue 2')}
+${formatWarn('Some issue 3')}
+${formatWarn('Some issue 4')}
+${formatWarn('Some issue 5')}
+${formatWarn('2 other warnings')}`)
     },
   })
 })
@@ -1090,7 +1091,7 @@ test('warnings are not collapsed when append-only is true', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${WARN} Some issue 7`)
+      expect(output).toBe(formatWarn('Some issue 7'))
     },
   })
 })
