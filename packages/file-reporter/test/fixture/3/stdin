@@ -1,0 +1,2 @@
+{"time":"1000","hostname":"zkochan","pid":"1000","level":"info","name":"pnpm","message":"foo"}
+{"time":"1001","hostname":"zkochan","pid":"1000","level":"warn","name":"pnpm","foo":1,"bar":2}

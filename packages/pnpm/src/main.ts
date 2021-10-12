@@ -268,6 +268,7 @@ export default async function run (inputArgv: string[]) {
     process.exit(1)
   }
   if (exitCode) {
+    global['writeDebugLogFile'] = false
     process.exit(exitCode)
   }
 }

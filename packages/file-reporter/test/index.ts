@@ -13,6 +13,12 @@ test('pnpm-log is created on fail', () => {
   expect(actual).toBe(expected)
 })
 
+test('pnpm-log is not created on fail if the writeDebugLogFile global variable is set to false', async () => {
+  const fixture = path.join(fixtures, '3')
+  child.spawnSync('node', [path.join(fixture, 'index.js')], { cwd: fixture })
+  expect(!await exists(path.join(fixture, 'node_modules/.pnpm-debug.log'))).toBeTruthy()
+})
+
 test('pnpm-log is not created on success', async () => {
   const fixture = path.join(fixtures, '2')
   child.spawnSync('node', [path.join(fixture, 'index.js')], { cwd: fixture })
