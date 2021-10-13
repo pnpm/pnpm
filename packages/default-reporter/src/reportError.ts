@@ -243,7 +243,7 @@ function reportModifiedDependency (msg: { modified: string[] }) {
     body: `These packages are modified:
 ${msg.modified.map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
 
-You can run ${highlight('pnpm install')} to refetch the modified packages`,
+You can run ${highlight('pnpm install --force')} to refetch the modified packages`,
   }
 }
 
