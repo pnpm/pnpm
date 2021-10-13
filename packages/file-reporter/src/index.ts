@@ -13,7 +13,7 @@ export default function (streamParser: Object) {
   })
 
   process.on('exit', (code: number) => {
-    if (code === 0) {
+    if (code === 0 || global['writeDebugLogFile'] === false) {
       // it might not exist, so it is OK if it fails
       try {
         fs.unlinkSync(LOG_FILENAME)

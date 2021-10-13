@@ -265,9 +265,12 @@ export default async function run (inputArgv: string[]) {
     write(output)
   }
   if (!cmd) {
-    process.exit(1)
+    exitCode = 1
   }
   if (exitCode) {
+    // In this case, the non-zero exit code is expected,
+    // so there is no need to write a debug file.
+    global['writeDebugLogFile'] = false
     process.exit(exitCode)
   }
 }
