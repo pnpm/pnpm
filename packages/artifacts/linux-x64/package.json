@@ -18,5 +18,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
-  }
+  },
+  "keywords": [
+    "pnpm6"
+  ]
 }

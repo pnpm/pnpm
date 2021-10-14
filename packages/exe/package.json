@@ -30,5 +30,8 @@
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
     "prepublishOnly": "pnpm run compile --filter pnpm && ts-node ./scripts/build-artifacts.ts"
-  }
+  },
+  "keywords": [
+    "pnpm6"
+  ]
 }

@@ -22,6 +22,10 @@ export default async (workspaceDir: string) => {
       if (!isSubdir(pkgsDir, dir)) {
         return manifest
       }
+      manifest.keywords = [
+        pnpmMajorKeyword,
+        ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
+      ]
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
@@ -31,10 +35,6 @@ export default async (workspaceDir: string) => {
         }
         return manifest
       }
-      manifest.keywords = [
-        pnpmMajorKeyword,
-        ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
-      ]
       return updateManifest(workspaceDir, manifest, dir)
     },
     'tsconfig.json': updateTSConfig.bind(null, {
