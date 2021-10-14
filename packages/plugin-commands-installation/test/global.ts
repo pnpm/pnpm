@@ -4,6 +4,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import tempy from 'tempy'
+import nodeExecPath from '../lib/nodeExecPath'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = tempy.directory()
@@ -49,5 +50,5 @@ test('globally installed package is linked with active version of Node.js', asyn
   ).toBeTruthy()
 
   const shimContent = await fs.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
-  expect(shimContent).toContain(process.env.NODE)
+  expect(shimContent).toContain(await nodeExecPath())
 })
