@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
@@ -64,15 +65,18 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       useNodeVersion: nodeVersion,
     })
     const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
-    const dest = path.join(opts.bin, 'node')
-    const cmdShimOpts = { createPwshFile: false }
-    await cmdShim(src, dest, cmdShimOpts)
+    const dest = path.join(opts.bin, process.platform === 'win32' ? 'node.exe' : 'node')
+    try {
+      await fs.unlink(dest)
+    } catch (err) {}
+    await fs.symlink(src, dest, 'file')
     try {
       let npmDir = nodeDir
       if (process.platform !== 'win32') {
         npmDir = path.join(npmDir, 'lib')
       }
       npmDir = path.join(npmDir, 'node_modules/npm/bin')
+      const cmdShimOpts = { createPwshFile: false }
       await cmdShim(path.join(npmDir, 'npm-cli.js'), path.join(opts.bin, 'npm'), cmdShimOpts)
       await cmdShim(path.join(npmDir, 'npx-cli.js'), path.join(opts.bin, 'npx'), cmdShimOpts)
     } catch (err) {
