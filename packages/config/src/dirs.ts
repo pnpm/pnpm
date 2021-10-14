@@ -77,7 +77,7 @@ export function getConfigDir (
     return path.join(os.homedir(), '.config/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
-    return path.join(opts.env.LOCALAPPDATA, 'pnpm-config')
+    return path.join(opts.env.LOCALAPPDATA, 'pnpm/config')
   }
   return path.join(os.homedir(), '.config/pnpm')
 }

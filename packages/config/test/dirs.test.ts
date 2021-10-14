@@ -1,6 +1,6 @@
 import os from 'os'
 import path from 'path'
-import { getCacheDir, getDataDir, getStateDir } from '../lib/dirs'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from '../lib/dirs'
 
 test('getCacheDir()', () => {
   expect(getCacheDir({
@@ -81,4 +81,31 @@ test('getDataDir()', () => {
     env: {},
     platform: 'win32',
   })).toBe(path.join(os.homedir(), '.pnpm'))
+})
+
+test('getConfigDir()', () => {
+  expect(getConfigDir({
+    env: {
+      XDG_CONFIG_HOME: '/home/foo/config',
+    },
+    platform: 'linux',
+  })).toBe(path.join('/home/foo/config', 'pnpm'))
+  expect(getConfigDir({
+    env: {},
+    platform: 'linux',
+  })).toBe(path.join(os.homedir(), '.config/pnpm'))
+  expect(getConfigDir({
+    env: {},
+    platform: 'darwin',
+  })).toBe(path.join(os.homedir(), 'Library/Preferences/pnpm'))
+  expect(getConfigDir({
+    env: {
+      LOCALAPPDATA: '/localappdata',
+    },
+    platform: 'win32',
+  })).toBe(path.join('/localappdata', 'pnpm/config'))
+  expect(getConfigDir({
+    env: {},
+    platform: 'win32',
+  })).toBe(path.join(os.homedir(), '.config/pnpm'))
 })
