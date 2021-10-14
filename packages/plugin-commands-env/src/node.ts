@@ -33,7 +33,7 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'storeDir'
 | 'useNodeVersion'
 | 'pnpmHomeDir'
->
+> & Partial<Pick<Config, 'configDir'>>
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
   const nodeDir = await getNodeDir(opts)
