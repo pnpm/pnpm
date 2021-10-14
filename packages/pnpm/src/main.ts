@@ -214,7 +214,14 @@ export default async function run (inputArgv: string[]) {
     // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
     await new Promise<void>((resolve) => setTimeout(() => resolve(), 0))
 
-    if (!isCI && !selfUpdate && !config.offline && !config.preferOffline && !config.fallbackCommandUsed) {
+    if (
+      !isCI &&
+      !selfUpdate &&
+      !config.offline &&
+      !config.preferOffline &&
+      !config.fallbackCommandUsed &&
+      (cmd === 'install' || cmd === 'add')
+    ) {
       checkForUpdates(config).catch(() => { /* Ignore */ })
     }
 
