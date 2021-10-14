@@ -43,7 +43,6 @@
     "rename-overwrite": "^4.0.0",
     "render-help": "^1.0.1",
     "semver": "^7.3.4",
-    "symlink-dir": "^5.0.0",
     "tempy": "^1.0.0",
     "version-selector-type": "^3.0.0",
     "write-json-file": "^4.3.0"

@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
@@ -5,7 +6,6 @@ import fetch from '@pnpm/fetch'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
 import semver from 'semver'
-import symlinkDir from 'symlink-dir'
 import versionSelectorType from 'version-selector-type'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
 
@@ -65,8 +65,11 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       useNodeVersion: nodeVersion,
     })
     const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
-    const dest = path.join(opts.bin, 'node')
-    await symlinkDir(src, dest)
+    const dest = path.join(opts.bin, process.platform === 'win32' ? 'node.exe' : 'node')
+    try {
+      await fs.unlink(dest)
+    } catch (err) {}
+    await fs.symlink(src, dest, 'file')
     try {
       let npmDir = nodeDir
       if (process.platform !== 'win32') {
