@@ -19,6 +19,7 @@ import logger from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
+import nodeExecPath from './nodeExecPath'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
@@ -175,7 +176,7 @@ when running add/update with the --workspace option')
     workspacePackages,
   }
   if (opts.global) {
-    installOpts['nodeExecPath'] = process.env.NODE ?? process.execPath
+    installOpts['nodeExecPath'] = await nodeExecPath()
   }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)

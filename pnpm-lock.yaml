@@ -1932,6 +1932,7 @@ importers:
       '@types/sinon': ^9.0.11
       '@types/zkochan__table': npm:@types/table@6.0.0
       '@zkochan/table': ^1.0.0
+      '@zkochan/which': ^2.0.3
       camelcase-keys: ^6.2.2
       chalk: ^4.1.0
       enquirer: ^2.3.6
@@ -1979,6 +1980,7 @@ importers:
       '@pnpm/store-connection-manager': link:../store-connection-manager
       '@pnpm/types': link:../types
       '@zkochan/table': 1.0.0
+      '@zkochan/which': 2.0.3
       camelcase-keys: 6.2.2
       chalk: 4.1.2
       enquirer: 2.3.6
