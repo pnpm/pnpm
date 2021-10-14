@@ -1,5 +1,14 @@
 # pnpm
 
+## 6.17.1
+
+### Patch Changes
+
+- `pnpm env use` should create a symlink to the Node.js executable, not a command shim [#3869](https://github.com/pnpm/pnpm/pull/3869).
+- Attach the globally installed packages to the system default Node.js executable [#3870](https://github.com/pnpm/pnpm/pull/3870).
+- The `.pnpm-debug.log` file is not written when pnpm CLI exits with an expected non-zero exit code. For instance, when vulnerabilities are found by the `pnpm audit` command [#3832](https://github.com/pnpm/pnpm/issues/3832).
+- Suggest `pnpm install --force` to refetch modified packages [#3867](https://github.com/pnpm/pnpm/pull/3867).
+
 ## 6.17.0
 
 ### Minor Changes

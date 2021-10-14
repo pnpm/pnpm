@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.3.1
+
+### Patch Changes
+
+- cd597bdf9: Suggest `pnpm install --force` to refetch modified packages.
+
 ## 8.3.0
 
 ### Minor Changes

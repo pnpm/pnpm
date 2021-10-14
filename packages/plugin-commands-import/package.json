@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-import",
-  "version": "3.1.11",
+  "version": "3.1.12",
   "description": "The import command",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -43,7 +43,7 @@
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.24",
+    "@pnpm/cli-utils": "workspace:0.6.25",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/graceful-fs": "workspace:1.0.0",

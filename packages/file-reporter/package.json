@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/file-reporter",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "A file reporter for pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

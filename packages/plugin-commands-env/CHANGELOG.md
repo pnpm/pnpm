@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-env
 
+## 1.0.10
+
+### Patch Changes
+
+- 913d97a05: Do not create a command shim for Node.js, just a symlink to the executable.
+  - @pnpm/cli-utils@0.6.25
+
 ## 1.0.9
 
 ### Patch Changes

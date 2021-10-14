@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-installation
 
+## 7.0.1
+
+### Patch Changes
+
+- cd980742c: Always prefer the system-default Node.js executable when pinning a globally installed package to a Node.js version.
+  - @pnpm/cli-utils@0.6.25
+  - @pnpm/find-workspace-packages@3.1.17
+  - @pnpm/plugin-commands-rebuild@5.1.1
+  - @pnpm/filter-workspace-packages@4.3.1
+
 ## 7.0.0
 
 ### Major Changes
