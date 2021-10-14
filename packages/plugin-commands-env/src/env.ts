@@ -5,6 +5,7 @@ import fetch from '@pnpm/fetch'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
 import semver from 'semver'
+import symlinkDir from 'symlink-dir'
 import versionSelectorType from 'version-selector-type'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
 
@@ -65,14 +66,14 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     })
     const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
     const dest = path.join(opts.bin, 'node')
-    const cmdShimOpts = { createPwshFile: false }
-    await cmdShim(src, dest, cmdShimOpts)
+    await symlinkDir(src, dest)
     try {
       let npmDir = nodeDir
       if (process.platform !== 'win32') {
         npmDir = path.join(npmDir, 'lib')
       }
       npmDir = path.join(npmDir, 'node_modules/npm/bin')
+      const cmdShimOpts = { createPwshFile: false }
       await cmdShim(path.join(npmDir, 'npm-cli.js'), path.join(opts.bin, 'npm'), cmdShimOpts)
       await cmdShim(path.join(npmDir, 'npx-cli.js'), path.join(opts.bin, 'npx'), cmdShimOpts)
     } catch (err) {
