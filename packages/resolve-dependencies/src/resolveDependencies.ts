@@ -275,11 +275,11 @@ async function resolveDependenciesOfDependency (
     ? extendedWantedDep.wantedDependency.updateDepth
     : options.updateDepth
   const updateShouldContinue = options.currentDepth <= updateDepth
-  const update = (
+  const update = ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
+  (
     updateShouldContinue && (
       (ctx.updateMatching == null) ||
-      ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
-      ctx.updateMatching(extendedWantedDep.infoFromLockfile.name ?? extendedWantedDep.wantedDependency.alias)
+      ctx.updateMatching(extendedWantedDep.infoFromLockfile.name!)
     )
   ) || Boolean(
     (options.workspacePackages != null) &&
@@ -288,8 +288,7 @@ async function resolveDependenciesOfDependency (
       extendedWantedDep.wantedDependency,
       { defaultTag: ctx.defaultTag, registry: ctx.registries.default }
     )
-  ) || ((extendedWantedDep.infoFromLockfile?.name) != null) &&
-    ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name)
+  ) || ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name!)
 
   const resolveDependencyOpts: ResolveDependencyOptions = {
     currentDepth: options.currentDepth,
@@ -484,14 +483,19 @@ function referenceSatisfiesWantedSpec (
   return semver.satisfies(version, wantedDep.pref, true)
 }
 
-interface InfoFromLockfile {
-  dependencyLockfile?: PackageSnapshot
+type InfoFromLockfile = {
   depPath: string
+  pkgId: string
+  dependencyLockfile?: PackageSnapshot
   name?: string
   version?: string
-  pkgId: string
   resolution?: Resolution
-}
+} & ({
+  dependencyLockfile: PackageSnapshot
+  name: string
+  version: string
+  resolution: Resolution
+} | {})
 
 function getInfoFromLockfile (
   lockfile: Lockfile,
