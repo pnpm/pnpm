@@ -75,10 +75,16 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       if (process.platform !== 'win32') {
         npmDir = path.join(npmDir, 'lib')
       }
-      npmDir = path.join(npmDir, 'node_modules/npm/bin')
+      npmDir = path.join(npmDir, 'node_modules/npm')
+      if (opts.configDir) {
+        // We want the global npm settings to persist when Node.js or/and npm is changed to a different version,
+        // so we tell npm to read the global config from centralized place that is outside of npm's directory.
+        await fs.writeFile(path.join(npmDir, 'npmrc'), `globalconfig=${path.join(opts.configDir, 'npmrc')}`, 'utf-8')
+      }
+      const npmBinDir = path.join(npmDir, 'bin')
       const cmdShimOpts = { createPwshFile: false }
-      await cmdShim(path.join(npmDir, 'npm-cli.js'), path.join(opts.bin, 'npm'), cmdShimOpts)
-      await cmdShim(path.join(npmDir, 'npx-cli.js'), path.join(opts.bin, 'npx'), cmdShimOpts)
+      await cmdShim(path.join(npmBinDir, 'npm-cli.js'), path.join(opts.bin, 'npm'), cmdShimOpts)
+      await cmdShim(path.join(npmBinDir, 'npx-cli.js'), path.join(opts.bin, 'npx'), cmdShimOpts)
     } catch (err) {
       // ignore
     }

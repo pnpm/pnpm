@@ -60,3 +60,24 @@ export function getDataDir (
   }
   return path.join(os.homedir(), '.pnpm')
 }
+
+export function getConfigDir (
+  opts: {
+    env: NodeJS.ProcessEnv
+    platform: string
+  }
+) {
+  if (opts.env.XDG_CONFIG_HOME) {
+    return path.join(opts.env.XDG_CONFIG_HOME, 'pnpm')
+  }
+  if (opts.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library/Preferences/pnpm')
+  }
+  if (opts.platform !== 'win32') {
+    return path.join(os.homedir(), '.config/pnpm')
+  }
+  if (opts.env.LOCALAPPDATA) {
+    return path.join(opts.env.LOCALAPPDATA, 'pnpm/config')
+  }
+  return path.join(os.homedir(), '.config/pnpm')
+}

@@ -8,9 +8,11 @@ import PATH from 'path-name'
 
 test('install Node (and npm, npx) by exact version of Node.js', async () => {
   tempDir()
+  const configDir = path.resolve('config')
 
   await env.handler({
     bin: process.cwd(),
+    configDir,
     global: true,
     pnpmHomeDir: process.cwd(),
     rawConfig: {},
@@ -20,6 +22,7 @@ test('install Node (and npm, npx) by exact version of Node.js', async () => {
     env: {
       [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
     },
+    extendEnv: false,
   }
 
   {
@@ -39,6 +42,11 @@ test('install Node (and npm, npx) by exact version of Node.js', async () => {
 
   const dirs = fs.readdirSync(path.resolve('nodejs'))
   expect(dirs).toEqual(['16.4.0'])
+
+  {
+    const { stdout } = execa.sync('npm', ['config', 'get', 'globalconfig'], opts)
+    expect(stdout.toString()).toBe(path.join(configDir, 'npmrc'))
+  }
 })
 
 test('install Node by version range', async () => {

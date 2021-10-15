@@ -14,7 +14,7 @@ import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 import findBestGlobalPrefix from './findBestGlobalPrefix'
-import { getCacheDir, getDataDir, getStateDir } from './dirs'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
   Config,
   ConfigWithDeprecatedSettings,
@@ -39,6 +39,7 @@ export const types = Object.assign({
   'cache-dir': String,
   'child-concurrency': Number,
   color: ['always', 'auto', 'never'],
+  'config-dir': String,
   dev: [null, true],
   dir: String,
   'enable-modules-dir': Boolean,
@@ -395,6 +396,9 @@ export default async (
   }
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
+  }
+  if (!pnpmConfig.configDir) {
+    pnpmConfig.configDir = getConfigDir(process)
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
