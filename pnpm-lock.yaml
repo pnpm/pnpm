@@ -1408,6 +1408,31 @@ importers:
       '@pnpm/mount-modules': 'link:'
       rimraf: 3.0.2
 
+  packages/nm-linker:
+    specifiers:
+      '@pnpm/config': workspace:13.2.0
+      '@pnpm/logger': ^4.0.0
+      '@pnpm/nm-linker': 'link:'
+      '@pnpm/types': workspace:7.4.0
+      '@types/normalize-path': ^3.0.0
+      '@types/ramda': 0.27.39
+      dependency-path: workspace:8.0.4
+      normalize-path: ^3.0.0
+      ramda: ^0.27.1
+      rimraf: ^3.0.2
+    dependencies:
+      '@pnpm/config': link:../config
+      dependency-path: link:../dependency-path
+      normalize-path: 3.0.0
+      ramda: 0.27.1
+    devDependencies:
+      '@pnpm/logger': 4.0.0
+      '@pnpm/nm-linker': 'link:'
+      '@pnpm/types': link:../types
+      '@types/normalize-path': 3.0.0
+      '@types/ramda': 0.27.39
+      rimraf: 3.0.2
+
   packages/normalize-registries:
     specifiers:
       '@pnpm/normalize-registries': 'link:'
