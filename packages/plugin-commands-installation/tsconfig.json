@@ -34,6 +34,9 @@
       "path": "../constants"
     },
     {
+      "path": "../core"
+    },
+    {
       "path": "../error"
     },
     {
@@ -80,9 +83,6 @@
     },
     {
       "path": "../store-connection-manager"
-    },
-    {
-      "path": "../supi"
     },
     {
       "path": "../types"

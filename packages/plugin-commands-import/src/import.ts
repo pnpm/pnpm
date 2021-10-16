@@ -8,7 +8,7 @@ import {
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
-import { install, InstallOptions } from 'supi'
+import { install, InstallOptions } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import renderHelp from 'render-help'

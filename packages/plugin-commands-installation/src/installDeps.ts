@@ -14,7 +14,7 @@ import {
   install,
   mutateModules,
   WorkspacePackages,
-} from 'supi'
+} from '@pnpm/core'
 import logger from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import getPinnedVersion from './getPinnedVersion'

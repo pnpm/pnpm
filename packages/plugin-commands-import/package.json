@@ -53,7 +53,7 @@
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
     "render-help": "^1.0.1",
-    "supi": "workspace:0.47.27"
+    "@pnpm/core": "workspace:0.47.27"
   },
   "funding": "https://opencollective.com/pnpm"
 }

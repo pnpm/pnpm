@@ -60,7 +60,7 @@
     "pnpm-file-reporter",
     "publish-packed",
     "remove-all-except-outer-links",
-    "supi",
+    "@pnpm/core",
     "ts-node",
     "@types/ramda",
     "@types/table"

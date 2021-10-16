@@ -206,7 +206,7 @@ export async function linkBinsOfDependencies (
       .map(([alias, childDepPath]) => ({ alias, dep: depGraph[childDepPath] }))
       .filter(({ alias, dep }) => {
         if (!dep) {
-          // TODO: Try to reproduce this issue with a test in supi
+          // TODO: Try to reproduce this issue with a test in @pnpm/core
           logger.debug({ message: `Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.` })
           return false
         }

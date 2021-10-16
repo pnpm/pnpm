@@ -23,7 +23,7 @@ export default async function (
   config.cliOptions = cliOptions
 
   if (opts.excludeReporter) {
-    delete config.reporter // This is a silly workaround because supi expects a function as opts.reporter
+    delete config.reporter // This is a silly workaround because @pnpm/core expects a function as opts.reporter
   }
 
   if (warnings.length > 0) {
