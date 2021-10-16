@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 21.0.6
+
+### Patch Changes
+
+- 4b163f69c: Dedupe dependencies when one of the packages is updated or a new one is added.
+
 ## 21.0.5
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-env
 
+## 1.1.0
+
+### Minor Changes
+
+- 5ee3b2dc7: `pnpm env use` sets the `globalconfig` for npm CLI. The global config is located in a centralized place, so it persists after switching to a different Node.js or npm version.
+
+### Patch Changes
+
+- Updated dependencies [5ee3b2dc7]
+  - @pnpm/config@13.2.0
+  - @pnpm/cli-utils@0.6.26
+
 ## 1.0.10
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.17.2
+
+### Patch Changes
+
+- Dedupe dependencies when adding new ones or updating existing ones [#2222](https://github.com/pnpm/pnpm/issues/2222).
+- Only check for CLI updates when `pnpm install` or `pnpm add` is executed [#3874](https://github.com/pnpm/pnpm/pull/3874).
+- Use a single global config file (at `~/.config/pnpm/npmrc`) for all npm versions, when npm is installed via `pnpm env use` [#3873](https://github.com/pnpm/pnpm/pull/3873).
+- Add information about the `--force` option into `pnpm install --help` [#3878](https://github.com/pnpm/pnpm/pull/3878).
+- Allow to pass the `--cache-dir` and `--save-prefix` CLI options.
+
 ## 6.17.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.2.0
+
+### Minor Changes
+
+- 5ee3b2dc7: New setting: `configDir`.
+
 ## 13.1.0
 
 ### Minor Changes

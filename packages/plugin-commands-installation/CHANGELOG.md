@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 7.0.2
+
+### Patch Changes
+
+- f10a53ee7: Add `--save-prefix` and `--cache-dir` to the list of allowed CLI options.
+- 7b0906043: add help for `--force` option of `install` command (re: #3878)
+- Updated dependencies [5ee3b2dc7]
+  - @pnpm/config@13.2.0
+  - @pnpm/cli-utils@0.6.26
+  - @pnpm/plugin-commands-rebuild@5.1.2
+  - @pnpm/store-connection-manager@3.0.20
+  - supi@0.47.27
+  - @pnpm/find-workspace-packages@3.1.18
+  - @pnpm/filter-workspace-packages@4.3.2
+
 ## 7.0.1
 
 ### Patch Changes
