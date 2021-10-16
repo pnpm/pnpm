@@ -9,6 +9,7 @@ import installDeps from './installDeps'
 
 export function rcOptionsTypes () {
   return pick([
+    'cache-dir',
     'child-concurrency',
     'engine-strict',
     'fetch-retries',
@@ -47,6 +48,7 @@ export function rcOptionsTypes () {
     'save-exact',
     'save-optional',
     'save-peer',
+    'save-prefix',
     'save-prod',
     'save-workspace-protocol',
     'shamefully-flatten',

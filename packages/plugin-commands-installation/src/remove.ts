@@ -46,6 +46,7 @@ class RemoveMissingDepsError extends PnpmError {
 
 export function rcOptionsTypes () {
   return pick([
+    'cache-dir',
     'global-dir',
     'global-pnpmfile',
     'global',

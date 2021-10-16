@@ -10,6 +10,7 @@ import installDeps from './installDeps'
 
 export function rcOptionsTypes () {
   return pick([
+    'cache-dir',
     'child-concurrency',
     'dev',
     'engine-strict',

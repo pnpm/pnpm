@@ -19,6 +19,7 @@ import getUpdateChoices from './getUpdateChoices'
 
 export function rcOptionsTypes () {
   return pick([
+    'cache-dir',
     'depth',
     'dev',
     'engine-strict',
@@ -53,6 +54,7 @@ export function rcOptionsTypes () {
     'reporter',
     'save',
     'save-exact',
+    'save-prefix',
     'save-workspace-protocol',
     'shamefully-flatten',
     'shamefully-hoist',

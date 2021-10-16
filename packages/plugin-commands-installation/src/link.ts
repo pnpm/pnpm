@@ -47,6 +47,7 @@ export function cliOptionsTypes () {
     'save-dev',
     'save-exact',
     'save-optional',
+    'save-prefix',
     'unsafe-perm',
   ], allTypes)
 }
