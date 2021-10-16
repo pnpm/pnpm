@@ -177,3 +177,19 @@ test('prefer version of package that also satisfies the range of the same packag
     ]
   )
 })
+
+test('dedupe subdependency when a newer version of the same package is installed', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const manifest = await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep@100.0.0', 'pkg-with-1-dep@100.0.0'], await testDefaults())
+
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep@100.1.0'], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+})

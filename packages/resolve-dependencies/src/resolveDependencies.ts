@@ -116,6 +116,7 @@ export interface ChildrenByParentDepPath {
 }
 
 export interface ResolutionContext {
+  updatedSet: Set<string>
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
@@ -241,8 +242,11 @@ export default async function resolveDependencies (
     .filter(Boolean) as PkgAddress[]
 
   const newPreferredVersions = { ...preferredVersions }
-  for (const { depPath } of pkgAddresses) {
-    const resolvedPackage = ctx.resolvedPackagesByDepPath[depPath]
+  for (const pkgAddress of pkgAddresses) {
+    if (pkgAddress.updated) {
+      ctx.updatedSet.add(pkgAddress.alias)
+    }
+    const resolvedPackage = ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
     if (!newPreferredVersions[resolvedPackage.name]) {
       newPreferredVersions[resolvedPackage.name] = {}
@@ -271,11 +275,11 @@ async function resolveDependenciesOfDependency (
     ? extendedWantedDep.wantedDependency.updateDepth
     : options.updateDepth
   const updateShouldContinue = options.currentDepth <= updateDepth
-  const update = (
+  const update = ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
+  (
     updateShouldContinue && (
       (ctx.updateMatching == null) ||
-      ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
-      ctx.updateMatching(extendedWantedDep.infoFromLockfile.dependencyLockfile.name ?? extendedWantedDep.wantedDependency.alias)
+      ctx.updateMatching(extendedWantedDep.infoFromLockfile.name!)
     )
   ) || Boolean(
     (options.workspacePackages != null) &&
@@ -284,14 +288,15 @@ async function resolveDependenciesOfDependency (
       extendedWantedDep.wantedDependency,
       { defaultTag: ctx.defaultTag, registry: ctx.registries.default }
     )
-  )
+  ) || ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name!)
+
   const resolveDependencyOpts: ResolveDependencyOptions = {
     currentDepth: options.currentDepth,
     parentPkg: options.parentPkg,
     preferredVersions,
     workspacePackages: options.workspacePackages,
     currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
-    proceed: extendedWantedDep.proceed || updateShouldContinue,
+    proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     update,
     updateDepth,
   }
@@ -478,14 +483,19 @@ function referenceSatisfiesWantedSpec (
   return semver.satisfies(version, wantedDep.pref, true)
 }
 
-interface InfoFromLockfile {
-  dependencyLockfile?: PackageSnapshot
+type InfoFromLockfile = {
   depPath: string
+  pkgId: string
+  dependencyLockfile?: PackageSnapshot
   name?: string
   version?: string
-  pkgId: string
   resolution?: Resolution
-}
+} & ({
+  dependencyLockfile: PackageSnapshot
+  name: string
+  version: string
+  resolution: Resolution
+} | {})
 
 function getInfoFromLockfile (
   lockfile: Lockfile,

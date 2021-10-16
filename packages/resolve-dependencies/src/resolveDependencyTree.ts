@@ -109,6 +109,7 @@ export default async function<T> (
     const linkedDependencies = [] as LinkedDependency[]
     const resolveCtx = {
       ...ctx,
+      updatedSet: new Set<string>(),
       linkedDependencies,
       modulesDir: importer.modulesDir,
       prefix: importer.rootDir,
