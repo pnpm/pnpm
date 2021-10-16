@@ -41,7 +41,7 @@
     "@zkochan/npm-package-arg": "^2.0.1",
     "archy": "^1.0.0",
     "chalk": "^4.1.0",
-    "cli-columns": "^3.1.2",
+    "cli-columns": "^4.0.0",
     "dependencies-hierarchy": "workspace:10.0.11",
     "p-limit": "^3.1.0",
     "ramda": "^0.27.1",
