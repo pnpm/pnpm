@@ -118,10 +118,10 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
   case 'pnpm':
-  case 'supi': {
+  case '@pnpm/core': {
     // supi tests currently works only with port 4873 due to the usage of
     // the next package: pkg-with-tarball-dep-from-registry
-    const port = manifest.name === 'supi' ? 4873 : ++registryMockPort
+    const port = manifest.name === '@pnpm/core' ? 4873 : ++registryMockPort
     scripts = {
       ...(manifest.scripts as Record<string, string>),
       'registry-mock': 'registry-mock',

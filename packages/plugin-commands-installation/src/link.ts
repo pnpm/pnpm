@@ -20,7 +20,7 @@ import {
   LinkFunctionOptions,
   linkToGlobal,
   WorkspacePackages,
-} from 'supi'
+} from '@pnpm/core'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'

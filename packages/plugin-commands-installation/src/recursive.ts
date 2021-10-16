@@ -27,7 +27,7 @@ import {
   InstallOptions,
   MutatedProject,
   mutateModules,
-} from 'supi'
+} from '@pnpm/core'
 import camelcaseKeys from 'camelcase-keys'
 import isSubdir from 'is-subdir'
 import mem from 'mem'

@@ -13,7 +13,7 @@ import { createOrConnectStoreController, CreateStoreControllerOptions } from '@p
 import { DependenciesField } from '@pnpm/types'
 import {
   mutateModules,
-} from 'supi'
+} from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
