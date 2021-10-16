@@ -1,7 +1,7 @@
 import { URL } from 'url'
 import HttpAgent from 'agentkeepalive'
 import createHttpProxyAgent from 'http-proxy-agent'
-import HttpsProxyAgent from 'https-proxy-agent'
+import createHttpsProxyAgent from 'https-proxy-agent'
 import LRU from 'lru-cache'
 import SocksProxyAgent from 'socks-proxy-agent'
 
@@ -166,7 +166,7 @@ function getProxy (
     if (!isHttps) {
       return createHttpProxyAgent(popts)
     } else {
-      return new HttpsProxyAgent(popts)
+      return createHttpsProxyAgent(popts)
     }
   }
   if (proxyUrl.protocol?.startsWith('socks')) {

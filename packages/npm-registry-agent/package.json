@@ -23,8 +23,8 @@
   },
   "dependencies": {
     "agentkeepalive": "^4.1.3",
-    "http-proxy-agent": "^4.0.1",
-    "https-proxy-agent": "^3.0.1",
+    "http-proxy-agent": "^5.0.0",
+    "https-proxy-agent": "^5.0.0",
     "lru-cache": "^6.0.0",
     "socks-proxy-agent": "^5.0.0"
   },

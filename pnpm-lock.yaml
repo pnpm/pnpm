@@ -1425,14 +1425,14 @@ importers:
       '@types/http-proxy-agent': ^4.0.0
       '@types/lru-cache': ^5.1.0
       agentkeepalive: ^4.1.3
-      http-proxy-agent: ^4.0.1
-      https-proxy-agent: ^3.0.1
+      http-proxy-agent: ^5.0.0
+      https-proxy-agent: ^5.0.0
       lru-cache: ^6.0.0
       socks-proxy-agent: ^5.0.0
     dependencies:
       agentkeepalive: 4.1.4
-      http-proxy-agent: 4.0.1
-      https-proxy-agent: 3.0.1
+      http-proxy-agent: 5.0.0
+      https-proxy-agent: 5.0.0
       lru-cache: 6.0.0
       socks-proxy-agent: 5.0.1
     devDependencies:
@@ -4841,6 +4841,10 @@ packages:
     resolution: {integrity: sha512-RbzJvlNzmRq5c3O09UipeuXno4tA1FE6ikOjxZK0tuxVv3412l64l5t1W5pj4+rJq9vpkm/kwiR07aZXnsKPxw==}
     engines: {node: '>= 6'}
 
+  /@tootallnate/once/2.0.0:
+    resolution: {integrity: sha512-XCuKFP5PS55gnMVu3dty8KPatLqUoy/ZYzDzAGCQ8JNFCkLXzmI7vNHCR+XpbZaMWQK/vQubr7PkYq8g470J/A==}
+    engines: {node: '>= 10'}
+
   /@tsconfig/node10/1.0.8:
     resolution: {integrity: sha512-6XFfSQmMgq0CFLY1MslA/CPUfhIL919M1rMsa5lP2P097N2Wd1sSX0tx1u4olM16fLNhtHZpRhedZJphNJqmZg==}
     dev: true
@@ -4949,7 +4953,7 @@ packages:
     resolution: {integrity: sha512-2XJTByP9C14Kcq5ClvPRfOgFJxklhuru7xmuSPcNr2CPwRGdpCgIdUUNc0MDb25+bzaSolVN0u4RKH7M+CMimg==}
     deprecated: This is a stub types definition. http-proxy-agent provides its own type definitions, so you do not need this installed.
     dependencies:
-      http-proxy-agent: 4.0.1
+      http-proxy-agent: 5.0.0
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -5667,13 +5671,6 @@ packages:
   /adm-zip/0.5.9:
     resolution: {integrity: sha512-s+3fXLkeeLjZ2kLjCBwQufpI5fuN+kIGBxu6530nVQZGVol0d7Y/M88/xw9HGGUcJjKf8LutN3VPRUBq6N7Ajg==}
     engines: {node: '>=6.0'}
-    dev: false
-
-  /agent-base/4.3.0:
-    resolution: {integrity: sha512-salcGninV0nPrwpGNn4VTXBb1SOuXQBiqbrNXoeizJsHrsL6ERFM2Ne3JUSBWRE6aeNJI2ROP/WEEIDUiDe3cg==}
-    engines: {node: '>= 4.0.0'}
-    dependencies:
-      es6-promisify: 5.0.0
     dev: false
 
   /agent-base/6.0.2:
@@ -7803,16 +7800,6 @@ packages:
       es6-symbol: 3.1.3
     dev: true
 
-  /es6-promise/4.2.8:
-    resolution: {integrity: sha512-HJDGx5daxeIvxdBxvG2cb9g4tEvwIk3i8+nhX0yGrYmZUzbkdg8QbDevheDB8gd0//uPj4c1EQua8Q+MViT0/w==}
-    dev: false
-
-  /es6-promisify/5.0.0:
-    resolution: {integrity: sha1-UQnWLz5W6pZ8S2NQWu8IKRyKUgM=}
-    dependencies:
-      es6-promise: 4.2.8
-    dev: false
-
   /es6-symbol/3.1.3:
     resolution: {integrity: sha512-NJ6Yn3FuDinBaBRWl/q5X/s4koRHBrgKAu+yGI6JCBeiu3qrcbJhwT2GeR/EXVfylRk8dpQVJoLEFhK+Mu31NA==}
     dependencies:
@@ -9314,6 +9301,16 @@ packages:
     transitivePeerDependencies:
       - supports-color
 
+  /http-proxy-agent/5.0.0:
+    resolution: {integrity: sha512-n2hY8YdoRE1i7r6M0w9DIw5GgZN0G25P8zLCRQ8rjXtTU3vsNFBI/vWK/UIeE6g5MUUz6avwAPXmL6Fy9D/90w==}
+    engines: {node: '>= 6'}
+    dependencies:
+      '@tootallnate/once': 2.0.0
+      agent-base: 6.0.2
+      debug: 4.3.2
+    transitivePeerDependencies:
+      - supports-color
+
   /http-signature/1.2.0:
     resolution: {integrity: sha1-muzZJRFHcvPZW2WmCruPfBj7rOE=}
     engines: {node: '>=0.8', npm: '>=1.3.7'}
@@ -9326,14 +9323,6 @@ packages:
   /http-status-codes/1.4.0:
     resolution: {integrity: sha512-JrT3ua+WgH8zBD3HEJYbeEgnuQaAnUeRRko/YojPAJjGmIfGD3KPU/asLdsLwKjfxOmQe5nXMQ0pt/7MyapVbQ==}
     dev: true
-
-  /https-proxy-agent/3.0.1:
-    resolution: {integrity: sha512-+ML2Rbh6DAuee7d07tYGEKOEi2voWPUGan+ExdPbPW6Z3svq+JCqr0v8WmKPOkz1vOVykPCBSuobe7G8GJUtVg==}
-    engines: {node: '>= 4.5.0'}
-    dependencies:
-      agent-base: 4.3.0
-      debug: 3.2.7
-    dev: false
 
   /https-proxy-agent/5.0.0:
     resolution: {integrity: sha512-EkYm5BcKUGiduxzSt3Eppko+PiNWNEpa4ySk9vTC6wDsQJW9rHSa+UhGNJoRYp7bz6Ht1eaRIa6QaJqO5rCFbA==}
