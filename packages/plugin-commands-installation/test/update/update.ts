@@ -63,7 +63,7 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
       workspace: true,
       workspaceDir: process.cwd(),
     }, ['project-2'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_BAD_OPTIONS')
@@ -92,7 +92,7 @@ test('update: fail when package not in dependencies', async () => {
       sharedWorkspaceLockfile: true,
       workspaceDir: process.cwd(),
     }, ['peer-b'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')

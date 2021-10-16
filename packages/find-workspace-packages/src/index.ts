@@ -43,7 +43,7 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
 async function requirePackagesManifest (dir: string): Promise<{packages?: string[]} | null> {
   try {
     return await readYamlFile<{ packages?: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err['code'] === 'ENOENT') { // eslint-disable-line
       return null
     }

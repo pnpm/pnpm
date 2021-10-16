@@ -22,7 +22,7 @@ export async function fromDir (pkgPath: string): Promise<PackageManifest> {
 export async function safeReadPackage (pkgPath: string): Promise<PackageManifest | null> {
   try {
     return await readPkg(pkgPath)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
     return null
   }

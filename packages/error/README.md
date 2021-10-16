@@ -19,7 +19,7 @@ import PnpmError from '@pnpm/error'
 
 try {
     throw new PnpmError('THE_ERROR_CODE', 'The error message')
-} catch (err) {
+} catch (err: any) { // eslint-disable-line
     console.log(err.code)
     //> ERR_PNPM_THE_ERROR_CODE
     console.log(err.message)

@@ -88,7 +88,7 @@ describe('audit', () => {
           retries: 0,
         },
       })
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
 

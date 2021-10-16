@@ -142,7 +142,7 @@ async function isAlreadyPublished (
       registry: pickRegistryForPackage(opts.registries, pkgName, pkgVersion),
     })
     return true
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     return false
   }
 }

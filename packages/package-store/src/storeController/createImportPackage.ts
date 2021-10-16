@@ -61,7 +61,7 @@ function createAutoImporter (): ImportFunction {
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = clonePkg
       return 'clone'
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       // ignore
     }
     try {
@@ -69,7 +69,7 @@ function createAutoImporter (): ImportFunction {
       packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
         globalWarn(err.message)
         globalInfo('Falling back to copying packages from store')
@@ -119,7 +119,7 @@ async function hardlinkPkg (
 async function linkOrCopy (existingPath: string, newPath: string) {
   try {
     await fs.link(existingPath, newPath)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
     if (err['code'] === 'EEXIST') return

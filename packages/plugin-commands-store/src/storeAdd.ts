@@ -39,7 +39,7 @@ export default async function (
       })
       await pkgResponse.files!()
       globalInfo(`+ ${pkgResponse.body.id}`)
-    } catch (e) {
+    } catch (e: any) { // eslint-disable-line
       hasFailures = true
       logger('store').error(e)
     }

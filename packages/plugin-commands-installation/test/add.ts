@@ -110,7 +110,7 @@ test('add: fail when "workspace" option is true but the command runs not in a wo
       saveWorkspaceProtocol: false,
       workspace: true,
     }, ['project-2'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_WORKSPACE_OPTION_OUTSIDE_WORKSPACE')
@@ -143,7 +143,7 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
       workspace: true,
       workspaceDir: process.cwd(),
     }, ['project-2'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_BAD_OPTIONS')
@@ -189,7 +189,7 @@ test('add: fail when --no-save option is used', async () => {
       dir: process.cwd(),
       linkWorkspacePackages: false,
     }, ['is-positive'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_OPTION_NOT_SUPPORTED')

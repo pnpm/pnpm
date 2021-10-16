@@ -143,7 +143,7 @@ test('update should not install the dependency if it is not present already', as
   let err!: Error
   try {
     await execPnpm(['update', 'is-positive'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeTruthy()

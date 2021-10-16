@@ -233,7 +233,7 @@ async function validateModules (
           ' Run "pnpm install" to recreate the modules directory.'
         )
       }
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
       await purgeModulesDirsOfImporter(opts.virtualStoreDir, rootProject)
       purged = true
@@ -256,7 +256,7 @@ async function validateModules (
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
       await purgeModulesDirsOfImporter(opts.virtualStoreDir, project)
       purged = true
@@ -294,7 +294,7 @@ async function purgeModulesDirsOfImporter (
     // 1. we will need the directory anyway.
     // 2. in some setups, pnpm won't even have permission to remove the modules directory.
     await removeContentsOfDir(importer.modulesDir, virtualStoreDir)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
   }
 }

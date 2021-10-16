@@ -220,7 +220,7 @@ function formatGenericError (errorMessage: string, stack: object) {
     let prettyStack: string | undefined
     try {
       prettyStack = new StackTracey(stack).pretty
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       prettyStack = undefined
     }
     if (prettyStack) {

@@ -147,7 +147,7 @@ async function resolveNpm (
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry: opts.registry,
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
       const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, opts.projectDir)
       if (resolvedFromLocal != null) return resolvedFromLocal

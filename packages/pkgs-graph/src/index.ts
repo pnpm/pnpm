@@ -66,7 +66,7 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
             };
           }
           spec = npa.resolve(depName, rawSpec, pkg.dir)
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           return ''
         }
 

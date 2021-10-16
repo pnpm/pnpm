@@ -7,7 +7,7 @@ const readdir = util.promisify(gracefulFs.readdir)
 export default async function readModulesDir (modulesDir: string) {
   try {
     return await _readModulesDir(modulesDir)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err['code'] === 'ENOENT') return null
     throw err
   }

@@ -110,7 +110,7 @@ async function fetchFromLocalTarball (
       ])
     )
     return { filesIndex: fetchResult }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     const error = new TarballIntegrityError({
       attempts: 1,
       algorithm: err['algorithm'],

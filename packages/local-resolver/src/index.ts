@@ -51,7 +51,7 @@ export default async function resolveLocal (
   let localDependencyManifest!: DependencyManifest
   try {
     localDependencyManifest = await readProjectManifestOnly(spec.fetchSpec) as DependencyManifest
-  } catch (internalErr) {
+  } catch (internalErr: any) { // eslint-disable-line
     if (!existsSync(spec.fetchSpec)) {
       throw new PnpmError('LINKED_PKG_DIR_NOT_FOUND',
         `Could not install from "${spec.fetchSpec}" as it does not exist.`)

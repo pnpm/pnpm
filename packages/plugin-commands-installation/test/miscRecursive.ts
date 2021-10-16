@@ -305,7 +305,7 @@ test('recursive installation fails when installation in one of the packages fail
       recursive: true,
       workspaceDir: process.cwd(),
     })
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_FETCH_404')
@@ -484,7 +484,7 @@ test('recursive install --no-bail', async () => {
       recursive: true,
       workspaceDir: process.cwd(),
     })
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 

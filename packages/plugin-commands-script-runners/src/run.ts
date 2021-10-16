@@ -203,7 +203,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     ) {
       await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (opts.bail !== false) {
       throw err
     }

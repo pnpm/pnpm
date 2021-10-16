@@ -57,7 +57,7 @@ export default async function findPkgs (root: string, opts?: Options): Promise<P
             dir: path.dirname(manifestPath),
             ...await readExactProjectManifest(manifestPath),
           } as Project
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           if (err.code === 'ENOENT') {
             return null!
           }

@@ -214,7 +214,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
       recursive: true,
       selectedProjectsGraph,
     }, ['npm', 'run', 'build', '--no-bail'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err1 = _err
     failed = true
   }
@@ -235,7 +235,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
       recursive: true,
       selectedProjectsGraph,
     }, ['npm', 'run', 'build'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err2 = _err
     failed = true
   }

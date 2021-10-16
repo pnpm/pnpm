@@ -227,7 +227,7 @@ async function getBinNodePaths (target: string): Promise<string[]> {
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {
   try {
     return await readPackageJsonFromDir(pkgDir) as DependencyManifest
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return null
     }

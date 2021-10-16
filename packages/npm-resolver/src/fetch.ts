@@ -58,7 +58,7 @@ export default async function fromRegistry (
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
-      } catch (error) {
+      } catch (error: any) { // eslint-disable-line
         reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
         return
       }
@@ -75,7 +75,7 @@ export default async function fromRegistry (
       // Other HTTP issues are retried by the @pnpm/fetch library
       try {
         resolve(await response.json())
-      } catch (error) {
+      } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(
           new PnpmError('BROKEN_METADATA_JSON', error.message)
         )

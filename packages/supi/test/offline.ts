@@ -9,7 +9,7 @@ test('offline installation fails when package meta not found in local registry m
   try {
     await addDependenciesToPackage({}, ['is-positive@3.0.0'], await testDefaults({}, { offline: true }, { offline: true }))
     throw new Error('installation should have failed')
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.code).toBe('ERR_PNPM_NO_OFFLINE_META')
   }
 })
@@ -24,7 +24,7 @@ test('offline installation fails when package tarball not found in local registr
   try {
     await addDependenciesToPackage(manifest, ['is-positive@3.1.0'], await testDefaults({}, { offline: true }, { offline: true }))
     throw new Error('installation should have failed')
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.code).toBe('ERR_PNPM_NO_OFFLINE_TARBALL')
   }
 })

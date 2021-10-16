@@ -20,7 +20,7 @@ export default async function importIndexedDir (
   try {
     await tryImportIndexedDir(importFile, stage, filenames)
     await renameOverwrite(stage, newDir)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     try {
       await rimraf(stage)
     } catch (err) {} // eslint-disable-line:no-empty

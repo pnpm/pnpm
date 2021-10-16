@@ -227,7 +227,7 @@ test('--workspace-root fails if used with --global', async () => {
   let err!: PnpmError
   try {
     await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root', '--global'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeTruthy()
@@ -239,7 +239,7 @@ test('--workspace-root fails if used outside of a workspace', async () => {
   let err!: PnpmError
   try {
     await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeTruthy()

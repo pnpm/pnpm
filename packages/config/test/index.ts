@@ -42,7 +42,7 @@ test('throw error if --link-workspace-packages is used with --global', async () 
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('Configuration conflict. "link-workspace-packages" may not be used with "global"')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL')
   }
@@ -75,7 +75,7 @@ test('throw error if --shared-workspace-lockfile is used with --global', async (
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
   }
@@ -93,7 +93,7 @@ test('throw error if --lockfile-dir is used with --global', async () => {
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('Configuration conflict. "lockfile-dir" may not be used with "global"')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL')
   }
@@ -111,7 +111,7 @@ test('throw error if --hoist-pattern is used with --global', async () => {
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('Configuration conflict. "hoist-pattern" may not be used with "global"')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL')
   }
@@ -129,7 +129,7 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('Configuration conflict. "virtual-store-dir" may not be used with "global"')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL')
   }
@@ -266,7 +266,7 @@ test('throw error if --save-prod is used with --save-peer', async () => {
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('A package cannot be a peer dependency and a prod dependency at the same time')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
   }
@@ -284,7 +284,7 @@ test('throw error if --save-optional is used with --save-peer', async () => {
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('A package cannot be a peer dependency and an optional dependency at the same time')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
   }
@@ -379,7 +379,7 @@ test('throw error if --no-hoist is used with --shamefully-hoist', async () => {
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('--shamefully-hoist cannot be used with --no-hoist')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
   }
@@ -397,7 +397,7 @@ test('throw error if --no-hoist is used with --shamefully-flatten', async () => 
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('--shamefully-flatten cannot be used with --no-hoist')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
   }
@@ -415,7 +415,7 @@ test('throw error if --no-hoist is used with --hoist-pattern', async () => {
         version: '1.0.0',
       },
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toEqual('--hoist-pattern cannot be used with --no-hoist')
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
   }

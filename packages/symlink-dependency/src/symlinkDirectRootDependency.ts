@@ -34,7 +34,7 @@ export default async function symlinkDirectRootDependency (
   let destModulesDirReal
   try {
     destModulesDirReal = await fs.realpath(destModulesDir)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') {
       await fs.mkdir(destModulesDir, { recursive: true })
       destModulesDirReal = await fs.realpath(destModulesDir)

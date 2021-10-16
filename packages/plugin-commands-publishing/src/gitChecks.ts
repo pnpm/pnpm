@@ -5,7 +5,7 @@ import execa from 'execa'
 export async function isGitRepo () {
   try {
     await execa('git', ['rev-parse', '--git-dir'])
-  } catch (_) {
+  } catch (_: any) { // eslint-disable-line
     return false
   }
   return true
@@ -23,7 +23,7 @@ export async function isWorkingTreeClean () {
       return false
     }
     return true
-  } catch (_) {
+  } catch (_: any) { // eslint-disable-line
     return false
   }
 }
@@ -33,7 +33,7 @@ export async function isRemoteHistoryClean () {
   try { // Gracefully handle no remote set up.
     const { stdout } = await execa('git', ['rev-list', '--count', '--left-only', '@{u}...HEAD'])
     history = stdout
-  } catch (_) {
+  } catch (_: any) { // eslint-disable-line
     history = null
   }
   if (history && history !== '0') {

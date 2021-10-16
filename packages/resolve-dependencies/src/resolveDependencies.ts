@@ -628,7 +628,7 @@ async function resolveDependency (
       update: options.update,
       workspacePackages: options.workspacePackages,
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (wantedDependency.optional) {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),

@@ -98,7 +98,7 @@ export async function verifyFileIntegrity (
       parseJsonBuffer(data, deferredManifest)
     }
     return ok
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     switch (err.code) {
     case 'ENOENT': return false
     case 'EINTEGRITY': {
@@ -118,7 +118,7 @@ async function checkFile (filename: string, checkedAt?: number) {
       isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
       size,
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') return null
     throw err
   }

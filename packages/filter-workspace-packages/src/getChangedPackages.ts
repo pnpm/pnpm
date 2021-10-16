@@ -54,7 +54,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
         workingDir,
       ], { cwd: workingDir })
     ).stdout
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${err.stderr as string}`)
   }
   const changedDirs = new Map<string, ChangeType>()

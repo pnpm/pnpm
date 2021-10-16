@@ -76,7 +76,7 @@ test('createWorkspaceSpecs', () => {
   let err!: PnpmError
   try {
     createWorkspaceSpecs(['express'], WORKSPACE_PACKAGES)
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_WORKSPACE_PACKAGE_NOT_FOUND')

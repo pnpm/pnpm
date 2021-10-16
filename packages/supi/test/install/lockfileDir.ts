@@ -30,7 +30,7 @@ test.skip('subsequent installation fails if a different lockfile directory is sp
   try {
     await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ lockfileDir: process.cwd() }))
     throw new Error('test failed')
-  } catch (_) {
+  } catch (_: any) { // eslint-disable-line
     err = _
   }
 

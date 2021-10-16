@@ -13,7 +13,7 @@ export default async function getPkgInfo (
   let manifest
   try {
     manifest = await readPkg(path.join(pkg.path, 'node_modules', pkg.name, 'package.json'))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     // This will probably never happen
     manifest = {
       description: '[Could not find additional info about this dependency]',

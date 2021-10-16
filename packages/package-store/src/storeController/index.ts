@@ -132,7 +132,7 @@ export default async function (
     let filesIndex!: PackageFilesIndex
     try {
       filesIndex = await loadJsonFile<PackageFilesIndex>(opts.filesIndexFile)
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       filesIndex = { files: integrity }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}

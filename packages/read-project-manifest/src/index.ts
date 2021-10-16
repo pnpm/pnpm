@@ -19,7 +19,7 @@ type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Prom
 export async function safeReadProjectManifestOnly (projectDir: string) {
   try {
     return await readProjectManifestOnly(projectDir)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
       return null
     }
@@ -66,7 +66,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
         manifestPath,
       }),
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
   }
   try {
@@ -81,7 +81,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
         manifestPath,
       }),
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
   }
   try {
@@ -92,7 +92,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
       manifest,
       writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
   }
   if (isWindows()) {
@@ -100,7 +100,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     let s: Stats | undefined
     try {
       s = await fs.stat(projectDir)
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       // Ignore
     }
     if ((s != null) && !s.isDirectory()) {

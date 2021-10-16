@@ -264,7 +264,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
     }, ['this-command-does-not-exist'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
@@ -317,7 +317,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
       recursive: true,
       workspaceDir: process.cwd(),
     }, ['this-command-does-not-exist'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
@@ -461,7 +461,7 @@ Commands available via "pnpm run":
         selectedProjectsGraph,
         workspaceDir: process.cwd(),
       }, [])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
 
@@ -530,7 +530,7 @@ test('testing the bail config with "pnpm recursive run"', async () => {
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
     }, ['build', '--no-bail'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err1 = _err
   }
   expect(err1.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
@@ -550,7 +550,7 @@ test('testing the bail config with "pnpm recursive run"', async () => {
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
     }, ['build'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err2 = _err
   }
 

@@ -112,7 +112,7 @@ test('fail on invalid JSON', async () => {
   let err!: Error
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-json'))
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 
@@ -126,7 +126,7 @@ test('fail on invalid JSON5', async () => {
   let err!: Error
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-json5'))
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 
@@ -139,7 +139,7 @@ test('fail on invalid YAML', async () => {
   let err!: Error
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-yaml'))
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 

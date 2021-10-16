@@ -126,7 +126,7 @@ export default async (
       limit(async () => {
         try {
           await saveMeta(pkgMirror, meta)
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           // We don't care if this file was not written to the cache
         }
       })
@@ -135,7 +135,7 @@ export default async (
       meta,
       pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
     if (meta == null) throw err
     logger.error(err, err)
@@ -157,7 +157,7 @@ function encodePkgName (pkgName: string) {
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
     return await loadJsonFile<PackageMeta>(pkgMirror)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     return null
   }
 }

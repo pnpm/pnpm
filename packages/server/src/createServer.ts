@@ -60,7 +60,7 @@ export default function (
             body = {}
           }
           resolve(body)
-        } catch (e) {
+        } catch (e: any) { // eslint-disable-line
           reject(e)
         }
       })
@@ -81,7 +81,7 @@ export default function (
               filesPromises[body.msgId] = pkgResponse['files'] // eslint-disable-line
           }
           res.end(JSON.stringify(pkgResponse.body))
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           res.end(JSON.stringify({
             error: {
               message: err.message,
@@ -102,7 +102,7 @@ export default function (
               filesPromises[body.msgId] = pkgResponse['files'] // eslint-disable-line
           }
           res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }))
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           res.end(JSON.stringify({
             error: {
               message: err.message,
@@ -166,7 +166,7 @@ export default function (
         res.end(JSON.stringify(error))
       }
       }
-    } catch (e) {
+    } catch (e: any) { // eslint-disable-line
       res.statusCode = 503
       const jsonErr = JSON.parse(JSON.stringify(e))
       jsonErr.message = e.message

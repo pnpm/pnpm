@@ -372,7 +372,7 @@ test('selection should fail when diffing to a branch that does not exist', async
   let err!: PnpmError
   try {
     await filterWorkspacePackages(PKGS_GRAPH, [{ diff: 'branch-does-no-exist' }], { workspaceDir: process.cwd() })
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeDefined()

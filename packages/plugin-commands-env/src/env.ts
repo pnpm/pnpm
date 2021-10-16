@@ -86,7 +86,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       const cmdShimOpts = { createPwshFile: false }
       await cmdShim(path.join(npmBinDir, 'npm-cli.js'), path.join(opts.bin, 'npm'), cmdShimOpts)
       await cmdShim(path.join(npmBinDir, 'npx-cli.js'), path.join(opts.bin, 'npx'), cmdShimOpts)
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       // ignore
     }
     return `Node.js ${nodeVersion} is activated

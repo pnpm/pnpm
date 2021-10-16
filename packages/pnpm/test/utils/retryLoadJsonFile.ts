@@ -9,7 +9,7 @@ export default async <T>(filePath: string): Promise<T> => {
     operation.attempt(async (currentAttempt) => {
       try {
         resolve(await loadJsonFile<T>(filePath))
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         if (operation.retry(err)) {
           return
         }

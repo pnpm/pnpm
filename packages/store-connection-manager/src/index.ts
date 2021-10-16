@@ -102,7 +102,7 @@ export async function tryLoadServerJson (
         // Delete the file in an attempt to recover from this bad state.
         try {
           await fs.unlink(options.serverJsonPath)
-        } catch (error) {
+        } catch (error: any) { // eslint-disable-line
           if (error.code !== 'ENOENT') {
             throw error
           }
@@ -117,7 +117,7 @@ export async function tryLoadServerJson (
     let serverJsonStr
     try {
       serverJsonStr = await fs.readFile(options.serverJsonPath, 'utf8')
-    } catch (error) {
+    } catch (error: any) { // eslint-disable-line
       if (error.code !== 'ENOENT') {
         throw error
       }
@@ -129,7 +129,7 @@ export async function tryLoadServerJson (
     let serverJson
     try {
       serverJson = JSON.parse(serverJsonStr)
-    } catch (error) {
+    } catch (error: any) { // eslint-disable-line
       // Server is starting or server.json was modified by a third party.
       // We assume the best case and retry.
       continue

@@ -134,7 +134,7 @@ test('server errors should arrive to the client', async () => {
         sideEffectsCache: false,
       }
     )
-  } catch (e) {
+  } catch (e: any) { // eslint-disable-line
     caught = true
     expect(e.message).toBe('GET https://registry.npmjs.org/not-an-existing-package: Not Found - 404')
     expect(e.hint).toBe(`not-an-existing-package is not in the npm registry, or you have no permission to fetch it.

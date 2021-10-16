@@ -7,7 +7,7 @@ export default async function () {
     // not the one used to run the pnpm CLI.
     const nodeExecPath = await which('node')
     return fs.realpath(nodeExecPath)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err
     return process.env.NODE ?? process.execPath
   }

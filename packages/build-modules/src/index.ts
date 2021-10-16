@@ -103,7 +103,7 @@ async function buildDependency (
           engine: ENGINE_NAME,
           filesIndexFile: depNode.filesIndexFile,
         })
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         if (err.statusCode === 403) {
           logger.warn({
             message: `The store server disabled upload requests, could not upload ${depNode.dir}`,
@@ -118,7 +118,7 @@ async function buildDependency (
         }
       }
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (depNode.optional) {
       // TODO: add parents field to the log
       const pkg = await readPackageFromDir(path.join(depNode.dir)) as DependencyManifest

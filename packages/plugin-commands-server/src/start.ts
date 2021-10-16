@@ -54,7 +54,7 @@ export default async (
   let fd: number | null
   try {
     fd = await open(serverJsonPath, 'wx')
-  } catch (error) {
+  } catch (error: any) { // eslint-disable-line
     if (error.code !== 'EEXIST') {
       throw error
     }
@@ -70,13 +70,13 @@ export default async (
     if (fd !== null) {
       try {
         closeSync(fd)
-      } catch (error) {
+      } catch (error: any) { // eslint-disable-line
         storeServerLogger.error(error, 'Got error while closing file descriptor of server.json, but the process is already exiting')
       }
     }
     try {
       unlinkSync(serverJsonPath)
-    } catch (error) {
+    } catch (error: any) { // eslint-disable-line
       if (error.code !== 'ENOENT') {
         storeServerLogger.error(error, 'Got error unlinking server.json, but the process is already exiting')
       }

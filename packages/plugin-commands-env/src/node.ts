@@ -127,7 +127,7 @@ function getNodeJSTarball (nodeVersion: string) {
 async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: string }> {
   try {
     return await loadJsonFile<{ default?: string }>(path.join(nodesDir, 'versions.json'))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') {
       return {}
     }

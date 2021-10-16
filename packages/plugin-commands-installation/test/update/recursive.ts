@@ -224,7 +224,7 @@ test('recursive update with pattern and name in project', async () => {
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
     }, ['this-does-not-exist'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeTruthy()
@@ -392,7 +392,7 @@ test('recursive update in workspace should not add new dependencies', async () =
       recursive: true,
       workspaceDir: process.cwd(),
     }, ['is-positive'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeTruthy()

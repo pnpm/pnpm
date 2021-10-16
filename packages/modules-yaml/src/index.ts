@@ -34,7 +34,7 @@ export async function read (modulesDir: string): Promise<Modules | null> {
   let modules!: Modules
   try {
     modules = await readYamlFile<Modules>(modulesYamlPath)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }

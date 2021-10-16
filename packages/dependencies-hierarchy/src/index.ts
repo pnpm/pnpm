@@ -187,7 +187,7 @@ async function dependenciesHierarchyForPackage (
       try {
         pkgPath = await resolveLinkTarget(pkgPath)
         version = `link:${normalizePath(path.relative(projectPath, pkgPath))}`
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         // if error happened. The package is not a link
         const pkg = await safeReadPackageFromDir(pkgPath)
         version = pkg?.version ?? 'undefined'

@@ -63,7 +63,7 @@ export default (pnpmFilePath: string, prefix: string) => {
     }
     pnpmfile.filename = pnpmFilePath
     return pnpmfile
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err instanceof SyntaxError) {
       console.error(chalk.red('A syntax error in the .pnpmfile.cjs\n'))
       console.error(err)

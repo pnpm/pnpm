@@ -282,7 +282,7 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
     })
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_OUTDATED_NO_LOCKFILE')

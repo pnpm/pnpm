@@ -124,7 +124,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
       try {
         const store = await getStoreInstance()
         return store.storeHasNot(pkgName, version)
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         if (err.message.startsWith('Cannot find module store')) {
           return
         }
@@ -137,7 +137,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
     async readCurrentLockfile () {
       try {
         return await readYamlFile(path.join(await getVirtualStoreDir(), 'lock.yaml')) // eslint-disable-line
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         if (err.code === 'ENOENT') return null!
         throw err
       }
@@ -146,7 +146,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
     async readLockfile () {
       try {
         return await readYamlFile(path.join(projectPath, WANTED_LOCKFILE)) // eslint-disable-line
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         if (err.code === 'ENOENT') return null!
         throw err
       }

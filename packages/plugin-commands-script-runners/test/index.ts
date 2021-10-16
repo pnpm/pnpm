@@ -38,7 +38,7 @@ test('pnpm run: returns correct exit code', async () => {
       extraBinPaths: [],
       rawConfig: {},
     }, ['exit1'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.errno).toBe(1)
@@ -393,7 +393,7 @@ test('if a script is not found but is present in the root, print an info message
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
     }, ['build'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 

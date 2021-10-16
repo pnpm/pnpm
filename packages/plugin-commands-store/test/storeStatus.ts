@@ -31,7 +31,7 @@ test('CLI fails when store status finds modified packages', async () => {
       registries: { default: REGISTRY },
       storeDir,
     }, ['status'])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')

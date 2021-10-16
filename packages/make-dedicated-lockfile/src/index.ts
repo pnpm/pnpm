@@ -42,7 +42,7 @@ export default async function (lockfileDir: string, projectDir: string) {
     await renameOverwrite(modulesDir, tmp)
     await renameOverwrite(tmp, tempModulesDir)
     modulesRenamed = true
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err
   }
 

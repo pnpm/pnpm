@@ -24,7 +24,7 @@ test('readWantedLockfile()', async () => {
       wantedVersion: 3,
     })
     fail()
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.code).toEqual('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
   }
 })

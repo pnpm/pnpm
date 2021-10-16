@@ -95,7 +95,7 @@ async function linkAllBins (modulesDir: string, opts: { extendNodePath?: boolean
   }
   try {
     await linkBins(modulesDir, bin, { allowExoticManifests: true, extendNodePath: opts.extendNodePath, warn })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     // Some packages generate their commands with lifecycle hooks.
     // At this stage, such commands are not generated yet.
     // For now, we don't hoist such generated commands.

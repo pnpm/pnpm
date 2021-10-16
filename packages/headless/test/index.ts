@@ -483,7 +483,7 @@ test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async (
   try {
     await headless(await testDefaults({ lockfileDir: projectDir }))
     throw new Error()
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toBe(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
   }
 })

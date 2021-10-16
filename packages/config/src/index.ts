@@ -488,13 +488,13 @@ function firstWithWriteAccess (dirs: string[]) {
   const first = dirs.find((dir) => {
     try {
       return canWriteToDir(dir)
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT') throw err
     }
     try {
       fs.mkdirSync(dir, { recursive: true })
       return true
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       return false
     }
   })

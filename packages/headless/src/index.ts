@@ -501,7 +501,7 @@ async function linkRootPackages (
             try {
               // TODO: cover this case with a test
               return await readProjectManifestOnly(packageDir) as DependencyManifest
-            } catch (err) {
+            } catch (err: any) { // eslint-disable-line
               if (err['code'] !== 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') throw err
               return { name: alias, version: '0.0.0' }
             }
@@ -633,7 +633,7 @@ async function lockfileToDepGraph (
             },
           })
           if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           if (pkgSnapshot.optional) return
           throw err
         }
@@ -783,7 +783,7 @@ async function linkAllPkgs (
       let filesResponse!: PackageFilesResponse
       try {
         filesResponse = await depNode.fetchingFiles()
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         if (depNode.optional) return
         throw err
       }

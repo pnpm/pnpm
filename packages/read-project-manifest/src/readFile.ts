@@ -11,7 +11,7 @@ export async function readJson5File (filePath: string) {
       data: JSON5.parse(text),
       text,
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     err.message = `${err.message as string} in ${filePath}`
     err['code'] = 'ERR_PNPM_JSON5_PARSE'
     throw err
@@ -25,7 +25,7 @@ export async function readJsonFile (filePath: string) {
       data: parseJson(text, filePath) as ProjectManifest,
       text,
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     err['code'] = 'ERR_PNPM_JSON_PARSE'
     throw err
   }

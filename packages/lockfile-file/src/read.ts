@@ -67,7 +67,7 @@ async function _read (
   let lockfileRawContent
   try {
     lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
@@ -81,7 +81,7 @@ async function _read (
   try {
     lockfile = yaml.load(lockfileRawContent) as Lockfile
     hadConflicts = false
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
       throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${err.message as string}`)
     }

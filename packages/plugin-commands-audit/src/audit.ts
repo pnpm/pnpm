@@ -130,7 +130,7 @@ export async function handler (
       },
       timeout: opts.fetchTimeout,
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (opts.ignoreRegistryErrors) {
       return {
         exitCode: 0,

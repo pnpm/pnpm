@@ -356,7 +356,7 @@ export default async function recursive (
           await writeProjectManifest(newManifest)
         }
         result.passes++
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         logger.info(err)
 
         if (!opts.bail) {
@@ -437,7 +437,7 @@ async function readLocalConfig (prefix: string) {
       config.hoistPattern = ''
     }
     return config
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
     return {}
   }

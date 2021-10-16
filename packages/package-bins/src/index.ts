@@ -30,7 +30,7 @@ async function findFiles (dir: string): Promise<string[]> {
       onlyFiles: true,
       followSymbolicLinks: false,
     })
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }

@@ -44,7 +44,7 @@ export default async function run (inputArgv: string[]) {
   let parsedCliArgs!: ParsedCliArgs
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     // Reporting is not initialized at this point, so just printing the error
     printError(err.message, err['hint'])
     process.exit(1)
@@ -99,7 +99,7 @@ export default async function run (inputArgv: string[]) {
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
     config.fallbackCommandUsed = fallbackCommandUsed
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     // Reporting is not initialized at this point, so just printing the error
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
     printError(err.message, hint)

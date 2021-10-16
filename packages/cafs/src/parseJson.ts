@@ -9,7 +9,7 @@ export function parseJsonBuffer (
 ) {
   try {
     deferred.resolve(JSON.parse(stripBom(buffer.toString())))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     deferred.reject(err)
   }
 }

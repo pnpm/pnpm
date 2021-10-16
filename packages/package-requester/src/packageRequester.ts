@@ -386,7 +386,7 @@ function fetchToStore (
   async function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
     try {
       return await p
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       ctx.fetchingLocker.delete(opts.pkg.id)
       throw err
     }
@@ -411,7 +411,7 @@ function fetchToStore (
         let pkgFilesIndex
         try {
           pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
         // if target exists and it wasn't modified, then no need to refetch it
@@ -531,7 +531,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         fromStore: false,
       })
       finishing.resolve(undefined)
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       files.reject(err)
       if (opts.fetchRawManifest) {
         bundledManifest.reject(err)
@@ -567,7 +567,7 @@ async function tarballIsUpToDate (
   let currentIntegrity!: string
   try {
     currentIntegrity = (await gfs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8'))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     return false
   }
   if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
@@ -576,7 +576,7 @@ async function tarballIsUpToDate (
   const tarballStream = createReadStream(tarball)
   try {
     return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     return false
   }
 }
@@ -594,7 +594,7 @@ async function fetcher (
   }
   try {
     return await fetch(cafs, resolution, opts)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({
       message: `Fetching ${packageId} failed!`,
       prefix: opts.lockfileDir,

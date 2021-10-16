@@ -17,7 +17,7 @@ test('fail on non-compatible node_modules', async () => {
   try {
     await addDependenciesToPackage({}, ['is-negative'], opts)
     throw new Error('should have failed')
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
   }
 })
@@ -61,7 +61,7 @@ test('do not fail on non-compatible node_modules when forced with a named instal
   let err!: PnpmError
   try {
     await addDependenciesToPackage({}, ['is-negative'], opts)
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
@@ -87,7 +87,7 @@ test('do not fail on non-compatible store when forced during named installation'
   let err!: PnpmError
   try {
     await addDependenciesToPackage({}, ['is-negative'], opts)
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
@@ -112,7 +112,7 @@ test(`fail on non-compatible ${WANTED_LOCKFILE}`, async () => {
   try {
     await addDependenciesToPackage({}, ['is-negative'], await testDefaults())
     throw new Error('should have failed')
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.code).toBe('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
   }
 })

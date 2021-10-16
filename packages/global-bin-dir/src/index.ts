@@ -70,7 +70,7 @@ function dirHasNodeRelatedCommand (dir: string) {
       .filter((entry) => !entry.isDirectory())
       .map(({ name }) => name.toLowerCase())
       .some((file) => NODE_RELATED_COMMANDS.has(file.split('.')[0]))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     return false
   }
 }
@@ -84,7 +84,7 @@ function isUnderDir (dir: string, target: string) {
 function canWriteToDirAndExists (dir: string) {
   try {
     return canWriteToDir(dir)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
     return false
   }

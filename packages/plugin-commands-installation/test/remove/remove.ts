@@ -12,7 +12,7 @@ test('remove should fail if no dependency is specified for removal', async () =>
       ...DEFAULT_OPTS,
       dir: process.cwd(),
     }, [])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MUST_REMOVE_SOMETHING')
@@ -29,7 +29,7 @@ test('remove should fail if the project has no dependencies at all', async () =>
         ...DEFAULT_OPTS,
         dir: process.cwd(),
       }, ['express'])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
@@ -43,7 +43,7 @@ test('remove should fail if the project has no dependencies at all', async () =>
         dir: process.cwd(),
         saveProd: true,
       }, ['express'])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
@@ -57,7 +57,7 @@ test('remove should fail if the project has no dependencies at all', async () =>
         dir: process.cwd(),
         saveDev: true,
       }, ['express'])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
@@ -71,7 +71,7 @@ test('remove should fail if the project has no dependencies at all', async () =>
         dir: process.cwd(),
         saveOptional: true,
       }, ['express'])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
@@ -103,7 +103,7 @@ test('remove should fail if the project does not have one of the removed depende
         dir: process.cwd(),
         saveProd: true,
       }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
@@ -119,7 +119,7 @@ no such dependencies found in \'dependencies\'')
         dir: process.cwd(),
         saveDev: true,
       }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
@@ -135,7 +135,7 @@ no such dependencies found in \'devDependencies\'')
         dir: process.cwd(),
         saveOptional: true,
       }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
@@ -150,7 +150,7 @@ no such dependencies found in \'optionalDependencies\'')
         ...DEFAULT_OPTS,
         dir: process.cwd(),
       }, ['express', 'prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
-    } catch (_err) {
+    } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')

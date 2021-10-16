@@ -16,7 +16,7 @@ test('readPackageJson() throw error when name is invalid', async () => {
   let err
   try {
     await readPackageJson(path.join(fixtures, 'invalid-name', 'package.json'))
-  } catch (_) {
+  } catch (_: any) { // eslint-disable-line
     err = _
   }
   expect(err.code).toBe('ERR_PNPM_BAD_PACKAGE_JSON')
@@ -26,7 +26,7 @@ test('readPackageJson() throw initial error when package.json not found', async 
   let err
   try {
     await readPackageJson(path.join(fixtures, 'package.json'))
-  } catch (_) {
+  } catch (_: any) { // eslint-disable-line
     err = _
   }
   expect(err.code).toBe('ENOENT')

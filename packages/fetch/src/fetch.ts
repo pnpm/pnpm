@@ -46,7 +46,7 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
           resolve(res)
           return
         }
-      } catch (error) {
+      } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(error)
         if (timeout === false) {
           reject(op.mainError())

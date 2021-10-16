@@ -1112,7 +1112,7 @@ test('fail if none of the available resolvers support a version spec', async () 
       },
     ], await testDefaults())
     throw new Error('should have failed')
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')

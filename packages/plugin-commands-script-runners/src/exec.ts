@@ -128,7 +128,7 @@ export async function handler (
             stdio: 'inherit',
           })
           result.passes++
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           if (!opts.recursive && typeof err.exitCode === 'number') {
             process.exit(err.exitCode)
           }

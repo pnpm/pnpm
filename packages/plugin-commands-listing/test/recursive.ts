@@ -255,7 +255,7 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
       dir: process.cwd(),
       recursive: true,
     }, [])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 

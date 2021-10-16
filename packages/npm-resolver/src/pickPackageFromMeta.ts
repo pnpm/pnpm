@@ -32,7 +32,7 @@ export default function (
       manifest.name = meta['name']
     }
     return manifest
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     throw new PnpmError('MALFORMED_METADATA',
       `Received malformed metadata for "${spec.name}"`,
       { hint: 'This might mean that the package was unpublished from the registry' }

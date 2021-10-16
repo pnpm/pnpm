@@ -49,7 +49,7 @@
     "syncpack": "^5.7.11",
     "ts-jest": "27.0.1",
     "ts-node": "^10.0.0",
-    "typescript": "4.3.5",
+    "typescript": "4.4.4",
     "verdaccio": "^5.1.0",
     "yarn": "^1.22.10"
   },

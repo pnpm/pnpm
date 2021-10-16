@@ -57,7 +57,7 @@ export async function handler (
         recursive: true,
         maxRetries: 3,
       })
-    } catch (err) { }
+    } catch (err) {}
   })
   await rimraf(bins)
   const pkgs = opts.package ?? params.slice(0, 1)

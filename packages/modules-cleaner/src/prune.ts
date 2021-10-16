@@ -175,7 +175,7 @@ export default async function prune (
 async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string) {
   try {
     return await fs.readdir(virtualStoreDir)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') {
       logger.warn({
         error: err,
@@ -192,7 +192,7 @@ async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDi
   removalLogger.debug(pathToRemove)
   try {
     await rimraf(pathToRemove)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     logger.warn({
       error: err,
       message: `Failed to remove "${pathToRemove}"`,

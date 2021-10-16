@@ -430,7 +430,7 @@ test('installing in a CI environment', async () => {
   let err!: Error
   try {
     await execPnpm(['install'], { env: { CI: 'true' } })
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeTruthy()

@@ -66,7 +66,7 @@ async function _retrieveFileIntegrities (
         }
       }
     }))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') {
       throw err
     }

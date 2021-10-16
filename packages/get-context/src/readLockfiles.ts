@@ -60,7 +60,7 @@ export default async function (
             const { lockfile, hadConflicts } = await readWantedLockfileAndAutofixConflicts(opts.lockfileDir, lockfileOpts)
             lockfileHadConflicts = hadConflicts
             return lockfile
-          } catch (err) {
+          } catch (err: any) { // eslint-disable-line
             logger.warn({
               message: `Ignoring broken lockfile at ${opts.lockfileDir}: ${err.message as string}`,
               prefix: opts.lockfileDir,
@@ -85,7 +85,7 @@ export default async function (
     (async () => {
       try {
         return await readCurrentLockfile(opts.virtualStoreDir, lockfileOpts)
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         logger.warn({
           message: `Ignoring broken lockfile at ${opts.virtualStoreDir}: ${err.message as string}`,
           prefix: opts.lockfileDir,

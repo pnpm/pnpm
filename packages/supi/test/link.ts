@@ -193,7 +193,7 @@ test('failed linking should not create empty folder', async () => {
   try {
     await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({ globalDir, manifest: {} }))
     throw new Error('should have failed')
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(await exists(path.join(globalDir, 'node_modules', 'does-not-exist'))).toBeFalsy()
   }
 })
@@ -264,7 +264,7 @@ test('throws error is package name is not defined', async () => {
   try {
     await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, dir: process.cwd() }))
     throw new Error('link package should fail')
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toBe('Package in ../is-positive must have a name field to be linked')
     expect(err.code).toBe('ERR_PNPM_INVALID_PACKAGE_NAME')
   }

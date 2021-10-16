@@ -287,7 +287,7 @@ export async function mutateModules (
             wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
           })
           return projects
-        } catch (error) {
+        } catch (error: any) { // eslint-disable-line
           if (
             frozenLockfile ||
             error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' && !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
@@ -384,7 +384,7 @@ export async function mutateModules (
               })
               continue
             }
-          } catch (err) {
+          } catch (err: any) { // eslint-disable-line
             if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
           }
           await rimraf(path.join(project.modulesDir, depName))
@@ -1004,7 +1004,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
     return await _installInContext(projects, ctx, opts)
-  } catch (error) {
+  } catch (error: any) { // eslint-disable-line
     if (!BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) throw error
     opts.needsFullResolution = true
     // Ideally, we would not update but currently there is no other way to redownload the integrity of the package

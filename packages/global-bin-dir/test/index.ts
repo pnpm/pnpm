@@ -134,7 +134,7 @@ test('when the process has no write access to any of the suitable directories, t
   let err!: PnpmError
   try {
     globalBinDir()
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeDefined()
@@ -153,7 +153,7 @@ test('throw an exception if non of the directories in the PATH are suitable', ()
   let err!: PnpmError
   try {
     globalBinDir()
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeDefined()

@@ -13,7 +13,7 @@ test('`pnpm why` should fail if no package name was provided', async () => {
     await why.handler({
       dir: process.cwd(),
     }, [])
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 

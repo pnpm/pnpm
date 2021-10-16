@@ -35,7 +35,7 @@ async function retryLoadJsonFile<T> (filePath: string) {
     await delay(500)
     try {
       return await loadJsonFile<T>(filePath)
-    } catch (err) {
+    } catch (err: any) { // eslint-disable-line
       if (retry > 2) throw err
       retry++
     }
@@ -1481,7 +1481,7 @@ test('workspace protocol: resolution fails if there is no matching local package
       registry,
       workspacePackages: {},
     })
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 
@@ -1502,7 +1502,7 @@ test('workspace protocol: resolution fails if there are no local packages', asyn
       projectDir: '/home/istvan/src',
       registry,
     })
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 

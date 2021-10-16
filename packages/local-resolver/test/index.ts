@@ -91,7 +91,7 @@ test('fail when resolving tarball specified with the link: protocol', async () =
     const wantedDependency = { pref: 'link:./pnpm-local-resolver-0.1.1.tgz' }
     await resolveFromLocal(wantedDependency, { projectDir: __dirname })
     fail()
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err).toBeDefined()
     expect(err.code).toEqual('ERR_PNPM_NOT_PACKAGE_DIRECTORY')
   }
@@ -109,7 +109,7 @@ test('throw error when the path: protocol is used', async () => {
   try {
     await resolveFromLocal({ pref: 'path:..' }, { projectDir: __dirname })
     fail()
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err).toBeDefined()
     expect(err.code).toEqual('ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL')
     expect(err.pref).toEqual('path:..')

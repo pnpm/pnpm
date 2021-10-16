@@ -74,7 +74,7 @@ async function readYarnLockFile (dir: string) {
     } else {
       throw new PnpmError('GET_YARN_LOCKFILE_ERR', `Failed With ${lockJsonFile.type}`)
     }
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
   }
   throw new PnpmError('YARN_LOCKFILE_NOT_FOUND', 'No yarn.lock found')
@@ -83,12 +83,12 @@ async function readYarnLockFile (dir: string) {
 async function readNpmLockfile (dir: string) {
   try {
     return await loadJsonFile<LockedPackage>(path.join(dir, 'package-lock.json'))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
   }
   try {
     return await loadJsonFile<LockedPackage>(path.join(dir, 'npm-shrinkwrap.json'))
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
   }
   throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')

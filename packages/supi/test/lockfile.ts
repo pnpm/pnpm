@@ -718,7 +718,7 @@ test('fail when installing with useLockfile: false and lockfileOnly: true', asyn
   try {
     await install({}, await testDefaults({ useLockfile: false, lockfileOnly: true }))
     throw new Error('installation should have failed')
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     expect(err.message).toBe(`Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
   }
 })
@@ -1010,7 +1010,7 @@ test('lockfile is not getting broken if the used registry changes', async () => 
   let err!: PnpmError
   try {
     await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_REGISTRIES_MISMATCH')
@@ -1053,7 +1053,7 @@ test('broken lockfile is fixed even if it seems like up-to-date at first. Unless
         rootDir: process.cwd(),
       },
     ], await testDefaults({ frozenLockfile: true }))
-  } catch (_err) {
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY')

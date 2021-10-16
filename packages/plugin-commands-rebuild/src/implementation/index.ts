@@ -281,7 +281,7 @@ async function _rebuild (
           unsafePerm: opts.unsafePerm || false,
         })
         pkgsThatWereRebuilt.add(depPath)
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         if (pkgSnapshot.optional) {
           // TODO: add parents field to the log
           skippedOptionalDependencyLogger.debug({

@@ -152,7 +152,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
         skipped: new Set<string>(),
       }
     )
-  } catch (_) {
+  } catch (_: any) { // eslint-disable-line
     err = _
   }
   expect(err).not.toBeNull()

@@ -22,7 +22,7 @@ export default async function safeIsInnerLink (
     if (isSubdir(opts.virtualStoreDir, link.target) || isSubdir(opts.storeDir, link.target)) return true
 
     return link.target as string
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') return true
 
     if (opts.hideAlienModules) {

@@ -89,7 +89,7 @@ export default async (
             await runLifecycleHooks(`post${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }
           result.passes++
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line
           logger.info(err)
 
           if (!opts.bail) {

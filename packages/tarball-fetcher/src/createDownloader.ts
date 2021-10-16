@@ -116,7 +116,7 @@ export default (
       op.attempt(async (attempt) => {
         try {
           resolve(await fetch(attempt))
-        } catch (error) {
+        } catch (error: any) { // eslint-disable-line
           if (error.response?.status === 401 || error.response?.status === 403) {
             reject(error)
           }
@@ -191,11 +191,11 @@ export default (
               return
             }
             resolve({ filesIndex: await prepareGitHostedPkg(filesIndex, opts.cafs) })
-          } catch (err) {
+          } catch (err: any) { // eslint-disable-line
             reject(err)
           }
         })
-      } catch (err) {
+      } catch (err: any) { // eslint-disable-line
         err.attempts = currentAttempt
         err.resource = url
         throw err
@@ -248,7 +248,7 @@ async function safeCheckStream (stream: any, integrity: string, url: string): Pr
   try {
     await ssri.checkStream(stream, integrity)
     return true
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
     return new TarballIntegrityError({
       algorithm: err['algorithm'],
       expected: err['expected'],

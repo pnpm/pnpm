@@ -71,7 +71,7 @@ test('should fail if some packages can not be added', async () => {
       },
       storeDir,
     }, ['add', '@pnpm/this-does-not-exist'])
-  } catch (e) {
+  } catch (e: any) { // eslint-disable-line
     thrown = true
     expect(e.code).toBe('ERR_PNPM_STORE_ADD_FAILURE')
     expect(e.message).toBe('Some packages have not been added correctly')
