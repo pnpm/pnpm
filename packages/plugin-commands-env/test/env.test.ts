@@ -112,6 +112,24 @@ test('install Node by its LTS name', async () => {
   expect(dirs).toEqual([version.substring(1)])
 })
 
+test('install the latest Node.js', async () => {
+  tempDir()
+
+  await env.handler({
+    bin: process.cwd(),
+    global: true,
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+  }, ['use', 'latest'])
+
+  const { stdout } = execa.sync('node', ['-v'], {
+    env: {
+      [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
+    },
+  })
+  expect(stdout.toString()).toMatch(/^v/)
+})
+
 test('fail if a non-existend Node.js version is tried to be installed', async () => {
   tempDir()
 

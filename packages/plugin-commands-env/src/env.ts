@@ -43,6 +43,7 @@ export function help () {
       'pnpm env use --global 16',
       'pnpm env use --global lts',
       'pnpm env use --global argon',
+      'pnpm env use --global latest',
     ],
   })
 }
@@ -105,6 +106,9 @@ interface NodeVersion {
 async function resolveNodeVersion (rawVersionSelector: string) {
   const response = await fetch('https://nodejs.org/download/release/index.json')
   const allVersions = (await response.json()) as NodeVersion[]
+  if (rawVersionSelector === 'latest') {
+    return allVersions[0].version.substring(1)
+  }
   const { versions, versionSelector } = filterVersions(allVersions, rawVersionSelector)
   const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector)
   if (!pickedVersion) return null
