@@ -259,6 +259,20 @@ test.skip('resolveFromGit() bitbucket with tag', async () => {
   })
 })
 
+test('resolveFromGit() gitlab with colon in the URL', async () => {
+  const resolveResult = await resolveFromGit({ pref: 'ssh://git@gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
+  expect(resolveResult).toStrictEqual({
+    id: 'gitlab/pnpm/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc',
+    normalizedPref: 'ssh://git@gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+    resolution: {
+      commit: '988c61e11dc8d9ca0b5580cb15291951812549dc',
+      repo: 'ssh://git@gitlab/pnpm/git-resolver',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
 test('resolveFromGit() gitlab with commit', async () => {
   const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
   expect(resolveResult).toStrictEqual({

@@ -38,7 +38,7 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
   if (colonsPos === -1) return null
   const protocol = pref.substr(0, colonsPos)
   if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
-    const urlparse = new URL(pref)
+    const urlparse = new URL(pref.replace(/:([^/])/, ':/$1'))
     if (!urlparse || !urlparse.protocol) return null
     const match = urlparse.protocol === 'git+ssh:' && matchGitScp(pref)
     if (match) {
