@@ -60,6 +60,12 @@ export default function getAgent (uri: string, opts: AgentOptions) {
   // consistent errors.
   const agentTimeout = typeof opts.timeout !== 'number' || opts.timeout === 0 ? 0 : opts.timeout + 1
 
+  // NOTE: localAddress is passed to the agent here even though it is an
+  // undocumented option of the agent's constructor.
+  //
+  // This works because all options of the agent are merged with
+  // all options of the request:
+  // https://github.com/nodejs/node/blob/350a95b89faab526de852d417bbb8a3ac823c325/lib/_http_agent.js#L254
   const agent = isHttps
     ? new HttpsAgent({
       ca: opts.ca,
