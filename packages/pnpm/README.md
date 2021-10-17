@@ -9,6 +9,7 @@ Fast, disk space efficient package manager:
 * **[Great for monorepos](https://pnpm.io/workspaces).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
+* **Works as a Node.js version manager.** See [pnpm env use](https://pnpm.io/cli/env).
 * **Works everywhere.** Supports Windows, Linux, and macOS.
 * **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/users) since 2016.
   
