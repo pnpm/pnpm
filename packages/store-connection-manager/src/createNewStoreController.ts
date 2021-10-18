@@ -26,6 +26,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'httpsProxy'
 | 'key'
 | 'localAddress'
+| 'maxSockets'
 | 'networkConcurrency'
 | 'noProxy'
 | 'offline'
@@ -64,9 +65,11 @@ export default async (
     strictSsl: opts.strictSsl ?? true,
     timeout: opts.fetchTimeout,
     userAgent: opts.userAgent,
-    maxSockets: opts.networkConcurrency != null
-      ? (opts.networkConcurrency * 3)
-      : undefined,
+    maxSockets: opts.maxSockets ?? (
+      opts.networkConcurrency != null
+        ? (opts.networkConcurrency * 3)
+        : undefined
+    ),
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {

@@ -96,6 +96,7 @@ export interface Config {
   storeDir?: string
   virtualStoreDir?: string
   verifyStoreIntegrity?: boolean
+  maxSockets?: number
   networkConcurrency?: number
   fetchingConcurrency?: number
   lockfileOnly?: boolean // like npm's --package-lock-only
