@@ -40,7 +40,7 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
   return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
 }
 
-export async function getNodeDir (opts: NvmNodeCommandOptions) {
+export async function getNodeDir (opts: NvmNodeCommandOptions & { releaseDir?: string }) {
   const nodesDir = path.join(opts.pnpmHomeDir, 'nodejs')
   let wantedNodeVersion = opts.useNodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
   await fs.promises.mkdir(nodesDir, { recursive: true })
@@ -61,9 +61,9 @@ export async function getNodeDir (opts: NvmNodeCommandOptions) {
   return versionDir
 }
 
-async function installNode (wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions) {
+async function installNode (wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
   await fs.promises.mkdir(versionDir, { recursive: true })
-  const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion)
+  const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion, opts.releaseDir ?? 'release')
   const fetchFromRegistry = createFetchFromRegistry(opts)
   if (tarball.endsWith('.zip')) {
     await downloadAndUnpackZip(fetchFromRegistry, tarball, versionDir, pkgName)
@@ -113,14 +113,14 @@ async function downloadAndUnpackZip (
   await fs.promises.unlink(tmp)
 }
 
-function getNodeJSTarball (nodeVersion: string) {
+function getNodeJSTarball (nodeVersion: string, releaseDir: string) {
   const platform = process.platform === 'win32' ? 'win' : process.platform
   const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
   const extension = platform === 'win' ? 'zip' : 'tar.gz'
   const pkgName = `node-v${nodeVersion}-${platform}-${arch}`
   return {
     pkgName,
-    tarball: `https://nodejs.org/download/release/v${nodeVersion}/${pkgName}.${extension}`,
+    tarball: `https://nodejs.org/download/${releaseDir}/v${nodeVersion}/${pkgName}.${extension}`,
   }
 }
 
