@@ -39,7 +39,6 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
   const protocol = pref.substr(0, colonsPos)
   if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
     const urlparse = new URL(escapeColon(pref))
-    // const urlparse = new URL(pref)
     if (!urlparse || !urlparse.protocol) return null
     const match = urlparse.protocol === 'git+ssh:' && matchGitScp(pref)
     if (match) {
@@ -61,9 +60,9 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
 
 function escapeColon (url: string) {
   if (!url.includes('@')) return url
-  let [part1, part2] = url.split('@')
-  part2 = part2.replace(/:([^/])/, ':/$1')
-  return `${part1}@${part2}`
+  const [front, ...backs] = url.split('@')
+  const escapedBacks = backs.map(e => e.replace(/:([^/])/, ':/$1'))
+  return [front, ...escapedBacks].join('@')
 }
 
 function urlToFetchSpec (urlparse: URL) {
