@@ -51,6 +51,12 @@ declare module 'split-cmd' {
   export function splitToObject (cmd: string): { command: string, args: string[] }
 }
 
+
+declare module 'bin-links/lib/fix-bin' {
+  function fixBin (path: string, execMode: number): Promise<void>;
+  export = fixBin;
+}
+
 declare namespace NodeJS.Module {
   function _nodeModulePaths(from: string): string[]
 }

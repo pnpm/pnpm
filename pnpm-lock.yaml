@@ -1176,6 +1176,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
       '@zkochan/cmd-shim': ^5.2.1
+      bin-links: ^2.3.0
       cmd-extension: ^1.0.2
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
@@ -1194,6 +1195,7 @@ importers:
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
       '@zkochan/cmd-shim': 5.2.1
+      bin-links: 2.3.0
       is-subdir: 1.2.0
       is-windows: 1.0.2
       normalize-path: 3.0.0
@@ -6368,6 +6370,18 @@ packages:
     dependencies:
       is-windows: 1.0.2
 
+  /bin-links/2.3.0:
+    resolution: {integrity: sha512-JzrOLHLwX2zMqKdyYZjkDgQGT+kHDkIhv2/IK2lJ00qLxV4TmFoHi8drDBb6H5Zrz1YfgHkai4e2MGPqnoUhqA==}
+    engines: {node: '>=10'}
+    dependencies:
+      cmd-shim: 4.1.0
+      mkdirp-infer-owner: 2.0.0
+      npm-normalize-package-bin: 1.0.1
+      read-cmd-shim: 2.0.0
+      rimraf: 3.0.2
+      write-file-atomic: 3.0.3
+    dev: false
+
   /bl/4.1.0:
     resolution: {integrity: sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w==}
     dependencies:
@@ -6888,6 +6902,13 @@ packages:
   /cmd-extension/1.0.2:
     resolution: {integrity: sha512-iWDjmP8kvsMdBmLTHxFaqXikO8EdFRDfim7k6vUHglY/2xJ5jLrPsnQGijdfp4U+sr/BeecG0wKm02dSIAeQ1g==}
     engines: {node: '>=10'}
+
+  /cmd-shim/4.1.0:
+    resolution: {integrity: sha512-lb9L7EM4I/ZRVuljLPEtUJOP+xiQVknZ4ZMpMgEp4JzNldPb27HU03hi6K1/6CoIuit/Zm/LQXySErFeXxDprw==}
+    engines: {node: '>=10'}
+    dependencies:
+      mkdirp-infer-owner: 2.0.0
+    dev: false
 
   /co/4.6.0:
     resolution: {integrity: sha1-bqa989hTrlTMuOR7+gvz+QMfsYQ=}
@@ -11447,6 +11468,15 @@ packages:
     resolution: {integrity: sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==}
     dev: true
 
+  /mkdirp-infer-owner/2.0.0:
+    resolution: {integrity: sha512-sdqtiFt3lkOaYvTXSRIUjkIdPTcxgv5+fgqYE/5qgwdw12cOrAuzzgzvVExIkH/ul1oeHN3bCLOWSG3XOqbKKw==}
+    engines: {node: '>=10'}
+    dependencies:
+      chownr: 2.0.0
+      infer-owner: 1.0.4
+      mkdirp: 1.0.4
+    dev: false
+
   /mkdirp/0.5.5:
     resolution: {integrity: sha512-NKmAlESf6jMGym1++R0Ra7wvhV+wFW63FaSOFPwRahvea0gMUcGUhVeAg/0BC0wiv9ih5NYPB1Wn1UEI1/L+xQ==}
     hasBin: true
@@ -12808,6 +12838,10 @@ packages:
   /react-is/17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
     dev: true
+
+  /read-cmd-shim/2.0.0:
+    resolution: {integrity: sha512-HJpV9bQpkl6KwjxlJcBoqu9Ba0PQg8TqSNIOrulGt54a0uup0HtevreFHzYzkm0lpnleRdNBzXznKrgxglEHQw==}
+    dev: false
 
   /read-ini-file/3.1.0:
     resolution: {integrity: sha512-yfpbqijWt63cx6FWJyOxwUPm7v24Xchr6oROjhYhB0Ca0lbDLHSXDm6k5yMGJU/q1xfzcV4XbgQ98kk65ilNkQ==}
