@@ -1,0 +1,8 @@
+{
+  "name": "windows-shebang",
+  "version": "1.0.0",
+  "bin": {
+    "crlf": "bin/crlf.js",
+    "lf": "bin/lf.js"
+  }
+}

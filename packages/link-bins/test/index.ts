@@ -23,6 +23,7 @@ const foobarFixture = path.join(fixtures, 'foobar')
 const exoticManifestFixture = path.join(fixtures, 'exotic-manifest')
 const noNameFixture = path.join(fixtures, 'no-name')
 const noBinFixture = path.join(fixtures, 'no-bin')
+const windowShebangFixture = path.join(fixtures, 'bin-window-shebang')
 
 const POWER_SHELL_IS_SUPPORTED = isWindows()
 const IS_WINDOWS = isWindows()
@@ -299,4 +300,37 @@ test('linkBins() links commands from bin directory with a subdirectory', async (
   await linkBins(path.join(fixtures, 'bin-dir'), binTarget, { warn: () => {} })
 
   expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['index.js']))
+})
+
+test('linkBins() fix window shebang line', async () => {
+  const binTarget = tempy.directory()
+  const warn = jest.fn()
+
+  await linkBins(path.join(windowShebangFixture, 'node_modules'), binTarget, { warn })
+
+  expect(warn).not.toHaveBeenCalled()
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['crlf', 'lf']))
+
+  const lfBinLoc = path.join(binTarget, 'lf')
+  const crlfBinLoc = path.join(binTarget, 'crlf')
+  for (const binLocation of [lfBinLoc, crlfBinLoc]) {
+    expect(await exists(binLocation)).toBe(true)
+  }
+
+  if (EXECUTABLE_SHEBANG_SUPPORTED) {
+    const lfFilePath = path.join(windowShebangFixture, 'node_modules', 'crlf/bin/lf.js')
+    const crlfFilePath = path.join(windowShebangFixture, 'node_modules', 'crlf/bin/crlf.js')
+
+    for (const filePath of [lfFilePath, crlfFilePath]) {
+      const content = await fs.readFile(filePath, 'utf8')
+      expect(content.startsWith('#!/usr/bin/env node\n')).toBeTruthy()
+    }
+
+    const lfStat = await fs.stat(lfBinLoc)
+    const crlfStat = await fs.stat(crlfBinLoc)
+    for (const stat of [lfStat, crlfStat]) {
+      expect(stat.mode).toBe(parseInt('100755', 8))
+      expect(stat.isFile()).toBe(true)
+    }
+  }
 })

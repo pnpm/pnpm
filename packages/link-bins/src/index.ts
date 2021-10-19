@@ -19,6 +19,7 @@ import isEmpty from 'ramda/src/isEmpty'
 import union from 'ramda/src/union'
 import unnest from 'ramda/src/unnest'
 import partition from 'ramda/src/partition'
+import fixBin from 'bin-links/lib/fix-bin'
 
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
@@ -196,9 +197,6 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePath?: boolean }) {
   const externalBinPath = path.join(binsDir, cmd.name)
 
-  if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    await fs.chmod(cmd.path, 0o755)
-  }
   let nodePath: string[] | undefined
   if (opts?.extendNodePath !== false) {
     nodePath = await getBinNodePaths(cmd.path)
@@ -207,11 +205,16 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePa
       nodePath = union(nodePath, await getBinNodePaths(binsParentDir))
     }
   }
-  return cmdShim(cmd.path, externalBinPath, {
+  await cmdShim(cmd.path, externalBinPath, {
     createPwshFile: cmd.makePowerShellShim,
     nodePath,
     nodeExecPath: cmd.nodeExecPath,
   })
+  // ensure that bin are executable and not containing
+  // windows line-endings(CRLF) on the hashbang line
+  if (EXECUTABLE_SHEBANG_SUPPORTED) {
+    await fixBin(cmd.path, 0o755)
+  }
 }
 
 async function getBinNodePaths (target: string): Promise<string[]> {
