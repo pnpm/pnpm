@@ -14,7 +14,7 @@
     "bin"
   ],
   "scripts": {
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "pre_test": "pnpm install --dir=test/__fixtures__/simple",

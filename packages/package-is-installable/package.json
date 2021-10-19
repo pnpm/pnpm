@@ -24,7 +24,7 @@
     "start": "pnpm run tsc -- --watch",
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },

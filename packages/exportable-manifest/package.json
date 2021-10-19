@@ -12,7 +12,7 @@
     "node": ">=12.17"
   },
   "scripts": {
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix",

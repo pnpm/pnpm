@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "write-release-text": "node --loader ts-node/esm src/main.ts",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts"
+    "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
     "mdast-util-to-string": "^1.0.6",

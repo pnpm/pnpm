@@ -135,7 +135,7 @@
     "?commit": "echo 'Run Git commit wizard'",
     "commit": "commit",
     "commitmsg": "commitlint -e",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:jest": "jest",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",

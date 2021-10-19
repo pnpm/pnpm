@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "lint": "eslint src/**/*.ts",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"

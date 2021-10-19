@@ -64,7 +64,7 @@
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "pretest": "rimraf .tmp",
     "_test": "pnpm pretest && jest",
     "test": "pnpm run compile && pnpm run _test",

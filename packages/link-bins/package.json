@@ -12,7 +12,7 @@
     "node": ">=12.17"
   },
   "scripts": {
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "pretest": "ncp test/fixtures test/fixtures_for_testing",
     "posttest": "rimraf test/fixtures_for_testing",
     "_test": "pnpm pretest && jest && pnpm posttest",

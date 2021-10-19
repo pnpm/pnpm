@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm run pretest --filter dependencies-hierarchy",
