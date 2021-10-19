@@ -44,7 +44,7 @@ export function help () {
       'pnpm env use --global lts',
       'pnpm env use --global argon',
       'pnpm env use --global latest',
-      'pnpm env use --global rc/16.0.0-rc.0',
+      'pnpm env use --global rc/16',
     ],
   })
 }
@@ -116,7 +116,7 @@ async function resolveNodeVersion (rawVersionSelector: string) {
     }
   }
   const { versions, versionSelector } = filterVersions(allVersions, version)
-  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector)
+  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector, { includePrerelease: true, loose: true })
   if (!pickedVersion) return { version: null, releaseDir }
   return {
     version: pickedVersion.substring(1),
@@ -128,6 +128,10 @@ function parseNodeVersionSelector (rawVersionSelector: string) {
   if (rawVersionSelector.includes('/')) {
     const [releaseDir, version] = rawVersionSelector.split('/')
     return { releaseDir, version }
+  }
+  const prereleaseMatch = rawVersionSelector.match(/-(nightly|rc|test|v8-canary)/)
+  if (prereleaseMatch != null) {
+    return { releaseDir: prereleaseMatch[1], version: rawVersionSelector }
   }
   if (['nightly', 'rc', 'test', 'release', 'v8-canary'].includes(rawVersionSelector)) {
     return { releaseDir: rawVersionSelector, version: 'latest' }

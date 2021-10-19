@@ -158,7 +158,7 @@ test('install Node by exact version of rc build', async () => {
     global: true,
     pnpmHomeDir: process.cwd(),
     rawConfig: {},
-  }, ['use', 'rc/16.0.0-rc.0'])
+  }, ['use', '16.0.0-rc.0'])
 
   const opts = {
     env: {
@@ -170,6 +170,31 @@ test('install Node by exact version of rc build', async () => {
   {
     const { stdout } = execa.sync('node', ['-v'], opts)
     expect(stdout.toString()).toBe('v16.0.0-rc.0')
+  }
+})
+
+test('install Node by major version from the specified release directory', async () => {
+  tempDir()
+  const configDir = path.resolve('config')
+
+  await env.handler({
+    bin: process.cwd(),
+    configDir,
+    global: true,
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+  }, ['use', 'rc/10'])
+
+  const opts = {
+    env: {
+      [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
+    },
+    extendEnv: false,
+  }
+
+  {
+    const { stdout } = execa.sync('node', ['-v'], opts)
+    expect(stdout.toString()).toBe('v10.23.0-rc.0')
   }
 })
 
