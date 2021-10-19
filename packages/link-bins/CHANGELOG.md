@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 6.2.1
+
+### Patch Changes
+
+- 6375cdce0: Autofix command files with Windows line endings on the shebang line.
+
 ## 6.2.0
 
 ### Minor Changes

@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 1.0.0
+
+### Major Changes
+
+- d4e2e52c4: Rename package from `supi` to `@pnpm/core`.
+
+### Patch Changes
+
+- Updated dependencies [6375cdce0]
+  - @pnpm/link-bins@6.2.1
+  - @pnpm/build-modules@7.1.2
+  - @pnpm/headless@16.1.4
+  - @pnpm/hoist@5.2.1
+  - @pnpm/lockfile-to-pnp@0.4.27
+  - @pnpm/package-requester@15.1.2
+
 ## 0.47.27
 
 ### Patch Changes

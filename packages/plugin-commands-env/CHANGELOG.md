@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-env
 
+## 1.2.0
+
+### Minor Changes
+
+- 37905fcf7: Install prerelease Node.js versions.
+- 1a6cc7ee7: Allow to install the latest Node.js version by running `pnpm env use -g latest`.
+
+### Patch Changes
+
+- Updated dependencies [bd7bcdbe8]
+  - @pnpm/config@13.3.0
+  - @pnpm/fetch@4.1.2
+  - @pnpm/cli-utils@0.6.27
+  - @pnpm/tarball-fetcher@9.3.7
+  - @pnpm/package-store@12.0.15
+
 ## 1.1.0
 
 ### Minor Changes

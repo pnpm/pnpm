@@ -1,5 +1,19 @@
 # @pnpm/store-connection-manager
 
+## 3.1.0
+
+### Minor Changes
+
+- bd7bcdbe8: Make the maximum amount of sockets configurable through the `maxSockets` option.
+
+### Patch Changes
+
+- Updated dependencies [bd7bcdbe8]
+  - @pnpm/config@13.3.0
+  - @pnpm/client@5.0.8
+  - @pnpm/server@11.0.8
+  - @pnpm/package-store@12.0.15
+
 ## 3.0.20
 
 ### Patch Changes

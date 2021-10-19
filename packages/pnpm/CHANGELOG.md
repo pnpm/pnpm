@@ -1,5 +1,27 @@
 # pnpm
 
+## 6.18.0
+
+### Minor Changes
+
+- `pnpm env use`:
+  - allow to install the latest Node.js release [#3879](https://github.com/pnpm/pnpm/pull/3879):
+    ```
+    pnpm env use -g latest
+    ```
+  - allow to install prerelease versions of Node.js [#3892](https://github.com/pnpm/pnpm/pull/3892):
+    ```
+    pnpm env use -g 16.0.0-rc.0
+    pnpm env use -g nightly
+    pnpm env use -g nightly/16
+    ```
+- `maxsockets`: a new setting to configure the maximum number of connections to use per origin (protocol/host/post combination) [#3889](https://github.com/pnpm/pnpm/pull/3889).
+
+### Patch Changes
+
+- Installing Git-hosted dependencies should work using URLs with colon. For instance, `pnpm add ssh://git@example.com:foo/bar.git` [#3882](https://github.com/pnpm/pnpm/pull/3882).
+- Autofix command files with Windows line endings on the shebang line [#3887](https://github.com/pnpm/pnpm/pull/3887).
+
 ## 6.17.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/npm-registry-agent
 
+## 5.0.1
+
+### Patch Changes
+
+- 6c50af201: Update socks-proxy-agent to v6.
+- 0beffc2a0: `http-proxy-agent` and `https-proxy-agent` update to v5.
+
 ## 5.0.0
 
 ### Major Changes

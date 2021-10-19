@@ -60,7 +60,7 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:5.0.7",
+    "@pnpm/client": "workspace:5.0.8",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.0.15",
     "@types/ncp": "^2.0.4",

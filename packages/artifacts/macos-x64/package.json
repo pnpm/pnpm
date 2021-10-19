@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/macos-x64",
-  "version": "6.17.2",
+  "version": "6.18.0",
   "license": "MIT",
   "publishConfig": {
     "bin": {

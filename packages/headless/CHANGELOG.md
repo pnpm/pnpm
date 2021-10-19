@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 16.1.4
+
+### Patch Changes
+
+- Updated dependencies [6375cdce0]
+  - @pnpm/link-bins@6.2.1
+  - @pnpm/build-modules@7.1.2
+  - @pnpm/hoist@5.2.1
+  - @pnpm/lockfile-to-pnp@0.4.27
+  - @pnpm/package-requester@15.1.2
+
 ## 16.1.3
 
 ### Patch Changes

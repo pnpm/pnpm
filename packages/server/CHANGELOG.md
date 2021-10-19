@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 11.0.8
+
+### Patch Changes
+
+- @pnpm/fetch@4.1.2
+
 ## 11.0.7
 
 ### Patch Changes

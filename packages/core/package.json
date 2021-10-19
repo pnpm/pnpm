@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.47.27",
+  "version": "1.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -15,18 +15,18 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:7.1.1",
+    "@pnpm/build-modules": "workspace:7.1.2",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/core-loggers": "workspace:6.0.4",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/filter-lockfile": "workspace:5.0.8",
     "@pnpm/get-context": "workspace:5.1.5",
-    "@pnpm/headless": "workspace:16.1.3",
-    "@pnpm/hoist": "workspace:5.2.0",
+    "@pnpm/headless": "workspace:16.1.4",
+    "@pnpm/hoist": "workspace:5.2.1",
     "@pnpm/lifecycle": "workspace:11.0.5",
-    "@pnpm/link-bins": "workspace:6.2.0",
+    "@pnpm/link-bins": "workspace:6.2.1",
     "@pnpm/lockfile-file": "workspace:4.1.1",
-    "@pnpm/lockfile-to-pnp": "workspace:0.4.26",
+    "@pnpm/lockfile-to-pnp": "workspace:0.4.27",
     "@pnpm/lockfile-utils": "workspace:3.0.8",
     "@pnpm/lockfile-walker": "workspace:4.0.8",
     "@pnpm/manifest-utils": "workspace:2.1.0",
@@ -68,7 +68,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:3.0.7",
-    "@pnpm/client": "workspace:5.0.7",
+    "@pnpm/client": "workspace:5.0.8",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.0.15",
     "@pnpm/prepare": "workspace:0.0.26",

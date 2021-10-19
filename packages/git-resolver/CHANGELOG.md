@@ -1,5 +1,12 @@
 # @pnpm/git-resolver
 
+## 5.1.6
+
+### Patch Changes
+
+- 930e104da: Git URLs containing a colon should work.
+  - @pnpm/fetch@4.1.2
+
 ## 5.1.5
 
 ### Patch Changes

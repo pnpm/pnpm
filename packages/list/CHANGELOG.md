@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 6.2.8
+
+### Patch Changes
+
+- c024e7fae: Update cli-columns to v4.
+
 ## 6.2.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "9.0.8",
+  "version": "9.0.9",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,7 +36,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/client": "workspace:5.0.7",
+    "@pnpm/client": "workspace:5.0.8",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/lockfile-file": "workspace:4.1.1",
