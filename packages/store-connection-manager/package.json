@@ -12,7 +12,7 @@
     "node": ">=12.17"
   },
   "scripts": {
-    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "lint": "eslint src/**/*.ts",
     "pretest": "rimraf node_modules/.bin/pnpm",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",

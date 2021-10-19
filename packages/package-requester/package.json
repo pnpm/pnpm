@@ -13,7 +13,7 @@
   },
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7772 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",

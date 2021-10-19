@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix",
