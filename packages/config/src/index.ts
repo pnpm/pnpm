@@ -214,6 +214,8 @@ export default async (
     'workspace-prefix': opts.workspaceDir,
   })
 
+  npmConfig.addFile(path.resolve(path.join(__dirname, '..', 'npmrc')), 'pnpm-builtin')
+
   delete cliOptions.prefix
 
   process.execPath = originalExecPath
