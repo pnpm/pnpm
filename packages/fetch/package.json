@@ -2,8 +2,11 @@
   "name": "@pnpm/fetch",
   "version": "4.1.2",
   "description": "node-fetch with retries",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

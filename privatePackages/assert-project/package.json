@@ -11,8 +11,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "private": true,
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
   "files": [
     "lib/"
   ],

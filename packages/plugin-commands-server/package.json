@@ -2,8 +2,11 @@
   "name": "@pnpm/plugin-commands-server",
   "version": "3.0.39",
   "description": "Commands for controlling the store server",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

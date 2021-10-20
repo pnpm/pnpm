@@ -2,8 +2,11 @@
   "name": "dependency-path",
   "version": "8.0.4",
   "description": "Utilities for working with symlinked node_modules",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

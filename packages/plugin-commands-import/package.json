@@ -2,8 +2,11 @@
   "name": "@pnpm/plugin-commands-import",
   "version": "3.1.14",
   "description": "The import command",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

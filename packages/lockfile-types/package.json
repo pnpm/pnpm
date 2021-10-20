@@ -2,8 +2,11 @@
   "name": "@pnpm/lockfile-types",
   "version": "3.0.0",
   "description": "Types for the pnpm-lock.yaml lockfile",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "engines": {
     "node": ">=12.17"
   },

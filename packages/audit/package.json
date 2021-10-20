@@ -2,8 +2,11 @@
   "name": "@pnpm/audit",
   "version": "2.1.10",
   "description": "Audit a lockfile",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

@@ -2,8 +2,11 @@
   "name": "@pnpm/store-connection-manager",
   "version": "3.1.0",
   "description": "Create a direct pnpm store controller or connect to a running store server",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

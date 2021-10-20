@@ -2,8 +2,11 @@
   "name": "@pnpm/link-bins",
   "version": "6.2.1",
   "description": "Link bins to node_modules/.bin",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

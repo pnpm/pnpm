@@ -2,8 +2,11 @@
   "name": "@pnpm/package-is-installable",
   "version": "5.0.4",
   "description": "Checks if a package is installable on the current system",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

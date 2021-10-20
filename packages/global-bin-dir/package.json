@@ -2,8 +2,11 @@
   "name": "@pnpm/global-bin-dir",
   "version": "3.0.0",
   "description": "Finds a directory that is in PATH and we have permission to write to i",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

@@ -2,8 +2,11 @@
   "name": "@pnpm/filter-workspace-packages",
   "version": "4.3.3",
   "description": "Filters packages in a workspace",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

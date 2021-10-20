@@ -10,8 +10,11 @@
   "bugs": {
     "url": "https://github.com/pnpm/eslint-config/issues"
   },
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "directories": {
     "test": "test"
   },

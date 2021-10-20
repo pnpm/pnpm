@@ -2,8 +2,11 @@
   "name": "@pnpm/read-projects-context",
   "version": "5.0.6",
   "description": "Reads the current state of projects from modules manifest",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

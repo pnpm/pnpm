@@ -2,8 +2,7 @@
   "name": "@pnpm/prepare",
   "version": "0.0.26",
   "private": true,
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/types": "workspace:7.4.0",

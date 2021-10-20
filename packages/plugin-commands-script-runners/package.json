@@ -2,8 +2,11 @@
   "name": "@pnpm/plugin-commands-script-runners",
   "version": "4.3.3",
   "description": "Commands for running scripts",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

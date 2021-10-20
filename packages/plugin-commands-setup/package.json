@@ -2,8 +2,11 @@
   "name": "@pnpm/plugin-commands-setup",
   "version": "1.1.11",
   "description": "pnpm commands for setting up pnpm",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

@@ -2,8 +2,11 @@
   "name": "@pnpm/plugin-commands-audit",
   "version": "5.1.16",
   "description": "pnpm commands for dependencies audit",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

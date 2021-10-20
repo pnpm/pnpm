@@ -2,8 +2,11 @@
   "name": "@pnpm/cafs",
   "version": "3.0.7",
   "description": "A content-addressable filesystem for the packages storage",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "_test": "jest",

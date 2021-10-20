@@ -14,6 +14,7 @@ import {
 } from './implementation'
 import recursive from './recursive'
 
+export { rebuild }
 export function rcOptionsTypes () {
   return {
     ...pick([

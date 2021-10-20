@@ -7,7 +7,7 @@ import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
-import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
+import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { IncludedDependencies, Project } from '@pnpm/types'
 import {
@@ -254,7 +254,7 @@ when running add/update with the --workspace option')
 
     if (opts.ignoreScripts) return
 
-    await rebuild(
+    await rebuild.rebuild(
       [
         {
           buildIndex: 0,

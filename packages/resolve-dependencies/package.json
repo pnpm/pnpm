@@ -2,8 +2,11 @@
   "name": "@pnpm/resolve-dependencies",
   "version": "21.0.6",
   "description": "Resolves dependency graph of a package",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

@@ -2,8 +2,11 @@
   "name": "@pnpm/make-dedicated-lockfile",
   "version": "0.2.13",
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "bin": "./bin/make-dedicated-lockfile.js",
   "files": [
     "lib",

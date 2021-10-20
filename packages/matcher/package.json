@@ -2,8 +2,11 @@
   "name": "@pnpm/matcher",
   "version": "2.0.0",
   "description": "A simple pattern matcher for pnpm",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "engines": {
     "node": ">=12.17"
   },

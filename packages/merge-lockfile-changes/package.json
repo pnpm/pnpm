@@ -2,8 +2,11 @@
   "name": "@pnpm/merge-lockfile-changes",
   "version": "2.0.1",
   "description": "Merges lockfiles. Can automatically fix merge conflicts",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "engines": {
     "node": ">=12.17"
   },

@@ -3,6 +3,7 @@ import createClient from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import createStore from '@pnpm/package-store'
 import pnpm from '@pnpm/cli-meta'
+import { FetchFunction } from '../../git-fetcher/node_modules/@pnpm/fetcher-base/src'
 
 type CreateResolverOptions = Pick<Config,
 | 'fetchRetries'
@@ -73,7 +74,7 @@ export default async (
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
-    ctrl: await createStore(resolve, fetchers, {
+    ctrl: await createStore(resolve, fetchers as unknown as {[type: string]: FetchFunction}, {
       engineStrict: opts.engineStrict,
       force: opts.force,
       nodeVersion: opts.nodeVersion,

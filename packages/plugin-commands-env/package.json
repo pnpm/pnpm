@@ -2,8 +2,11 @@
   "name": "@pnpm/plugin-commands-env",
   "version": "1.2.0",
   "description": "pnpm commands for managing Node.js",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"

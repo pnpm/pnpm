@@ -1,3 +1,3 @@
-import updater from './lib/index.js'
+import updater from './main.cjs'
 
 export default updater

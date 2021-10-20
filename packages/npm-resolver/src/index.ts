@@ -45,6 +45,8 @@ export {
   PackageMeta,
   PackageMetaCache,
   RegistryResponseError,
+  RegistryPackageSpec,
+  parsePref,
 }
 
 // This file contains meta information

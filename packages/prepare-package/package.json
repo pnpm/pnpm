@@ -2,8 +2,11 @@
   "name": "@pnpm/prepare-package",
   "version": "1.0.4",
   "description": "Prepares a Git-hosted package",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts"
+  },
   "files": [
     "lib",
     "!*.map"
