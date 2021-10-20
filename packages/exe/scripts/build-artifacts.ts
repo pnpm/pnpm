@@ -2,7 +2,7 @@ import * as execa from 'execa'
 import path from 'path'
 
 function build (target: string) {
-  execa.sync('pkg', ['../pnpm/dist/pnpm.cjs', `--out-path=../artifacts/${target}`, `--targets=node14-${target}`], {
+  execa.sync('pkg', ['../pnpm/dist/pnpm.cjs', `--config=../pnpm/package-${target}.json`], {
     cwd: path.join(__dirname, '..'),
     stdio: 'inherit',
   })
