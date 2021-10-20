@@ -6,6 +6,8 @@ import rimraf from '@zkochan/rimraf'
 import RegClient from 'anonymous-npm-registry-client'
 import { testDefaults } from '../utils'
 
+const skipOnNode17 = process.version.split('.')[0] === 'v17' ? test.skip : test
+
 test('a package that need authentication', async () => {
   const project = prepareEmpty()
 
@@ -204,7 +206,7 @@ test('a scoped package that need legacy authentication specific to scope', async
   await project.has('@private/foo')
 })
 
-test('a package that need authentication reuses authorization tokens for tarball fetching', async () => {
+skipOnNode17('a package that need authentication reuses authorization tokens for tarball fetching', async () => {
   const project = prepareEmpty()
 
   const client = new RegClient()
@@ -238,7 +240,7 @@ test('a package that need authentication reuses authorization tokens for tarball
   await project.has('needs-auth')
 })
 
-test('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async () => {
+skipOnNode17('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async () => {
   const project = prepareEmpty()
 
   const client = new RegClient()
