@@ -61,7 +61,7 @@ npx pnpm add -g pnpm
 
 For other installation options [visit our website](https://pnpm.io/installation).
 
-We also ship an experimental new version of pnpm that may be used even with no Node.js installed on the system, see [@pnpm/exe](https://www.npmjs.com/package/@pnpm/exe).
+We also ship a version of pnpm that may be used even with no Node.js installed on the system, see [@pnpm/exe](https://www.npmjs.com/package/@pnpm/exe).
 
 ## Usage
 
