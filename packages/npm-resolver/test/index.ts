@@ -1653,6 +1653,105 @@ test('resolve workspace:~', async () => {
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 })
 
+test('resolve workspace:is-positive@^3.0.0', async () => {
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-my-positive-alias', pref: 'workspace:is-positive@^3.0.0' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '3.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.latest).toBeFalsy()
+  expect(resolveResult!.resolution).toStrictEqual({
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('3.0.0')
+})
+
+test('resolve workspace:@scope/is-positive@^3.0.0', async () => {
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: '@scope2/is-my-positive-alias', pref: 'workspace:@scope/is-positive@^3.0.0' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      '@scope/is-positive': {
+        '3.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.latest).toBeFalsy()
+  expect(resolveResult!.resolution).toStrictEqual({
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('3.0.0')
+})
+
+test('resolve workspace:@scope/is-positive@~', async () => {
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: '@scope2/is-my-positive-alias', pref: 'workspace:@scope/is-positive@~' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      '@scope/is-positive': {
+        '3.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.latest).toBeFalsy()
+  expect(resolveResult!.resolution).toStrictEqual({
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('3.0.0')
+})
+
 test('resolveFromNpm() does not fail if the meta file contains no integrity information', async () => {
   nock(registry)
     .get('/is-positive')
