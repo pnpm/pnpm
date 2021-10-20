@@ -197,7 +197,8 @@ async function resolveNpm (
 }
 
 function workspacePrefToNpm (workspacePref: string): string {
-  const prefParts = /^workspace:([^@]+@)?(.*)$/.exec(workspacePref)
+  const prefParts = /^workspace:([^._/][^@]*@)?(.*)$/.exec(workspacePref)
+
   if (prefParts == null) {
     throw new Error(`Invalid workspace spec: ${workspacePref}`)
   }
