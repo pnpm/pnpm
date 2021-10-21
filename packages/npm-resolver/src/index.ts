@@ -29,6 +29,7 @@ import parsePref, {
 } from './parsePref'
 import fromRegistry, { RegistryResponseError } from './fetch'
 import createPkgId from './createNpmPkgId'
+import workspacePrefToNpm from './workspacePrefToNpm'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
@@ -194,23 +195,6 @@ async function resolveNpm (
     resolution,
     resolvedVia: 'npm-registry',
   }
-}
-
-function workspacePrefToNpm (workspacePref: string): string {
-  const prefParts = /^workspace:([^@]+@)?(.*)$/.exec(workspacePref)
-  if (prefParts == null) {
-    throw new Error(`Invalid workspace spec: ${workspacePref}`)
-  }
-  const [workspacePkgAlias, workspaceVersion] = prefParts.slice(1)
-
-  const pkgAliasPart = workspacePkgAlias != null && workspacePkgAlias
-    ? `npm:${workspacePkgAlias}`
-    : ''
-  const versionPart = workspaceVersion === '^' || workspaceVersion === '~'
-    ? '*'
-    : workspaceVersion
-
-  return `${pkgAliasPart}${versionPart}`
 }
 
 function tryResolveFromWorkspace (
