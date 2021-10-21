@@ -3,7 +3,7 @@ import { promisify } from 'util'
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import PnpmError from '@pnpm/error'
-import { importCommand } from '@pnpm/plugin-commands-import'
+import { importCommand } from '@pnpm/plugin-commands-installation'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import tempy from 'tempy'
@@ -52,7 +52,7 @@ test('import from package-lock.json', async () => {
   await importCommand.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-  })
+  }, [])
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
@@ -73,7 +73,7 @@ test('import from yarn.lock', async () => {
   await importCommand.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-  })
+  }, [])
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
@@ -94,7 +94,7 @@ test('import from npm-shrinkwrap.json', async () => {
   await importCommand.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-  })
+  }, [])
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
@@ -113,7 +113,7 @@ test('import fails when no lockfiles are found', async () => {
     importCommand.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    })
+    }, [])
   ).rejects.toThrow(
     new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   )

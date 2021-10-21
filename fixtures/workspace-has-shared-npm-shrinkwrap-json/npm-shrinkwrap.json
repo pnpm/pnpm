@@ -1,0 +1,75 @@
+{
+  "name": "workspace-has-shared-npm-shrinkwrap-json",
+  "version": "1.0.0",
+  "lockfileVersion": 2,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "workspace-has-shared-npm-shrinkwrap-json",
+      "version": "1.0.0",
+      "workspaces": [
+        "packages/**"
+      ]
+    },
+    "node_modules/bar": {
+      "resolved": "packages/bar",
+      "link": true
+    },
+    "node_modules/foo": {
+      "resolved": "packages/foo",
+      "link": true
+    },
+    "node_modules/is-negative": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/is-negative/-/is-negative-1.0.1.tgz",
+      "integrity": "sha1-3GuHKO69A8db+HYIftzVDpy1aZQ=",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/is-positive": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz",
+      "integrity": "sha1-iACYVrZKLx632LsBeUGEJK4EUss=",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "packages/bar": {
+      "version": "0.0.0",
+      "dependencies": {
+        "is-negative": "^1.0.0"
+      }
+    },
+    "packages/foo": {
+      "version": "0.0.0",
+      "dependencies": {
+        "is-positive": "^1.0.0"
+      }
+    }
+  },
+  "dependencies": {
+    "bar": {
+      "version": "file:packages/bar",
+      "requires": {
+        "is-negative": "^1.0.0"
+      }
+    },
+    "foo": {
+      "version": "file:packages/foo",
+      "requires": {
+        "is-positive": "^1.0.0"
+      }
+    },
+    "is-negative": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/is-negative/-/is-negative-1.0.1.tgz",
+      "integrity": "sha1-3GuHKO69A8db+HYIftzVDpy1aZQ="
+    },
+    "is-positive": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz",
+      "integrity": "sha1-iACYVrZKLx632LsBeUGEJK4EUss="
+    }
+  }
+}

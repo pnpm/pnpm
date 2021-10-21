@@ -9,11 +9,17 @@ import {
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
 import { install, InstallOptions } from '@pnpm/core'
+import { Config } from '@pnpm/config'
+import findWorkspacePackages from '@pnpm/find-workspace-packages'
+import { Project } from '@pnpm/types'
+import logger from '@pnpm/logger'
+import { sequenceGraph } from '@pnpm/sort-packages'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import renderHelp from 'render-help'
 import { parse as parseYarnLock } from '@yarnpkg/lockfile'
 import exists from 'path-exists'
+import recursive from './recursive'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -33,8 +39,15 @@ export function help () {
 
 export const commandNames = ['import']
 
+export type ImportCommandOptions = Pick<Config,
+| 'allProjects'
+| 'selectedProjectsGraph'
+| 'workspaceDir'
+> & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
+
 export async function handler (
-  opts: CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
+  opts: ImportCommandOptions,
+  params: string[]
 ) {
   // Removing existing pnpm lockfile
   // it should not influence the new one
@@ -54,6 +67,39 @@ export async function handler (
     throw new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   }
   preferredVersions = getPreferredVersions(versionsByPackageNames)
+
+  // For a workspace with shared lockfile
+  if (opts.workspaceDir) {
+    const allProjects = opts.allProjects ?? await findWorkspacePackages(opts.workspaceDir, opts)
+    const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
+    if (selectedProjectsGraph != null) {
+      const sequencedGraph = sequenceGraph(selectedProjectsGraph)
+      // Check and warn if there are cyclic dependencies
+      if (!sequencedGraph.safe) {
+        const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
+          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
+          : ''
+        logger.warn({
+          message: `There are cyclic workspace dependencies${cyclicDependenciesInfo}`,
+          prefix: opts.workspaceDir,
+        })
+      }
+      await recursive(allProjects,
+        params,
+        // @ts-expect-error
+        {
+          ...opts,
+          lockfileOnly: true,
+          selectedProjectsGraph,
+          preferredVersions,
+          workspaceDir: opts.workspaceDir,
+        },
+        'import'
+      )
+    }
+    return
+  }
+
   const store = await createOrConnectStoreController(opts)
   const installOpts = {
     ...opts,
@@ -165,4 +211,10 @@ interface YarnLockPackage {
 }
 interface YarnPackgeLock {
   [name: string]: YarnLockPackage
+}
+
+function selectProjectByDir (projects: Project[], searchedDir: string) {
+  const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
+  if (project == null) return undefined
+  return { [searchedDir]: { dependencies: [], package: project } }
 }

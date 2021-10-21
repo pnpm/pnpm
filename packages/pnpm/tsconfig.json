@@ -79,9 +79,6 @@
       "path": "../plugin-commands-env"
     },
     {
-      "path": "../plugin-commands-import"
-    },
-    {
       "path": "../plugin-commands-installation"
     },
     {
