@@ -17,9 +17,10 @@ import {
 } from '@pnpm/core'
 import logger from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import isSubdir from 'is-subdir'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
-import nodeExecPath from './nodeExecPath'
+import getNodeExecPath from './nodeExecPath'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
@@ -83,7 +84,7 @@ export type InstallDepsOptions = Pick<Config,
   useBetaCli?: boolean
   recursive?: boolean
   workspace?: boolean
-}
+} & Partial<Pick<Config, 'pnpmHomeDir'>>
 
 export default async function handler (
   opts: InstallDepsOptions,
@@ -175,8 +176,11 @@ when running add/update with the --workspace option')
     storeDir: store.dir,
     workspacePackages,
   }
-  if (opts.global) {
-    installOpts['nodeExecPath'] = await nodeExecPath()
+  if (opts.global && opts.pnpmHomeDir != null) {
+    const nodeExecPath = await getNodeExecPath()
+    if (isSubdir(opts.pnpmHomeDir, nodeExecPath)) {
+      installOpts['nodeExecPath'] = nodeExecPath
+    }
   }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
