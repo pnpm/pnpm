@@ -559,7 +559,7 @@ importers:
       right-pad: ^1.0.1
       rxjs: ^7.0.0
       semver: ^7.3.4
-      stacktracey: ^1.2.127
+      stacktracey: ^2.0.0
       string-length: ^4.0.1
       strip-ansi: ^6.0.0
     dependencies:
@@ -577,7 +577,7 @@ importers:
       right-pad: 1.0.1
       rxjs: 7.4.0
       semver: 7.3.5
-      stacktracey: 1.2.127
+      stacktracey: 2.1.7
       string-length: 4.0.2
       strip-ansi: 6.0.1
     devDependencies:
@@ -8956,6 +8956,14 @@ packages:
     dependencies:
       data-uri-to-buffer: 2.0.2
       source-map: 0.6.1
+    dev: true
+
+  /get-source/2.0.12:
+    resolution: {integrity: sha512-X5+4+iD+HoSeEED+uwrQ07BOQr0kEDFMVqqpBuI+RaZBpBpHCuXxo70bjar6f0b0u/DQJsJ7ssurpP0V60Az+w==}
+    dependencies:
+      data-uri-to-buffer: 2.0.2
+      source-map: 0.6.1
+    dev: false
 
   /get-stdin/4.0.1:
     resolution: {integrity: sha1-uWjGsKBDhDJJAui/Gl3zJXmkUP4=}
@@ -13825,6 +13833,14 @@ packages:
     dependencies:
       as-table: 1.0.55
       get-source: 1.0.42
+    dev: true
+
+  /stacktracey/2.1.7:
+    resolution: {integrity: sha512-/w8uiORLKmSndIoXcrs09yAfwr34rMpToeXageRKM2a5UhNOLLp1Iag6UP7O0IOYd7zDLNQVOUYHruXmK5dv0w==}
+    dependencies:
+      as-table: 1.0.55
+      get-source: 2.0.12
+    dev: false
 
   /state-toggle/1.0.3:
     resolution: {integrity: sha512-d/5Z4/2iiCnHw6Xzghyhb+GcmF89bxwgXG60wjIiZaxnymbyOmI8Hk4VqHXiVVp6u2ysaskFfXg3ekCj4WNftQ==}
