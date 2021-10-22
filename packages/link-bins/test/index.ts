@@ -2,6 +2,7 @@
 import { promisify } from 'util'
 import { promises as fs } from 'fs'
 import path from 'path'
+import logger from '@pnpm/logger'
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
@@ -12,7 +13,17 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import tempy from 'tempy'
 
+jest.mock('@pnpm/logger', () => {
+  const debug = jest.fn()
+  return () => ({ debug })
+})
+
+const binsConflictLogger = logger('bins-conflict')
 const ncp = promisify(ncpcb)
+
+beforeEach(() => {
+  binsConflictLogger.debug['mockClear']()
+})
 
 // The fixtures directory is copied to fixtures_for_testing before the tests run
 // This happens because the tests conver some of the files into executables
@@ -163,7 +174,12 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
 
-  expect(warn).toHaveBeenCalledWith(`Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`, 'BINARIES_CONFLICT')
+  expect(binsConflictLogger.debug).toHaveBeenCalledWith({
+    binaryName: 'bar',
+    binsDir: binTarget,
+    linkedPkgName: 'bar',
+    skippedPkgName: 'foo',
+  })
   expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
 
   {
@@ -202,7 +218,12 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
     { warn }
   )
 
-  expect(warn).toHaveBeenCalledWith(`Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`, 'BINARIES_CONFLICT')
+  expect(binsConflictLogger.debug).toHaveBeenCalledWith({
+    binaryName: 'bar',
+    binsDir: binTarget,
+    linkedPkgName: 'bar',
+    skippedPkgName: 'foo',
+  })
   expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
 
   {

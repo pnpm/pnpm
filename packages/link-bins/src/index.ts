@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import Module from 'module'
 import path from 'path'
 import PnpmError from '@pnpm/error'
+import logger from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
@@ -21,6 +22,7 @@ import unnest from 'ramda/src/unnest'
 import partition from 'ramda/src/partition'
 import fixBin from 'bin-links/lib/fix-bin'
 
+const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
@@ -118,7 +120,6 @@ async function linkBins (
   binsDir: string,
   opts: {
     extendNodePath?: boolean
-    warn: WarnFunction
   }
 ): Promise<string[]> {
   if (allCmds.length === 0) return [] as string[]
@@ -132,7 +133,12 @@ async function linkBins (
   const usedNames = fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
     if (usedNames[cmd.name]) {
-      opts.warn(`Cannot link binary '${cmd.name}' of '${cmd.pkgName}' to '${binsDir}': binary of '${usedNames[cmd.name]}' is already linked`, 'BINARIES_CONFLICT')
+      binsConflictLogger.debug({
+        binaryName: cmd.name,
+        binsDir,
+        linkedPkgName: usedNames[cmd.name],
+        skippedPkgName: cmd.pkgName,
+      })
       return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
