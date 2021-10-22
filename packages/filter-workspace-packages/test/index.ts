@@ -207,6 +207,95 @@ test('select just a package by name', async () => {
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2'])
 })
 
+test('select package without specifying its scope', async () => {
+  const PKGS_GRAPH: PackageGraph<{}> = {
+    '/packages/bar': {
+      dependencies: [],
+      package: {
+        dir: '/packages/bar',
+        manifest: {
+          name: '@foo/bar',
+          version: '1.0.0',
+        },
+      },
+    },
+  }
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: false,
+      namePattern: 'bar',
+    },
+  ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/bar'])
+})
+
+test('when a scoped package with the same name exists, only pick the exact match', async () => {
+  const PKGS_GRAPH: PackageGraph<{}> = {
+    '/packages/@foo/bar': {
+      dependencies: [],
+      package: {
+        dir: '/packages/@foo/bar',
+        manifest: {
+          name: '@foo/bar',
+          version: '1.0.0',
+        },
+      },
+    },
+    '/packages/bar': {
+      dependencies: [],
+      package: {
+        dir: '/packages/bar',
+        manifest: {
+          name: 'bar',
+          version: '1.0.0',
+        },
+      },
+    },
+  }
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: false,
+      namePattern: 'bar',
+    },
+  ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/packages/bar'])
+})
+
+test('when two scoped packages match the searched name, don\'t select any', async () => {
+  const PKGS_GRAPH: PackageGraph<{}> = {
+    '/packages/@foo/bar': {
+      dependencies: [],
+      package: {
+        dir: '/packages/@foo/bar',
+        manifest: {
+          name: '@foo/bar',
+          version: '1.0.0',
+        },
+      },
+    },
+    '/packages/@types/bar': {
+      dependencies: [],
+      package: {
+        dir: '/packages/@types/bar',
+        manifest: {
+          name: '@types/bar',
+          version: '1.0.0',
+        },
+      },
+    },
+  }
+  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: false,
+      namePattern: 'bar',
+    },
+  ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([])
+})
+
 test('select by parentDir', async () => {
   const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
     {

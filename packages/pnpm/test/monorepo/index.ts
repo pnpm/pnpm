@@ -39,10 +39,14 @@ test('no projects matched the filters', async () => {
   }
 })
 
-test('selecting a project without specifying its scope', async () => {
+test('select only the ', async () => {
   preparePackages([
     {
-      name: '@foo/bar',
+      name: 'bar',
+      version: '1.0.0',
+    },
+    {
+      name: '@types/bar',
       version: '1.0.0',
     },
   ])
