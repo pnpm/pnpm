@@ -39,24 +39,6 @@ test('no projects matched the filters', async () => {
   }
 })
 
-test('select only the ', async () => {
-  preparePackages([
-    {
-      name: 'bar',
-      version: '1.0.0',
-    },
-    {
-      name: '@types/bar',
-      version: '1.0.0',
-    },
-  ])
-
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-
-  const { stdout } = execPnpmSync(['list', '--filter=bar', '--parseable', '--depth=-1'])
-  expect(stdout.toString()).toContain('bar')
-})
-
 test('no projects found', async () => {
   prepareEmpty()
 
