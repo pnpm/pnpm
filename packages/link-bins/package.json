@@ -49,6 +49,7 @@
     "ramda": "^0.27.1"
   },
   "devDependencies": {
+    "@pnpm/logger": "^4.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/ncp": "^2.0.4",
     "@types/node": "^14.14.33",
@@ -59,5 +60,8 @@
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "peerDependencies": {
+    "@pnpm/logger": "^4.0.0"
+  }
 }
