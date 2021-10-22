@@ -219,7 +219,7 @@ function formatGenericError (errorMessage: string, stack: object) {
   if (stack) {
     let prettyStack: string | undefined
     try {
-      prettyStack = new StackTracey(stack).pretty
+      prettyStack = new StackTracey(stack).asTable()
     } catch (err: any) { // eslint-disable-line
       prettyStack = undefined
     }

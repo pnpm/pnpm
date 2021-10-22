@@ -32,7 +32,7 @@ test('prints generic error', (done) => {
     error: done,
     next: output => {
       expect(output).toBe(`${formatError('ERROR', 'some error')}
-${ERROR_PAD}${(new StackTracey(err.stack).pretty as string).split('\n').join(`\n${ERROR_PAD}`)}`)
+${ERROR_PAD}${(new StackTracey(err.stack).asTable() as string).split('\n').join(`\n${ERROR_PAD}`)}`)
     },
   })
 })
@@ -56,7 +56,7 @@ test('prints generic error when recursive install fails', (done) => {
       expect(output).toBe(`/home/src/:
 ${formatError('ERROR', 'some error')}
 ${ERROR_PAD}
-${ERROR_PAD}${(new StackTracey(err.stack).pretty as string).split('\n').join(`\n${ERROR_PAD}`)}`)
+${ERROR_PAD}${(new StackTracey(err.stack).asTable() as string).split('\n').join(`\n${ERROR_PAD}`)}`)
     },
   })
 })
