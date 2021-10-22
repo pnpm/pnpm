@@ -271,9 +271,14 @@ function reverseGraph (graph: Graph): Graph {
 function matchPackages<T> (
   graph: PackageGraph<T>,
   pattern: string
-) {
+): string[] {
   const match = matcher(pattern)
-  return Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
+  const matches = Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
+  if (matches.length === 0 && !pattern.startsWith('@') && !pattern.includes('/')) {
+    const scopedMatches = matchPackages(graph, `@*/${pattern}`)
+    return scopedMatches.length !== 1 ? [] : scopedMatches
+  }
+  return matches
 }
 
 function matchPackagesByExactPath<T> (
