@@ -279,7 +279,7 @@ export type InstallCommandOptions = Pick<Config,
   useBetaCli?: boolean
   recursive?: boolean
   workspace?: boolean
-} & Partial<Pick<Config, 'preferWorkspacePackages'>>
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 
 export async function handler (
   opts: InstallCommandOptions
