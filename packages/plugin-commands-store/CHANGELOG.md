@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store
 
+## 4.0.24
+
+### Patch Changes
+
+- 1f5c472bb: Add `pnpm store path` to help of `pnpm store`
+- Updated dependencies [b6d74c545]
+  - @pnpm/config@13.4.0
+  - @pnpm/cli-utils@0.6.28
+  - @pnpm/store-connection-manager@3.1.1
+
 ## 4.0.23
 
 ### Patch Changes

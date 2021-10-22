@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.3.4
+
+### Patch Changes
+
+- Updated dependencies [b6d74c545]
+  - @pnpm/config@13.4.0
+  - @pnpm/cli-utils@0.6.28
+
 ## 4.3.3
 
 ### Patch Changes

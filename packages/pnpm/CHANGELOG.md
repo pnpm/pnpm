@@ -1,5 +1,28 @@
 # pnpm
 
+## 6.19.0
+
+### Minor Changes
+
+- Package scope is optional when filtering by package name [#3485](https://github.com/pnpm/pnpm/pull/3458).
+
+  So the next two commands will both find `@pnpm/core`:
+
+  ```
+  pnpm test --filter core
+  pnpm test --filter @pnpm/core
+  ```
+  
+  However, if the workspace contains `@types/core` and `@pnpm/core`, `--filter=core` will not work.
+
+- Allow a system's package manager to override pnpm's default settings
+
+### Patch Changes
+
+- `pnpm install --global` should link global packages to specific Node.js versions only if Node.js was installed by pnpm [#3910](https://github.com/pnpm/pnpm/pull/3910).
+- It should be possible to alias a workspace package that has a name with a scope [#3899](https://github.com/pnpm/pnpm/pull/3899).
+- `pnpm store path` added to the output of `pnpm store`.
+
 ## 6.18.0
 
 ### Minor Changes

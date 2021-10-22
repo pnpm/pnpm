@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.4.0
+
+### Minor Changes
+
+- b6d74c545: Allow a system's package manager to override pnpm's default settings
+
 ## 13.3.0
 
 ### Minor Changes

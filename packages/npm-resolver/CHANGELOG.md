@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 12.0.5
+
+### Patch Changes
+
+- 82caa0b56: It should be possible to alias scoped packages using the `workspace:` protocol. See https://github.com/pnpm/pnpm/issues/3883
+
 ## 12.0.4
 
 ### Patch Changes

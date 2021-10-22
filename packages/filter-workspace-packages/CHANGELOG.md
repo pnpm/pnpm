@@ -1,5 +1,15 @@
 # @pnpm/filter-workspace-packages
 
+## 4.4.0
+
+### Minor Changes
+
+- 456232654: Make the scope of the package optional, when filtering.
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@3.1.20
+
 ## 4.3.3
 
 ### Patch Changes

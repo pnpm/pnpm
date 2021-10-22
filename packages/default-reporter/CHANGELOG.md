@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 8.3.4
+
+### Patch Changes
+
+- 7a021932f: Update stacktracey to v2.
+- Updated dependencies [b6d74c545]
+  - @pnpm/config@13.4.0
+
 ## 8.3.3
 
 ### Patch Changes

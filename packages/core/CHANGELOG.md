@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 1.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile-to-pnp@0.4.28
+- @pnpm/resolve-dependencies@21.0.7
+- @pnpm/headless@16.1.5
+- @pnpm/package-requester@15.1.2
+
 ## 1.0.0
 
 ### Major Changes
