@@ -23,6 +23,23 @@ To quote the [Rush](https://rushjs.io/) team:
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/pnpmjs)
 
+## Sponsors
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://bit.dev" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://prisma.io" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Support this project by [becoming a sponsor](https://opencollective.com/pnpm#sponsor).
+
 ## Background
 
 pnpm uses a content-addressable filesystem to store all files from all module directories on a disk.
@@ -57,24 +74,17 @@ Benchmarks on an app with lots of dependencies:
 
 ![](https://pnpm.io/img/benchmarks/alotta-files.svg)
 
-## Contributors
-
-This project exists thanks to all the people who contribute. [[Contribute](../../blob/main/CONTRIBUTING.md)].
-<a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" /></a>
-
 ### Backers
 
-Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/pnpm#backer)]
+Thank you to all our backers! [Become a backer](https://opencollective.com/pnpm#backer)
 
 <a href="https://opencollective.com/pnpm#backers" target="_blank"><img src="https://opencollective.com/pnpm/backers.svg?width=890"></a>
 
-### Sponsors
+## Contributors
 
-Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/pnpm#sponsor)]
+This project exists thanks to all the people who contribute. [Contribute](../../blob/main/CONTRIBUTING.md).
 
-<a href="https://opencollective.com/pnpm/sponsor/0/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/0/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/1/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/1/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/2/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/2/avatar.svg"></a>
+<a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" /></a>
 
 ## License
 
