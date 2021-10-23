@@ -36,7 +36,9 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.0.4",
+    "@pnpm/directory-fetcher": "workspace:0.0.0",
     "@pnpm/read-package-json": "workspace:5.0.4",
+    "@pnpm/store-controller-types": "workspace:11.0.5",
     "@pnpm/types": "workspace:7.4.0",
     "@zkochan/npm-lifecycle": "^5.1.2",
     "path-exists": "^4.0.0",

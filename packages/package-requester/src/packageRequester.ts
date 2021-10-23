@@ -156,6 +156,7 @@ async function resolveAndFetch (
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
+      hardLinkLocalPackages: options.hardLinkLocalPackages,
       lockfileDir: options.lockfileDir,
       preferredVersions: options.preferredVersions,
       preferWorkspacePackages: options.preferWorkspacePackages,
@@ -184,7 +185,7 @@ async function resolveAndFetch (
 
   const id = pkgId as string
 
-  if (resolution.type === 'directory') {
+  if (resolution.type === 'directory' && !options.hardLinkLocalPackages) {
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
     }
@@ -400,13 +401,15 @@ function fetchToStore (
   ) {
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
+      const isLocalPkg = opts.pkg.id.startsWith('local/')
 
       if (
         !opts.force &&
         (
           !isLocalTarballDep ||
           await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
-        )
+        ) &&
+        !isLocalPkg
       ) {
         let pkgFilesIndex
         try {
@@ -503,6 +506,12 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       await Promise.all(
         Object.keys(filesIndex)
           .map(async (filename) => {
+            if (filesIndex[filename].writeResult == null) {
+              integrity[filename] = {
+                location: filesIndex[filename].location,
+              } as any // eslint-disable-line
+              return
+            }
             const {
               checkedAt,
               integrity: fileIntegrity,
@@ -512,14 +521,17 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
               mode: filesIndex[filename].mode,
               size: filesIndex[filename].size,
+              location: filesIndex[filename].location,
             }
           })
       )
-      await writeJsonFile(filesIndexFile, {
-        name: opts.pkg.name,
-        version: opts.pkg.version,
-        files: integrity,
-      })
+      if (!isLocalPkg) {
+        await writeJsonFile(filesIndexFile, {
+          name: opts.pkg.name,
+          version: opts.pkg.version,
+          files: integrity,
+        })
+      }
 
       if (isLocalTarballDep && opts.pkg.resolution['integrity']) { // eslint-disable-line @typescript-eslint/dot-notation
         await fs.mkdir(target, { recursive: true })
@@ -529,6 +541,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       files.resolve({
         filesIndex: integrity,
         fromStore: false,
+        packageImportMethod: fetchedPackage['packageImportMethod'],
       })
       finishing.resolve(undefined)
     } catch (err: any) { // eslint-disable-line

@@ -18,6 +18,7 @@ import parsePref from './parsePref'
 export default async function resolveLocal (
   wantedDependency: {pref: string},
   opts: {
+    hardLinkLocalPackages?: boolean
     lockfileDir?: string
     projectDir: string
   }
@@ -34,7 +35,7 @@ export default async function resolveLocal (
     )
   ) | null
   > {
-  const spec = parsePref(wantedDependency.pref, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
+  const spec = parsePref(wantedDependency.pref, opts.projectDir, opts.lockfileDir ?? opts.projectDir, opts.hardLinkLocalPackages)
   if (spec == null) return null
   if (spec.type === 'file') {
     return {

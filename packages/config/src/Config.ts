@@ -71,6 +71,7 @@ export interface Config {
   enablePrePostScripts?: boolean
   useNodeVersion?: string
   useStderr?: boolean
+  hardLinkLocalPackages?: boolean
 
   // proxy
   httpProxy?: string

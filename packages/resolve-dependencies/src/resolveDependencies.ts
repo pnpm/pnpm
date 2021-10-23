@@ -144,6 +144,7 @@ export interface ResolutionContext {
   registries: Registries
   virtualStoreDir: string
   updateMatching?: (pkgName: string) => boolean
+  hardLinkLocalPackages?: boolean
 }
 
 export type PkgAddress = {
@@ -617,6 +618,7 @@ async function resolveDependency (
         : undefined,
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
+      hardLinkLocalPackages: ctx.hardLinkLocalPackages,
       lockfileDir: ctx.lockfileDir,
       preferredVersions: options.preferredVersions,
       preferWorkspacePackages: ctx.preferWorkspacePackages,

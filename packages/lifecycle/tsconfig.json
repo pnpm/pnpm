@@ -13,7 +13,13 @@
       "path": "../core-loggers"
     },
     {
+      "path": "../directory-fetcher"
+    },
+    {
       "path": "../read-package-json"
+    },
+    {
+      "path": "../store-controller-types"
     },
     {
       "path": "../types"

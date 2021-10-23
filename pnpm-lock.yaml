@@ -285,6 +285,7 @@ importers:
     specifiers:
       '@pnpm/client': 'link:'
       '@pnpm/default-resolver': workspace:13.0.9
+      '@pnpm/directory-fetcher': workspace:0.0.0
       '@pnpm/fetch': workspace:4.1.3
       '@pnpm/fetching-types': workspace:2.2.1
       '@pnpm/git-fetcher': workspace:4.1.6
@@ -295,6 +296,7 @@ importers:
       mem: ^8.0.0
     dependencies:
       '@pnpm/default-resolver': link:../default-resolver
+      '@pnpm/directory-fetcher': link:../directory-fetcher
       '@pnpm/fetch': link:../fetch
       '@pnpm/fetching-types': link:../fetching-types
       '@pnpm/git-fetcher': link:../git-fetcher
@@ -672,6 +674,17 @@ importers:
     devDependencies:
       '@types/semver': 7.3.9
       dependency-path: 'link:'
+
+  packages/directory-fetcher:
+    specifiers:
+      '@pnpm/directory-fetcher': 'link:'
+      '@pnpm/fetcher-base': workspace:11.0.3
+      load-json-file: ^6.2.0
+    dependencies:
+      '@pnpm/fetcher-base': link:../fetcher-base
+      load-json-file: 6.2.0
+    devDependencies:
+      '@pnpm/directory-fetcher': 'link:'
 
   packages/error:
     specifiers:
@@ -1142,9 +1155,11 @@ importers:
   packages/lifecycle:
     specifiers:
       '@pnpm/core-loggers': workspace:6.0.4
+      '@pnpm/directory-fetcher': workspace:0.0.0
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': ^4.0.0
       '@pnpm/read-package-json': workspace:5.0.4
+      '@pnpm/store-controller-types': workspace:11.0.5
       '@pnpm/types': workspace:7.4.0
       '@types/rimraf': ^3.0.0
       '@zkochan/npm-lifecycle': ^5.1.2
@@ -1154,7 +1169,9 @@ importers:
       run-groups: ^3.0.1
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
+      '@pnpm/directory-fetcher': link:../directory-fetcher
       '@pnpm/read-package-json': link:../read-package-json
+      '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
       '@zkochan/npm-lifecycle': 5.1.2
       path-exists: 4.0.0
@@ -1846,6 +1863,7 @@ importers:
       '@zkochan/rimraf': ^2.1.1
       load-json-file: ^6.2.0
       make-empty-dir: ^2.0.0
+      mem: ^8.0.0
       p-limit: ^3.1.0
       path-exists: ^4.0.0
       path-temp: ^2.0.0
@@ -1866,6 +1884,7 @@ importers:
       '@zkochan/rimraf': 2.1.1
       load-json-file: 6.2.0
       make-empty-dir: 2.0.0
+      mem: 8.1.1
       p-limit: 3.1.0
       path-exists: 4.0.0
       path-temp: 2.0.0

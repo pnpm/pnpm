@@ -50,6 +50,7 @@ export interface ResolveDependenciesOptions {
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean
+  hardLinkLocalPackages?: boolean
   hooks: {
     readPackage?: ReadPackageHook
   }
@@ -84,6 +85,7 @@ export default async function<T> (
     engineStrict: opts.engineStrict,
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,
+    hardLinkLocalPackages: opts.hardLinkLocalPackages,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
     lockfileDir: opts.lockfileDir,
     neverBuiltDependencies: opts.neverBuiltDependencies ?? new Set(),

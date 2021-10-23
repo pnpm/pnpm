@@ -101,6 +101,8 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   dryRun?: boolean
+  lockfileDir?: string
+  hardLinkLocalPackages?: boolean
   registry: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
@@ -125,6 +127,8 @@ async function resolveNpm (
     if (wantedDependency.pref.startsWith('workspace:.')) return null
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
       defaultTag,
+      hardLinkLocalPackages: opts.hardLinkLocalPackages,
+      lockfileDir: opts.lockfileDir,
       projectDir: opts.projectDir,
       registry: opts.registry,
       workspacePackages: opts.workspacePackages,
@@ -150,7 +154,11 @@ async function resolveNpm (
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
-      const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, opts.projectDir)
+      const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, {
+        projectDir: opts.projectDir,
+        lockfileDir: opts.lockfileDir,
+        hardLinkLocalPackages: opts.hardLinkLocalPackages,
+      })
       if (resolvedFromLocal != null) return resolvedFromLocal
     }
     throw err
@@ -159,7 +167,11 @@ async function resolveNpm (
   const meta = pickResult.meta
   if (pickedPackage == null) {
     if ((workspacePackages != null) && opts.projectDir) {
-      const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, opts.projectDir)
+      const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, {
+        projectDir: opts.projectDir,
+        lockfileDir: opts.lockfileDir,
+        hardLinkLocalPackages: opts.hardLinkLocalPackages,
+      })
       if (resolvedFromLocal != null) return resolvedFromLocal
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta })
@@ -168,14 +180,22 @@ async function resolveNpm (
   if (((workspacePackages?.[pickedPackage.name]) != null) && opts.projectDir) {
     if (workspacePackages[pickedPackage.name][pickedPackage.version]) {
       return {
-        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.projectDir),
+        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, {
+          projectDir: opts.projectDir,
+          lockfileDir: opts.lockfileDir,
+          hardLinkLocalPackages: opts.hardLinkLocalPackages,
+        }),
         latest: meta['dist-tags'].latest,
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[pickedPackage.name], spec)
     if (localVersion && (semver.gt(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
       return {
-        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.projectDir),
+        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][localVersion], spec.normalizedPref, {
+          projectDir: opts.projectDir,
+          lockfileDir: opts.lockfileDir,
+          hardLinkLocalPackages: opts.hardLinkLocalPackages,
+        }),
         latest: meta['dist-tags'].latest,
       }
     }
@@ -201,6 +221,8 @@ function tryResolveFromWorkspace (
   wantedDependency: WantedDependency,
   opts: {
     defaultTag: string
+    hardLinkLocalPackages?: boolean
+    lockfileDir?: string
     projectDir?: string
     registry: string
     workspacePackages?: WorkspacePackages
@@ -219,7 +241,11 @@ function tryResolveFromWorkspace (
   if (!opts.projectDir) {
     throw new Error('Cannot resolve package from workspace because opts.projectDir is not defined')
   }
-  const resolvedFromLocal = tryResolveFromWorkspacePackages(opts.workspacePackages, spec, opts.projectDir)
+  const resolvedFromLocal = tryResolveFromWorkspacePackages(opts.workspacePackages, spec, {
+    projectDir: opts.projectDir,
+    hardLinkLocalPackages: opts.hardLinkLocalPackages,
+    lockfileDir: opts.lockfileDir,
+  })
   if (resolvedFromLocal == null) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
@@ -232,12 +258,16 @@ function tryResolveFromWorkspace (
 function tryResolveFromWorkspacePackages (
   workspacePackages: WorkspacePackages,
   spec: RegistryPackageSpec,
-  projectDir: string
+  opts: {
+    hardLinkLocalPackages?: boolean
+    projectDir: string
+    lockfileDir?: string
+  }
 ) {
   if (!workspacePackages[spec.name]) return null
   const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec)
   if (!localVersion) return null
-  return resolveFromLocalPackage(workspacePackages[spec.name][localVersion], spec.normalizedPref, projectDir)
+  return resolveFromLocalPackage(workspacePackages[spec.name][localVersion], spec.normalizedPref, opts)
 }
 
 function pickMatchingLocalVersionOrNull (
@@ -268,10 +298,16 @@ function resolveFromLocalPackage (
     manifest: DependencyManifest
   },
   normalizedPref: string | undefined,
-  projectDir: string
+  opts: {
+    hardLinkLocalPackages?: boolean
+    projectDir: string
+    lockfileDir?: string
+  }
 ) {
   return {
-    id: `link:${normalize(path.relative(projectDir, localPackage.dir))}`,
+    id: opts.hardLinkLocalPackages
+      ? `local/${normalize(path.relative(opts.lockfileDir!, localPackage.dir))}`
+      : `link:${normalize(path.relative(opts.projectDir, localPackage.dir))}`,
     manifest: localPackage.manifest,
     normalizedPref,
     resolution: {

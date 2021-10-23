@@ -21,11 +21,13 @@ import {
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   ProjectSnapshot,
+  Lockfile,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
+import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
 import logger, { streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
@@ -127,6 +129,14 @@ export async function install (
     opts
   )
   return projects[0].manifest
+}
+
+interface ProjectToBeInstalled {
+  id: string
+  buildIndex: number
+  manifest: ProjectManifest
+  modulesDir: string
+  rootDir: string
 }
 
 export type MutatedProject = ProjectOptions & DependenciesMutation
@@ -250,6 +260,7 @@ export async function mutateModules (
             extendNodePath: opts.extendNodePath,
             extraBinPaths: opts.extraBinPaths,
             force: opts.force,
+            hardLinkLocalPackages: opts.hardLinkLocalPackages,
             hoistedDependencies: ctx.hoistedDependencies,
             hoistPattern: ctx.hoistPattern,
             ignoreScripts: opts.ignoreScripts,
@@ -310,13 +321,14 @@ export async function mutateModules (
 
     const projectsToInstall = [] as ImporterToUpdate[]
 
-    const projectsToBeInstalled = ctx.projects.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, rootDir: string, manifest: ProjectManifest, modulesDir: string }>
+    const projectsToBeInstalled = ctx.projects.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       rawConfig: opts.rawConfig,
       scriptShell: opts.scriptShell,
       shellEmulator: opts.shellEmulator,
       stdio: opts.ownLifecycleHooksStdio,
+      storeController: opts.storeController,
       unsafePerm: opts.unsafePerm || false,
     }
 
@@ -480,14 +492,20 @@ export async function mutateModules (
       if (opts.enablePnp) {
         scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
-      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],
-        projectsToBeInstalled,
+      const projectsToBeBuilt = extendProjectsWithTargetDirs(projectsToBeInstalled, result.newLockfile, ctx)
+      const scriptsToRun = ['preinstall', 'install', 'postinstall', 'prepare']
+      if (opts.hardLinkLocalPackages) {
+        // TODO: only run this if it is linked
+        scriptsToRun.push('prepublishOnly')
+      }
+      await runLifecycleHooksConcurrently(scriptsToRun,
+        projectsToBeBuilt,
         opts.childConcurrency,
         scriptsOpts
       )
     }
 
-    return result
+    return result.projects
   }
 }
 
@@ -663,7 +681,7 @@ type InstallFunction = (
     pruneVirtualStore: boolean
     currentLockfileIsUpToDate: boolean
   }
-) => Promise<Array<{ rootDir: string, manifest: ProjectManifest }>>
+) => Promise<{ projects: Array<{ rootDir: string, manifest: ProjectManifest }>, newLockfile: Lockfile }>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
@@ -766,6 +784,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       engineStrict: opts.engineStrict,
       force: opts.force,
       forceFullResolution,
+      hardLinkLocalPackages: opts.hardLinkLocalPackages,
       hooks: opts.hooks,
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
@@ -998,7 +1017,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   await opts.storeController.close()
 
-  return projectsToResolve.map(({ manifest, rootDir }) => ({ rootDir, manifest }))
+  return {
+    newLockfile,
+    projects: projectsToResolve.map(({ manifest, rootDir }) => ({ rootDir, manifest })),
+  }
 }
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {

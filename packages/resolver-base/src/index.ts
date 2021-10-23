@@ -56,6 +56,7 @@ export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   projectDir: string
+  hardLinkLocalPackages?: boolean
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
