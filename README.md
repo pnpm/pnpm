@@ -56,7 +56,7 @@ As a result, you save gigabytes of space on your disk and you have a lot faster 
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
 why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://pnpm.io/blog/2020/05/27/flat-node-modules-is-not-the-only-way).
 
-:heart: Like this project? Let people know with a [tweet](https://r.pnpm.io/tweet).
+💖 Like this project? Let people know with a [tweet](https://r.pnpm.io/tweet)
 
 ## Getting Started
 
