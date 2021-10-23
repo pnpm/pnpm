@@ -1,10 +1,10 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import createCafs, {
-  getFilePathByModeInCafs as _getFilePathByModeInCafs,
+  getFilePathByModeInCafs,
   PackageFilesIndex,
 } from '@pnpm/cafs'
-import { FetchFunction } from '@pnpm/fetcher-base'
+import { FetchFunction, PackageFilesResponse } from '@pnpm/fetcher-base'
 import createPackageRequester from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
@@ -13,6 +13,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import loadJsonFile from 'load-json-file'
+import memoize from 'mem'
 import pathTemp from 'path-temp'
 import writeJsonFile from 'write-json-file'
 import createImportPackage from './createImportPackage'
@@ -24,25 +25,42 @@ function createPackageImporter (
     cafsDir: string
   }
 ): ImportPackageFunction {
-  const impPkg = createImportPackage(opts.packageImportMethod)
-  const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, opts.cafsDir)
+  const cachedImporterCreator = memoize(createImportPackage)
+  const packageImportMethod = opts.packageImportMethod
+  const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
-    const filesMap = {} as Record<string, string>
-    let isBuilt!: boolean
-    let filesIndex!: Record<string, PackageFileInfo>
-    if (opts.targetEngine && ((opts.filesResponse.sideEffects?.[opts.targetEngine]) != null)) {
-      filesIndex = opts.filesResponse.sideEffects?.[opts.targetEngine]
-      isBuilt = true
-    } else {
-      filesIndex = opts.filesResponse.filesIndex
-      isBuilt = false
-    }
-    for (const [fileName, fileMeta] of Object.entries(filesIndex)) {
-      filesMap[fileName] = getFilePathByModeInCafs(fileMeta.integrity, fileMeta.mode)
-    }
+    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.targetEngine)
+    const impPkg = cachedImporterCreator(opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const importMethod = await impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
     return { importMethod, isBuilt }
   }
+}
+
+function getFlatMap (
+  cafsDir: string,
+  filesResponse: PackageFilesResponse,
+  targetEngine?: string
+): { filesMap: Record<string, string>, isBuilt: boolean } {
+  if (filesResponse.local) {
+    return {
+      filesMap: filesResponse.filesIndex,
+      isBuilt: false,
+    }
+  }
+  let isBuilt!: boolean
+  let filesIndex!: Record<string, PackageFileInfo>
+  if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
+    filesIndex = filesResponse.sideEffects?.[targetEngine]
+    isBuilt = true
+  } else {
+    filesIndex = filesResponse.filesIndex
+    isBuilt = false
+  }
+  const filesMap = {}
+  for (const [fileName, fileMeta] of Object.entries(filesIndex)) {
+    filesMap[fileName] = getFilePathByModeInCafs(cafsDir, fileMeta.integrity, fileMeta.mode)
+  }
+  return { filesMap, isBuilt }
 }
 
 export function createCafsStore (

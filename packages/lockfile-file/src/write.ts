@@ -100,6 +100,9 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
         const normalizedImporter = {
           specifiers: importer.specifiers ?? {},
         }
+        if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
+          normalizedImporter['dependenciesMeta'] = importer.dependenciesMeta
+        }
         for (const depType of DEPENDENCIES_FIELDS) {
           if (!isEmpty(importer[depType] ?? {})) {
             normalizedImporter[depType] = importer[depType]

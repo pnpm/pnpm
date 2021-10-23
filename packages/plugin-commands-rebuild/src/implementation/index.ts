@@ -19,6 +19,7 @@ import {
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { ProjectManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import runGroups from 'run-groups'
@@ -150,11 +151,13 @@ export async function rebuild (
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((depPath) => !pkgsThatWereRebuilt.has(depPath))
 
+  const store = await createOrConnectStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
     rawConfig: opts.rawConfig,
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
+    storeController: store.ctrl,
     unsafePerm: opts.unsafePerm || false,
   }
   await runLifecycleHooksConcurrently(

@@ -67,7 +67,7 @@ function toLockfileDependency (
   }
 ): PackageSnapshot {
   const lockfileResolution = toLockfileResolution(
-    { name: pkg.name, version: pkg.version },
+    { id: pkg.id, name: pkg.name, version: pkg.version },
     opts.depPath,
     pkg.resolution,
     opts.registry
@@ -210,6 +210,7 @@ function updateResolvedDeps (
 
 function toLockfileResolution (
   pkg: {
+    id: string
     name: string
     version: string
   },
@@ -219,6 +220,12 @@ function toLockfileResolution (
 ): LockfileResolution {
   /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
+    if (resolution.type === 'directory') {
+      return {
+        type: 'directory',
+        directory: pkg.id.replace(/^file:/, ''),
+      }
+    }
     return resolution as LockfileResolution
   }
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}

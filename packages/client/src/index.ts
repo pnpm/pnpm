@@ -4,6 +4,7 @@ import createResolve, {
 } from '@pnpm/default-resolver'
 import { AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import createDirectoryFetcher from '@pnpm/directory-fetcher'
 import fetchFromGit from '@pnpm/git-fetcher'
 import createTarballFetcher from '@pnpm/tarball-fetcher'
 import getCredentialsByURI from 'credentials-by-uri'
@@ -43,5 +44,6 @@ function createFetchers (
   return {
     ...createTarballFetcher(fetchFromRegistry, getCredentials, opts),
     ...fetchFromGit(),
+    ...createDirectoryFetcher(),
   }
 }

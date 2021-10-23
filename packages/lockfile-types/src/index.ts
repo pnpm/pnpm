@@ -1,3 +1,5 @@
+import { DependenciesMeta } from '@pnpm/types'
+
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
   lockfileVersion: number
@@ -12,6 +14,7 @@ export interface ProjectSnapshot {
   dependencies?: ResolvedDependencies
   optionalDependencies?: ResolvedDependencies
   devDependencies?: ResolvedDependencies
+  dependenciesMeta?: DependenciesMeta
 }
 
 export interface PackageSnapshots {

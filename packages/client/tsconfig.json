@@ -13,6 +13,9 @@
       "path": "../default-resolver"
     },
     {
+      "path": "../directory-fetcher"
+    },
+    {
       "path": "../fetch"
     },
     {

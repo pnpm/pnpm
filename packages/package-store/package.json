@@ -25,6 +25,7 @@
     "@zkochan/rimraf": "^2.1.1",
     "load-json-file": "^6.2.0",
     "make-empty-dir": "^2.0.0",
+    "mem": "^8.0.0",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-temp": "^2.0.0",

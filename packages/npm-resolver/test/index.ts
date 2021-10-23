@@ -944,6 +944,44 @@ test('resolve from local directory when it matches the latest version of the pac
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 })
 
+test('resolve injected dependency from local directory when it matches the latest version of the package', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', injected: true, pref: '1.0.0' }, {
+    projectDir: '/home/istvan/src',
+    lockfileDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '1.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.id).toBe('file:is-positive')
+  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.resolution).toStrictEqual({
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('1.0.0')
+})
+
 test('do not resolve from local directory when alwaysTryWorkspacePackages is false', async () => {
   nock(registry)
     .get('/is-positive')
