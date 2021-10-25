@@ -21,7 +21,24 @@ To quote the [Rush](https://rushjs.io/) team:
 [![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://r.pnpm.io/chat)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](#backers)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
-[![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/pnpmjs)
+[![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=pnpmjs&region=follow_link)
+
+## Sponsors
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://bit.dev" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://prisma.io" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Support this project by [becoming a sponsor](https://opencollective.com/pnpm#sponsor).
 
 ## Background
 
@@ -38,6 +55,8 @@ With pnpm, lodash will be stored in a content-addressable storage, so:
 As a result, you save gigabytes of space on your disk and you have a lot faster installations!
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
 why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://pnpm.io/blog/2020/05/27/flat-node-modules-is-not-the-only-way).
+
+💖 Like this project? Let people know with a [tweet](https://r.pnpm.io/tweet)
 
 ## Installation
 
@@ -61,7 +80,7 @@ npx pnpm add -g pnpm
 
 For other installation options [visit our website](https://pnpm.io/installation).
 
-We also ship an experimental new version of pnpm that may be used even with no Node.js installed on the system, see [@pnpm/exe](https://www.npmjs.com/package/@pnpm/exe).
+We also ship a version of pnpm that may be used even with no Node.js installed on the system, see [@pnpm/exe](https://www.npmjs.com/package/@pnpm/exe).
 
 ## Usage
 
@@ -93,36 +112,18 @@ Benchmarks on an app with lots of dependencies:
 - [Chat](https://r.pnpm.io/chat)
 - [Twitter](https://twitter.com/pnpmjs)
 
-## Contributors
-
-This project exists thanks to all the people who contribute. [[Contribute](../../blob/main/CONTRIBUTING.md)].
-<a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" /></a>
-
 ### Backers
 
-Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/pnpm#backer)]
+Thank you to all our backers! [Become a backer](https://opencollective.com/pnpm#backer)
 
 <a href="https://opencollective.com/pnpm#backers" target="_blank"><img src="https://opencollective.com/pnpm/backers.svg?width=890"></a>
 
-### Sponsors
+## Contributors
 
-Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/pnpm#sponsor)]
+This project exists thanks to all the people who contribute. [Contribute](../../blob/main/CONTRIBUTING.md).
 
-<a href="https://opencollective.com/pnpm/sponsor/0/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/0/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/1/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/1/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/2/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/2/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/3/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/3/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/4/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/4/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/5/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/5/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/6/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/6/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/7/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/7/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/8/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/8/avatar.svg"></a>
-<a href="https://opencollective.com/pnpm/sponsor/9/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/9/avatar.svg"></a>
+<a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" /></a>
 
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE)
-
-***
-
-Like this project? Let people know with a [tweet](https://r.pnpm.io/tweet).

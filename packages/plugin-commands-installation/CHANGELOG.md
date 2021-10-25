@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 7.0.4
+
+### Patch Changes
+
+- 2ba869c25: Do not explicitly link to Node.js executables that are not in the pnpm home directory.
+- Updated dependencies [b6d74c545]
+- Updated dependencies [456232654]
+  - @pnpm/config@13.4.0
+  - @pnpm/filter-workspace-packages@4.4.0
+  - @pnpm/cli-utils@0.6.28
+  - @pnpm/plugin-commands-rebuild@5.1.4
+  - @pnpm/store-connection-manager@3.1.1
+  - @pnpm/find-workspace-packages@3.1.20
+  - @pnpm/core@1.0.1
+  - @pnpm/outdated@9.0.10
+  - @pnpm/package-store@12.0.15
+
 ## 7.0.3
 
 ### Patch Changes

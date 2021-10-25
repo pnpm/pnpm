@@ -332,7 +332,7 @@ test.skip('fail if the store server is run by a different version of pnpm', asyn
   const result = execPnpmSync(['install', 'is-positive@1.0.0'])
 
   expect(result.status).toBe(1)
-  expect(result.stdout.toString()).toMatch(/The store server runs on pnpm v2.0.0. The same pnpm version should be used to connect (current is/)
+  expect(result.stdout.toString()).toMatch(/The store server runs on pnpm v2.0.0. The same pnpm version should be used to connect \(current is/)
 })
 
 skipOnWindows('print server status', async () => {

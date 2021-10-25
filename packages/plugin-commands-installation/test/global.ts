@@ -4,7 +4,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import tempy from 'tempy'
-import nodeExecPath from '../lib/nodeExecPath'
+import getNodeExecPath from '../lib/nodeExecPath'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = tempy.directory()
@@ -35,12 +35,14 @@ const DEFAULT_OPTIONS = {
 }
 
 test('globally installed package is linked with active version of Node.js', async () => {
+  const nodeExecPath = await getNodeExecPath()
   prepare()
   await add.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     global: true,
     linkWorkspacePackages: false,
+    pnpmHomeDir: path.dirname(nodeExecPath),
   }, ['hello-world-js-bin'])
 
   const manifest = (await import(path.resolve('package.json')))
@@ -50,5 +52,20 @@ test('globally installed package is linked with active version of Node.js', asyn
   ).toBeTruthy()
 
   const shimContent = await fs.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
-  expect(shimContent).toContain(await nodeExecPath())
+  expect(shimContent).toContain(nodeExecPath)
+})
+
+test('globally installed package isn not linked with active version of Node.js if the Node.js executable is not under the pnpm home directory', async () => {
+  prepare()
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    dir: process.cwd(),
+    global: true,
+    linkWorkspacePackages: false,
+    pnpmHomeDir: path.resolve('pnpm-home'),
+  }, ['hello-world-js-bin'])
+
+  const manifest = (await import(path.resolve('package.json')))
+
+  expect(manifest.dependenciesMeta).toBeFalsy()
 })
