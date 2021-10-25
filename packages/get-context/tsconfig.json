@@ -7,28 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../modules-yaml"
-    },
-    {
-      "path": "../read-projects-context"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }

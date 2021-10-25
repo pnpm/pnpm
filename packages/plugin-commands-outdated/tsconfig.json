@@ -7,52 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../../privatePackages/prepare"
-    },
-    {
-      "path": "../cli-utils"
-    },
-    {
-      "path": "../command"
-    },
-    {
-      "path": "../common-cli-options-help"
-    },
-    {
-      "path": "../config"
-    },
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../default-resolver"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../filter-workspace-packages"
-    },
-    {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../matcher"
-    },
-    {
-      "path": "../modules-yaml"
-    },
-    {
-      "path": "../outdated"
-    },
-    {
-      "path": "../plugin-commands-installation"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }

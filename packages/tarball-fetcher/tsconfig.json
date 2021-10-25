@@ -7,28 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../fetch"
-    },
-    {
-      "path": "../fetcher-base"
-    },
-    {
-      "path": "../fetching-types"
-    },
-    {
-      "path": "../graceful-fs"
-    },
-    {
-      "path": "../prepare-package"
-    }
   ]
 }

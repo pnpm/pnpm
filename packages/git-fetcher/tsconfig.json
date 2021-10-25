@@ -7,19 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../cafs"
-    },
-    {
-      "path": "../fetcher-base"
-    },
-    {
-      "path": "../prepare-package"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }

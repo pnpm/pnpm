@@ -7,31 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../fetch"
-    },
-    {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../lockfile-utils"
-    },
-    {
-      "path": "../lockfile-walker"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }

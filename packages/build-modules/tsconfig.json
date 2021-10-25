@@ -7,28 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../lifecycle"
-    },
-    {
-      "path": "../link-bins"
-    },
-    {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../store-controller-types"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }

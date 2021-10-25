@@ -7,43 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../cafs"
-    },
-    {
-      "path": "../client"
-    },
-    {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../fetcher-base"
-    },
-    {
-      "path": "../graceful-fs"
-    },
-    {
-      "path": "../package-is-installable"
-    },
-    {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../resolver-base"
-    },
-    {
-      "path": "../store-controller-types"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }

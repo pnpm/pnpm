@@ -7,16 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../read-project-manifest"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }

@@ -7,25 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../cli-meta"
-    },
-    {
-      "path": "../client"
-    },
-    {
-      "path": "../config"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../package-store"
-    },
-    {
-      "path": "../server"
-    }
   ]
 }

@@ -58,27 +58,6 @@ async function updateTSConfig (
   const relative = normalizePath(path.relative(context.workspaceDir, dir))
   const importer = context.lockfile.importers[relative]
   if (!importer) return tsConfig
-  const deps = {
-    ...importer.dependencies,
-    ...importer.devDependencies,
-  }
-  const references = [] as Array<{ path: string }>
-  for (const [depName, spec] of Object.entries(deps)) {
-    if (!spec.startsWith('link:') || spec.length === 5) continue
-    const relativePath = spec.substr(5)
-    if (!await exists(path.join(dir, relativePath, 'tsconfig.json'))) continue
-    if (
-      depName === '@pnpm/package-store' && (
-        manifest.name === '@pnpm/git-fetcher' ||
-        manifest.name === '@pnpm/tarball-fetcher' ||
-        manifest.name === '@pnpm/package-requester'
-      )
-    ) {
-      // This is to avoid a circular graph (which TypeScript references do not support.
-      continue
-    }
-    references.push({ path: relativePath })
-  }
   await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
     extends: './tsconfig.json',
     include: [
@@ -92,8 +71,7 @@ async function updateTSConfig (
     compilerOptions: {
       ...tsConfig['compilerOptions'],
       rootDir: 'src',
-    },
-    references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
+    }
   }
 }
 

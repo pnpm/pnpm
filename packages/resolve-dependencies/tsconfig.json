@@ -7,49 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../lockfile-utils"
-    },
-    {
-      "path": "../manifest-utils"
-    },
-    {
-      "path": "../npm-resolver"
-    },
-    {
-      "path": "../pick-registry-for-package"
-    },
-    {
-      "path": "../prune-lockfile"
-    },
-    {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../resolver-base"
-    },
-    {
-      "path": "../store-controller-types"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }

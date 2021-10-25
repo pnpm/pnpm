@@ -7,31 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../cli-meta"
-    },
-    {
-      "path": "../config"
-    },
-    {
-      "path": "../default-reporter"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../manifest-utils"
-    },
-    {
-      "path": "../package-is-installable"
-    },
-    {
-      "path": "../read-project-manifest"
-    },
-    {
-      "path": "../types"
-    }
   ]
 }
