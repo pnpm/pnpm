@@ -93,6 +93,7 @@ test('audit does not exit with code 1 if the registry responds with a non-200 re
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
+    fetchRetries: 0,
     ignoreRegistryErrors: true,
     production: false,
     registries: {
