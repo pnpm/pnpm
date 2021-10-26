@@ -33,7 +33,7 @@ export default function getAgent (uri: string, opts: AgentOptions) {
   const key = [
     `https:${isHttps.toString()}`,
     pxuri
-      ? `proxy:${pxuri.protocol}//${pxuri.host}:${pxuri.port}`
+      ? `proxy:${pxuri.protocol}//${pxuri.username}:${pxuri.password}@${pxuri.host}:${pxuri.port}`
       : '>no-proxy<',
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
@@ -154,7 +154,7 @@ function getProxy (
   isHttps: boolean
 ) {
   const popts = {
-    auth: (proxyUrl.username ? (proxyUrl.password ? `${proxyUrl.username}:${proxyUrl.password}` : proxyUrl.username) : undefined),
+    auth: getAuth(proxyUrl),
     ca: opts.ca,
     cert: opts.cert,
     host: proxyUrl.hostname,
@@ -178,4 +178,15 @@ function getProxy (
   if (proxyUrl.protocol?.startsWith('socks')) {
     return new SocksProxyAgent(popts)
   }
+}
+
+function getAuth (user: { username?: string, password?: string }) {
+  if (!user.username) {
+    return undefined
+  }
+  let auth = user.username
+  if (user.password) {
+    auth += `:${user.password}`
+  }
+  return decodeURIComponent(auth)
 }
