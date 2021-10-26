@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.1.5
+
+### Patch Changes
+
+- Updated dependencies [a916accec]
+  - @pnpm/link-bins@6.2.2
+  - @pnpm/store-connection-manager@3.1.2
+
 ## 5.1.4
 
 ### Patch Changes

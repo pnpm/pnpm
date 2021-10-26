@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 5.2.2
+
+### Patch Changes
+
+- Updated dependencies [a916accec]
+  - @pnpm/link-bins@6.2.2
+
 ## 5.2.1
 
 ### Patch Changes

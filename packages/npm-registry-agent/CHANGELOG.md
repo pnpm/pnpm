@@ -1,5 +1,11 @@
 # @pnpm/npm-registry-agent
 
+## 5.0.2
+
+### Patch Changes
+
+- 3c7e5eced: Proxy URLs with special characters in credentials should work.
+
 ## 5.0.1
 
 ### Patch Changes

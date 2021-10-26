@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [a916accec]
+  - @pnpm/link-bins@6.2.2
+  - @pnpm/build-modules@7.1.3
+  - @pnpm/headless@16.1.6
+  - @pnpm/hoist@5.2.2
+  - @pnpm/package-requester@15.1.2
+
 ## 1.0.1
 
 ### Patch Changes

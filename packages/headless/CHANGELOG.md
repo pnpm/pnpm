@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 16.1.6
+
+### Patch Changes
+
+- Updated dependencies [a916accec]
+  - @pnpm/link-bins@6.2.2
+  - @pnpm/build-modules@7.1.3
+  - @pnpm/hoist@5.2.2
+  - @pnpm/package-requester@15.1.2
+
 ## 16.1.5
 
 ### Patch Changes

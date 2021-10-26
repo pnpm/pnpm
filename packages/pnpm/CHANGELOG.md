@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.19.1
+
+### Patch Changes
+
+- Proxy URLs with special characters in credentials should work [#3925](https://github.com/pnpm/pnpm/pull/3925).
+- Don't print info message about conflicting command names [#3912](https://github.com/pnpm/pnpm/pull/3912).
+
 ## 6.19.0
 
 ### Minor Changes

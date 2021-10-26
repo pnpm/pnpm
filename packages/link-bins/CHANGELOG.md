@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 6.2.2
+
+### Patch Changes
+
+- a916accec: Do not warn about bin conflicts, just log a debug message.
+
 ## 6.2.1
 
 ### Patch Changes

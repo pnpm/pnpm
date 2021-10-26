@@ -1,5 +1,13 @@
 # @pnpm/fetch
 
+## 4.1.3
+
+### Patch Changes
+
+- 782ef2490: Default options should not be overriden by undefined options.
+- Updated dependencies [3c7e5eced]
+  - @pnpm/npm-registry-agent@5.0.2
+
 ## 4.1.2
 
 ### Patch Changes

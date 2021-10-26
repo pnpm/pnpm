@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 2.1.11
+
+### Patch Changes
+
+- Updated dependencies [782ef2490]
+  - @pnpm/fetch@4.1.3
+
 ## 2.1.10
 
 ### Patch Changes
