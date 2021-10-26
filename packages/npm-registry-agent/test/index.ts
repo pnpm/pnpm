@@ -86,3 +86,25 @@ test('a socks proxy', () => {
     type: 5,
   })
 })
+
+test('proxy credentials are decoded', () => {
+  const opts = {
+    httpsProxy: 'https://use%21r:pas%2As@my.proxy:1234/foo',
+    ...OPTS,
+  }
+  expect(getAgent('https://foo.com/bar', opts)).toEqual({
+    __type: 'https-proxy',
+    auth: 'use!r:pas*s',
+    ca: 'ca',
+    cert: 'cert',
+    host: 'my.proxy',
+    key: 'key',
+    localAddress: 'localAddress',
+    maxSockets: 5,
+    path: '/foo',
+    port: '1234',
+    protocol: 'https:',
+    rejectUnauthorized: true,
+    timeout: 6,
+  })
+})
