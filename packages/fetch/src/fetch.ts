@@ -2,12 +2,6 @@ import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, RetryTimeoutOptions } from '@zkochan/retry'
 import fetch, { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
 
-// retry settings
-const MIN_TIMEOUT = 10
-const MAX_RETRIES = 5
-const MAX_RETRY_AFTER = 20
-const FACTOR = 6
-
 export { Response, RetryTimeoutOptions }
 
 interface URLLike {
@@ -24,16 +18,16 @@ export interface RequestInit extends NodeRequestInit {
 export const isRedirect = fetch.isRedirect
 
 export default async function fetchRetry (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
-  const retryOpts = Object.assign({
-    factor: FACTOR,
-    // timeouts will be [10, 60, 360, 2160, 12960]
-    // (before randomization is added)
-    maxRetryAfter: MAX_RETRY_AFTER,
-    minTimeout: MIN_TIMEOUT,
-    retries: MAX_RETRIES,
-  }, opts.retry)
+  const retryOpts = opts.retry ?? {}
+  const maxRetries = retryOpts.retries ?? 2
 
-  const op = operation(retryOpts)
+  const op = operation({
+    factor: retryOpts.factor ?? 10,
+    maxTimeout: retryOpts.maxTimeout ?? 60000,
+    minTimeout: retryOpts.minTimeout ?? 10000,
+    randomize: false,
+    retries: maxRetries,
+  })
 
   try {
     return await new Promise((resolve, reject) => op.attempt(async (attempt) => {
@@ -55,7 +49,7 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
         requestRetryLogger.debug({
           attempt,
           error,
-          maxRetries: retryOpts.retries,
+          maxRetries,
           method: opts.method ?? 'GET',
           timeout,
           url: url.toString(),
