@@ -104,7 +104,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   let scripts: Record<string, string>
   switch (manifest.name) {
   case '@pnpm/lockfile-types':
-    scripts = {}
+    scripts = { ...manifest.scripts }
     break
   case '@pnpm/headless':
   case '@pnpm/outdated':
