@@ -26,6 +26,9 @@
   },
   "devDependencies": {
     "@babel/core": "^7.15.8",
+    "@babel/plugin-transform-modules-commonjs": "^7.15.4",
+    "@babel/plugin-proposal-dynamic-import": "^7.14.5",
+    "@babel/preset-typescript": "^7.10.1",
     "@changesets/cli": "^2.17.0",
     "@commitlint/cli": "^13.2.1",
     "@commitlint/config-conventional": "^13.2.0",
