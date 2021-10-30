@@ -102,7 +102,6 @@ export type ResolveFromNpmOptions = {
   defaultTag?: string
   dryRun?: boolean
   lockfileDir?: string
-  hardLinkLocalPackages?: boolean
   registry: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
@@ -127,7 +126,6 @@ async function resolveNpm (
     if (wantedDependency.pref.startsWith('workspace:.')) return null
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
       defaultTag,
-      hardLinkLocalPackages: opts.hardLinkLocalPackages,
       lockfileDir: opts.lockfileDir,
       projectDir: opts.projectDir,
       registry: opts.registry,
@@ -157,7 +155,7 @@ async function resolveNpm (
       const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, {
         projectDir: opts.projectDir,
         lockfileDir: opts.lockfileDir,
-        hardLinkLocalPackages: opts.hardLinkLocalPackages,
+        hardLinkLocalPackages: wantedDependency.injected,
       })
       if (resolvedFromLocal != null) return resolvedFromLocal
     }
@@ -170,7 +168,7 @@ async function resolveNpm (
       const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, {
         projectDir: opts.projectDir,
         lockfileDir: opts.lockfileDir,
-        hardLinkLocalPackages: opts.hardLinkLocalPackages,
+        hardLinkLocalPackages: wantedDependency.injected,
       })
       if (resolvedFromLocal != null) return resolvedFromLocal
     }
@@ -183,7 +181,7 @@ async function resolveNpm (
         ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
-          hardLinkLocalPackages: opts.hardLinkLocalPackages,
+          hardLinkLocalPackages: wantedDependency.injected,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -194,7 +192,7 @@ async function resolveNpm (
         ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][localVersion], spec.normalizedPref, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
-          hardLinkLocalPackages: opts.hardLinkLocalPackages,
+          hardLinkLocalPackages: wantedDependency.injected,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -221,7 +219,6 @@ function tryResolveFromWorkspace (
   wantedDependency: WantedDependency,
   opts: {
     defaultTag: string
-    hardLinkLocalPackages?: boolean
     lockfileDir?: string
     projectDir?: string
     registry: string
@@ -243,7 +240,7 @@ function tryResolveFromWorkspace (
   }
   const resolvedFromLocal = tryResolveFromWorkspacePackages(opts.workspacePackages, spec, {
     projectDir: opts.projectDir,
-    hardLinkLocalPackages: opts.hardLinkLocalPackages,
+    hardLinkLocalPackages: wantedDependency.injected,
     lockfileDir: opts.lockfileDir,
   })
   if (resolvedFromLocal == null) {

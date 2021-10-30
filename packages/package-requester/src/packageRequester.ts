@@ -156,7 +156,6 @@ async function resolveAndFetch (
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
-      hardLinkLocalPackages: options.hardLinkLocalPackages,
       lockfileDir: options.lockfileDir,
       preferredVersions: options.preferredVersions,
       preferWorkspacePackages: options.preferWorkspacePackages,
@@ -185,7 +184,7 @@ async function resolveAndFetch (
 
   const id = pkgId as string
 
-  if (resolution.type === 'directory' && !options.hardLinkLocalPackages) {
+  if (resolution.type === 'directory' && !wantedDependency.injected) {
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
     }
@@ -369,10 +368,13 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && (result.bundledManifest == null)) {
     result.bundledManifest = removeKeyOnFail(
-      result.files.then(async ({ filesIndex }) => {
-        const { integrity, mode } = filesIndex['package.json']
-        const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
-        return readBundledManifest(manifestPath)
+      result.files.then(async (filesResult) => {
+        if (!filesResult.local) {
+          const { integrity, mode } = filesResult.filesIndex['package.json']
+          const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
+          return readBundledManifest(manifestPath)
+        }
+        return readBundledManifest(filesResult.filesIndex['package.json'])
       })
     )
   }
@@ -401,7 +403,7 @@ function fetchToStore (
   ) {
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
-      const isLocalPkg = opts.pkg.id.startsWith('local/')
+      const isLocalPkg = opts.pkg.resolution.type === 'directory'
 
       if (
         !opts.force &&
@@ -497,40 +499,44 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         }
       ), { priority })
 
-      const filesIndex = fetchedPackage.filesIndex
-
-      // Ideally, files wouldn't care about when integrity is calculated.
-      // However, we can only rename the temp folder once we know the package name.
-      // And we cannot rename the temp folder till we're calculating integrities.
-      const integrity: Record<string, PackageFileInfo> = {}
-      await Promise.all(
-        Object.keys(filesIndex)
-          .map(async (filename) => {
-            if (filesIndex[filename].writeResult == null) {
+      let filesResult!: PackageFilesResponse
+      if (!fetchedPackage.local) {
+        const filesIndex = fetchedPackage.filesIndex
+        // Ideally, files wouldn't care about when integrity is calculated.
+        // However, we can only rename the temp folder once we know the package name.
+        // And we cannot rename the temp folder till we're calculating integrities.
+        const integrity: Record<string, PackageFileInfo> = {}
+        await Promise.all(
+          Object.keys(filesIndex)
+            .map(async (filename) => {
+              const {
+                checkedAt,
+                integrity: fileIntegrity,
+              } = await filesIndex[filename].writeResult
               integrity[filename] = {
-                location: filesIndex[filename].location,
-              } as any // eslint-disable-line
-              return
-            }
-            const {
-              checkedAt,
-              integrity: fileIntegrity,
-            } = await filesIndex[filename].writeResult
-            integrity[filename] = {
-              checkedAt,
-              integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
-              mode: filesIndex[filename].mode,
-              size: filesIndex[filename].size,
-              location: filesIndex[filename].location,
-            }
-          })
-      )
-      if (!isLocalPkg) {
+                checkedAt,
+                integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
+                mode: filesIndex[filename].mode,
+                size: filesIndex[filename].size,
+              }
+            })
+        )
         await writeJsonFile(filesIndexFile, {
           name: opts.pkg.name,
           version: opts.pkg.version,
           files: integrity,
         })
+        filesResult = {
+          fromStore: false,
+          filesIndex: integrity,
+        }
+      } else {
+        filesResult = {
+          local: true,
+          fromStore: false,
+          filesIndex: fetchedPackage.filesIndex,
+          packageImportMethod: fetchedPackage['packageImportMethod'],
+        }
       }
 
       if (isLocalTarballDep && opts.pkg.resolution['integrity']) { // eslint-disable-line @typescript-eslint/dot-notation
@@ -538,11 +544,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.pkg.resolution['integrity'], 'utf8') // eslint-disable-line @typescript-eslint/dot-notation
       }
 
-      files.resolve({
-        filesIndex: integrity,
-        fromStore: false,
-        packageImportMethod: fetchedPackage['packageImportMethod'],
-      })
+      files.resolve(filesResult)
       finishing.resolve(undefined)
     } catch (err: any) { // eslint-disable-line
       files.reject(err)

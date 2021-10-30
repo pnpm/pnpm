@@ -11,7 +11,8 @@ export default function extendProjectsWithTargetDirs<T> (
     virtualStoreDir: string
   }
 ) {
-  const projectsById = fromPairs(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
+  const projectsById: Record<string, T & { targetDirs: string[], stages?: string[] }> =
+    fromPairs(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
   Object.entries(lockfile.packages ?? {})
     .forEach(([depPath, pkg]) => {
       if (pkg.resolution?.['type'] !== 'directory') return
@@ -20,6 +21,7 @@ export default function extendProjectsWithTargetDirs<T> (
       if (projectsById[importerId] == null) return
       const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.lockfileDir), 'node_modules', pkg.name!)
       projectsById[importerId].targetDirs.push(localLocation)
+      projectsById[importerId].stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
     })
   return Object.values(projectsById)
 }

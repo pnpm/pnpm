@@ -260,7 +260,6 @@ export async function mutateModules (
             extendNodePath: opts.extendNodePath,
             extraBinPaths: opts.extraBinPaths,
             force: opts.force,
-            hardLinkLocalPackages: opts.hardLinkLocalPackages,
             hoistedDependencies: ctx.hoistedDependencies,
             hoistPattern: ctx.hoistPattern,
             ignoreScripts: opts.ignoreScripts,
@@ -493,12 +492,7 @@ export async function mutateModules (
         scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
       const projectsToBeBuilt = extendProjectsWithTargetDirs(projectsToBeInstalled, result.newLockfile, ctx)
-      const scriptsToRun = ['preinstall', 'install', 'postinstall', 'prepare']
-      if (opts.hardLinkLocalPackages) {
-        // TODO: only run this if it is linked
-        scriptsToRun.push('prepublishOnly')
-      }
-      await runLifecycleHooksConcurrently(scriptsToRun,
+      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],
         projectsToBeBuilt,
         opts.childConcurrency,
         scriptsOpts
@@ -784,7 +778,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       engineStrict: opts.engineStrict,
       force: opts.force,
       forceFullResolution,
-      hardLinkLocalPackages: opts.hardLinkLocalPackages,
       hooks: opts.hooks,
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,

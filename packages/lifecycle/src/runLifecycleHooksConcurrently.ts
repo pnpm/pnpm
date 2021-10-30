@@ -1,4 +1,4 @@
-import createDirectoryFetcher from '@pnpm/directory-fetcher'
+import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { StoreController } from '@pnpm/store-controller-types'
 import { ProjectManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
@@ -17,6 +17,7 @@ export interface Importer {
   manifest: ProjectManifest
   rootDir: string
   modulesDir: string
+  stages?: string[]
   targetDirs?: string[]
 }
 
@@ -26,7 +27,6 @@ export default async function runLifecycleHooksConcurrently (
   childConcurrency: number,
   opts: RunLifecycleHooksConcurrentlyOptions
 ) {
-  const fetchDir = createDirectoryFetcher().directory
   const importersByBuildIndex = new Map<number, Importer[]>()
   for (const importer of importers) {
     if (!importersByBuildIndex.has(importer.buildIndex)) {
@@ -38,7 +38,7 @@ export default async function runLifecycleHooksConcurrently (
   const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort()
   const groups = sortedBuildIndexes.map((buildIndex) => {
     const importers = importersByBuildIndex.get(buildIndex)!
-    return importers.map(({ manifest, modulesDir, rootDir, targetDirs }) =>
+    return importers.map(({ manifest, modulesDir, rootDir, stages: importerStages, targetDirs }) =>
       async () => {
         const runLifecycleHookOpts = {
           ...opts,
@@ -46,13 +46,12 @@ export default async function runLifecycleHooksConcurrently (
           pkgRoot: rootDir,
           rootModulesDir: modulesDir,
         }
-        for (const stage of stages) {
+        for (const stage of (importerStages ?? stages)) {
           if ((manifest.scripts == null) || !manifest.scripts[stage]) continue
           await runLifecycleHook(stage, manifest, runLifecycleHookOpts)
         }
         if (targetDirs == null) return
-        // eslint-disable-next-line
-        const filesResponse = await fetchDir({} as any, { directory: rootDir, type: 'directory' }, {})
+        const filesResponse = await fetchFromDir(rootDir, {})
         await Promise.all(
           targetDirs.map((targetDir) => opts.storeController.importPackage(targetDir, {
             filesResponse: filesResponse as any, // eslint-disable-line

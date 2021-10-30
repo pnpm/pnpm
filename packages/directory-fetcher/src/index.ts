@@ -1,37 +1,43 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { Cafs, FilesIndex, DeferredManifestPromise } from '@pnpm/fetcher-base'
+import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
+import { DirectoryResolution } from '@pnpm/resolver-base'
 import loadJsonFile from 'load-json-file'
+
+export interface DirectoryFetcherOptions {
+  manifest?: DeferredManifestPromise
+}
 
 export default () => {
   return {
-    directory: async function fetchFromLocal (
+    directory: (
       cafs: Cafs,
-      resolution: {
-        directory: string
-        type: 'directory'
-      },
-      opts: {
-        manifest?: DeferredManifestPromise
-      }
-    ) {
-      const filesIndex: FilesIndex = {}
-      await mapDirectory(resolution.directory, resolution.directory, filesIndex)
-      if (opts.manifest) {
-        opts.manifest.resolve(await loadJsonFile(path.join(resolution.directory, 'package.json')))
-      }
-      return {
-        filesIndex,
-        packageImportMethod: 'hardlink',
-      }
-    },
+      resolution: DirectoryResolution,
+      opts: DirectoryFetcherOptions
+    ) => fetchFromDir(resolution.directory, opts),
+  }
+}
+
+export async function fetchFromDir (
+  dir: string,
+  opts: DirectoryFetcherOptions
+) {
+  const filesIndex: Record<string, string> = {}
+  await mapDirectory(dir, dir, filesIndex)
+  if (opts.manifest) {
+    opts.manifest.resolve(await loadJsonFile(path.join(dir, 'package.json')))
+  }
+  return {
+    local: true,
+    filesIndex,
+    packageImportMethod: 'hardlink',
   }
 }
 
 async function mapDirectory (
   rootDir: string,
   currDir: string,
-  index: FilesIndex
+  index: Record<string, string>
 ) {
   const files = await fs.readdir(currDir)
   await Promise.all(files.filter((file) => file !== 'node_modules').map(async (file) => {
@@ -43,9 +49,7 @@ async function mapDirectory (
     }
     if (stat.isFile()) {
       const relativePath = path.relative(rootDir, fullPath)
-      index[relativePath] = {
-        location: fullPath,
-      } as any // eslint-disable-line
+      index[relativePath] = fullPath
     }
   }))
 }

@@ -50,7 +50,6 @@ export interface StrictInstallOptions {
     version: string
   }
   pruneLockfileImporters: boolean
-  hardLinkLocalPackages: boolean
   hooks: {
     readPackage?: ReadPackageHook
     afterAllResolved?: (lockfile: Lockfile) => Lockfile
@@ -152,7 +151,6 @@ const defaults = async (opts: InstallOptions) => {
     workspacePackages: {},
     enableModulesDir: true,
     modulesCacheMaxAge: 7 * 24 * 60,
-    hardLinkLocalPackages: false,
   } as StrictInstallOptions
 }
 

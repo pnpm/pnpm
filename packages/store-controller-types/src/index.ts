@@ -81,7 +81,6 @@ export interface RequestPackageOptions {
   defaultTag?: string
   downloadPriority: number
   projectDir: string
-  hardLinkLocalPackages?: boolean
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean

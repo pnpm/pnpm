@@ -5,6 +5,7 @@ export interface WantedDependency {
   pref: string // package reference
   dev: boolean
   optional: boolean
+  injected?: boolean
 }
 
 export default function getNonDevWantedDependencies (pkg: DependencyManifest) {

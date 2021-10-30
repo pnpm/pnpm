@@ -68,6 +68,7 @@ function getWantedDependenciesFromGivenSet (
     return {
       alias,
       dev: depType === 'dev',
+      injected: opts.dependenciesMeta[alias]?.injected,
       optional: depType === 'optional',
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pinnedVersion: guessPinnedVersionFromExistingSpec(deps[alias]),

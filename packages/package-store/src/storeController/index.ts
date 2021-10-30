@@ -29,18 +29,23 @@ function createPackageImporter (
   const packageImportMethod = opts.packageImportMethod
   const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, opts.cafsDir)
   return async (to, opts) => {
-    const filesMap = {} as Record<string, string>
+    let filesMap: Record<string, string>
     let isBuilt!: boolean
     let filesIndex!: Record<string, PackageFileInfo>
-    if (opts.targetEngine && ((opts.filesResponse.sideEffects?.[opts.targetEngine]) != null)) {
-      filesIndex = opts.filesResponse.sideEffects?.[opts.targetEngine]
-      isBuilt = true
+    if (opts.filesResponse.local) {
+      filesMap = opts.filesResponse.filesIndex
     } else {
-      filesIndex = opts.filesResponse.filesIndex
-      isBuilt = false
-    }
-    for (const [fileName, fileMeta] of Object.entries(filesIndex)) {
-      filesMap[fileName] = fileMeta.location ?? getFilePathByModeInCafs(fileMeta.integrity, fileMeta.mode)
+      if (opts.targetEngine && ((opts.filesResponse.sideEffects?.[opts.targetEngine]) != null)) {
+        filesIndex = opts.filesResponse.sideEffects?.[opts.targetEngine]
+        isBuilt = true
+      } else {
+        filesIndex = opts.filesResponse.filesIndex
+        isBuilt = false
+      }
+      filesMap = {}
+      for (const [fileName, fileMeta] of Object.entries(filesIndex)) {
+        filesMap[fileName] = getFilePathByModeInCafs(fileMeta.integrity, fileMeta.mode)
+      }
     }
     const impPkg = cachedImporterCreator(opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const importMethod = await impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })

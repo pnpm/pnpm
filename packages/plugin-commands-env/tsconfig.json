@@ -25,6 +25,9 @@
       "path": "../fetch"
     },
     {
+      "path": "../fetcher-base"
+    },
+    {
       "path": "../package-store"
     },
     {

@@ -127,7 +127,6 @@ export interface HeadlessOptions {
   pendingBuilds: string[]
   skipped: Set<string>
   enableModulesDir?: boolean
-  hardLinkLocalPackages?: boolean
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -434,17 +433,12 @@ export default async (opts: HeadlessOptions) => {
   await opts.storeController.close()
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
-    const scriptsToRun = ['preinstall', 'install', 'postinstall', 'prepare']
-    if (opts.hardLinkLocalPackages) {
-      // TODO: only run this if it is linked
-      scriptsToRun.push('prepublishOnly')
-    }
     const projectsToBeBuilt = extendProjectsWithTargetDirs(opts.projects, wantedLockfile, {
       lockfileDir: opts.lockfileDir,
       virtualStoreDir,
     })
     await runLifecycleHooksConcurrently(
-      scriptsToRun,
+      ['preinstall', 'install', 'postinstall', 'prepare'],
       projectsToBeBuilt,
       opts.childConcurrency ?? 5,
       scriptsOpts

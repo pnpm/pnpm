@@ -16,9 +16,8 @@ import parsePref from './parsePref'
  * Resolves a package hosted on the local filesystem
  */
 export default async function resolveLocal (
-  wantedDependency: {pref: string},
+  wantedDependency: {pref: string, injected?: boolean},
   opts: {
-    hardLinkLocalPackages?: boolean
     lockfileDir?: string
     projectDir: string
   }
@@ -35,7 +34,7 @@ export default async function resolveLocal (
     )
   ) | null
   > {
-  const spec = parsePref(wantedDependency.pref, opts.projectDir, opts.lockfileDir ?? opts.projectDir, opts.hardLinkLocalPackages)
+  const spec = parsePref(wantedDependency.pref, opts.projectDir, opts.lockfileDir ?? opts.projectDir, wantedDependency.injected)
   if (spec == null) return null
   if (spec.type === 'file') {
     return {

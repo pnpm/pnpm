@@ -27,6 +27,11 @@ test('hard link local packages', async () => {
       'is-positive': '1.0.0',
       'project-1': 'workspace:1.0.0',
     },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
   }
   const projects = preparePackages([
     {
@@ -68,7 +73,6 @@ test('hard link local packages', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
-    hardLinkLocalPackages: true,
     workspacePackages,
   }))
 
@@ -105,7 +109,6 @@ test('hard link local packages', async () => {
 
   await mutateModules(importers, await testDefaults({
     frozenLockfile: true,
-    hardLinkLocalPackages: true,
     workspacePackages,
   }))
 
@@ -140,6 +143,11 @@ test('hard link local packages and relink them after build', async () => {
     dependencies: {
       'is-positive': '1.0.0',
       'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
     },
   }
   const projects = preparePackages([
@@ -182,7 +190,6 @@ test('hard link local packages and relink them after build', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
-    hardLinkLocalPackages: true,
     workspacePackages,
   }))
 
@@ -222,7 +229,6 @@ test('hard link local packages and relink them after build', async () => {
 
   await mutateModules(importers, await testDefaults({
     frozenLockfile: true,
-    hardLinkLocalPackages: true,
     workspacePackages,
   }))
 

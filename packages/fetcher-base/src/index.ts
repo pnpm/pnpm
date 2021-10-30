@@ -7,15 +7,19 @@ export interface PackageFileInfo {
   integrity: string
   mode: number
   size: number
-  location?: string
 }
 
-export interface PackageFilesResponse {
+export type PackageFilesResponse = {
   fromStore: boolean
-  filesIndex: Record<string, PackageFileInfo>
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
-}
+} & ({
+  local: true
+  filesIndex: Record<string, string>
+} | {
+  local?: false
+  filesIndex: Record<string, PackageFileInfo>
+})
 
 export type ImportPackageFunction = (
   to: string,
@@ -51,8 +55,12 @@ export type FetchFunction = (
   opts: FetchOptions
 ) => Promise<FetchResult>
 
-export interface FetchResult {
+export type FetchResult = {
+  local?: false
   filesIndex: FilesIndex
+} | {
+  local: true
+  filesIndex: Record<string, string>
 }
 
 export interface FileWriteResult {
@@ -65,6 +73,5 @@ export interface FilesIndex {
     mode: number
     size: number
     writeResult: Promise<FileWriteResult>
-    location?: string
   }
 }
