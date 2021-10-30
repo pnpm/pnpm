@@ -10,13 +10,15 @@ import {
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import ssri from 'ssri'
-import parsePref from './parsePref'
+import parsePref, { WantedLocalDependency } from './parsePref'
+
+export { WantedLocalDependency }
 
 /**
  * Resolves a package hosted on the local filesystem
  */
 export default async function resolveLocal (
-  wantedDependency: {pref: string, injected?: boolean},
+  wantedDependency: WantedLocalDependency,
   opts: {
     lockfileDir?: string
     projectDir: string
@@ -34,7 +36,7 @@ export default async function resolveLocal (
     )
   ) | null
   > {
-  const spec = parsePref(wantedDependency.pref, opts.projectDir, opts.lockfileDir ?? opts.projectDir, wantedDependency.injected)
+  const spec = parsePref(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
   if (spec == null) return null
   if (spec.type === 'file') {
     return {
