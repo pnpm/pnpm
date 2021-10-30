@@ -54,7 +54,10 @@ export default async function runLifecycleHooksConcurrently (
         const filesResponse = await fetchFromDir(rootDir, {})
         await Promise.all(
           targetDirs.map((targetDir) => opts.storeController.importPackage(targetDir, {
-            filesResponse: filesResponse as any, // eslint-disable-line
+            filesResponse: {
+              fromStore: false,
+              ...filesResponse,
+            },
             force: false,
           }))
         )

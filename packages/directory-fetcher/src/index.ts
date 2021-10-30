@@ -29,8 +29,8 @@ export async function fetchFromDir (
     opts.manifest.resolve(await loadJsonFile(path.join(dir, 'package.json')))
   }
   return {
-    local: true,
+    local: true as const,
     filesIndex,
-    packageImportMethod: 'hardlink',
+    packageImportMethod: 'hardlink' as const,
   }
 }
