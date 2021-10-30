@@ -1395,6 +1395,9 @@ importers:
   packages/lockfile-types:
     specifiers:
       '@pnpm/lockfile-types': 'link:'
+      '@pnpm/types': workspace:7.4.0
+    dependencies:
+      '@pnpm/types': link:../types
     devDependencies:
       '@pnpm/lockfile-types': 'link:'
 

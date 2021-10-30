@@ -6,7 +6,7 @@ import rimraf from '@zkochan/rimraf'
 import pathExists from 'path-exists'
 import { testDefaults } from '../utils'
 
-test('hard link local packages', async () => {
+test('inject local packages', async () => {
   const project1Manifest = {
     name: 'project-1',
     version: '1.0.0',
@@ -85,6 +85,11 @@ test('hard link local packages', async () => {
 
   const rootModules = assertProject(process.cwd())
   const lockfile = await rootModules.readLockfile()
+  expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
+    'project-1': {
+      injected: true,
+    },
+  })
   expect(lockfile.packages['local/project-1_is-positive@1.0.0']).toEqual({
     resolution: {
       directory: 'project-1',
@@ -120,7 +125,7 @@ test('hard link local packages', async () => {
   await projects['project-2'].has('project-1')
 })
 
-test('hard link local packages and relink them after build', async () => {
+test('inject local packages and relink them after build', async () => {
   const project1Manifest = {
     name: 'project-1',
     version: '1.0.0',
@@ -204,6 +209,11 @@ test('hard link local packages and relink them after build', async () => {
 
   const rootModules = assertProject(process.cwd())
   const lockfile = await rootModules.readLockfile()
+  expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
+    'project-1': {
+      injected: true,
+    },
+  })
   expect(lockfile.packages['local/project-1_is-positive@1.0.0']).toEqual({
     resolution: {
       directory: 'project-1',
