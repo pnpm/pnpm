@@ -681,10 +681,14 @@ importers:
       '@pnpm/fetcher-base': workspace:11.0.3
       '@pnpm/resolver-base': workspace:8.0.4
       load-json-file: ^6.2.0
+      npm-packlist: ^2.2.2
+      ramda: ^0.27.1
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/resolver-base': link:../resolver-base
       load-json-file: 6.2.0
+      npm-packlist: 2.2.2
+      ramda: 0.27.1
     devDependencies:
       '@pnpm/directory-fetcher': 'link:'
 
