@@ -84,29 +84,31 @@ test('inject local packages', async () => {
   await projects['project-2'].has('project-1')
 
   const rootModules = assertProject(process.cwd())
-  const lockfile = await rootModules.readLockfile()
-  expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
-    'project-1': {
-      injected: true,
-    },
-  })
-  expect(lockfile.packages['local/project-1_is-positive@1.0.0']).toEqual({
-    resolution: {
-      directory: 'project-1',
-      type: 'directory',
-    },
-    id: 'local/project-1',
-    name: 'project-1',
-    version: '1.0.0',
-    peerDependencies: {
-      'is-positive': '1.0.0',
-    },
-    dependencies: {
-      'is-negative': '1.0.0',
-      'is-positive': '1.0.0',
-    },
-    dev: false,
-  })
+  {
+    const lockfile = await rootModules.readLockfile()
+    expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
+      'project-1': {
+        injected: true,
+      },
+    })
+    expect(lockfile.packages['local/project-1_is-positive@1.0.0']).toEqual({
+      resolution: {
+        directory: 'project-1',
+        type: 'directory',
+      },
+      id: 'local/project-1',
+      name: 'project-1',
+      version: '1.0.0',
+      peerDependencies: {
+        'is-positive': '1.0.0',
+      },
+      dependencies: {
+        'is-negative': '1.0.0',
+        'is-positive': '1.0.0',
+      },
+      dev: false,
+    })
+  }
 
   await rimraf('node_modules')
   await rimraf('project-1/node_modules')
@@ -123,6 +125,35 @@ test('inject local packages', async () => {
 
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
+
+  // The injected project is updated when on of its dependencies needs to be updated
+  importers[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  await mutateModules(importers, await testDefaults({ workspacePackages }))
+  {
+    const lockfile = await rootModules.readLockfile()
+    expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
+      'project-1': {
+        injected: true,
+      },
+    })
+    expect(lockfile.packages['local/project-1_is-positive@1.0.0']).toEqual({
+      resolution: {
+        directory: 'project-1',
+        type: 'directory',
+      },
+      id: 'local/project-1',
+      name: 'project-1',
+      version: '1.0.0',
+      peerDependencies: {
+        'is-positive': '1.0.0',
+      },
+      dependencies: {
+        'is-negative': '2.0.0',
+        'is-positive': '1.0.0',
+      },
+      dev: false,
+    })
+  }
 })
 
 test('inject local packages and relink them after build', async () => {
