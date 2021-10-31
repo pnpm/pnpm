@@ -13,7 +13,7 @@ import {
 import PnpmError from '@pnpm/error'
 import getContext, { PnpmContext, ProjectOptions } from '@pnpm/get-context'
 import headless from '@pnpm/headless'
-import {
+import runLifecycleHook, {
   makeNodeRequireOption,
   runLifecycleHooksConcurrently,
   RunLifecycleHooksConcurrentlyOptions,
@@ -160,10 +160,30 @@ export async function mutateModules (
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
   opts['forceNewModules'] = installsOnly
-  const rootProjectManifest = projects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
+  const rootProject = projects.find(({ rootDir }) => rootDir === opts.lockfileDir)
+  const rootProjectManifest = rootProject?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
+
+  const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
+    extraBinPaths: opts.extraBinPaths,
+    rawConfig: opts.rawConfig,
+    scriptShell: opts.scriptShell,
+    shellEmulator: opts.shellEmulator,
+    stdio: opts.ownLifecycleHooksStdio,
+    storeController: opts.storeController,
+    unsafePerm: opts.unsafePerm || false,
+  }
+  if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProject != null) {
+    await runLifecycleHook('preinstall', rootProject.manifest, {
+      ...scriptsOpts,
+      depPath: rootProject.rootDir,
+      pkgRoot: rootProject.rootDir,
+      rootModulesDir: rootProject.modulesDir ?? rootProject.rootDir,
+    })
+  }
+
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
@@ -321,15 +341,6 @@ export async function mutateModules (
     const projectsToInstall = [] as ImporterToUpdate[]
 
     const projectsToBeInstalled = ctx.projects.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
-    const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
-      extraBinPaths: opts.extraBinPaths,
-      rawConfig: opts.rawConfig,
-      scriptShell: opts.scriptShell,
-      shellEmulator: opts.shellEmulator,
-      stdio: opts.ownLifecycleHooksStdio,
-      storeController: opts.storeController,
-      unsafePerm: opts.unsafePerm || false,
-    }
 
     let preferredSpecs: Record<string, string> | null = null
 
