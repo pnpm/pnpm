@@ -33,7 +33,7 @@ declare module '@zkochan/npm-conf/lib/types' {
   export = anything;
 }
 
-declare module '@zkochan/npm-lifecycle' {
+declare module '@pnpm/npm-lifecycle' {
   const anything: any;
   export = anything;
 }

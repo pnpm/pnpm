@@ -1144,19 +1144,19 @@ importers:
       '@pnpm/core-loggers': workspace:6.0.4
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': ^4.0.0
+      '@pnpm/npm-lifecycle': ^1.0.0
       '@pnpm/read-package-json': workspace:5.0.4
       '@pnpm/types': workspace:7.4.0
       '@types/rimraf': ^3.0.0
-      '@zkochan/npm-lifecycle': ^5.1.2
       json-append: 1.1.1
       load-json-file: ^6.2.0
       path-exists: ^4.0.0
       run-groups: ^3.0.1
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
+      '@pnpm/npm-lifecycle': 1.0.0
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/types': link:../types
-      '@zkochan/npm-lifecycle': 5.1.2
       path-exists: 4.0.0
       run-groups: 3.0.1
     devDependencies:
@@ -2676,6 +2676,7 @@ importers:
   packages/pnpm:
     specifiers:
       '@pnpm/assert-project': workspace:*
+      '@pnpm/byline': ^1.0.0
       '@pnpm/cli-meta': workspace:2.0.0
       '@pnpm/cli-utils': workspace:0.6.28
       '@pnpm/client': workspace:5.0.10
@@ -2716,11 +2717,11 @@ importers:
       '@pnpm/ts-execution-runtime': workspace:1.0.0
       '@pnpm/types': workspace:7.4.0
       '@pnpm/write-project-manifest': workspace:2.0.4
-      '@types/byline': ^4.2.32
       '@types/cross-spawn': ^6.0.2
       '@types/is-ci': ^3.0.0
       '@types/is-windows': ^1.0.0
       '@types/ncp': ^2.0.4
+      '@types/pnpm__byline': npm:@types/byline@^4.2.32
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
       '@types/which': ^2.0.0
@@ -2728,7 +2729,6 @@ importers:
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^2.1.1
       anonymous-npm-registry-client: 0.1.2
-      byline: 5.0.0
       chalk: ^4.1.0
       cross-spawn: ^7.0.3
       cross-var-no-babel: ^1.2.0
@@ -2769,6 +2769,7 @@ importers:
       node-gyp: 8.3.0
     devDependencies:
       '@pnpm/assert-project': link:../../privatePackages/assert-project
+      '@pnpm/byline': 1.0.0
       '@pnpm/cli-meta': link:../cli-meta
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/client': link:../client
@@ -2809,11 +2810,11 @@ importers:
       '@pnpm/ts-execution-runtime': link:../../utils/ts-execution-runtime
       '@pnpm/types': link:../types
       '@pnpm/write-project-manifest': link:../write-project-manifest
-      '@types/byline': 4.2.33
       '@types/cross-spawn': 6.0.2
       '@types/is-ci': 3.0.0
       '@types/is-windows': 1.0.0
       '@types/ncp': 2.0.5
+      '@types/pnpm__byline': /@types/byline/4.2.33
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
       '@types/which': 2.0.1
@@ -2821,7 +2822,6 @@ importers:
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 2.1.1
       anonymous-npm-registry-client: 0.1.2
-      byline: 5.0.0
       chalk: 4.1.2
       cross-spawn: 7.0.3
       cross-var-no-babel: 1.2.0
@@ -4626,6 +4626,10 @@ packages:
       rimraf: 3.0.2
     dev: false
 
+  /@pnpm/byline/1.0.0:
+    resolution: {integrity: sha512-61tmh+k7hnKK6b2XbF4GvxmiaF3l2a+xQlZyeoOGBs7mXU3Ie8iCAeAnM0+r70KiqTrgWvBCjMeM+W3JarJqaQ==}
+    engines: {node: '>=12.17'}
+
   /@pnpm/cli-meta/2.0.0:
     resolution: {integrity: sha512-quVITr3ypKbmU0aEO7BJZJ6zPZNTTVofUE/Mdpr5B/ZG3QYPl66wsIRPY9stq3LoA5BqzYwWNaP55XLAuHJw1w==}
     engines: {node: '>=12.17'}
@@ -4814,6 +4818,22 @@ packages:
     hasBin: true
     dependencies:
       abbrev: 1.1.1
+
+  /@pnpm/npm-lifecycle/1.0.0:
+    resolution: {integrity: sha512-TT+0sZY9kOTI9j48fiyPz89P84YN5iClwub4Jd1OMhxoJq2/7X5X6UZnbFIm6aCzy8CMdvMclEaz+EW1miFKJg==}
+    engines: {node: '>=12.17'}
+    dependencies:
+      '@pnpm/byline': 1.0.0
+      '@yarnpkg/shell': 2.4.1
+      node-gyp: 8.3.0
+      resolve-from: 5.0.0
+      slide: 1.1.6
+      uid-number: 0.0.6
+      umask: 1.1.0
+      which: 2.0.2
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
 
   /@pnpm/package-is-installable/5.0.4_@pnpm+logger@4.0.0:
     resolution: {integrity: sha512-5GuFGBmYwlMImuoHfN2zOZhbnhDPFGnrlervLry8QnytbYYEM3Tysn9jBax/rWT7zwD7Ew7Wy5frgIB6U8K8oQ==}
@@ -5635,22 +5655,6 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       config-chain: 1.1.13
-
-  /@zkochan/npm-lifecycle/5.1.2:
-    resolution: {integrity: sha512-njAjfYPic2DMwHDX2rfC487dMJrLJdC56rRCLAUgbTMii3mDunMbEEF/K1QLNSHhK6QO9a/P2gsXsfTIEyXeXw==}
-    engines: {node: '>=12.17'}
-    dependencies:
-      '@yarnpkg/shell': 2.4.1
-      byline: 5.0.0
-      node-gyp: 8.3.0
-      resolve-from: 5.0.0
-      slide: 1.1.6
-      uid-number: 0.0.6
-      umask: 1.1.0
-      which: 2.0.2
-    transitivePeerDependencies:
-      - supports-color
-    dev: false
 
   /@zkochan/npm-package-arg/2.0.1:
     resolution: {integrity: sha512-VvK3/jS9m/quSU970L5sZSvX9wmmhXnEu/GfffCz0/ZcMAUs471FFz2UJu56T/8N8hcKPODYuKHz8wL5xZZY3w==}
@@ -6650,10 +6654,6 @@ packages:
 
   /builtins/1.0.3:
     resolution: {integrity: sha1-y5T662HIaWRR2zZTThQi+U8K7og=}
-
-  /byline/5.0.0:
-    resolution: {integrity: sha1-dBxSFkaOrcRXsDQQEYrXfejB3bE=}
-    engines: {node: '>=0.10.0'}
 
   /bytes/3.0.0:
     resolution: {integrity: sha1-0ygVQE1olpn4Wk6k+odV3ROpYEg=}
@@ -15375,7 +15375,7 @@ packages:
   /wide-align/1.1.5:
     resolution: {integrity: sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==}
     dependencies:
-      string-width: 1.0.2
+      string-width: 4.2.3
 
   /widest-line/2.0.1:
     resolution: {integrity: sha512-Ba5m9/Fa4Xt9eb2ELXt77JxVDV8w7qQrH0zS/TWSJdLyAwQjWoOzpzj5lwVftDz6n/EOu3tNACS84v509qwnJA==}
