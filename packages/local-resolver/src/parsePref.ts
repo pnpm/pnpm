@@ -62,7 +62,7 @@ function fromLocal (
     .replace(/^(file|link|workspace):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows
     .replace(/^(file|link|workspace):(?:[/]*([~./]))?/, '$2')
 
-  const protocol = type === 'directory' ? (injected ? 'local/' : 'link:') : 'file:'
+  const protocol = type === 'directory' && !injected ? 'link:' : 'file:'
   let fetchSpec!: string
   let normalizedPref!: string
   if (/^~[/]/.test(spec)) {

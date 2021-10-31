@@ -223,7 +223,7 @@ function toLockfileResolution (
     if (resolution.type === 'directory') {
       return {
         type: 'directory',
-        directory: pkg.id.replace(/^local\//, ''),
+        directory: pkg.id.replace(/^file:/, ''),
       }
     }
     return resolution as LockfileResolution

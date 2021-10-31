@@ -91,12 +91,12 @@ test('inject local packages', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['local/project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      id: 'local/project-1',
+      id: 'file:project-1',
       name: 'project-1',
       version: '1.0.0',
       peerDependencies: {
@@ -136,12 +136,12 @@ test('inject local packages', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['local/project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      id: 'local/project-1',
+      id: 'file:project-1',
       name: 'project-1',
       version: '1.0.0',
       peerDependencies: {
@@ -245,12 +245,12 @@ test('inject local packages and relink them after build', async () => {
       injected: true,
     },
   })
-  expect(lockfile.packages['local/project-1_is-positive@1.0.0']).toEqual({
+  expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
     resolution: {
       directory: 'project-1',
       type: 'directory',
     },
-    id: 'local/project-1',
+    id: 'file:project-1',
     name: 'project-1',
     version: '1.0.0',
     peerDependencies: {

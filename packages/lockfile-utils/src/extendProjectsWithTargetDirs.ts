@@ -23,7 +23,7 @@ export default function extendProjectsWithTargetDirs<T> (
     .forEach(([depPath, pkg]) => {
       if (pkg.resolution?.['type'] !== 'directory') return
       const pkgId = pkg.id ?? depPath
-      const importerId = pkgId.replace(/^local\//, '')
+      const importerId = pkgId.replace(/^file:/, '')
       if (projectsById[importerId] == null) return
       const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.lockfileDir), 'node_modules', pkg.name!)
       projectsById[importerId].targetDirs.push(localLocation)

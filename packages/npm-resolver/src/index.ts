@@ -303,7 +303,7 @@ function resolveFromLocalPackage (
 ) {
   return {
     id: opts.hardLinkLocalPackages
-      ? `local/${normalize(path.relative(opts.lockfileDir!, localPackage.dir))}`
+      ? `file:${normalize(path.relative(opts.lockfileDir!, localPackage.dir))}`
       : `link:${normalize(path.relative(opts.projectDir, localPackage.dir))}`,
     manifest: localPackage.manifest,
     normalizedPref,
