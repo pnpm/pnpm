@@ -1,5 +1,23 @@
 # @pnpm/local-resolver
 
+## 7.0.0
+
+### Major Changes
+
+- 4ab87844a: Local directory dependencies are resolved to absolute path.
+
+### Minor Changes
+
+- 4ab87844a: Support the resolution of injected local dependencies.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/read-project-manifest@2.0.6
+
 ## 6.1.0
 
 ### Minor Changes

@@ -1,5 +1,19 @@
 # @pnpm/fetcher-base
 
+## 11.1.0
+
+### Minor Changes
+
+- 4ab87844a: The files response can point to files that are not in the global content-addressable store. In this case, the response will contain a `local: true` property, and the structure of `filesIndex` will be just a `Record<string, string>`.
+- 4ab87844a: New optional property is added to `PackageFilesResponse` for specifying how the package needs to be imported to the modules directory. Should it be hard linked, copied, or cloned.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/resolver-base@8.1.0
+
 ## 11.0.3
 
 ### Patch Changes

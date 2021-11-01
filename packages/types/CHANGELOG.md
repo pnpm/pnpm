@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.5.0
+
+### Minor Changes
+
+- 4ab87844a: New optional field added to `dependenciesMeta`: `injected`.
+
 ## 7.4.0
 
 ### Minor Changes

@@ -1,5 +1,101 @@
 # @pnpm/core
 
+## 1.1.0
+
+### Minor Changes
+
+- 4ab87844a: New property supported via the `dependenciesMeta` field of `package.json`: `injected`. When `injected` is set to `true`, the package will be hard linked to `node_modules`, not symlinked [#3915](https://github.com/pnpm/pnpm/pull/3915).
+
+  For instance, the following `package.json` in a workspace will create a symlink to `bar` in the `node_modules` directory of `foo`:
+
+  ```json
+  {
+    "name": "foo",
+    "dependencies": {
+      "bar": "workspace:1.0.0"
+    }
+  }
+  ```
+
+  But what if `bar` has `react` in its peer dependencies? If all projects in the monorepo use the same version of `react`, then no problem. But what if `bar` is required by `foo` that uses `react` 16 and `qar` with `react` 17? In the past, you'd have to choose a single version of react and install it as dev dependency of `bar`. But now with the `injected` field you can inject `bar` to a package, and `bar` will be installed with the `react` version of that package.
+
+  So this will be the `package.json` of `foo`:
+
+  ```json
+  {
+    "name": "foo",
+    "dependencies": {
+      "bar": "workspace:1.0.0",
+      "react": "16"
+    },
+    "dependenciesMeta": {
+      "bar": {
+        "injected": true
+      }
+    }
+  }
+  ```
+
+  `bar` will be hard linked into the dependencies of `foo`, and `react` 16 will be linked to the dependencies of `foo/node_modules/bar`.
+
+  And this will be the `package.json` of `qar`:
+
+  ```json
+  {
+    "name": "qar",
+    "dependencies": {
+      "bar": "workspace:1.0.0",
+      "react": "17"
+    },
+    "dependenciesMeta": {
+      "bar": {
+        "injected": true
+      }
+    }
+  }
+  ```
+
+  `bar` will be hard linked into the dependencies of `qar`, and `react` 17 will be linked to the dependencies of `qar/node_modules/bar`.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [37dcfceeb]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/lifecycle@12.0.0
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/package-requester@15.2.0
+  - @pnpm/resolve-dependencies@21.1.0
+  - @pnpm/lockfile-file@4.2.0
+  - @pnpm/lockfile-utils@3.1.0
+  - @pnpm/headless@16.2.0
+  - @pnpm/build-modules@7.1.4
+  - @pnpm/core-loggers@6.0.5
+  - dependency-path@8.0.5
+  - @pnpm/filter-lockfile@5.0.9
+  - @pnpm/get-context@5.1.6
+  - @pnpm/hoist@5.2.3
+  - @pnpm/link-bins@6.2.3
+  - @pnpm/lockfile-to-pnp@0.4.29
+  - @pnpm/lockfile-walker@4.0.9
+  - @pnpm/manifest-utils@2.1.1
+  - @pnpm/modules-cleaner@11.0.13
+  - @pnpm/modules-yaml@9.0.5
+  - @pnpm/normalize-registries@2.0.5
+  - @pnpm/prune-lockfile@3.0.9
+  - @pnpm/read-package-json@5.0.5
+  - @pnpm/read-project-manifest@2.0.6
+  - @pnpm/remove-bins@2.0.7
+  - @pnpm/store-controller-types@11.0.6
+  - @pnpm/symlink-dependency@4.0.6
+
 ## 1.0.2
 
 ### Patch Changes

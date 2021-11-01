@@ -1,5 +1,21 @@
 # @pnpm/lockfile-utils
 
+## 3.1.0
+
+### Minor Changes
+
+- 4ab87844a: New utility function added: `extendProjectsWithTargetDirs()`.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/lockfile-types@3.1.0
+  - dependency-path@8.0.5
+
 ## 3.0.8
 
 ### Patch Changes

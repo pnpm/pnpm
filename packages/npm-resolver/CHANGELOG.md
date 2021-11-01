@@ -1,5 +1,19 @@
 # @pnpm/npm-resolver
 
+## 12.1.0
+
+### Minor Changes
+
+- 4ab87844a: Support the resolution of injected local dependencies.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/core-loggers@6.0.5
+
 ## 12.0.5
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-setup",
-  "version": "1.1.12",
+  "version": "1.1.13",
   "description": "pnpm commands for setting up pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-setup#readme",
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.28",
+    "@pnpm/cli-utils": "workspace:0.6.29",
     "execa": "npm:safe-execa@^0.1.1",
     "render-help": "^1.0.1"
   },
@@ -40,6 +40,6 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/prepare": "workspace:0.0.26"
+    "@pnpm/prepare": "workspace:0.0.27"
   }
 }

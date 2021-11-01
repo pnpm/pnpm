@@ -1,5 +1,31 @@
 # @pnpm/resolve-dependencies
 
+## 21.1.0
+
+### Minor Changes
+
+- 4ab87844a: Added support for "injected" dependencies.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/npm-resolver@12.1.0
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/lockfile-types@3.1.0
+  - @pnpm/lockfile-utils@3.1.0
+  - @pnpm/core-loggers@6.0.5
+  - dependency-path@8.0.5
+  - @pnpm/manifest-utils@2.1.1
+  - @pnpm/pick-registry-for-package@2.0.5
+  - @pnpm/prune-lockfile@3.0.9
+  - @pnpm/read-package-json@5.0.5
+  - @pnpm/store-controller-types@11.0.6
+
 ## 21.0.7
 
 ### Patch Changes

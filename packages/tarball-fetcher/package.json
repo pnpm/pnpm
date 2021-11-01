@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "9.3.7",
+  "version": "9.3.8",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,20 +34,20 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:6.0.4",
+    "@pnpm/core-loggers": "workspace:6.0.5",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/fetcher-base": "workspace:11.0.3",
+    "@pnpm/fetcher-base": "workspace:11.1.0",
     "@pnpm/fetching-types": "workspace:2.2.1",
     "@pnpm/graceful-fs": "workspace:1.0.0",
-    "@pnpm/prepare-package": "workspace:1.0.4",
+    "@pnpm/prepare-package": "workspace:1.0.5",
     "@zkochan/retry": "^0.2.0",
     "ramda": "^0.27.1",
     "ssri": "^8.0.1"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:4.1.3",
+    "@pnpm/fetch": "workspace:4.1.4",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.0.15",
+    "@pnpm/package-store": "workspace:12.1.0",
     "@types/retry": "^0.12.0",
     "@types/ssri": "^7.1.0",
     "cp-file": "^9.0.0",

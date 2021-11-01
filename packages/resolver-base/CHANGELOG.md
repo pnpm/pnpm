@@ -1,5 +1,16 @@
 # @pnpm/resolver-base
 
+## 8.1.0
+
+### Minor Changes
+
+- 4ab87844a: New optional property added to `WantedDependency`: `injected`.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+
 ## 8.0.4
 
 ### Patch Changes

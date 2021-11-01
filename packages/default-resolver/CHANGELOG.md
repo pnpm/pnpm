@@ -1,5 +1,22 @@
 # @pnpm/default-resolver
 
+## 14.0.0
+
+### Major Changes
+
+- 4ab87844a: Local directory dependencies are resolved to absolute path.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/local-resolver@7.0.0
+  - @pnpm/npm-resolver@12.1.0
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/git-resolver@5.1.8
+  - @pnpm/tarball-resolver@5.0.5
+
 ## 13.0.9
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @pnpm/lifecycle
 
+## 12.0.0
+
+### Major Changes
+
+- 4ab87844a: `storeController` is a required new option of `runLifecycleHooksConcurrently()`.
+
+### Minor Changes
+
+- 4ab87844a: `runLifecycleHooksConcurrently` will relink projects after rebuilding them if they are injected to other projects.
+
+### Patch Changes
+
+- 37dcfceeb: Buffer warnings fixed [#3932](https://github.com/pnpm/pnpm/issues/3932).
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/directory-fetcher@1.0.0
+  - @pnpm/core-loggers@6.0.5
+  - @pnpm/read-package-json@5.0.5
+  - @pnpm/store-controller-types@11.0.6
+
 ## 11.0.5
 
 ### Patch Changes

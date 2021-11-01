@@ -1,5 +1,27 @@
 # @pnpm/client
 
+## 6.0.0
+
+### Major Changes
+
+- 4ab87844a: Local directory dependencies are resolved to absolute path.
+
+### Minor Changes
+
+- 4ab87844a: New fetcher added for fetching local directory dependencies.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/directory-fetcher@1.0.0
+  - @pnpm/default-resolver@14.0.0
+  - @pnpm/git-fetcher@4.1.7
+  - @pnpm/tarball-fetcher@9.3.8
+  - @pnpm/fetch@4.1.4
+
 ## 5.0.10
 
 ### Patch Changes

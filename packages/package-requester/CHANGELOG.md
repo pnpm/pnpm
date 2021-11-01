@@ -1,5 +1,27 @@
 # @pnpm/package-requester
 
+## 15.2.0
+
+### Minor Changes
+
+- 4ab87844a: Added support for "injected" dependencies.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/fetcher-base@11.1.0
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/core-loggers@6.0.5
+  - dependency-path@8.0.5
+  - @pnpm/package-is-installable@5.0.5
+  - @pnpm/read-package-json@5.0.5
+  - @pnpm/store-controller-types@11.0.6
+  - @pnpm/cafs@3.0.8
+
 ## 15.1.2
 
 ### Patch Changes

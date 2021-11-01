@@ -1,5 +1,35 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.2.0
+
+### Minor Changes
+
+- 4ab87844a: Injected dependencies should be relinked after they are rebuilt.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [37dcfceeb]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/lifecycle@12.0.0
+  - @pnpm/lockfile-utils@3.1.0
+  - @pnpm/cli-utils@0.6.29
+  - @pnpm/config@13.4.1
+  - @pnpm/core-loggers@6.0.5
+  - dependency-path@8.0.5
+  - @pnpm/find-workspace-packages@3.1.21
+  - @pnpm/get-context@5.1.6
+  - @pnpm/link-bins@6.2.3
+  - @pnpm/lockfile-walker@4.0.9
+  - @pnpm/modules-yaml@9.0.5
+  - @pnpm/normalize-registries@2.0.5
+  - @pnpm/sort-packages@2.1.2
+  - @pnpm/store-controller-types@11.0.6
+  - @pnpm/store-connection-manager@3.1.3
+
 ## 5.1.5
 
 ### Patch Changes

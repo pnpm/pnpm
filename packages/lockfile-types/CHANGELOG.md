@@ -1,5 +1,16 @@
 # @pnpm/lockfile-types
 
+## 3.1.0
+
+### Minor Changes
+
+- 4ab87844a: New optional property added to project snapshots: `dependenciesMeta`.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+
 ## 3.0.0
 
 ### Major Changes

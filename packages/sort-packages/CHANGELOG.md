@@ -1,5 +1,12 @@
 # @pnpm/sort-packages
 
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+
 ## 2.1.1
 
 ### Patch Changes
