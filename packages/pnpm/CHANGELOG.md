@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.20.1
+
+### Patch Changes
+
+- Fix broken artifacts of `@pnpm/exe`. This doesn't affect the `pnpm` package.
+
+  Related issue: [#3937](https://github.com/pnpm/pnpm/issues/3937). This was a bug introduced by [#3896](https://github.com/pnpm/pnpm/pull/3896).
+
 ## 6.20.0
 
 ### Minor Changes

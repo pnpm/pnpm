@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "6.20.0",
+  "version": "6.20.1",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
