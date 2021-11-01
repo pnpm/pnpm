@@ -36,9 +36,9 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.0.4",
+    "@pnpm/npm-lifecycle": "^1.0.0",
     "@pnpm/read-package-json": "workspace:5.0.4",
     "@pnpm/types": "workspace:7.4.0",
-    "@zkochan/npm-lifecycle": "^5.1.2",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"
   },

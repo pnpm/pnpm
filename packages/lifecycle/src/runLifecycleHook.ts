@@ -1,7 +1,7 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
+import lifecycle from '@pnpm/npm-lifecycle'
 import { DependencyManifest, ProjectManifest } from '@pnpm/types'
-import lifecycle from '@zkochan/npm-lifecycle'
 
 function noop () {} // eslint-disable-line:no-empty
 
