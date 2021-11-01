@@ -17,29 +17,34 @@ export interface LocalPackageSpec {
   normalizedPref: string
 }
 
+export interface WantedLocalDependency {
+  pref: string
+  injected?: boolean
+}
+
 export default function parsePref (
-  pref: string,
+  wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string
 ): LocalPackageSpec | null {
-  if (pref.startsWith('link:') || pref.startsWith('workspace:')) {
-    return fromLocal(pref, projectDir, lockfileDir, 'directory')
+  if (wd.pref.startsWith('link:') || wd.pref.startsWith('workspace:')) {
+    return fromLocal(wd, projectDir, lockfileDir, 'directory')
   }
-  if (pref.endsWith('.tgz') ||
-    pref.endsWith('.tar.gz') ||
-    pref.endsWith('.tar') ||
-    pref.includes(path.sep) ||
-    pref.startsWith('file:') ||
-    isFilespec.test(pref)
+  if (wd.pref.endsWith('.tgz') ||
+    wd.pref.endsWith('.tar.gz') ||
+    wd.pref.endsWith('.tar') ||
+    wd.pref.includes(path.sep) ||
+    wd.pref.startsWith('file:') ||
+    isFilespec.test(wd.pref)
   ) {
-    const type = isFilename.test(pref) ? 'file' : 'directory'
-    return fromLocal(pref, projectDir, lockfileDir, type)
+    const type = isFilename.test(wd.pref) ? 'file' : 'directory'
+    return fromLocal(wd, projectDir, lockfileDir, type)
   }
-  if (pref.startsWith('path:')) {
+  if (wd.pref.startsWith('path:')) {
     const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
       'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
     /* eslint-disable @typescript-eslint/dot-notation */
-    err['pref'] = pref
+    err['pref'] = wd.pref
     err['protocol'] = 'path:'
     /* eslint-enable @typescript-eslint/dot-notation */
     throw err
@@ -48,7 +53,7 @@ export default function parsePref (
 }
 
 function fromLocal (
-  pref: string,
+  { pref, injected }: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
   type: 'file' | 'directory'
@@ -57,7 +62,7 @@ function fromLocal (
     .replace(/^(file|link|workspace):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows
     .replace(/^(file|link|workspace):(?:[/]*([~./]))?/, '$2')
 
-  const protocol = type === 'directory' ? 'link:' : 'file:'
+  const protocol = type === 'directory' && !injected ? 'link:' : 'file:'
   let fetchSpec!: string
   let normalizedPref!: string
   if (/^~[/]/.test(spec)) {
@@ -73,9 +78,9 @@ function fromLocal (
     }
   }
 
-  const dependencyPath = normalize(path.relative(projectDir, fetchSpec))
-  const id = type === 'directory' || projectDir === lockfileDir
-    ? `${protocol}${dependencyPath}`
+  const dependencyPath = normalize(path.resolve(fetchSpec))
+  const id = !injected && (type === 'directory' || projectDir === lockfileDir)
+    ? `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
     : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
 
   return {

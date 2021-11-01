@@ -11,6 +11,7 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) =>
   if (!equals({ ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }, importer.specifiers)) {
     return false
   }
+  if (!equals(pkg.dependenciesMeta, importer.dependenciesMeta)) return false
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = importer[depField] ?? {}
     const pkgDeps = pkg[depField] ?? {}

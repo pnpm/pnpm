@@ -34,6 +34,7 @@ import {
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
+  extendProjectsWithTargetDirs,
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
@@ -165,6 +166,7 @@ export default async (opts: HeadlessOptions) => {
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
     stdio: opts.ownLifecycleHooksStdio ?? 'inherit',
+    storeController: opts.storeController,
     unsafePerm: opts.unsafePerm || false,
   }
 
@@ -431,9 +433,13 @@ export default async (opts: HeadlessOptions) => {
   await opts.storeController.close()
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
+    const projectsToBeBuilt = extendProjectsWithTargetDirs(opts.projects, wantedLockfile, {
+      lockfileDir: opts.lockfileDir,
+      virtualStoreDir,
+    })
     await runLifecycleHooksConcurrently(
-      ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
-      opts.projects,
+      ['preinstall', 'install', 'postinstall', 'prepare'],
+      projectsToBeBuilt,
       opts.childConcurrency ?? 5,
       scriptsOpts
     )

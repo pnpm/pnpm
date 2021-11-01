@@ -1,13 +1,23 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
 import resolveFromLocal from '@pnpm/local-resolver'
+import normalize from 'normalize-path'
 
 test('resolve directory', async () => {
   const resolveResult = await resolveFromLocal({ pref: '..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
   expect(resolveResult!.normalizedPref).toEqual('link:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['directory']).toEqual(normalize(path.join(__dirname, '..')))
+  expect(resolveResult!.resolution['type']).toEqual('directory')
+})
+
+test('resolve injected directory', async () => {
+  const resolveResult = await resolveFromLocal({ injected: true, pref: '..' }, { projectDir: __dirname })
+  expect(resolveResult!.id).toEqual('file:..')
+  expect(resolveResult!.normalizedPref).toEqual('file:..')
+  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.resolution['directory']).toEqual(normalize(path.join(__dirname, '..')))
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
@@ -16,7 +26,7 @@ test('resolve workspace directory', async () => {
   expect(resolveResult!.id).toEqual('link:..')
   expect(resolveResult!.normalizedPref).toEqual('link:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['directory']).toEqual(normalize(path.join(__dirname, '..')))
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
@@ -25,7 +35,7 @@ test('resolve directory specified using the file: protocol', async () => {
   expect(resolveResult!.id).toEqual('link:..')
   expect(resolveResult!.normalizedPref).toEqual('link:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['directory']).toEqual(normalize(path.join(__dirname, '..')))
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
@@ -34,7 +44,7 @@ test('resolve directoty specified using the link: protocol', async () => {
   expect(resolveResult!.id).toEqual('link:..')
   expect(resolveResult!.normalizedPref).toEqual('link:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['directory']).toEqual(normalize(path.join(__dirname, '..')))
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 

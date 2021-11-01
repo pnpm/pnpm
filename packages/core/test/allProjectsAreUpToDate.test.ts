@@ -224,3 +224,94 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
     )
   ).toBeTruthy()
 })
+
+test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar',
+      manifest: {
+        dependencies: {
+          foo: 'workspace:../foo',
+        },
+        dependenciesMeta: {
+          foo: {
+            injected: true,
+          },
+        },
+      },
+      rootDir: 'bar',
+    },
+    {
+      id: 'foo',
+      manifest: fooManifest,
+      rootDir: 'foo',
+    },
+  ], {
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            foo: 'link:../foo',
+          },
+          specifiers: {
+            foo: 'workspace:../foo',
+          },
+        },
+        foo: {
+          specifiers: {},
+        },
+      },
+      lockfileVersion: 5,
+    },
+    workspacePackages,
+  })).toBeFalsy()
+})
+
+test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar',
+      manifest: {
+        dependencies: {
+          foo: 'workspace:../foo',
+        },
+        dependenciesMeta: {
+          foo: {
+            injected: true,
+          },
+        },
+      },
+      rootDir: 'bar',
+    },
+    {
+      id: 'foo',
+      manifest: fooManifest,
+      rootDir: 'foo',
+    },
+  ], {
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            foo: 'link:../foo',
+          },
+          dependenciesMeta: {
+            foo: {
+              injected: true,
+            },
+          },
+          specifiers: {
+            foo: 'workspace:../foo',
+          },
+        },
+        foo: {
+          specifiers: {},
+        },
+      },
+      lockfileVersion: 5,
+    },
+    workspacePackages,
+  })).toBeTruthy()
+})

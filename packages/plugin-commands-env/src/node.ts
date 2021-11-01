@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { Config } from '@pnpm/config'
 import fetch, { createFetchFromRegistry, FetchFromRegistry } from '@pnpm/fetch'
+import { FilesIndex } from '@pnpm/fetcher-base'
 import { createCafsStore } from '@pnpm/package-store'
 import storePath from '@pnpm/store-path'
 import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
@@ -87,7 +88,7 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
   })
   await cafs.importPackage(versionDir, {
     filesResponse: {
-      filesIndex: await waitForFilesIndex(filesIndex),
+      filesIndex: await waitForFilesIndex(filesIndex as FilesIndex),
       fromStore: false,
     },
     force: true,

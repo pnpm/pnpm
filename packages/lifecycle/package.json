@@ -36,8 +36,10 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.0.4",
+    "@pnpm/directory-fetcher": "workspace:0.0.0",
     "@pnpm/npm-lifecycle": "^1.0.0",
     "@pnpm/read-package-json": "workspace:5.0.4",
+    "@pnpm/store-controller-types": "workspace:11.0.5",
     "@pnpm/types": "workspace:7.4.0",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"

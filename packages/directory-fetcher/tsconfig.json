@@ -10,19 +10,10 @@
   ],
   "references": [
     {
-      "path": "../core-loggers"
+      "path": "../fetcher-base"
     },
     {
-      "path": "../directory-fetcher"
-    },
-    {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../store-controller-types"
-    },
-    {
-      "path": "../types"
+      "path": "../resolver-base"
     }
   ]
 }

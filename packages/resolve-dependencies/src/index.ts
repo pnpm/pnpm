@@ -153,12 +153,15 @@ export default async function (
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  for (const { id } of projectsToLink) {
+  for (const { id, manifest } of projectsToLink) {
     for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
       const depNode = dependenciesGraph[depPath]
       if (depNode.isPure) continue
 
       const projectSnapshot = opts.wantedLockfile.importers[id]
+      if (manifest.dependenciesMeta != null) {
+        projectSnapshot.dependenciesMeta = manifest.dependenciesMeta
+      }
       const ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
