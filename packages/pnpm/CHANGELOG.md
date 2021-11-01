@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.20.1-0
+
+### Patch Changes
+
+- Fix artifacts.
+
 ## 6.20.0
 
 ### Minor Changes
