@@ -178,11 +178,18 @@ export default async function recursive (
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
-    const mutation = cmdFullName === 'remove'
-      ? 'uninstallSome'
-      : cmdFullName === 'import'
-        ? 'install'
-        : (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
+    let mutation!: string
+    switch (cmdFullName) {
+    case 'remove':
+      mutation = 'uninstallSome'
+      break
+    case 'import':
+      mutation = 'install'
+      break
+    default:
+      mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
+      break
+    }
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
