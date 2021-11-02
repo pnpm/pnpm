@@ -55,6 +55,7 @@ export default async function (lockfileDir: string, projectDir: string) {
       'install',
       '--lockfile-dir=.',
       '--lockfile-only',
+      '--frozen-lockfile',
       '--filter=.',
       '--no-link-workspace-packages',
     ], {
