@@ -38,6 +38,7 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import getSaveType from './getSaveType'
 import getPinnedVersion from './getPinnedVersion'
+import { PreferredVersions } from '@pnpm/resolver-base'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -70,21 +71,28 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   latest?: boolean
   pending?: boolean
   workspace?: boolean
-} & Partial<Pick<Config, 'sort' | 'workspaceConcurrency'>>
+  allowNew?: boolean
+  forceHoistPattern?: boolean
+  forcePublicHoistPattern?: boolean
+  ignoredPackages?: Set<string>
+  update?: boolean
+  useBetaCli?: boolean
+  selectedProjectsGraph: ProjectsGraph
+  preferredVersions?: PreferredVersions
+} & Partial<
+Pick<Config,
+| 'sort'
+| 'workspaceConcurrency'
+>
+> & Required<
+Pick<Config, 'workspaceDir'>
+>
 
 export default async function recursive (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & {
-    allowNew?: boolean
-    forceHoistPattern?: boolean
-    forcePublicHoistPattern?: boolean
-    ignoredPackages?: Set<string>
-    update?: boolean
-    useBetaCli?: boolean
-    selectedProjectsGraph: ProjectsGraph
-  } & Required<Pick<Config, 'workspaceDir'>>,
-  cmdFullName: 'install' | 'add' | 'remove' | 'unlink' | 'update'
+  opts: RecursiveOptions,
+  cmdFullName: 'install' | 'add' | 'remove' | 'unlink' | 'update' | 'import'
 ): Promise<boolean | string> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
@@ -124,8 +132,8 @@ export default async function recursive (
     targetDependenciesField,
     workspacePackages,
 
-    forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
-    forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
+    forceHoistPattern: typeof opts.rawLocalConfig?.['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig?.['hoist'] !== 'undefined',
+    forceShamefullyHoist: typeof opts.rawLocalConfig?.['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 
   const result = {
@@ -164,13 +172,24 @@ export default async function recursive (
   const updateMatch = cmdFullName === 'update' && (params.length > 0) ? createMatcher(params) : null
 
   // For a workspace with shared lockfile
-  if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
+  if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = await getImporters()
     const calculatedRepositoryRoot = calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
-    const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
+    let mutation!: string
+    switch (cmdFullName) {
+    case 'remove':
+      mutation = 'uninstallSome'
+      break
+    case 'import':
+      mutation = 'install'
+      break
+    default:
+      mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
+      break
+    }
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {

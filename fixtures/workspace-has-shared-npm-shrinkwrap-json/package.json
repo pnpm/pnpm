@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "name": "workspace-has-shared-npm-shrinkwrap-json",
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/**"
+  ]
+}

@@ -2059,49 +2059,6 @@ importers:
       execa: /safe-execa/0.1.1
       path-name: 1.0.0
 
-  packages/plugin-commands-import:
-    specifiers:
-      '@pnpm/assert-project': workspace:*
-      '@pnpm/cli-utils': workspace:0.6.29
-      '@pnpm/constants': workspace:5.0.0
-      '@pnpm/core': workspace:1.1.0
-      '@pnpm/error': workspace:2.0.0
-      '@pnpm/graceful-fs': workspace:1.0.0
-      '@pnpm/plugin-commands-import': 'link:'
-      '@pnpm/prepare': workspace:0.0.27
-      '@pnpm/read-project-manifest': workspace:2.0.6
-      '@pnpm/store-connection-manager': workspace:3.1.3
-      '@types/ncp': ^2.0.4
-      '@types/yarnpkg__lockfile': ^1.1.5
-      '@yarnpkg/lockfile': ^1.1.0
-      '@zkochan/rimraf': ^2.1.1
-      load-json-file: ^6.2.0
-      ncp: ^2.0.0
-      path-exists: ^4.0.0
-      render-help: ^1.0.1
-      tempy: ^1.0.0
-    dependencies:
-      '@pnpm/cli-utils': link:../cli-utils
-      '@pnpm/constants': link:../constants
-      '@pnpm/core': link:../core
-      '@pnpm/error': link:../error
-      '@pnpm/graceful-fs': link:../graceful-fs
-      '@pnpm/read-project-manifest': link:../read-project-manifest
-      '@pnpm/store-connection-manager': link:../store-connection-manager
-      '@zkochan/rimraf': 2.1.1
-      load-json-file: 6.2.0
-      path-exists: 4.0.0
-      render-help: 1.0.2
-    devDependencies:
-      '@pnpm/assert-project': link:../../privatePackages/assert-project
-      '@pnpm/plugin-commands-import': 'link:'
-      '@pnpm/prepare': link:../../privatePackages/prepare
-      '@types/ncp': 2.0.5
-      '@types/yarnpkg__lockfile': 1.1.5
-      '@yarnpkg/lockfile': 1.1.0
-      ncp: 2.0.0
-      tempy: 1.0.1
-
   packages/plugin-commands-installation:
     specifiers:
       '@pnpm/assert-project': workspace:*
@@ -2116,6 +2073,7 @@ importers:
       '@pnpm/filter-workspace-packages': workspace:4.4.1
       '@pnpm/find-workspace-dir': workspace:3.0.1
       '@pnpm/find-workspace-packages': workspace:3.1.21
+      '@pnpm/graceful-fs': workspace:1.0.0
       '@pnpm/lockfile-types': workspace:3.1.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/manifest-utils': workspace:2.1.1
@@ -2128,6 +2086,7 @@ importers:
       '@pnpm/plugin-commands-rebuild': workspace:5.2.0
       '@pnpm/pnpmfile': workspace:1.1.1
       '@pnpm/prepare': workspace:0.0.27
+      '@pnpm/read-project-manifest': workspace:2.0.6
       '@pnpm/resolver-base': workspace:8.1.0
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/sort-packages': workspace:2.1.2
@@ -2135,10 +2094,14 @@ importers:
       '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.5.0
       '@types/is-ci': ^3.0.0
+      '@types/ncp': ^2.0.4
       '@types/proxyquire': ^1.3.28
       '@types/ramda': 0.27.39
       '@types/sinon': ^9.0.11
+      '@types/yarnpkg__lockfile': ^1.1.5
       '@types/zkochan__table': npm:@types/table@6.0.0
+      '@yarnpkg/lockfile': ^1.1.0
+      '@zkochan/rimraf': ^2.1.1
       '@zkochan/table': ^1.0.0
       '@zkochan/which': ^2.0.3
       camelcase-keys: ^6.2.2
@@ -2148,6 +2111,7 @@ importers:
       is-subdir: ^1.1.1
       load-json-file: ^6.2.0
       mem: ^8.0.0
+      ncp: ^2.0.0
       p-filter: ^2.1.0
       p-limit: ^3.1.0
       path-absolute: ^1.0.1
@@ -2176,17 +2140,21 @@ importers:
       '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
       '@pnpm/find-workspace-dir': link:../find-workspace-dir
       '@pnpm/find-workspace-packages': link:../find-workspace-packages
+      '@pnpm/graceful-fs': link:../graceful-fs
       '@pnpm/manifest-utils': link:../manifest-utils
       '@pnpm/outdated': link:../outdated
       '@pnpm/package-store': link:../package-store
       '@pnpm/parse-wanted-dependency': link:../parse-wanted-dependency
       '@pnpm/plugin-commands-rebuild': link:../plugin-commands-rebuild
       '@pnpm/pnpmfile': link:../pnpmfile
+      '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/sort-packages': link:../sort-packages
       '@pnpm/store-connection-manager': link:../store-connection-manager
       '@pnpm/types': link:../types
+      '@yarnpkg/lockfile': 1.1.0
+      '@zkochan/rimraf': 2.1.1
       '@zkochan/table': 1.0.0
       '@zkochan/which': 2.0.3
       camelcase-keys: 6.2.2
@@ -2194,6 +2162,7 @@ importers:
       enquirer: 2.3.6
       is-ci: 3.0.1
       is-subdir: 1.2.0
+      load-json-file: 6.2.0
       mem: 8.1.1
       p-filter: 2.1.0
       p-limit: 3.1.0
@@ -2213,11 +2182,13 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/is-ci': 3.0.0
+      '@types/ncp': 2.0.5
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.39
       '@types/sinon': 9.0.11
+      '@types/yarnpkg__lockfile': 1.1.5
       '@types/zkochan__table': /@types/table/6.0.0
-      load-json-file: 6.2.0
+      ncp: 2.0.0
       path-name: 1.0.0
       proxyquire: 2.1.3
       read-yaml-file: 2.1.0
@@ -2728,7 +2699,6 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.5
       '@pnpm/plugin-commands-audit': workspace:5.1.19
       '@pnpm/plugin-commands-env': workspace:1.2.3
-      '@pnpm/plugin-commands-import': workspace:3.1.17
       '@pnpm/plugin-commands-installation': workspace:7.1.0
       '@pnpm/plugin-commands-listing': workspace:4.0.20
       '@pnpm/plugin-commands-outdated': workspace:5.0.25
@@ -2821,7 +2791,6 @@ importers:
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
       '@pnpm/plugin-commands-audit': link:../plugin-commands-audit
       '@pnpm/plugin-commands-env': link:../plugin-commands-env
-      '@pnpm/plugin-commands-import': link:../plugin-commands-import
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-listing': link:../plugin-commands-listing
       '@pnpm/plugin-commands-outdated': link:../plugin-commands-outdated
@@ -5599,7 +5568,7 @@ packages:
 
   /@yarnpkg/lockfile/1.1.0:
     resolution: {integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==}
-    dev: true
+    dev: false
 
   /@yarnpkg/parsers/2.3.0:
     resolution: {integrity: sha512-qgz0QUgOvnhtF92kaluIhIIKBUHlYlHUBQxqh5v9+sxEQvUeF6G6PKiFlzo3E6O99XwvNEGpVu1xZPoSGyGscQ==}

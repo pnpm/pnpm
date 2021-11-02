@@ -6,5 +6,6 @@ import * as prune from './prune'
 import * as remove from './remove'
 import * as unlink from './unlink'
 import * as update from './update'
+import * as importCommand from './import'
 
-export { add, fetch, install, link, prune, remove, unlink, update }
+export { add, fetch, install, link, prune, remove, unlink, update, importCommand }
