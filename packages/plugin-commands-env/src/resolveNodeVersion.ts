@@ -1,4 +1,4 @@
-import fetch from '@pnpm/fetch'
+import { FetchFromRegistry } from '@pnpm/fetch'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 
@@ -7,7 +7,7 @@ interface NodeVersion {
   lts: false | string
 }
 
-export default async function resolveNodeVersion (rawVersionSelector: string) {
+export default async function resolveNodeVersion (fetch: FetchFromRegistry, rawVersionSelector: string) {
   const { releaseDir, version } = parseNodeVersionSelector(rawVersionSelector)
   const response = await fetch(`https://nodejs.org/download/${releaseDir}/index.json`)
   const allVersions = (await response.json()) as NodeVersion[]

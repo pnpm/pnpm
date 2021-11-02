@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { Config } from '@pnpm/config'
-import fetch, { createFetchFromRegistry, FetchFromRegistry } from '@pnpm/fetch'
+import { createFetchFromRegistry, FetchFromRegistry } from '@pnpm/fetch'
 import { FilesIndex } from '@pnpm/fetcher-base'
 import { createCafsStore } from '@pnpm/package-store'
 import storePath from '@pnpm/store-path'
@@ -37,11 +37,12 @@ export type NvmNodeCommandOptions = Pick<Config,
 > & Partial<Pick<Config, 'configDir'>>
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
-  const nodeDir = await getNodeDir(opts)
+  const fetch = createFetchFromRegistry(opts)
+  const nodeDir = await getNodeDir(fetch, opts)
   return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
 }
 
-export async function getNodeDir (opts: NvmNodeCommandOptions & { releaseDir?: string }) {
+export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
   const nodesDir = path.join(opts.pnpmHomeDir, 'nodejs')
   let wantedNodeVersion = opts.useNodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
   await fs.promises.mkdir(nodesDir, { recursive: true })
@@ -57,21 +58,20 @@ export async function getNodeDir (opts: NvmNodeCommandOptions & { releaseDir?: s
   }
   const versionDir = path.join(nodesDir, wantedNodeVersion)
   if (!fs.existsSync(versionDir)) {
-    await installNode(wantedNodeVersion, versionDir, opts)
+    await installNode(fetch, wantedNodeVersion, versionDir, opts)
   }
   return versionDir
 }
 
-async function installNode (wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
+async function installNode (fetch: FetchFromRegistry, wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
   await fs.promises.mkdir(versionDir, { recursive: true })
   const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion, opts.releaseDir ?? 'release')
-  const fetchFromRegistry = createFetchFromRegistry(opts)
   if (tarball.endsWith('.zip')) {
-    await downloadAndUnpackZip(fetchFromRegistry, tarball, versionDir, pkgName)
+    await downloadAndUnpackZip(fetch, tarball, versionDir, pkgName)
     return
   }
   const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-  const fetch = createFetcher(fetchFromRegistry, getCredentials, {
+  const { tarball: fetchTarball } = createFetcher(fetch, getCredentials, {
     retry: {
       maxTimeout: opts.fetchRetryMaxtimeout,
       minTimeout: opts.fetchRetryMintimeout,
@@ -83,7 +83,7 @@ async function installNode (wantedNodeVersion: string, versionDir: string, opts:
   const storeDir = await storePath(process.cwd(), opts.storeDir)
   const cafsDir = path.join(storeDir, 'files')
   const cafs = createCafsStore(cafsDir)
-  const { filesIndex } = await fetch.tarball(cafs, { tarball }, {
+  const { filesIndex } = await fetchTarball(cafs, { tarball }, {
     lockfileDir: process.cwd(),
   })
   await cafs.importPackage(versionDir, {
