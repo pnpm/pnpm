@@ -145,21 +145,15 @@ test('resolveFromGit() with range semver (v-prefixed tag)', async () => {
 })
 
 test('resolveFromGit() fails when ref not found', async () => {
-  try {
-    await resolveFromGit({ pref: 'zkochan/is-negative#bad-ref' })
-    throw new Error('Should have failed')
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Could not resolve bad-ref to a commit of git://github.com/zkochan/is-negative.git.')
-  }
+  await expect(
+    resolveFromGit({ pref: 'zkochan/is-negative#bad-ref' })
+  ).rejects.toThrow(/Could not resolve bad-ref to a commit of (https|git):\/\/github.com\/zkochan\/is-negative.git./)
 })
 
 test('resolveFromGit() fails when semver ref not found', async () => {
-  try {
-    await resolveFromGit({ pref: 'zkochan/is-negative#semver:^100.0.0' })
-    throw new Error('Should have failed')
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Could not resolve ^100.0.0 to a commit of git://github.com/zkochan/is-negative.git. Available versions are: 1.0.0, 1.0.1, 2.0.0, 2.0.1, 2.0.2, 2.1.0')
-  }
+  await expect(
+    resolveFromGit({ pref: 'zkochan/is-negative#semver:^100.0.0' })
+  ).rejects.toThrow(/Could not resolve \^100.0.0 to a commit of (https|git):\/\/github.com\/zkochan\/is-negative.git. Available versions are: 1.0.0, 1.0.1, 2.0.0, 2.0.1, 2.0.2, 2.1.0/)
 })
 
 test('resolveFromGit() with commit from non-github repo', async () => {
