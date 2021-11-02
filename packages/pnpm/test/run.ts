@@ -17,7 +17,7 @@ test('run -r: pass the args to the command that is specfied in the build script'
   await fs.writeFile('project/args.json', '[]', 'utf8')
   await fs.writeFile('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await execPnpm(['run', '-r', 'foo', 'arg', '--', '--flag=true'])
+  await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--', '--flag=true'])
 
   const { default: args } = await import(path.resolve('project/args.json'))
   expect(args).toStrictEqual([

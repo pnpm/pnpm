@@ -78,6 +78,79 @@ test('pnpm recursive run', async () => {
   const { default: outputs1 } = await import(path.resolve('output1.json'))
   const { default: outputs2 } = await import(path.resolve('output2.json'))
 
+  expect(outputs1).toStrictEqual(['project-1', 'project-2'])
+  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
+})
+
+test('pnpm recursive run with enable-pre-post-scripts', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output1.json',
+        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output1.json',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+
+      dependencies: {},
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    enablePrePostScripts: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const { default: outputs2 } = await import(path.resolve('output2.json'))
+
   expect(outputs1).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
   expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })
@@ -151,7 +224,7 @@ test('pnpm recursive run reversed', async () => {
   const { default: outputs1 } = await import(path.resolve('output1.json'))
   const { default: outputs2 } = await import(path.resolve('output2.json'))
 
-  expect(outputs1).toStrictEqual(['project-2-prebuild', 'project-2', 'project-2-postbuild', 'project-1'])
+  expect(outputs1).toStrictEqual(['project-2', 'project-1'])
   expect(outputs2).toStrictEqual(['project-3', 'project-1'])
 })
 

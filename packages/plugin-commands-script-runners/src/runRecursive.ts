@@ -13,6 +13,7 @@ import realpathMissing from 'realpath-missing'
 import existsInDir from './existsInDir'
 
 export type RecursiveRunOpts = Pick<Config,
+| 'enablePrePostScripts'
 | 'unsafePerm'
 | 'rawConfig'
 | 'scriptShell'
@@ -81,11 +82,19 @@ export default async (
           if (pnpPath) {
             lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
           }
-          if (pkg.package.manifest.scripts[`pre${scriptName}`]) {
+          if (
+            opts.enablePrePostScripts &&
+            pkg.package.manifest.scripts?.[`pre${scriptName}`] &&
+            !pkg.package.manifest.scripts[scriptName].includes(`pre${scriptName}`)
+          ) {
             await runLifecycleHooks(`pre${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }
           await runLifecycleHooks(scriptName, pkg.package.manifest, { ...lifecycleOpts, args: passedThruArgs })
-          if (pkg.package.manifest.scripts[`post${scriptName}`]) {
+          if (
+            opts.enablePrePostScripts &&
+            pkg.package.manifest.scripts?.[`post${scriptName}`] &&
+            !pkg.package.manifest.scripts[scriptName].includes(`post${scriptName}`)
+          ) {
             await runLifecycleHooks(`post${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }
           result.passes++
