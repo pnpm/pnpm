@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
+import { createFetchFromRegistry } from '@pnpm/fetch'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
@@ -56,11 +57,12 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     if (!opts.global) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
-    const { version: nodeVersion, releaseDir } = await resolveNodeVersion(params[1])
+    const fetch = createFetchFromRegistry(opts)
+    const { version: nodeVersion, releaseDir } = await resolveNodeVersion(fetch, params[1])
     if (!nodeVersion) {
       throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[1]}`)
     }
-    const nodeDir = await getNodeDir({
+    const nodeDir = await getNodeDir(fetch, {
       ...opts,
       useNodeVersion: nodeVersion,
       releaseDir,
