@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { Config } from '@pnpm/config'
-import { FetchFromRegistry } from '@pnpm/fetch'
+import { createFetchFromRegistry, FetchFromRegistry } from '@pnpm/fetch'
 import { FilesIndex } from '@pnpm/fetcher-base'
 import { createCafsStore } from '@pnpm/package-store'
 import storePath from '@pnpm/store-path'
@@ -36,7 +36,8 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'pnpmHomeDir'
 > & Partial<Pick<Config, 'configDir'>>
 
-export async function getNodeBinDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions) {
+export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
+  const fetch = createFetchFromRegistry(opts)
   const nodeDir = await getNodeDir(fetch, opts)
   return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
 }
