@@ -61,7 +61,7 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
 function escapeColon (url: string) {
   if (!url.includes('@')) return url
   const [front, ...backs] = url.split('@')
-  const escapedBacks = backs.map(e => e.replace(/:([^/\d]|\d+[^:/\d])/, '/$1'))
+  const escapedBacks = backs.map(e => e.replace(/:([^/\d]|\d+[^:/\d])/, ':/$1'))
   return [front, ...escapedBacks].join('@')
 }
 
