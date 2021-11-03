@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.20.2
+
+### Patch Changes
+
+- `pnpm import` should be able to import a workspace lockfile [#3908](https://github.com/pnpm/pnpm/issues/3908).
+- Don't run pre/post scripts by default with recursive run commands [#3903](https://github.com/pnpm/pnpm/issues/3903).
+- `pnpm env use` should use the network/proxy settings to make HTTP requests [#3942](https://github.com/pnpm/pnpm/pull/3942).
+- It should be possible to install a git-hosted package that has a port in its URL [#3944](https://github.com/pnpm/pnpm/issues/3944).
+- `pnpm create` and `pnpm dlx` should work with scoped packages [#3916](https://github.com/pnpm/pnpm/issues/3916).
+
 ## 6.20.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-env
 
+## 1.2.4
+
+### Patch Changes
+
+- 6b7eb7249: Use the package manager's network and proxy configuration when making requests for Node.js.
+  - @pnpm/package-store@12.1.0
+
 ## 1.2.3
 
 ### Patch Changes

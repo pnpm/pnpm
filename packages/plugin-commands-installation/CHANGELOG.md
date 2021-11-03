@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 7.2.0
+
+### Minor Changes
+
+- 6a54be5a1: Support pnpm recursive import
+
+### Patch Changes
+
+- @pnpm/core@1.1.0
+- @pnpm/outdated@9.0.13
+- @pnpm/package-store@12.1.0
+- @pnpm/store-connection-manager@3.1.4
+- @pnpm/plugin-commands-rebuild@5.2.1
+
 ## 7.1.0
 
 ### Minor Changes

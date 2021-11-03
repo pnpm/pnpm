@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 5.1.9
+
+### Patch Changes
+
+- 7da65bd7a: Don't break URLs with ports.
+
 ## 5.1.8
 
 ### Patch Changes

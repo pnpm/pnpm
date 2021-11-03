@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.3.6
+
+### Patch Changes
+
+- 0e17caf1d: Do not run pre/post scripts by default on recursive run.
+- 7d7f6417f: `dlx` should be able to run scoped packages.
+
 ## 4.3.5
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/client
 
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/default-resolver@14.0.1
+
 ## 6.0.0
 
 ### Major Changes
