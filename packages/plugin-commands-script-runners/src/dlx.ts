@@ -68,7 +68,7 @@ export async function handler (
   await execa('pnpm', pnpmArgs, {
     stdio: 'inherit',
   })
-  await execa(params[0], params.slice(1), {
+  await execa(scopeless(params[0]), params.slice(1), {
     env: {
       ...process.env,
       [PATH]: [
@@ -78,4 +78,11 @@ export async function handler (
     },
     stdio: 'inherit',
   })
+}
+
+function scopeless (pkgName: string) {
+  if (pkgName.startsWith('@')) {
+    return pkgName.split('/')[1]
+  }
+  return pkgName
 }
