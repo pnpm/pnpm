@@ -1,24 +1,13 @@
-import fs from 'fs'
+import execa from 'execa'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 
-test('dlx', async () => {
+jest.mock('execa')
+
+test('dlx should work with scoped packages', async () => {
   prepareEmpty()
 
-  await dlx.handler({}, ['shx', 'touch', 'foo'])
+  await dlx.handler({}, ['@foo/bar'])
 
-  expect(fs.existsSync('foo')).toBeTruthy()
-})
-
-test('dlx --package <pkg1> [--package <pkg2>]', async () => {
-  prepareEmpty()
-
-  await dlx.handler({
-    package: [
-      'zkochan/for-testing-pnpm-dlx',
-      'is-positive',
-    ],
-  }, ['foo'])
-
-  expect(fs.existsSync('foo')).toBeTruthy()
+  expect(execa).toBeCalledWith('bar', [], expect.anything())
 })
