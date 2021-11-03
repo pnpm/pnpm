@@ -3,7 +3,7 @@
   "version": "6.0.0",
   "description": "Creates the package resolve and fetch functions",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

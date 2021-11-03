@@ -3,7 +3,7 @@
   "version": "0.4.29",
   "description": "Creates a Plug'n'Play file from a pnpm-lock.yaml",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "engines": {
     "node": ">=12.17"
   },

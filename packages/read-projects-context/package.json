@@ -3,7 +3,7 @@
   "version": "5.0.7",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

@@ -3,7 +3,7 @@
   "version": "5.0.5",
   "description": "Read a package.json",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "engines": {
     "node": ">=12.17"
   },

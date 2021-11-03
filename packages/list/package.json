@@ -3,7 +3,7 @@
   "version": "6.2.9",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

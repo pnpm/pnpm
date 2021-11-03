@@ -3,7 +3,7 @@
   "version": "2.0.2",
   "description": "Merges lockfiles. Can automatically fix merge conflicts",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "engines": {
     "node": ">=12.17"
   },

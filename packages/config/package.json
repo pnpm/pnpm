@@ -3,7 +3,7 @@
   "version": "13.4.1",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

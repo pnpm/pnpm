@@ -3,7 +3,7 @@
   "version": "2.0.6",
   "description": "Read a project manifest (called package.json in most cases)",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "engines": {
     "node": ">=12.17"
   },

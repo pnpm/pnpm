@@ -7,7 +7,7 @@
     "lib",
     "!*.map"
   ],
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "_test": "jest",

@@ -3,7 +3,7 @@
   "version": "11.0.10",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

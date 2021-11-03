@@ -3,7 +3,7 @@
   "version": "0.0.27",
   "private": true,
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/types": "workspace:7.5.0",

@@ -3,7 +3,7 @@
   "version": "5.1.6",
   "description": "Gets context information about a project",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

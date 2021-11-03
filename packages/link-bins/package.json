@@ -3,7 +3,7 @@
   "version": "6.2.3",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

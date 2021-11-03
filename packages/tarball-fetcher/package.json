@@ -3,7 +3,7 @@
   "version": "9.3.8",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

@@ -3,7 +3,7 @@
   "version": "3.1.0",
   "description": "Runs the npm CLI",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"

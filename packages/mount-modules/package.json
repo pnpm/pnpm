@@ -4,7 +4,7 @@
   "description": "Mounts a node_modules directory with FUSE",
   "main": "lib/index.js",
   "bin": "bin/mount-modules.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "engines": {
     "node": ">=12.17"
   },

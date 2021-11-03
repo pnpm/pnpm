@@ -3,7 +3,7 @@
   "version": "14.0.0",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"
