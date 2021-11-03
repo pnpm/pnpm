@@ -331,6 +331,18 @@ test('resolveFromGit() normalizes full url', async () => {
   })
 })
 
+test('resolveFromGit() normalizes full url with port', async () => {
+  const resolveResult = await resolveFromGit({ pref: 'git+ssh://git@github.com:22:zkochan/is-negative.git#2.0.1' })
+  expect(resolveResult).toStrictEqual({
+    id: 'github.com/zkochan/is-negative/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    normalizedPref: 'github:zkochan/is-negative#2.0.1',
+    resolution: {
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
 test('resolveFromGit() normalizes full url (alternative form)', async () => {
   const resolveResult = await resolveFromGit({ pref: 'git+ssh://git@github.com/zkochan/is-negative.git#2.0.1' })
   expect(resolveResult).toStrictEqual({

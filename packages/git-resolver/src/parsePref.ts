@@ -61,7 +61,7 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
 function escapeColon (url: string) {
   if (!url.includes('@')) return url
   const [front, ...backs] = url.split('@')
-  const escapedBacks = backs.map(e => e.replace(/:([^/])/, ':/$1'))
+  const escapedBacks = backs.map(e => e.replace(/:([^/\d]|\d+[^:/\d])/, ':/$1'))
   return [front, ...escapedBacks].join('@')
 }
 
@@ -161,7 +161,7 @@ function matchGitScp (spec: string) {
   // git+ssh://git@my.custom.git.com:username/project.git#deadbeef
   //
   // ...and various combinations. The username in the beginning is *required*.
-  const matched = spec.match(/^git\+ssh:\/\/([^:#]+:[^#]+(?:\.git)?)(?:#(.*))?$/i)
+  const matched = spec.match(/^git\+ssh:\/\/([^:]+:[^#]+(?:\.git)?)(?:#(.*))$/i)
   return (matched != null) && (matched[1].match(/:[0-9]+\/?.*$/i) == null) && {
     fetchSpec: matched[1],
     gitCommittish: matched[2],
