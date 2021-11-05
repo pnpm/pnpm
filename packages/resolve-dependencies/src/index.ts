@@ -155,13 +155,14 @@ export default async function (
 
   for (const { id, manifest } of projectsToLink) {
     for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
-      const depNode = dependenciesGraph[depPath]
-      if (depNode.isPure) continue
-
       const projectSnapshot = opts.wantedLockfile.importers[id]
       if (manifest.dependenciesMeta != null) {
         projectSnapshot.dependenciesMeta = manifest.dependenciesMeta
       }
+
+      const depNode = dependenciesGraph[depPath]
+      if (depNode.isPure) continue
+
       const ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
