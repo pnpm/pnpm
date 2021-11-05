@@ -28,14 +28,14 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@v1
     - name: Setup Node
-      uses: actions/setup-node@v1
+      uses: actions/setup-node@v2
       with:
         node-version: ${{ matrix.node }}
     - name: checkout main
       run: git branch -f main origin/main
     - name: install pnpm and npm
       run: |
-        curl -L https://get.pnpm.io/v6.js | node - add --global pnpm@next npm@7
+        curl -L https://get.pnpm.io/v6.16.js | node - add --global pnpm@next npm@7
     - name: pnpm install
       run: pnpm install
     - name: Audit
