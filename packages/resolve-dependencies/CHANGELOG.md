@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 21.1.1
+
+### Patch Changes
+
+- bc1c2aa62: The `dependenciesMeta` field should be added to all packages that have it in the manifest.
+
 ## 21.1.0
 
 ### Minor Changes

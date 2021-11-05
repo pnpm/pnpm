@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.20.3
+
+### Patch Changes
+
+- All the `dependenciesMeta` fields should be duplicated to the lockfile.
+
 ## 6.20.2
 
 ### Patch Changes
