@@ -3,10 +3,12 @@ import logger from '@pnpm/logger'
 export default function err (error: Error) {
   if (!global['reporterInitialized']) {
     console.log(error)
-    process.exit(1)
+    process.exitCode = 1
+    return
   }
   if (global['reporterInitialized'] === 'silent') {
-    process.exit(1)
+    process.exitCode = 1
+    return
   }
   if (error.name != null && error.name !== 'pnpm' && !error.name.startsWith('pnpm:')) {
     error.name = 'pnpm'
