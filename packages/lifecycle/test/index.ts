@@ -21,6 +21,25 @@ test('runLifecycleHook()', async () => {
 
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['install'])
 })
+test('runLifecycleHook()#3907', async () => {
+  const pkgRoot = path.join(fixtures, 'issue-3907')
+  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  await runLifecycleHook('echo', pkg, {
+    depPath: '/issue-3907/1.0.0',
+    pkgRoot,
+    rawConfig: {},
+    rootModulesDir,
+    unsafePerm: true,
+    args: ['Revert "feature (#1)"', '\'', '\\', 'TXT'],
+  })
+
+  expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual([
+    'Revert "feature (#1)"',
+    "\\'",
+    '\\',
+    'TXT',
+  ])
+})
 
 test('runPostinstallHooks()', async () => {
   const pkgRoot = path.join(fixtures, 'with-many-scripts')

@@ -22,6 +22,10 @@ export interface RunLifecycleHookOptions {
   unsafePerm: boolean
 }
 
+function escapeShellArgs (args: string) {
+  return '"' + args.replace(/(["'\\])/g, '\\$1') + '"'
+}
+
 export default async function runLifecycleHook (
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
@@ -36,7 +40,7 @@ export default async function runLifecycleHook (
     m.scripts.start = 'node server.js'
   }
   if (opts.args?.length && m.scripts?.[stage]) {
-    m.scripts[stage] = `${m.scripts[stage]} ${opts.args.map((arg) => `"${arg}"`).join(' ')}`
+    m.scripts[stage] = `${m.scripts[stage]} ${opts.args.map(escapeShellArgs).join(' ')}`
   }
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.
