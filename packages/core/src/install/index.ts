@@ -804,7 +804,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
-    ? opts.hooks?.afterAllResolved(newLockfile)
+    ? await opts.hooks?.afterAllResolved(newLockfile)
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {

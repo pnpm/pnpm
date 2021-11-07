@@ -52,7 +52,7 @@ export interface StrictInstallOptions {
   pruneLockfileImporters: boolean
   hooks: {
     readPackage?: ReadPackageHook
-    afterAllResolved?: (lockfile: Lockfile) => Lockfile
+    afterAllResolved?: (lockfile: Lockfile) => Lockfile | Promise<Lockfile>
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean

@@ -13,7 +13,7 @@ interface HookContext {
 interface Hooks {
   // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any
-  afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile
+  afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
   filterLog?: (log: Log) => boolean
 }
 

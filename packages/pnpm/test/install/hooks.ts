@@ -492,6 +492,36 @@ test('pnpmfile: run afterAllResolved hook', async () => {
   expect(hookLog.message).toBe('All resolved')
 })
 
+test('pnpmfile: run async afterAllResolved hook', async () => {
+  prepare()
+
+  await fs.writeFile('.pnpmfile.cjs', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        async afterAllResolved (lockfile, context) {
+          context.log('All resolved')
+          return lockfile
+        }
+      }
+    }
+  `, 'utf8')
+
+  const proc = execPnpmSync(['install', 'pkg-with-1-dep', '--reporter', 'ndjson'])
+
+  const outputs = proc.stdout.toString().split(/\r?\n/)
+
+  const hookLog = outputs.filter(Boolean)
+    .map((output) => JSON.parse(output))
+    .find((log) => log.name === 'pnpm:hook')
+
+  expect(hookLog).toBeTruthy()
+  expect(hookLog.prefix).toBeTruthy()
+  expect(hookLog.from).toBeTruthy()
+  expect(hookLog.hook).toBe('afterAllResolved')
+  expect(hookLog.message).toBe('All resolved')
+})
+
 test('readPackage hook normalizes the package manifest', async () => {
   prepare()
 

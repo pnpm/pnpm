@@ -49,7 +49,7 @@ test('readPackage, afterAllResolved hooks', async () => {
   expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
 })
 
-test('readPackage async hooks', async () => {
+test('readPackage, afterAllResolved async hooks', async () => {
   const project = prepareEmpty()
 
   // w/o the hook, 100.1.0 would be installed
@@ -67,13 +67,21 @@ test('readPackage async hooks', async () => {
     return manifest
   }
 
+  const afterAllResolved = sinon.spy(async (lockfile: Lockfile) => {
+    lockfile['foo'] = 'foo' // eslint-disable-line
+    return lockfile
+  })
+
   await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({
     hooks: {
+      afterAllResolved,
       readPackage: readPackageHook,
     },
   }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  expect(afterAllResolved.calledOnce).toBeTruthy()
+  expect(afterAllResolved.getCall(0).args[0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
