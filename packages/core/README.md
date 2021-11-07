@@ -72,7 +72,7 @@ Remove unreferenced packages from the store.
 
 Hooks are functions that can step into the installation process.
 
-### `readPackage(pkg)`
+### `readPackage(pkg: Manifest): Manifest | Promise<Manifest>`
 
 This hook is called with every dependency's manifest information.
 The modified manifest returned by this hook is then used by `@pnpm/core` during installation.

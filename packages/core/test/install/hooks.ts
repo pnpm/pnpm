@@ -48,3 +48,33 @@ test('readPackage, afterAllResolved hooks', async () => {
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
 })
+
+test('readPackage async hooks', async () => {
+  const project = prepareEmpty()
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  async function readPackageHook (manifest: PackageManifest) {
+    switch (manifest.name) {
+    case 'pkg-with-1-dep':
+      if (manifest.dependencies == null) {
+        throw new Error('pkg-with-1-dep expected to have a dependencies field')
+      }
+      manifest.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+      break
+    }
+    return manifest
+  }
+
+  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({
+    hooks: {
+      readPackage: readPackageHook,
+    },
+  }))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  const wantedLockfile = await project.readLockfile()
+  expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
+})

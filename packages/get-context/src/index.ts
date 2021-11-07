@@ -132,7 +132,7 @@ export default async function getContext<T> (
   if ((opts.hooks?.readPackage) != null) {
     for (const project of importersContext.projects) {
       project.originalManifest = project.manifest
-      project.manifest = opts.hooks.readPackage(clone(project.manifest), project.rootDir)
+      project.manifest = await opts.hooks.readPackage(clone(project.manifest), project.rootDir)
     }
   }
 
@@ -447,7 +447,7 @@ export async function getContextForSingleImporter (
     importerId,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
-    manifest: opts.hooks?.readPackage?.(manifest) ?? manifest,
+    manifest: await opts.hooks?.readPackage?.(manifest) ?? manifest,
     modulesDir,
     modulesFile: modules,
     pendingBuilds,

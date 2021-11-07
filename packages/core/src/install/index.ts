@@ -57,7 +57,7 @@ import flatten from 'ramda/src/flatten'
 import fromPairs from 'ramda/src/fromPairs'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
-import pipe from 'ramda/src/pipe'
+import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
 import parseWantedDependencies from '../parseWantedDependencies'
@@ -531,9 +531,9 @@ function createReadPackageHook (
   if (hooks.length === 0) {
     return readPackageHook
   }
-  const readPackageAndExtend = hooks.length === 1 ? hooks[0] : pipe(hooks[0], hooks[1]) as ReadPackageHook
+  const readPackageAndExtend = hooks.length === 1 ? hooks[0] : pipeWith(async (f, res) => f(await res), [hooks[0], hooks[1]]) as ReadPackageHook
   if (readPackageHook != null) {
-    return ((manifest: ProjectManifest, dir?: string) => readPackageAndExtend(readPackageHook(manifest, dir), dir)) as ReadPackageHook
+    return (async (manifest: ProjectManifest, dir?: string) => readPackageAndExtend(await readPackageHook(manifest, dir), dir)) as ReadPackageHook
   }
   return readPackageAndExtend
 }

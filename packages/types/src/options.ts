@@ -14,6 +14,6 @@ export type IncludedDependencies = {
 }
 
 export interface ReadPackageHook {
-  (pkg: PackageManifest, dir?: string): PackageManifest
-  (pkg: ProjectManifest, dir?: string): ProjectManifest
+  (pkg: PackageManifest, dir?: string): PackageManifest | Promise<PackageManifest>
+  (pkg: ProjectManifest, dir?: string): ProjectManifest | Promise<ProjectManifest>
 }

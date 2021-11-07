@@ -35,6 +35,31 @@ test('readPackage hook', async () => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
+test('readPackage async hook', async () => {
+  const project = prepare()
+
+  await fs.writeFile('.pnpmfile.cjs', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        async readPackage (pkg) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm(['install', 'pkg-with-1-dep'])
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
 test('readPackage hook makes installation fail if it does not return the modified package manifests', async () => {
   prepare()
 
@@ -125,6 +150,47 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
     module.exports = {
       hooks: {
         readPackage (pkg) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['is-positive'] = '1.0.0'
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', '.pnpmfile.cjs')])
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('is-positive', '1.0.0')
+})
+
+test('readPackage async hook from global pnpmfile and local pnpmfile', async () => {
+  const project = prepare()
+
+  await fs.writeFile('../.pnpmfile.cjs', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        async readPackage (pkg) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+            pkg.dependencies['is-positive'] = '3.0.0'
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  await fs.writeFile('.pnpmfile.cjs', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        async readPackage (pkg) {
           if (pkg.name === 'pkg-with-1-dep') {
             pkg.dependencies['is-positive'] = '1.0.0'
           }

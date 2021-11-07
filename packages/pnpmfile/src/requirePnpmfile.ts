@@ -43,12 +43,12 @@ export default (pnpmFilePath: string, prefix: string) => {
     }
     if (pnpmfile?.hooks?.readPackage) {
       const readPackage = pnpmfile.hooks.readPackage
-      pnpmfile.hooks.readPackage = function (pkg: PackageManifest, ...args: any[]) { // eslint-disable-line
+      pnpmfile.hooks.readPackage = async function (pkg: PackageManifest, ...args: any[]) { // eslint-disable-line
         pkg.dependencies = pkg.dependencies ?? {}
         pkg.devDependencies = pkg.devDependencies ?? {}
         pkg.optionalDependencies = pkg.optionalDependencies ?? {}
         pkg.peerDependencies = pkg.peerDependencies ?? {}
-        const newPkg = readPackage(pkg, ...args)
+        const newPkg = await readPackage(pkg, ...args)
         if (!newPkg) {
           throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
         }
