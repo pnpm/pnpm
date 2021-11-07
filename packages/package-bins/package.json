@@ -36,7 +36,7 @@
     "is-subdir": "^1.1.1"
   },
   "devDependencies": {
-    "@types/node": "^14.14.33"
+    "@types/node": "^14.17.32"
   },
   "funding": "https://opencollective.com/pnpm"
 }
