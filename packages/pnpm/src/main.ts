@@ -47,7 +47,8 @@ export default async function run (inputArgv: string[]) {
   } catch (err: any) { // eslint-disable-line
     // Reporting is not initialized at this point, so just printing the error
     printError(err.message, err['hint'])
-    process.exit(1)
+    process.exitCode = 1
+    return
   }
   const {
     argv,
@@ -60,7 +61,8 @@ export default async function run (inputArgv: string[]) {
   } = parsedCliArgs
   if (cmd !== null && !pnpmCmds[cmd]) {
     printError(`Unknown command '${cmd}'`, 'For help, run: pnpm help')
-    process.exit(1)
+    process.exitCode = 1
+    return
   }
 
   if (unknownOptions.size > 0 && !fallbackCommandUsed) {
@@ -75,7 +77,8 @@ export default async function run (inputArgv: string[]) {
       console.log(deprecationMsg)
     } else {
       printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
-      process.exit(1)
+      process.exitCode = 1
+      return
     }
   }
   process.env['npm_config_argv'] = JSON.stringify(argv)
@@ -103,7 +106,8 @@ export default async function run (inputArgv: string[]) {
     // Reporting is not initialized at this point, so just printing the error
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
     printError(err.message, hint)
-    process.exit(1)
+    process.exitCode = 1
+    return
   }
 
   let write: (text: string) => void = process.stdout.write.bind(process.stdout)
@@ -171,7 +175,8 @@ export default async function run (inputArgv: string[]) {
       if (printLogs) {
         console.log(`No projects found in "${wsDir}"`)
       }
-      process.exit(0)
+      process.exitCode = 0
+      return
     }
 
     config.filter = config.filter ?? []
@@ -201,7 +206,8 @@ export default async function run (inputArgv: string[]) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
-      process.exit(0)
+      process.exitCode = 0
+      return
     }
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
       console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
@@ -278,7 +284,7 @@ export default async function run (inputArgv: string[]) {
     // In this case, the non-zero exit code is expected,
     // so there is no need to write a debug file.
     global['writeDebugLogFile'] = false
-    process.exit(exitCode)
+    process.exitCode = exitCode
   }
 }
 
