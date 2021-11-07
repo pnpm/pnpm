@@ -191,7 +191,7 @@ Do you want to continue?`,
   }
 
   if (status != null && status !== 0) {
-    process.exit(status)
+    return { exitCode: status }
   }
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
