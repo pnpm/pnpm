@@ -1,6 +1,5 @@
 ---
 "@pnpm/core": minor
-"@pnpm/default-reporter": minor
 "@pnpm/get-context": minor
 "pnpm": minor
 "@pnpm/pnpmfile": minor
