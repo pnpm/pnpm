@@ -5,7 +5,6 @@ import {
   addDependenciesToPackage,
   PackageManifest,
 } from '@pnpm/core'
-import sinon from 'sinon'
 import {
   addDistTag,
   testDefaults,
@@ -29,7 +28,7 @@ test('readPackage, afterAllResolved hooks', async () => {
     return manifest
   }
 
-  const afterAllResolved = sinon.spy((lockfile: Lockfile) => {
+  const afterAllResolved = jest.fn((lockfile: Lockfile) => {
     lockfile['foo'] = 'foo' // eslint-disable-line
     return lockfile
   })
@@ -42,8 +41,8 @@ test('readPackage, afterAllResolved hooks', async () => {
   }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
-  expect(afterAllResolved.calledOnce).toBeTruthy()
-  expect(afterAllResolved.getCall(0).args[0].lockfileVersion).toEqual(LOCKFILE_VERSION)
+  expect(afterAllResolved).toHaveBeenCalledTimes(1)
+  expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
@@ -67,7 +66,7 @@ test('readPackage, afterAllResolved async hooks', async () => {
     return manifest
   }
 
-  const afterAllResolved = sinon.spy(async (lockfile: Lockfile) => {
+  const afterAllResolved = jest.fn(async (lockfile: Lockfile) => {
     lockfile['foo'] = 'foo' // eslint-disable-line
     return lockfile
   })
@@ -80,8 +79,8 @@ test('readPackage, afterAllResolved async hooks', async () => {
   }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
-  expect(afterAllResolved.calledOnce).toBeTruthy()
-  expect(afterAllResolved.getCall(0).args[0].lockfileVersion).toEqual(LOCKFILE_VERSION)
+  expect(afterAllResolved).toHaveBeenCalledTimes(1)
+  expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
