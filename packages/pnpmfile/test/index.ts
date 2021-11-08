@@ -1,5 +1,5 @@
 import path from 'path'
-import { requirePnpmfile, BadReadPackageHookError } from '@pnpm/pnpmfile'
+import { requireHooks, requirePnpmfile, BadReadPackageHookError } from '@pnpm/pnpmfile'
 
 test('ignoring a pnpmfile that exports undefined', () => {
   const pnpmfile = requirePnpmfile(path.join(__dirname, 'pnpmfiles/undefined.js'), __dirname)
@@ -21,4 +21,22 @@ test('readPackage hook run fails when returned dependencies is not an object ', 
   expect(() => {
     pnpmfile.hooks.readPackage({})
   }).toThrow(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned package manifest object\'s property \'dependencies\' must be an object.'))
+})
+
+test('filterLog hook combines with the global hook', () => {
+  const globalPnpmfile = path.join(__dirname, 'pnpmfiles/globalFilterLog.js')
+  const pnpmfile = path.join(__dirname, 'pnpmfiles/filterLog.js')
+  const hooks = requireHooks(__dirname, { globalPnpmfile, pnpmfile })
+
+  expect(hooks.filterLog).toBeDefined()
+  expect(hooks.filterLog!({
+    name: 'pnpm:summary',
+    level: 'error',
+    prefix: 'test',
+  })).toBeTruthy()
+  expect(hooks.filterLog!({
+    name: 'pnpm:summary',
+    level: 'debug',
+    prefix: 'test',
+  })).toBeFalsy()
 })

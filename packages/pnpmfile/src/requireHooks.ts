@@ -54,7 +54,7 @@ export default function requireHooks (
       prefix,
     })
   }
-  for (const hookName of ['readPackage', 'afterAllResolved', 'filterLog']) {
+  for (const hookName of ['readPackage', 'afterAllResolved']) {
     if (globalHooks[hookName] && hooks[hookName]) {
       const globalHookContext = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
       const localHookContext = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
@@ -74,6 +74,13 @@ export default function requireHooks (
       const context = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
       cookedHooks[hookName] = (pkg: object) => hook(pkg, context)
     }
+  }
+  const globalFilterLog = globalHooks.filterLog
+  const filterLog = hooks.filterLog
+  if (globalFilterLog != null && filterLog != null) {
+    cookedHooks.filterLog = (log: Log) => globalFilterLog(log) && filterLog(log)
+  } else {
+    cookedHooks.filterLog = globalFilterLog ?? filterLog
   }
   return cookedHooks
 }
