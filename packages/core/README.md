@@ -72,10 +72,11 @@ Remove unreferenced packages from the store.
 
 Hooks are functions that can step into the installation process.
 
-### `readPackage(pkg)`
+### `readPackage(pkg: Manifest): Manifest | Promise<Manifest>`
 
 This hook is called with every dependency's manifest information.
 The modified manifest returned by this hook is then used by `@pnpm/core` during installation.
+An async function is supported.
 
 **Example:**
 
@@ -96,9 +97,10 @@ function readPackage (pkg) {
 }
 ```
 
-### `afterAllResolved(lockfile: Lockfile): Lockfile`
+### `afterAllResolved(lockfile: Lockfile): Lockfile | Promise<Lockfile>`
 
 This hook is called after all dependencies are resolved. It recieves and returns the resolved lockfile object.
+An async function is supported.
 
 ## License
 
