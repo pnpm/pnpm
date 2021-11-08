@@ -199,12 +199,14 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   const columnNames = [
     'Package',
     'Current',
+    'Wanted',
     'Latest',
   ]
 
   const columnFns = [
     renderPackageName,
     renderCurrent,
+    renderWanted,
     renderLatest,
   ]
 
@@ -282,10 +284,8 @@ export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage) 
   }
 }
 
-export function renderCurrent ({ current, wanted }: OutdatedPackage) {
-  const output = current ?? 'missing'
-  if (current === wanted) return output
-  return `${output} (wanted ${wanted})`
+export function renderCurrent ({ current }: OutdatedPackage) {
+  return current ?? 'missing'
 }
 
 export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
@@ -310,4 +310,11 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
     outputs.push(chalk.underline(latestManifest.homepage))
   }
   return outputs.join('\n')
+}
+
+export function renderWanted ({ latestManifest }: OutdatedPackage) {
+  if (!latestManifest?.version) {
+    return ''
+  }
+  return latestManifest?.version
 }

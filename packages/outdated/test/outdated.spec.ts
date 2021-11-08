@@ -1,4 +1,9 @@
 import outdated from '@pnpm/outdated/lib/outdated'
+import { createFetchFromRegistry } from '@pnpm/fetch'
+import tempy from 'tempy'
+
+const fetch = createFetchFromRegistry({})
+const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
 
 async function getLatestManifest (packageName: string) {
   return ({
@@ -132,6 +137,11 @@ test('outdated()', async () => {
         },
       },
     },
+    npmFetch: fetch,
+    getCredentials,
+    resolverOpts: {
+      cacheDir: tempy.directory(),
+    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -139,6 +149,7 @@ test('outdated()', async () => {
       belongsTo: 'dependencies',
       current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
       latestManifest: undefined,
+      latestRangeVersion: undefined,
       packageName: 'from-github',
       wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
     },
@@ -147,6 +158,7 @@ test('outdated()', async () => {
       belongsTo: 'dependencies',
       current: undefined,
       latestManifest: undefined,
+      latestRangeVersion: undefined,
       packageName: 'from-github-2',
       wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
     },
@@ -158,6 +170,7 @@ test('outdated()', async () => {
         name: 'is-negative',
         version: '2.1.0',
       },
+      latestRangeVersion: undefined,
       packageName: 'is-negative',
       wanted: '1.1.0',
     },
@@ -169,6 +182,7 @@ test('outdated()', async () => {
         name: 'is-positive',
         version: '3.1.0',
       },
+      latestRangeVersion: undefined,
       packageName: 'is-positive',
       wanted: '3.1.0',
     },
@@ -211,6 +225,11 @@ test('outdated() should return deprecated package even if its current version is
     },
     prefix: 'project',
     wantedLockfile: lockfile,
+    npmFetch: fetch,
+    getCredentials,
+    resolverOpts: {
+      cacheDir: tempy.directory(),
+    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -328,6 +347,11 @@ test('using a matcher', async () => {
         },
       },
     },
+    npmFetch: fetch,
+    getCredentials,
+    resolverOpts: {
+      cacheDir: tempy.directory(),
+    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -338,6 +362,7 @@ test('using a matcher', async () => {
         name: 'is-negative',
         version: '2.1.0',
       },
+      latestRangeVersion: '2.1.0',
       packageName: 'is-negative',
       wanted: '1.1.0',
     },
@@ -397,6 +422,11 @@ test('outdated() aliased dependency', async () => {
         },
       },
     },
+    npmFetch: fetch,
+    getCredentials,
+    resolverOpts: {
+      cacheDir: tempy.directory(),
+    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -407,6 +437,7 @@ test('outdated() aliased dependency', async () => {
         name: 'is-positive',
         version: '3.1.0',
       },
+      latestRangeVersion: '3.1.0',
       packageName: 'is-positive',
       wanted: '3.1.0',
     },
@@ -486,6 +517,11 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     },
     prefix: 'project',
     wantedLockfile: lockfile,
+    npmFetch: fetch,
+    getCredentials,
+    resolverOpts: {
+      cacheDir: tempy.directory(),
+    },
   })
   expect(outdatedPkgs).toStrictEqual([])
 })
@@ -503,6 +539,11 @@ test('outdated() should [] when there is no dependency', async () => {
     },
     prefix: 'project',
     wantedLockfile: null,
+    npmFetch: fetch,
+    getCredentials,
+    resolverOpts: {
+      cacheDir: tempy.directory(),
+    },
   })
   expect(outdatedPkgs).toStrictEqual([])
 })

@@ -12,13 +12,17 @@ import {
 import unnest from 'ramda/src/unnest'
 import { createManifestGetter, ManifestGetterOptions } from './createManifestGetter'
 import outdated, { OutdatedPackage } from './outdated'
+import { createFetchFromRegistry } from '@pnpm/fetch'
+import getCredentialsByURI from 'credentials-by-uri'
+import mem from 'mem'
 
 export default async function outdatedDepsOfProjects (
   pkgs: Array<{dir: string, manifest: ProjectManifest}>,
   args: string[],
-  opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
+  opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir' | 'storeDir'> & {
     compatible?: boolean
     include: IncludedDependencies
+    storeDir?: string
   } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
@@ -38,6 +42,16 @@ export default async function outdatedDepsOfProjects (
     fullMetadata: opts.fullMetadata === true,
     lockfileDir,
   })
+  const npmFetch = createFetchFromRegistry(opts)
+  const getCredentials = mem((registry: string) => getCredentialsByURI({ registry: opts.registries.default }, registry))
+  const resolverOpts = {
+    cacheDir: opts.cacheDir,
+    fullMetadata: opts.fullMetadata,
+    offline: opts.offline,
+    preferOffline: opts.preferOffline,
+    retry: opts.retry,
+    timeout: opts.timeout,
+  }
   return Promise.all(pkgs.map(async ({ dir, manifest }) => {
     const match = (args.length > 0) && matcher(args) || undefined
     return outdated({
@@ -50,6 +64,10 @@ export default async function outdatedDepsOfProjects (
       match,
       prefix: dir,
       wantedLockfile,
+      registry: opts.registries.default,
+      npmFetch,
+      getCredentials,
+      resolverOpts,
     })
   }))
 }

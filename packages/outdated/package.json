@@ -39,22 +39,28 @@
     "@pnpm/client": "workspace:6.0.2",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/lockfile-file": "workspace:4.2.1",
-    "@pnpm/lockfile-utils": "workspace:3.1.1",
-    "@pnpm/manifest-utils": "workspace:2.1.2",
+    "@pnpm/fetch": "workspace:4.1.4",
+    "@pnpm/lockfile-file": "workspace:4.2.0",
+    "@pnpm/lockfile-utils": "workspace:3.1.0",
+    "@pnpm/manifest-utils": "workspace:2.1.1",
     "@pnpm/matcher": "workspace:2.0.0",
-    "@pnpm/modules-yaml": "workspace:9.0.6",
-    "@pnpm/pick-registry-for-package": "workspace:2.0.6",
-    "@pnpm/types": "workspace:7.6.0",
-    "dependency-path": "workspace:8.0.6",
+    "@pnpm/modules-yaml": "workspace:9.0.5",
+    "@pnpm/npm-resolver": "workspace:^12.1.0",
+    "@pnpm/pick-registry-for-package": "workspace:2.0.5",
+    "@pnpm/types": "workspace:7.5.0",
+    "credentials-by-uri": "^2.0.0",
+    "dependency-path": "workspace:8.0.5",
+    "mem": "^8.0.0",
     "ramda": "^0.27.1",
     "semver": "^7.3.4"
   },
   "devDependencies": {
+    "@pnpm/fetching-types": "workspace:^2.2.1",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4",
-    "npm-run-all": "^4.1.5"
+    "npm-run-all": "^4.1.5",
+    "tempy": "^1.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

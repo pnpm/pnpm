@@ -15,6 +15,11 @@ import {
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import semver from 'semver'
+import createResolver, { ResolverFactoryOptions } from '@pnpm/npm-resolver'
+import {
+  FetchFromRegistry,
+  GetCredentials,
+} from '@pnpm/fetching-types'
 
 export * from './createManifestGetter'
 
@@ -27,6 +32,7 @@ export interface OutdatedPackage {
   latestManifest?: PackageManifest
   packageName: string
   wanted: string
+  latestRangeVersion?: string
 }
 
 export default async function outdated (
@@ -40,6 +46,10 @@ export default async function outdated (
     match?: (dependencyName: string) => boolean
     prefix: string
     wantedLockfile: Lockfile | null
+    registry?: string
+    npmFetch: FetchFromRegistry
+    getCredentials: GetCredentials
+    resolverOpts: ResolverFactoryOptions
   }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
@@ -68,6 +78,7 @@ export default async function outdated (
       await Promise.all(
         pkgs.map(async (alias) => {
           const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
+          const versionRange = opts.wantedLockfile!.importers[importerId].specifiers![alias]
 
           // ignoring linked packages. (For backward compatibility)
           if (ref.startsWith('file:')) {
@@ -90,6 +101,19 @@ export default async function outdated (
           const current = (currentRelative && dp.parse(currentRelative).version) ?? currentRef
           const wanted = dp.parse(relativeDepPath).version ?? ref
           const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
+          const latestRangeVersion = opts.registry
+            ? await findRangeLatestVersion({
+              name: packageName,
+              version: versionRange,
+              // registry: opts?.registry,
+              // offline: opts.offline,
+              // storeDir: opts.storeDir,
+              npmFetch: opts.npmFetch,
+              getCredentials: opts.getCredentials,
+              resolverOpts: opts.resolverOpts,
+              registry: opts.registry,
+            })
+            : undefined
 
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
@@ -102,6 +126,7 @@ export default async function outdated (
                 latestManifest: undefined,
                 packageName,
                 wanted,
+                latestRangeVersion,
               })
             }
             return
@@ -122,6 +147,7 @@ export default async function outdated (
               latestManifest,
               packageName,
               wanted,
+              latestRangeVersion,
             })
             return
           }
@@ -134,6 +160,7 @@ export default async function outdated (
               latestManifest,
               packageName,
               wanted,
+              latestRangeVersion,
             })
           }
         })
@@ -152,4 +179,18 @@ function packageHasNoDeps (manifest: ProjectManifest) {
 
 function isEmpty (obj: object) {
   return Object.keys(obj).length === 0
+}
+
+async function findRangeLatestVersion (opts: {
+  name: string
+  version: string
+  npmFetch: FetchFromRegistry
+  getCredentials: GetCredentials
+  resolverOpts: ResolverFactoryOptions
+  registry: string
+}) {
+  const { name, version, npmFetch, resolverOpts, getCredentials, registry } = opts
+  const createResolveFromNpm = await createResolver(npmFetch, getCredentials, resolverOpts)
+  const resolveResult = await createResolveFromNpm({ alias: name, pref: version }, { registry })
+  return resolveResult?.id.split('/').pop()
 }
