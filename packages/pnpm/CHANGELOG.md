@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.20.4
+
+### Patch Changes
+
+- Do not index the project directory if it should not be hard linked to any other project [#3949](https://github.com/pnpm/pnpm/issues/3949).
+- The CLI should not exit before all the output is printed [#3526](https://github.com/pnpm/pnpm/issues/3526).
+
 ## 6.20.3
 
 ### Patch Changes
