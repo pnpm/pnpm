@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.3.7
+
+### Patch Changes
+
+- 8cde32987: Return the exit code instead of killing the process.
+- Updated dependencies [5b90ab98f]
+  - @pnpm/lifecycle@12.0.1
+
 ## 4.3.6
 
 ### Patch Changes

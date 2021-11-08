@@ -50,7 +50,7 @@ export default async function runLifecycleHooksConcurrently (
           if ((manifest.scripts == null) || !manifest.scripts[stage]) continue
           await runLifecycleHook(stage, manifest, runLifecycleHookOpts)
         }
-        if (targetDirs == null) return
+        if (targetDirs == null || targetDirs.length === 0) return
         const filesResponse = await fetchFromDir(rootDir, {})
         await Promise.all(
           targetDirs.map((targetDir) => opts.storeController.importPackage(targetDir, {

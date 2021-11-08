@@ -130,7 +130,9 @@ export async function handler (
           result.passes++
         } catch (err: any) { // eslint-disable-line
           if (!opts.recursive && typeof err.exitCode === 'number') {
-            process.exit(err.exitCode)
+            return {
+              exitCode: err.exitCode,
+            }
           }
           logger.info(err)
 
@@ -149,6 +151,7 @@ export async function handler (
           /* eslint-enable @typescript-eslint/dot-notation */
           throw err
         }
+        return { exitCode: 0 }
       }
       )))
   }

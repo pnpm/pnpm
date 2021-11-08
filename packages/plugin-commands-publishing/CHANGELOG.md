@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.2.23
+
+### Patch Changes
+
+- 8cde32987: Return the exit code instead of killing the process.
+- Updated dependencies [5b90ab98f]
+  - @pnpm/lifecycle@12.0.1
+
 ## 4.2.22
 
 ### Patch Changes
