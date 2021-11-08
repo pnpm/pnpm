@@ -2,7 +2,7 @@ import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
-import { concatMap, filter, map, mergeAll } from 'rxjs/operators'
+import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
 import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
@@ -178,15 +178,8 @@ export function toOutput$ (
     })
   }, 0)
   let other = Rx.from(otherPushStream)
-  const filterLog = opts.context.config?.hooks?.filterLog
-  if (filterLog != null) {
-    // filterAsync in order
-    // https://gist.github.com/bjesuiter/288326f9822e0bc82389976f8da66dd8
-    other = other.pipe(
-      concatMap(log => Rx.from(Promise.resolve(filterLog(log))).pipe(map((isValid) => ({ filterResult: isValid, log })))),
-      filter(data => data.filterResult),
-      map(data => data.log)
-    )
+  if (opts.context.config?.hooks?.filterLog != null) {
+    other = other.pipe(filter(opts.context.config.hooks.filterLog))
   }
   const log$ = {
     context: Rx.from(contextPushStream),
