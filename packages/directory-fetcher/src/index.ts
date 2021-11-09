@@ -6,6 +6,7 @@ import loadJsonFile from 'load-json-file'
 import packlist from 'npm-packlist'
 
 export interface DirectoryFetcherOptions {
+  lockfileDir: string
   manifest?: DeferredManifestPromise
 }
 
@@ -15,13 +16,16 @@ export default () => {
       cafs: Cafs,
       resolution: DirectoryResolution,
       opts: DirectoryFetcherOptions
-    ) => fetchFromDir(resolution.directory, opts),
+    ) => {
+      const dir = path.join(opts.lockfileDir, resolution.directory)
+      return fetchFromDir(dir, opts)
+    },
   }
 }
 
 export async function fetchFromDir (
   dir: string,
-  opts: DirectoryFetcherOptions
+  opts: Omit<DirectoryFetcherOptions, 'lockfileDir'>
 ) {
   const files = await packlist({ path: dir })
   const filesIndex: Record<string, string> = fromPairs(files.map((file) => [file, path.join(dir, file)]))

@@ -6,7 +6,12 @@ test('fetch', async () => {
   const fetcher = createFetcher()
 
   // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, { directory: path.join(__dirname, '..'), type: 'directory' }, {})
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '..',
+    type: 'directory',
+  }, {
+    lockfileDir: __dirname,
+  })
 
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
