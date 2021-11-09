@@ -13,7 +13,7 @@ import {
 import PnpmError from '@pnpm/error'
 import getContext, { PnpmContext, ProjectOptions } from '@pnpm/get-context'
 import headless from '@pnpm/headless'
-import {
+import runLifecycleHook, {
   makeNodeRequireOption,
   runLifecycleHooksConcurrently,
   RunLifecycleHooksConcurrentlyOptions,
@@ -81,6 +81,8 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE',
   'ERR_PNPM_TARBALL_INTEGRITY',
 ])
+
+const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
 export type DependenciesMutation = (
   {
@@ -200,6 +202,28 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
+    const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
+      extraBinPaths: opts.extraBinPaths,
+      rawConfig: opts.rawConfig,
+      scriptShell: opts.scriptShell,
+      shellEmulator: opts.shellEmulator,
+      stdio: opts.ownLifecycleHooksStdio,
+      storeController: opts.storeController,
+      unsafePerm: opts.unsafePerm || false,
+    }
+
+    if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
+      await runLifecycleHook(
+        DEV_PREINSTALL,
+        rootProjectManifest,
+        {
+          ...scriptsOpts,
+          depPath: opts.lockfileDir,
+          pkgRoot: opts.lockfileDir,
+          rootModulesDir: ctx.rootModulesDir,
+        }
+      )
+    }
     const packageExtensionsChecksum = isEmpty(packageExtensions ?? {}) ? undefined : createObjectChecksum(packageExtensions!)
     let needsFullResolution = !maybeOpts.ignorePackageManifest && (
       !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
@@ -321,16 +345,6 @@ export async function mutateModules (
     const projectsToInstall = [] as ImporterToUpdate[]
 
     const projectsToBeInstalled = ctx.projects.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
-    const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
-      extraBinPaths: opts.extraBinPaths,
-      rawConfig: opts.rawConfig,
-      scriptShell: opts.scriptShell,
-      shellEmulator: opts.shellEmulator,
-      stdio: opts.ownLifecycleHooksStdio,
-      storeController: opts.storeController,
-      unsafePerm: opts.unsafePerm || false,
-    }
-
     let preferredSpecs: Record<string, string> | null = null
 
     // TODO: make it concurrent
