@@ -97,6 +97,7 @@ test('run install scripts in the current project', async () => {
   prepareEmpty()
   const manifest = await addDependenciesToPackage({
     scripts: {
+      'pnpm:devPreinstall': 'node -e "require(\'fs\').writeFileSync(\'test.txt\', \'\', \'utf-8\')"',
       install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
       postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
       preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
@@ -107,6 +108,7 @@ test('run install scripts in the current project', async () => {
   const output = await loadJsonFile<string[]>('output.json')
 
   expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
+  expect(await exists('test.txt')).toBeTruthy()
 })
 
 test('run install scripts in the current project when its name is different than its directory', async () => {
