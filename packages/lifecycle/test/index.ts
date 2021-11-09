@@ -22,6 +22,21 @@ test('runLifecycleHook()', async () => {
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['install'])
 })
 
+test('runLifecycleHook() escapes the args passed to the script', async () => {
+  const pkgRoot = path.join(fixtures, 'escape-args')
+  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  await runLifecycleHook('echo', pkg, {
+    depPath: '/escape-args/1.0.0',
+    pkgRoot,
+    rawConfig: {},
+    rootModulesDir,
+    unsafePerm: true,
+    args: ['Revert "feature (#1)"'],
+  })
+
+  expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
+})
+
 test('runPostinstallHooks()', async () => {
   const pkgRoot = path.join(fixtures, 'with-many-scripts')
   rimraf.sync(path.join(pkgRoot, 'output.json'))
