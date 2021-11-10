@@ -34,6 +34,9 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://prisma.io" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://leniolabs.com" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -74,7 +77,7 @@ Benchmarks on an app with lots of dependencies:
 
 ![](https://pnpm.io/img/benchmarks/alotta-files.svg)
 
-### Backers
+## Backers
 
 Thank you to all our backers! [Become a backer](https://opencollective.com/pnpm#backer)
 
