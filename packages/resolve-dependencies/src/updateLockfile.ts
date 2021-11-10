@@ -220,12 +220,6 @@ function toLockfileResolution (
 ): LockfileResolution {
   /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
-    if (resolution.type === 'directory') {
-      return {
-        type: 'directory',
-        directory: pkg.id.replace(/^file:/, ''),
-      }
-    }
     return resolution as LockfileResolution
   }
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}

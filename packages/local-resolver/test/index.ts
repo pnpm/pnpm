@@ -17,7 +17,7 @@ test('resolve injected directory', async () => {
   expect(resolveResult!.id).toEqual('file:..')
   expect(resolveResult!.normalizedPref).toEqual('file:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect(resolveResult!.resolution['directory']).toEqual(normalize(path.join(__dirname, '..')))
+  expect(resolveResult!.resolution['directory']).toEqual('..')
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
