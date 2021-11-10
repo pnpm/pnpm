@@ -1,5 +1,15 @@
 # @pnpm/local-resolver
 
+## 7.0.1
+
+### Patch Changes
+
+- 108bd4a39: Injected directory resolutions should contain the relative path to the directory.
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - @pnpm/read-project-manifest@2.0.7
+  - @pnpm/resolver-base@8.1.1
+
 ## 7.0.0
 
 ### Major Changes

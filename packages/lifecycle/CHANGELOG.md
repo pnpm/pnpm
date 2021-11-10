@@ -1,5 +1,18 @@
 # @pnpm/lifecycle
 
+## 12.0.2
+
+### Patch Changes
+
+- fa03cbdc8: Escape the arguments that are passed to the scripts [#3907](https://github.com/pnpm/pnpm/issues/3907).
+- Updated dependencies [108bd4a39]
+- Updated dependencies [302ae4f6f]
+  - @pnpm/directory-fetcher@1.0.1
+  - @pnpm/types@7.6.0
+  - @pnpm/core-loggers@6.0.6
+  - @pnpm/read-package-json@5.0.6
+  - @pnpm/store-controller-types@11.0.7
+
 ## 12.0.1
 
 ### Patch Changes

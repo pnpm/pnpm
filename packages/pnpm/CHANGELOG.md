@@ -1,5 +1,17 @@
 # pnpm
 
+## 6.21.0
+
+### Minor Changes
+
+- Support async hooks [#3955](https://github.com/pnpm/pnpm/pull/3955).
+- Added support for a new lifecycle script: `pnpm:devPreinstall`. This script works only in the root `package.json` file, only during local development, and runs before installation happens [#3968](https://github.com/pnpm/pnpm/pull/3968).
+
+### Patch Changes
+
+- Installing a workspace project with an injected dependency from a non-root directory should not fail [#3970](https://github.com/pnpm/pnpm/issues/3970).
+- Escape the arguments that are passed to the scripts [#3907](https://github.com/pnpm/pnpm/issues/3907).
+
 ## 6.20.4
 
 ### Patch Changes

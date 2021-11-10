@@ -1,5 +1,19 @@
 # @pnpm/outdated
 
+## 9.0.14
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - @pnpm/client@6.0.2
+  - dependency-path@8.0.6
+  - @pnpm/lockfile-file@4.2.1
+  - @pnpm/lockfile-utils@3.1.1
+  - @pnpm/manifest-utils@2.1.2
+  - @pnpm/modules-yaml@9.0.6
+  - @pnpm/pick-registry-for-package@2.0.6
+
 ## 9.0.13
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-project-manifest",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Read a project manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,8 +31,8 @@
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/graceful-fs": "workspace:1.0.0",
-    "@pnpm/types": "workspace:7.5.0",
-    "@pnpm/write-project-manifest": "workspace:2.0.5",
+    "@pnpm/types": "workspace:7.6.0",
+    "@pnpm/write-project-manifest": "workspace:2.0.6",
     "detect-indent": "^6.0.0",
     "fast-deep-equal": "^3.1.3",
     "is-windows": "^1.0.2",

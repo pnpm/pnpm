@@ -1,5 +1,45 @@
 # @pnpm/core
 
+## 1.2.0
+
+### Minor Changes
+
+- 302ae4f6f: Support async hooks
+- 2511c82cd: Added support for a new lifecycle script: `pnpm:devPreinstall`. This script works only in the root `package.json` file, only during local development, and runs before installation happens.
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+- Updated dependencies [fa03cbdc8]
+- Updated dependencies [108bd4a39]
+  - @pnpm/get-context@5.2.0
+  - @pnpm/resolve-dependencies@21.2.0
+  - @pnpm/types@7.6.0
+  - @pnpm/lifecycle@12.0.2
+  - @pnpm/build-modules@7.1.6
+  - @pnpm/core-loggers@6.0.6
+  - dependency-path@8.0.6
+  - @pnpm/filter-lockfile@5.0.10
+  - @pnpm/headless@16.2.2
+  - @pnpm/hoist@5.2.4
+  - @pnpm/link-bins@6.2.4
+  - @pnpm/lockfile-file@4.2.1
+  - @pnpm/lockfile-to-pnp@0.4.30
+  - @pnpm/lockfile-utils@3.1.1
+  - @pnpm/lockfile-walker@4.0.10
+  - @pnpm/manifest-utils@2.1.2
+  - @pnpm/modules-cleaner@11.0.14
+  - @pnpm/modules-yaml@9.0.6
+  - @pnpm/normalize-registries@2.0.6
+  - @pnpm/package-requester@15.2.1
+  - @pnpm/prune-lockfile@3.0.10
+  - @pnpm/read-package-json@5.0.6
+  - @pnpm/read-project-manifest@2.0.7
+  - @pnpm/remove-bins@2.0.8
+  - @pnpm/resolver-base@8.1.1
+  - @pnpm/store-controller-types@11.0.7
+  - @pnpm/symlink-dependency@4.0.7
+
 ## 1.1.2
 
 ### Patch Changes

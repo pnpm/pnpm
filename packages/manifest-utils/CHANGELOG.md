@@ -1,5 +1,13 @@
 # @pnpm/manifest-utils
 
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - @pnpm/core-loggers@6.0.6
+
 ## 2.1.1
 
 ### Patch Changes

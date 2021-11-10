@@ -1,5 +1,19 @@
 # @pnpm/pnpmfile
 
+## 1.2.0
+
+### Minor Changes
+
+- 302ae4f6f: Support async hooks
+
+### Patch Changes
+
+- b75993dde: Combine global and local filterLog hook with AND
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - @pnpm/core-loggers@6.0.6
+  - @pnpm/lockfile-types@3.1.1
+
 ## 1.1.1
 
 ### Patch Changes

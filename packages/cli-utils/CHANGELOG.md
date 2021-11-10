@@ -1,5 +1,16 @@
 # @pnpm/cli-utils
 
+## 0.6.30
+
+### Patch Changes
+
+- @pnpm/config@13.4.2
+- @pnpm/cli-meta@2.0.0
+- @pnpm/default-reporter@8.3.6
+- @pnpm/manifest-utils@2.1.2
+- @pnpm/package-is-installable@5.0.6
+- @pnpm/read-project-manifest@2.0.7
+
 ## 0.6.29
 
 ### Patch Changes

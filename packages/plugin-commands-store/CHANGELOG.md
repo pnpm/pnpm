@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-store
 
+## 4.0.28
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/get-context@5.2.0
+  - @pnpm/types@7.6.0
+  - @pnpm/config@13.4.2
+  - @pnpm/cli-utils@0.6.30
+  - dependency-path@8.0.6
+  - @pnpm/lockfile-utils@3.1.1
+  - @pnpm/normalize-registries@2.0.6
+  - @pnpm/pick-registry-for-package@2.0.6
+  - @pnpm/store-controller-types@11.0.7
+  - @pnpm/store-connection-manager@3.1.5
+  - @pnpm/cafs@3.0.9
+
 ## 4.0.27
 
 ### Patch Changes

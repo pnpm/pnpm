@@ -1,5 +1,12 @@
 # @pnpm/normalize-registries
 
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+
 ## 2.0.5
 
 ### Patch Changes

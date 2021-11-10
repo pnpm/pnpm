@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.6.0
+
+### Minor Changes
+
+- 302ae4f6f: Support async hooks
+
 ## 7.5.0
 
 ### Minor Changes

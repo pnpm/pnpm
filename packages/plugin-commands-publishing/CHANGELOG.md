@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.2.24
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+- Updated dependencies [fa03cbdc8]
+  - @pnpm/types@7.6.0
+  - @pnpm/lifecycle@12.0.2
+  - @pnpm/client@6.0.2
+  - @pnpm/config@13.4.2
+  - @pnpm/cli-utils@0.6.30
+  - @pnpm/exportable-manifest@2.1.8
+  - @pnpm/package-bins@5.0.7
+  - @pnpm/pick-registry-for-package@2.0.6
+  - @pnpm/resolver-base@8.1.1
+  - @pnpm/sort-packages@2.1.3
+
 ## 4.2.23
 
 ### Patch Changes

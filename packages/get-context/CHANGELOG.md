@@ -1,5 +1,20 @@
 # @pnpm/get-context
 
+## 5.2.0
+
+### Minor Changes
+
+- 302ae4f6f: Support async hooks
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - @pnpm/core-loggers@6.0.6
+  - @pnpm/lockfile-file@4.2.1
+  - @pnpm/modules-yaml@9.0.6
+  - @pnpm/read-projects-context@5.0.8
+
 ## 5.1.6
 
 ### Patch Changes

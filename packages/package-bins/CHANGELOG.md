@@ -1,5 +1,12 @@
 # @pnpm/package-bins
 
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+
 ## 5.0.6
 
 ### Patch Changes

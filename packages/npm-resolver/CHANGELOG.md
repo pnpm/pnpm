@@ -1,5 +1,15 @@
 # @pnpm/npm-resolver
 
+## 12.1.1
+
+### Patch Changes
+
+- 108bd4a39: Injected directory resolutions should contain the relative path to the directory.
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - @pnpm/core-loggers@6.0.6
+  - @pnpm/resolver-base@8.1.1
+
 ## 12.1.0
 
 ### Minor Changes

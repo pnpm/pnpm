@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 13.4.2
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+- Updated dependencies [b75993dde]
+  - @pnpm/pnpmfile@1.2.0
+  - @pnpm/types@7.6.0
+
 ## 13.4.1
 
 ### Patch Changes

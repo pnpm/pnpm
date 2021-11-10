@@ -1,5 +1,29 @@
 # @pnpm/resolve-dependencies
 
+## 21.2.0
+
+### Minor Changes
+
+- 302ae4f6f: Support async hooks
+
+### Patch Changes
+
+- 108bd4a39: Injected directory resolutions should contain the relative path to the directory.
+- Updated dependencies [302ae4f6f]
+- Updated dependencies [108bd4a39]
+  - @pnpm/types@7.6.0
+  - @pnpm/npm-resolver@12.1.1
+  - @pnpm/core-loggers@6.0.6
+  - dependency-path@8.0.6
+  - @pnpm/lockfile-types@3.1.1
+  - @pnpm/lockfile-utils@3.1.1
+  - @pnpm/manifest-utils@2.1.2
+  - @pnpm/pick-registry-for-package@2.0.6
+  - @pnpm/prune-lockfile@3.0.10
+  - @pnpm/read-package-json@5.0.6
+  - @pnpm/resolver-base@8.1.1
+  - @pnpm/store-controller-types@11.0.7
+
 ## 21.1.1
 
 ### Patch Changes
