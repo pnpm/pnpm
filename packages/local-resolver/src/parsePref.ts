@@ -78,7 +78,9 @@ function fromLocal (
     }
   }
 
-  const dependencyPath = normalize(path.resolve(fetchSpec))
+  const dependencyPath = injected
+    ? normalize(path.relative(lockfileDir, fetchSpec))
+    : normalize(path.resolve(fetchSpec))
   const id = !injected && (type === 'directory' || projectDir === lockfileDir)
     ? `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
     : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`

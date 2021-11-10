@@ -974,7 +974,7 @@ test('resolve injected dependency from local directory when it matches the lates
   expect(resolveResult!.id).toBe('file:is-positive')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
-    directory: '/home/istvan/src/is-positive',
+    directory: 'is-positive',
     type: 'directory',
   })
   expect(resolveResult!.manifest).toBeTruthy()

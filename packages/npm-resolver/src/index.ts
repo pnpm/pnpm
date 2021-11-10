@@ -301,14 +301,21 @@ function resolveFromLocalPackage (
     lockfileDir?: string
   }
 ) {
+  let id!: string
+  let directory!: string
+  if (opts.hardLinkLocalPackages) {
+    directory = normalize(path.relative(opts.lockfileDir!, localPackage.dir))
+    id = `file:${directory}`
+  } else {
+    directory = localPackage.dir
+    id = `link:${normalize(path.relative(opts.projectDir, localPackage.dir))}`
+  }
   return {
-    id: opts.hardLinkLocalPackages
-      ? `file:${normalize(path.relative(opts.lockfileDir!, localPackage.dir))}`
-      : `link:${normalize(path.relative(opts.projectDir, localPackage.dir))}`,
+    id,
     manifest: localPackage.manifest,
     normalizedPref,
     resolution: {
-      directory: localPackage.dir,
+      directory,
       type: 'directory',
     },
     resolvedVia: 'local-filesystem',
