@@ -2,20 +2,12 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import mem from 'mem'
-import * as execa from 'execa'
 import checkEngine, { UnsupportedEngineError, WantedEngine } from './checkEngine'
 import checkPlatform, { UnsupportedPlatformError } from './checkPlatform'
+import { getSystemNodeVersion } from './getSystemNodeVersion'
 
 export { Engine } from './checkEngine'
 export { Platform, WantedPlatform } from './checkPlatform'
-
-const systemNodeVersion = mem(function systemNodeVersion () {
-  if (process['pkg'] != null) {
-    return execa.sync('node', ['-v']).stdout.toString()
-  }
-  return process.version
-})
 
 export {
   UnsupportedEngineError,
@@ -88,7 +80,7 @@ export function checkPackage (
     (manifest.engines == null)
       ? null
       : checkEngine(pkgId, manifest.engines, {
-        node: options.nodeVersion ?? systemNodeVersion(),
+        node: options.nodeVersion ?? getSystemNodeVersion(),
         pnpm: options.pnpmVersion,
       })
   )
