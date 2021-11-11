@@ -35,6 +35,7 @@ jobs:
       run: git branch -f main origin/main
     - name: install pnpm and npm
       run: |
+        ${{ runner.os == 'Windows' && '$PSStyle.OutputRendering = "Ansi"' || '' }}
         curl -L https://get.pnpm.io/v6.16.js | node - add --global pnpm@next npm@7
     - name: pnpm install
       run: pnpm install
