@@ -1773,11 +1773,15 @@ importers:
       '@pnpm/package-is-installable': 'link:'
       '@pnpm/types': workspace:7.6.0
       '@types/semver': ^7.3.4
+      execa: npm:safe-execa@^0.1.1
+      mem: ^8.0.0
       semver: ^7.3.4
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/error': link:../error
       '@pnpm/types': link:../types
+      execa: /safe-execa/0.1.1
+      mem: 8.1.1
       semver: 7.3.5
     devDependencies:
       '@pnpm/logger': 4.0.0
