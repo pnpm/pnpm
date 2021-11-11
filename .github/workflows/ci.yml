@@ -36,6 +36,7 @@ jobs:
     - name: install pnpm and npm
       run: |
         curl -L https://get.pnpm.io/v6.16.js | node - add --global pnpm@next npm@7
+      shell: bash # workaround for PowerShell 7.2.0 \x1b piping issue
     - name: pnpm install
       run: pnpm install
     - name: Audit
