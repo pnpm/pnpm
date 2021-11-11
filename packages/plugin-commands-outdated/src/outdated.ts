@@ -312,9 +312,6 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
   return outputs.join('\n')
 }
 
-export function renderWanted ({ latestManifest }: OutdatedPackage) {
-  if (!latestManifest?.version) {
-    return ''
-  }
-  return latestManifest?.version
+export function renderWanted ({ latestRangeVersion }: OutdatedPackage) {
+  return latestRangeVersion ?? 'missing'
 }

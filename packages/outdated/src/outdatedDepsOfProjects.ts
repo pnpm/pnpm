@@ -44,13 +44,14 @@ export default async function outdatedDepsOfProjects (
   })
   const npmFetch = createFetchFromRegistry(opts)
   const getCredentials = mem((registry: string) => getCredentialsByURI({ registry: opts.registries.default }, registry))
+  const { cacheDir, fullMetadata, offline, preferOffline, retry, timeout } = opts
   const resolverOpts = {
-    cacheDir: opts.cacheDir,
-    fullMetadata: opts.fullMetadata,
-    offline: opts.offline,
-    preferOffline: opts.preferOffline,
-    retry: opts.retry,
-    timeout: opts.timeout,
+    cacheDir,
+    fullMetadata,
+    offline,
+    preferOffline,
+    retry,
+    timeout,
   }
   return Promise.all(pkgs.map(async ({ dir, manifest }) => {
     const match = (args.length > 0) && matcher(args) || undefined

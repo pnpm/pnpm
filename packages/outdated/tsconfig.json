@@ -22,6 +22,12 @@
       "path": "../error"
     },
     {
+      "path": "../fetch"
+    },
+    {
+      "path": "../fetching-types"
+    },
+    {
       "path": "../lockfile-file"
     },
     {
@@ -35,6 +41,9 @@
     },
     {
       "path": "../modules-yaml"
+    },
+    {
+      "path": "../npm-resolver"
     },
     {
       "path": "../pick-registry-for-package"

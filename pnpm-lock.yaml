@@ -1714,32 +1714,33 @@ importers:
       '@pnpm/client': workspace:6.0.2
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
-      '@pnpm/fetch': workspace:^4.1.4
-      '@pnpm/fetching-types': workspace:^2.2.1
-      '@pnpm/lockfile-file': workspace:4.2.0
-      '@pnpm/lockfile-utils': workspace:3.1.0
+      '@pnpm/fetch': workspace:4.1.5
+      '@pnpm/fetching-types': workspace:2.2.1
+      '@pnpm/lockfile-file': workspace:4.2.1
+      '@pnpm/lockfile-utils': workspace:3.1.1
       '@pnpm/logger': ^4.0.0
       '@pnpm/manifest-utils': workspace:2.1.2
       '@pnpm/matcher': workspace:2.0.0
-      '@pnpm/modules-yaml': workspace:9.0.5
-      '@pnpm/npm-resolver': workspace:^12.1.0
+      '@pnpm/modules-yaml': workspace:9.0.6
+      '@pnpm/npm-resolver': workspace:12.1.1
       '@pnpm/outdated': 'link:'
-      '@pnpm/pick-registry-for-package': workspace:2.0.5
-      '@pnpm/store-path': ^5.0.0
-      '@pnpm/types': workspace:7.5.0
+      '@pnpm/pick-registry-for-package': workspace:2.0.6
+      '@pnpm/types': workspace:7.6.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
       credentials-by-uri: ^2.0.0
-      dependency-path: workspace:8.0.5
+      dependency-path: workspace:8.0.6
       mem: ^8.0.0
       npm-run-all: ^4.1.5
       ramda: ^0.27.1
       semver: ^7.3.4
+      tempy: ^1.0.0
     dependencies:
       '@pnpm/client': link:../client
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
       '@pnpm/fetch': link:../fetch
+      '@pnpm/fetching-types': link:../fetching-types
       '@pnpm/lockfile-file': link:../lockfile-file
       '@pnpm/lockfile-utils': link:../lockfile-utils
       '@pnpm/manifest-utils': link:../manifest-utils
@@ -1747,7 +1748,6 @@ importers:
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/npm-resolver': link:../npm-resolver
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
-      '@pnpm/store-path': 5.0.0
       '@pnpm/types': link:../types
       credentials-by-uri: 2.0.0
       dependency-path: link:../dependency-path
@@ -1755,12 +1755,12 @@ importers:
       ramda: 0.27.1
       semver: 7.3.5
     devDependencies:
-      '@pnpm/fetching-types': link:../fetching-types
       '@pnpm/logger': 4.0.0
       '@pnpm/outdated': 'link:'
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
       npm-run-all: 4.1.5
+      tempy: 1.0.1
 
   packages/package-bins:
     specifiers:

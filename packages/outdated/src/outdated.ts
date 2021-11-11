@@ -105,15 +105,12 @@ export default async function outdated (
             ? await findRangeLatestVersion({
               name: packageName,
               version: versionRange,
-              // registry: opts?.registry,
-              // offline: opts.offline,
-              // storeDir: opts.storeDir,
               npmFetch: opts.npmFetch,
               getCredentials: opts.getCredentials,
               resolverOpts: opts.resolverOpts,
               registry: opts.registry,
             })
-            : undefined
+            : wanted
 
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
