@@ -22,6 +22,9 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   'es2015',
   'unpkg',
   'umd:main',
+  // These are useful to hide in order to avoid warnings during local development
+  'os',
+  'cpu',
 ])
 
 const PREPUBLISH_SCRIPTS = [
