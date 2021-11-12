@@ -19,6 +19,7 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 | 'dir'
 | 'useRunningStoreServer'
 | 'useStoreServer'
+| 'workspaceDir'
 >
 
 export async function createOrConnectStoreControllerCached (
@@ -38,7 +39,7 @@ export async function createOrConnectStoreController (
     ctrl: StoreController
     dir: string
   }> {
-  const storeDir = await storePath(opts.dir, opts.storeDir)
+  const storeDir = await storePath(opts.workspaceDir ?? opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   let serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: false })
