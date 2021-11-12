@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "5.0.6",
+  "version": "5.0.7",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

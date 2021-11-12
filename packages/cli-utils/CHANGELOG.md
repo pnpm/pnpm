@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 0.6.31
+
+### Patch Changes
+
+- Updated dependencies [783cc1051]
+  - @pnpm/package-is-installable@5.0.7
+
 ## 0.6.30
 
 ### Patch Changes

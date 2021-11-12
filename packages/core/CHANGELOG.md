@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 1.2.1
+
+### Patch Changes
+
+- bb0f8bc16: Don't crash if a bin file cannot be created because the source files could not be found.
+- Updated dependencies [bb0f8bc16]
+  - @pnpm/link-bins@6.2.5
+  - @pnpm/build-modules@7.1.7
+  - @pnpm/headless@16.2.3
+  - @pnpm/hoist@5.2.5
+  - @pnpm/filter-lockfile@5.0.11
+  - @pnpm/package-requester@15.2.2
+  - @pnpm/modules-cleaner@11.0.15
+
 ## 1.2.0
 
 ### Minor Changes

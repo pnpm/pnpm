@@ -1,5 +1,11 @@
 # @pnpm/package-is-installable
 
+## 5.0.7
+
+### Patch Changes
+
+- 783cc1051: Use the system default Node.js version to check package compatibility [#3785](https://github.com/pnpm/pnpm/issues/3785).
+
 ## 5.0.6
 
 ### Patch Changes

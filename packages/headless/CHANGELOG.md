@@ -1,5 +1,19 @@
 # @pnpm/headless
 
+## 16.2.3
+
+### Patch Changes
+
+- Updated dependencies [bb0f8bc16]
+- Updated dependencies [783cc1051]
+  - @pnpm/link-bins@6.2.5
+  - @pnpm/package-is-installable@5.0.7
+  - @pnpm/build-modules@7.1.7
+  - @pnpm/hoist@5.2.5
+  - @pnpm/filter-lockfile@5.0.11
+  - @pnpm/package-requester@15.2.2
+  - @pnpm/modules-cleaner@11.0.15
+
 ## 16.2.2
 
 ### Patch Changes

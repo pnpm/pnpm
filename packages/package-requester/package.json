@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "15.2.1",
+  "version": "15.2.2",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -43,7 +43,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/fetcher-base": "workspace:11.1.1",
     "@pnpm/graceful-fs": "workspace:1.0.0",
-    "@pnpm/package-is-installable": "workspace:5.0.6",
+    "@pnpm/package-is-installable": "workspace:5.0.7",
     "@pnpm/read-package-json": "workspace:5.0.6",
     "@pnpm/resolver-base": "workspace:8.1.1",
     "@pnpm/store-controller-types": "workspace:11.0.7",
@@ -62,7 +62,7 @@
   "devDependencies": {
     "@pnpm/client": "workspace:6.0.2",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.1.1",
+    "@pnpm/package-store": "workspace:12.1.2",
     "@types/ncp": "^2.0.4",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",

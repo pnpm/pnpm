@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.2.25
+
+### Patch Changes
+
+- Updated dependencies [6428690e2]
+  - @pnpm/exportable-manifest@2.2.0
+  - @pnpm/cli-utils@0.6.31
+
 ## 4.2.24
 
 ### Patch Changes

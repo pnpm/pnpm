@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 6.2.5
+
+### Patch Changes
+
+- bb0f8bc16: Don't crash if a bin file cannot be created because the source files could not be found.
+
 ## 6.2.4
 
 ### Patch Changes

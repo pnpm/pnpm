@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:3.0.9",
-    "@pnpm/package-store": "workspace:12.1.1",
+    "@pnpm/package-store": "workspace:12.1.2",
     "@pnpm/types": "workspace:7.6.0",
     "p-defer": "^3.0.0",
     "tempy": "^1.0.0"

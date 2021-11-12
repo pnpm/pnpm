@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.21.1
+
+### Patch Changes
+
+- When the store location is a relative location, pick the store location relative to the workspace root directory location [#3976](https://github.com/pnpm/pnpm/issues/3976).
+- Don't crash if a bin file cannot be created because the source files could not be found.
+- Use the system default Node.js version to check package compatibility [#3785](https://github.com/pnpm/pnpm/issues/3785).
+
 ## 6.21.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 2.2.0
+
+### Minor Changes
+
+- 6428690e2: Allow to set `os` and `cpu` in `publishConfig`.
+
 ## 2.1.8
 
 ### Patch Changes

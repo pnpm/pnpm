@@ -1,5 +1,13 @@
 # @pnpm/store-connection-manager
 
+## 3.1.6
+
+### Patch Changes
+
+- 1647d8e2f: When the store location is a relative location, pick the store location relative to the workspace root directory location [#3976](https://github.com/pnpm/pnpm/issues/3976).
+  - @pnpm/package-store@12.1.2
+  - @pnpm/server@11.0.11
+
 ## 3.1.5
 
 ### Patch Changes
