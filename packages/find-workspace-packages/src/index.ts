@@ -11,6 +11,7 @@ export default async (
   workspaceRoot: string,
   opts?: {
     engineStrict?: boolean
+    nodeVersion?: string
     patterns?: string[]
   }
 ) => {

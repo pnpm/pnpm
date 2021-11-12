@@ -4,7 +4,10 @@ import { packageIsInstallable } from './packageIsInstallable'
 
 export async function readProjectManifest (
   projectDir: string,
-  opts: { engineStrict?: boolean }
+  opts: {
+    engineStrict?: boolean
+    nodeVersion?: string
+  }
 ): Promise<{
     fileName: string
     manifest: ProjectManifest
@@ -17,7 +20,10 @@ export async function readProjectManifest (
 
 export async function readProjectManifestOnly (
   projectDir: string,
-  opts: { engineStrict?: boolean }
+  opts: {
+    engineStrict?: boolean
+    nodeVersion?: string
+  }
 ): Promise<ProjectManifest> {
   const manifest = await utils.readProjectManifestOnly(projectDir)
   packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -26,7 +32,10 @@ export async function readProjectManifestOnly (
 
 export async function tryReadProjectManifest (
   projectDir: string,
-  opts: { engineStrict?: boolean }
+  opts: {
+    engineStrict?: boolean
+    nodeVersion?: string
+  }
 ): Promise<{
     fileName: string
     manifest: ProjectManifest | null
