@@ -217,11 +217,11 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePa
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
     })
-  } catch (err: any) { // eslint-ignore-line
+  } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') {
       throw err
     }
-    globalWarn(`Failed to create bin at ${externalBinPath}. The source file at ${cmd.path} does not exist.`);
+    globalWarn(`Failed to create bin at ${externalBinPath}. The source file at ${cmd.path} does not exist.`)
     return
   }
   // ensure that bin are executable and not containing
