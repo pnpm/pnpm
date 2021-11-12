@@ -5,15 +5,15 @@
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"
-    }
+    },
+    "os": [
+      "linux"
+    ],
+    "cpu": [
+      "x64"
+    ]
   },
   "funding": "https://opencollective.com/pnpm",
-  "os": [
-    "linux"
-  ],
-  "cpu": [
-    "x64"
-  ],
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64#readme",
   "bugs": {
