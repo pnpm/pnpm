@@ -99,11 +99,11 @@ test('recursive publish', async () => {
 
   {
     const { stdout } = await execa('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(JSON.parse(stdout.toString())).toStrictEqual([pkg1.version])
+    expect(JSON.parse(stdout.toString())).toStrictEqual(pkg1.version)
   }
   {
     const { stdout } = await execa('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(JSON.parse(stdout.toString())).toStrictEqual([pkg2.version])
+    expect(JSON.parse(stdout.toString())).toStrictEqual(pkg2.version)
   }
 
   await projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
