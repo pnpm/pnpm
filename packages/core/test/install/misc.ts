@@ -1311,3 +1311,11 @@ test('two dependencies have the same version and name. The only difference is th
 
   expect((await fs.readdir(path.resolve('node_modules/.pnpm'))).length).toBe(5)
 })
+
+test('installing a package with broken bin', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['broken-bin@1.0.0'], await testDefaults({ fastUnpack: false }))
+
+  await project.has('broken-bin')
+})
