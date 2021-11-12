@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import Module from 'module'
 import path from 'path'
 import PnpmError from '@pnpm/error'
-import logger from '@pnpm/logger'
+import logger, { globalWarn } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
@@ -211,11 +211,19 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePa
       nodePath = union(nodePath, await getBinNodePaths(binsParentDir))
     }
   }
-  await cmdShim(cmd.path, externalBinPath, {
-    createPwshFile: cmd.makePowerShellShim,
-    nodePath,
-    nodeExecPath: cmd.nodeExecPath,
-  })
+  try {
+    await cmdShim(cmd.path, externalBinPath, {
+      createPwshFile: cmd.makePowerShellShim,
+      nodePath,
+      nodeExecPath: cmd.nodeExecPath,
+    })
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') {
+      throw err
+    }
+    globalWarn(`Failed to create bin at ${externalBinPath}. The source file at ${cmd.path} does not exist.`)
+    return
+  }
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
