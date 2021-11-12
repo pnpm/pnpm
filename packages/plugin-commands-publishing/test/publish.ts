@@ -514,7 +514,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
 
   process.chdir('../target')
 
-  crossSpawn.sync(pnpmBin, ['add', '--store-dir=../store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  crossSpawn.sync(pnpmBin, ['add', '--store-dir=store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const { default: publishedManifest } = await import(path.resolve('node_modules/workspace-protocol-package/package.json'))
   expect(publishedManifest.dependencies).toStrictEqual({
