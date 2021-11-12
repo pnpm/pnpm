@@ -253,6 +253,7 @@ export default async function run (inputArgv: string[]) {
     if (config.useNodeVersion != null) {
       const nodePath = await node.getNodeBinDir(config)
       config.extraBinPaths.push(nodePath)
+      config.nodeVersion = config.useNodeVersion
     }
     let result = pnpmCmds[cmd ?? 'help'](
       // TypeScript doesn't currently infer that the type of config

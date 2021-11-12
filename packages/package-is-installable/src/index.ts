@@ -4,6 +4,7 @@ import {
 } from '@pnpm/core-loggers'
 import checkEngine, { UnsupportedEngineError, WantedEngine } from './checkEngine'
 import checkPlatform, { UnsupportedPlatformError } from './checkPlatform'
+import { getSystemNodeVersion } from './getSystemNodeVersion'
 
 export { Engine } from './checkEngine'
 export { Platform, WantedPlatform } from './checkPlatform'
@@ -79,7 +80,7 @@ export function checkPackage (
     (manifest.engines == null)
       ? null
       : checkEngine(pkgId, manifest.engines, {
-        node: options.nodeVersion ?? process.version,
+        node: options.nodeVersion ?? getSystemNodeVersion(),
         pnpm: options.pnpmVersion,
       })
   )

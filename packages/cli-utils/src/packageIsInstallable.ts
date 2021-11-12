@@ -11,12 +11,16 @@ export function packageIsInstallable (
   },
   opts: {
     engineStrict?: boolean
+    nodeVersion?: string
   }
 ) {
   const pnpmVersion = packageManager.name === 'pnpm'
     ? packageManager.stableVersion
     : undefined
-  const err = checkPackage(pkgPath, pkg, { pnpmVersion })
+  const err = checkPackage(pkgPath, pkg, {
+    nodeVersion: opts.nodeVersion,
+    pnpmVersion,
+  })
   if (err === null) return
   if (
     (err instanceof UnsupportedEngineError && err.wanted.pnpm) ??

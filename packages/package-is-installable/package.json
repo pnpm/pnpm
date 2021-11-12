@@ -32,6 +32,8 @@
     "@pnpm/core-loggers": "workspace:6.0.6",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/types": "workspace:7.6.0",
+    "execa": "npm:safe-execa@^0.1.1",
+    "mem": "^8.0.0",
     "semver": "^7.3.4"
   },
   "devDependencies": {
