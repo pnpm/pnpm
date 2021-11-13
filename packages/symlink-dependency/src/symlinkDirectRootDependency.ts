@@ -47,7 +47,8 @@ export default async function symlinkDirectRootDependency (
   let dependencyRealLocation!: string
   try {
     dependencyRealLocation = await fs.realpath(dependencyLocation)
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') throw err
     globalWarn(`Local dependency not found at ${dependencyLocation}`)
     return
   }
