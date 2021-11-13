@@ -151,3 +151,16 @@ test('fail if installing different types of dependencies in a project that uses 
 
   await install(manifest, newOpts)
 })
+
+test('installation should not fail if a linked dependency points to a directory that does not exist', async () => {
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+      'not-exists': 'link:../not-exists',
+    },
+  }, await testDefaults())
+
+  await project.has('is-positive')
+})

@@ -55,25 +55,32 @@ export default async function resolveLocal (
     localDependencyManifest = await readProjectManifestOnly(spec.fetchSpec) as DependencyManifest
   } catch (internalErr: any) { // eslint-disable-line
     if (!existsSync(spec.fetchSpec)) {
-      throw new PnpmError('LINKED_PKG_DIR_NOT_FOUND',
-        `Could not install from "${spec.fetchSpec}" as it does not exist.`)
-    }
-    switch (internalErr.code) {
-    case 'ENOTDIR': {
-      throw new PnpmError('NOT_PACKAGE_DIRECTORY',
-        `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
-    }
-    case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
-    case 'ENOENT': {
+      if (wantedDependency.injected) {
+        throw new PnpmError('LINKED_PKG_DIR_NOT_FOUND',
+          `Could not install from "${spec.fetchSpec}" as it does not exist.`)
+      }
       localDependencyManifest = {
         name: path.basename(spec.fetchSpec),
         version: '0.0.0',
       }
-      break
-    }
-    default: {
-      throw internalErr
-    }
+    } else {
+      switch (internalErr.code) {
+      case 'ENOTDIR': {
+        throw new PnpmError('NOT_PACKAGE_DIRECTORY',
+          `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
+      }
+      case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
+      case 'ENOENT': {
+        localDependencyManifest = {
+          name: path.basename(spec.fetchSpec),
+          version: '0.0.0',
+        }
+        break
+      }
+      default: {
+        throw internalErr
+      }
+      }
     }
   }
   return {

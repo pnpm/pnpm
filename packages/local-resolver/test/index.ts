@@ -107,12 +107,21 @@ test('fail when resolving tarball specified with the link: protocol', async () =
   }
 })
 
-test('fail when resolving from not existing directory', async () => {
-  const wantedDependency = { pref: 'link:./dir-does-not-exist' }
+test('fail when resolving from not existing directory an injected dependency', async () => {
+  const wantedDependency = { injected: true, pref: 'link:./dir-does-not-exist' }
   const projectDir = __dirname
   await expect(
     resolveFromLocal(wantedDependency, { projectDir })
   ).rejects.toThrow(`Could not install from "${path.join(projectDir, 'dir-does-not-exist')}" as it does not exist.`)
+})
+
+test('do not fail when resolving from not existing directory', async () => {
+  const wantedDependency = { pref: 'link:./dir-does-not-exist' }
+  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
+  expect(resolveResult?.manifest).toStrictEqual({
+    name: 'dir-does-not-exist',
+    version: '0.0.0',
+  })
 })
 
 test('throw error when the path: protocol is used', async () => {
