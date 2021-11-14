@@ -294,6 +294,68 @@ test('pnpm recursive exec --no-sort', async () => {
   expect(outputs).toStrictEqual(['a-dependent', 'b-dependency'])
 })
 
+test('pnpm recursive exec --reverse', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output1.json',
+      },
+    },
+  ])
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    selectedProjectsGraph,
+    recursive: true,
+    sort: true,
+    reverse: true,
+  }, ['npm', 'run', 'build'])
+
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+
+  expect(outputs1).toStrictEqual(['project-2', 'project-3', 'project-1'])
+})
+
 test('pnpm exec on single project', async () => {
   prepare({})
 

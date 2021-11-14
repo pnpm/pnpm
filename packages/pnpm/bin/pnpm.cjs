@@ -15,3 +15,6 @@ ${COMPATIBILITY_PAGE}`)
 }
 
 require('../dist/pnpm.cjs')
+
+// if you want to debug at your local env, you can use this
+// require('../lib/pnpm')
