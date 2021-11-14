@@ -64,6 +64,7 @@ export function cliOptionsTypes () {
     ], allTypes),
     ...IF_PRESENT_OPTION,
     recursive: Boolean,
+    reverse: Boolean,
   }
 }
 

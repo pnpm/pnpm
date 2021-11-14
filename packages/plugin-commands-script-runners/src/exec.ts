@@ -35,6 +35,7 @@ export function rcOptionsTypes () {
 export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
   recursive: Boolean,
+  reverse: Boolean,
 })
 
 export function help () {
@@ -66,6 +67,7 @@ export async function handler (
     bail?: boolean
     unsafePerm?: boolean
     rawConfig: object
+    reverse?: boolean
     sort?: boolean
     workspaceConcurrency?: number
   } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'recursive' | 'workspaceDir'>,
@@ -87,6 +89,9 @@ export async function handler (
     chunks = opts.sort
       ? sortPackages(opts.selectedProjectsGraph)
       : [Object.keys(opts.selectedProjectsGraph).sort()]
+    if (opts.reverse) {
+      chunks = chunks.reverse()
+    }
   } else {
     chunks = [[opts.dir]]
     const project = await tryReadProjectManifest(opts.dir)
