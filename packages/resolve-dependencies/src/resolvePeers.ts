@@ -406,7 +406,7 @@ requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
       continue
     }
 
-    if (!semver.satisfies(resolved.version, peerVersionRange)) {
+    if (!semver.satisfies(resolved.version, peerVersionRange, { loose: true })) {
       const friendlyPath = nodeIdToFriendlyPath(ctx)
       const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
 requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
