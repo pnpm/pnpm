@@ -353,7 +353,7 @@ test('pnpm recursive exec --reverse', async () => {
 
   const { default: outputs1 } = await import(path.resolve('output1.json'))
 
-  expect(outputs1).toStrictEqual(['project-2', 'project-3', 'project-1'])
+  expect(outputs1[outputs1.length - 1]).toBe('project-1')
 })
 
 test('pnpm exec on single project', async () => {
