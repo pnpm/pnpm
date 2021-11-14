@@ -1667,7 +1667,7 @@ importers:
       nock: 12.0.3
       normalize-path: ^3.0.0
       p-limit: ^3.1.0
-      p-memoize: ^4.0.1
+      p-memoize: 4.0.1
       parse-npm-tarball-url: ^3.0.0
       path-exists: ^4.0.0
       path-temp: ^2.0.0
@@ -1690,7 +1690,7 @@ importers:
       lru-cache: 6.0.0
       normalize-path: 3.0.0
       p-limit: 3.1.0
-      p-memoize: 4.0.3
+      p-memoize: 4.0.1
       parse-npm-tarball-url: 3.0.0
       path-temp: 2.0.0
       rename-overwrite: 4.0.0
@@ -11349,6 +11349,14 @@ packages:
     engines: {node: '>= 0.6'}
     dev: true
 
+  /mem/6.1.1:
+    resolution: {integrity: sha512-Ci6bIfq/UgcxPTYa8dQQ5FY3BzKkT894bwXWXxC/zqs0XgMO2cT20CGkOqda7gZNkmK5VP4x89IGZ6K7hfbn3Q==}
+    engines: {node: '>=8'}
+    dependencies:
+      map-age-cleaner: 0.1.3
+      mimic-fn: 3.1.0
+    dev: false
+
   /mem/8.1.1:
     resolution: {integrity: sha512-qFCFUDs7U3b8mBDPyz5EToEKoAkgCzqquIgi9nkkR9bixxOVOre+09lbuH7+9Kn2NFpm56M3GUWVbU2hQgdACA==}
     engines: {node: '>=10'}
@@ -12268,13 +12276,12 @@ packages:
     dependencies:
       aggregate-error: 3.1.0
 
-  /p-memoize/4.0.3:
-    resolution: {integrity: sha512-lX9GfP1NT5jheKsmvc1071L74/Vw7vul+uZEnst7LNuMtbKlWYwKItqcLSAVUyJnrfQAqFFCJQ5bt0whrDsWQA==}
+  /p-memoize/4.0.1:
+    resolution: {integrity: sha512-km0sP12uE0dOZ5qP+s7kGVf07QngxyG0gS8sYFvFWhqlgzOsSy+m71aUejf/0akxj5W7gE//2G74qTv6b4iMog==}
     engines: {node: '>=10'}
     dependencies:
-      map-age-cleaner: 0.1.3
+      mem: 6.1.1
       mimic-fn: 3.1.0
-      p-settle: 4.1.1
     dev: false
 
   /p-queue/6.6.2:
