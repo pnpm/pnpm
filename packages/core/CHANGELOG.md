@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 1.2.3
+
+### Patch Changes
+
+- @pnpm/resolve-dependencies@21.2.2
+- @pnpm/headless@16.2.4
+- @pnpm/package-requester@15.2.2
+
 ## 1.2.2
 
 ### Patch Changes

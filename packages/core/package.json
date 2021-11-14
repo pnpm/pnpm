@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -40,7 +40,7 @@
     "@pnpm/read-package-json": "workspace:5.0.6",
     "@pnpm/read-project-manifest": "workspace:2.0.7",
     "@pnpm/remove-bins": "workspace:2.0.8",
-    "@pnpm/resolve-dependencies": "workspace:21.2.1",
+    "@pnpm/resolve-dependencies": "workspace:21.2.2",
     "@pnpm/resolver-base": "workspace:8.1.1",
     "@pnpm/store-controller-types": "workspace:11.0.7",
     "@pnpm/symlink-dependency": "workspace:4.0.8",
@@ -68,7 +68,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:3.0.9",
-    "@pnpm/client": "workspace:6.0.3",
+    "@pnpm/client": "workspace:6.0.4",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.1.2",
     "@pnpm/prepare": "workspace:0.0.28",

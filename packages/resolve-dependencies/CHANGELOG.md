@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 21.2.2
+
+### Patch Changes
+
+- Updated dependencies [9f61bd81b]
+  - @pnpm/npm-resolver@12.1.2
+
 ## 21.2.1
 
 ### Patch Changes
