@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 5.2.6
+
+### Patch Changes
+
+- Updated dependencies [631877ebf]
+  - @pnpm/symlink-dependency@4.0.8
+
 ## 5.2.5
 
 ### Patch Changes

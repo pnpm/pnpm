@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 21.2.1
+
+### Patch Changes
+
+- 828e3b9e4: `peerDependencies` ranges should be compared loosely [#3753](https://github.com/pnpm/pnpm/issues/3753).
+
 ## 21.2.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 7.0.2
+
+### Patch Changes
+
+- 631877ebf: Don't fail if a local linked directory is not found (unless it should be injected). This is the intended behavior of the "link:" protocol as per Yarn's docs.
+
 ## 7.0.1
 
 ### Patch Changes

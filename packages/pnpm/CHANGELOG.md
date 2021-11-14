@@ -1,5 +1,22 @@
 # pnpm
 
+## 6.22.0
+
+### Minor Changes
+
+- Added `--reverse` option support to `pnpm exec` [#3984](https://github.com/pnpm/pnpm/issues/3972).
+
+  Usage example:
+
+  ```
+  pnpm --reverse -r exec pwd
+  ```
+
+### Patch Changes
+
+- `peerDependencies` ranges should be compared loosely [#3753](https://github.com/pnpm/pnpm/issues/3753).
+- Don't fail if a linked directory is not found. Just print a warning about it [#3746](https://github.com/pnpm/pnpm/issues/3746).
+
 ## 6.21.1
 
 ### Patch Changes

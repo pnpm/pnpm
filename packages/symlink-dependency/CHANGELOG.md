@@ -1,5 +1,11 @@
 # @pnpm/symlink-dependency
 
+## 4.0.8
+
+### Patch Changes
+
+- 631877ebf: Don't fail if a linked directory is not found. Just print a warning about it [#3746](https://github.com/pnpm/pnpm/issues/3746).
+
 ## 4.0.7
 
 ### Patch Changes

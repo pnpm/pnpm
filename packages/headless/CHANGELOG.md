@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 16.2.4
+
+### Patch Changes
+
+- Updated dependencies [631877ebf]
+  - @pnpm/symlink-dependency@4.0.8
+  - @pnpm/hoist@5.2.6
+  - @pnpm/package-requester@15.2.2
+
 ## 16.2.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "14.0.2",
+  "version": "14.0.3",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/fetching-types": "workspace:2.2.1",
     "@pnpm/git-resolver": "workspace:5.1.10",
-    "@pnpm/local-resolver": "workspace:7.0.1",
+    "@pnpm/local-resolver": "workspace:7.0.2",
     "@pnpm/npm-resolver": "workspace:12.1.1",
     "@pnpm/resolver-base": "workspace:8.1.1",
     "@pnpm/tarball-resolver": "workspace:5.0.6"

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.4.0
+
+### Minor Changes
+
+- 435626ad3: Added `--reverse` option support to `pnpm exec` [#3984](https://github.com/pnpm/pnpm/issues/3972).
+
+  Usage example:
+
+  ```
+  pnpm --reverse -r exec pwd
+  ```
+
 ## 4.3.9
 
 ### Patch Changes
