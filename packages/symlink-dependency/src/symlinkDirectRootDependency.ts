@@ -4,6 +4,7 @@ import {
   DependencyType,
   rootLogger,
 } from '@pnpm/core-loggers'
+import { globalWarn } from '@pnpm/logger'
 import { DependenciesField } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 
@@ -43,15 +44,22 @@ export default async function symlinkDirectRootDependency (
     }
   }
 
-  const dependencyRealocation = await fs.realpath(dependencyLocation)
+  let dependencyRealLocation!: string
+  try {
+    dependencyRealLocation = await fs.realpath(dependencyLocation)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') throw err
+    globalWarn(`Local dependency not found at ${dependencyLocation}`)
+    return
+  }
 
   const dest = path.join(destModulesDirReal, importAs)
-  const { reused } = await symlinkDir(dependencyRealocation, dest)
+  const { reused } = await symlinkDir(dependencyRealLocation, dest)
   if (reused) return // if the link was already present, don't log
   rootLogger.debug({
     added: {
       dependencyType: opts.fromDependenciesField && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.fromDependenciesField] as DependencyType,
-      linkedFrom: dependencyRealocation,
+      linkedFrom: dependencyRealLocation,
       name: importAs,
       realName: opts.linkedPackage.name,
       version: opts.linkedPackage.version,
