@@ -145,10 +145,12 @@ export default async function run (inputArgv: string[]) {
 
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    try {
-      config.bin = path.dirname(which.sync('pnpm'))
-    } catch (err) {
-      // if pnpm not found, then ignore
+    if (config.cliOptions['global-dir'] == null) {
+      try {
+        config.bin = path.dirname(which.sync('pnpm'))
+      } catch (err) {
+        // if pnpm not found, then ignore
+      }
     }
   }
 
