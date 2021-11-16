@@ -110,6 +110,7 @@ export async function handler (
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
+  let exitCode = 0
   for (const chunk of chunks) {
     await Promise.all(chunk.map(async (prefix: string) =>
       limitRun(async () => {
@@ -135,9 +136,8 @@ export async function handler (
           result.passes++
         } catch (err: any) { // eslint-disable-line
           if (!opts.recursive && typeof err.exitCode === 'number') {
-            return {
-              exitCode: err.exitCode,
-            }
+            exitCode = err.exitCode
+            return
           }
           logger.info(err)
 
@@ -156,10 +156,10 @@ export async function handler (
           /* eslint-enable @typescript-eslint/dot-notation */
           throw err
         }
-        return { exitCode: 0 }
       }
       )))
   }
 
   throwOnCommandFail('pnpm recursive exec', result)
+  return { exitCode }
 }
