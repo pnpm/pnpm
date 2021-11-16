@@ -135,8 +135,7 @@ export async function handler (
   const [scriptName, ...passedThruArgs] = params
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
-      await runRecursive(params, opts)
-      return
+      return runRecursive(params, opts)
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
   } else {
@@ -153,11 +152,10 @@ export async function handler (
     if (opts.ifPresent) return
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
-      await exec({
+      return exec({
         selectedProjectsGraph: {},
         ...opts,
       }, opts.argv.original.slice(1))
-      return
     }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
