@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.22.2
+
+### Patch Changes
+
+- `pnpm exec` should exit with the exit code of the child process. This fixes a regression introduced in pnpm v6.20.4 via [#3951](https://github.com/pnpm/pnpm/pull/3951).
+- `node-gyp` from the dependencies should be preferred over the `node-gyp` that is bundled with pnpm, when running scripts [#2135](https://github.com/pnpm/pnpm/issues/2135).
+- `pnpm dlx pnpm` should not break the globally installed pnpm CLI.
+
 ## 6.22.1
 
 ### Patch Changes

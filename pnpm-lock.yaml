@@ -702,11 +702,11 @@ importers:
   packages/exe:
     specifiers:
       '@pnpm/exe': 'link:'
-      '@pnpm/linux-arm64': workspace:6.22.1
-      '@pnpm/linux-x64': workspace:6.22.1
-      '@pnpm/macos-arm64': workspace:6.22.1
-      '@pnpm/macos-x64': workspace:6.22.1
-      '@pnpm/win-x64': workspace:6.22.1
+      '@pnpm/linux-arm64': workspace:6.22.2
+      '@pnpm/linux-x64': workspace:6.22.2
+      '@pnpm/macos-arm64': workspace:6.22.2
+      '@pnpm/macos-x64': workspace:6.22.2
+      '@pnpm/win-x64': workspace:6.22.2
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
@@ -2709,7 +2709,7 @@ importers:
       '@pnpm/plugin-commands-outdated': workspace:5.0.30
       '@pnpm/plugin-commands-publishing': workspace:4.2.27
       '@pnpm/plugin-commands-rebuild': workspace:5.2.6
-      '@pnpm/plugin-commands-script-runners': workspace:4.4.0
+      '@pnpm/plugin-commands-script-runners': workspace:4.4.1
       '@pnpm/plugin-commands-server': workspace:3.0.47
       '@pnpm/plugin-commands-setup': workspace:1.1.15
       '@pnpm/plugin-commands-store': workspace:4.0.31
