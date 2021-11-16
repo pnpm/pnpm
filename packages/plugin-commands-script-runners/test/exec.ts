@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { exec } from '@pnpm/plugin-commands-script-runners'
+import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
@@ -368,6 +368,36 @@ test('pnpm exec on single project', async () => {
 
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual([])
+})
+
+test('pnpm exec on single project should return non-zero exit code when the process fails', async () => {
+  prepare({})
+
+  {
+    const { exitCode } = await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      selectedProjectsGraph: {},
+    }, ['node', '-e', 'process.exitCode=1'])
+
+    expect(exitCode).toBe(1)
+  }
+
+  {
+    const runResult = await run.handler({
+      ...DEFAULT_OPTS,
+      argv: {
+        original: ['pnpm', 'node', '-e', 'process.exitCode=1'],
+      },
+      dir: process.cwd(),
+      fallbackCommandUsed: true,
+      recursive: false,
+      selectedProjectsGraph: {},
+    }, ['node'])
+
+    expect(runResult['exitCode']).toBe(1)
+  }
 })
 
 test('pnpm exec outside of projects', async () => {
