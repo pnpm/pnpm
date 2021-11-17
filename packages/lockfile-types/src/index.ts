@@ -5,6 +5,7 @@ export interface Lockfile {
   lockfileVersion: number
   packages?: PackageSnapshots
   neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
 }

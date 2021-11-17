@@ -105,6 +105,7 @@ export interface PeerDependencyRules {
 export type ProjectManifest = BaseManifest & {
   pnpm?: {
     neverBuiltDependencies?: string[]
+    onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
     peerDependencyRules?: PeerDependencyRules

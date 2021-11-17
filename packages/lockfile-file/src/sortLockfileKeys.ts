@@ -31,7 +31,9 @@ const ORDERED_KEYS = {
 
 const ROOT_KEYS_ORDER = {
   lockfileVersion: 1,
+  // only and never are conflict options.
   neverBuiltDependencies: 2,
+  onlyBuiltDependencies: 2,
   overrides: 3,
   packageExtensionsChecksum: 4,
   specifiers: 10,
