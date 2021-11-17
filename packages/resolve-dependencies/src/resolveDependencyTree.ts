@@ -54,7 +54,7 @@ export interface ResolveDependenciesOptions {
     readPackage?: ReadPackageHook
   }
   neverBuiltDependencies?: Set<string>
-  onlyBuiltDependencies?: false | Set<string>
+  onlyBuiltDependencies: false | Set<string>
   nodeVersion: string
   registries: Registries
   pnpmVersion: string

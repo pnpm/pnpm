@@ -240,7 +240,7 @@ export async function mutateModules (
     if (needsFullResolution) {
       ctx.wantedLockfile.overrides = overrides
       ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
-      ctx.wantedLockfile.onlyBuiltDependencies = onlyBuiltDependencies || []
+      ctx.wantedLockfile.onlyBuiltDependencies = onlyBuiltDependencies || undefined
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
     }
     const frozenLockfile = opts.frozenLockfile ||
