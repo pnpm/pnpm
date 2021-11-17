@@ -173,9 +173,10 @@ export async function mutateModules (
     ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
   const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
+  // internally we use false to indicate this lockfile does not have a onlyBuiltDependencies key. If it is an empty array, it means no packages is allowed to be built.
   const onlyBuiltDependencies = rootProjectManifest?.pnpm?.onlyBuiltDependencies ?? false
   if (onlyBuiltDependencies && rootProjectManifest?.pnpm?.neverBuiltDependencies) {
-    throw new Error('Cannot have both neverBuiltDependencies and onlyBuiltDependencies in the package.json')
+    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies in the package.json')
   }
   const packageExtensions = rootProjectManifest?.pnpm?.packageExtensions
   opts.hooks.readPackage = createReadPackageHook({
@@ -232,8 +233,6 @@ export async function mutateModules (
     let needsFullResolution = !maybeOpts.ignorePackageManifest && (
       !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
       !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
-      // internally we use false to indicate: this lockfile does not have a onlyBuiltDependencies key
-      // if it is an empty array, it means no packages is allowed to be built.
       (
         onlyBuiltDependencies === false
           ? ctx.wantedLockfile.onlyBuiltDependencies !== undefined
