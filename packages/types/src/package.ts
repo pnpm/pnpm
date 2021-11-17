@@ -99,6 +99,7 @@ export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDepe
 export type ProjectManifest = BaseManifest & {
   pnpm?: {
     neverBuiltDependencies?: string[]
+    onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
   }

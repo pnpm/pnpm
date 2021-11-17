@@ -129,6 +129,7 @@ export interface ResolutionContext {
   linkWorkspacePackagesDepth: number
   lockfileDir: string
   neverBuiltDependencies: Set<string>
+  onlyBuiltDependencies: false | Set<string>
   storeController: StoreController
   // the IDs of packages that are not installable
   skipped: Set<string>
@@ -790,6 +791,7 @@ async function resolveDependency (
       force: ctx.force,
       hasBin,
       neverBuiltDependencies: ctx.neverBuiltDependencies,
+      onlyBuiltDependencies: ctx.onlyBuiltDependencies,
       pkg,
       pkgResponse,
       prepare,
@@ -867,6 +869,7 @@ function getResolvedPackage (
     force: boolean
     hasBin: boolean
     neverBuiltDependencies: Set<string>
+    onlyBuiltDependencies: false | Set<string>
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
@@ -874,6 +877,23 @@ function getResolvedPackage (
   }
 ) {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
+
+  let requiresBuild: boolean | undefined
+  if (options.onlyBuiltDependencies === false || options.onlyBuiltDependencies.has(options.pkg.name)) {
+    // No onlyBuiltDependencies is specified or this package is explicitly allowed.
+    if (options.neverBuiltDependencies.has(options.pkg.name)) {
+      // This package is explicitly listed.
+      requiresBuild = false
+    } else {
+      // default resolution
+      if (options.dependencyLockfile != null) {
+        requiresBuild = Boolean(options.dependencyLockfile.requiresBuild)
+      }
+      // else requiresBuild is undefined
+    }
+  } else {
+    requiresBuild = false
+  }
 
   return {
     additionalInfo: {
@@ -900,9 +920,7 @@ function getResolvedPackage (
     peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
-    requiresBuild: options.neverBuiltDependencies.has(options.pkg.name)
-      ? false
-      : ((options.dependencyLockfile != null) ? Boolean(options.dependencyLockfile.requiresBuild) : undefined),
+    requiresBuild,
     resolution: options.pkgResponse.body.resolution,
     version: options.pkg.version,
   }

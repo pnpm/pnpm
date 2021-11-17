@@ -500,6 +500,56 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   }
 })
 
+test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
+  const project = prepareEmpty()
+  const manifest = await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    await testDefaults({ fastUnpack: false })
+  )
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.onlyBuiltDependencies).toBeFalsy()
+    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+  }
+
+  const onlyBuiltDependencies: string[] = []
+  manifest.pnpm = { onlyBuiltDependencies }
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults())
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
+    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(false)
+    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(false)
+  }
+
+  onlyBuiltDependencies.push('pre-and-postinstall-scripts-example')
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults())
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
+    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(true)
+    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(false)
+  }
+})
+
 test('lifecycle scripts have access to package\'s own binary by binary name', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({},

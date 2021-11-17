@@ -173,6 +173,10 @@ export async function mutateModules (
     ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
     : undefined
   const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
+  const onlyBuiltDependencies = rootProjectManifest?.pnpm?.onlyBuiltDependencies ?? false
+  if (onlyBuiltDependencies && rootProjectManifest?.pnpm?.neverBuiltDependencies) {
+    throw new Error('Cannot have both neverBuiltDependencies and onlyBuiltDependencies in the package.json')
+  }
   const packageExtensions = rootProjectManifest?.pnpm?.packageExtensions
   opts.hooks.readPackage = createReadPackageHook({
     readPackageHook: opts.hooks.readPackage,
@@ -228,11 +232,15 @@ export async function mutateModules (
     let needsFullResolution = !maybeOpts.ignorePackageManifest && (
       !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
       !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
+      // internally we use false to indicate: this lockfile does not have a onlyBuiltDependencies key
+      // if it is an empty array, it means no packages is allowed to be built.
+      !equals((ctx.wantedLockfile.onlyBuiltDependencies ?? []).sort(), (onlyBuiltDependencies || []).sort()) ||
       ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum) ||
       opts.fixLockfile
     if (needsFullResolution) {
       ctx.wantedLockfile.overrides = overrides
       ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
+      ctx.wantedLockfile.onlyBuiltDependencies = onlyBuiltDependencies || []
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
     }
     const frozenLockfile = opts.frozenLockfile ||
@@ -496,6 +504,7 @@ export async function mutateModules (
       makePartialCurrentLockfile,
       needsFullResolution,
       neverBuiltDependencies,
+      onlyBuiltDependencies,
       overrides,
       pruneVirtualStore,
       updateLockfileMinorVersion: true,
@@ -683,6 +692,7 @@ type InstallFunction = (
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
     neverBuiltDependencies: string[]
+    onlyBuiltDependencies: false | string[]
     overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
@@ -796,6 +806,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       neverBuiltDependencies: new Set(opts.neverBuiltDependencies),
+      onlyBuiltDependencies: opts.onlyBuiltDependencies ? new Set(opts.onlyBuiltDependencies) : false,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       preferWorkspacePackages: opts.preferWorkspacePackages,
