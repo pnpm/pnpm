@@ -186,7 +186,7 @@ export default async function (
       if (
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         opts.neverBuiltDependencies?.has(pkg.name) ||
-        (opts.onlyBuiltDependencies === false || opts.onlyBuiltDependencies.has(pkg.name)) ||
+        (opts.onlyBuiltDependencies !== false && opts.onlyBuiltDependencies.has(pkg.name)) ||
         opts.wantedLockfile.packages?.[depPath] == null ||
         pkg.requiresBuild
       ) continue

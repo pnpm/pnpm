@@ -88,7 +88,7 @@ export default async function<T> (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
     lockfileDir: opts.lockfileDir,
     neverBuiltDependencies: opts.neverBuiltDependencies ?? new Set(),
-    onlyBuiltDependencies: opts.onlyBuiltDependencies ?? false,
+    onlyBuiltDependencies: opts.onlyBuiltDependencies,
     nodeVersion: opts.nodeVersion,
     outdatedDependencies: {} as {[pkgId: string]: string},
     pendingNodes: [] as PendingNode[],

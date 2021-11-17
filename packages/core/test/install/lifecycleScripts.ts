@@ -480,9 +480,9 @@ test('selectively ignore scripts in some dependencies by onlyBuiltDependencies',
   expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.neverBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
+  expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
   expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(false)
-  expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+  expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(true)
 
   await rimraf('node_modules')
 

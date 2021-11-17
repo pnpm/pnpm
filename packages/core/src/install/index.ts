@@ -234,7 +234,7 @@ export async function mutateModules (
       !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
       // internally we use false to indicate: this lockfile does not have a onlyBuiltDependencies key
       // if it is an empty array, it means no packages is allowed to be built.
-      !equals((ctx.wantedLockfile.onlyBuiltDependencies ?? []).sort(), (onlyBuiltDependencies || []).sort()) ||
+      !equals((ctx.wantedLockfile.onlyBuiltDependencies ?? []).sort(), onlyBuiltDependencies === false ? false : (onlyBuiltDependencies || []).sort()) ||
       ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum) ||
       opts.fixLockfile
     if (needsFullResolution) {

@@ -886,10 +886,7 @@ function getResolvedPackage (
       requiresBuild = false
     } else {
       // default resolution
-      if (options.dependencyLockfile != null) {
-        requiresBuild = Boolean(options.dependencyLockfile.requiresBuild)
-      }
-      // else requiresBuild is undefined
+      requiresBuild = options.dependencyLockfile != null ? Boolean(options.dependencyLockfile.requiresBuild) : undefined
     }
   } else {
     requiresBuild = false
