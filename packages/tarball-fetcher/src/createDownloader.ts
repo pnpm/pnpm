@@ -184,6 +184,7 @@ export default (
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
             if (integrityCheckResult !== true) {
+              // eslint-disable-next-line
               throw integrityCheckResult
             }
             if (!isGitHostedPkgUrl(url)) {
