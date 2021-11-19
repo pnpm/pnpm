@@ -233,6 +233,17 @@ exports[`audit --audit-level 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-42xw-2xvc-qx8m │
 └─────────────────────┴───────────────────────────────────────────────────┘
 ┌─────────────────────┬───────────────────────────────────────────────────┐
+│ moderate            │ Prototype Pollution in node-jsonpointer           │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Package             │ jsonpointer                                       │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Vulnerable versions │ <5.0.0                                            │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Patched versions    │ >=5.0.0                                           │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ More info           │ https://github.com/advisories/GHSA-282f-qqgm-c34q │
+└─────────────────────┴───────────────────────────────────────────────────┘
+┌─────────────────────┬───────────────────────────────────────────────────┐
 │ moderate            │ Open redirect in url-parse                        │
 ├─────────────────────┼───────────────────────────────────────────────────┤
 │ Package             │ url-parse                                         │
@@ -310,18 +321,18 @@ exports[`audit --audit-level 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-jp4x-w63m-7wgm │
 └─────────────────────┴───────────────────────────────────────────────────┘
 ┌─────────────────────┬───────────────────────────────────────────────────┐
-│ moderate            │ Prototype Pollution in node-jsonpointer           │
+│ moderate            │ json-schema is vulnerable to Prototype Pollution  │
 ├─────────────────────┼───────────────────────────────────────────────────┤
-│ Package             │ jsonpointer                                       │
+│ Package             │ json-schema                                       │
 ├─────────────────────┼───────────────────────────────────────────────────┤
-│ Vulnerable versions │ <5.0.0                                            │
+│ Vulnerable versions │ <0.4.0                                            │
 ├─────────────────────┼───────────────────────────────────────────────────┤
-│ Patched versions    │ >=5.0.0                                           │
+│ Patched versions    │ >=0.4.0                                           │
 ├─────────────────────┼───────────────────────────────────────────────────┤
-│ More info           │ https://github.com/advisories/GHSA-282f-qqgm-c34q │
+│ More info           │ https://github.com/advisories/GHSA-896r-f27r-55mw │
 └─────────────────────┴───────────────────────────────────────────────────┘
-33 vulnerabilities found
-Severity: 3 low | 9 moderate | 17 high | 4 critical"
+34 vulnerabilities found
+Severity: 3 low | 10 moderate | 17 high | 4 critical"
 `;
 
 exports[`audit --dev 1`] = `
@@ -606,6 +617,17 @@ exports[`audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-42xw-2xvc-qx8m │
 └─────────────────────┴───────────────────────────────────────────────────┘
 ┌─────────────────────┬───────────────────────────────────────────────────┐
+│ moderate            │ Prototype Pollution in node-jsonpointer           │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Package             │ jsonpointer                                       │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Vulnerable versions │ <5.0.0                                            │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Patched versions    │ >=5.0.0                                           │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ More info           │ https://github.com/advisories/GHSA-282f-qqgm-c34q │
+└─────────────────────┴───────────────────────────────────────────────────┘
+┌─────────────────────┬───────────────────────────────────────────────────┐
 │ moderate            │ Open redirect in url-parse                        │
 ├─────────────────────┼───────────────────────────────────────────────────┤
 │ Package             │ url-parse                                         │
@@ -683,15 +705,15 @@ exports[`audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-jp4x-w63m-7wgm │
 └─────────────────────┴───────────────────────────────────────────────────┘
 ┌─────────────────────┬───────────────────────────────────────────────────┐
-│ moderate            │ Prototype Pollution in node-jsonpointer           │
+│ moderate            │ json-schema is vulnerable to Prototype Pollution  │
 ├─────────────────────┼───────────────────────────────────────────────────┤
-│ Package             │ jsonpointer                                       │
+│ Package             │ json-schema                                       │
 ├─────────────────────┼───────────────────────────────────────────────────┤
-│ Vulnerable versions │ <5.0.0                                            │
+│ Vulnerable versions │ <0.4.0                                            │
 ├─────────────────────┼───────────────────────────────────────────────────┤
-│ Patched versions    │ >=5.0.0                                           │
+│ Patched versions    │ >=0.4.0                                           │
 ├─────────────────────┼───────────────────────────────────────────────────┤
-│ More info           │ https://github.com/advisories/GHSA-282f-qqgm-c34q │
+│ More info           │ https://github.com/advisories/GHSA-896r-f27r-55mw │
 └─────────────────────┴───────────────────────────────────────────────────┘
 ┌─────────────────────┬───────────────────────────────────────────────────┐
 │ low                 │ Potential exponential regex in monitor mode       │
@@ -726,6 +748,6 @@ exports[`audit 1`] = `
 ├─────────────────────┼───────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-g95f-p29q-9xw4 │
 └─────────────────────┴───────────────────────────────────────────────────┘
-33 vulnerabilities found
-Severity: 3 low | 9 moderate | 17 high | 4 critical"
+34 vulnerabilities found
+Severity: 3 low | 10 moderate | 17 high | 4 critical"
 `;
