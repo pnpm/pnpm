@@ -11,6 +11,7 @@ import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
+import normalizeArch from './normalizeArch'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -116,7 +117,7 @@ async function downloadAndUnpackZip (
 
 function getNodeJSTarball (nodeVersion: string, releaseDir: string) {
   const platform = process.platform === 'win32' ? 'win' : process.platform
-  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+  const arch = normalizeArch(process.platform, process.arch)
   const extension = platform === 'win' ? 'zip' : 'tar.gz'
   const pkgName = `node-v${nodeVersion}-${platform}-${arch}`
   return {
