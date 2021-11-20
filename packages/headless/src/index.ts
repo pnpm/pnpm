@@ -103,6 +103,7 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string
+  scriptsPrependNodePath?: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator?: boolean
   storeController: StoreController
@@ -163,6 +164,7 @@ export default async (opts: HeadlessOptions) => {
     optional: false,
     extraBinPaths: opts.extraBinPaths,
     rawConfig: opts.rawConfig,
+    scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
     stdio: opts.ownLifecycleHooksStdio ?? 'inherit',
@@ -347,6 +349,7 @@ export default async (opts: HeadlessOptions) => {
         optional: opts.include.optionalDependencies,
         rawConfig: opts.rawConfig,
         rootModulesDir: virtualStoreDir,
+        scriptsPrependNodePath: opts.scriptsPrependNodePath,
         scriptShell: opts.scriptShell,
         shellEmulator: opts.shellEmulator,
         sideEffectsCacheWrite: opts.sideEffectsCacheWrite,

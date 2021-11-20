@@ -25,6 +25,7 @@ export default async (
     rawConfig: object
     unsafePerm: boolean
     userAgent: string
+    scriptsPrependNodePath?: boolean | 'warn-only'
     scriptShell?: string
     shellEmulator?: boolean
     sideEffectsCacheWrite: boolean
@@ -73,6 +74,7 @@ async function buildDependency (
     optional: boolean
     rawConfig: object
     rootModulesDir: string
+    scriptsPrependNodePath?: boolean | 'warn-only'
     scriptShell?: string
     shellEmulator?: boolean
     sideEffectsCacheWrite: boolean
@@ -93,6 +95,7 @@ async function buildDependency (
       pkgRoot: depNode.dir,
       rawConfig: opts.rawConfig,
       rootModulesDir: opts.rootModulesDir,
+      scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
       shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,

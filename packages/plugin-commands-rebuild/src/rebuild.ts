@@ -76,6 +76,7 @@ export async function handler (
   | 'selectedProjectsGraph'
   | 'sideEffectsCache'
   | 'sideEffectsCacheReadonly'
+  | 'scriptsPrependNodePath'
   | 'shellEmulator'
   | 'workspaceDir'
   > &

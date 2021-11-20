@@ -28,6 +28,7 @@ export interface StrictInstallOptions {
   saveWorkspaceProtocol: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
+  scriptsPrependNodePath: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator: boolean
   storeController: StoreController
@@ -131,6 +132,7 @@ const defaults = async (opts: InstallOptions) => {
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
     saveWorkspaceProtocol: true,
+    scriptsPrependNodePath: false,
     shamefullyHoist: false,
     shellEmulator: false,
     sideEffectsCacheRead: false,

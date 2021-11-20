@@ -155,6 +155,7 @@ export async function rebuild (
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
     rawConfig: opts.rawConfig,
+    scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
     storeController: store.ctrl,
@@ -280,6 +281,7 @@ async function _rebuild (
           pkgRoot,
           rawConfig: opts.rawConfig,
           rootModulesDir: ctx.rootModulesDir,
+          scriptsPrependNodePath: opts.scriptsPrependNodePath,
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })

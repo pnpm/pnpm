@@ -17,6 +17,7 @@ export interface RunLifecycleHookOptions {
   rootModulesDir: string
   scriptShell?: string
   silent?: boolean
+  scriptsPrependNodePath?: boolean | 'warn-only'
   shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
@@ -75,6 +76,7 @@ export default async function runLifecycleHook (
       warn: (...msg: string[]) => globalWarn(msg.join(' ')),
     },
     runConcurrently: true,
+    scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
     stdio: opts.stdio ?? 'pipe',
