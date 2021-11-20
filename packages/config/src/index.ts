@@ -198,6 +198,7 @@ export default async (
     registry: npmDefaults.registry,
     'save-peer': false,
     'save-workspace-protocol': true,
+    'scripts-prepend-node-path': false,
     symlink: true,
     'shared-workspace-lockfile': true,
     'shared-workspace-shrinkwrap': true,
