@@ -261,13 +261,15 @@ testOnNonWindows('lifecycle scripts have access to node-gyp', async () => {
 
   // `npm test` adds node-gyp to the PATH
   // it is removed here to test that pnpm adds it
-  const initialPath = process.env.PATH
+  const initialPath = process.env[PATH]
 
   if (typeof initialPath !== 'string') throw new Error('PATH is not defined')
 
   process.env[PATH] = initialPath
     .split(path.delimiter)
-    .filter((p: string) => !p.includes('node-gyp-bin') && !p.includes('npm'))
+    .filter((p: string) => !p.includes('node-gyp-bin') &&
+      !p.includes(`${path.sep}npm${path.sep}`) &&
+      !p.includes(`${path.sep}.npm${path.sep}`))
     .join(path.delimiter)
 
   await addDependenciesToPackage({}, ['drivelist@5.1.8'], await testDefaults({ fastUnpack: false }))
