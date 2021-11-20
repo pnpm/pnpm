@@ -1,6 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
+import getPort from 'get-port'
 import createClient from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
@@ -30,8 +31,8 @@ async function createStoreController (storeDir?: string) {
 }
 
 test('server', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
@@ -70,8 +71,8 @@ test('server', async () => {
 })
 
 test('fetchPackage', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeDir = tempy.directory()
   const storeCtrlForServer = await createStoreController(storeDir)
@@ -111,8 +112,8 @@ test('fetchPackage', async () => {
 })
 
 test('server errors should arrive to the client', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
@@ -151,8 +152,8 @@ No authorization header was set for the request.`)
 })
 
 test('server upload', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeDir = tempy.directory()
   const storeCtrlForServer = await createStoreController(storeDir)
@@ -180,8 +181,8 @@ test('server upload', async () => {
 test('disable server upload', async () => {
   await rimraf('.store')
 
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
@@ -213,8 +214,8 @@ test('disable server upload', async () => {
 })
 
 test('stop server with remote call', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   createServer(storeCtrlForServer, {
@@ -233,8 +234,8 @@ test('stop server with remote call', async () => {
 })
 
 test('disallow stop server with remote call', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
@@ -254,8 +255,8 @@ test('disallow stop server with remote call', async () => {
 })
 
 test('disallow store prune', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
@@ -273,8 +274,8 @@ test('disallow store prune', async () => {
 })
 
 test('server should only allow POST', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
@@ -288,7 +289,6 @@ test('server should only allow POST', async () => {
   const methods = ['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 
   for (const method of methods) {
-    console.log(`Testing HTTP ${method}`)
     // Ensure 405 error is received
     const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: method })
     expect(response.status).toBe(405)
@@ -300,8 +300,8 @@ test('server should only allow POST', async () => {
 })
 
 test('server route not found', async () => {
-  const port = 5813
-  const hostname = '127.0.0.1'
+  const port = await getPort()
+  const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {

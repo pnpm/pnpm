@@ -3130,6 +3130,7 @@ importers:
       '@types/mz': ^2.7.3
       '@types/uuid': ^8.3.0
       '@zkochan/rimraf': ^2.1.1
+      get-port: ^5.1.1
       is-port-reachable: 3.0.0
       load-json-file: ^6.2.0
       node-fetch: 3.0.0-beta.9
@@ -3153,6 +3154,7 @@ importers:
       '@types/mz': 2.7.4
       '@types/uuid': 8.3.3
       '@zkochan/rimraf': 2.1.1
+      get-port: 5.1.1
       is-port-reachable: 3.0.0
       load-json-file: 6.2.0
       node-fetch: 3.0.0-beta.9
@@ -9065,7 +9067,6 @@ packages:
   /get-port/5.1.1:
     resolution: {integrity: sha512-g/Q1aTSDOxFpchXC4i8ZWvxA1lnPqx/JHqcpIw0/LX9T8x/GBbi6YnlN5nhaKIFkT8oFsscUKgDJYxfwfS6QsQ==}
     engines: {node: '>=8'}
-    dev: false
 
   /get-source/2.0.12:
     resolution: {integrity: sha512-X5+4+iD+HoSeEED+uwrQ07BOQr0kEDFMVqqpBuI+RaZBpBpHCuXxo70bjar6f0b0u/DQJsJ7ssurpP0V60Az+w==}
