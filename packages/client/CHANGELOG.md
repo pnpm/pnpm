@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 6.0.5
+
+### Patch Changes
+
+- Updated dependencies [12ee3c144]
+  - @pnpm/fetch@4.1.6
+  - @pnpm/default-resolver@14.0.5
+  - @pnpm/tarball-fetcher@9.3.9
+
 ## 6.0.4
 
 ### Patch Changes

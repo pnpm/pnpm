@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-env
 
+## 1.2.7
+
+### Patch Changes
+
+- d4d7c4aee: `pnpm env use` should download the right Node.js tarball on Raspberry Pi [#4007](https://github.com/pnpm/pnpm/issues/4007).
+- Updated dependencies [002778559]
+- Updated dependencies [12ee3c144]
+  - @pnpm/config@13.5.0
+  - @pnpm/fetch@4.1.6
+  - @pnpm/cli-utils@0.6.32
+  - @pnpm/tarball-fetcher@9.3.9
+  - @pnpm/package-store@12.1.2
+
 ## 1.2.6
 
 ### Patch Changes

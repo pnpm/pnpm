@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.5.0
+
+### Minor Changes
+
+- 002778559: New setting added: `scriptsPrependNodePath`. This setting can be `true`, `false`, or `warn-only`.
+  When `true`, the path to the `node` executable with which pnpm executed is prepended to the `PATH` of the scripts.
+  When `warn-only`, pnpm will print a warning if the scripts run with a `node` binary that differs from the `node` binary executing the pnpm CLI.
+
+### Patch Changes
+
+- Updated dependencies [002778559]
+  - @pnpm/config@13.5.0
+  - @pnpm/lifecycle@12.1.0
+  - @pnpm/cli-utils@0.6.32
+
 ## 4.4.1
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # pnpm
 
+## 6.23.0
+
+### Minor Changes
+
+- New setting added: `scripts-prepend-node-path`. This setting can be `true`, `false`, or `warn-only`.
+
+  When `true`, the path to the `node` executable with which pnpm executed is prepended to the `PATH` of the scripts.
+
+  When `warn-only`, pnpm will print a warning if the scripts run with a `node` binary that differs from the `node` binary executing the pnpm CLI.
+
+### Patch Changes
+
+- The path to the `node` executable that executes pnpm should not be added to the `PATH`, when running scripts.
+- `pnpm env use` should download the right Node.js tarball on Raspberry Pi [#4007](https://github.com/pnpm/pnpm/issues/4007).
+- HTTP requests should be retried when the server responds with on of 408, 409, 420, 429 status codes.
+
 ## 6.22.2
 
 ### Patch Changes

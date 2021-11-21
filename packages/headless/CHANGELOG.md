@@ -1,5 +1,21 @@
 # @pnpm/headless
 
+## 16.3.0
+
+### Minor Changes
+
+- 002778559: New setting added: `scriptsPrependNodePath`. This setting can be `true`, `false`, or `warn-only`.
+  When `true`, the path to the `node` executable with which pnpm executed is prepended to the `PATH` of the scripts.
+  When `warn-only`, pnpm will print a warning if the scripts run with a `node` binary that differs from the `node` binary executing the pnpm CLI.
+
+### Patch Changes
+
+- Updated dependencies [002778559]
+  - @pnpm/build-modules@7.2.0
+  - @pnpm/lifecycle@12.1.0
+  - @pnpm/lockfile-to-pnp@0.4.31
+  - @pnpm/package-requester@15.2.2
+
 ## 16.2.4
 
 ### Patch Changes

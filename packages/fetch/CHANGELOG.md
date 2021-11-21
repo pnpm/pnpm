@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 4.1.6
+
+### Patch Changes
+
+- 12ee3c144: HTTP requests should be retried when the server responds with on of 408, 409, 420, 429 status codes.
+
 ## 4.1.5
 
 ### Patch Changes
