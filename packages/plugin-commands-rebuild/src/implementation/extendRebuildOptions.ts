@@ -12,6 +12,7 @@ export interface StrictRebuildOptions {
   lockfileDir: string
   scriptShell?: string
   sideEffectsCacheRead: boolean
+  scriptsPrependNodePath: boolean | 'warn-only'
   shellEmulator: boolean
   storeDir: string // TODO: remove this property
   storeController: StoreController
@@ -57,6 +58,7 @@ const defaults = async (opts: RebuildOptions) => {
     production: true,
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
+    scriptsPrependNodePath: false,
     shamefullyHoist: false,
     shellEmulator: false,
     sideEffectsCacheRead: false,

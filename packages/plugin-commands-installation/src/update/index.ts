@@ -56,6 +56,7 @@ export function rcOptionsTypes () {
     'save-exact',
     'save-prefix',
     'save-workspace-protocol',
+    'scripts-prepend-node-path',
     'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',

@@ -45,6 +45,7 @@ export interface Config {
   saveExact?: boolean
   savePrefix?: string
   shellEmulator?: boolean
+  scriptsPrependNodePath?: boolean | 'warn-only'
   force?: boolean
   depth?: number
   engineStrict?: boolean

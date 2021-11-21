@@ -1166,7 +1166,7 @@ importers:
       '@pnpm/directory-fetcher': workspace:1.0.1
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': ^4.0.0
-      '@pnpm/npm-lifecycle': ^1.0.2
+      '@pnpm/npm-lifecycle': ^1.0.3
       '@pnpm/read-package-json': workspace:5.0.6
       '@pnpm/store-controller-types': workspace:11.0.7
       '@pnpm/types': workspace:7.6.0
@@ -1178,7 +1178,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/directory-fetcher': link:../directory-fetcher
-      '@pnpm/npm-lifecycle': 1.0.2
+      '@pnpm/npm-lifecycle': 1.0.3
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
@@ -4829,8 +4829,8 @@ packages:
     dependencies:
       abbrev: 1.1.1
 
-  /@pnpm/npm-lifecycle/1.0.2:
-    resolution: {integrity: sha512-T0w6H7txyusxK4F9Hv2HypGTdyeJseoRQMkK6a47luYevUJg9o/7Q4jVfavOAJhJjVXIuulqolQPzLdTeckhhA==}
+  /@pnpm/npm-lifecycle/1.0.3:
+    resolution: {integrity: sha512-DWBCctE1OtT2y652g1+IBn5gO7vf7V5mUKdmR0Prz5DRzlVkhEYpyHbvFUAGiItdH07eOunblc6dQXhhw4InrA==}
     engines: {node: '>=12.17'}
     dependencies:
       '@pnpm/byline': 1.0.0
@@ -5077,8 +5077,8 @@ packages:
       '@types/node': 16.11.9
     dev: true
 
-  /@types/emscripten/1.39.5:
-    resolution: {integrity: sha512-DIOOg+POSrYl+OlNRHQuIEqCd8DCtynG57H862UCce16nXJX7J8eWxNGgOcf8Eyge8zXeSs27mz1UcFu8L/L7g==}
+  /@types/emscripten/1.39.6:
+    resolution: {integrity: sha512-H90aoynNhhkQP6DRweEjJp5vfUVdIj7tdPLsu7pq89vODD/lcugKfZOsfgwpvM6XUewEp2N5dCg1Uf3Qe55Dcg==}
     dev: false
 
   /@types/fs-extra/9.0.13:
@@ -5573,7 +5573,7 @@ packages:
     resolution: {integrity: sha512-M7ziz16f+tFFnJSCreLtemaGPpjT+NC0E21JQaWXAAlRmFIXz6zl2EZ+tXLxV9yJaplpNDbTgX1j5GPiwg5H5w==}
     engines: {node: '>=12 <14 || 14.2 - 14.9 || >14.10.0'}
     dependencies:
-      '@types/emscripten': 1.39.5
+      '@types/emscripten': 1.39.6
       tslib: 1.14.1
     dev: false
 

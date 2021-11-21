@@ -16,6 +16,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
 | 'unsafePerm'
 | 'rawConfig'
+| 'scriptsPrependNodePath'
 | 'scriptShell'
 | 'shellEmulator'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
@@ -73,6 +74,7 @@ export default async (
             pkgRoot: prefix,
             rawConfig: opts.rawConfig,
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
+            scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,
             shellEmulator: opts.shellEmulator,
             stdio,

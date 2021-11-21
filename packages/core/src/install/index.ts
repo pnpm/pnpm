@@ -205,6 +205,7 @@ export async function mutateModules (
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       rawConfig: opts.rawConfig,
+      scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
       shellEmulator: opts.shellEmulator,
       stdio: opts.ownLifecycleHooksStdio,
@@ -900,6 +901,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         optional: opts.include.optionalDependencies,
         rawConfig: opts.rawConfig,
         rootModulesDir: ctx.virtualStoreDir,
+        scriptsPrependNodePath: opts.scriptsPrependNodePath,
         scriptShell: opts.scriptShell,
         shellEmulator: opts.shellEmulator,
         sideEffectsCacheWrite: opts.sideEffectsCacheWrite,

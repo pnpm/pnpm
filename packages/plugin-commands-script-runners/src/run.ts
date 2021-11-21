@@ -61,6 +61,7 @@ export function cliOptionsTypes () {
       'sort',
       'unsafe-perm',
       'workspace-concurrency',
+      'scripts-prepend-node-path',
     ], allTypes),
     ...IF_PRESENT_OPTION,
     recursive: Boolean,
@@ -113,7 +114,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -174,6 +175,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
     silent: opts.reporter === 'silent',
     shellEmulator: opts.shellEmulator,
