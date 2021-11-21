@@ -408,8 +408,6 @@ export default async (opts: HeadlessOptions) => {
   }
 
   if (opts.enableModulesDir !== false) {
-    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
-
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
       await Promise.all(opts.projects.map(async (project) => {
@@ -433,6 +431,7 @@ export default async (opts: HeadlessOptions) => {
         }
       }))
     }
+    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
   }
 
   // waiting till package requests are finished
