@@ -68,7 +68,7 @@ export async function handler (
   await execa('pnpm', pnpmArgs, {
     stdio: 'inherit',
   })
-  await execa(scopeless(params[0]), params.slice(1), {
+  await execa(versionless(scopeless(params[0])), params.slice(1), {
     env: {
       ...process.env,
       [PATH]: [
@@ -85,4 +85,8 @@ function scopeless (pkgName: string) {
     return pkgName.split('/')[1]
   }
   return pkgName
+}
+
+function versionless (scopelessPkgName: string) {
+  return scopelessPkgName.split('@')[0]
 }

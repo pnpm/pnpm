@@ -11,3 +11,11 @@ test('dlx should work with scoped packages', async () => {
 
   expect(execa).toBeCalledWith('bar', [], expect.anything())
 })
+
+test('dlx should work with versioned packages', async () => {
+  prepareEmpty()
+
+  await dlx.handler({}, ['@foo/bar@next'])
+
+  expect(execa).toBeCalledWith('bar', [], expect.anything())
+})
