@@ -40,7 +40,7 @@ importers:
       '@commitlint/prompt-cli': ^15.0.0
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': ^2.9.0
+      '@pnpm/registry-mock': ^2.10.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.24
       '@types/node': ^14.17.32
@@ -71,7 +71,7 @@ importers:
       '@commitlint/prompt-cli': 15.0.0
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.9.0
+      '@pnpm/registry-mock': 2.10.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.24
       '@types/node': 14.17.34
@@ -4645,15 +4645,15 @@ packages:
       load-json-file: 6.2.0
     dev: true
 
-  /@pnpm/cli-utils/0.6.31_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-SrCdFnD5dbyyAzqm5hnOY2S/6/+zxs7nkuVQWYdhNWiAmwxlVy5ip9ZYlwMzhUHVnlTXtOwelrJm7GlaVFu84g==}
+  /@pnpm/cli-utils/0.6.32_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-zHX4ozJeuEWWH/i9/nekXxpKduXJ9buRNEppR9X3A4Ir/a4je4Feyjf9gPXwa/ZB5dbOerweQYlK0SB5nQuUKg==}
     engines: {node: '>=12.17'}
     peerDependencies:
       '@pnpm/logger': ^4.0.0
     dependencies:
       '@pnpm/cli-meta': 2.0.0
-      '@pnpm/config': 13.4.2_@pnpm+logger@4.0.0
-      '@pnpm/default-reporter': 8.3.6_@pnpm+logger@4.0.0
+      '@pnpm/config': 13.5.0_@pnpm+logger@4.0.0
+      '@pnpm/default-reporter': 8.3.7_@pnpm+logger@4.0.0
       '@pnpm/error': 2.0.0
       '@pnpm/logger': 4.0.0
       '@pnpm/manifest-utils': 2.1.2_@pnpm+logger@4.0.0
@@ -4670,8 +4670,8 @@ packages:
       chalk: 4.1.2
     dev: false
 
-  /@pnpm/config/13.4.2_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-SO1EwqIJFE3DdeihtNAPlqodxR0hRZ/XY++qc8wJKdnbHlX4nuLT7eaQ2t60l66EVSA05yaYzMjUwahPdYFVUA==}
+  /@pnpm/config/13.5.0_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-CGcTb8hQtAAhCQ22MFiJ5lx/B67ZYnE9Xo+n1jDCJBy2z9YRqzXv7YpKd8ez2HsHkqEB1mehheD1pN5vxuaPJg==}
     engines: {node: '>=12.17'}
     dependencies:
       '@pnpm/constants': 5.0.0
@@ -4705,11 +4705,11 @@ packages:
       '@pnpm/types': 7.6.0
     dev: true
 
-  /@pnpm/default-reporter/8.3.6_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-dq0vb3Brv+MxvcH8TSBLVaasgS3XvJPL+ORD/nPvinDnmiSiT+qGn/OIwO0Ib6lpIzvWXv93+OPPuQ9Jnpb/vA==}
+  /@pnpm/default-reporter/8.3.7_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-J1B+Q77AvAW81e3x6nNBZEbVudeEbaUrILtf9UJQLVJy+wU2nUHaF0uWVK++B/0utx262DRt0DieDeQMJaZ60Q==}
     engines: {node: '>=12.17'}
     dependencies:
-      '@pnpm/config': 13.4.2_@pnpm+logger@4.0.0
+      '@pnpm/config': 13.5.0_@pnpm+logger@4.0.0
       '@pnpm/core-loggers': 6.0.6_@pnpm+logger@4.0.0
       '@pnpm/error': 2.0.0
       '@pnpm/types': 7.6.0
@@ -4752,11 +4752,11 @@ packages:
       find-up: 5.0.0
     dev: true
 
-  /@pnpm/find-workspace-packages/3.1.23_@pnpm+logger@4.0.0:
-    resolution: {integrity: sha512-22z6tgybQ9I/UA9FNPJ1S3wtYa36RxF2xpjfqZNv3l7Q9P651duhevP7uUWyUYeQ0xT8259D+PpdOTHQhSpcpQ==}
+  /@pnpm/find-workspace-packages/3.1.24_@pnpm+logger@4.0.0:
+    resolution: {integrity: sha512-Ik8FsWp3sXGQHGQPGqM9MAr3WEoaIZXIec/k58/F9RHqmaTfKmP60B444grpS8xGVeNXyYkKqKCvsf7Wr/tHag==}
     engines: {node: '>=12.17'}
     dependencies:
-      '@pnpm/cli-utils': 0.6.31_@pnpm+logger@4.0.0
+      '@pnpm/cli-utils': 0.6.32_@pnpm+logger@4.0.0
       '@pnpm/constants': 5.0.0
       '@pnpm/types': 7.6.0
       find-packages: 8.0.7
@@ -4812,7 +4812,7 @@ packages:
     hasBin: true
     dependencies:
       '@pnpm/find-workspace-dir': 3.0.1
-      '@pnpm/find-workspace-packages': 3.1.23_@pnpm+logger@4.0.0
+      '@pnpm/find-workspace-packages': 3.1.24_@pnpm+logger@4.0.0
       '@pnpm/logger': 4.0.0
       '@pnpm/types': 7.6.0
       load-json-file: 6.2.0
@@ -4893,8 +4893,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.9.0:
-    resolution: {integrity: sha512-o3jkMVvyZ/kGZXVQ4f+8ENH2p2A/AIH4kAz0d4ULxtCeXS5ujRIqCfwaBYIU2NfJrZP8lSMYsLBat1egXJV+GA==}
+  /@pnpm/registry-mock/2.10.0:
+    resolution: {integrity: sha512-96frA3W36rjd6BRIjKmkXKTLIlpZFogvkbKnYp68+K2RWBoqDQd789ZZbJvz6Tz3fNWYcKpz6lUI4Bm3S+jtwA==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
