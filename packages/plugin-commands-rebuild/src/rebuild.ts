@@ -19,6 +19,7 @@ export function rcOptionsTypes () {
     ...pick([
       'npm-path',
       'reporter',
+      'scripts-prepend-node-path',
       'unsafe-perm',
     ], allTypes),
   }

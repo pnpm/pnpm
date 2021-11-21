@@ -46,6 +46,7 @@ export function rcOptionsTypes () {
     'registry',
     'reporter',
     'save-workspace-protocol',
+    'scripts-prepend-node-path',
     'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',

@@ -61,6 +61,7 @@ export function cliOptionsTypes () {
       'sort',
       'unsafe-perm',
       'workspace-concurrency',
+      'scripts-prepend-node-path',
     ], allTypes),
     ...IF_PRESENT_OPTION,
     recursive: Boolean,
