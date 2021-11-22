@@ -259,6 +259,7 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
+  let newHoistedDependencies!: HoistedDependencies
   if (opts.enableModulesDir !== false) {
     await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
     await Promise.all([
@@ -280,7 +281,6 @@ export default async (opts: HeadlessOptions) => {
       stage: 'importing_done',
     })
 
-    let newHoistedDependencies!: HoistedDependencies
     if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
       // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
       // pnpm is comparing the current lockfile to the wanted one and they should much.
@@ -303,23 +303,6 @@ export default async (opts: HeadlessOptions) => {
     } else {
       newHoistedDependencies = {}
     }
-
-    await writeModulesYaml(rootModulesDir, {
-      hoistedDependencies: newHoistedDependencies,
-      hoistPattern: opts.hoistPattern,
-      included: opts.include,
-      layoutVersion: LAYOUT_VERSION,
-      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-      pendingBuilds: opts.pendingBuilds,
-      publicHoistPattern: opts.publicHoistPattern,
-      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
-        ? new Date().toUTCString()
-        : opts.prunedAt,
-      registries: opts.registries,
-      skipped: Array.from(skipped),
-      storeDir: opts.storeDir,
-      virtualStoreDir,
-    })
 
     await linkAllBins(graph, { extendNodePath: opts.extendNodePath, optional: opts.include.optionalDependencies, warn })
 
@@ -432,6 +415,22 @@ export default async (opts: HeadlessOptions) => {
       }))
     }
     await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+    await writeModulesYaml(rootModulesDir, {
+      hoistedDependencies: newHoistedDependencies,
+      hoistPattern: opts.hoistPattern,
+      included: opts.include,
+      layoutVersion: LAYOUT_VERSION,
+      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+      pendingBuilds: opts.pendingBuilds,
+      publicHoistPattern: opts.publicHoistPattern,
+      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
+        ? new Date().toUTCString()
+        : opts.prunedAt,
+      registries: opts.registries,
+      skipped: Array.from(skipped),
+      storeDir: opts.storeDir,
+      virtualStoreDir,
+    })
   }
 
   // waiting till package requests are finished
