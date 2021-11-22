@@ -28,6 +28,20 @@ export PATH="$PNPM_HOME:$PATH"
 `)
 })
 
+test('PNPM_HOME is added to ~/.bashrc and .bashrc file created', async () => {
+  process.env.SHELL = '/bin/bash'
+  tempDir()
+  homedir['mockReturnValue'](process.cwd())
+  const output = await setup.handler({
+    pnpmHomeDir: __dirname,
+  })
+  expect(output).toMatch(/^Created /)
+  const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
+  expect(bashRCContent).toEqual(`export PNPM_HOME="${__dirname}"
+export PATH="$PNPM_HOME:$PATH"
+`)
+})
+
 test('PNPM_HOME is not added to ~/.bashrc if already present', async () => {
   process.env.SHELL = '/bin/bash'
   tempDir()
@@ -95,6 +109,21 @@ test('PNPM_HOME is added to ~/.config/fish/config.fish', async () => {
   const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
   expect(bashRCContent).toEqual(`
 set -gx PNPM_HOME "${__dirname}"
+set -gx PATH "$PNPM_HOME" $PATH
+`)
+})
+
+test('PNPM_HOME is added to ~/.config/fish/config.fish and config.fish file created', async () => {
+  process.env.SHELL = '/bin/fish'
+  tempDir()
+  fs.mkdirSync('.config/fish', { recursive: true })
+  homedir['mockReturnValue'](process.cwd())
+  const output = await setup.handler({
+    pnpmHomeDir: __dirname,
+  })
+  expect(output).toMatch(/^Created /)
+  const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
+  expect(bashRCContent).toEqual(`set -gx PNPM_HOME "${__dirname}"
 set -gx PATH "$PNPM_HOME" $PATH
 `)
 })
