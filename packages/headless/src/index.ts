@@ -414,7 +414,6 @@ export default async (opts: HeadlessOptions) => {
         }
       }))
     }
-    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
     await writeModulesYaml(rootModulesDir, {
       hoistedDependencies: newHoistedDependencies,
       hoistPattern: opts.hoistPattern,
@@ -431,6 +430,7 @@ export default async (opts: HeadlessOptions) => {
       storeDir: opts.storeDir,
       virtualStoreDir,
     })
+    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
   }
 
   // waiting till package requests are finished
