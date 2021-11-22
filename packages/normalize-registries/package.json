@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:7.6.0",
-    "normalize-registry-url": "1.0.0"
+    "normalize-registry-url": "2.0.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/normalize-registries#readme",
   "funding": "https://opencollective.com/pnpm"
