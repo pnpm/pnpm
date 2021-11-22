@@ -259,6 +259,7 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
+  let newHoistedDependencies!: HoistedDependencies
   if (opts.enableModulesDir !== false) {
     await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
     await Promise.all([
@@ -280,7 +281,6 @@ export default async (opts: HeadlessOptions) => {
       stage: 'importing_done',
     })
 
-    let newHoistedDependencies!: HoistedDependencies
     if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
       // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
       // pnpm is comparing the current lockfile to the wanted one and they should much.
@@ -304,84 +304,11 @@ export default async (opts: HeadlessOptions) => {
       newHoistedDependencies = {}
     }
 
-    if (opts.ignoreScripts) {
-      for (const { id, manifest } of opts.projects) {
-        if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
-          (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
-            manifest.scripts.install ??
-            manifest.scripts.postinstall ??
-            manifest.scripts.prepare)
-        ) {
-          opts.pendingBuilds.push(id)
-        }
-      }
-      // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
-      opts.pendingBuilds = opts.pendingBuilds
-        .concat(
-          depNodes
-            .filter(({ requiresBuild }) => requiresBuild)
-            .map(({ depPath }) => depPath)
-        )
-    } else {
-      const directNodes = new Set<string>()
-      for (const id of importerIds) {
-        Object
-          .values(directDependenciesByImporterId[id])
-          .filter((loc) => graph[loc])
-          .forEach((loc) => {
-            directNodes.add(loc)
-          })
-      }
-      const extraBinPaths = [...opts.extraBinPaths ?? []]
-      if (opts.hoistPattern != null) {
-        extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
-      }
-      let extraEnv: Record<string, string> | undefined
-      if (opts.enablePnp) {
-        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
-      }
-      await buildModules(graph, Array.from(directNodes), {
-        childConcurrency: opts.childConcurrency,
-        extraBinPaths,
-        extendNodePath: opts.extendNodePath,
-        extraEnv,
-        lockfileDir,
-        optional: opts.include.optionalDependencies,
-        rawConfig: opts.rawConfig,
-        rootModulesDir: virtualStoreDir,
-        scriptsPrependNodePath: opts.scriptsPrependNodePath,
-        scriptShell: opts.scriptShell,
-        shellEmulator: opts.shellEmulator,
-        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-        storeController: opts.storeController,
-        unsafePerm: opts.unsafePerm,
-        userAgent: opts.userAgent,
-      })
-    }
-
-    await writeModulesYaml(rootModulesDir, {
-      hoistedDependencies: newHoistedDependencies,
-      hoistPattern: opts.hoistPattern,
-      included: opts.include,
-      layoutVersion: LAYOUT_VERSION,
-      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-      pendingBuilds: opts.pendingBuilds,
-      publicHoistPattern: opts.publicHoistPattern,
-      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
-        ? new Date().toUTCString()
-        : opts.prunedAt,
-      registries: opts.registries,
-      skipped: Array.from(skipped),
-      storeDir: opts.storeDir,
-      virtualStoreDir,
-    })
-
     await linkAllBins(graph, { extendNodePath: opts.extendNodePath, optional: opts.include.optionalDependencies, warn })
 
     if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
       Object.assign(filteredLockfile.packages, currentLockfile.packages)
     }
-    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
 
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
@@ -405,7 +332,67 @@ export default async (opts: HeadlessOptions) => {
           updated: manifest,
         })
       }))
+    }
+  }
 
+  if (opts.ignoreScripts) {
+    for (const { id, manifest } of opts.projects) {
+      if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
+        (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
+          manifest.scripts.install ??
+          manifest.scripts.postinstall ??
+          manifest.scripts.prepare)
+      ) {
+        opts.pendingBuilds.push(id)
+      }
+    }
+    // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
+    opts.pendingBuilds = opts.pendingBuilds
+      .concat(
+        depNodes
+          .filter(({ requiresBuild }) => requiresBuild)
+          .map(({ depPath }) => depPath)
+      )
+  } else {
+    const directNodes = new Set<string>()
+    for (const id of importerIds) {
+      Object
+        .values(directDependenciesByImporterId[id])
+        .filter((loc) => graph[loc])
+        .forEach((loc) => {
+          directNodes.add(loc)
+        })
+    }
+    const extraBinPaths = [...opts.extraBinPaths ?? []]
+    if (opts.hoistPattern != null) {
+      extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+    }
+    let extraEnv: Record<string, string> | undefined
+    if (opts.enablePnp) {
+      extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
+    }
+    await buildModules(graph, Array.from(directNodes), {
+      childConcurrency: opts.childConcurrency,
+      extraBinPaths,
+      extendNodePath: opts.extendNodePath,
+      extraEnv,
+      lockfileDir,
+      optional: opts.include.optionalDependencies,
+      rawConfig: opts.rawConfig,
+      rootModulesDir: virtualStoreDir,
+      scriptsPrependNodePath: opts.scriptsPrependNodePath,
+      scriptShell: opts.scriptShell,
+      shellEmulator: opts.shellEmulator,
+      sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+      storeController: opts.storeController,
+      unsafePerm: opts.unsafePerm,
+      userAgent: opts.userAgent,
+    })
+  }
+
+  if (opts.enableModulesDir !== false) {
+    /** Skip linking and due to no project manifest */
+    if (!opts.ignorePackageManifest) {
       await Promise.all(opts.projects.map(async (project) => {
         if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
           await linkBinsOfImporter(project, { extendNodePath: opts.extendNodePath })
@@ -427,7 +414,25 @@ export default async (opts: HeadlessOptions) => {
         }
       }))
     }
+    await writeModulesYaml(rootModulesDir, {
+      hoistedDependencies: newHoistedDependencies,
+      hoistPattern: opts.hoistPattern,
+      included: opts.include,
+      layoutVersion: LAYOUT_VERSION,
+      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+      pendingBuilds: opts.pendingBuilds,
+      publicHoistPattern: opts.publicHoistPattern,
+      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
+        ? new Date().toUTCString()
+        : opts.prunedAt,
+      registries: opts.registries,
+      skipped: Array.from(skipped),
+      storeDir: opts.storeDir,
+      virtualStoreDir,
+    })
+    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
   }
+
   // waiting till package requests are finished
   await Promise.all(depNodes.map(({ finishing }) => finishing))
 

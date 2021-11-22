@@ -511,3 +511,42 @@ test('lifecycle scripts have access to package\'s own binary by binary name', as
 
   await project.isExecutable('.pnpm/runs-own-bin@1.0.0/node_modules/runs-own-bin/node_modules/.bin/runs-own-bin')
 })
+
+test('lifecycle scripts run after linking root dependencies', async () => {
+  prepareEmpty()
+
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+      'postinstall-requires-is-positive': '1.0.0',
+    },
+  }
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        manifest,
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ],
+    await testDefaults({ fastUnpack: false })
+  )
+
+  await rimraf('node_modules')
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        manifest,
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ],
+    await testDefaults({ fastUnpack: false, frozenLockfile: true })
+  )
+
+  // if there was no exception, the test passed
+})
