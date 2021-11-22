@@ -84,28 +84,34 @@ async function updateShell (currentShell: string | null, pnpmHomeDir: string): P
 }
 
 async function setupShell (configFile: string, pnpmHomeDir: string): Promise<string> {
-  if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
+  const content = `export PNPM_HOME="${pnpmHomeDir}"
+export PATH="$PNPM_HOME:$PATH"
+`
+  if (!fs.existsSync(configFile)) {
+    await fs.promises.writeFile(configFile, content, 'utf8')
+    return `Created ${configFile}`
+  }
   const configContent = await fs.promises.readFile(configFile, 'utf8')
   if (configContent.includes('PNPM_HOME')) {
     return `PNPM_HOME is already in ${configFile}`
   }
-  await fs.promises.writeFile(configFile, `${configContent}
-export PNPM_HOME="${pnpmHomeDir}"
-export PATH="$PNPM_HOME:$PATH"
-`, 'utf8')
+  await fs.promises.appendFile(configFile, `\n${content}`, 'utf8')
   return `Updated ${configFile}`
 }
 
 async function setupFishShell (pnpmHomeDir: string): Promise<string> {
   const configFile = path.join(os.homedir(), '.config/fish/config.fish')
-  if (!fs.existsSync(configFile)) return `Could not setup pnpm. No ${configFile} found`
+  const content = `set -gx PNPM_HOME "${pnpmHomeDir}"
+set -gx PATH "$PNPM_HOME" $PATH
+`
+  if (!fs.existsSync(configFile)) {
+    await fs.promises.writeFile(configFile, content, 'utf8')
+    return `Created ${configFile}`
+  }
   const configContent = await fs.promises.readFile(configFile, 'utf8')
   if (configContent.includes('PNPM_HOME')) {
     return `PNPM_HOME is already in ${configFile}`
   }
-  await fs.promises.writeFile(configFile, `${configContent}
-set -gx PNPM_HOME "${pnpmHomeDir}"
-set -gx PATH "$PNPM_HOME" $PATH
-`, 'utf8')
+  await fs.promises.appendFile(configFile, `\n${content}`, 'utf8')
   return `Updated ${configFile}`
 }
