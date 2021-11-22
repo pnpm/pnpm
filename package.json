@@ -106,5 +106,6 @@
       "core-js",
       "level"
     ]
-  }
+  },
+  "packageManager": "pnpm@6.23.0"
 }
