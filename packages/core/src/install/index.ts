@@ -309,7 +309,7 @@ export async function mutateModules (
             pruneVirtualStore,
             publicHoistPattern: ctx.publicHoistPattern,
             rawConfig: opts.rawConfig,
-            registries: opts.registries,
+            registries: ctx.registries,
             sideEffectsCacheRead: opts.sideEffectsCacheRead,
             sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
             symlink: opts.symlink,
@@ -801,7 +801,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       preferWorkspacePackages: opts.preferWorkspacePackages,
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
-      registries: opts.registries,
+      registries: ctx.registries,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       strictPeerDependencies: opts.strictPeerDependencies,
@@ -868,7 +868,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         importerNames,
         lockfileDir: ctx.lockfileDir,
         virtualStoreDir: ctx.virtualStoreDir,
-        registries: opts.registries,
+        registries: ctx.registries,
       })
     }
 
