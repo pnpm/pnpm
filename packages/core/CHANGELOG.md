@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 1.3.1
+
+### Patch Changes
+
+- fe9818220: The `registries` object should be read from the context not the options.
+- Updated dependencies [b7fbd8c33]
+  - @pnpm/headless@16.3.1
+
 ## 1.3.0
 
 ### Minor Changes

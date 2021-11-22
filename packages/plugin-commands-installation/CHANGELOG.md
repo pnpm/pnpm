@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 7.3.1
+
+### Patch Changes
+
+- Updated dependencies [fe9818220]
+  - @pnpm/core@1.3.1
+
 ## 7.3.0
 
 ### Minor Changes

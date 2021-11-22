@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -21,7 +21,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/filter-lockfile": "workspace:5.0.11",
     "@pnpm/get-context": "workspace:5.2.0",
-    "@pnpm/headless": "workspace:16.3.0",
+    "@pnpm/headless": "workspace:16.3.1",
     "@pnpm/hoist": "workspace:5.2.6",
     "@pnpm/lifecycle": "workspace:12.1.0",
     "@pnpm/link-bins": "workspace:6.2.5",

@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 1.1.17
+
+### Patch Changes
+
+- b847e0300: `pnpm setup` should create shell rc files for pnpm path configuration if no such file exists prior [#4027](https://github.com/pnpm/pnpm/issues/4027).
+
 ## 1.1.16
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 16.3.1
+
+### Patch Changes
+
+- b7fbd8c33: The postinstall scripts of dependencies should be executed after the root dependencies of the project are symlinked [#4018](https://github.com/pnpm/pnpm/issues/4018).
+
 ## 16.3.0
 
 ### Minor Changes

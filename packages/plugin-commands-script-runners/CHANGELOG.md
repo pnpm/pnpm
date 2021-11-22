@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.5.1
+
+### Patch Changes
+
+- 5a11c8bac: `pnpm dlx` will now support version specifiers for packages. E.g. `pnpm dlx create-svelte@next` [#4023](https://github.com/pnpm/pnpm/issues/4023).
+
 ## 4.5.0
 
 ### Minor Changes
