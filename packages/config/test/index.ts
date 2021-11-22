@@ -178,7 +178,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
   }
 })
 
-test('registries of scoped packages are read', async () => {
+test('registries of scoped packages are read and normalized', async () => {
   const { config } = await getConfig({
     cliOptions: {
       userconfig: path.join(__dirname, 'scoped-registries.ini'),
@@ -193,6 +193,7 @@ test('registries of scoped packages are read', async () => {
     default: 'https://default.com/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
+    '@qar': 'https://qar.com/qar',
   })
 })
 
@@ -215,6 +216,7 @@ test('registries in current directory\'s .npmrc have bigger priority then global
     default: 'https://pnpm.io/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
+    '@qar': 'https://qar.com/qar',
   })
 })
 
