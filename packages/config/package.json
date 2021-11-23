@@ -41,6 +41,7 @@
     "camelcase": "^6.2.0",
     "can-write-to-dir": "^1.1.1",
     "is-subdir": "^1.1.1",
+    "normalize-registry-url": "2.0.0",
     "ramda": "^0.27.1",
     "realpath-missing": "^1.1.0",
     "which": "^2.0.2"
