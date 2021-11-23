@@ -45,6 +45,7 @@ import pathTemp from 'path-temp'
 import pShare from 'promise-share'
 import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
+import semver from 'semver'
 import ssri from 'ssri'
 import safeDeferredPromise from './safeDeferredPromise'
 
@@ -426,8 +427,20 @@ function fetchToStore (
             ? safeDeferredPromise<DependencyManifest>()
             : undefined
           if (
-            pkgFilesIndex.name != null && opts.pkg.name != null && pkgFilesIndex.name !== opts.pkg.name ||
-            pkgFilesIndex.version != null && opts.pkg.version != null && pkgFilesIndex.version !== opts.pkg.version
+            (
+              pkgFilesIndex.name != null &&
+              opts.pkg.name != null &&
+              pkgFilesIndex.name !== opts.pkg.name
+            ) ||
+            (
+              pkgFilesIndex.version != null &&
+              opts.pkg.version != null &&
+              // We used to not normalize the package versions before writing them to the lockfile and store.
+              // So it may happen that the version will be in different formats.
+              // For instance, v1.0.0 and 1.0.0
+              // Hence, we need to use semver.eq() to compare them.
+              !semver.eq(pkgFilesIndex.version, opts.pkg.version, { loose: true })
+            )
           ) {
             /* eslint-disable @typescript-eslint/restrict-template-expressions */
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', `\

@@ -57,6 +57,7 @@
     "promise-share": "^1.0.0",
     "ramda": "^0.27.1",
     "rename-overwrite": "^4.0.0",
+    "semver": "^7.3.4",
     "ssri": "^8.0.1"
   },
   "devDependencies": {
