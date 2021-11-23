@@ -876,6 +876,7 @@ test('throw exception if the package data in the store differs from the expected
     await pkgResponse.finishing!()
   }
 
+  // Fail when the name of the package is different in the store
   {
     const requestPackage = createPackageRequester({
       resolve,
@@ -896,5 +897,51 @@ test('throw exception if the package data in the store differs from the expected
       },
     })
     await expect(files()).rejects.toThrow(/Package name mismatch found while reading/)
+  }
+
+  // Fail when the version of the package is different in the store
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+    })
+    const { files } = requestPackage.fetchPackageToStore({
+      force: false,
+      lockfileDir: tempy.directory(),
+      pkg: {
+        name: 'is-negative',
+        version: '2.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+    })
+    await expect(files()).rejects.toThrow(/Package name mismatch found while reading/)
+  }
+
+  // Do not fail when the versions are the same but written in a differnt format (1.0.0 is the same as v1.0.0)
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+    })
+    const { files } = requestPackage.fetchPackageToStore({
+      force: false,
+      lockfileDir: tempy.directory(),
+      pkg: {
+        name: 'is-positive',
+        version: 'v1.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+    })
+    await expect(files()).resolves.toStrictEqual(expect.anything())
   }
 })
