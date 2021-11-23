@@ -21,7 +21,7 @@ import { parse as parseYarnLock } from '@yarnpkg/lockfile'
 import * as yarnCore from '@yarnpkg/core'
 import { parseSyml } from '@yarnpkg/parsers'
 import exists from 'path-exists'
-import recursive from './recursive'
+import recursive from '../recursive'
 import { yarnLockFileKeyNormalizer } from './yarnUtil'
 
 interface NpmPackageLock {
@@ -163,7 +163,7 @@ async function readYarnLockFile (dir: string) {
       if (lockJsonFile.type === 'success') {
         return lockJsonFile.object
       } else {
-        throw new PnpmError('GET_YARN_LOCKFILE_ERR', `Failed With ${lockJsonFile.type}`)
+        throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Yarn.lock file was ${lockJsonFile.type}`)
       }
     } else if (yarnLockFileType === YarnLockType.yarn2) {
       lockJsonFile = parseYarn2Lock(yarnLockFile)
