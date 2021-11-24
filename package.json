@@ -86,6 +86,11 @@
           "@babel/types": "*"
         }
       },
+      "@yarnpkg/core": {
+        "dependencies": {
+          "@types/lodash": "^4.14.136"
+        }
+      },
       "jest-circus": {
         "dependencies": {
           "slash": "3"

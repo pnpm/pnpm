@@ -24,7 +24,7 @@ overrides:
   validator@<13.7.0: '>=13.7.0'
   json-schema@<0.4.0: '>=0.4.0'
 
-packageExtensionsChecksum: fd79935cba6ca59898c8df8f80eb1058
+packageExtensionsChecksum: ae99380b640f090c74138482ef1844a1
 
 importers:
 
@@ -5216,6 +5216,10 @@ packages:
       '@types/node': 16.11.9
     dev: false
 
+  /@types/lodash/4.14.177:
+    resolution: {integrity: sha512-0fDwydE2clKe9MNfvXHBHF9WEahRuj+msTuQqOmAApNORFvhMYZKNGGJdCzuhheVjMps/ti0Ak/iJPACMaevvw==}
+    dev: false
+
   /@types/lru-cache/5.1.1:
     resolution: {integrity: sha512-ssE3Vlrys7sdIzs5LOxCzTVMsU7i9oa/IaW92wF32JFb3CVczqOkru2xspuKczHEbG3nvmPY7IFqVmGGHdNbYw==}
     dev: true
@@ -5620,6 +5624,7 @@ packages:
     engines: {node: '>=12 <14 || 14.2 - 14.9 || >14.10.0'}
     dependencies:
       '@arcanis/slice-ansi': 1.0.2
+      '@types/lodash': 4.14.177
       '@types/semver': 7.3.9
       '@types/treeify': 1.0.0
       '@yarnpkg/fslib': 2.6.0
