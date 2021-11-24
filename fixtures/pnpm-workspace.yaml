@@ -9,3 +9,4 @@ packages:
   - '!has-package-lock-json'
   - '!hello-world-js-bin'
   - '!has-yarn-lock'
+  - '!has-yarn2-lock'
