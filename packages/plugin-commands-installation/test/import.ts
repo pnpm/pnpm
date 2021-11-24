@@ -85,6 +85,27 @@ test('import from yarn.lock', async () => {
   await project.hasNot('pkg-with-1-dep')
 })
 
+test('import from yarn2 lock file', async () => {
+  tempDir()
+
+  await ncp(path.join(fixtures, 'has-yarn2-lock'), process.cwd())
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, [])
+
+  const project = assertProject(process.cwd())
+  const lockfile = await project.readLockfile()
+
+  expect(lockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/is-negative/1.0.0'])
+
+  // node_modules is not created
+  await project.hasNot('balanced-match')
+  await project.hasNot('brace-expansion')
+})
+
 test('import from npm-shrinkwrap.json', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   tempDir()

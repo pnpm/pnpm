@@ -18,8 +18,50 @@ import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import renderHelp from 'render-help'
 import { parse as parseYarnLock } from '@yarnpkg/lockfile'
+import * as yarnCore from '@yarnpkg/core'
+import { parseSyml } from '@yarnpkg/parsers'
 import exists from 'path-exists'
-import recursive from './recursive'
+import recursive from '../recursive'
+import { yarnLockFileKeyNormalizer } from './yarnUtil'
+
+interface NpmPackageLock {
+  dependencies: LockedPackagesMap
+}
+
+interface LockedPackage {
+  version: string
+  dependencies?: LockedPackagesMap
+}
+
+interface LockedPackagesMap {
+  [name: string]: LockedPackage
+}
+
+interface YarnLockPackage {
+  version: string
+  resolved: string
+  integrity: string
+  dependencies?: {
+    [name: string]: string
+  }
+  optionalDependencies?: {
+    [depName: string]: string
+  }
+}
+interface YarnPackgeLock {
+  [name: string]: YarnLockPackage
+}
+
+enum YarnLockType {
+  yarn = 'yarn',
+  yarn2 = 'yarn2',
+}
+
+// copy from yarn v1
+interface YarnLock2Struct {
+  type: YarnLockType.yarn2
+  object: YarnPackgeLock
+}
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -114,16 +156,53 @@ export async function handler (
 async function readYarnLockFile (dir: string) {
   try {
     const yarnLockFile = await gfs.readFile(path.join(dir, 'yarn.lock'), 'utf8')
-    const lockJsonFile = await parseYarnLock(yarnLockFile)
-    if (lockJsonFile.type === 'success') {
-      return lockJsonFile.object
-    } else {
-      throw new PnpmError('GET_YARN_LOCKFILE_ERR', `Failed With ${lockJsonFile.type}`)
+    let lockJsonFile
+    const yarnLockFileType = getYarnLockfileType(yarnLockFile)
+    if (yarnLockFileType === YarnLockType.yarn) {
+      lockJsonFile = await parseYarnLock(yarnLockFile)
+      if (lockJsonFile.type === 'success') {
+        return lockJsonFile.object
+      } else {
+        throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Yarn.lock file was ${lockJsonFile.type}`)
+      }
+    } else if (yarnLockFileType === YarnLockType.yarn2) {
+      lockJsonFile = parseYarn2Lock(yarnLockFile)
+      if (lockJsonFile.type === YarnLockType.yarn2) {
+        return lockJsonFile.object
+      }
     }
   } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
   }
   throw new PnpmError('YARN_LOCKFILE_NOT_FOUND', 'No yarn.lock found')
+}
+
+function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
+  // eslint-disable-next-line
+  const parseYarnLock: any = parseSyml(lockFileContents)
+
+  delete parseYarnLock.__metadata
+  const dependencies: YarnPackgeLock = {}
+
+  const { structUtils } = yarnCore
+  const { parseDescriptor, parseRange } = structUtils
+  const keyNormalizer = yarnLockFileKeyNormalizer(
+    parseDescriptor,
+    parseRange
+  )
+
+  Object.entries(parseYarnLock).forEach(
+    // eslint-disable-next-line
+    ([fullDescriptor, versionData]: [string, any]) => {
+      keyNormalizer(fullDescriptor).forEach((descriptor) => {
+        dependencies[descriptor] = versionData
+      })
+    }
+  )
+  return {
+    object: dependencies,
+    type: YarnLockType.yarn2,
+  }
 }
 
 async function readNpmLockfile (dir: string) {
@@ -188,33 +267,16 @@ function getAllVersionsFromYarnLockFile (
   }
 }
 
-interface NpmPackageLock {
-  dependencies: LockedPackagesMap
-}
-
-interface LockedPackage {
-  version: string
-  dependencies?: LockedPackagesMap
-}
-
-interface LockedPackagesMap {
-  [name: string]: LockedPackage
-}
-
-interface YarnLockPackage {
-  version: string
-  resolved: string
-  integrity: string
-  dependencies?: {
-    [name: string]: string
-  }
-}
-interface YarnPackgeLock {
-  [name: string]: YarnLockPackage
-}
-
 function selectProjectByDir (projects: Project[], searchedDir: string) {
   const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }
+}
+
+function getYarnLockfileType (
+  lockFileContents: string
+): YarnLockType {
+  return lockFileContents.includes('__metadata')
+    ? YarnLockType.yarn2
+    : YarnLockType.yarn
 }
