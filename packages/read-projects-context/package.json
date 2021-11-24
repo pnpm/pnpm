@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "5.0.8",
+  "version": "5.0.9",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:4.2.1",
     "@pnpm/modules-yaml": "workspace:9.0.6",
-    "@pnpm/normalize-registries": "workspace:2.0.6",
+    "@pnpm/normalize-registries": "workspace:2.0.7",
     "@pnpm/types": "workspace:7.6.0",
     "realpath-missing": "^1.1.0"
   },

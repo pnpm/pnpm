@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "description": "Gets context information about a project",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -42,7 +42,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/lockfile-file": "workspace:4.2.1",
     "@pnpm/modules-yaml": "workspace:9.0.6",
-    "@pnpm/read-projects-context": "workspace:5.0.8",
+    "@pnpm/read-projects-context": "workspace:5.0.9",
     "@pnpm/types": "workspace:7.6.0",
     "@zkochan/rimraf": "^2.1.1",
     "is-ci": "^3.0.0",

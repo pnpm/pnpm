@@ -47,7 +47,7 @@
   "devDependencies": {
     "@pnpm/fetch": "workspace:4.1.6",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.1.2",
+    "@pnpm/package-store": "workspace:12.1.3",
     "@types/retry": "^0.12.0",
     "@types/ssri": "^7.1.0",
     "cp-file": "^9.0.0",

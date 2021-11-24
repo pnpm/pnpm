@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 13.5.1
+
+### Patch Changes
+
+- a7ff2d5ce: When normalizing registry URLs, a trailing slash should only be added if the registry URL has no path.
+
+  So `https://registry.npmjs.org` is changed to `https://registry.npmjs.org/` but `https://npm.pkg.github.com/owner` is unchanged.
+
+  Related issue: [#4034](https://github.com/pnpm/pnpm/issues/4034).
+
 ## 13.5.0
 
 ### Minor Changes

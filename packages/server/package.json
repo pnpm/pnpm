@@ -35,8 +35,8 @@
   "devDependencies": {
     "@pnpm/client": "workspace:6.0.5",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-requester": "workspace:15.2.2",
-    "@pnpm/package-store": "workspace:12.1.2",
+    "@pnpm/package-requester": "workspace:15.2.3",
+    "@pnpm/package-store": "workspace:12.1.3",
     "@types/mz": "^2.7.3",
     "@types/uuid": "^8.3.0",
     "@zkochan/rimraf": "^2.1.1",

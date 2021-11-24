@@ -1,5 +1,12 @@
 # @pnpm/read-projects-context
 
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [a7ff2d5ce]
+  - @pnpm/normalize-registries@2.0.7
+
 ## 5.0.8
 
 ### Patch Changes

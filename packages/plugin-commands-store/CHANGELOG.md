@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 4.0.33
+
+### Patch Changes
+
+- Updated dependencies [a7ff2d5ce]
+  - @pnpm/config@13.5.1
+  - @pnpm/normalize-registries@2.0.7
+  - @pnpm/cli-utils@0.6.33
+  - @pnpm/store-connection-manager@3.1.10
+  - @pnpm/get-context@5.2.1
+
 ## 4.0.32
 
 ### Patch Changes

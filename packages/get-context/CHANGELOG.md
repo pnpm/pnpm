@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 5.2.1
+
+### Patch Changes
+
+- @pnpm/read-projects-context@5.0.9
+
 ## 5.2.0
 
 ### Minor Changes

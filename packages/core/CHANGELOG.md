@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 1.3.2
+
+### Patch Changes
+
+- Updated dependencies [a7ff2d5ce]
+- Updated dependencies [dbd8acfe9]
+- Updated dependencies [119b3a908]
+  - @pnpm/normalize-registries@2.0.7
+  - @pnpm/package-requester@15.2.3
+  - @pnpm/lockfile-to-pnp@0.4.32
+  - @pnpm/headless@16.3.2
+  - @pnpm/get-context@5.2.1
+
 ## 1.3.1
 
 ### Patch Changes

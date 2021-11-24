@@ -1,5 +1,20 @@
 # pnpm
 
+## 6.23.2
+
+### Patch Changes
+
+- pnpm should read the auth token of a github-registry-hosted package, when the registry path contains the owner [#4034](https://github.com/pnpm/pnpm/issues/4034).
+
+  So this should work:
+
+  ```
+  @owner:registry=https://npm.pkg.github.com/owner
+  //npm.pkg.github.com/:_authToken=<token>
+  ```
+
+- When checking the correctness of the package data in the lockfile, don't use exact version comparison. `v1.0.0` should be considered to be the same as `1.0.0`. This fixes some edge cases when a package is published with a non-normalized version specifier in its `package.json` [#4036](https://github.com/pnpm/pnpm/pull/4036).
+
 ## 6.23.1
 
 ### Patch Changes

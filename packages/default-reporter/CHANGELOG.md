@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 8.3.8
+
+### Patch Changes
+
+- Updated dependencies [a7ff2d5ce]
+  - @pnpm/config@13.5.1
+
 ## 8.3.7
 
 ### Patch Changes
