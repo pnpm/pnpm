@@ -71,7 +71,7 @@ const pickBundledManifest = pick([
 function normalizeBundledManifest (manifest: DependencyManifest): BundledManifest {
   return {
     ...pickBundledManifest(manifest),
-    version: semver.clean(manifest.version, { loose: true }) ?? manifest.version,
+    version: semver.clean(manifest.version ?? '0.0.0', { loose: true }) ?? manifest.version,
   }
 }
 
