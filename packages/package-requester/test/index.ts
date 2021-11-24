@@ -945,3 +945,29 @@ test('throw exception if the package data in the store differs from the expected
     await expect(files()).resolves.toStrictEqual(expect.anything())
   }
 })
+
+test('the version in the bundled manifest should be normalized', async () => {
+  const storeDir = tempy.directory()
+  const cafs = createCafsStore(storeDir)
+
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+  })
+
+  const pkgResponse = await requestPackage({ alias: 'react-terminal', pref: '1.2.1' }, {
+    downloadPriority: 0,
+    lockfileDir: tempy.directory(),
+    preferredVersions: {},
+    projectDir: tempy.directory(),
+    registry,
+  })
+  await expect(pkgResponse.bundledManifest!()).resolves.toStrictEqual(expect.objectContaining({
+    version: '1.2.1',
+  }))
+  await pkgResponse.finishing!()
+})
