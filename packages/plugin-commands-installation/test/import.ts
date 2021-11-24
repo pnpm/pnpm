@@ -102,8 +102,8 @@ test('import from yarn2 lock file', async () => {
   expect(lockfile.packages).toHaveProperty(['/is-negative/1.0.0'])
 
   // node_modules is not created
-  await project.has('balanced-match')
-  await project.has('brace-expansion')
+  await project.hasNot('balanced-match')
+  await project.hasNot('brace-expansion')
 })
 
 test('import from npm-shrinkwrap.json', async () => {
