@@ -28,12 +28,12 @@ export default function (
       config?: Config
     }
   }
-) {
+): () => void {
   if (opts.context.argv[0] === 'server') {
     // eslint-disable-next-line
     const log$ = Rx.fromEvent<logs.Log>(opts.streamParser as any, 'data')
-    reporterForServer(log$, opts.context.config)
-    return
+    const subscription = reporterForServer(log$, opts.context.config)
+    return () => subscription.unsubscribe()
   }
   const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
   const output$ = toOutput$({ ...opts, reportingOptions: { ...opts.reportingOptions, outputMaxWidth } })
@@ -41,19 +41,19 @@ export default function (
     const writeNext = opts.useStderr
       ? console.error.bind(console)
       : console.log.bind(console)
-    output$
+    const subscription = output$
       .subscribe({
         complete () {}, // eslint-disable-line:no-empty
         error: (err) => console.error(err.message),
         next: writeNext,
       })
-    return
+    return () => subscription.unsubscribe()
   }
   const diff = createDiffer({
     height: process.stdout.rows,
     outputMaxWidth,
   })
-  output$
+  const subscription = output$
     .subscribe({
       complete () {}, // eslint-disable-line:no-empty
       error: (err) => logUpdate(err.message),
@@ -69,6 +69,7 @@ export default function (
     if (!view.endsWith(EOL)) view += EOL
     write(diff.update(view))
   }
+  return () => subscription.unsubscribe()
 }
 
 export function toOutput$ (

@@ -8,6 +8,26 @@
 <pnpm|npm|yarn> add @pnpm/default-reporter
 ```
 
+## Usage
+
+```ts
+import { streamParser } from '@pnpm/logger'
+import defaultReporter from '@pnpm/default-reporter'
+
+const stopReporting = defaultReporter({
+  context: {
+    argv: [],
+  },
+  streamParser,
+})
+
+try {
+  // calling some pnpm APIs
+} finally {
+  stopReporting()
+}
+```
+
 ## Style Guide
 
 1. Never use blue or grey as font color as they are hard to read in many consoles.
