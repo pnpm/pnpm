@@ -8,7 +8,7 @@ export default function (
   log$: Rx.Observable<Log>,
   config?: Config
 ) {
-  log$.subscribe({
+  return log$.subscribe({
     complete: () => undefined,
     error: () => undefined,
     next (log) {
