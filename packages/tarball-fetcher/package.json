@@ -41,6 +41,7 @@
     "@pnpm/graceful-fs": "workspace:1.0.0",
     "@pnpm/prepare-package": "workspace:1.0.6",
     "@zkochan/retry": "^0.2.0",
+    "@zkochan/rimraf": "^2.1.1",
     "ramda": "^0.27.1",
     "ssri": "^8.0.1"
   },

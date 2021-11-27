@@ -1,4 +1,5 @@
 import path from 'path'
+import PnpmError from '@pnpm/error'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
@@ -8,7 +9,11 @@ export default async function preparePackage (pkgDir: string) {
   const manifest = await safeReadPackageFromDir(pkgDir)
   if (manifest?.scripts?.prepare != null && manifest.scripts.prepare !== '') {
     const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
-    await execa(pm, ['install'], { cwd: pkgDir })
+    try {
+      await execa(pm, ['install'], { cwd: pkgDir })
+    } catch (err: any) { // eslint-disable-line
+      throw new PnpmError('PREPARE_PKG_FAILURE', `${err.shortMessage}`) // eslint-disable-line
+    }
     await rimraf(path.join(pkgDir, 'node_modules'))
   }
 }
