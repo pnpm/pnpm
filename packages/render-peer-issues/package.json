@@ -24,7 +24,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint -- --fix"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/render-peer-issues#readme",
   "funding": "https://opencollective.com/pnpm",
