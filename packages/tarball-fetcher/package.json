@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "9.3.9",
+  "version": "9.3.10",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "@pnpm/fetcher-base": "workspace:11.1.1",
     "@pnpm/fetching-types": "workspace:2.2.1",
     "@pnpm/graceful-fs": "workspace:1.0.0",
-    "@pnpm/prepare-package": "workspace:1.0.6",
+    "@pnpm/prepare-package": "workspace:1.0.7",
     "@zkochan/retry": "^0.2.0",
     "@zkochan/rimraf": "^2.1.1",
     "ramda": "^0.27.1",

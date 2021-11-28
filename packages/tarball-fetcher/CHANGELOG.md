@@ -1,5 +1,14 @@
 # @pnpm/tarball-fetcher
 
+## 9.3.10
+
+### Patch Changes
+
+- fb1a95a6c: The temporary directory should be removed after preparing the git-hosted package.
+- fb1a95a6c: Fetch is not retried if preparation of git-hosted package fails.
+- Updated dependencies [fb1a95a6c]
+  - @pnpm/prepare-package@1.0.7
+
 ## 9.3.9
 
 ### Patch Changes

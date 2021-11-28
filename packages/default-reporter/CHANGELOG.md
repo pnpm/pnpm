@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.4.0
+
+### Minor Changes
+
+- 597a28e3c: The default reporter returns an unsubscribe function to stop reporting.
+
 ## 8.3.8
 
 ### Patch Changes

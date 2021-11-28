@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 7.4.0
+
+### Minor Changes
+
+- 3b4dc17c7: feat: support yarn v2 lockfile transform
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.34
+- @pnpm/core@1.3.2
+- @pnpm/outdated@9.0.18
+- @pnpm/package-store@12.1.3
+- @pnpm/store-connection-manager@3.1.11
+- @pnpm/find-workspace-packages@3.1.26
+- @pnpm/plugin-commands-rebuild@5.3.2
+- @pnpm/filter-workspace-packages@4.4.6
+
 ## 7.3.2
 
 ### Patch Changes

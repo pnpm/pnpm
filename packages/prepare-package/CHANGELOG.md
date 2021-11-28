@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 1.0.7
+
+### Patch Changes
+
+- fb1a95a6c: If prepare fails, throw a pnpm error with a known error code.
+
 ## 1.0.6
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/git-fetcher
 
+## 4.1.9
+
+### Patch Changes
+
+- fb1a95a6c: The temporary directory should be removed after preparing the git-hosted package.
+- Updated dependencies [fb1a95a6c]
+  - @pnpm/prepare-package@1.0.7
+
 ## 4.1.8
 
 ### Patch Changes
