@@ -2894,12 +2894,14 @@ importers:
 
   packages/prepare-package:
     specifiers:
+      '@pnpm/error': workspace:2.0.0
       '@pnpm/prepare-package': 'link:'
       '@pnpm/read-package-json': workspace:5.0.6
       '@zkochan/rimraf': ^2.1.1
       execa: npm:safe-execa@^0.1.1
       preferred-pm: ^3.0.3
     dependencies:
+      '@pnpm/error': link:../error
       '@pnpm/read-package-json': link:../read-package-json
       '@zkochan/rimraf': 2.1.1
       execa: /safe-execa/0.1.1
@@ -3251,6 +3253,7 @@ importers:
       '@types/retry': ^0.12.0
       '@types/ssri': ^7.1.0
       '@zkochan/retry': ^0.2.0
+      '@zkochan/rimraf': ^2.1.1
       cp-file: ^9.0.0
       nock: 12.0.3
       ramda: ^0.27.1
@@ -3264,6 +3267,7 @@ importers:
       '@pnpm/graceful-fs': link:../graceful-fs
       '@pnpm/prepare-package': link:../prepare-package
       '@zkochan/retry': 0.2.0
+      '@zkochan/rimraf': 2.1.1
       ramda: 0.27.1
       ssri: 8.0.1
     devDependencies:

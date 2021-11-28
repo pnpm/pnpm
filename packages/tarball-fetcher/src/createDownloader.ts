@@ -12,6 +12,7 @@ import {
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import preparePackage from '@pnpm/prepare-package'
 import * as retry from '@zkochan/retry'
+import rimraf from '@zkochan/rimraf'
 import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
 import ssri from 'ssri'
@@ -117,8 +118,13 @@ export default (
         try {
           resolve(await fetch(attempt))
         } catch (error: any) { // eslint-disable-line
-          if (error.response?.status === 401 || error.response?.status === 403) {
+          if (
+            error.response?.status === 401 ||
+            error.response?.status === 403 ||
+            error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE'
+          ) {
             reject(error)
+            return
           }
           const timeout = op.retry(error)
           if (timeout === false) {
@@ -242,6 +248,7 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
   })
   await preparePackage(tempLocation)
   const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
+  await rimraf(tempLocation)
   return newFilesIndex
 }
 

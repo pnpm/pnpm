@@ -28,6 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/prepare-package#readme",
   "dependencies": {
+    "@pnpm/error": "workspace:2.0.0",
     "@pnpm/read-package-json": "workspace:5.0.6",
     "@zkochan/rimraf": "^2.1.1",
     "execa": "npm:safe-execa@^0.1.1",
