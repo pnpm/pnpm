@@ -26,8 +26,6 @@ jobs:
         git config --global user.email "x@y.z"
     - name: Checkout Commit
       uses: actions/checkout@v1
-    - name: checkout main
-      run: git branch -f main origin/main
     - name: Install pnpm
       uses: pnpm/action-setup@v2.0.1
       with: 
