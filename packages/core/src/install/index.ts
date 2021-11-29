@@ -166,19 +166,11 @@ export async function mutateModules (
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
-  // We read Yarn's resolutions field for compatibility
-  // but we really replace the version specs to any other version spec, not only to exact versions,
-  // so we cannot call it resolutions
-  const overrides = (rootProjectManifest != null)
-    ? rootProjectManifest.pnpm?.overrides ?? rootProjectManifest.resolutions
-    : undefined
-  const neverBuiltDependencies = rootProjectManifest?.pnpm?.neverBuiltDependencies ?? []
-  const packageExtensions = rootProjectManifest?.pnpm?.packageExtensions
   opts.hooks.readPackage = createReadPackageHook({
     readPackageHook: opts.hooks.readPackage,
-    overrides,
+    overrides: opts.overrides,
     lockfileDir: opts.lockfileDir,
-    packageExtensions,
+    packageExtensions: opts.packageExtensions,
   })
   const ctx = await getContext(projects, opts)
   const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
@@ -225,15 +217,15 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = isEmpty(packageExtensions ?? {}) ? undefined : createObjectChecksum(packageExtensions!)
+    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
     let needsFullResolution = !maybeOpts.ignorePackageManifest && (
-      !equals(ctx.wantedLockfile.overrides ?? {}, overrides ?? {}) ||
-      !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
+      !equals(ctx.wantedLockfile.overrides ?? {}, opts.overrides ?? {}) ||
+      !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (opts.neverBuiltDependencies ?? []).sort()) ||
       ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum) ||
       opts.fixLockfile
     if (needsFullResolution) {
-      ctx.wantedLockfile.overrides = overrides
-      ctx.wantedLockfile.neverBuiltDependencies = neverBuiltDependencies
+      ctx.wantedLockfile.overrides = opts.overrides
+      ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
     }
     const frozenLockfile = opts.frozenLockfile ||
@@ -496,8 +488,6 @@ export async function mutateModules (
       currentLockfileIsUpToDate: !ctx.existsWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       needsFullResolution,
-      neverBuiltDependencies,
-      overrides,
       pruneVirtualStore,
       updateLockfileMinorVersion: true,
     })

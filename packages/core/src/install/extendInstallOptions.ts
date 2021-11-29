@@ -6,6 +6,7 @@ import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registr
 import { WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
+  PackageExtension,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -44,8 +45,10 @@ export interface StrictInstallOptions {
   rawConfig: object
   verifyStoreIntegrity: boolean
   engineStrict: boolean
+  neverBuiltDependencies: string[]
   nodeExecPath?: string
   nodeVersion: string
+  packageExtensions: Record<string, PackageExtension>
   packageManager: {
     name: string
     version: string
@@ -67,6 +70,7 @@ export interface StrictInstallOptions {
   unsafePerm: boolean
   registries: Registries
   tag: string
+  overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
   workspacePackages: WorkspacePackages
   pruneStore: boolean

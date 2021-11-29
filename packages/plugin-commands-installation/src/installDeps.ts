@@ -18,6 +18,7 @@ import {
 import logger from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import isSubdir from 'is-subdir'
+import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
 import getNodeExecPath from './nodeExecPath'
@@ -161,9 +162,18 @@ when running add/update with the --workspace option')
     workspacePackages = arrayOfWorkspacePackagesToMap(allProjects)
   }
 
+  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
+  if (manifest === null) {
+    if (opts.update) {
+      throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
+    }
+    manifest = {}
+  }
+
   const store = await createOrConnectStoreController(opts)
   const installOpts = {
     ...opts,
+    ...getOptionsFromRootManifest(manifest),
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
@@ -182,14 +192,6 @@ when running add/update with the --workspace option')
     if (isSubdir(opts.pnpmHomeDir, nodeExecPath)) {
       installOpts['nodeExecPath'] = nodeExecPath
     }
-  }
-
-  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
-  if (manifest === null) {
-    if (opts.update) {
-      throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
-    }
-    manifest = {}
   }
 
   const updateMatch = opts.update && (params.length > 0) ? createMatcher(params) : null
