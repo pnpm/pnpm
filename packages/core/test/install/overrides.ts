@@ -44,7 +44,7 @@ test('versions are replaced with versions specified through overrides option', a
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], { ...await testDefaults(), ignorePackageManifest: true })
+  ], { ...await testDefaults(), ignorePackageManifest: true, overrides })
 
   // The lockfile is updated if the overrides are changed
   overrides['bar@^100.0.0'] = '100.0.0'
@@ -81,7 +81,7 @@ test('versions are replaced with versions specified through overrides option', a
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults({ frozenLockfile: true }))
+  ], await testDefaults({ frozenLockfile: true, overrides }))
 
   {
     const lockfile = await project.readLockfile()
@@ -104,7 +104,7 @@ test('versions are replaced with versions specified through overrides option', a
         mutation: 'install',
         rootDir: process.cwd(),
       },
-    ], await testDefaults({ frozenLockfile: true }))
+    ], await testDefaults({ frozenLockfile: true, overrides }))
   ).rejects.toThrow(
     new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
       'Cannot perform a frozen installation because the lockfile needs updates'
