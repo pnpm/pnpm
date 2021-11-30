@@ -69,7 +69,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults({ frozenLockfile: true }))
+  ], await testDefaults({ frozenLockfile: true, packageExtensions }))
 
   {
     const lockfile = await project.readLockfile()

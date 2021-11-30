@@ -462,7 +462,7 @@ test('selectively ignore scripts in some dependencies', async () => {
 
   await rimraf('node_modules')
 
-  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, neverBuiltDependencies }))
 
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
