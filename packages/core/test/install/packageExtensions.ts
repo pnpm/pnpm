@@ -6,20 +6,21 @@ import {
   testDefaults,
 } from '../utils'
 
-test('manifests are extended with fields specified by pnpm.packageExtensions', async () => {
+test('manifests are extended with fields specified by packageExtensions', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({
-    pnpm: {
-      packageExtensions: {
-        'is-positive': {
-          dependencies: {
-            bar: '100.1.0',
-          },
-        },
+  const packageExtensions = {
+    'is-positive': {
+      dependencies: {
+        bar: '100.1.0',
       },
     },
-  }, ['is-positive@1.0.0'], await testDefaults())
+  }
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['is-positive@1.0.0'],
+    await testDefaults({ packageExtensions })
+  )
 
   {
     const lockfile = await project.readLockfile()
@@ -36,7 +37,7 @@ test('manifests are extended with fields specified by pnpm.packageExtensions', a
   }
 
   // The lockfile is updated if the overrides are changed
-  manifest.pnpm!.packageExtensions!['is-positive'].dependencies!['foobar'] = '100.0.0'
+  packageExtensions['is-positive'].dependencies!['foobar'] = '100.0.0'
   await mutateModules([
     {
       buildIndex: 0,
@@ -44,7 +45,7 @@ test('manifests are extended with fields specified by pnpm.packageExtensions', a
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults())
+  ], await testDefaults({ packageExtensions }))
 
   {
     const lockfile = await project.readLockfile()
@@ -68,7 +69,7 @@ test('manifests are extended with fields specified by pnpm.packageExtensions', a
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults({ frozenLockfile: true }))
+  ], await testDefaults({ frozenLockfile: true, packageExtensions }))
 
   {
     const lockfile = await project.readLockfile()
@@ -84,7 +85,7 @@ test('manifests are extended with fields specified by pnpm.packageExtensions', a
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
   }
 
-  manifest.pnpm!.packageExtensions!['is-positive'].dependencies!['bar'] = '100.0.1'
+  packageExtensions['is-positive'].dependencies!['bar'] = '100.0.1'
   await expect(
     mutateModules([
       {
@@ -93,7 +94,7 @@ test('manifests are extended with fields specified by pnpm.packageExtensions', a
         mutation: 'install',
         rootDir: process.cwd(),
       },
-    ], await testDefaults({ frozenLockfile: true }))
+    ], await testDefaults({ frozenLockfile: true, packageExtensions }))
   ).rejects.toThrow(
     new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
       'Cannot perform a frozen installation because the lockfile needs updates'

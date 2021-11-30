@@ -34,6 +34,7 @@ import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import readIniFile from 'read-ini-file'
+import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import getSaveType from './getSaveType'
@@ -122,6 +123,7 @@ export default async function recursive (
     : {}
   const targetDependenciesField = getSaveType(opts)
   const installOpts = Object.assign(opts, {
+    ...getOptionsFromRootManifest(manifestsByPath[opts.lockfileDir ?? opts.dir]?.manifest ?? {}),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
@@ -356,6 +358,7 @@ export default async function recursive (
           {
             ...installOpts,
             ...localConfig,
+            ...getOptionsFromRootManifest(manifest),
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,

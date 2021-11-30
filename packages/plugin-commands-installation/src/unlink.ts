@@ -4,6 +4,7 @@ import { Config } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { mutateModules } from '@pnpm/core'
 import renderHelp from 'render-help'
+import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
 import recursive from './recursive'
 
@@ -51,6 +52,7 @@ export async function handler (
   | 'selectedProjectsGraph'
   | 'rawLocalConfig'
   | 'registries'
+  | 'rootProjectManifest'
   | 'pnpmfile'
   | 'workspaceDir'
   > & {
@@ -64,6 +66,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const unlinkOpts = Object.assign(opts, {
+    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
     globalBin: opts.bin,
     storeController: store.ctrl,
     storeDir: store.dir,

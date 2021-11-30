@@ -21,6 +21,7 @@ import { parse as parseYarnLock } from '@yarnpkg/lockfile'
 import * as yarnCore from '@yarnpkg/core'
 import { parseSyml } from '@yarnpkg/parsers'
 import exists from 'path-exists'
+import getOptionsFromRootManifest from '../getOptionsFromRootManifest'
 import recursive from '../recursive'
 import { yarnLockFileKeyNormalizer } from './yarnUtil'
 
@@ -143,14 +144,16 @@ export async function handler (
   }
 
   const store = await createOrConnectStoreController(opts)
+  const manifest = await readProjectManifestOnly(opts.dir)
   const installOpts = {
     ...opts,
+    ...getOptionsFromRootManifest(manifest),
     lockfileOnly: true,
     preferredVersions,
     storeController: store.ctrl,
     storeDir: store.dir,
   }
-  await install(await readProjectManifestOnly(opts.dir), installOpts)
+  await install(manifest, installOpts)
 }
 
 async function readYarnLockFile (dir: string) {

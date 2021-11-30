@@ -1175,16 +1175,6 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
 test('resolve a subdependency from the workspace, when it uses the workspace protocol', async () => {
   preparePackages([
     {
-      location: '.',
-      package: {
-        pnpm: {
-          overrides: {
-            'dep-of-pkg-with-1-dep': 'workspace:*',
-          },
-        },
-      },
-    },
-    {
       location: 'project',
       package: { name: 'project' },
     },
@@ -1229,7 +1219,14 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: -1, workspacePackages }))
+  const overrides = {
+    'dep-of-pkg-with-1-dep': 'workspace:*',
+  }
+  await mutateModules(importers, await testDefaults({
+    linkWorkspacePackagesDepth: -1,
+    overrides,
+    workspacePackages,
+  }))
 
   const project = assertProject(process.cwd())
 
@@ -1241,6 +1238,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
   // Testing that headless installation does not fail with links in subdeps
   await mutateModules(importers, await testDefaults({
     frozenLockfile: true,
+    overrides,
     workspacePackages,
   }))
 })

@@ -1,5 +1,6 @@
 import {
   Project,
+  ProjectManifest,
   ProjectsGraph,
   Registries,
 } from '@pnpm/types'
@@ -140,6 +141,7 @@ export interface Config {
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
   extendNodePath?: boolean
+  rootProjectManifest?: ProjectManifest
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

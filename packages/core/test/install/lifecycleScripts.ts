@@ -446,9 +446,9 @@ test('scripts have access to unlisted bins when hoisting is used', async () => {
 test('selectively ignore scripts in some dependencies', async () => {
   const project = prepareEmpty()
   const neverBuiltDependencies = ['pre-and-postinstall-scripts-example']
-  const manifest = await addDependenciesToPackage({ pnpm: { neverBuiltDependencies } },
+  const manifest = await addDependenciesToPackage({},
     ['pre-and-postinstall-scripts-example', 'install-script-example'],
-    await testDefaults({ fastUnpack: false })
+    await testDefaults({ fastUnpack: false, neverBuiltDependencies })
   )
 
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
@@ -462,7 +462,7 @@ test('selectively ignore scripts in some dependencies', async () => {
 
   await rimraf('node_modules')
 
-  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, neverBuiltDependencies }))
 
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
@@ -484,7 +484,6 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   }
 
   const neverBuiltDependencies = ['pre-and-postinstall-scripts-example']
-  manifest.pnpm = { neverBuiltDependencies }
   await mutateModules([
     {
       buildIndex: 0,
@@ -492,7 +491,7 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults())
+  ], await testDefaults({ neverBuiltDependencies }))
 
   {
     const lockfile = await project.readLockfile()
