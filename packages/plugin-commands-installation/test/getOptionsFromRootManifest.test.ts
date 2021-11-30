@@ -8,3 +8,14 @@ test('getOptionsFromRootManifest() should read "resolutions" field for compatibi
   })
   expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
 })
+
+test('getOptionsFromRootManifest() should read "overrides" field', () => {
+  const options = getOptionsFromRootManifest({
+    pnpm: {
+      overrides: {
+        foo: '1.0.0',
+      },
+    },
+  })
+  expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
+})
