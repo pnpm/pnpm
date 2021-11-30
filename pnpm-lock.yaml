@@ -330,6 +330,7 @@ importers:
       '@pnpm/global-bin-dir': workspace:3.0.0
       '@pnpm/pnpmfile': workspace:1.2.0
       '@pnpm/prepare': workspace:0.0.28
+      '@pnpm/read-project-manifest': workspace:2.0.7
       '@pnpm/types': workspace:7.6.0
       '@types/ramda': 0.27.39
       '@types/which': ^2.0.0
@@ -347,6 +348,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/global-bin-dir': link:../global-bin-dir
       '@pnpm/pnpmfile': link:../pnpmfile
+      '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
       '@zkochan/npm-conf': 2.0.2
       camelcase: 6.2.1

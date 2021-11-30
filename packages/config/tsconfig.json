@@ -25,6 +25,9 @@
       "path": "../pnpmfile"
     },
     {
+      "path": "../read-project-manifest"
+    },
+    {
       "path": "../types"
     }
   ]

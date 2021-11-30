@@ -36,6 +36,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/global-bin-dir": "workspace:3.0.0",
     "@pnpm/pnpmfile": "workspace:1.2.0",
+    "@pnpm/read-project-manifest": "workspace:2.0.7",
     "@pnpm/types": "workspace:7.6.0",
     "@zkochan/npm-conf": "2.0.2",
     "camelcase": "^6.2.0",

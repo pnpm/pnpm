@@ -358,6 +358,7 @@ export default async function recursive (
           {
             ...installOpts,
             ...localConfig,
+            ...getOptionsFromRootManifest(manifest),
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,

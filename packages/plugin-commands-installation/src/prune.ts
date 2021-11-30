@@ -5,6 +5,7 @@ import { createOrConnectStoreController, CreateStoreControllerOptions } from '@p
 import { InstallOptions, mutateModules } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -44,19 +45,21 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<Config, 'dev' | 'engineStrict' | 'optional' | 'production'> & CreateStoreControllerOptions
+  opts: Pick<Config, 'dev' | 'engineStrict' | 'optional' | 'production' | 'rootProjectManifest'> & CreateStoreControllerOptions
 ) {
   const store = await createOrConnectStoreController(opts)
+  const manifest = await readProjectManifestOnly(process.cwd(), opts)
   return mutateModules([
     {
       buildIndex: 0,
-      manifest: await readProjectManifestOnly(process.cwd(), opts),
+      manifest,
       mutation: 'install',
       pruneDirectDependencies: true,
       rootDir: process.cwd(),
     },
   ], {
     ...opts,
+    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
     include: {
       dependencies: opts.production !== false,
       devDependencies: opts.dev !== false,

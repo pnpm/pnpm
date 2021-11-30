@@ -17,6 +17,7 @@ import {
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
+import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getSaveType from './getSaveType'
 import recursive from './recursive'
 
@@ -140,6 +141,7 @@ export async function handler (
   | 'production'
   | 'rawLocalConfig'
   | 'registries'
+  | 'rootProjectManifest'
   | 'saveDev'
   | 'saveOptional'
   | 'saveProd'
@@ -162,6 +164,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
+    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
     storeController: store.ctrl,
     storeDir: store.dir,
     include,

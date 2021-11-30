@@ -27,6 +27,7 @@ import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
 import * as installCommand from './install'
+import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getSaveType from './getSaveType'
 
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
@@ -140,6 +141,7 @@ export async function handler (
       await install(
         await readProjectManifestOnly(dir, opts), {
           ...config,
+          ...getOptionsFromRootManifest(config.rootProjectManifest ?? {}),
           include: {
             dependencies: config.production !== false,
             devDependencies: config.dev !== false,
