@@ -6,21 +6,21 @@ import {
   testDefaults,
 } from '../utils'
 
-test('versions are replaced with versions specified through pnpm.overrides field', async () => {
+test('versions are replaced with versions specified through overrides option', async () => {
   const project = prepareEmpty()
 
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({
-    pnpm: {
-      overrides: {
-        'foobarqar>foo': 'npm:qar@100.0.0',
-        'bar@^100.0.0': '100.1.0',
-        'dep-of-pkg-with-1-dep': '101.0.0',
-      },
-    },
-  }, ['pkg-with-1-dep@100.0.0', 'foobar@100.0.0', 'foobarqar@1.0.0'], await testDefaults())
+  const overrides = {
+    'foobarqar>foo': 'npm:qar@100.0.0',
+    'bar@^100.0.0': '100.1.0',
+    'dep-of-pkg-with-1-dep': '101.0.0',
+  }
+  const manifest = await addDependenciesToPackage({},
+    ['pkg-with-1-dep@100.0.0', 'foobar@100.0.0', 'foobarqar@1.0.0'],
+    await testDefaults({ overrides })
+  )
 
   {
     const lockfile = await project.readLockfile()
@@ -47,9 +47,9 @@ test('versions are replaced with versions specified through pnpm.overrides field
   ], { ...await testDefaults(), ignorePackageManifest: true })
 
   // The lockfile is updated if the overrides are changed
-  manifest.pnpm!.overrides!['bar@^100.0.0'] = '100.0.0'
+  overrides['bar@^100.0.0'] = '100.0.0'
   // A direct dependency may be overriden as well
-  manifest.pnpm!.overrides!['foobarqar'] = '1.0.1'
+  overrides['foobarqar'] = '1.0.1'
   await mutateModules([
     {
       buildIndex: 0,
@@ -57,7 +57,7 @@ test('versions are replaced with versions specified through pnpm.overrides field
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults())
+  ], await testDefaults({ overrides }))
 
   {
     const lockfile = await project.readLockfile()
@@ -95,7 +95,7 @@ test('versions are replaced with versions specified through pnpm.overrides field
     expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
   }
 
-  manifest.pnpm!.overrides!['bar@^100.0.0'] = '100.0.1'
+  overrides['bar@^100.0.0'] = '100.0.1'
   await expect(
     mutateModules([
       {
