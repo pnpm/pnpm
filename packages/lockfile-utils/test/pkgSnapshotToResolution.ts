@@ -22,6 +22,17 @@ test('pkgSnapshotToResolution()', () => {
     tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
   })
 
+  expect(pkgSnapshotToResolution('/@mycompany/mypackage/2.0.0', {
+    resolution: {
+      integrity: 'AAAA',
+      tarball: '@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
+    },
+  }, { default: 'https://registry.npmjs.org/', '@mycompany': 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local' })).toEqual({
+    integrity: 'AAAA',
+    registry: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local',
+    tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
+  })
+
   expect(pkgSnapshotToResolution('/foo/1.0.0', {
     resolution: {
       integrity: 'AAAA',
