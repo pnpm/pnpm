@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/win-x64",
-  "version": "6.23.3",
+  "version": "6.23.4",
   "license": "MIT",
   "publishConfig": {
     "bin": {

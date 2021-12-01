@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.6.0
+
+### Minor Changes
+
+- 8a99a01ff: Read the root project manifest and write it to the config object.
+
 ## 13.5.1
 
 ### Patch Changes

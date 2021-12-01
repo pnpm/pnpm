@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 8.0.0
+
+### Major Changes
+
+- 8a99a01ff: Pass `packageExtensions`, `overrides`, and `neverBuiltDependencies` to the core API. Take this information from `rootProjectManifest`, which should be passed in via the options.
+
+### Patch Changes
+
+- Updated dependencies [8a99a01ff]
+- Updated dependencies [8a99a01ff]
+  - @pnpm/core@2.0.0
+  - @pnpm/config@13.6.0
+  - @pnpm/outdated@9.0.19
+  - @pnpm/plugin-commands-rebuild@5.3.3
+  - @pnpm/cli-utils@0.6.35
+  - @pnpm/store-connection-manager@3.1.12
+  - @pnpm/find-workspace-packages@3.1.27
+  - @pnpm/filter-workspace-packages@4.4.7
+
 ## 7.4.0
 
 ### Minor Changes

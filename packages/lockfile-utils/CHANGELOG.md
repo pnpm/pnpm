@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 3.1.2
+
+### Patch Changes
+
+- 3cf543fc1: Non-standard tarball URL should be correctly calculated when the registry has no traling slash in the configuration file [#4052](https://github.com/pnpm/pnpm/issues/4052). This is a regression caused introduced in v6.23.2 caused by [#4032](https://github.com/pnpm/pnpm/pull/4032).
+
 ## 3.1.1
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 2.0.0
+
+### Major Changes
+
+- 8a99a01ff: `packageExtensions`, `overrides`, and `neverBuiltDependencies` are passed through as options to the core API. These settings are not read from the root manifest's `package.json`.
+
+### Patch Changes
+
+- Updated dependencies [3cf543fc1]
+  - @pnpm/lockfile-utils@3.1.2
+  - @pnpm/resolve-dependencies@21.2.3
+  - @pnpm/filter-lockfile@5.0.12
+  - @pnpm/headless@16.3.3
+  - @pnpm/hoist@5.2.7
+  - @pnpm/lockfile-to-pnp@0.4.33
+  - @pnpm/modules-cleaner@11.0.16
+
 ## 1.3.2
 
 ### Patch Changes

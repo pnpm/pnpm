@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 10.0.15
+
+### Patch Changes
+
+- Updated dependencies [3cf543fc1]
+  - @pnpm/lockfile-utils@3.1.2
+
 ## 10.0.14
 
 ### Patch Changes
