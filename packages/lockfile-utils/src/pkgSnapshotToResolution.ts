@@ -16,14 +16,16 @@ export default (
     return pkgSnapshot.resolution as Resolution
   }
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  const registry = pkgSnapshot.resolution['registry'] ||
+  const registry: string = pkgSnapshot.resolution['registry'] ||
     (name[0] === '@' && registries[name.split('/')[0]]) ||
     registries.default
   let tarball!: string
   if (!pkgSnapshot.resolution['tarball']) {
     tarball = getTarball(registry)
   } else {
-    tarball = new url.URL(pkgSnapshot.resolution['tarball'], registry).toString()
+    tarball = new url.URL(pkgSnapshot.resolution['tarball'],
+      registry.endsWith('/') ? registry : `${registry}/`
+    ).toString()
   }
   return {
     ...pkgSnapshot.resolution,
