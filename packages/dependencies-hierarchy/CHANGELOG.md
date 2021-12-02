@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 10.0.16
+
+### Patch Changes
+
+- Updated dependencies [46aaf7108]
+  - @pnpm/normalize-registries@2.0.8
+
 ## 10.0.15
 
 ### Patch Changes

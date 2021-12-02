@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.23.5
+
+### Patch Changes
+
+- `pnpm audit` should work when a proxy is configured for the registry [#3755](https://github.com/pnpm/pnpm/issues/3755).
+- Revert the change that was made in pnpm v6.23.2 causing a regression describe in [#4052](https://github.com/pnpm/pnpm/issues/4052).
+
 ## 6.23.4
 
 ### Patch Changes

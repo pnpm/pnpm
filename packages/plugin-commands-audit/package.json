@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-audit",
-  "version": "5.1.25",
+  "version": "5.1.26",
   "description": "pnpm commands for dependencies audit",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -40,9 +40,9 @@
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/audit": "workspace:2.1.15",
-    "@pnpm/cli-utils": "workspace:0.6.35",
-    "@pnpm/config": "workspace:13.6.0",
+    "@pnpm/audit": "workspace:2.2.0",
+    "@pnpm/cli-utils": "workspace:0.6.36",
+    "@pnpm/config": "workspace:13.6.1",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/lockfile-file": "workspace:4.2.1",

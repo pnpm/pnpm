@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [46aaf7108]
+  - @pnpm/normalize-registries@2.0.8
+  - @pnpm/lockfile-to-pnp@0.4.34
+  - @pnpm/headless@16.3.4
+  - @pnpm/package-requester@15.2.3
+  - @pnpm/get-context@5.2.2
+
 ## 2.0.0
 
 ### Major Changes

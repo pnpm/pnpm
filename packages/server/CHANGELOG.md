@@ -1,5 +1,12 @@
 # @pnpm/server
 
+## 11.0.13
+
+### Patch Changes
+
+- Updated dependencies [f1c194ded]
+  - @pnpm/fetch@4.2.0
+
 ## 11.0.12
 
 ### Patch Changes

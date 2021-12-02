@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-audit
 
+## 5.1.26
+
+### Patch Changes
+
+- Updated dependencies [f1c194ded]
+- Updated dependencies [46aaf7108]
+  - @pnpm/audit@2.2.0
+  - @pnpm/config@13.6.1
+  - @pnpm/cli-utils@0.6.36
+
 ## 5.1.25
 
 ### Patch Changes

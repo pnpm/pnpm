@@ -46,7 +46,7 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:4.1.6",
+    "@pnpm/fetch": "workspace:4.2.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.1.3",
     "@types/retry": "^0.12.0",

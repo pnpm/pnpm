@@ -1,5 +1,16 @@
 # @pnpm/audit
 
+## 2.2.0
+
+### Minor Changes
+
+- f1c194ded: Added options for the HTTP agent.
+
+### Patch Changes
+
+- Updated dependencies [f1c194ded]
+  - @pnpm/fetch@4.2.0
+
 ## 2.1.15
 
 ### Patch Changes

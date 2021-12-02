@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 4.2.0
+
+### Minor Changes
+
+- f1c194ded: Add `fetchWithAgent()`.
+
 ## 4.1.6
 
 ### Patch Changes

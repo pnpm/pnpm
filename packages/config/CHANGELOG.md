@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.6.1
+
+### Patch Changes
+
+- 46aaf7108: Revert the change that was made in pnpm v6.23.2 causing a regression describe in [#4052](https://github.com/pnpm/pnpm/issues/4052).
+
 ## 13.6.0
 
 ### Minor Changes

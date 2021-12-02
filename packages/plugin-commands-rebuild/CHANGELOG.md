@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.3.4
+
+### Patch Changes
+
+- Updated dependencies [46aaf7108]
+  - @pnpm/config@13.6.1
+  - @pnpm/normalize-registries@2.0.8
+  - @pnpm/cli-utils@0.6.36
+  - @pnpm/store-connection-manager@3.1.13
+  - @pnpm/find-workspace-packages@3.1.28
+  - @pnpm/get-context@5.2.2
+
 ## 5.3.3
 
 ### Patch Changes
