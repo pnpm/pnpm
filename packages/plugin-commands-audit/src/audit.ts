@@ -106,7 +106,25 @@ export async function handler (
     json?: boolean
     lockfileDir?: string
     registries: Registries
-  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor' | 'fetchTimeout' | 'production' | 'dev' | 'optional'>
+  } & Pick<Config, 'ca'
+  | 'cert'
+  | 'httpProxy'
+  | 'httpsProxy'
+  | 'key'
+  | 'localAddress'
+  | 'maxSockets'
+  | 'noProxy'
+  | 'strictSsl'
+  | 'fetchTimeout'
+  | 'fetchRetries'
+  | 'fetchRetryMaxtimeout'
+  | 'fetchRetryMintimeout'
+  | 'fetchRetryFactor'
+  | 'fetchTimeout'
+  | 'production'
+  | 'dev'
+  | 'optional'
+  >
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -120,6 +138,18 @@ export async function handler (
   let auditReport!: AuditReport
   try {
     auditReport = await audit(lockfile, {
+      agentOptions: {
+        ca: opts.ca,
+        cert: opts.cert,
+        httpProxy: opts.httpProxy,
+        httpsProxy: opts.httpsProxy,
+        key: opts.key,
+        localAddress: opts.localAddress,
+        maxSockets: opts.maxSockets,
+        noProxy: opts.noProxy,
+        strictSsl: opts.strictSsl,
+        timeout: opts.fetchTimeout,
+      },
       include,
       registry: opts.registries.default,
       retry: {

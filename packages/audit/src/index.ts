@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import fetch, { RetryTimeoutOptions } from '@pnpm/fetch'
+import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 import lockfileToAuditTree from './lockfileToAuditTree'
@@ -10,6 +10,7 @@ export * from './types'
 export default async function audit (
   lockfile: Lockfile,
   opts: {
+    agentOptions?: AgentOptions
     include?: { [dependenciesField in DependenciesField]: boolean }
     registry: string
     retry?: RetryTimeoutOptions
@@ -19,7 +20,8 @@ export default async function audit (
   const auditTree = lockfileToAuditTree(lockfile, { include: opts.include })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
-  const res = await fetch(auditUrl, {
+  const res = await fetchWithAgent(auditUrl, {
+    agentOptions: opts.agentOptions ?? {},
     body: JSON.stringify(auditTree),
     headers: { 'Content-Type': 'application/json' },
     method: 'post',
