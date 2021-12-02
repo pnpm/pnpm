@@ -338,7 +338,6 @@ importers:
       camelcase: ^6.2.0
       can-write-to-dir: ^1.1.1
       is-subdir: ^1.1.1
-      normalize-registry-url: 2.0.0
       ramda: ^0.27.1
       realpath-missing: ^1.1.0
       symlink-dir: ^5.0.0
@@ -354,7 +353,6 @@ importers:
       camelcase: 6.2.1
       can-write-to-dir: 1.1.1
       is-subdir: 1.2.0
-      normalize-registry-url: 2.0.0
       ramda: 0.27.1
       realpath-missing: 1.1.0
       which: 2.0.2
@@ -1416,7 +1414,7 @@ importers:
       '@types/js-yaml': ^4.0.0
       '@types/ramda': 0.27.39
       dependency-path: workspace:8.0.6
-      get-npm-tarball-url: ^2.0.3
+      get-npm-tarball-url: 2.0.2
       ramda: ^0.27.1
       tempy: ^1.0.0
       write-yaml-file: ^4.2.0
@@ -1426,7 +1424,7 @@ importers:
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/types': link:../types
       dependency-path: link:../dependency-path
-      get-npm-tarball-url: 2.0.3
+      get-npm-tarball-url: 2.0.2
       ramda: 0.27.1
     devDependencies:
       '@pnpm/lockfile-utils': 'link:'
@@ -1621,10 +1619,10 @@ importers:
     specifiers:
       '@pnpm/normalize-registries': 'link:'
       '@pnpm/types': workspace:7.6.0
-      normalize-registry-url: 2.0.0
+      normalize-registry-url: 1.0.0
     dependencies:
       '@pnpm/types': link:../types
-      normalize-registry-url: 2.0.0
+      normalize-registry-url: 1.0.0
     devDependencies:
       '@pnpm/normalize-registries': 'link:'
 
@@ -3062,7 +3060,7 @@ importers:
       '@types/semver': ^7.3.4
       dependency-path: workspace:8.0.6
       encode-registry: ^3.0.0
-      get-npm-tarball-url: ^2.0.3
+      get-npm-tarball-url: 2.0.2
       path-exists: ^4.0.0
       ramda: ^0.27.1
       replace-string: ^3.1.0
@@ -3084,7 +3082,7 @@ importers:
       '@pnpm/types': link:../types
       dependency-path: link:../dependency-path
       encode-registry: 3.0.0
-      get-npm-tarball-url: 2.0.3
+      get-npm-tarball-url: 2.0.2
       path-exists: 4.0.0
       ramda: 0.27.1
       replace-string: 3.1.0
@@ -9310,9 +9308,11 @@ packages:
       has: 1.0.3
       has-symbols: 1.0.2
 
-  /get-npm-tarball-url/2.0.3:
-    resolution: {integrity: sha512-R/PW6RqyaBQNWYaSyfrh54/qtcnOp22FHCCiRhSSZj0FP3KQWCsxxt0DzIdVTbwTqe9CtQfvl/FPD4UIPt4pqw==}
-    engines: {node: '>=12.17'}
+  /get-npm-tarball-url/2.0.2:
+    resolution: {integrity: sha512-2dPhgT0K4pVyciTqdS0gr9nEwyCQwt9ql1/t5MCUMvcjWjAysjGJgT7Sx4n6oq3tFBjBN238mxX4RfTjT3838Q==}
+    engines: {node: '>=4'}
+    dependencies:
+      normalize-registry-url: 1.0.0
     dev: false
 
   /get-package-type/0.1.0:
@@ -12204,8 +12204,13 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
+  /normalize-registry-url/1.0.0:
+    resolution: {integrity: sha512-0v6T4851b72ykk5zEtFoN4QX/Fqyk7pouIj9xZyAvAe9jlDhAwT4z6FlwsoQCHjeuK2EGUoAwy/F4y4B1uZq9A==}
+    dev: false
+
   /normalize-registry-url/2.0.0:
     resolution: {integrity: sha512-3e9FwDyRAhbxXw4slm4Tjv40u78yPwMc/WZkACpqNQOs5sM7wic853AeTLkMFEVhivZkclGYlse8iYsklz0Yvg==}
+    dev: true
 
   /normalize-url/6.1.0:
     resolution: {integrity: sha512-DlL+XwOy3NxAQ8xuC0okPgK46iuVNAK01YN7RueYBqqFeGsBjV9XmCAzAdgt+667bCl5kPh9EqKKDwnaPG1I7A==}
