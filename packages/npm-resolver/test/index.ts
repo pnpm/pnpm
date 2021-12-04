@@ -1666,3 +1666,29 @@ test('resolveFromNpm() fails if the meta file contains invalid shasum', async ()
     resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
   ).rejects.toThrow('Tarball "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz" has invalid shasum specified in its metadata: a')
 })
+
+test('resolveFromNpm() should normalize the registry', async () => {
+  nock('https://reg.com/owner')
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, {
+    registry: 'https://reg.com/owner',
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.resolution).toStrictEqual({
+    integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
+    registry: 'https://reg.com/owner',
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('1.0.0')
+})
