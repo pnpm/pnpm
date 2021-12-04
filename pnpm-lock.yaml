@@ -3253,7 +3253,6 @@ importers:
       '@types/retry': ^0.12.0
       '@types/ssri': ^7.1.0
       '@zkochan/retry': ^0.2.0
-      '@zkochan/rimraf': ^2.1.1
       cp-file: ^9.0.0
       nock: 12.0.3
       ramda: ^0.27.1
@@ -3267,7 +3266,6 @@ importers:
       '@pnpm/graceful-fs': link:../graceful-fs
       '@pnpm/prepare-package': link:../prepare-package
       '@zkochan/retry': 0.2.0
-      '@zkochan/rimraf': 2.1.1
       ramda: 0.27.1
       ssri: 8.0.1
     devDependencies:
