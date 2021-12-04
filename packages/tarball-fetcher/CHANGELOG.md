@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 9.3.11
+
+### Patch Changes
+
+- b13e4b452: Fixes a regression introduced in pnpm v6.23.3 via [#4044](https://github.com/pnpm/pnpm/pull/4044).
+
+  The temporary directory to which the Git-hosted package is downloaded should not be removed prematurely [#4064](https://github.com/pnpm/pnpm/issues/4064).
+
 ## 9.3.10
 
 ### Patch Changes

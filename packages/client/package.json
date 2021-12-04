@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/client",
-  "version": "6.0.7",
+  "version": "6.0.8",
   "description": "Creates the package resolve and fetch functions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,9 +35,9 @@
     "@pnpm/directory-fetcher": "workspace:1.0.1",
     "@pnpm/fetch": "workspace:4.2.0",
     "@pnpm/fetching-types": "workspace:2.2.1",
-    "@pnpm/git-fetcher": "workspace:4.1.9",
+    "@pnpm/git-fetcher": "workspace:4.1.10",
     "@pnpm/resolver-base": "workspace:8.1.1",
-    "@pnpm/tarball-fetcher": "workspace:9.3.10",
+    "@pnpm/tarball-fetcher": "workspace:9.3.11",
     "credentials-by-uri": "^2.0.0",
     "mem": "^8.0.0"
   },

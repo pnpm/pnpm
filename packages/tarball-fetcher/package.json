@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "9.3.10",
+  "version": "9.3.11",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
