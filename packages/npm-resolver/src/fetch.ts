@@ -105,5 +105,5 @@ function toUri (pkgName: string, registry: string) {
     encodedName = encodeURIComponent(pkgName)
   }
 
-  return new url.URL(encodedName, registry).toString()
+  return new url.URL(encodedName, registry.endsWith('/') ? registry : `${registry}/`).toString()
 }
