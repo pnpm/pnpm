@@ -10,10 +10,11 @@ import camelcase from 'camelcase'
 import loadNpmConf from '@zkochan/npm-conf'
 import npmTypes from '@zkochan/npm-conf/lib/types'
 import { sync as canWriteToDir } from 'can-write-to-dir'
+import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
-import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
+import getScopeRegistries from './getScopeRegistries'
 import findBestGlobalPrefix from './findBestGlobalPrefix'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
@@ -250,7 +251,7 @@ export default async (
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   pnpmConfig.registries = {
-    default: normalizeRegistry(pnpmConfig.rawConfig.registry),
+    default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
   pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
