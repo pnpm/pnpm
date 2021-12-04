@@ -64,3 +64,17 @@ test('fetch a package without a package.json', async () => {
   )
   expect(filesIndex['denolib.json']).toBeTruthy()
 })
+
+// Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
+test('fetch a big repository', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createFetcher().git
+  const manifest = pDefer<DependencyManifest>()
+  const { filesIndex } = await fetch(createCafsStore(cafsDir),
+    {
+      commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
+      repo: 'https://github.com/sveltejs/action-deploy-docs.git',
+      type: 'git',
+    }, { manifest })
+  await Promise.all(Object.values(filesIndex).map(({ writeResult }) => writeResult))
+})

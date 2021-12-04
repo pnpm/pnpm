@@ -353,3 +353,16 @@ test('accessing private packages', async () => {
 async function getFileIntegrity (filename: string) {
   return (await ssri.fromStream(fs.createReadStream(filename))).toString()
 }
+
+// Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
+test('fetch a big repository', async () => {
+  process.chdir(tempy.directory())
+
+  const resolution = { tarball: 'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355' }
+
+  const result = await fetch.tarball(cafs, resolution, {
+    lockfileDir: process.cwd(),
+  })
+
+  expect(result.filesIndex).toBeTruthy()
+})

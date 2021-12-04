@@ -24,7 +24,9 @@ export default () => {
       // removing /.git to make directory integrity calculation faster
       await rimraf(path.join(tempLocation, '.git'))
       const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)
-      await rimraf(tempLocation)
+      // Important! We cannot remove the temp location at this stage.
+      // Even though we have the index of the package,
+      // the linking of files to the store is in progress.
       return { filesIndex }
     },
   }

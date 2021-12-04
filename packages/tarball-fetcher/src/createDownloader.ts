@@ -12,7 +12,6 @@ import {
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import preparePackage from '@pnpm/prepare-package'
 import * as retry from '@zkochan/retry'
-import rimraf from '@zkochan/rimraf'
 import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
 import ssri from 'ssri'
@@ -248,7 +247,9 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
   })
   await preparePackage(tempLocation)
   const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
-  await rimraf(tempLocation)
+  // Important! We cannot remove the temp location at this stage.
+  // Even though we have the index of the package,
+  // the linking of files to the store is in progress.
   return newFilesIndex
 }
 
