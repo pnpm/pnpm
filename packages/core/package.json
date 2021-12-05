@@ -34,7 +34,7 @@
     "@pnpm/modules-yaml": "workspace:9.0.6",
     "@pnpm/normalize-registries": "workspace:2.0.8",
     "@pnpm/package-requester": "workspace:15.2.3",
-    "@pnpm/parse-overrides": "workspace:^0.0.0",
+    "@pnpm/parse-overrides": "workspace:1.0.0",
     "@pnpm/parse-wanted-dependency": "workspace:2.0.0",
     "@pnpm/prune-lockfile": "workspace:3.0.10",
     "@pnpm/read-modules-dir": "workspace:3.0.1",
