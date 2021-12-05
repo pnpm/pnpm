@@ -174,7 +174,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
   }, ['prune'])
 })
 
-test('prune does not fail if the store contains a directory', async () => {
+test('prune does not fail if the store contains an unexpected directory', async () => {
   const project = prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')

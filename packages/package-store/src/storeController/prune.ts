@@ -29,16 +29,12 @@ export default async function prune (storeDir: string) {
         continue
       }
       const stat = await fs.stat(filePath)
+      if (stat.isDirectory()) {
+        globalWarn(`An alien directory is present in the store: ${filePath}`)
+        continue
+      }
       if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
-        try {
-          await fs.unlink(filePath)
-        } catch (err: any) { // eslint-disable-line
-          if (err.code !== 'EISDIR') {
-            throw err
-          }
-          globalWarn(`An alien directory is present in the store: ${filePath}`)
-          continue
-        }
+        await fs.unlink(filePath)
         fileCounter++
         removedHashes.add(ssri.fromHex(`${dir}${fileName}`, 'sha512').toString())
       }
