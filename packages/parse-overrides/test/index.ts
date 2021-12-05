@@ -11,6 +11,16 @@ test.each([
   ],
   [
     {
+      'foo@>2': '1',
+      'foo@3 || >=2': '1',
+    },
+    [
+      { newPref: '1', targetPkg: { name: 'foo', pref: '>2' } },
+      { newPref: '1', targetPkg: { name: 'foo', pref: '3 || >=2' } },
+    ],
+  ],
+  [
+    {
       'bar>foo': '2',
       'bar@1>foo': '2',
       'bar>foo@1': '2',
@@ -24,8 +34,14 @@ test.each([
     ],
   ],
   [
-    { 'foo@2': '1' },
-    [{ newPref: '1', targetPkg: { name: 'foo', pref: '2' } }],
+    {
+      'foo@>2>bar@>2': '1',
+      'foo@3 || >=2>bar@3 || >=2': '1',
+    },
+    [
+      { newPref: '1', parentPkg: { name: 'foo', pref: '>2' }, targetPkg: { name: 'bar', pref: '>2' } },
+      { newPref: '1', parentPkg: { name: 'foo', pref: '3 || >=2' }, targetPkg: { name: 'bar', pref: '3 || >=2' } },
+    ],
   ],
 ])('parseOverrides()', (overrides, expectedResult) => {
   expect(parseOverrides(overrides)).toEqual(expectedResult)
