@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { PackageFilesIndex } from '@pnpm/cafs'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import ssri from 'ssri'
@@ -30,7 +30,15 @@ export default async function prune (storeDir: string) {
       }
       const stat = await fs.stat(filePath)
       if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
-        await fs.unlink(filePath)
+        try {
+          await fs.unlink(filePath)
+        } catch (err: any) { // eslint-disable-line
+          if (err.code !== 'EISDIR') {
+            throw err
+          }
+          globalWarn(`An alien directory is present in the store: ${filePath}`)
+          continue
+        }
         fileCounter++
         removedHashes.add(ssri.fromHex(`${dir}${fileName}`, 'sha512').toString())
       }

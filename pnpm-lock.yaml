@@ -2635,7 +2635,6 @@ importers:
       '@pnpm/types': workspace:7.6.0
       '@types/archy': 0.0.31
       '@types/ramda': 0.27.39
-      '@types/sinon': ^9.0.11
       '@types/ssri': ^7.1.0
       '@zkochan/rimraf': ^2.1.1
       archy: ^1.0.0
@@ -2647,7 +2646,6 @@ importers:
       path-exists: ^4.0.0
       ramda: ^0.27.1
       render-help: ^1.0.1
-      sinon: ^11.1.1
       ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
@@ -2678,13 +2676,11 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/archy': 0.0.31
       '@types/ramda': 0.27.39
-      '@types/sinon': 9.0.11
       '@types/ssri': 7.1.1
       '@zkochan/rimraf': 2.1.1
       execa: /safe-execa/0.1.1
       load-json-file: 6.2.0
       path-exists: 4.0.0
-      sinon: 11.1.2
       ssri: 8.0.1
       tempy: 1.0.1
 
