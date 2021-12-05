@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { PackageFilesIndex } from '@pnpm/cafs'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import ssri from 'ssri'
@@ -29,6 +29,10 @@ export default async function prune (storeDir: string) {
         continue
       }
       const stat = await fs.stat(filePath)
+      if (stat.isDirectory()) {
+        globalWarn(`An alien directory is present in the store: ${filePath}`)
+        continue
+      }
       if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
         await fs.unlink(filePath)
         fileCounter++

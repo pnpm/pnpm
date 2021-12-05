@@ -8,7 +8,6 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import isEmpty from 'ramda/src/isEmpty'
-import sinon from 'sinon'
 import ssri from 'ssri'
 
 const STORE_VERSION = 'v3'
@@ -25,7 +24,7 @@ test('remove unreferenced packages', async () => {
 
   await project.storeHas('is-negative', '2.1.0')
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await store.handler({
     cacheDir,
     dir: process.cwd(),
@@ -37,14 +36,16 @@ test('remove unreferenced packages', async () => {
     storeDir,
   }, ['prune'])
 
-  expect(reporter.calledWithMatch({
-    level: 'info',
-    message: 'Removed 1 package',
-  })).toBeTruthy()
+  expect(reporter).toBeCalledWith(
+    expect.objectContaining({
+      level: 'info',
+      message: 'Removed 1 package',
+    })
+  )
 
   await project.storeHasNot('is-negative', '2.1.0')
 
-  reporter.resetHistory()
+  reporter.mockClear()
   await store.handler({
     cacheDir,
     dir: process.cwd(),
@@ -56,10 +57,12 @@ test('remove unreferenced packages', async () => {
     storeDir,
   }, ['prune'])
 
-  expect(reporter.calledWithMatch({
-    level: 'info',
-    message: 'Removed 1 package',
-  })).toBeFalsy()
+  expect(reporter).not.toBeCalledWith(
+    expect.objectContaining({
+      level: 'info',
+      message: 'Removed 1 package',
+    })
+  )
 })
 
 test.skip('remove packages that are used by project that no longer exist', async () => {
@@ -74,7 +77,7 @@ test.skip('remove packages that are used by project that no longer exist', async
 
   await cafsHas(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await store.handler({
     cacheDir,
     dir: process.cwd(),
@@ -86,10 +89,12 @@ test.skip('remove packages that are used by project that no longer exist', async
     storeDir,
   }, ['prune'])
 
-  expect(reporter.calledWithMatch({
-    level: 'info',
-    message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
-  })).toBeTruthy()
+  expect(reporter).toBeCalledWith(
+    expect.objectContaining({
+      level: 'info',
+      message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    })
+  )
 
   await cafsHasNot(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
 })
@@ -167,4 +172,35 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     registries: { default: REGISTRY },
     storeDir,
   }, ['prune'])
+})
+
+test('prune does not fail if the store contains an unexpected directory', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
+
+  await project.storeHas('is-negative', '2.1.0')
+  const alienDir = path.join(storeDir, 'v3/files/44/directory')
+  fs.mkdirSync(alienDir)
+
+  const reporter = jest.fn()
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    rawConfig: {
+      registry: REGISTRY,
+    },
+    registries: { default: REGISTRY },
+    reporter,
+    storeDir,
+  }, ['prune'])
+
+  expect(reporter).toBeCalledWith(
+    expect.objectContaining({
+      level: 'warn',
+      message: `An alien directory is present in the store: ${alienDir}`,
+    })
+  )
 })
