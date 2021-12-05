@@ -91,6 +91,9 @@
       "path": "../package-store"
     },
     {
+      "path": "../parse-overrides"
+    },
+    {
       "path": "../parse-wanted-dependency"
     },
     {

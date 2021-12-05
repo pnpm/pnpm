@@ -1,46 +1,31 @@
 import path from 'path'
+import partition from 'ramda/src/partition'
 import { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
-import parseWantedDependency from '@pnpm/parse-wanted-dependency'
+import parseOverrides from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import semver from 'semver'
-
-const DELIMITER_REGEX = /[^ |@]>/
 
 export default function (
   overrides: Record<string, string>,
   rootDir: string
 ): ReadPackageHook {
-  const genericVersionOverrides = [] as VersionOverride[]
-  const versionOverrides = [] as VersionOverrideWithParent[]
-  Object.entries(overrides)
-    .forEach(([selector, newPref]) => {
-      let linkTarget: string | undefined
-      if (newPref.startsWith('link:')) {
-        linkTarget = path.join(rootDir, newPref.substring(5))
-      }
-      let delimiterIndex = selector.search(DELIMITER_REGEX)
-      if (delimiterIndex !== -1) {
-        delimiterIndex++
-        const parentSelector = selector.substring(0, delimiterIndex)
-        const childSelector = selector.substring(delimiterIndex + 1)
-        versionOverrides.push({
+  const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
+    parseOverrides(overrides)
+      .map((override) => {
+        let linkTarget: string | undefined
+        if (override.newPref.startsWith('link:')) {
+          linkTarget = path.join(rootDir, override.newPref.substring(5))
+        }
+        return {
+          ...override,
           linkTarget,
-          newPref,
-          parentWantedDependency: parseWantedDependency(parentSelector),
-          wantedDependency: parseWantedDependency(childSelector),
-        } as VersionOverrideWithParent)
-        return
-      }
-      genericVersionOverrides.push({
-        linkTarget,
-        newPref,
-        wantedDependency: parseWantedDependency(selector),
-      } as VersionOverride)
-    })
+        }
+      })
+  ) as [VersionOverrideWithParent[], VersionOverride[]]
   return ((manifest: PackageManifest, dir?: string) => {
-    overrideDepsOfPkg({ manifest, dir }, versionOverrides.filter(({ parentWantedDependency }) => {
-      return parentWantedDependency.alias === manifest.name && (
-        !parentWantedDependency.pref || semver.satisfies(manifest.version, parentWantedDependency.pref)
+    overrideDepsOfPkg({ manifest, dir }, versionOverrides.filter(({ parentPkg }) => {
+      return parentPkg.name === manifest.name && (
+        !parentPkg.pref || semver.satisfies(manifest.version, parentPkg.pref)
       )
     }))
     overrideDepsOfPkg({ manifest, dir }, genericVersionOverrides)
@@ -49,12 +34,12 @@ export default function (
 }
 
 interface VersionOverride {
-  parentWantedDependency?: {
-    alias: string
+  parentPkg?: {
+    name: string
     pref?: string
   }
-  wantedDependency: {
-    alias: string
+  targetPkg: {
+    name: string
     pref?: string
   }
   newPref: string
@@ -62,8 +47,8 @@ interface VersionOverride {
 }
 
 interface VersionOverrideWithParent extends VersionOverride {
-  parentWantedDependency: {
-    alias: string
+  parentPkg: {
+    name: string
     pref?: string
   }
 }
@@ -80,14 +65,14 @@ function overrideDepsOfPkg (
 
 function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies, dir: string | undefined) {
   for (const versionOverride of versionOverrides) {
-    const actual = deps[versionOverride.wantedDependency.alias]
+    const actual = deps[versionOverride.targetPkg.name]
     if (actual == null) continue
-    if (!isSubRange(versionOverride.wantedDependency.pref, actual)) continue
+    if (!isSubRange(versionOverride.targetPkg.pref, actual)) continue
     if (versionOverride.linkTarget && dir) {
-      deps[versionOverride.wantedDependency.alias] = `link:${normalizePath(path.relative(dir, versionOverride.linkTarget))}`
+      deps[versionOverride.targetPkg.name] = `link:${normalizePath(path.relative(dir, versionOverride.linkTarget))}`
       continue
     }
-    deps[versionOverride.wantedDependency.alias] = versionOverride.newPref
+    deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
 }
 
