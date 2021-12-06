@@ -47,6 +47,7 @@ import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
 import semver from 'semver'
 import ssri from 'ssri'
+import equalOrSemverEqual from './equalOrSemverEqual'
 import safeDeferredPromise from './safeDeferredPromise'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
@@ -446,7 +447,7 @@ function fetchToStore (
               // So it may happen that the version will be in different formats.
               // For instance, v1.0.0 and 1.0.0
               // Hence, we need to use semver.eq() to compare them.
-              !semver.eq(pkgFilesIndex.version, opts.pkg.version, { loose: true })
+              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
             )
           ) {
             /* eslint-disable @typescript-eslint/restrict-template-expressions */
