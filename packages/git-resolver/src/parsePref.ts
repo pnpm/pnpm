@@ -78,7 +78,9 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
 
-  const gitUrl = hosted.git({ noCommittish: true })
+  // Note only GitHub has gitTemplate (git://...) in hosted-git-info, has to use
+  // sshTemplate (git@...) for bitbucket and gitlab.
+  const gitUrl = hosted.git({ noCommittish: true }) ?? hosted.ssh({ noCommittish: true })
   if (gitUrl && await accessRepository(gitUrl)) {
     fetchSpec = gitUrl
   }
@@ -105,7 +107,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetch(httpsUrl.substr(0, httpsUrl.length - 4), { method: 'HEAD', follow: 0 })
+          const response = await fetch(httpsUrl.substr(0, httpsUrl.length - 4), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
           if (response.ok) {
             fetchSpec = httpsUrl
           }
