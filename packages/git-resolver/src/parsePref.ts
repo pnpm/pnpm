@@ -80,7 +80,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
 
   // Note only GitHub has gitTemplate (git://...) in hosted-git-info, has to use
   // sshTemplate (git@...) for bitbucket and gitlab.
-  const gitUrl = hosted.git({ noCommittish: true }) || hosted.ssh({ noCommittish: true })
+  const gitUrl = hosted.git({ noCommittish: true }) ?? hosted.ssh({ noCommittish: true })
   if (gitUrl && await accessRepository(gitUrl)) {
     fetchSpec = gitUrl
   }
