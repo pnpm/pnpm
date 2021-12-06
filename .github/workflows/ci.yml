@@ -26,16 +26,17 @@ jobs:
         git config --global user.email "x@y.z"
     - name: Checkout Commit
       uses: actions/checkout@v1
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2.0.1
+      with: 
+        version: next
     - name: Setup Node
       uses: actions/setup-node@v2
       with:
         node-version: ${{ matrix.node }}
-    - name: checkout main
-      run: git branch -f main origin/main
-    - name: install pnpm and npm
-      run: |
-        ${{ runner.os == 'Windows' && '$PSStyle.OutputRendering = "Ansi"' || '' }}
-        curl -L https://get.pnpm.io/v6.16.js | node - add --global pnpm@next npm@7
+        cache: 'pnpm'
+    - name: Install npm@7
+      run: pnpm add --global npm@7
     - name: pnpm install
       run: pnpm install
     - name: Audit
