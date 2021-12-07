@@ -1,23 +1,28 @@
 import crypto from 'crypto'
 import path from 'path'
-import PnpmError from '@pnpm/error'
-import logger from '@pnpm/logger'
 import { Dependencies } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
-import scan from 'ramda/src/scan'
 import semver from 'semver'
 import {
   DependenciesTree,
   DependenciesTreeNode,
   ResolvedPackage,
 } from './resolveDependencies'
-import {
-  createNodeId,
-  splitNodeId,
-} from './nodeIdUtils'
+import { splitNodeId } from './nodeIdUtils'
+
+export interface PeerDependencyIssue {
+  nodeId: string
+  pkg: PartialResolvedPackage
+  rootDir: string
+  foundPeerVersion?: string
+  wantedPeer: {
+    name: string
+    range: string
+  }
+}
 
 export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
@@ -32,7 +37,7 @@ export interface GenericDependenciesGraphNode {
   isPure: boolean
 }
 
-type PartialResolvedPackage = Pick<ResolvedPackage,
+export type PartialResolvedPackage = Pick<ResolvedPackage,
 | 'depPath'
 | 'name'
 | 'peerDependencies'
@@ -57,17 +62,18 @@ export default function<T extends PartialResolvedPackage> (
     dependenciesTree: DependenciesTree<T>
     virtualStoreDir: string
     lockfileDir: string
-    strictPeerDependencies: boolean
   }
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
     dependenciesByProjectId: {[id: string]: {[alias: string]: string}}
+    peerDependencyIssues: PeerDependencyIssue[]
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootProject = opts.projects.length > 1 ? opts.projects.find(({ id }) => id === '.') : null
   const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
+  const peerDependencyIssues: PeerDependencyIssue[] = []
 
   for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {
     const pkgsByName = {
@@ -80,10 +86,10 @@ export default function<T extends PartialResolvedPackage> (
       depGraph,
       lockfileDir: opts.lockfileDir,
       pathsByNodeId,
+      peerDependencyIssues,
       peersCache: new Map(),
       purePkgs: new Set(),
       rootDir,
-      strictPeerDependencies: opts.strictPeerDependencies,
       virtualStoreDir: opts.virtualStoreDir,
     })
   }
@@ -105,6 +111,7 @@ export default function<T extends PartialResolvedPackage> (
   return {
     dependenciesGraph: depGraph,
     dependenciesByProjectId,
+    peerDependencyIssues,
   }
 }
 
@@ -158,11 +165,11 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     pathsByNodeId: {[nodeId: string]: string}
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
+    peerDependencyIssues: PeerDependencyIssue[]
     peersCache: PeersCache
     purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
     lockfileDir: string
-    strictPeerDependencies: boolean
   }
 ): PeersResolution {
   const node = ctx.dependenciesTree[nodeId]
@@ -230,9 +237,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       lockfileDir: ctx.lockfileDir,
       nodeId,
       parentPkgs,
+      peerDependencyIssues: ctx.peerDependencyIssues,
       resolvedPackage,
       rootDir: ctx.rootDir,
-      strictPeerDependencies: ctx.strictPeerDependencies,
     })
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
@@ -338,6 +345,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   parentPkgs: ParentRefs,
   ctx: {
     pathsByNodeId: {[nodeId: string]: string}
+    peerDependencyIssues: PeerDependencyIssue[]
     peersCache: PeersCache
     virtualStoreDir: string
     purePkgs: Set<string>
@@ -345,7 +353,6 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     dependenciesTree: DependenciesTree<T>
     rootDir: string
     lockfileDir: string
-    strictPeerDependencies: boolean
   }
 ): PeersResolution {
   const allResolvedPeers: Record<string, string> = {}
@@ -376,7 +383,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
     resolvedPackage: T
     dependenciesTree: DependenciesTree<T>
     rootDir: string
-    strictPeerDependencies: boolean
+    peerDependencyIssues: PeerDependencyIssue[]
   }
 ): PeersResolution {
   const resolvedPeers: {[alias: string]: string} = {}
@@ -393,63 +400,34 @@ function resolvePeers<T extends PartialResolvedPackage> (
       ) {
         continue
       }
-      const friendlyPath = nodeIdToFriendlyPath(ctx)
-      const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
-requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
-      if (ctx.strictPeerDependencies) {
-        throw new PnpmError('MISSING_PEER_DEPENDENCY', message)
-      }
-      logger.warn({
-        message,
-        prefix: ctx.rootDir,
+      ctx.peerDependencyIssues.push({
+        nodeId: ctx.nodeId,
+        pkg: ctx.resolvedPackage,
+        rootDir: ctx.rootDir,
+        wantedPeer: {
+          name: peerName,
+          range: peerVersionRange,
+        },
       })
       continue
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange, { loose: true })) {
-      const friendlyPath = nodeIdToFriendlyPath(ctx)
-      const message = `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.resolvedPackage)} \
-requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
-      if (ctx.strictPeerDependencies) {
-        throw new PnpmError('INVALID_PEER_DEPENDENCY', message)
-      }
-      logger.warn({
-        message,
-        prefix: ctx.rootDir,
+      ctx.peerDependencyIssues.push({
+        nodeId: ctx.nodeId,
+        pkg: ctx.resolvedPackage,
+        rootDir: ctx.rootDir,
+        foundPeerVersion: resolved.version,
+        wantedPeer: {
+          name: peerName,
+          range: peerVersionRange,
+        },
       })
     }
 
     if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
   }
   return { resolvedPeers, missingPeers }
-}
-
-function packageFriendlyId (manifest: {name: string, version: string}) {
-  return `${manifest.name}@${manifest.version}`
-}
-
-function nodeIdToFriendlyPath<T extends PartialResolvedPackage> (
-  {
-    dependenciesTree,
-    lockfileDir,
-    nodeId,
-    rootDir,
-  }: {
-    dependenciesTree: DependenciesTree<T>
-    lockfileDir: string
-    nodeId: string
-    rootDir: string
-  }
-) {
-  const parts = splitNodeId(nodeId).slice(0, -1)
-  const result = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
-    .slice(2)
-    .map((nid) => (dependenciesTree[nid].resolvedPackage as ResolvedPackage).name)
-  const projectPath = path.relative(lockfileDir, rootDir)
-  if (projectPath) {
-    result.unshift(projectPath)
-  }
-  return result.join(' > ')
 }
 
 interface ParentRefs {

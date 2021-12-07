@@ -21,6 +21,7 @@ import {
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
 import depPathToRef from './depPathToRef'
+import reportPeerDependencyIssues from './reportPeerDependencyIssues'
 import resolveDependencyTree, {
   Importer,
   LinkedDependency,
@@ -145,13 +146,21 @@ export default async function (
   const {
     dependenciesGraph,
     dependenciesByProjectId,
+    peerDependencyIssues,
   } = resolvePeers({
     dependenciesTree,
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,
-    strictPeerDependencies: opts.strictPeerDependencies,
     virtualStoreDir: opts.virtualStoreDir,
   })
+
+  if (peerDependencyIssues.length > 0) {
+    reportPeerDependencyIssues(peerDependencyIssues, {
+      dependenciesTree,
+      lockfileDir: opts.lockfileDir,
+      strictPeerDependencies: opts.strictPeerDependencies,
+    })
+  }
 
   for (const { id, manifest } of projectsToLink) {
     for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
