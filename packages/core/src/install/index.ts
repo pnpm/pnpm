@@ -819,7 +819,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (!opts.lockfileOnly && opts.enableModulesDir) {
     const result = await linkPackages(
-      projectsToResolve,
+      projects,
       dependenciesGraph,
       {
         currentLockfile: ctx.currentLockfile,
@@ -910,7 +910,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
     }
 
-    await Promise.all(projectsToResolve.map(async (project, index) => {
+    await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         const nodeExecPathByAlias = Object.entries(project.manifest.dependenciesMeta ?? {})
@@ -1018,7 +1018,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   return {
     newLockfile,
-    projects: projectsToResolve.map(({ manifest, rootDir }) => ({ rootDir, manifest })),
+    projects: projects.map(({ manifest, rootDir }) => ({ rootDir, manifest })),
   }
 }
 

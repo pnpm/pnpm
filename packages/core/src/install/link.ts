@@ -19,7 +19,6 @@ import {
   DependenciesGraph,
   DependenciesGraphNode,
   LinkedDependency,
-  ImporterToResolve,
 } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
@@ -34,11 +33,12 @@ import equals from 'ramda/src/equals'
 import difference from 'ramda/src/difference'
 import omit from 'ramda/src/omit'
 import props from 'ramda/src/props'
+import { ImporterToUpdate } from './index'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
 export default async function linkPackages (
-  projects: ImporterToResolve[],
+  projects: ImporterToUpdate[],
   depGraph: DependenciesGraph,
   opts: {
     currentLockfile: Lockfile
