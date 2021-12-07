@@ -95,7 +95,6 @@ test('resolve peer dependencies of cyclic dependencies', () => {
     },
     virtualStoreDir: '',
     lockfileDir: '',
-    strictPeerDependencies: false,
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
     'foo/1.0.0_qar@1.0.0+zoo@1.0.0',
@@ -192,7 +191,6 @@ test('when a package is referenced twice in the dependencies graph and one of th
     },
     virtualStoreDir: '',
     lockfileDir: '',
-    strictPeerDependencies: false,
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
     'foo/1.0.0',
