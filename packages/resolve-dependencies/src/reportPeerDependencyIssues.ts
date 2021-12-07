@@ -27,12 +27,20 @@ export default function<T extends PartialResolvedPackage> (
     })
     if (opts.strictPeerDependencies) {
       const code = peerDependencyIssue.foundPeerVersion ? 'INVALID_PEER_DEPENDENCY' : 'MISSING_PEER_DEPENDENCY'
-      throw new PnpmError(code, message)
+      const err = new PnpmError(code, message)
+      if (peerDependencyIssues.length === 1) {
+        throw err
+      }
+      logger.error(err)
+    } else {
+      logger.warn({
+        message,
+        prefix: peerDependencyIssue.rootDir,
+      })
     }
-    logger.warn({
-      message,
-      prefix: peerDependencyIssue.rootDir,
-    })
+  }
+  if (opts.strictPeerDependencies) {
+    throw new PnpmError('PEER_DEPENDENCY', `${peerDependencyIssues.length} peer dependency issues found.`)
   }
 }
 
