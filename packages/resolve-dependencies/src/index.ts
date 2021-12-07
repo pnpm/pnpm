@@ -33,6 +33,7 @@ import resolvePeers, {
   GenericDependenciesGraph,
   GenericDependenciesGraphNode,
 } from './resolvePeers'
+import toResolveImporter from './toResolveImporter'
 import updateLockfile from './updateLockfile'
 import updateProjectManifest from './updateProjectManifest'
 
@@ -73,18 +74,28 @@ export type ImporterToResolve = Importer<{
 export default async function (
   importers: ImporterToResolve[],
   opts: ResolveDependenciesOptions & {
+    defaultUpdateDepth: number
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: boolean
     strictPeerDependencies: boolean
   }
 ) {
+  const _toResolveImporter = toResolveImporter.bind(null, {
+    defaultUpdateDepth: opts.defaultUpdateDepth,
+    lockfileOnly: opts.dryRun,
+    preferredVersions: opts.preferredVersions,
+    updateAll: Boolean(opts.updateMatching),
+    virtualStoreDir: opts.virtualStoreDir,
+    workspacePackages: opts.workspacePackages,
+  })
+  const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
   const {
     dependenciesTree,
     outdatedDependencies,
     resolvedImporters,
     resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
-  } = await resolveDependencyTree(importers, opts)
+  } = await resolveDependencyTree(projectsToResolve, opts)
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   const projectsToLink = await Promise.all<ProjectToLink>(importers.map(async (project, index) => {
