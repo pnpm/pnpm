@@ -65,31 +65,33 @@ interface HookOptions {
   originalManifest?: ProjectManifest
 }
 
+export interface GetContextOptions {
+  force: boolean
+  forceNewModules?: boolean
+  forceSharedLockfile: boolean
+  frozenLockfile?: boolean
+  extraBinPaths: string[]
+  lockfileDir: string
+  modulesDir?: string
+  hooks?: {
+    readPackage?: ReadPackageHook
+  }
+  include?: IncludedDependencies
+  registries: Registries
+  storeDir: string
+  useLockfile: boolean
+  virtualStoreDir?: string
+
+  hoistPattern?: string[] | undefined
+  forceHoistPattern?: boolean
+
+  publicHoistPattern?: string[] | undefined
+  forcePublicHoistPattern?: boolean
+}
+
 export default async function getContext<T> (
   projects: Array<ProjectOptions & HookOptions & T>,
-  opts: {
-    force: boolean
-    forceNewModules?: boolean
-    forceSharedLockfile: boolean
-    frozenLockfile?: boolean
-    extraBinPaths: string[]
-    lockfileDir: string
-    modulesDir?: string
-    hooks?: {
-      readPackage?: ReadPackageHook
-    }
-    include?: IncludedDependencies
-    registries: Registries
-    storeDir: string
-    useLockfile: boolean
-    virtualStoreDir?: string
-
-    hoistPattern?: string[] | undefined
-    forceHoistPattern?: boolean
-
-    publicHoistPattern?: string[] | undefined
-    forcePublicHoistPattern?: boolean
-  }
+  opts: GetContextOptions
 ): Promise<PnpmContext<T>> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   let importersContext = await readProjectsContext(projects, { lockfileDir: opts.lockfileDir, modulesDir })
