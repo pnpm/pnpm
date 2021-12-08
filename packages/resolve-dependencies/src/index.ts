@@ -142,13 +142,14 @@ export default async function (
       )
       : []
 
-    project.manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
+    const manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
+    importers[index].manifest = manifest
     return {
       binsDir: project.binsDir,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: project.manifest,
+      manifest,
       modulesDir: project.modulesDir,
       rootDir: project.rootDir,
       topParents,

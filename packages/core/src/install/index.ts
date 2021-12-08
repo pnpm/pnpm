@@ -38,6 +38,10 @@ import resolveDependencies, {
   DependenciesGraph,
   DependenciesGraphNode,
 } from '@pnpm/resolve-dependencies'
+import getWantedDependencies, {
+  PinnedVersion,
+  WantedDependency,
+} from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 import {
   PreferredVersions,
 } from '@pnpm/resolver-base'
@@ -69,10 +73,6 @@ import extendOptions, {
   StrictInstallOptions,
 } from './extendInstallOptions'
 import { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
-import getWantedDependencies, {
-  PinnedVersion,
-  WantedDependency,
-} from './getWantedDependencies'
 import linkPackages from './link'
 
 const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([

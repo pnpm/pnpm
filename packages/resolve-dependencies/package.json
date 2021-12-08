@@ -51,6 +51,7 @@
     "ramda": "^0.27.1",
     "replace-string": "^3.1.0",
     "semver": "^7.3.4",
+    "semver-utils": "^1.1.4",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {

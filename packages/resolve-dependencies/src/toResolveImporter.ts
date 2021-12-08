@@ -6,6 +6,7 @@ import {
 } from '@pnpm/resolver-base'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
+import getWantedDependencies from './getWantedDependencies'
 import { WantedDependency } from './getNonDevWantedDependencies'
 import { Importer, ImporterToResolve } from './resolveDependencyTree'
 import safeIsInnerLink from './safeIsInnerLink'
@@ -21,7 +22,8 @@ export default async function toResolveImporter<T> (
   },
   project: Importer<T>
 ): Promise<ImporterToResolve<T>> {
-  const allDeps = project.wantedDependencies
+  // eslint-disable-next-line
+  const allDeps = getWantedDependencies(project.manifest) as any
   const { nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
     modulesDir: project.modulesDir,
@@ -30,7 +32,8 @@ export default async function toResolveImporter<T> (
     workspacePackages: opts.workspacePackages,
   })
   const existingDeps = nonLinkedDependencies
-    .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
+    // eslint-disable-next-line
+    .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias)) as any
   let wantedDependencies!: Array<T & WantedDependency & { isNew?: boolean, updateDepth: number }>
   if (!project.manifest) {
     wantedDependencies = [
@@ -40,7 +43,7 @@ export default async function toResolveImporter<T> (
       .map((dep) => ({
         ...dep,
         updateDepth: opts.defaultUpdateDepth,
-      }))
+      })) as any // eslint-disable-line
   } else {
     // Direct local tarballs are always checked,
     // so their update depth should be at least 0
@@ -56,7 +59,7 @@ export default async function toResolveImporter<T> (
           ? updateLocalTarballs
           : (dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
       ...existingDeps.map(updateLocalTarballs),
-    ]
+    ] as any // eslint-disable-line
   }
   return {
     ...project,

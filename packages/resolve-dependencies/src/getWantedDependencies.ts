@@ -5,7 +5,7 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import guessPinnedVersionFromExistingSpec from '../guessPinnedVersionFromExistingSpec'
+import guessPinnedVersionFromExistingSpec from './guessPinnedVersionFromExistingSpec'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
