@@ -1,6 +1,6 @@
 import { parseRange } from 'semver-utils'
 
-export default function guessPinnedVersionFromExistingSpec (spec: string) {
+export default function whichVersionIsPinned (spec: string) {
   if (spec.startsWith('workspace:')) spec = spec.substr('workspace:'.length)
   if (spec === '*') return 'none'
   const parsedRange = parseRange(spec)

@@ -46,12 +46,12 @@
     "@pnpm/store-controller-types": "workspace:11.0.7",
     "@pnpm/symlink-dependency": "workspace:4.0.8",
     "@pnpm/types": "workspace:7.6.0",
+    "@pnpm/which-version-is-pinned": "workspace:0.0.0",
     "@zkochan/npm-package-arg": "^2.0.1",
     "@zkochan/rimraf": "^2.1.1",
     "dependency-path": "workspace:8.0.6",
     "graph-sequencer": "2.0.0",
     "is-inner-link": "^4.0.0",
-    "is-subdir": "^1.1.1",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",
     "p-every": "^2.0.0",
@@ -62,7 +62,6 @@
     "ramda": "^0.27.1",
     "run-groups": "^3.0.1",
     "semver": "^7.3.4",
-    "semver-utils": "^1.1.4",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {

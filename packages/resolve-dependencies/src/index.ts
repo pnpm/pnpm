@@ -33,6 +33,7 @@ import resolvePeers, {
   GenericDependenciesGraph,
   GenericDependenciesGraphNode,
 } from './resolvePeers'
+import toResolveImporter from './toResolveImporter'
 import updateLockfile from './updateLockfile'
 import updateProjectManifest from './updateProjectManifest'
 
@@ -73,27 +74,37 @@ export type ImporterToResolve = Importer<{
 export default async function (
   importers: ImporterToResolve[],
   opts: ResolveDependenciesOptions & {
+    defaultUpdateDepth: number
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: boolean
     strictPeerDependencies: boolean
   }
 ) {
+  const _toResolveImporter = toResolveImporter.bind(null, {
+    defaultUpdateDepth: opts.defaultUpdateDepth,
+    lockfileOnly: opts.dryRun,
+    preferredVersions: opts.preferredVersions,
+    updateAll: Boolean(opts.updateMatching),
+    virtualStoreDir: opts.virtualStoreDir,
+    workspacePackages: opts.workspacePackages,
+  })
+  const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
   const {
     dependenciesTree,
     outdatedDependencies,
     resolvedImporters,
     resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
-  } = await resolveDependencyTree(importers, opts)
+  } = await resolveDependencyTree(projectsToResolve, opts)
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
-  const projectsToLink = await Promise.all<ProjectToLink>(importers.map(async (project, index) => {
+  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
     let updatedManifest: ProjectManifest | undefined = project.manifest
     let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
     if (project.updatePackageManifest) {
-      const manifests = await updateProjectManifest(importers[index], {
+      const manifests = await updateProjectManifest(project, {
         directDependencies: resolvedImporter.directDependencies,
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -130,13 +141,14 @@ export default async function (
       )
       : []
 
-    project.manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
+    const manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
+    importers[index].manifest = manifest
     return {
       binsDir: project.binsDir,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: project.manifest,
+      manifest,
       modulesDir: project.modulesDir,
       rootDir: project.rootDir,
       topParents,

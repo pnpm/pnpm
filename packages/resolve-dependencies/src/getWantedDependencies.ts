@@ -5,7 +5,7 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import guessPinnedVersionFromExistingSpec from '../guessPinnedVersionFromExistingSpec'
+import whichVersionIsPinned from '@pnpm/which-version-is-pinned'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
@@ -71,7 +71,7 @@ function getWantedDependenciesFromGivenSet (
       injected: opts.dependenciesMeta[alias]?.injected,
       optional: depType === 'optional',
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
-      pinnedVersion: guessPinnedVersionFromExistingSpec(deps[alias]),
+      pinnedVersion: whichVersionIsPinned(deps[alias]),
       pref,
       raw: `${alias}@${pref}`,
     }

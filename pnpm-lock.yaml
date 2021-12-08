@@ -414,6 +414,7 @@ importers:
       '@pnpm/symlink-dependency': workspace:4.0.8
       '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.6.0
+      '@pnpm/which-version-is-pinned': workspace:0.0.0
       '@types/fs-extra': ^9.0.5
       '@types/is-ci': ^3.0.0
       '@types/is-windows': ^1.0.0
@@ -432,7 +433,6 @@ importers:
       graph-sequencer: 2.0.0
       is-ci: ^3.0.0
       is-inner-link: ^4.0.0
-      is-subdir: ^1.1.1
       is-windows: ^1.0.2
       load-json-file: ^6.2.0
       ncp: ^2.0.0
@@ -449,7 +449,6 @@ importers:
       resolve-link-target: ^2.0.0
       run-groups: ^3.0.1
       semver: ^7.3.4
-      semver-utils: ^1.1.4
       sinon: ^11.1.1
       symlink-dir: ^5.0.0
       version-selector-type: ^3.0.0
@@ -487,12 +486,12 @@ importers:
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
+      '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
       '@zkochan/npm-package-arg': 2.0.1
       '@zkochan/rimraf': 2.1.1
       dependency-path: link:../dependency-path
       graph-sequencer: 2.0.0
       is-inner-link: 4.0.0
-      is-subdir: 1.2.0
       load-json-file: 6.2.0
       normalize-path: 3.0.0
       p-every: 2.0.0
@@ -503,7 +502,6 @@ importers:
       ramda: 0.27.1
       run-groups: 3.0.1
       semver: 7.3.5
-      semver-utils: 1.1.4
       version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/assert-project': link:../../privatePackages/assert-project
@@ -3067,11 +3065,14 @@ importers:
       '@pnpm/resolver-base': workspace:8.1.1
       '@pnpm/store-controller-types': workspace:11.0.7
       '@pnpm/types': workspace:7.6.0
+      '@pnpm/which-version-is-pinned': workspace:0.0.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
       dependency-path: workspace:8.0.6
       encode-registry: ^3.0.0
       get-npm-tarball-url: ^2.0.3
+      is-inner-link: ^4.0.0
+      is-subdir: ^1.1.1
       path-exists: ^4.0.0
       ramda: ^0.27.1
       replace-string: ^3.1.0
@@ -3091,9 +3092,12 @@ importers:
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
+      '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
       dependency-path: link:../dependency-path
       encode-registry: 3.0.0
       get-npm-tarball-url: 2.0.3
+      is-inner-link: 4.0.0
+      is-subdir: 1.2.0
       path-exists: 4.0.0
       ramda: 0.27.1
       replace-string: 3.1.0
@@ -3304,6 +3308,15 @@ importers:
       '@pnpm/types': 'link:'
     devDependencies:
       '@pnpm/types': 'link:'
+
+  packages/which-version-is-pinned:
+    specifiers:
+      '@pnpm/which-version-is-pinned': 'link:'
+      semver-utils: ^1.1.4
+    dependencies:
+      semver-utils: 1.1.4
+    devDependencies:
+      '@pnpm/which-version-is-pinned': 'link:'
 
   packages/write-project-manifest:
     specifiers:

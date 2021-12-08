@@ -2,6 +2,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
+  ProjectManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -37,10 +38,16 @@ export interface ResolvedDirectDependency {
 
 export interface Importer<T> {
   id: string
-  hasRemovedDependencies?: boolean
+  manifest: ProjectManifest
   modulesDir: string
-  preferredVersions?: PreferredVersions
+  removePackages?: string[]
   rootDir: string
+  wantedDependencies: Array<T & WantedDependency>
+}
+
+export interface ImporterToResolveGeneric<T> extends Importer<T> {
+  hasRemovedDependencies?: boolean
+  preferredVersions?: PreferredVersions
   wantedDependencies: Array<T & WantedDependency & { updateDepth: number }>
 }
 
@@ -57,6 +64,7 @@ export interface ResolveDependenciesOptions {
   nodeVersion: string
   registries: Registries
   pnpmVersion: string
+  preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   updateMatching?: (pkgName: string) => boolean
   linkWorkspacePackagesDepth?: number
@@ -69,7 +77,7 @@ export interface ResolveDependenciesOptions {
 }
 
 export default async function<T> (
-  importers: Array<Importer<T>>,
+  importers: Array<ImporterToResolveGeneric<T>>,
   opts: ResolveDependenciesOptions
 ) {
   const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}

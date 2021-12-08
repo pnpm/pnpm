@@ -38,9 +38,12 @@ import resolveDependencies, {
   DependenciesGraph,
   DependenciesGraphNode,
 } from '@pnpm/resolve-dependencies'
+import getWantedDependencies, {
+  PinnedVersion,
+  WantedDependency,
+} from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 import {
   PreferredVersions,
-  WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
   DependenciesField,
@@ -61,7 +64,6 @@ import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
 import parseWantedDependencies from '../parseWantedDependencies'
-import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
 import allProjectsAreUpToDate from './allProjectsAreUpToDate'
 import createPackageExtender from './createPackageExtender'
@@ -70,11 +72,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import getPreferredVersionsFromPackage, { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
-import getWantedDependencies, {
-  PinnedVersion,
-  WantedDependency,
-} from './getWantedDependencies'
+import { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
 import linkPackages from './link'
 
 const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
@@ -561,51 +559,6 @@ function pkgHasDependencies (manifest: ProjectManifest) {
   )
 }
 
-async function partitionLinkedPackages (
-  dependencies: WantedDependency[],
-  opts: {
-    projectDir: string
-    lockfileOnly: boolean
-    modulesDir: string
-    storeDir: string
-    virtualStoreDir: string
-    workspacePackages?: WorkspacePackages
-  }
-) {
-  const nonLinkedDependencies: WantedDependency[] = []
-  const linkedAliases = new Set<string>()
-  for (const dependency of dependencies) {
-    if (
-      !dependency.alias ||
-      opts.workspacePackages?.[dependency.alias] != null ||
-      dependency.pref.startsWith('workspace:')
-    ) {
-      nonLinkedDependencies.push(dependency)
-      continue
-    }
-    const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
-      hideAlienModules: !opts.lockfileOnly,
-      projectDir: opts.projectDir,
-      storeDir: opts.storeDir,
-      virtualStoreDir: opts.virtualStoreDir,
-    })
-    if (isInnerLink === true) {
-      nonLinkedDependencies.push(dependency)
-      continue
-    }
-    // This info-log might be better to be moved to the reporter
-    logger.info({
-      message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
-      prefix: opts.projectDir,
-    })
-    linkedAliases.add(dependency.alias)
-  }
-  return {
-    linkedAliases,
-    nonLinkedDependencies,
-  }
-}
-
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
 function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDeps: WantedDependency[]) {
@@ -664,7 +617,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean
   removePackages?: string[]
   updatePackageManifest: boolean
-  wantedDependencies: Array<WantedDependency & { isNew?: Boolean, updateSpec?: Boolean }>
+  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean }>
 } & DependenciesMutation
 
 type InstallFunction = (
@@ -736,16 +689,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     opts.force ||
     opts.needsFullResolution ||
     ctx.lockfileHadConflicts
-  const _toResolveImporter = toResolveImporter.bind(null, {
-    defaultUpdateDepth: (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,
-    lockfileOnly: opts.lockfileOnly,
-    preferredVersions,
-    storeDir: ctx.storeDir,
-    updateAll: Boolean(opts.updateMatching),
-    virtualStoreDir: ctx.virtualStoreDir,
-    workspacePackages: opts.workspacePackages,
-  })
-  const projectsToResolve = await Promise.all(projects.map(async (project) => _toResolveImporter(project)))
 
   // Ignore some fields when fixing lockfile, so these fields can be regenerated
   // and make sure it's up-to-date
@@ -776,9 +719,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     wantedToBeSkippedPackageIds,
     waitTillAllFetchingsFinish,
   } = await resolveDependencies(
-    projectsToResolve,
+    projects,
     {
       currentLockfile: ctx.currentLockfile,
+      defaultUpdateDepth: (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       force: opts.force,
@@ -790,6 +734,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       preferWorkspacePackages: opts.preferWorkspacePackages,
+      preferredVersions,
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -819,7 +764,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (!opts.lockfileOnly && opts.enableModulesDir) {
     const result = await linkPackages(
-      projectsToResolve,
+      projects,
       dependenciesGraph,
       {
         currentLockfile: ctx.currentLockfile,
@@ -910,7 +855,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
     }
 
-    await Promise.all(projectsToResolve.map(async (project, index) => {
+    await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         const nodeExecPathByAlias = Object.entries(project.manifest.dependenciesMeta ?? {})
@@ -1018,7 +963,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   return {
     newLockfile,
-    projects: projectsToResolve.map(({ manifest, rootDir }) => ({ rootDir, manifest })),
+    projects: projects.map(({ manifest, rootDir }) => ({ rootDir, manifest })),
   }
 }
 
@@ -1038,68 +983,6 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     logger.error(new PnpmError(error.code, 'The lockfile is broken! A full installation will be performed in an attempt to fix it.'))
     return _installInContext(projects, ctx, opts)
   }
-}
-
-async function toResolveImporter (
-  opts: {
-    defaultUpdateDepth: number
-    lockfileOnly: boolean
-    preferredVersions?: PreferredVersions
-    storeDir: string
-    updateAll: boolean
-    virtualStoreDir: string
-    workspacePackages: WorkspacePackages
-  },
-  project: ImporterToUpdate
-) {
-  const allDeps = getWantedDependencies(project.manifest)
-  const { nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
-    lockfileOnly: opts.lockfileOnly,
-    modulesDir: project.modulesDir,
-    projectDir: project.rootDir,
-    storeDir: opts.storeDir,
-    virtualStoreDir: opts.virtualStoreDir,
-    workspacePackages: opts.workspacePackages,
-  })
-  const existingDeps = nonLinkedDependencies
-    .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
-  let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
-  if (!project.manifest) {
-    wantedDependencies = [
-      ...project.wantedDependencies,
-      ...existingDeps,
-    ]
-      .map((dep) => ({
-        ...dep,
-        updateDepth: opts.defaultUpdateDepth,
-      }))
-  } else {
-    // Direct local tarballs are always checked,
-    // so their update depth should be at least 0
-    const updateLocalTarballs = (dep: WantedDependency) => ({
-      ...dep,
-      updateDepth: opts.updateAll
-        ? opts.defaultUpdateDepth
-        : (prefIsLocalTarball(dep.pref) ? 0 : -1),
-    })
-    wantedDependencies = [
-      ...project.wantedDependencies.map(
-        opts.defaultUpdateDepth < 0
-          ? updateLocalTarballs
-          : (dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
-      ...existingDeps.map(updateLocalTarballs),
-    ]
-  }
-  return {
-    ...project,
-    hasRemovedDependencies: Boolean(project.removePackages?.length),
-    preferredVersions: opts.preferredVersions ?? (project.manifest && getPreferredVersionsFromPackage(project.manifest)) ?? {},
-    wantedDependencies,
-  }
-}
-
-function prefIsLocalTarball (pref: string) {
-  return pref.startsWith('file:') && pref.endsWith('.tgz')
 }
 
 const limitLinking = pLimit(16)

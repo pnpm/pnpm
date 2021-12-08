@@ -50,6 +50,9 @@
     },
     {
       "path": "../types"
+    },
+    {
+      "path": "../which-version-is-pinned"
     }
   ]
 }

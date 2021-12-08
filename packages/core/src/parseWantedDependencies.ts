@@ -1,7 +1,7 @@
 import parseWantedDependency from '@pnpm/parse-wanted-dependency'
 import { Dependencies } from '@pnpm/types'
-import guessPinnedVersionFromExistingSpec from './guessPinnedVersionFromExistingSpec'
-import { PinnedVersion, WantedDependency } from './install/getWantedDependencies'
+import whichVersionIsPinned from '@pnpm/which-version-is-pinned'
+import { PinnedVersion, WantedDependency } from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 
 export default function parseWantedDependencies (
   rawWantedDependencies: string[],
@@ -34,7 +34,7 @@ export default function parseWantedDependencies (
             ? 'workspace:*'
             : opts.currentPrefs[alias]
         }
-        pinnedVersion = guessPinnedVersionFromExistingSpec(opts.currentPrefs[alias])
+        pinnedVersion = whichVersionIsPinned(opts.currentPrefs[alias])
       }
       const result = {
         alias,
