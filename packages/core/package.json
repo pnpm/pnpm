@@ -52,7 +52,6 @@
     "dependency-path": "workspace:8.0.6",
     "graph-sequencer": "2.0.0",
     "is-inner-link": "^4.0.0",
-    "is-subdir": "^1.1.1",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",
     "p-every": "^2.0.0",

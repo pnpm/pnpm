@@ -433,7 +433,6 @@ importers:
       graph-sequencer: 2.0.0
       is-ci: ^3.0.0
       is-inner-link: ^4.0.0
-      is-subdir: ^1.1.1
       is-windows: ^1.0.2
       load-json-file: ^6.2.0
       ncp: ^2.0.0
@@ -493,7 +492,6 @@ importers:
       dependency-path: link:../dependency-path
       graph-sequencer: 2.0.0
       is-inner-link: 4.0.0
-      is-subdir: 1.2.0
       load-json-file: 6.2.0
       normalize-path: 3.0.0
       p-every: 2.0.0
