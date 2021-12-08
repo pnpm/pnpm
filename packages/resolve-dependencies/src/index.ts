@@ -98,13 +98,14 @@ export default async function (
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
-  const projectsToLink = await Promise.all<ProjectToLink>(importers.map(async (project, index) => {
+  // eslint-disable-next-line
+  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project: any, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
     let updatedManifest: ProjectManifest | undefined = project.manifest
     let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
     if (project.updatePackageManifest) {
-      const manifests = await updateProjectManifest(importers[index], {
+      const manifests = await updateProjectManifest(project, {
         directDependencies: resolvedImporter.directDependencies,
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
