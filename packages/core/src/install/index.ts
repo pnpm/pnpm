@@ -511,7 +511,7 @@ export function createObjectChecksum (obj: Object) {
   return crypto.createHash('md5').update(s).digest('hex')
 }
 
-function createReadPackageHook (
+export function createReadPackageHook (
   {
     lockfileDir,
     overrides,
@@ -523,7 +523,7 @@ function createReadPackageHook (
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook
   }
-) {
+): ReadPackageHook | undefined {
   const hooks: ReadPackageHook[] = []
   if (!isEmpty(overrides ?? {})) {
     hooks.push(createVersionsOverrider(overrides!, lockfileDir))

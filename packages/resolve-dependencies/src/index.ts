@@ -220,6 +220,7 @@ export default async function (
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
+    peerDependencyIssues,
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
   }
