@@ -2,4 +2,4 @@
 "@pnpm/resolve-dependencies": major
 ---
 
-Breaking changes to the API. New required option added: defaultUpdateDepth.
+Breaking changes to the API. New required options added: `defaultUpdateDepth` and `preferredVersions`.
