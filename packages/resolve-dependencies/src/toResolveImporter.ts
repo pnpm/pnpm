@@ -6,12 +6,11 @@ import {
 } from '@pnpm/resolver-base'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
-import getWantedDependencies from './getWantedDependencies'
-import { WantedDependency } from './getNonDevWantedDependencies'
-import { Importer, ImporterToResolve } from './resolveDependencyTree'
+import { ImporterToResolve } from '.'
+import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
 import safeIsInnerLink from './safeIsInnerLink'
 
-export default async function toResolveImporter<T> (
+export default async function toResolveImporter (
   opts: {
     defaultUpdateDepth: number
     lockfileOnly: boolean
@@ -20,10 +19,9 @@ export default async function toResolveImporter<T> (
     virtualStoreDir: string
     workspacePackages: WorkspacePackages
   },
-  project: Importer<T>
-): Promise<ImporterToResolve<T>> {
-  // eslint-disable-next-line
-  const allDeps = getWantedDependencies(project.manifest) as any
+  project: ImporterToResolve
+) {
+  const allDeps = getWantedDependencies(project.manifest)
   const { nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
     modulesDir: project.modulesDir,
@@ -32,9 +30,8 @@ export default async function toResolveImporter<T> (
     workspacePackages: opts.workspacePackages,
   })
   const existingDeps = nonLinkedDependencies
-    // eslint-disable-next-line
-    .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias)) as any
-  let wantedDependencies!: Array<T & WantedDependency & { isNew?: boolean, updateDepth: number }>
+    .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
+  let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
   if (!project.manifest) {
     wantedDependencies = [
       ...project.wantedDependencies,
@@ -43,11 +40,11 @@ export default async function toResolveImporter<T> (
       .map((dep) => ({
         ...dep,
         updateDepth: opts.defaultUpdateDepth,
-      })) as any // eslint-disable-line
+      }))
   } else {
     // Direct local tarballs are always checked,
     // so their update depth should be at least 0
-    const updateLocalTarballs = (dep: T & WantedDependency) => ({
+    const updateLocalTarballs = (dep: WantedDependency) => ({
       ...dep,
       updateDepth: opts.updateAll
         ? opts.defaultUpdateDepth
@@ -59,7 +56,7 @@ export default async function toResolveImporter<T> (
           ? updateLocalTarballs
           : (dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
       ...existingDeps.map(updateLocalTarballs),
-    ] as any // eslint-disable-line
+    ]
   }
   return {
     ...project,
