@@ -22,7 +22,7 @@ export default async function toResolveImporter (
   project: ImporterToResolve
 ) {
   const allDeps = getWantedDependencies(project.manifest)
-  const { nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
+  const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
     modulesDir: project.modulesDir,
     projectDir: project.rootDir,
@@ -70,8 +70,8 @@ function prefIsLocalTarball (pref: string) {
   return pref.startsWith('file:') && pref.endsWith('.tgz')
 }
 
-async function partitionLinkedPackages<T> (
-  dependencies: Array<T & WantedDependency>,
+async function partitionLinkedPackages (
+  dependencies: WantedDependency[],
   opts: {
     projectDir: string
     lockfileOnly: boolean
@@ -79,11 +79,8 @@ async function partitionLinkedPackages<T> (
     virtualStoreDir: string
     workspacePackages?: WorkspacePackages
   }
-): Promise<{
-    linkedAliases: Set<string>
-    nonLinkedDependencies: Array<WantedDependency & T>
-  }> {
-  const nonLinkedDependencies: Array<WantedDependency & T> = []
+): Promise<WantedDependency[]> {
+  const nonLinkedDependencies: WantedDependency[] = []
   const linkedAliases = new Set<string>()
   for (const dependency of dependencies) {
     if (
@@ -110,10 +107,7 @@ async function partitionLinkedPackages<T> (
     })
     linkedAliases.add(dependency.alias)
   }
-  return {
-    linkedAliases,
-    nonLinkedDependencies,
-  }
+  return nonLinkedDependencies
 }
 
 function getPreferredVersionsFromPackage (

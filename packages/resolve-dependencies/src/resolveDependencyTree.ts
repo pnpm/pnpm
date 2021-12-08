@@ -45,7 +45,7 @@ export interface Importer<T> {
   wantedDependencies: Array<T & WantedDependency>
 }
 
-export interface ImporterToResolve<T> extends Importer<T> {
+export interface ImporterToResolveGeneric<T> extends Importer<T> {
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<T & WantedDependency & { updateDepth: number }>
@@ -77,7 +77,7 @@ export interface ResolveDependenciesOptions {
 }
 
 export default async function<T> (
-  importers: Array<ImporterToResolve<T>>,
+  importers: Array<ImporterToResolveGeneric<T>>,
   opts: ResolveDependenciesOptions
 ) {
   const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}
