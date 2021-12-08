@@ -98,7 +98,7 @@ export default async function (
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
-  const projectsToLink = await Promise.all<ProjectToLink>(importers.map(async (project, index) => {
+  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
     let updatedManifest: ProjectManifest | undefined = project.manifest
