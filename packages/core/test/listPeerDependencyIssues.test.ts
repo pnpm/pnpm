@@ -16,5 +16,23 @@ test('cannot resolve peer dependency for top-level dependency', async () => {
     },
   ], await testDefaults())
 
-  expect(peerDependencyIssues.length).toBe(1)
+  expect(peerDependencyIssues.issues.length).toBe(1)
+})
+
+test('a conflict is detected when the same peer is required with ranges that do not overlap', async () => {
+  prepareEmpty()
+
+  const peerDependencyIssues = await listPeerDependencyIssues([
+    {
+      manifest: {
+        dependencies: {
+          'has-foo100-peer': '1.0.0',
+          'has-foo101-peer': '1.0.0',
+        },
+      },
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults())
+
+  expect(peerDependencyIssues.conflicts.length).toBe(1)
 })

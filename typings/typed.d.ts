@@ -60,3 +60,7 @@ declare module 'bin-links/lib/fix-bin' {
 declare namespace NodeJS.Module {
   function _nodeModulePaths(from: string): string[]
 }
+
+declare module 'semver-intersect' {
+  export function intersect (...range: string[]): string
+}

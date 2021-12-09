@@ -1,10 +1,11 @@
-import resolveDependencies from '@pnpm/resolve-dependencies'
+import resolveDependencies, { PeerDependencyIssue } from '@pnpm/resolve-dependencies'
 import getWantedDependencies from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 import getContext, { GetContextOptions, ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from './install'
 import { getPreferredVersionsFromLockfile } from './install/getPreferredVersions'
 import { InstallOptions } from './install/extendInstallOptions'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import { intersect } from 'semver-intersect'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
@@ -76,7 +77,38 @@ export async function listPeerDependencyIssues (
     }
   )
 
+  const conflicts = getPeerDependencyConflicts(peerDependencyIssues)
+
   await waitTillAllFetchingsFinish()
 
-  return peerDependencyIssues
+  return {
+    issues: peerDependencyIssues,
+    conflicts,
+  }
+}
+
+function getPeerDependencyConflicts (peerDependencyIssues: PeerDependencyIssue[]) {
+  const missingPeers = new Map<string, string[]>()
+  for (const peerDependencyIssue of peerDependencyIssues) {
+    if (peerDependencyIssue.foundPeerVersion) continue
+    if (!missingPeers.has(peerDependencyIssue.wantedPeer.name)) {
+      missingPeers.set(peerDependencyIssue.wantedPeer.name, [])
+    }
+    missingPeers.get(peerDependencyIssue.wantedPeer.name)!.push(peerDependencyIssue.wantedPeer.range)
+  }
+  const conflicts = [] as string[]
+  for (const [peerName, ranges] of missingPeers.entries()) {
+    if (!intersectSafe(ranges)) {
+      conflicts.push(peerName)
+    }
+  }
+  return conflicts
+}
+
+function intersectSafe (ranges: string[]) {
+  try {
+    return intersect(...ranges)
+  } catch {
+    return false
+  }
 }
