@@ -69,7 +69,6 @@ export async function listMissingPeers (
       registries: ctx.registries,
       saveWorkspaceProtocol: false, // this doesn't matter in our case. We won't write changes to package.json files
       storeController: opts.storeController,
-      strictPeerDependencies: false,
       tag: 'latest',
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,

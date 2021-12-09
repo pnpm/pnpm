@@ -74,6 +74,7 @@ import extendOptions, {
 } from './extendInstallOptions'
 import { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
 import linkPackages from './link'
+import reportPeerDependencyIssues from './reportPeerDependencyIssues'
 
 const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE',
@@ -716,6 +717,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     linkedDependenciesByProjectId,
     newLockfile,
     outdatedDependencies,
+    peerDependencyIssues,
     wantedToBeSkippedPackageIds,
     waitTillAllFetchingsFinish,
   } = await resolveDependencies(
@@ -739,7 +741,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       registries: ctx.registries,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
-      strictPeerDependencies: opts.strictPeerDependencies,
       tag: opts.tag,
       updateMatching: opts.updateMatching,
       virtualStoreDir: ctx.virtualStoreDir,
@@ -788,7 +789,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         symlink: opts.symlink,
         skipped: ctx.skipped,
         storeController: opts.storeController,
-        strictPeerDependencies: opts.strictPeerDependencies,
         virtualStoreDir: ctx.virtualStoreDir,
         wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
@@ -960,6 +960,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   summaryLogger.debug({ prefix: opts.lockfileDir })
 
   await opts.storeController.close()
+
+  if (peerDependencyIssues.length > 0) {
+    reportPeerDependencyIssues(peerDependencyIssues, {
+      lockfileDir: opts.lockfileDir,
+      strictPeerDependencies: opts.strictPeerDependencies,
+    })
+  }
 
   return {
     newLockfile,

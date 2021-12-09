@@ -64,7 +64,6 @@ export default async function linkPackages (
     symlink: boolean
     skipped: Set<string>
     storeController: StoreController
-    strictPeerDependencies: boolean
     virtualStoreDir: string
     wantedLockfile: Lockfile
     wantedToBeSkippedPackageIds: Set<string>
