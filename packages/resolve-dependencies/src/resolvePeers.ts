@@ -5,16 +5,23 @@ import { depPathToFilename } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
+import pick from 'ramda/src/pick'
+import scan from 'ramda/src/scan'
 import semver from 'semver'
 import {
   DependenciesTree,
   DependenciesTreeNode,
   ResolvedPackage,
 } from './resolveDependencies'
-import { splitNodeId } from './nodeIdUtils'
+import { createNodeId, splitNodeId } from './nodeIdUtils'
+
+export interface PeerDependencyIssueLocation {
+  parents: Array<{ name: string, version: string }>
+  projectPath: string
+}
 
 export interface PeerDependencyIssue {
-  nodeId: string
+  location: PeerDependencyIssueLocation
   pkg: PartialResolvedPackage
   rootDir: string
   foundPeerVersion?: string
@@ -401,7 +408,12 @@ function resolvePeers<T extends PartialResolvedPackage> (
         continue
       }
       ctx.peerDependencyIssues.push({
-        nodeId: ctx.nodeId,
+        location: getLocationFromNodeId({
+          dependenciesTree: ctx.dependenciesTree,
+          nodeId: ctx.nodeId,
+          lockfileDir: ctx.lockfileDir,
+          rootDir: ctx.rootDir,
+        }),
         pkg: ctx.resolvedPackage,
         rootDir: ctx.rootDir,
         wantedPeer: {
@@ -414,7 +426,12 @@ function resolvePeers<T extends PartialResolvedPackage> (
 
     if (!semver.satisfies(resolved.version, peerVersionRange, { loose: true })) {
       ctx.peerDependencyIssues.push({
-        nodeId: ctx.nodeId,
+        location: getLocationFromNodeId({
+          dependenciesTree: ctx.dependenciesTree,
+          nodeId: ctx.nodeId,
+          lockfileDir: ctx.lockfileDir,
+          rootDir: ctx.rootDir,
+        }),
         pkg: ctx.resolvedPackage,
         rootDir: ctx.rootDir,
         foundPeerVersion: resolved.version,
@@ -428,6 +445,30 @@ function resolvePeers<T extends PartialResolvedPackage> (
     if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
   }
   return { resolvedPeers, missingPeers }
+}
+
+function getLocationFromNodeId<T> (
+  {
+    dependenciesTree,
+    lockfileDir,
+    nodeId,
+    rootDir,
+  }: {
+    dependenciesTree: DependenciesTree<T>
+    lockfileDir: string
+    nodeId: string
+    rootDir: string
+  }
+) {
+  const parts = splitNodeId(nodeId).slice(0, -1)
+  const parents = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
+    .slice(2)
+    .map((nid) => pick(['name', 'version'], dependenciesTree[nid].resolvedPackage as ResolvedPackage))
+  const projectPath = path.relative(lockfileDir, rootDir)
+  return {
+    projectPath,
+    parents,
+  }
 }
 
 interface ParentRefs {

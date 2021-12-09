@@ -1,21 +1,10 @@
-import path from 'path'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
-import scan from 'ramda/src/scan'
-import {
-  createNodeId,
-  splitNodeId,
-} from './nodeIdUtils'
-import {
-  DependenciesTree,
-  ResolvedPackage,
-} from './resolveDependencies'
-import { PartialResolvedPackage, PeerDependencyIssue } from './resolvePeers'
+import { PeerDependencyIssue, PeerDependencyIssueLocation } from '@pnpm/resolve-dependencies'
 
-export default function<T extends PartialResolvedPackage> (
+export default function (
   peerDependencyIssues: PeerDependencyIssue[],
   opts: {
-    dependenciesTree: DependenciesTree<T>
     lockfileDir: string
     strictPeerDependencies: boolean
   }
@@ -44,19 +33,13 @@ export default function<T extends PartialResolvedPackage> (
   }
 }
 
-function peerDependencyIssueMessage<T extends PartialResolvedPackage> (
+function peerDependencyIssueMessage (
   opts: {
-    dependenciesTree: DependenciesTree<T>
     lockfileDir: string
     peerDependencyIssue: PeerDependencyIssue
   }
 ) {
-  const friendlyPath = nodeIdToFriendlyPath({
-    dependenciesTree: opts.dependenciesTree,
-    lockfileDir: opts.lockfileDir,
-    nodeId: opts.peerDependencyIssue.nodeId,
-    rootDir: opts.peerDependencyIssue.rootDir,
-  })
+  const friendlyPath = locationToFriendlyPath(opts.peerDependencyIssue.location)
   if (opts.peerDependencyIssue.foundPeerVersion) {
     return `${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(opts.peerDependencyIssue.pkg)} \
 requires a peer of ${opts.peerDependencyIssue.wantedPeer.name}@${opts.peerDependencyIssue.wantedPeer.range} but version ${opts.peerDependencyIssue.foundPeerVersion} was installed.`
@@ -69,26 +52,10 @@ function packageFriendlyId (manifest: {name: string, version: string}) {
   return `${manifest.name}@${manifest.version}`
 }
 
-function nodeIdToFriendlyPath<T extends PartialResolvedPackage> (
-  {
-    dependenciesTree,
-    lockfileDir,
-    nodeId,
-    rootDir,
-  }: {
-    dependenciesTree: DependenciesTree<T>
-    lockfileDir: string
-    nodeId: string
-    rootDir: string
-  }
-) {
-  const parts = splitNodeId(nodeId).slice(0, -1)
-  const result = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
-    .slice(2)
-    .map((nid) => (dependenciesTree[nid].resolvedPackage as ResolvedPackage).name)
-  const projectPath = path.relative(lockfileDir, rootDir)
-  if (projectPath) {
-    result.unshift(projectPath)
+function locationToFriendlyPath (location: PeerDependencyIssueLocation) {
+  const result = location.parents.map(({ name }) => name)
+  if (location.projectPath) {
+    result.unshift(location.projectPath)
   }
   return result.join(' > ')
 }
