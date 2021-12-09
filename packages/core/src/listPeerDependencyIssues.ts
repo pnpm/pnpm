@@ -19,7 +19,7 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 >
 & Pick<GetContextOptions, 'storeDir'>
 
-export async function listMissingPeers (
+export async function listPeerDependencyIssues (
   projects: ProjectOptions[],
   opts: ListMissingPeersOptions
 ) {
