@@ -3062,9 +3062,11 @@ importers:
       '@pnpm/resolve-dependencies': workspace:21.2.3
       '@types/archy': 0.0.31
       archy: ^1.0.0
+      chalk: ^4.1.0
     dependencies:
       '@pnpm/resolve-dependencies': link:../resolve-dependencies
       archy: 1.0.0
+      chalk: 4.1.2
     devDependencies:
       '@pnpm/render-peer-issues': 'link:'
       '@types/archy': 0.0.31

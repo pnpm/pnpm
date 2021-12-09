@@ -1,5 +1,6 @@
 import { PeerDependencyIssues } from '@pnpm/resolve-dependencies'
 import archy from 'archy'
+import chalk from 'chalk'
 
 export default function (peerDependencyIssues: PeerDependencyIssues) {
   const projects = {} as Record<string, PkgNode>
@@ -9,7 +10,7 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
       if (!projects[projectPath]) {
         projects[projectPath] = { dependencies: {}, wantedPeers: [] }
       }
-      createTree(projects[projectPath], issue.location.parents, `missing peer ${peerName}@"${issue.peerRange}"`)
+      createTree(projects[projectPath], issue.location.parents, `${chalk.red('✕ missing peer')} ${peerName}@"${issue.peerRange}"`)
     }
   }
   for (const [peerName, issues] of Object.entries(peerDependencyIssues.bad)) {
@@ -19,10 +20,12 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
         projects[projectPath] = { dependencies: {}, wantedPeers: [] }
       }
       // eslint-disable-next-line
-      createTree(projects[projectPath], issue.location.parents, `unmet peer ${peerName}@"${issue.peerRange}": found ${issue.foundPeerVersion}`)
+      createTree(projects[projectPath], issue.location.parents, `${chalk.red('✕ unmet peer')} ${peerName}@"${issue.peerRange}": found ${issue.foundPeerVersion}`)
     }
   }
-  return Object.entries(projects).map(([projectKey, project]) => archy(toArchyData(projectKey, project))).join('\n')
+  return Object.entries(projects)
+    .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
+    .map(([projectKey, project]) => archy(toArchyData(projectKey, project))).join('')
 }
 
 interface PkgNode {

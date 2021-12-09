@@ -22,7 +22,6 @@ export interface PeerDependencyIssueLocation {
 
 export interface MissingPeerDependencyIssue {
   location: PeerDependencyIssueLocation
-  pkg: PartialResolvedPackage
   rootDir: string
   peerRange: string
 }
@@ -426,7 +425,6 @@ function resolvePeers<T extends PartialResolvedPackage> (
           rootDir: ctx.rootDir,
           pkg: ctx.resolvedPackage,
         }),
-        pkg: ctx.resolvedPackage,
         rootDir: ctx.rootDir,
         peerRange: peerVersionRange,
       })
@@ -445,7 +443,6 @@ function resolvePeers<T extends PartialResolvedPackage> (
           rootDir: ctx.rootDir,
           pkg: ctx.resolvedPackage,
         }),
-        pkg: ctx.resolvedPackage,
         rootDir: ctx.rootDir,
         foundPeerVersion: resolved.version,
         peerRange: peerVersionRange,
