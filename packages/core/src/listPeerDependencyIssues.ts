@@ -1,4 +1,4 @@
-import resolveDependencies, { PeerDependencyIssue } from '@pnpm/resolve-dependencies'
+import resolveDependencies, { PeerDependencyIssues } from '@pnpm/resolve-dependencies'
 import getWantedDependencies from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 import getContext, { GetContextOptions, ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from './install'
@@ -87,14 +87,10 @@ export async function listPeerDependencyIssues (
   }
 }
 
-function getPeerDependencyConflicts (peerDependencyIssues: PeerDependencyIssue[]) {
+function getPeerDependencyConflicts (peerDependencyIssues: PeerDependencyIssues) {
   const missingPeers = new Map<string, string[]>()
-  for (const peerDependencyIssue of peerDependencyIssues) {
-    if (peerDependencyIssue.foundPeerVersion) continue
-    if (!missingPeers.has(peerDependencyIssue.wantedPeer.name)) {
-      missingPeers.set(peerDependencyIssue.wantedPeer.name, [])
-    }
-    missingPeers.get(peerDependencyIssue.wantedPeer.name)!.push(peerDependencyIssue.wantedPeer.range)
+  for (const [peerName, issues] of Object.entries(peerDependencyIssues.missing)) {
+    missingPeers[peerName] = issues.map(({ peerRange }) => peerRange)
   }
   const conflicts = [] as string[]
   for (const [peerName, ranges] of missingPeers.entries()) {

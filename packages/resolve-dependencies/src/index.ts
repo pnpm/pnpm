@@ -31,7 +31,9 @@ import resolveDependencyTree, {
 import resolvePeers, {
   GenericDependenciesGraph,
   GenericDependenciesGraphNode,
-  PeerDependencyIssue,
+  BadPeerDependencyIssue,
+  MissingPeerDependencyIssue,
+  PeerDependencyIssues,
   PeerDependencyIssueLocation,
 } from './resolvePeers'
 import toResolveImporter from './toResolveImporter'
@@ -43,8 +45,10 @@ export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
 
 export {
+  BadPeerDependencyIssue,
+  MissingPeerDependencyIssue,
   LinkedDependency,
-  PeerDependencyIssue,
+  PeerDependencyIssues,
   PeerDependencyIssueLocation,
   ResolvedPackage,
 }

@@ -961,12 +961,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   await opts.storeController.close()
 
-  if (peerDependencyIssues.length > 0) {
-    reportPeerDependencyIssues(peerDependencyIssues, {
-      lockfileDir: opts.lockfileDir,
-      strictPeerDependencies: opts.strictPeerDependencies,
-    })
-  }
+  reportPeerDependencyIssues(peerDependencyIssues, {
+    lockfileDir: opts.lockfileDir,
+    strictPeerDependencies: opts.strictPeerDependencies,
+  })
 
   return {
     newLockfile,

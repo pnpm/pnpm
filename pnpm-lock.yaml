@@ -407,6 +407,7 @@ importers:
       '@pnpm/read-package-json': workspace:5.0.6
       '@pnpm/read-project-manifest': workspace:2.0.7
       '@pnpm/remove-bins': workspace:2.0.8
+      '@pnpm/render-peer-issues': workspace:^0.0.0
       '@pnpm/resolve-dependencies': workspace:21.2.3
       '@pnpm/resolver-base': workspace:8.1.1
       '@pnpm/store-controller-types': workspace:11.0.7
@@ -482,6 +483,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/remove-bins': link:../remove-bins
+      '@pnpm/render-peer-issues': link:../render-peer-issues
       '@pnpm/resolve-dependencies': link:../resolve-dependencies
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/store-controller-types': link:../store-controller-types
@@ -3053,6 +3055,19 @@ importers:
       '@pnpm/remove-bins': 'link:'
       '@types/is-windows': 1.0.0
       '@types/ramda': 0.27.39
+
+  packages/render-peer-issues:
+    specifiers:
+      '@pnpm/render-peer-issues': 'link:'
+      '@pnpm/resolve-dependencies': workspace:21.2.3
+      '@types/archy': 0.0.31
+      archy: ^1.0.0
+    dependencies:
+      '@pnpm/resolve-dependencies': link:../resolve-dependencies
+      archy: 1.0.0
+    devDependencies:
+      '@pnpm/render-peer-issues': 'link:'
+      '@types/archy': 0.0.31
 
   packages/resolve-dependencies:
     specifiers:
