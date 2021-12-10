@@ -16,7 +16,7 @@ test('cannot resolve peer dependency for top-level dependency', async () => {
     },
   ], await testDefaults())
 
-  expect(peerDependencyIssues.issues.length).toBe(1)
+  expect(peerDependencyIssues.issues.missing).toHaveProperty('ajv')
 })
 
 test('a conflict is detected when the same peer is required with ranges that do not overlap', async () => {

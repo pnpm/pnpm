@@ -91,10 +91,10 @@ export async function listPeerDependencyIssues (
 function getPeerDependencyConflicts (peerDependencyIssues: PeerDependencyIssues) {
   const missingPeers = new Map<string, string[]>()
   for (const [peerName, issues] of Object.entries(peerDependencyIssues.missing)) {
-    missingPeers[peerName] = issues.map(({ peerRange }) => peerRange)
+    missingPeers.set(peerName, issues.map(({ peerRange }) => peerRange))
   }
   const conflicts = [] as string[]
-  for (const [peerName, ranges] of missingPeers.entries()) {
+  for (const [peerName, ranges] of missingPeers) {
     if (!intersectSafe(ranges)) {
       conflicts.push(peerName)
     }
