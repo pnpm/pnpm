@@ -4,6 +4,7 @@ import PnpmError from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
 import { env } from '@pnpm/plugin-commands-env'
 import * as execa from 'execa'
+import nock from 'nock'
 import PATH from 'path-name'
 
 test('install Node (and npm, npx) by exact version of Node.js', async () => {
@@ -47,6 +48,29 @@ test('install Node (and npm, npx) by exact version of Node.js', async () => {
     const { stdout } = execa.sync('npm', ['config', 'get', 'globalconfig'], opts)
     expect(stdout.toString()).toBe(path.join(configDir, 'npmrc'))
   }
+})
+
+test('resolveNodeVersion uses node-mirror:release option', async () => {
+  tempDir()
+  const configDir = path.resolve('config')
+
+  const nockScope = nock('https://pnpm-node-mirror-test.localhost')
+    .get('/download/release/index.json')
+    .reply(200, [])
+
+  await expect(
+    env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {
+        'node-mirror:release': 'https://pnpm-node-mirror-test.localhost/download/release',
+      },
+    }, ['use', '16.4.0'])
+  ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching 16.4.0'))
+
+  expect(nockScope.isDone()).toBeTruthy()
 })
 
 test('fail if a non-existend Node.js version is tried to be installed', async () => {

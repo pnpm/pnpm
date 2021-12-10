@@ -1,15 +1,18 @@
+import { Config } from '@pnpm/config'
 import { FetchFromRegistry } from '@pnpm/fetch'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
+import getNodeMirror from './getNodeMirror'
 
 interface NodeVersion {
   version: string
   lts: false | string
 }
 
-export default async function resolveNodeVersion (fetch: FetchFromRegistry, rawVersionSelector: string) {
+export default async function resolveNodeVersion (fetch: FetchFromRegistry, rawVersionSelector: string, rawConfig: Config['rawConfig']) {
   const { releaseDir, version } = parseNodeVersionSelector(rawVersionSelector)
-  const response = await fetch(`https://nodejs.org/download/${releaseDir}/index.json`)
+  const nodeMirrorBaseUrl = getNodeMirror(rawConfig, releaseDir)
+  const response = await fetch(`${nodeMirrorBaseUrl}index.json`)
   const allVersions = (await response.json()) as NodeVersion[]
   if (version === 'latest') {
     return {

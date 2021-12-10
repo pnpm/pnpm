@@ -12,6 +12,7 @@ import tempy from 'tempy'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import normalizeArch from './normalizeArch'
+import getNodeMirror from './getNodeMirror'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -31,6 +32,7 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'key'
 | 'localAddress'
 | 'noProxy'
+| 'rawConfig'
 | 'strictSsl'
 | 'storeDir'
 | 'useNodeVersion'
@@ -66,7 +68,8 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
 
 async function installNode (fetch: FetchFromRegistry, wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
   await fs.promises.mkdir(versionDir, { recursive: true })
-  const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion, opts.releaseDir ?? 'release')
+  const nodeMirror = getNodeMirror(opts.rawConfig, opts.releaseDir ?? 'release')
+  const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion, nodeMirror)
   if (tarball.endsWith('.zip')) {
     await downloadAndUnpackZip(fetch, tarball, versionDir, pkgName)
     return
@@ -115,14 +118,14 @@ async function downloadAndUnpackZip (
   await fs.promises.unlink(tmp)
 }
 
-function getNodeJSTarball (nodeVersion: string, releaseDir: string) {
+function getNodeJSTarball (nodeVersion: string, nodeMirror: string) {
   const platform = process.platform === 'win32' ? 'win' : process.platform
   const arch = normalizeArch(process.platform, process.arch)
   const extension = platform === 'win' ? 'zip' : 'tar.gz'
   const pkgName = `node-v${nodeVersion}-${platform}-${arch}`
   return {
     pkgName,
-    tarball: `https://nodejs.org/download/${releaseDir}/v${nodeVersion}/${pkgName}.${extension}`,
+    tarball: `${nodeMirror}v${nodeVersion}/${pkgName}.${extension}`,
   }
 }
 
