@@ -40,7 +40,7 @@ importers:
       '@commitlint/prompt-cli': ^15.0.0
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': ^2.10.0
+      '@pnpm/registry-mock': ^2.11.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^26.0.24
       '@types/node': ^14.17.32
@@ -71,7 +71,7 @@ importers:
       '@commitlint/prompt-cli': 15.0.0
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.10.0
+      '@pnpm/registry-mock': 2.11.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 26.0.24
       '@types/node': 14.17.34
@@ -449,6 +449,7 @@ importers:
       resolve-link-target: ^2.0.0
       run-groups: ^3.0.1
       semver: ^7.3.4
+      semver-intersect: ^1.4.0
       sinon: ^11.1.1
       symlink-dir: ^5.0.0
       version-selector-type: ^3.0.0
@@ -502,6 +503,7 @@ importers:
       ramda: 0.27.1
       run-groups: 3.0.1
       semver: 7.3.5
+      semver-intersect: 1.4.0
       version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/assert-project': link:../../privatePackages/assert-project
@@ -556,6 +558,7 @@ importers:
       '@pnpm/default-reporter': 'link:'
       '@pnpm/error': workspace:2.0.0
       '@pnpm/logger': ^4.0.0
+      '@pnpm/render-peer-issues': workspace:0.0.0
       '@pnpm/types': workspace:7.6.0
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
@@ -580,6 +583,7 @@ importers:
       '@pnpm/config': link:../config
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/error': link:../error
+      '@pnpm/render-peer-issues': link:../render-peer-issues
       '@pnpm/types': link:../types
       ansi-diff: 1.1.1
       boxen: 5.1.2
@@ -3052,6 +3056,23 @@ importers:
       '@types/is-windows': 1.0.0
       '@types/ramda': 0.27.39
 
+  packages/render-peer-issues:
+    specifiers:
+      '@pnpm/render-peer-issues': 'link:'
+      '@pnpm/types': workspace:7.6.0
+      '@types/archy': 0.0.31
+      archy: ^1.0.0
+      chalk: ^4.1.0
+      strip-ansi: ^6.0.0
+    dependencies:
+      '@pnpm/types': link:../types
+      archy: 1.0.0
+      chalk: 4.1.2
+    devDependencies:
+      '@pnpm/render-peer-issues': 'link:'
+      '@types/archy': 0.0.31
+      strip-ansi: 6.0.1
+
   packages/resolve-dependencies:
     specifiers:
       '@pnpm/constants': workspace:5.0.0
@@ -4940,8 +4961,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.10.0:
-    resolution: {integrity: sha512-96frA3W36rjd6BRIjKmkXKTLIlpZFogvkbKnYp68+K2RWBoqDQd789ZZbJvz6Tz3fNWYcKpz6lUI4Bm3S+jtwA==}
+  /@pnpm/registry-mock/2.11.0:
+    resolution: {integrity: sha512-260WRwYOBizASI/LMYT0gxYpfRCFOezBxu7gL3UlRSCaWnCMP3COegrCKFWinQBRnFSgkns7BV7kaRryg3V5wg==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -13931,6 +13952,12 @@ packages:
     dependencies:
       xmlchars: 2.2.0
     dev: true
+
+  /semver-intersect/1.4.0:
+    resolution: {integrity: sha512-d8fvGg5ycKAq0+I6nfWeCx6ffaWJCsBYU0H2Rq56+/zFePYfT8mXkB3tWBSjR5BerkHNZ5eTPIk1/LBYas35xQ==}
+    dependencies:
+      semver: 5.7.1
+    dev: false
 
   /semver-utils/1.1.4:
     resolution: {integrity: sha512-EjnoLE5OGmDAVV/8YDoN5KiajNadjzIp9BAHOhYeQHt7j0UWxjmgsx4YD48wp4Ue1Qogq38F1GNUJNqF1kKKxA==}

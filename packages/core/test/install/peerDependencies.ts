@@ -11,6 +11,7 @@ import {
   install,
   MutatedProject,
   mutateModules,
+  PeerDependencyIssuesError,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
@@ -160,11 +161,25 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
 
   await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
-  expect(reporter).toBeCalledWith(
+  expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
-      level: 'warn',
-      name: 'pnpm',
-      message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
+      level: 'debug',
+      name: 'pnpm:peer-dependency-issues',
+      bad: {},
+      missing: {
+        ajv: [{
+          location: {
+            projectPath: '',
+            parents: [
+              {
+                name: 'ajv-keywords',
+                version: '1.5.0',
+              },
+            ],
+          },
+          wantedRange: '>=4.10.0',
+        }],
+      },
     })
   )
 })
@@ -172,11 +187,30 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
 test('strict-peer-dependencies: error is thrown when cannot resolve peer dependency for top-level dependency', async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  let err!: PeerDependencyIssuesError
+  try {
+    await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ strictPeerDependencies: true }))
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
 
-  await expect(
-    addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ reporter, strictPeerDependencies: true }))
-  ).rejects.toThrow(/ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed./)
+  expect(err?.issues).toStrictEqual({
+    bad: {},
+    missing: {
+      ajv: [{
+        location: {
+          projectPath: '',
+          parents: [
+            {
+              name: 'ajv-keywords',
+              version: '1.5.0',
+            },
+          ],
+        },
+        wantedRange: '>=4.10.0',
+      }],
+    },
+  })
 })
 
 test('peer dependency is resolved from the dependencies of the workspace root project', async () => {
@@ -220,9 +254,9 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
     },
   ], await testDefaults({ reporter }))
 
-  expect(reporter).not.toHaveBeenCalledWith({
-    message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
-  })
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:peer-dependency-issues',
+  }))
 
   {
     const lockfile = await projects.root.readLockfile()
@@ -269,41 +303,118 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
   prepareEmpty()
   await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['abc-grand-parent-without-c'], await testDefaults({ reporter }))
 
-  const logMatcher = sinon.match({
-    message: 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but none was installed.',
-  })
-  const reportedTimes = reporter.withArgs(logMatcher).callCount
-
-  expect(reportedTimes).toBe(1)
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'debug',
+      name: 'pnpm:peer-dependency-issues',
+      bad: {},
+      missing: {
+        'peer-c': [{
+          location: {
+            projectPath: '',
+            parents: [
+              {
+                name: 'abc-grand-parent-without-c',
+                version: '1.0.0',
+              },
+              {
+                name: 'abc-parent-with-ab',
+                version: '1.0.0',
+              },
+              {
+                name: 'abc',
+                version: '1.0.0',
+              },
+            ],
+          },
+          wantedRange: '^1.0.0',
+        }],
+      },
+    })
+  )
 })
 
 test('warning is reported when bad version of resolved peer dependency for non-top-level dependency', async () => {
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter }))
 
-  const logMatcher = sinon.match({
-    message: 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.',
-  })
-  const reportedTimes = reporter.withArgs(logMatcher).callCount
-
-  expect(reportedTimes).toBe(1)
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'debug',
+      name: 'pnpm:peer-dependency-issues',
+      bad: {
+        'peer-c': [{
+          location: {
+            projectPath: '',
+            parents: [
+              {
+                name: 'abc-grand-parent-without-c',
+                version: '1.0.0',
+              },
+              {
+                name: 'abc-parent-with-ab',
+                version: '1.0.0',
+              },
+              {
+                name: 'abc',
+                version: '1.0.0',
+              },
+            ],
+          },
+          foundVersion: '2.0.0',
+          wantedRange: '^1.0.0',
+        }],
+      },
+      missing: {},
+    })
+  )
 })
 
 test('strict-peer-dependencies: error is thrown when bad version of resolved peer dependency for non-top-level dependency', async () => {
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  let err!: PeerDependencyIssuesError
+  try {
+    await addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ strictPeerDependencies: true }))
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
 
-  await expect(
-    addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter, strictPeerDependencies: true }))
-  ).rejects.toThrow('abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.')
+  expect(err?.issues).toStrictEqual({
+    bad: {
+      'peer-c': [{
+        location: {
+          projectPath: '',
+          parents: [
+            {
+              name: 'abc-grand-parent-without-c',
+              version: '1.0.0',
+            },
+            {
+              name: 'abc-parent-with-ab',
+              version: '1.0.0',
+            },
+            {
+              name: 'abc',
+              version: '1.0.0',
+            },
+          ],
+        },
+        foundVersion: '2.0.0',
+        wantedRange: '^1.0.0',
+      }],
+    },
+    missing: {},
+  })
 })
 
 test('top peer dependency is linked on subsequent install', async () => {
@@ -865,36 +976,45 @@ test('peer dependency is saved', async () => {
 test('warning is not reported when cannot resolve optional peer dependency', async () => {
   const project = prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['abc-optional-peers@1.0.0', 'peer-c@2.0.0'], await testDefaults({ reporter }))
 
-  {
-    const logMatcher = sinon.match({
-      message: 'abc-optional-peers@1.0.0 requires a peer of peer-a@^1.0.0 but none was installed.',
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'debug',
+      name: 'pnpm:peer-dependency-issues',
+      bad: {
+        'peer-c': [{
+          location: {
+            projectPath: '',
+            parents: [
+              {
+                name: 'abc-optional-peers',
+                version: '1.0.0',
+              },
+            ],
+          },
+          foundVersion: '2.0.0',
+          wantedRange: '^1.0.0',
+        }],
+      },
+      missing: {
+        'peer-a': [{
+          location: {
+            projectPath: '',
+            parents: [
+              {
+                name: 'abc-optional-peers',
+                version: '1.0.0',
+              },
+            ],
+          },
+          wantedRange: '^1.0.0',
+        }],
+      },
     })
-    const reportedTimes = reporter.withArgs(logMatcher).callCount
-
-    expect(reportedTimes).toBe(1)
-  }
-
-  {
-    const logMatcher = sinon.match({
-      message: 'abc-optional-peers@1.0.0 requires a peer of peer-b@^1.0.0 but none was installed.',
-    })
-    const reportedTimes = reporter.withArgs(logMatcher).callCount
-
-    expect(reportedTimes).toBe(0)
-  }
-
-  {
-    const logMatcher = sinon.match({
-      message: 'abc-optional-peers@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.',
-    })
-    const reportedTimes = reporter.withArgs(logMatcher).callCount
-
-    expect(reportedTimes).toBe(1)
-  }
+  )
 
   const lockfile = await project.readLockfile()
 
@@ -911,27 +1031,31 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
 test('warning is not reported when cannot resolve optional peer dependency (specified by meta field only)', async () => {
   const project = prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['abc-optional-peers-meta-only@1.0.0', 'peer-c@2.0.0'], await testDefaults({ reporter }))
 
-  {
-    const logMatcher = sinon.match({
-      message: 'abc-optional-peers-meta-only@1.0.0 requires a peer of peer-a@^1.0.0 but none was installed.',
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'debug',
+      name: 'pnpm:peer-dependency-issues',
+      bad: {},
+      missing: {
+        'peer-a': [{
+          location: {
+            projectPath: '',
+            parents: [
+              {
+                name: 'abc-optional-peers-meta-only',
+                version: '1.0.0',
+              },
+            ],
+          },
+          wantedRange: '^1.0.0',
+        }],
+      },
     })
-    const reportedTimes = reporter.withArgs(logMatcher).callCount
-
-    expect(reportedTimes).toBe(1)
-  }
-
-  {
-    const logMatcher = sinon.match({
-      message: 'abc-optional-peers-meta-only@1.0.0 requires a peer of peer-b@^1.0.0 but none was installed.',
-    })
-    const reportedTimes = reporter.withArgs(logMatcher).callCount
-
-    expect(reportedTimes).toBe(0)
-  }
+  )
 
   const lockfile = await project.readLockfile()
 

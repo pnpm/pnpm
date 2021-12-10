@@ -33,6 +33,7 @@
     "@pnpm/config": "workspace:13.6.1",
     "@pnpm/core-loggers": "workspace:6.0.6",
     "@pnpm/error": "workspace:2.0.0",
+    "@pnpm/render-peer-issues": "workspace:0.0.0",
     "@pnpm/types": "workspace:7.6.0",
     "ansi-diff": "^1.1.1",
     "boxen": "^5.0.0",

@@ -8,6 +8,7 @@ import {
   LinkLog,
   PackageImportMethodLog,
   PackageManifestLog,
+  PeerDependencyIssuesLog,
   ProgressLog,
   RegistryLog,
   RequestRetryLog,
@@ -32,6 +33,7 @@ export type Log =
   | LinkLog
   | PackageManifestLog
   | PackageImportMethodLog
+  | PeerDependencyIssuesLog
   | ProgressLog
   | RegistryLog
   | RequestRetryLog

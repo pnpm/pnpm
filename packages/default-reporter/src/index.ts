@@ -102,6 +102,7 @@ export function toOutput$ (
   const registryPushStream = new Rx.Subject<logs.RegistryLog>()
   const rootPushStream = new Rx.Subject<logs.RootLog>()
   const packageManifestPushStream = new Rx.Subject<logs.PackageManifestLog>()
+  const peerDependencyIssuesPushStream = new Rx.Subject<logs.PeerDependencyIssuesLog>()
   const linkPushStream = new Rx.Subject<logs.LinkLog>()
   const otherPushStream = new Rx.Subject<logs.Log>()
   const hookPushStream = new Rx.Subject<logs.HookLog>()
@@ -138,6 +139,9 @@ export function toOutput$ (
         break
       case 'pnpm:package-import-method':
         packageImportMethodPushStream.next(log)
+        break
+      case 'pnpm:peer-dependency-issues':
+        peerDependencyIssuesPushStream.next(log)
         break
       case 'pnpm:install-check':
         installCheckPushStream.next(log)
@@ -193,6 +197,7 @@ export function toOutput$ (
     other,
     packageImportMethod: Rx.from(packageImportMethodPushStream),
     packageManifest: Rx.from(packageManifestPushStream),
+    peerDependencyIssues: Rx.from(peerDependencyIssuesPushStream),
     progress: Rx.from(progressPushStream),
     registry: Rx.from(registryPushStream),
     requestRetry: Rx.from(requestRetryPushStream),

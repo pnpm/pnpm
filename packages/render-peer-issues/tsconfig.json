@@ -10,18 +10,6 @@
   ],
   "references": [
     {
-      "path": "../config"
-    },
-    {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../render-peer-issues"
-    },
-    {
       "path": "../types"
     }
   ]

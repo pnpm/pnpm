@@ -1,0 +1,14 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`renderPeerIssues() 1`] = `
+"/packages/0
+└─┬ zzz
+  └── ✕ missing peer ddd@\\"^1.0.0\\"
+<ROOT>
+└─┬ xxx
+  ├── ✕ unmet peer bbb@\\"^1.0.0\\": found 2
+  └─┬ yyy
+    ├── ✕ missing peer aaa@\\"^1.0.0\\"
+    └── ✕ unmet peer ccc@\\"^1.0.0\\": found 2
+"
+`;
