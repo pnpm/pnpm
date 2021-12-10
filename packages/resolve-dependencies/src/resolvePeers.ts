@@ -405,8 +405,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
           rootDir: ctx.rootDir,
           pkg: ctx.resolvedPackage,
         }),
-        rootDir: ctx.rootDir,
-        peerRange: peerVersionRange,
+        wantedRange: peerVersionRange,
       })
       continue
     }
@@ -423,9 +422,8 @@ function resolvePeers<T extends PartialResolvedPackage> (
           rootDir: ctx.rootDir,
           pkg: ctx.resolvedPackage,
         }),
-        rootDir: ctx.rootDir,
-        foundPeerVersion: resolved.version,
-        peerRange: peerVersionRange,
+        foundVersion: resolved.version,
+        wantedRange: peerVersionRange,
       })
     }
 

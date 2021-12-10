@@ -5,12 +5,11 @@ export interface PeerDependencyIssueLocation {
 
 export interface MissingPeerDependencyIssue {
   location: PeerDependencyIssueLocation
-  rootDir: string
-  peerRange: string
+  wantedRange: string
 }
 
 export interface BadPeerDependencyIssue extends MissingPeerDependencyIssue {
-  foundPeerVersion?: string
+  foundVersion: string
 }
 
 export interface PeerDependencyIssues {

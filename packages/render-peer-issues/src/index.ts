@@ -12,7 +12,7 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
       if (!projects[projectPath]) {
         projects[projectPath] = { dependencies: {}, peerIssues: [] }
       }
-      createTree(projects[projectPath], issue.location.parents, `${chalk.red('✕ missing peer')} ${peerName}@"${issue.peerRange}"`)
+      createTree(projects[projectPath], issue.location.parents, `${chalk.red('✕ missing peer')} ${peerName}@"${issue.wantedRange}"`)
     }
   }
   for (const [peerName, issues] of Object.entries(peerDependencyIssues.bad)) {
@@ -22,7 +22,7 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
         projects[projectPath] = { dependencies: {}, peerIssues: [] }
       }
       // eslint-disable-next-line
-      createTree(projects[projectPath], issue.location.parents, `${chalk.red('✕ unmet peer')} ${peerName}@"${issue.peerRange}": found ${issue.foundPeerVersion}`)
+      createTree(projects[projectPath], issue.location.parents, `${chalk.red('✕ unmet peer')} ${peerName}@"${issue.wantedRange}": found ${issue.foundVersion}`)
     }
   }
   return Object.entries(projects)
