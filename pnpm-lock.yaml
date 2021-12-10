@@ -2050,6 +2050,8 @@ importers:
       adm-zip: ^0.5.5
       execa: npm:safe-execa@^0.1.1
       load-json-file: ^6.2.0
+      nock: 12.0.3
+      node-fetch: 3.0.0-beta.9
       path-name: ^1.0.0
       rename-overwrite: ^4.0.0
       render-help: ^1.0.1
@@ -2080,6 +2082,8 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/adm-zip': 0.4.34
       execa: /safe-execa/0.1.1
+      nock: 12.0.3
+      node-fetch: 3.0.0-beta.9
       path-name: 1.0.0
 
   packages/plugin-commands-installation:
