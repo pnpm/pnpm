@@ -1,7 +1,8 @@
 import renderPeerIssues from '@pnpm/render-peer-issues'
+import stripAnsi from 'strip-ansi'
 
 test('renderPeerIssues()', () => {
-  expect(renderPeerIssues({
+  expect(stripAnsi(renderPeerIssues({
     missing: {
       aaa: [
         {
@@ -72,5 +73,5 @@ test('renderPeerIssues()', () => {
         },
       ],
     },
-  })).toMatchSnapshot()
+  }))).toMatchSnapshot()
 })

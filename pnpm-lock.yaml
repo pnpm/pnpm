@@ -3063,6 +3063,7 @@ importers:
       '@types/archy': 0.0.31
       archy: ^1.0.0
       chalk: ^4.1.0
+      strip-ansi: ^6.0.0
     dependencies:
       '@pnpm/types': link:../types
       archy: 1.0.0
@@ -3070,6 +3071,7 @@ importers:
     devDependencies:
       '@pnpm/render-peer-issues': 'link:'
       '@types/archy': 0.0.31
+      strip-ansi: 6.0.1
 
   packages/resolve-dependencies:
     specifiers:

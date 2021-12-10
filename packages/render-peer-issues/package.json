@@ -34,6 +34,7 @@
     "chalk": "^4.1.0"
   },
   "devDependencies": {
-    "@types/archy": "0.0.31"
+    "@types/archy": "0.0.31",
+    "strip-ansi": "^6.0.0"
   }
 }

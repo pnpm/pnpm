@@ -3,12 +3,12 @@
 exports[`renderPeerIssues() 1`] = `
 "/packages/0
 └─┬ zzz
-  └── [31m✕ missing peer[39m ddd@\\"^1.0.0\\"
+  └── ✕ missing peer ddd@\\"^1.0.0\\"
 <ROOT>
 └─┬ xxx
-  ├── [31m✕ unmet peer[39m bbb@\\"^1.0.0\\": found 2
+  ├── ✕ unmet peer bbb@\\"^1.0.0\\": found 2
   └─┬ yyy
-    ├── [31m✕ missing peer[39m aaa@\\"^1.0.0\\"
-    └── [31m✕ unmet peer[39m ccc@\\"^1.0.0\\": found 2
+    ├── ✕ missing peer aaa@\\"^1.0.0\\"
+    └── ✕ unmet peer ccc@\\"^1.0.0\\": found 2
 "
 `;
