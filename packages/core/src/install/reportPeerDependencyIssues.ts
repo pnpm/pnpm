@@ -17,10 +17,10 @@ export default function (
   peerDependencyIssuesLogger.debug(peerDependencyIssues)
 }
 
-class PeerDependencyIssuesError extends PnpmError {
+export class PeerDependencyIssuesError extends PnpmError {
   issues: PeerDependencyIssues
   constructor (issues: PeerDependencyIssues) {
-    super('PEER_DEP_ISSUES', 'Unmet dependencies')
+    super('PEER_DEP_ISSUES', 'Unmet peer dependencies')
     this.issues = issues
   }
 }
