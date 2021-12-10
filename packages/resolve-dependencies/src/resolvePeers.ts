@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import path from 'path'
-import { Dependencies } from '@pnpm/types'
+import { Dependencies, PeerDependencyIssues } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
@@ -14,26 +14,6 @@ import {
   ResolvedPackage,
 } from './resolveDependencies'
 import { createNodeId, splitNodeId } from './nodeIdUtils'
-
-export interface PeerDependencyIssueLocation {
-  parents: Array<{ name: string, version: string }>
-  projectPath: string
-}
-
-export interface MissingPeerDependencyIssue {
-  location: PeerDependencyIssueLocation
-  rootDir: string
-  peerRange: string
-}
-
-export interface BadPeerDependencyIssue extends MissingPeerDependencyIssue {
-  foundPeerVersion?: string
-}
-
-export interface PeerDependencyIssues {
-  bad: Record<string, BadPeerDependencyIssue[]>
-  missing: Record<string, MissingPeerDependencyIssue[]>
-}
 
 export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging

@@ -407,7 +407,6 @@ importers:
       '@pnpm/read-package-json': workspace:5.0.6
       '@pnpm/read-project-manifest': workspace:2.0.7
       '@pnpm/remove-bins': workspace:2.0.8
-      '@pnpm/render-peer-issues': workspace:^0.0.0
       '@pnpm/resolve-dependencies': workspace:21.2.3
       '@pnpm/resolver-base': workspace:8.1.1
       '@pnpm/store-controller-types': workspace:11.0.7
@@ -483,7 +482,6 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/remove-bins': link:../remove-bins
-      '@pnpm/render-peer-issues': link:../render-peer-issues
       '@pnpm/resolve-dependencies': link:../resolve-dependencies
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/store-controller-types': link:../store-controller-types
@@ -560,6 +558,7 @@ importers:
       '@pnpm/default-reporter': 'link:'
       '@pnpm/error': workspace:2.0.0
       '@pnpm/logger': ^4.0.0
+      '@pnpm/render-peer-issues': workspace:^0.0.0
       '@pnpm/types': workspace:7.6.0
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
@@ -584,6 +583,7 @@ importers:
       '@pnpm/config': link:../config
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/error': link:../error
+      '@pnpm/render-peer-issues': link:../render-peer-issues
       '@pnpm/types': link:../types
       ansi-diff: 1.1.1
       boxen: 5.1.2
@@ -3059,12 +3059,12 @@ importers:
   packages/render-peer-issues:
     specifiers:
       '@pnpm/render-peer-issues': 'link:'
-      '@pnpm/resolve-dependencies': workspace:21.2.3
+      '@pnpm/types': workspace:7.6.0
       '@types/archy': 0.0.31
       archy: ^1.0.0
       chalk: ^4.1.0
     dependencies:
-      '@pnpm/resolve-dependencies': link:../resolve-dependencies
+      '@pnpm/types': link:../types
       archy: 1.0.0
       chalk: 4.1.2
     devDependencies:

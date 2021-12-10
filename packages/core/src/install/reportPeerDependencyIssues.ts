@@ -1,7 +1,7 @@
-import renderPeerIssues from '@pnpm/render-peer-issues'
 import PnpmError from '@pnpm/error'
-import logger from '@pnpm/logger'
-import { PeerDependencyIssues } from '@pnpm/resolve-dependencies'
+import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
+import { PeerDependencyIssues } from '@pnpm/types'
+import isEmpty from 'ramda/src/isEmpty'
 
 export default function (
   peerDependencyIssues: PeerDependencyIssues,
@@ -10,13 +10,17 @@ export default function (
     strictPeerDependencies: boolean
   }
 ) {
-  const peerIssuesTree = renderPeerIssues(peerDependencyIssues)
-  if (peerIssuesTree === '') return
+  if (isEmpty(peerDependencyIssues.bad) && isEmpty(peerDependencyIssues.missing)) return
   if (opts.strictPeerDependencies) {
-    throw new PnpmError('PEER_DEPENDENCY', 'Unmet peer dependencies', { hint: peerIssuesTree })
+    throw new PeerDependencyIssuesError(peerDependencyIssues)
   }
-  logger.warn({
-    message: `Unmet peer dependencies\n${peerIssuesTree}`,
-    prefix: opts.lockfileDir,
-  })
+  peerDependencyIssuesLogger.debug(peerDependencyIssues)
+}
+
+class PeerDependencyIssuesError extends PnpmError {
+  issues: PeerDependencyIssues
+  constructor (issues: PeerDependencyIssues) {
+    super('PEER_DEP_ISSUES', 'Unmet dependencies')
+    this.issues = issues
+  }
 }

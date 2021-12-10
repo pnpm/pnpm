@@ -112,9 +112,6 @@
       "path": "../remove-bins"
     },
     {
-      "path": "../render-peer-issues"
-    },
-    {
       "path": "../resolve-dependencies"
     },
     {

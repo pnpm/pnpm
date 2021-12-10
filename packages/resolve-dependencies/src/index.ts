@@ -31,10 +31,6 @@ import resolveDependencyTree, {
 import resolvePeers, {
   GenericDependenciesGraph,
   GenericDependenciesGraphNode,
-  BadPeerDependencyIssue,
-  MissingPeerDependencyIssue,
-  PeerDependencyIssues,
-  PeerDependencyIssueLocation,
 } from './resolvePeers'
 import toResolveImporter from './toResolveImporter'
 import updateLockfile from './updateLockfile'
@@ -45,11 +41,7 @@ export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
 
 export {
-  BadPeerDependencyIssue,
-  MissingPeerDependencyIssue,
   LinkedDependency,
-  PeerDependencyIssues,
-  PeerDependencyIssueLocation,
   ResolvedPackage,
 }
 

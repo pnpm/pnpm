@@ -19,6 +19,9 @@
       "path": "../error"
     },
     {
+      "path": "../render-peer-issues"
+    },
+    {
       "path": "../types"
     }
   ]

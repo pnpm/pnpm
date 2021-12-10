@@ -1,4 +1,4 @@
-import { PeerDependencyIssues } from '@pnpm/resolve-dependencies'
+import { PeerDependencyIssues } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 

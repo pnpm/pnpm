@@ -10,6 +10,7 @@ import reportHooks from './reportHooks'
 import reportInstallChecks from './reportInstallChecks'
 import reportLifecycleScripts from './reportLifecycleScripts'
 import reportMisc from './reportMisc'
+import reportPeerDependencyIssues from './reportPeerDependencyIssues'
 import reportProgress from './reportProgress'
 import reportRequestRetry from './reportRequestRetry'
 import reportScope from './reportScope'
@@ -32,6 +33,7 @@ export default function (
     registry: Rx.Observable<logs.RegistryLog>
     root: Rx.Observable<logs.RootLog>
     packageManifest: Rx.Observable<logs.PackageManifestLog>
+    peerDependencyIssues: Rx.Observable<logs.PeerDependencyIssuesLog>
     requestRetry: Rx.Observable<logs.RequestRetryLog>
     link: Rx.Observable<logs.LinkLog>
     other: Rx.Observable<logs.Log>
@@ -64,6 +66,7 @@ export default function (
       cwd,
       throttle,
     }),
+    reportPeerDependencyIssues(log$),
     reportLifecycleScripts(log$, {
       appendOnly: opts.appendOnly === true || opts.streamLifecycleOutput,
       cwd,

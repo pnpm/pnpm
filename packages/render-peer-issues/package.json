@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/render-peer-issues#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/resolve-dependencies": "workspace:21.2.3",
+    "@pnpm/types": "workspace:7.6.0",
     "archy": "^1.0.0",
     "chalk": "^4.1.0"
   },
