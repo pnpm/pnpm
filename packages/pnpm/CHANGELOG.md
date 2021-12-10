@@ -1,5 +1,27 @@
 # pnpm
 
+## 6.24.0-0
+
+### Minor Changes
+
+- New option added for: `node-mirror:<releaseDir>` [#4083](https://github.com/pnpm/pnpm/pull/4083). The string value of this dynamic option is used as the base URL for downloading node when `use-node-version` is specified. The `<releaseDir>` portion of this argument can be any dir in `https://nodejs.org/download`. Which `<releaseDir>` dynamic config option gets selected depends on the value of `use-node-version`. If 'use-node-version' is a simple `x.x.x` version string, `<releaseDir>` becomes `release` and `node-mirror:release` is read. Defaults to `https://nodejs.org/download/<releaseDir>/`.
+
+### Patch Changes
+
+- Don't fail when the version of a package in the store is not a semver version [#4077](https://github.com/pnpm/pnpm/pull/4077).
+- `pnpm store prune` should not fail if there are unexpected subdirectories in the content-addressable store [#4072](https://github.com/pnpm/pnpm/pull/4072).
+- Don't make unnecessary retries when fetching Git-hosted packages [#2731](https://github.com/pnpm/pnpm/pull/2731).
+- pnpm should read the auth token of a github-registry-hosted package, when the registry path contains the owner [#4034](https://github.com/pnpm/pnpm/issues/4034).
+
+  So this should work:
+
+  ```
+  @owner:registry=https://npm.pkg.github.com/owner
+  //npm.pkg.github.com/:_authToken=<token>
+  ```
+
+- When `strict-peer-dependencies` is used, don't fail on the first peer dependency issue. Print all the peer dependency issues and then stop the installation process [#4082](https://github.com/pnpm/pnpm/pull/4082).
+
 ## 6.23.6
 
 ### Patch Changes
