@@ -87,6 +87,7 @@ export const types = Object.assign({
   'publish-branch': String,
   'recursive-install': Boolean,
   reporter: String,
+  'aggregate-output': Boolean,
   'save-peer': Boolean,
   'save-workspace-protocol': Boolean,
   'script-shell': String,

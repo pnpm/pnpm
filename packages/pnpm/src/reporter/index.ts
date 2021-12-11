@@ -38,6 +38,7 @@ export default (
       },
       reportingOptions: {
         appendOnly: true,
+        aggregateOutput: opts.config.aggregateOutput,
         logLevel: opts.config.loglevel as LogLevel,
         throttleProgress: 1000,
       },

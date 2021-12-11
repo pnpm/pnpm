@@ -38,6 +38,7 @@ export const GLOBAL_OPTIONS = pick([
   'prefix',
   'reporter',
   'stream',
+  'aggregate-output',
   'test-pattern',
   'changed-files-ignore-pattern',
   'use-stderr',

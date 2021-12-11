@@ -20,6 +20,7 @@ export default function (
       appendOnly?: boolean
       logLevel?: LogLevel
       streamLifecycleOutput?: boolean
+      aggregateOutput?: boolean
       throttleProgress?: number
       outputMaxWidth?: number
     }
@@ -80,6 +81,7 @@ export function toOutput$ (
       logLevel?: LogLevel
       outputMaxWidth?: number
       streamLifecycleOutput?: boolean
+      aggregateOutput?: boolean
       throttleProgress?: number
     }
     context: {
@@ -219,6 +221,7 @@ export function toOutput$ (
       logLevel: opts.reportingOptions?.logLevel,
       pnpmConfig: opts.context.config,
       streamLifecycleOutput: opts.reportingOptions?.streamLifecycleOutput,
+      aggregateOutput: opts.reportingOptions?.aggregateOutput,
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
     }
