@@ -51,6 +51,7 @@ export default function (
     logLevel?: LogLevel
     pnpmConfig?: Config
     streamLifecycleOutput?: boolean
+    aggregateOutput?: boolean
     throttleProgress?: number
     width?: number
   }
@@ -69,6 +70,7 @@ export default function (
     reportPeerDependencyIssues(log$),
     reportLifecycleScripts(log$, {
       appendOnly: opts.appendOnly === true || opts.streamLifecycleOutput,
+      aggregateOutput: opts.aggregateOutput,
       cwd,
       width,
     }),

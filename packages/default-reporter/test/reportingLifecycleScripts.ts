@@ -2,9 +2,10 @@ import path from 'path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
-import { map, skip, take } from 'rxjs/operators'
+import { map, skip, take, toArray } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
+import { firstValueFrom } from 'rxjs'
 
 const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']
@@ -256,6 +257,120 @@ ${chalk.blue('packages/qar')} ${INSTALL}: Done`)
       allOutputs.push(output)
     },
   })
+})
+
+test('groups lifecycle output when append-only and aggregate-output are used', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: {
+      appendOnly: true,
+      aggregateOutput: true,
+      outputMaxWidth: 79,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'preinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30',
+    stage: 'preinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 1,
+    optional: true,
+    stage: 'preinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    optional: false,
+    script: 'node bar',
+    stage: 'postinstall',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    line: 'bar I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo II',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo III',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    optional: false,
+    script: 'node qar',
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    exitCode: 0,
+    optional: false,
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    exitCode: 0,
+    optional: false,
+    stage: 'postinstall',
+    wd: 'packages/bar',
+  })
+
+  await expect(
+    firstValueFrom(
+      output$.pipe(map<string, string>(normalizeNewline), take(8), toArray())
+    )
+  ).resolves.toEqual([
+    `${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo`,
+    `${chalk.cyan(
+      'packages/foo'
+    )} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30`,
+    `${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed`,
+    `${chalk.magenta('packages/qar')} ${INSTALL}$ node qar`,
+    `${chalk.magenta('packages/qar')} ${INSTALL}: Done`,
+    `${chalk.blue('packages/bar')} ${POSTINSTALL}$ node bar`,
+    `${chalk.blue('packages/bar')} ${POSTINSTALL}: bar I`,
+    `${chalk.blue('packages/bar')} ${POSTINSTALL}: Done`,
+  ])
 })
 
 test('groups lifecycle output when streamLifecycleOutput is used', (done) => {

@@ -115,6 +115,7 @@ export interface Config {
   workspaceConcurrency: number
   workspaceDir?: string
   reporter?: string
+  aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
   preferWorkspacePackages: boolean
   reverse: boolean

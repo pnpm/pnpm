@@ -1,7 +1,7 @@
 import path from 'path'
 import { LifecycleLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
-import { map } from 'rxjs/operators'
+import { buffer, filter, groupBy, map, mergeAll, mergeMap } from 'rxjs/operators'
 import chalk from 'chalk'
 import prettyTime from 'pretty-ms'
 import stripAnsi from 'strip-ansi'
@@ -28,6 +28,7 @@ export default (
   },
   opts: {
     appendOnly?: boolean
+    aggregateOutput?: boolean
     cwd: string
     width: number
   }
@@ -35,8 +36,13 @@ export default (
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {
+    let lifecycle$ = log$.lifecycle
+    if (opts.aggregateOutput) {
+      lifecycle$ = lifecycle$.pipe(aggregateOutput)
+    }
+
     const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd)
-    return log$.lifecycle.pipe(
+    return lifecycle$.pipe(
       map((log: LifecycleLog) => Rx.of({
         msg: streamLifecycleOutput(log),
       }))
@@ -264,3 +270,18 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
 function cutLine (line: string, maxLength: number) {
   return stripAnsi(line).substr(0, maxLength)
 }
+
+function aggregateOutput (source: Rx.Observable<LifecycleLog>) {
+  return source.pipe(
+    groupBy(data => data.depPath),
+    mergeMap(group => {
+      return group.pipe(
+        buffer(
+          group.pipe(filter(msg => 'exitCode' in msg))
+        )
+      )
+    }),
+    map(ar => Rx.from(ar)),
+    mergeAll()
+  )
+};

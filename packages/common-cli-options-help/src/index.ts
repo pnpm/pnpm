@@ -54,6 +54,10 @@ export const UNIVERSAL_OPTIONS = [
     name: '--stream',
   },
   {
+    description: 'Aggregate output from child processes that are run in parallel, and only print output when child process is finished. It makes reading large logs after running `pnpm recursive` with `--parallel` or with `--workspace-concurrency` much easier (especially on CI). Only `--reporter=append-only` is supported.',
+    name: '--aggregate-output',
+  },
+  {
     description: 'Divert all output to stderr',
     name: '--use-stderr',
   },
