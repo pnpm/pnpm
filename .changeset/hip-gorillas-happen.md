@@ -1,4 +1,5 @@
 ---
+"@pnpm/common-cli-options-help": minor
 "@pnpm/config": minor
 "@pnpm/default-reporter": minor
 "pnpm": minor

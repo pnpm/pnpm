@@ -36,9 +36,13 @@ export default (
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {
+    let lifecycle$ = log$.lifecycle
+    if (opts.aggregateOutput) {
+      lifecycle$ = lifecycle$.pipe(aggregateOutput)
+    }
+
     const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd)
-    return log$.lifecycle.pipe(
-      opts.aggregateOutput ? bufferByDepPath : s => s,
+    return lifecycle$.pipe(
       map((log: LifecycleLog) => Rx.of({
         msg: streamLifecycleOutput(log),
       }))
@@ -267,7 +271,7 @@ function cutLine (line: string, maxLength: number) {
   return stripAnsi(line).substr(0, maxLength)
 }
 
-function bufferByDepPath (source: Rx.Observable<LifecycleLog>) {
+function aggregateOutput (source: Rx.Observable<LifecycleLog>) {
   return source.pipe(
     groupBy(data => data.depPath),
     mergeMap(group => {

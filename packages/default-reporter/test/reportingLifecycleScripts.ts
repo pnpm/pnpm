@@ -367,12 +367,8 @@ test('groups lifecycle output when append-only and aggregate-output are used', a
     `${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed`,
     `${chalk.magenta('packages/qar')} ${INSTALL}$ node qar`,
     `${chalk.magenta('packages/qar')} ${INSTALL}: Done`,
-    // `${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo`,
-    // `${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I`,
     `${chalk.blue('packages/bar')} ${POSTINSTALL}$ node bar`,
     `${chalk.blue('packages/bar')} ${POSTINSTALL}: bar I`,
-    // `${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II`,
-    // `${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III`,
     `${chalk.blue('packages/bar')} ${POSTINSTALL}: Done`,
   ])
 })
