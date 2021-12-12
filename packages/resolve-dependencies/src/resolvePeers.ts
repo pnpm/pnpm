@@ -420,20 +420,18 @@ function resolvePeers<T extends PartialResolvedPackage> (
         location: getLocationFromNodeId({
           dependenciesTree: ctx.dependenciesTree,
           nodeId: ctx.nodeId,
-          lockfileDir: ctx.lockfileDir,
-          rootDir: ctx.rootDir,
           pkg: ctx.resolvedPackage,
         }),
         wantedRange: peerVersionRange,
       }
       ctx.missingPeers[peerName].push(issue)
-      if (!ctx.missingPeersByProject[issue.location.projectPath]) {
-        ctx.missingPeersByProject[issue.location.projectPath] = {}
+      if (!ctx.missingPeersByProject[issue.location.projectId]) {
+        ctx.missingPeersByProject[issue.location.projectId] = {}
       }
-      if (!ctx.missingPeersByProject[issue.location.projectPath][peerName]) {
-        ctx.missingPeersByProject[issue.location.projectPath][peerName] = []
+      if (!ctx.missingPeersByProject[issue.location.projectId][peerName]) {
+        ctx.missingPeersByProject[issue.location.projectId][peerName] = []
       }
-      ctx.missingPeersByProject[issue.location.projectPath][peerName].push(peerVersionRange)
+      ctx.missingPeersByProject[issue.location.projectId][peerName].push(peerVersionRange)
       continue
     }
 
@@ -445,8 +443,6 @@ function resolvePeers<T extends PartialResolvedPackage> (
         location: getLocationFromNodeId({
           dependenciesTree: ctx.dependenciesTree,
           nodeId: ctx.nodeId,
-          lockfileDir: ctx.lockfileDir,
-          rootDir: ctx.rootDir,
           pkg: ctx.resolvedPackage,
         }),
         foundVersion: resolved.version,
@@ -462,16 +458,12 @@ function resolvePeers<T extends PartialResolvedPackage> (
 function getLocationFromNodeId<T> (
   {
     dependenciesTree,
-    lockfileDir,
     nodeId,
-    rootDir,
     pkg,
   }: {
     dependenciesTree: DependenciesTree<T>
-    lockfileDir: string
     nodeId: string
     pkg: PartialResolvedPackage
-    rootDir: string
   }
 ) {
   const parts = splitNodeId(nodeId).slice(0, -1)
@@ -479,9 +471,8 @@ function getLocationFromNodeId<T> (
     .slice(2)
     .map((nid) => pick(['name', 'version'], dependenciesTree[nid].resolvedPackage as ResolvedPackage))
   parents.push({ name: pkg.name, version: pkg.version })
-  const projectPath = path.relative(lockfileDir, rootDir)
   return {
-    projectPath,
+    projectId: parts[0],
     parents,
   }
 }

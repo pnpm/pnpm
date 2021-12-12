@@ -169,7 +169,7 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
       missing: {
         ajv: [{
           location: {
-            projectPath: '',
+            projectId: '.',
             parents: [
               {
                 name: 'ajv-keywords',
@@ -181,7 +181,7 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
         }],
       },
       missingMergedByProjects: {
-        '': {
+        '.': {
           conflicts: [],
           intersections: [
             { peerName: 'ajv', versionRange: '>=4.10.0' },
@@ -207,7 +207,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
     missing: {
       ajv: [{
         location: {
-          projectPath: '',
+          projectId: '.',
           parents: [
             {
               name: 'ajv-keywords',
@@ -219,7 +219,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
       }],
     },
     missingMergedByProjects: {
-      '': {
+      '.': {
         conflicts: [],
         intersections: [
           { peerName: 'ajv', versionRange: '>=4.10.0' },
@@ -331,7 +331,7 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
       missing: {
         'peer-c': [{
           location: {
-            projectPath: '',
+            projectId: '.',
             parents: [
               {
                 name: 'abc-grand-parent-without-c',
@@ -351,7 +351,7 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
         }],
       },
       missingMergedByProjects: {
-        '': {
+        '.': {
           conflicts: [],
           intersections: [
             { peerName: 'peer-c', versionRange: '>=1.0.0 <2.0.0' },
@@ -377,7 +377,7 @@ test('warning is reported when bad version of resolved peer dependency for non-t
       bad: {
         'peer-c': [{
           location: {
-            projectPath: '',
+            projectId: '.',
             parents: [
               {
                 name: 'abc-grand-parent-without-c',
@@ -418,7 +418,7 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
     bad: {
       'peer-c': [{
         location: {
-          projectPath: '',
+          projectId: '.',
           parents: [
             {
               name: 'abc-grand-parent-without-c',
@@ -1013,7 +1013,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
       bad: {
         'peer-c': [{
           location: {
-            projectPath: '',
+            projectId: '.',
             parents: [
               {
                 name: 'abc-optional-peers',
@@ -1028,7 +1028,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
       missing: {
         'peer-a': [{
           location: {
-            projectPath: '',
+            projectId: '.',
             parents: [
               {
                 name: 'abc-optional-peers',
@@ -1040,7 +1040,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
         }],
       },
       missingMergedByProjects: {
-        '': {
+        '.': {
           conflicts: [],
           intersections: [
             {
@@ -1080,7 +1080,7 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
       missing: {
         'peer-a': [{
           location: {
-            projectPath: '',
+            projectId: '.',
             parents: [
               {
                 name: 'abc-optional-peers-meta-only',
@@ -1092,7 +1092,7 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
         }],
       },
       missingMergedByProjects: {
-        '': {
+        '.': {
           conflicts: [],
           intersections: [
             {

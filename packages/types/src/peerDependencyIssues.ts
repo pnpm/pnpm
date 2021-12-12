@@ -1,6 +1,6 @@
 export interface PeerDependencyIssueLocation {
   parents: Array<{ name: string, version: string }>
-  projectPath: string
+  projectId: string
 }
 
 export interface MissingPeerDependencyIssue {

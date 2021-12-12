@@ -17,7 +17,7 @@ test('renderPeerIssues()', () => {
                 version: '1.0.0',
               },
             ],
-            projectPath: '',
+            projectId: '.',
           },
           wantedRange: '^1.0.0',
         },
@@ -31,7 +31,7 @@ test('renderPeerIssues()', () => {
                 version: '1.0.0',
               },
             ],
-            projectPath: '/packages/0',
+            projectId: 'packages/0',
           },
           wantedRange: '^1.0.0',
         },
@@ -47,7 +47,7 @@ test('renderPeerIssues()', () => {
                 version: '1.0.0',
               },
             ],
-            projectPath: '',
+            projectId: '.',
           },
           foundVersion: '2',
           wantedRange: '^1.0.0',
@@ -66,7 +66,7 @@ test('renderPeerIssues()', () => {
                 version: '1.0.0',
               },
             ],
-            projectPath: '',
+            projectId: '.',
           },
           foundVersion: '2',
           wantedRange: '^1.0.0',
@@ -74,11 +74,11 @@ test('renderPeerIssues()', () => {
       ],
     },
     missingMergedByProjects: {
-      '': {
+      '.': {
         conflicts: [],
         intersections: [],
       },
-      '/packages/0': {
+      'packages/0': {
         conflicts: [],
         intersections: [],
       },

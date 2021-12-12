@@ -25,7 +25,7 @@ test('print peer dependency issues warning', (done) => {
                 version: '1.0.0',
               },
             ],
-            projectPath: '',
+            projectId: '.',
           },
           foundVersion: '2',
           wantedRange: '3',
@@ -33,7 +33,7 @@ test('print peer dependency issues warning', (done) => {
       ],
     },
     missingMergedByProjects: {
-      '': {
+      '.': {
         conflicts: [],
         intersections: [],
       },
@@ -46,7 +46,7 @@ test('print peer dependency issues warning', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toContain('<ROOT>')
+      expect(output).toContain('.')
     },
   })
 })
@@ -71,14 +71,14 @@ test('print peer dependency issues error', (done) => {
                 version: '1.0.0',
               },
             ],
-            projectPath: '',
+            projectId: '.',
           },
           wantedRange: '3',
         },
       ],
     },
     missingMergedByProjects: {
-      '': {
+      '.': {
         conflicts: [],
         intersections: [],
       },
@@ -94,7 +94,7 @@ test('print peer dependency issues error', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toContain('<ROOT>')
+      expect(output).toContain('.')
     },
   })
 })
