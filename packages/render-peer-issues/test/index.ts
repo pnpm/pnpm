@@ -73,5 +73,15 @@ test('renderPeerIssues()', () => {
         },
       ],
     },
+    reportByProject: {
+      '': {
+        conflicts: [],
+        intersections: [],
+      },
+      '/packages/0': {
+        conflicts: [],
+        intersections: [],
+      },
+    },
   }))).toMatchSnapshot()
 })

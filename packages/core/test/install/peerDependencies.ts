@@ -180,6 +180,14 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
           wantedRange: '>=4.10.0',
         }],
       },
+      reportByProject: {
+        '': {
+          conflicts: [],
+          intersections: [
+            { name: 'ajv', range: '>=4.10.0' },
+          ],
+        },
+      },
     })
   )
 })
@@ -209,6 +217,14 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
         },
         wantedRange: '>=4.10.0',
       }],
+    },
+    reportByProject: {
+      '': {
+        conflicts: [],
+        intersections: [
+          { name: 'ajv', range: '>=4.10.0' },
+        ],
+      },
     },
   })
 })
@@ -334,6 +350,14 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
           wantedRange: '^1.0.0',
         }],
       },
+      reportByProject: {
+        '': {
+          conflicts: [],
+          intersections: [
+            { name: 'peer-c', range: '>=1.0.0 <2.0.0' },
+          ],
+        },
+      },
     })
   )
 })
@@ -374,6 +398,7 @@ test('warning is reported when bad version of resolved peer dependency for non-t
         }],
       },
       missing: {},
+      reportByProject: {},
     })
   )
 })
@@ -414,6 +439,7 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
       }],
     },
     missing: {},
+    reportByProject: {},
   })
 })
 
@@ -1013,6 +1039,17 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
           wantedRange: '^1.0.0',
         }],
       },
+      reportByProject: {
+        '': {
+          conflicts: [],
+          intersections: [
+            {
+              name: 'peer-a',
+              range: '>=1.0.0 <2.0.0',
+            },
+          ],
+        },
+      },
     })
   )
 
@@ -1053,6 +1090,17 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
           },
           wantedRange: '^1.0.0',
         }],
+      },
+      reportByProject: {
+        '': {
+          conflicts: [],
+          intersections: [
+            {
+              name: 'peer-a',
+              range: '>=1.0.0 <2.0.0',
+            },
+          ],
+        },
       },
     })
   )

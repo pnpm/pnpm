@@ -8,7 +8,7 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
   const projects = {} as Record<string, PkgNode>
   for (const [peerName, issues] of Object.entries(peerDependencyIssues.missing)) {
     for (const issue of issues) {
-      const projectPath = issue.location.projectPath || ROOT_LABEL
+      const projectPath = issue.location.projectPath
       if (!projects[projectPath]) {
         projects[projectPath] = { dependencies: {}, peerIssues: [] }
       }
@@ -17,7 +17,7 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
   }
   for (const [peerName, issues] of Object.entries(peerDependencyIssues.bad)) {
     for (const issue of issues) {
-      const projectPath = issue.location.projectPath || ROOT_LABEL
+      const projectPath = issue.location.projectPath
       if (!projects[projectPath]) {
         projects[projectPath] = { dependencies: {}, peerIssues: [] }
       }
@@ -27,7 +27,16 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
   }
   return Object.entries(projects)
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
-    .map(([projectKey, project]) => archy(toArchyData(projectKey, project))).join('')
+    .map(([projectKey, project]) => {
+      let label = projectKey || ROOT_LABEL
+      for (const conflict of peerDependencyIssues.reportByProject[projectKey].conflicts) {
+        label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
+      }
+      for (const { name, range } of peerDependencyIssues.reportByProject[projectKey].intersections) {
+        label += `\nadd ${name}@"${range}"`
+      }
+      return archy(toArchyData(label, project))
+    }).join('')
 }
 
 interface PkgNode {

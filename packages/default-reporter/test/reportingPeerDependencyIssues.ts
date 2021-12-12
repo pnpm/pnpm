@@ -32,6 +32,12 @@ test('print peer dependency issues warning', (done) => {
         },
       ],
     },
+    reportByProject: {
+      '': {
+        conflicts: [],
+        intersections: [],
+      },
+    },
   })
 
   expect.assertions(1)
@@ -70,6 +76,12 @@ test('print peer dependency issues error', (done) => {
           wantedRange: '3',
         },
       ],
+    },
+    reportByProject: {
+      '': {
+        conflicts: [],
+        intersections: [],
+      },
     },
   }
   logger.error(err, err)
