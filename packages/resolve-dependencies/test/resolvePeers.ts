@@ -201,3 +201,121 @@ test('when a package is referenced twice in the dependencies graph and one of th
     'bar/1.0.0',
   ])
 })
+
+describe('peer dependency issues', () => {
+  const fooPkg = {
+    name: 'foo',
+    depPath: 'foo/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {
+      peer: '1',
+    },
+  }
+  const barPkg = {
+    name: 'bar',
+    depPath: 'bar/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {
+      peer: '2',
+    },
+  }
+  const qarPkg = {
+    name: 'qar',
+    depPath: 'qar/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {
+      peer: '^2.2.0',
+    },
+  }
+  const { peerDependencyIssues } = resolvePeers({
+    projects: [
+      {
+        directNodeIdsByAlias: {
+          foo: '>project1>foo/1.0.0',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project1',
+      },
+      {
+        directNodeIdsByAlias: {
+          bar: '>project2>bar/1.0.0',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project2',
+      },
+      {
+        directNodeIdsByAlias: {
+          foo: '>project3>foo/1.0.0',
+          bar: '>project3>bar/1.0.0',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project3',
+      },
+      {
+        directNodeIdsByAlias: {
+          bar: '>project4>bar/1.0.0',
+          qar: '>project4>qar/1.0.0',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project4',
+      },
+    ],
+    dependenciesTree: {
+      '>project1>foo/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: fooPkg,
+        depth: 0,
+      },
+      '>project2>bar/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: barPkg,
+        depth: 0,
+      },
+      '>project3>foo/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: fooPkg,
+        depth: 0,
+      },
+      '>project3>bar/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: barPkg,
+        depth: 0,
+      },
+      '>project4>bar/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: barPkg,
+        depth: 0,
+      },
+      '>project4>qar/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: qarPkg,
+        depth: 0,
+      },
+    },
+    virtualStoreDir: '',
+    lockfileDir: '',
+  })
+  it('should find peer dependency conflicts', () => {
+    expect(peerDependencyIssues.missingMergedByProjects['project3'].conflicts).toStrictEqual(['peer'])
+  })
+  it('should pick the single wanted peer dependency range', () => {
+    expect(peerDependencyIssues.missingMergedByProjects['project1'].intersections)
+      .toStrictEqual([{ peerName: 'peer', versionRange: '1' }])
+    expect(peerDependencyIssues.missingMergedByProjects['project2'].intersections)
+      .toStrictEqual([{ peerName: 'peer', versionRange: '2' }])
+  })
+  it('should return the intersection of two compatible ranges', () => {
+    expect(peerDependencyIssues.missingMergedByProjects['project4'].intersections)
+      .toStrictEqual([{ peerName: 'peer', versionRange: '>=2.2.0 <3.0.0' }])
+  })
+})

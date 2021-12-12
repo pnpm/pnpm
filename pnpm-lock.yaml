@@ -451,7 +451,6 @@ importers:
       resolve-link-target: ^2.0.0
       run-groups: ^3.0.1
       semver: ^7.3.4
-      semver-intersect: ^1.4.0
       sinon: ^11.1.1
       symlink-dir: ^5.0.0
       version-selector-type: ^3.0.0
@@ -505,7 +504,6 @@ importers:
       ramda: 0.27.1
       run-groups: 3.0.1
       semver: 7.3.5
-      semver-intersect: 1.4.0
       version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/assert-project': link:../../privatePackages/assert-project
@@ -3104,6 +3102,7 @@ importers:
       ramda: ^0.27.1
       replace-string: ^3.1.0
       semver: ^7.3.4
+      semver-range-intersect: ^0.3.1
       version-selector-type: ^3.0.0
     dependencies:
       '@pnpm/constants': link:../constants
@@ -3129,6 +3128,7 @@ importers:
       ramda: 0.27.1
       replace-string: 3.1.0
       semver: 7.3.5
+      semver-range-intersect: 0.3.1
       version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/logger': 4.0.0
@@ -5331,7 +5331,6 @@ packages:
 
   /@types/semver/6.2.3:
     resolution: {integrity: sha512-KQf+QAMWKMrtBMsB8/24w53tEsxllMj6TuA80TT/5igJalLI/zm0L3oXRbIAl4Ohfc85gyHX/jhMwsVkmhLU4A==}
-    dev: true
 
   /@types/semver/7.3.9:
     resolution: {integrity: sha512-L/TMpyURfBkf+o/526Zb6kd/tchUP3iBDEPjqjb+U2MAJhVRxxrmr2fwpe08E7QsV7YLcpq0tUaQ9O9x97ZIxQ==}
@@ -13836,10 +13835,12 @@ packages:
       xmlchars: 2.2.0
     dev: true
 
-  /semver-intersect/1.4.0:
-    resolution: {integrity: sha512-d8fvGg5ycKAq0+I6nfWeCx6ffaWJCsBYU0H2Rq56+/zFePYfT8mXkB3tWBSjR5BerkHNZ5eTPIk1/LBYas35xQ==}
+  /semver-range-intersect/0.3.1:
+    resolution: {integrity: sha512-dZAVI9Gdl3uBvs1CBK1KHeCyiZDn4X14DW4C+QFQj+0k+l9L+pY1swt4KVt1hGU2dP77but4vx+N5XeYQsDteQ==}
+    engines: {node: '>=8.3.0'}
     dependencies:
-      semver: 5.7.1
+      '@types/semver': 6.2.3
+      semver: 6.3.0
     dev: false
 
   /semver-utils/1.1.4:

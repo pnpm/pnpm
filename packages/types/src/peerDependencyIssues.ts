@@ -1,6 +1,6 @@
 export interface PeerDependencyIssueLocation {
   parents: Array<{ name: string, version: string }>
-  projectPath: string
+  projectId: string
 }
 
 export interface MissingPeerDependencyIssue {
@@ -8,11 +8,28 @@ export interface MissingPeerDependencyIssue {
   wantedRange: string
 }
 
+export type MissingPeerIssuesByPeerName = Record<string, MissingPeerDependencyIssue[]>
+
 export interface BadPeerDependencyIssue extends MissingPeerDependencyIssue {
   foundVersion: string
 }
 
+export type BadPeerIssuesByPeerName = Record<string, BadPeerDependencyIssue[]>
+
 export interface PeerDependencyIssues {
-  bad: Record<string, BadPeerDependencyIssue[]>
-  missing: Record<string, MissingPeerDependencyIssue[]>
+  bad: BadPeerIssuesByPeerName
+  missing: MissingPeerIssuesByPeerName
+  missingMergedByProjects: MergedPeersByProjects
+}
+
+export type MergedPeersByProjects = Record<string, MergedPeers>
+
+export interface MergedPeers {
+  conflicts: string[]
+  intersections: PeerIntersection[]
+}
+
+export interface PeerIntersection {
+  peerName: string
+  versionRange: string
 }

@@ -1,6 +1,11 @@
 import crypto from 'crypto'
 import path from 'path'
-import { Dependencies, PeerDependencyIssues } from '@pnpm/types'
+import {
+  BadPeerIssuesByPeerName,
+  MissingPeerIssuesByPeerName,
+  Dependencies,
+  PeerDependencyIssues,
+} from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
@@ -13,6 +18,7 @@ import {
   DependenciesTreeNode,
   ResolvedPackage,
 } from './resolveDependencies'
+import { mergePeersByProjects } from './mergePeersByProjects'
 import { createNodeId, splitNodeId } from './nodeIdUtils'
 
 export interface GenericDependenciesGraphNode {
@@ -64,10 +70,9 @@ export default function<T extends PartialResolvedPackage> (
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootProject = opts.projects.length > 1 ? opts.projects.find(({ id }) => id === '.') : null
   const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
-  const peerDependencyIssues: PeerDependencyIssues = {
-    bad: {},
-    missing: {},
-  }
+  const badPeers: BadPeerIssuesByPeerName = {}
+  const missingPeers: MissingPeerIssuesByPeerName = {}
+  const missingPeersByProject = {} as Record<string, Record<string, string[]>>
 
   for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {
     const pkgsByName = {
@@ -76,11 +81,13 @@ export default function<T extends PartialResolvedPackage> (
     }
 
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
+      badPeers,
+      missingPeers,
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
+      missingPeersByProject,
       pathsByNodeId,
-      peerDependencyIssues,
       peersCache: new Map(),
       purePkgs: new Set(),
       rootDir,
@@ -105,7 +112,11 @@ export default function<T extends PartialResolvedPackage> (
   return {
     dependenciesGraph: depGraph,
     dependenciesByProjectId,
-    peerDependencyIssues,
+    peerDependencyIssues: {
+      bad: badPeers,
+      missing: missingPeers,
+      missingMergedByProjects: mergePeersByProjects(missingPeersByProject),
+    },
   }
 }
 
@@ -159,7 +170,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     pathsByNodeId: {[nodeId: string]: string}
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
-    peerDependencyIssues: PeerDependencyIssues
+    badPeers: BadPeerIssuesByPeerName
+    missingPeers: MissingPeerIssuesByPeerName
+    missingPeersByProject: Record<string, Record<string, string[]>>
     peersCache: PeersCache
     purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
@@ -231,7 +244,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       lockfileDir: ctx.lockfileDir,
       nodeId,
       parentPkgs,
-      peerDependencyIssues: ctx.peerDependencyIssues,
+      badPeers: ctx.badPeers,
+      missingPeers: ctx.missingPeers,
+      missingPeersByProject: ctx.missingPeersByProject,
       resolvedPackage,
       rootDir: ctx.rootDir,
     })
@@ -339,7 +354,9 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   parentPkgs: ParentRefs,
   ctx: {
     pathsByNodeId: {[nodeId: string]: string}
-    peerDependencyIssues: PeerDependencyIssues
+    badPeers: BadPeerIssuesByPeerName
+    missingPeers: MissingPeerIssuesByPeerName
+    missingPeersByProject: Record<string, Record<string, string[]>>
     peersCache: PeersCache
     virtualStoreDir: string
     purePkgs: Set<string>
@@ -377,7 +394,9 @@ function resolvePeers<T extends PartialResolvedPackage> (
     resolvedPackage: T
     dependenciesTree: DependenciesTree<T>
     rootDir: string
-    peerDependencyIssues: PeerDependencyIssues
+    badPeers: BadPeerIssuesByPeerName
+    missingPeers: MissingPeerIssuesByPeerName
+    missingPeersByProject: Record<string, Record<string, string[]>>
   }
 ): PeersResolution {
   const resolvedPeers: {[alias: string]: string} = {}
@@ -394,32 +413,36 @@ function resolvePeers<T extends PartialResolvedPackage> (
       ) {
         continue
       }
-      if (!ctx.peerDependencyIssues.missing[peerName]) {
-        ctx.peerDependencyIssues.missing[peerName] = []
+      if (!ctx.missingPeers[peerName]) {
+        ctx.missingPeers[peerName] = []
       }
-      ctx.peerDependencyIssues.missing[peerName].push({
+      const issue = {
         location: getLocationFromNodeId({
           dependenciesTree: ctx.dependenciesTree,
           nodeId: ctx.nodeId,
-          lockfileDir: ctx.lockfileDir,
-          rootDir: ctx.rootDir,
           pkg: ctx.resolvedPackage,
         }),
         wantedRange: peerVersionRange,
-      })
+      }
+      ctx.missingPeers[peerName].push(issue)
+      if (!ctx.missingPeersByProject[issue.location.projectId]) {
+        ctx.missingPeersByProject[issue.location.projectId] = {}
+      }
+      if (!ctx.missingPeersByProject[issue.location.projectId][peerName]) {
+        ctx.missingPeersByProject[issue.location.projectId][peerName] = []
+      }
+      ctx.missingPeersByProject[issue.location.projectId][peerName].push(peerVersionRange)
       continue
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange, { loose: true })) {
-      if (!ctx.peerDependencyIssues.bad[peerName]) {
-        ctx.peerDependencyIssues.bad[peerName] = []
+      if (!ctx.badPeers[peerName]) {
+        ctx.badPeers[peerName] = []
       }
-      ctx.peerDependencyIssues.bad[peerName].push({
+      ctx.badPeers[peerName].push({
         location: getLocationFromNodeId({
           dependenciesTree: ctx.dependenciesTree,
           nodeId: ctx.nodeId,
-          lockfileDir: ctx.lockfileDir,
-          rootDir: ctx.rootDir,
           pkg: ctx.resolvedPackage,
         }),
         foundVersion: resolved.version,
@@ -435,16 +458,12 @@ function resolvePeers<T extends PartialResolvedPackage> (
 function getLocationFromNodeId<T> (
   {
     dependenciesTree,
-    lockfileDir,
     nodeId,
-    rootDir,
     pkg,
   }: {
     dependenciesTree: DependenciesTree<T>
-    lockfileDir: string
     nodeId: string
     pkg: PartialResolvedPackage
-    rootDir: string
   }
 ) {
   const parts = splitNodeId(nodeId).slice(0, -1)
@@ -452,9 +471,8 @@ function getLocationFromNodeId<T> (
     .slice(2)
     .map((nid) => pick(['name', 'version'], dependenciesTree[nid].resolvedPackage as ResolvedPackage))
   parents.push({ name: pkg.name, version: pkg.version })
-  const projectPath = path.relative(lockfileDir, rootDir)
   return {
-    projectPath,
+    projectId: parts[0],
     parents,
   }
 }
