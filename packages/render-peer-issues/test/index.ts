@@ -73,7 +73,7 @@ test('renderPeerIssues()', () => {
         },
       ],
     },
-    reportByProject: {
+    missingMergedByProjects: {
       '': {
         conflicts: [],
         intersections: [],

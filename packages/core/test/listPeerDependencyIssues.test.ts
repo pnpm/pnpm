@@ -34,5 +34,5 @@ test('a conflict is detected when the same peer is required with ranges that do 
     },
   ], await testDefaults())
 
-  expect(peerDependencyIssues.reportByProject[''].conflicts.length).toBe(1)
+  expect(peerDependencyIssues.missingMergedByProjects[''].conflicts.length).toBe(1)
 })

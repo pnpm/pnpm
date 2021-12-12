@@ -3,7 +3,6 @@ import path from 'path'
 import {
   Dependencies,
   PeerDependencyIssues,
-  PeerDependencyIssueReportByProject,
 } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
@@ -12,12 +11,12 @@ import isEmpty from 'ramda/src/isEmpty'
 import pick from 'ramda/src/pick'
 import scan from 'ramda/src/scan'
 import semver from 'semver'
-import { intersect } from 'semver-range-intersect'
 import {
   DependenciesTree,
   DependenciesTreeNode,
   ResolvedPackage,
 } from './resolveDependencies'
+import { mergePeersByProjects } from './mergePeersByProjects'
 import { createNodeId, splitNodeId } from './nodeIdUtils'
 
 export interface GenericDependenciesGraphNode {
@@ -114,31 +113,9 @@ export default function<T extends PartialResolvedPackage> (
     dependenciesByProjectId,
     peerDependencyIssues: {
       ...peerDependencyIssues,
-      reportByProject: getReports(missingPeersByProject),
+      missingMergedByProjects: mergePeersByProjects(missingPeersByProject),
     },
   }
-}
-
-function getReports (missingPeersByProject: Record<string, Record<string, string[]>>): PeerDependencyIssueReportByProject {
-  const reports: PeerDependencyIssueReportByProject = {}
-  for (const [projectPath, rangesByPeerNames] of Object.entries(missingPeersByProject)) {
-    reports[projectPath] = {
-      conflicts: [],
-      intersections: [],
-    }
-    for (const [peerName, ranges] of Object.entries(rangesByPeerNames)) {
-      const intersection = intersect(...ranges)
-      if (intersection === null) {
-        reports[projectPath].conflicts.push(peerName)
-      } else {
-        reports[projectPath].intersections.push({
-          name: peerName,
-          range: intersection,
-        })
-      }
-    }
-  }
-  return reports
 }
 
 function createPkgsByName<T extends PartialResolvedPackage> (

@@ -32,7 +32,7 @@ test('print peer dependency issues warning', (done) => {
         },
       ],
     },
-    reportByProject: {
+    missingMergedByProjects: {
       '': {
         conflicts: [],
         intersections: [],
@@ -77,7 +77,7 @@ test('print peer dependency issues error', (done) => {
         },
       ],
     },
-    reportByProject: {
+    missingMergedByProjects: {
       '': {
         conflicts: [],
         intersections: [],

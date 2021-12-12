@@ -29,11 +29,11 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
     .map(([projectKey, project]) => {
       let label = projectKey || ROOT_LABEL
-      for (const conflict of peerDependencyIssues.reportByProject[projectKey].conflicts) {
+      for (const conflict of peerDependencyIssues.missingMergedByProjects[projectKey].conflicts) {
         label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
       }
-      for (const { name, range } of peerDependencyIssues.reportByProject[projectKey].intersections) {
-        label += `\nadd ${name}@"${range}"`
+      for (const { peerName, versionRange } of peerDependencyIssues.missingMergedByProjects[projectKey].intersections) {
+        label += `\nadd ${peerName}@"${versionRange}"`
       }
       return archy(toArchyData(label, project))
     }).join('')

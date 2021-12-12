@@ -15,12 +15,17 @@ export interface BadPeerDependencyIssue extends MissingPeerDependencyIssue {
 export interface PeerDependencyIssues {
   bad: Record<string, BadPeerDependencyIssue[]>
   missing: Record<string, MissingPeerDependencyIssue[]>
-  reportByProject: PeerDependencyIssueReportByProject
+  missingMergedByProjects: MergedPeersByProjects
 }
 
-export type PeerDependencyIssueReportByProject = Record<string, PeerDependencyIssueReport>
+export type MergedPeersByProjects = Record<string, MergedPeers>
 
-export interface PeerDependencyIssueReport {
+export interface MergedPeers {
   conflicts: string[]
-  intersections: Array<{ name: string, range: string }>
+  intersections: PeerIntersection[]
+}
+
+export interface PeerIntersection {
+  peerName: string
+  versionRange: string
 }
