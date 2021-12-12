@@ -9,6 +9,13 @@ export function mergePeersByProjects (missingPeersByProject: Record<string, Reco
       intersections: [],
     }
     for (const [peerName, ranges] of Object.entries(rangesByPeerNames)) {
+      if (ranges.length === 1) {
+        mergedPeersByProjects[projectPath].intersections.push({
+          peerName,
+          versionRange: ranges[0],
+        })
+        continue
+      }
       const intersection = intersect(...ranges)
       if (intersection === null) {
         mergedPeersByProjects[projectPath].conflicts.push(peerName)

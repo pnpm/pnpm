@@ -354,7 +354,7 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
         '.': {
           conflicts: [],
           intersections: [
-            { peerName: 'peer-c', versionRange: '>=1.0.0 <2.0.0' },
+            { peerName: 'peer-c', versionRange: '^1.0.0' },
           ],
         },
       },
@@ -1045,7 +1045,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
           intersections: [
             {
               peerName: 'peer-a',
-              versionRange: '>=1.0.0 <2.0.0',
+              versionRange: '^1.0.0',
             },
           ],
         },
@@ -1097,7 +1097,7 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
           intersections: [
             {
               peerName: 'peer-a',
-              versionRange: '>=1.0.0 <2.0.0',
+              versionRange: '^1.0.0',
             },
           ],
         },
