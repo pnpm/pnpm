@@ -19,6 +19,7 @@ test('renderPeerIssues()', () => {
             ],
             projectId: '.',
           },
+          optional: false,
           wantedRange: '^1.0.0',
         },
       ],
@@ -33,6 +34,7 @@ test('renderPeerIssues()', () => {
             ],
             projectId: 'packages/0',
           },
+          optional: false,
           wantedRange: '^1.0.0',
         },
       ],
@@ -50,6 +52,7 @@ test('renderPeerIssues()', () => {
             projectId: '.',
           },
           foundVersion: '2',
+          optional: false,
           wantedRange: '^1.0.0',
         },
       ],
@@ -69,6 +72,7 @@ test('renderPeerIssues()', () => {
             projectId: '.',
           },
           foundVersion: '2',
+          optional: false,
           wantedRange: '^1.0.0',
         },
       ],
@@ -76,10 +80,75 @@ test('renderPeerIssues()', () => {
     missingMergedByProjects: {
       '.': {
         conflicts: [],
-        intersections: [],
+        intersections: [{ peerName: 'aaa', versionRange: '^1.0.0' }],
       },
       'packages/0': {
         conflicts: [],
+        intersections: [{ peerName: 'ddd', versionRange: '^1.0.0' }],
+      },
+    },
+  }))).toMatchSnapshot()
+})
+
+test('renderPeerIssues() optional peer dependencies are printed only if they are in conflict with non-optional peers', () => {
+  expect(stripAnsi(renderPeerIssues({
+    missing: {
+      aaa: [
+        {
+          location: {
+            parents: [
+              {
+                name: 'xxx',
+                version: '1.0.0',
+              },
+              {
+                name: 'yyy',
+                version: '1.0.0',
+              },
+            ],
+            projectId: '.',
+          },
+          optional: true,
+          wantedRange: '^1.0.0',
+        },
+        {
+          location: {
+            parents: [
+              {
+                name: 'xxx',
+                version: '1.0.0',
+              },
+              {
+                name: 'yyy',
+                version: '1.0.0',
+              },
+            ],
+            projectId: '.',
+          },
+          optional: false,
+          wantedRange: '^2.0.0',
+        },
+      ],
+      bbb: [
+        {
+          location: {
+            parents: [
+              {
+                name: 'xxx',
+                version: '1.0.0',
+              },
+            ],
+            projectId: '.',
+          },
+          optional: true,
+          wantedRange: '^1.0.0',
+        },
+      ],
+    },
+    bad: {},
+    missingMergedByProjects: {
+      '.': {
+        conflicts: ['aaa'],
         intersections: [],
       },
     },

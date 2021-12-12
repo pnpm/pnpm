@@ -177,6 +177,7 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
               },
             ],
           },
+          optional: false,
           wantedRange: '>=4.10.0',
         }],
       },
@@ -215,6 +216,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
             },
           ],
         },
+        optional: false,
         wantedRange: '>=4.10.0',
       }],
     },
@@ -347,6 +349,7 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
               },
             ],
           },
+          optional: false,
           wantedRange: '^1.0.0',
         }],
       },
@@ -394,6 +397,7 @@ test('warning is reported when bad version of resolved peer dependency for non-t
             ],
           },
           foundVersion: '2.0.0',
+          optional: false,
           wantedRange: '^1.0.0',
         }],
       },
@@ -435,6 +439,7 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
           ],
         },
         foundVersion: '2.0.0',
+        optional: false,
         wantedRange: '^1.0.0',
       }],
     },
@@ -1022,22 +1027,41 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
             ],
           },
           foundVersion: '2.0.0',
+          optional: true,
           wantedRange: '^1.0.0',
         }],
       },
       missing: {
-        'peer-a': [{
-          location: {
-            projectId: '.',
-            parents: [
-              {
-                name: 'abc-optional-peers',
-                version: '1.0.0',
-              },
-            ],
+        'peer-a': [
+          {
+            location: {
+              projectId: '.',
+              parents: [
+                {
+                  name: 'abc-optional-peers',
+                  version: '1.0.0',
+                },
+              ],
+            },
+            optional: false,
+            wantedRange: '^1.0.0',
           },
-          wantedRange: '^1.0.0',
-        }],
+        ],
+        'peer-b': [
+          {
+            location: {
+              projectId: '.',
+              parents: [
+                {
+                  name: 'abc-optional-peers',
+                  version: '1.0.0',
+                },
+              ],
+            },
+            optional: true,
+            wantedRange: '^1.0.0',
+          },
+        ],
       },
       missingMergedByProjects: {
         '.': {
@@ -1088,7 +1112,21 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
               },
             ],
           },
+          optional: false,
           wantedRange: '^1.0.0',
+        }],
+        'peer-b': [{
+          location: {
+            projectId: '.',
+            parents: [
+              {
+                name: 'abc-optional-peers-meta-only',
+                version: '1.0.0',
+              },
+            ],
+          },
+          optional: true,
+          wantedRange: '*',
         }],
       },
       missingMergedByProjects: {

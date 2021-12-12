@@ -5,6 +5,7 @@ export interface PeerDependencyIssueLocation {
 
 export interface MissingPeerDependencyIssue {
   location: PeerDependencyIssueLocation
+  optional: boolean
   wantedRange: string
 }
 

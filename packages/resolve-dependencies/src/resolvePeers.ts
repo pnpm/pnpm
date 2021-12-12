@@ -18,7 +18,7 @@ import {
   DependenciesTreeNode,
   ResolvedPackage,
 } from './resolveDependencies'
-import { mergePeersByProjects } from './mergePeersByProjects'
+import { mergePeersByProjects, MissingPeersByProject } from './mergePeersByProjects'
 import { createNodeId, splitNodeId } from './nodeIdUtils'
 
 export interface GenericDependenciesGraphNode {
@@ -72,7 +72,7 @@ export default function<T extends PartialResolvedPackage> (
   const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
   const badPeers: BadPeerIssuesByPeerName = {}
   const missingPeers: MissingPeerIssuesByPeerName = {}
-  const missingPeersByProject = {} as Record<string, Record<string, string[]>>
+  const missingPeersByProject: MissingPeersByProject = {}
 
   for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {
     const pkgsByName = {
@@ -172,7 +172,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     virtualStoreDir: string
     badPeers: BadPeerIssuesByPeerName
     missingPeers: MissingPeerIssuesByPeerName
-    missingPeersByProject: Record<string, Record<string, string[]>>
+    missingPeersByProject: MissingPeersByProject
     peersCache: PeersCache
     purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
@@ -356,7 +356,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     pathsByNodeId: {[nodeId: string]: string}
     badPeers: BadPeerIssuesByPeerName
     missingPeers: MissingPeerIssuesByPeerName
-    missingPeersByProject: Record<string, Record<string, string[]>>
+    missingPeersByProject: MissingPeersByProject
     peersCache: PeersCache
     virtualStoreDir: string
     purePkgs: Set<string>
@@ -396,7 +396,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
     rootDir: string
     badPeers: BadPeerIssuesByPeerName
     missingPeers: MissingPeerIssuesByPeerName
-    missingPeersByProject: Record<string, Record<string, string[]>>
+    missingPeersByProject: MissingPeersByProject
   }
 ): PeersResolution {
   const resolvedPeers: {[alias: string]: string} = {}
@@ -405,14 +405,10 @@ function resolvePeers<T extends PartialResolvedPackage> (
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName]
 
     const resolved = ctx.parentPkgs[peerName]
+    const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
 
     if (!resolved) {
       missingPeers.push(peerName)
-      if (
-        ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
-      ) {
-        continue
-      }
       if (!ctx.missingPeers[peerName]) {
         ctx.missingPeers[peerName] = []
       }
@@ -422,6 +418,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
           nodeId: ctx.nodeId,
           pkg: ctx.resolvedPackage,
         }),
+        optional: optionalPeer,
         wantedRange: peerVersionRange,
       }
       ctx.missingPeers[peerName].push(issue)
@@ -431,7 +428,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
       if (!ctx.missingPeersByProject[issue.location.projectId][peerName]) {
         ctx.missingPeersByProject[issue.location.projectId][peerName] = []
       }
-      ctx.missingPeersByProject[issue.location.projectId][peerName].push(peerVersionRange)
+      ctx.missingPeersByProject[issue.location.projectId][peerName].push({ range: peerVersionRange, optional: optionalPeer })
       continue
     }
 
@@ -446,6 +443,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
           pkg: ctx.resolvedPackage,
         }),
         foundVersion: resolved.version,
+        optional: optionalPeer,
         wantedRange: peerVersionRange,
       })
     }

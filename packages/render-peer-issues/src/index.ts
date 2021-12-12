@@ -13,6 +13,13 @@ export default function (
   for (const [peerName, issues] of Object.entries(missing)) {
     for (const issue of issues) {
       const projectId = issue.location.projectId
+      const mergedPeers = missingMergedByProjects[projectId]
+      if (
+        !mergedPeers.conflicts.includes(peerName) &&
+        mergedPeers.intersections.every((intersection) => intersection.peerName !== peerName)
+      ) {
+        continue
+      }
       if (!projects[projectId]) {
         projects[projectId] = { dependencies: {}, peerIssues: [] }
       }
