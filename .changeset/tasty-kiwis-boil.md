@@ -2,4 +2,4 @@
 "@pnpm/core": minor
 ---
 
-New function added to the core API: `listPeerDependencyIssues()`.
+New function added to the core API: `getPeerDependencyIssues()`.

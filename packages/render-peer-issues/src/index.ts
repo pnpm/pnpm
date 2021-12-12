@@ -4,9 +4,15 @@ import chalk from 'chalk'
 
 const ROOT_LABEL = '<ROOT>'
 
-export default function (peerDependencyIssues: PeerDependencyIssues) {
+export default function (
+  {
+    bad,
+    missing,
+    missingMergedByProjects,
+  }: PeerDependencyIssues
+) {
   const projects = {} as Record<string, PkgNode>
-  for (const [peerName, issues] of Object.entries(peerDependencyIssues.missing)) {
+  for (const [peerName, issues] of Object.entries(missing)) {
     for (const issue of issues) {
       const projectPath = issue.location.projectPath
       if (!projects[projectPath]) {
@@ -15,7 +21,7 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
       createTree(projects[projectPath], issue.location.parents, `${chalk.red('✕ missing peer')} ${peerName}@"${issue.wantedRange}"`)
     }
   }
-  for (const [peerName, issues] of Object.entries(peerDependencyIssues.bad)) {
+  for (const [peerName, issues] of Object.entries(bad)) {
     for (const issue of issues) {
       const projectPath = issue.location.projectPath
       if (!projects[projectPath]) {
@@ -29,10 +35,10 @@ export default function (peerDependencyIssues: PeerDependencyIssues) {
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
     .map(([projectKey, project]) => {
       let label = projectKey || ROOT_LABEL
-      for (const conflict of peerDependencyIssues.missingMergedByProjects[projectKey].conflicts) {
+      for (const conflict of missingMergedByProjects[projectKey].conflicts) {
         label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
       }
-      for (const { peerName, versionRange } of peerDependencyIssues.missingMergedByProjects[projectKey].intersections) {
+      for (const { peerName, versionRange } of missingMergedByProjects[projectKey].intersections) {
         label += `\nadd ${peerName}@"${versionRange}"`
       }
       return archy(toArchyData(label, project))

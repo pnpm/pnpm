@@ -8,13 +8,17 @@ export interface MissingPeerDependencyIssue {
   wantedRange: string
 }
 
+export type MissingPeerIssuesByPeerName = Record<string, MissingPeerDependencyIssue[]>
+
 export interface BadPeerDependencyIssue extends MissingPeerDependencyIssue {
   foundVersion: string
 }
 
+export type BadPeerIssuesByPeerName = Record<string, BadPeerDependencyIssue[]>
+
 export interface PeerDependencyIssues {
-  bad: Record<string, BadPeerDependencyIssue[]>
-  missing: Record<string, MissingPeerDependencyIssue[]>
+  bad: BadPeerIssuesByPeerName
+  missing: MissingPeerIssuesByPeerName
   missingMergedByProjects: MergedPeersByProjects
 }
 
