@@ -91,6 +91,10 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
           unmatched.push({ pkgName: depName, range: rawSpec })
           return ''
         }
+        if (isWorkspaceSpec && versions.length === 0) {
+          const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName)
+          return matchedPkg!.dir
+        }
         if (versions.includes(rawSpec)) {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
           return matchedPkg!.dir
