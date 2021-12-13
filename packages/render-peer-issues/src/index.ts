@@ -1,49 +1,40 @@
-import { PeerDependencyIssues } from '@pnpm/types'
+import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 
 export default function (
-  {
-    bad,
-    missing,
-    missingMergedByProjects,
-  }: PeerDependencyIssues
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
 ) {
   const projects = {} as Record<string, PkgNode>
-  for (const [peerName, issues] of Object.entries(missing)) {
-    for (const issue of issues) {
-      const projectId = issue.location.projectId
-      const mergedPeers = missingMergedByProjects[projectId]
+  for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
+    projects[projectId] = { dependencies: {}, peerIssues: [] }
+    for (const [peerName, issues] of Object.entries(missing)) {
       if (
-        !mergedPeers.conflicts.includes(peerName) &&
-        mergedPeers.intersections[peerName] == null
+        !conflicts.includes(peerName) &&
+        intersections[peerName] == null
       ) {
         continue
       }
-      if (!projects[projectId]) {
-        projects[projectId] = { dependencies: {}, peerIssues: [] }
+      for (const issue of issues) {
+        createTree(projects[projectId], issue.parents, `${chalk.red('✕ missing peer')} ${formatNameAndRange(peerName, issue.wantedRange)}`)
       }
-      createTree(projects[projectId], issue.location.parents, `${chalk.red('✕ missing peer')} ${formatNameAndRange(peerName, issue.wantedRange)}`)
     }
-  }
-  for (const [peerName, issues] of Object.entries(bad)) {
-    for (const issue of issues) {
-      const projectId = issue.location.projectId
-      if (!projects[projectId]) {
-        projects[projectId] = { dependencies: {}, peerIssues: [] }
+    for (const [peerName, issues] of Object.entries(bad)) {
+      for (const { parents, foundVersion, wantedRange } of issues) {
+        // eslint-disable-next-line
+        createTree(projects[projectId], parents, `${chalk.red('✕ unmet peer')} ${formatNameAndRange(peerName, wantedRange)}: found ${foundVersion}`)
       }
-      // eslint-disable-next-line
-      createTree(projects[projectId], issue.location.parents, `${chalk.red('✕ unmet peer')} ${formatNameAndRange(peerName, issue.wantedRange)}: found ${issue.foundVersion}`)
     }
   }
   return Object.entries(projects)
+    .filter(([, project]) => Object.keys(project.dependencies).length > 0)
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
     .map(([projectKey, project]) => {
       let label = projectKey
-      for (const conflict of missingMergedByProjects[projectKey].conflicts) {
+      for (const conflict of peerDependencyIssuesByProjects[projectKey].conflicts) {
         label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
       }
-      for (const [peerName, versionRange] of Object.entries(missingMergedByProjects[projectKey].intersections)) {
+      for (const [peerName, versionRange] of Object.entries(peerDependencyIssuesByProjects[projectKey].intersections)) {
         label += `\nadd ${formatNameAndRange(peerName, versionRange)}`
       }
       return archy(toArchyData(label, project))

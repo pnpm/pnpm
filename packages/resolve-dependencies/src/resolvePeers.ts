@@ -1,10 +1,9 @@
 import crypto from 'crypto'
 import path from 'path'
 import {
-  BadPeerIssuesByPeerName,
-  MissingPeerIssuesByPeerName,
   Dependencies,
   PeerDependencyIssues,
+  PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
@@ -18,7 +17,7 @@ import {
   DependenciesTreeNode,
   ResolvedPackage,
 } from './resolveDependencies'
-import { mergePeersByProjects, MissingPeersByProject } from './mergePeersByProjects'
+import { mergePeers } from './mergePeers'
 import { createNodeId, splitNodeId } from './nodeIdUtils'
 
 export interface GenericDependenciesGraphNode {
@@ -63,36 +62,39 @@ export default function<T extends PartialResolvedPackage> (
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
     dependenciesByProjectId: {[id: string]: {[alias: string]: string}}
-    peerDependencyIssues: PeerDependencyIssues
+    peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootProject = opts.projects.length > 1 ? opts.projects.find(({ id }) => id === '.') : null
   const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
-  const badPeers: BadPeerIssuesByPeerName = {}
-  const missingPeers: MissingPeerIssuesByPeerName = {}
-  const missingPeersByProject: MissingPeersByProject = {}
+  const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
-  for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {
+  for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
+    const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
     const pkgsByName = {
       ...rootPkgsByName,
       ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
     }
 
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
-      badPeers,
-      missingPeers,
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
-      missingPeersByProject,
       pathsByNodeId,
       peersCache: new Map(),
+      peerDependencyIssues,
       purePkgs: new Set(),
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
     })
+    if (!isEmpty(peerDependencyIssues.bad) || !isEmpty(peerDependencyIssues.missing)) {
+      peerDependencyIssuesByProjects[id] = {
+        ...peerDependencyIssues,
+        ...mergePeers(peerDependencyIssues.missing),
+      }
+    }
   }
 
   Object.values(depGraph).forEach((node) => {
@@ -112,11 +114,7 @@ export default function<T extends PartialResolvedPackage> (
   return {
     dependenciesGraph: depGraph,
     dependenciesByProjectId,
-    peerDependencyIssues: {
-      bad: badPeers,
-      missing: missingPeers,
-      missingMergedByProjects: mergePeersByProjects(missingPeersByProject),
-    },
+    peerDependencyIssuesByProjects,
   }
 }
 
@@ -170,9 +168,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     pathsByNodeId: {[nodeId: string]: string}
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
-    badPeers: BadPeerIssuesByPeerName
-    missingPeers: MissingPeerIssuesByPeerName
-    missingPeersByProject: MissingPeersByProject
+    peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
@@ -244,9 +240,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       lockfileDir: ctx.lockfileDir,
       nodeId,
       parentPkgs,
-      badPeers: ctx.badPeers,
-      missingPeers: ctx.missingPeers,
-      missingPeersByProject: ctx.missingPeersByProject,
+      peerDependencyIssues: ctx.peerDependencyIssues,
       resolvedPackage,
       rootDir: ctx.rootDir,
     })
@@ -354,9 +348,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   parentPkgs: ParentRefs,
   ctx: {
     pathsByNodeId: {[nodeId: string]: string}
-    badPeers: BadPeerIssuesByPeerName
-    missingPeers: MissingPeerIssuesByPeerName
-    missingPeersByProject: MissingPeersByProject
+    peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string
     purePkgs: Set<string>
@@ -394,9 +386,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
     resolvedPackage: T
     dependenciesTree: DependenciesTree<T>
     rootDir: string
-    badPeers: BadPeerIssuesByPeerName
-    missingPeers: MissingPeerIssuesByPeerName
-    missingPeersByProject: MissingPeersByProject
+    peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
   }
 ): PeersResolution {
   const resolvedPeers: {[alias: string]: string} = {}
@@ -409,40 +399,34 @@ function resolvePeers<T extends PartialResolvedPackage> (
 
     if (!resolved) {
       missingPeers.push(peerName)
-      if (!ctx.missingPeers[peerName]) {
-        ctx.missingPeers[peerName] = []
+      const location = getLocationFromNodeId({
+        dependenciesTree: ctx.dependenciesTree,
+        nodeId: ctx.nodeId,
+        pkg: ctx.resolvedPackage,
+      })
+      if (!ctx.peerDependencyIssues.missing[peerName]) {
+        ctx.peerDependencyIssues.missing[peerName] = []
       }
-      const issue = {
-        location: getLocationFromNodeId({
-          dependenciesTree: ctx.dependenciesTree,
-          nodeId: ctx.nodeId,
-          pkg: ctx.resolvedPackage,
-        }),
+      ctx.peerDependencyIssues.missing[peerName].push({
+        parents: location.parents,
         optional: optionalPeer,
         wantedRange: peerVersionRange,
-      }
-      ctx.missingPeers[peerName].push(issue)
-      if (!ctx.missingPeersByProject[issue.location.projectId]) {
-        ctx.missingPeersByProject[issue.location.projectId] = {}
-      }
-      if (!ctx.missingPeersByProject[issue.location.projectId][peerName]) {
-        ctx.missingPeersByProject[issue.location.projectId][peerName] = []
-      }
-      ctx.missingPeersByProject[issue.location.projectId][peerName].push({ range: peerVersionRange, optional: optionalPeer })
+      })
       continue
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange, { loose: true })) {
-      if (!ctx.badPeers[peerName]) {
-        ctx.badPeers[peerName] = []
+      const location = getLocationFromNodeId({
+        dependenciesTree: ctx.dependenciesTree,
+        nodeId: ctx.nodeId,
+        pkg: ctx.resolvedPackage,
+      })
+      if (!ctx.peerDependencyIssues.bad[peerName]) {
+        ctx.peerDependencyIssues.bad[peerName] = []
       }
-      ctx.badPeers[peerName].push({
-        location: getLocationFromNodeId({
-          dependenciesTree: ctx.dependenciesTree,
-          nodeId: ctx.nodeId,
-          pkg: ctx.resolvedPackage,
-        }),
+      ctx.peerDependencyIssues.bad[peerName].push({
         foundVersion: resolved.version,
+        parents: location.parents,
         optional: optionalPeer,
         wantedRange: peerVersionRange,
       })

@@ -156,7 +156,7 @@ export default async function (
   const {
     dependenciesGraph,
     dependenciesByProjectId,
-    peerDependencyIssues,
+    peerDependencyIssuesByProjects,
   } = resolvePeers({
     dependenciesTree,
     lockfileDir: opts.lockfileDir,
@@ -210,7 +210,7 @@ export default async function (
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
-    peerDependencyIssues,
+    peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
   }

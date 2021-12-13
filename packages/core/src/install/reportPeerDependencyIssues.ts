@@ -1,32 +1,34 @@
 import PnpmError from '@pnpm/error'
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
-import { PeerDependencyIssues } from '@pnpm/types'
+import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 
 export default function (
-  peerDependencyIssues: PeerDependencyIssues,
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
   opts: {
     lockfileDir: string
     strictPeerDependencies: boolean
   }
 ) {
   if (
-    isEmpty(peerDependencyIssues.bad) && (
-      isEmpty(peerDependencyIssues.missing) ||
-      Object.values(peerDependencyIssues.missingMergedByProjects)
-        .every(({ conflicts, intersections }) => conflicts.length === 0 && Object.keys(intersections).length === 0)
-    )
+    Object.values(peerDependencyIssuesByProjects).every((peerIssuesOfProject) =>
+      isEmpty(peerIssuesOfProject.bad) && (
+        isEmpty(peerIssuesOfProject.missing) ||
+        peerIssuesOfProject.conflicts.length === 0 && Object.keys(peerIssuesOfProject.intersections).length === 0
+      ))
   ) return
   if (opts.strictPeerDependencies) {
-    throw new PeerDependencyIssuesError(peerDependencyIssues)
+    throw new PeerDependencyIssuesError(peerDependencyIssuesByProjects)
   }
-  peerDependencyIssuesLogger.debug(peerDependencyIssues)
+  peerDependencyIssuesLogger.debug({
+    issuesByProjects: peerDependencyIssuesByProjects,
+  })
 }
 
 export class PeerDependencyIssuesError extends PnpmError {
-  issues: PeerDependencyIssues
-  constructor (issues: PeerDependencyIssues) {
+  issuesByProjects: PeerDependencyIssuesByProjects
+  constructor (issues: PeerDependencyIssuesByProjects) {
     super('PEER_DEP_ISSUES', 'Unmet peer dependencies')
-    this.issues = issues
+    this.issuesByProjects = issues
   }
 }

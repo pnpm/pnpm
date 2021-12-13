@@ -253,7 +253,7 @@ describe('peer dependency issues', () => {
       peer: '^2.2.0',
     },
   }
-  const { peerDependencyIssues } = resolvePeers({
+  const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
       {
         directNodeIdsByAlias: {
@@ -374,22 +374,22 @@ describe('peer dependency issues', () => {
     lockfileDir: '',
   })
   it('should find peer dependency conflicts', () => {
-    expect(peerDependencyIssues.missingMergedByProjects['project3'].conflicts).toStrictEqual(['peer'])
+    expect(peerDependencyIssuesByProjects['project3'].conflicts).toStrictEqual(['peer'])
   })
   it('should find peer dependency conflicts when the peer is an optional peer of one of the dependencies', () => {
-    expect(peerDependencyIssues.missingMergedByProjects['project5'].conflicts).toStrictEqual(['peer'])
+    expect(peerDependencyIssuesByProjects['project5'].conflicts).toStrictEqual(['peer'])
   })
   it('should ignore conflicts between missing optional peer dependencies', () => {
-    expect(peerDependencyIssues.missingMergedByProjects['project6'].conflicts).toStrictEqual([])
+    expect(peerDependencyIssuesByProjects['project6'].conflicts).toStrictEqual([])
   })
   it('should pick the single wanted peer dependency range', () => {
-    expect(peerDependencyIssues.missingMergedByProjects['project1'].intersections)
+    expect(peerDependencyIssuesByProjects['project1'].intersections)
       .toStrictEqual({ peer: '1' })
-    expect(peerDependencyIssues.missingMergedByProjects['project2'].intersections)
+    expect(peerDependencyIssuesByProjects['project2'].intersections)
       .toStrictEqual({ peer: '2' })
   })
   it('should return the intersection of two compatible ranges', () => {
-    expect(peerDependencyIssues.missingMergedByProjects['project4'].intersections)
+    expect(peerDependencyIssuesByProjects['project4'].intersections)
       .toStrictEqual({ peer: '>=2.2.0 <3.0.0' })
   })
 })

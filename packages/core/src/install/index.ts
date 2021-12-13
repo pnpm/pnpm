@@ -717,7 +717,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     linkedDependenciesByProjectId,
     newLockfile,
     outdatedDependencies,
-    peerDependencyIssues,
+    peerDependencyIssuesByProjects,
     wantedToBeSkippedPackageIds,
     waitTillAllFetchingsFinish,
   } = await resolveDependencies(
@@ -961,7 +961,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   await opts.storeController.close()
 
-  reportPeerDependencyIssues(peerDependencyIssues, {
+  reportPeerDependencyIssues(peerDependencyIssuesByProjects, {
     lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
   })

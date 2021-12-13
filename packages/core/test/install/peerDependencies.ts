@@ -165,24 +165,23 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
     expect.objectContaining({
       level: 'debug',
       name: 'pnpm:peer-dependency-issues',
-      bad: {},
-      missing: {
-        ajv: [{
-          location: {
-            projectId: '.',
-            parents: [
+      issuesByProjects: {
+        '.': {
+          bad: {},
+          missing: {
+            ajv: [
               {
-                name: 'ajv-keywords',
-                version: '1.5.0',
+                parents: [
+                  {
+                    name: 'ajv-keywords',
+                    version: '1.5.0',
+                  },
+                ],
+                optional: false,
+                wantedRange: '>=4.10.0',
               },
             ],
           },
-          optional: false,
-          wantedRange: '>=4.10.0',
-        }],
-      },
-      missingMergedByProjects: {
-        '.': {
           conflicts: [],
           intersections: { ajv: '>=4.10.0' },
         },
@@ -201,29 +200,24 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
     err = _err
   }
 
-  expect(err?.issues).toStrictEqual({
+  expect(err?.issuesByProjects['.']).toStrictEqual({
     bad: {},
     missing: {
-      ajv: [{
-        location: {
-          projectId: '.',
+      ajv: [
+        {
           parents: [
             {
               name: 'ajv-keywords',
               version: '1.5.0',
             },
           ],
+          optional: false,
+          wantedRange: '>=4.10.0',
         },
-        optional: false,
-        wantedRange: '>=4.10.0',
-      }],
+      ],
     },
-    missingMergedByProjects: {
-      '.': {
-        conflicts: [],
-        intersections: { ajv: '>=4.10.0' },
-      },
-    },
+    conflicts: [],
+    intersections: { ajv: '>=4.10.0' },
   })
 })
 
@@ -325,32 +319,31 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
     expect.objectContaining({
       level: 'debug',
       name: 'pnpm:peer-dependency-issues',
-      bad: {},
-      missing: {
-        'peer-c': [{
-          location: {
-            projectId: '.',
-            parents: [
+      issuesByProjects: {
+        '.': {
+          bad: {},
+          missing: {
+            'peer-c': [
               {
-                name: 'abc-grand-parent-without-c',
-                version: '1.0.0',
-              },
-              {
-                name: 'abc-parent-with-ab',
-                version: '1.0.0',
-              },
-              {
-                name: 'abc',
-                version: '1.0.0',
+                parents: [
+                  {
+                    name: 'abc-grand-parent-without-c',
+                    version: '1.0.0',
+                  },
+                  {
+                    name: 'abc-parent-with-ab',
+                    version: '1.0.0',
+                  },
+                  {
+                    name: 'abc',
+                    version: '1.0.0',
+                  },
+                ],
+                optional: false,
+                wantedRange: '^1.0.0',
               },
             ],
           },
-          optional: false,
-          wantedRange: '^1.0.0',
-        }],
-      },
-      missingMergedByProjects: {
-        '.': {
           conflicts: [],
           intersections: { 'peer-c': '^1.0.0' },
         },
@@ -371,32 +364,36 @@ test('warning is reported when bad version of resolved peer dependency for non-t
     expect.objectContaining({
       level: 'debug',
       name: 'pnpm:peer-dependency-issues',
-      bad: {
-        'peer-c': [{
-          location: {
-            projectId: '.',
-            parents: [
+      issuesByProjects: {
+        '.': {
+          bad: {
+            'peer-c': [
               {
-                name: 'abc-grand-parent-without-c',
-                version: '1.0.0',
-              },
-              {
-                name: 'abc-parent-with-ab',
-                version: '1.0.0',
-              },
-              {
-                name: 'abc',
-                version: '1.0.0',
+                parents: [
+                  {
+                    name: 'abc-grand-parent-without-c',
+                    version: '1.0.0',
+                  },
+                  {
+                    name: 'abc-parent-with-ab',
+                    version: '1.0.0',
+                  },
+                  {
+                    name: 'abc',
+                    version: '1.0.0',
+                  },
+                ],
+                foundVersion: '2.0.0',
+                optional: false,
+                wantedRange: '^1.0.0',
               },
             ],
           },
-          foundVersion: '2.0.0',
-          optional: false,
-          wantedRange: '^1.0.0',
-        }],
+          missing: {},
+          conflicts: [],
+          intersections: {},
+        },
       },
-      missing: {},
-      missingMergedByProjects: {},
     })
   )
 })
@@ -412,11 +409,10 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
     err = _err
   }
 
-  expect(err?.issues).toStrictEqual({
+  expect(err?.issuesByProjects['.']).toStrictEqual({
     bad: {
-      'peer-c': [{
-        location: {
-          projectId: '.',
+      'peer-c': [
+        {
           parents: [
             {
               name: 'abc-grand-parent-without-c',
@@ -431,14 +427,15 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
               version: '1.0.0',
             },
           ],
+          foundVersion: '2.0.0',
+          optional: false,
+          wantedRange: '^1.0.0',
         },
-        foundVersion: '2.0.0',
-        optional: false,
-        wantedRange: '^1.0.0',
-      }],
+      ],
     },
     missing: {},
-    missingMergedByProjects: {},
+    conflicts: [],
+    intersections: {},
   })
 })
 
@@ -1009,56 +1006,47 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
     expect.objectContaining({
       level: 'debug',
       name: 'pnpm:peer-dependency-issues',
-      bad: {
-        'peer-c': [{
-          location: {
-            projectId: '.',
-            parents: [
+      issuesByProjects: {
+        '.': {
+          bad: {
+            'peer-c': [{
+              parents: [
+                {
+                  name: 'abc-optional-peers',
+                  version: '1.0.0',
+                },
+              ],
+              foundVersion: '2.0.0',
+              optional: true,
+              wantedRange: '^1.0.0',
+            }],
+          },
+          missing: {
+            'peer-a': [
               {
-                name: 'abc-optional-peers',
-                version: '1.0.0',
+                parents: [
+                  {
+                    name: 'abc-optional-peers',
+                    version: '1.0.0',
+                  },
+                ],
+                optional: false,
+                wantedRange: '^1.0.0',
+              },
+            ],
+            'peer-b': [
+              {
+                parents: [
+                  {
+                    name: 'abc-optional-peers',
+                    version: '1.0.0',
+                  },
+                ],
+                optional: true,
+                wantedRange: '^1.0.0',
               },
             ],
           },
-          foundVersion: '2.0.0',
-          optional: true,
-          wantedRange: '^1.0.0',
-        }],
-      },
-      missing: {
-        'peer-a': [
-          {
-            location: {
-              projectId: '.',
-              parents: [
-                {
-                  name: 'abc-optional-peers',
-                  version: '1.0.0',
-                },
-              ],
-            },
-            optional: false,
-            wantedRange: '^1.0.0',
-          },
-        ],
-        'peer-b': [
-          {
-            location: {
-              projectId: '.',
-              parents: [
-                {
-                  name: 'abc-optional-peers',
-                  version: '1.0.0',
-                },
-              ],
-            },
-            optional: true,
-            wantedRange: '^1.0.0',
-          },
-        ],
-      },
-      missingMergedByProjects: {
-        '.': {
           conflicts: [],
           intersections: { 'peer-a': '^1.0.0' },
         },
@@ -1089,37 +1077,35 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
     expect.objectContaining({
       level: 'debug',
       name: 'pnpm:peer-dependency-issues',
-      bad: {},
-      missing: {
-        'peer-a': [{
-          location: {
-            projectId: '.',
-            parents: [
-              {
-                name: 'abc-optional-peers-meta-only',
-                version: '1.0.0',
-              },
-            ],
-          },
-          optional: false,
-          wantedRange: '^1.0.0',
-        }],
-        'peer-b': [{
-          location: {
-            projectId: '.',
-            parents: [
-              {
-                name: 'abc-optional-peers-meta-only',
-                version: '1.0.0',
-              },
-            ],
-          },
-          optional: true,
-          wantedRange: '*',
-        }],
-      },
-      missingMergedByProjects: {
+      issuesByProjects: {
         '.': {
+          bad: {},
+          missing: {
+            'peer-a': [
+              {
+                parents: [
+                  {
+                    name: 'abc-optional-peers-meta-only',
+                    version: '1.0.0',
+                  },
+                ],
+                optional: false,
+                wantedRange: '^1.0.0',
+              },
+            ],
+            'peer-b': [
+              {
+                parents: [
+                  {
+                    name: 'abc-optional-peers-meta-only',
+                    version: '1.0.0',
+                  },
+                ],
+                optional: true,
+                wantedRange: '*',
+              },
+            ],
+          },
           conflicts: [],
           intersections: { 'peer-a': '^1.0.0' },
         },

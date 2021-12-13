@@ -3,62 +3,29 @@ import stripAnsi from 'strip-ansi'
 
 test('renderPeerIssues()', () => {
   expect(stripAnsi(renderPeerIssues({
-    missing: {
-      aaa: [
-        {
-          location: {
-            parents: [
-              {
-                name: 'xxx',
-                version: '1.0.0',
-              },
-              {
-                name: 'yyy',
-                version: '1.0.0',
-              },
-            ],
-            projectId: '.',
-          },
-          optional: false,
-          wantedRange: '>=1.0.0 <3.0.0',
-        },
-      ],
-      ddd: [
-        {
-          location: {
+    'packages/0': {
+      conflicts: [],
+      intersections: { ddd: '^1.0.0' },
+      bad: {},
+      missing: {
+        ddd: [
+          {
             parents: [
               {
                 name: 'zzz',
                 version: '1.0.0',
               },
             ],
-            projectId: 'packages/0',
+            optional: false,
+            wantedRange: '^1.0.0',
           },
-          optional: false,
-          wantedRange: '^1.0.0',
-        },
-      ],
+        ],
+      },
     },
-    bad: {
-      bbb: [
-        {
-          location: {
-            parents: [
-              {
-                name: 'xxx',
-                version: '1.0.0',
-              },
-            ],
-            projectId: '.',
-          },
-          foundVersion: '2',
-          optional: false,
-          wantedRange: '^1.0.0',
-        },
-      ],
-      ccc: [
-        {
-          location: {
+    '.': {
+      missing: {
+        aaa: [
+          {
             parents: [
               {
                 name: 'xxx',
@@ -69,33 +36,55 @@ test('renderPeerIssues()', () => {
                 version: '1.0.0',
               },
             ],
-            projectId: '.',
+            optional: false,
+            wantedRange: '>=1.0.0 <3.0.0',
           },
-          foundVersion: '2',
-          optional: false,
-          wantedRange: '^1.0.0',
-        },
-      ],
-    },
-    missingMergedByProjects: {
-      '.': {
-        conflicts: [],
-        intersections: { aaa: '^1.0.0' },
+        ],
       },
-      'packages/0': {
-        conflicts: [],
-        intersections: { ddd: '^1.0.0' },
+      bad: {
+        bbb: [
+          {
+            parents: [
+              {
+                name: 'xxx',
+                version: '1.0.0',
+              },
+            ],
+            foundVersion: '2',
+            optional: false,
+            wantedRange: '^1.0.0',
+          },
+        ],
+        ccc: [
+          {
+            parents: [
+              {
+                name: 'xxx',
+                version: '1.0.0',
+              },
+              {
+                name: 'yyy',
+                version: '1.0.0',
+              },
+            ],
+            foundVersion: '2',
+            optional: false,
+            wantedRange: '^1.0.0',
+          },
+        ],
       },
+      conflicts: [],
+      intersections: { aaa: '^1.0.0' },
     },
   }))).toMatchSnapshot()
 })
 
 test('renderPeerIssues() optional peer dependencies are printed only if they are in conflict with non-optional peers', () => {
   expect(stripAnsi(renderPeerIssues({
-    missing: {
-      aaa: [
-        {
-          location: {
+    '.': {
+      missing: {
+        aaa: [
+          {
             parents: [
               {
                 name: 'xxx',
@@ -106,13 +95,10 @@ test('renderPeerIssues() optional peer dependencies are printed only if they are
                 version: '1.0.0',
               },
             ],
-            projectId: '.',
+            optional: true,
+            wantedRange: '^1.0.0',
           },
-          optional: true,
-          wantedRange: '^1.0.0',
-        },
-        {
-          location: {
+          {
             parents: [
               {
                 name: 'xxx',
@@ -123,34 +109,32 @@ test('renderPeerIssues() optional peer dependencies are printed only if they are
                 version: '1.0.0',
               },
             ],
-            projectId: '.',
+            optional: false,
+            wantedRange: '^2.0.0',
           },
-          optional: false,
-          wantedRange: '^2.0.0',
-        },
-      ],
-      bbb: [
-        {
-          location: {
+        ],
+        bbb: [
+          {
             parents: [
               {
                 name: 'xxx',
                 version: '1.0.0',
               },
             ],
-            projectId: '.',
+            optional: true,
+            wantedRange: '^1.0.0',
           },
-          optional: true,
-          wantedRange: '^1.0.0',
-        },
-      ],
-    },
-    bad: {},
-    missingMergedByProjects: {
-      '.': {
-        conflicts: ['aaa'],
-        intersections: {},
+        ],
       },
+      bad: {},
+      conflicts: ['aaa'],
+      intersections: {},
+    },
+    empty: {
+      missing: {},
+      bad: {},
+      conflicts: [],
+      intersections: {},
     },
   }))).toMatchSnapshot()
 })

@@ -12,7 +12,7 @@ export default (
   return log$.peerDependencyIssues.pipe(
     take(1),
     map((log) => Rx.of({
-      msg: `${formatWarn('Issues with peer dependencies found')}\n${renderPeerIssues(log)}`,
+      msg: `${formatWarn('Issues with peer dependencies found')}\n${renderPeerIssues(log.issuesByProjects)}`,
     }))
   )
 }
