@@ -27,6 +27,10 @@ export default function (
       }
     }
   }
+  const cliColumnsOptions = {
+    newline: '\n  ',
+    width: process.stdout.columns - 2,
+  }
   return Object.entries(projects)
     .filter(([, project]) => Object.keys(project.dependencies).length > 0)
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
@@ -34,14 +38,14 @@ export default function (
       let summary = ''
       const { conflicts, intersections } = peerDependencyIssuesByProjects[projectKey]
       if (conflicts.length) {
-        summary += chalk.red(`✕ Conflicting peer dependencies:\n${cliColumns(conflicts)}`)
+        summary += chalk.red(`✕ Conflicting peer dependencies:\n  ${cliColumns(conflicts, cliColumnsOptions)}`)
       }
       if (Object.keys(intersections).length) {
-        summary += `Peer dependencies that should be installed:\n${cliColumns(Object.entries(intersections).map(([name, version]) => formatNameAndRange(name, version)))}`
+        summary += `Peer dependencies that should be installed:\n  ${cliColumns(Object.entries(intersections).map(([name, version]) => formatNameAndRange(name, version)), cliColumnsOptions)}`
       }
-      const placeholder = '='.repeat(Math.max(0, process.stdout.columns - projectKey.length))
-      const title = `${projectKey}${chalk.grey(placeholder)}`
-      return `${archy(toArchyData(title, project))}${summary ? `\n${summary}` : ''}`
+      const placeholder = '='.repeat(Math.max(0, process.stdout.columns - projectKey.length - 1))
+      const title = `${projectKey} ${chalk.grey(placeholder)}`
+      return `${archy(toArchyData(title, project))}${summary}`
     }).join('\n\n')
 }
 
