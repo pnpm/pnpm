@@ -1,6 +1,7 @@
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
+import cliColumns from 'cli-columns'
 
 export default function (
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
@@ -30,15 +31,18 @@ export default function (
     .filter(([, project]) => Object.keys(project.dependencies).length > 0)
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
     .map(([projectKey, project]) => {
-      let label = projectKey
-      for (const conflict of peerDependencyIssuesByProjects[projectKey].conflicts) {
-        label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
+      let summary = ''
+      const { conflicts, intersections } = peerDependencyIssuesByProjects[projectKey]
+      if (conflicts.length) {
+        summary += chalk.red(`✕ Conflicting peer dependencies:\n${cliColumns(conflicts)}`)
       }
-      for (const [peerName, versionRange] of Object.entries(peerDependencyIssuesByProjects[projectKey].intersections)) {
-        label += `\nadd ${formatNameAndRange(peerName, versionRange)}`
+      if (Object.keys(intersections).length) {
+        summary += `Peer dependencies that should be installed:\n${cliColumns(Object.entries(intersections).map(([name, version]) => formatNameAndRange(name, version)))}`
       }
-      return archy(toArchyData(label, project))
-    }).join('')
+      const placeholder = '='.repeat(Math.max(0, process.stdout.columns - projectKey.length))
+      const title = `${projectKey}${chalk.grey(placeholder)}`
+      return `${archy(toArchyData(title, project))}${summary ? `\n${summary}` : ''}`
+    }).join('\n\n')
 }
 
 function formatNameAndRange (name: string, range: string) {
