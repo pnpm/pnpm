@@ -20,7 +20,7 @@ test('renderPeerIssues()', () => {
             projectId: '.',
           },
           optional: false,
-          wantedRange: '^1.0.0',
+          wantedRange: '>=1.0.0 <3.0.0',
         },
       ],
       ddd: [

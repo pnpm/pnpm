@@ -23,7 +23,7 @@ export default function (
       if (!projects[projectId]) {
         projects[projectId] = { dependencies: {}, peerIssues: [] }
       }
-      createTree(projects[projectId], issue.location.parents, `${chalk.red('✕ missing peer')} ${peerName}@"${issue.wantedRange}"`)
+      createTree(projects[projectId], issue.location.parents, `${chalk.red('✕ missing peer')} ${formatNameAndRange(peerName, issue.wantedRange)}`)
     }
   }
   for (const [peerName, issues] of Object.entries(bad)) {
@@ -33,7 +33,7 @@ export default function (
         projects[projectId] = { dependencies: {}, peerIssues: [] }
       }
       // eslint-disable-next-line
-      createTree(projects[projectId], issue.location.parents, `${chalk.red('✕ unmet peer')} ${peerName}@"${issue.wantedRange}": found ${issue.foundVersion}`)
+      createTree(projects[projectId], issue.location.parents, `${chalk.red('✕ unmet peer')} ${formatNameAndRange(peerName, issue.wantedRange)}: found ${issue.foundVersion}`)
     }
   }
   return Object.entries(projects)
@@ -44,10 +44,17 @@ export default function (
         label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
       }
       for (const [peerName, versionRange] of Object.entries(missingMergedByProjects[projectKey].intersections)) {
-        label += `\nadd ${peerName}@"${versionRange}"`
+        label += `\nadd ${formatNameAndRange(peerName, versionRange)}`
       }
       return archy(toArchyData(label, project))
     }).join('')
+}
+
+function formatNameAndRange (name: string, range: string) {
+  if (range.includes(' ')) {
+    return `${name}@"${range}"`
+  }
+  return `${name}@${range}`
 }
 
 interface PkgNode {
