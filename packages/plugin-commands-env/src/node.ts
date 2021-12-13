@@ -67,7 +67,6 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
 }
 
 async function installNode (fetch: FetchFromRegistry, wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
-  await fs.promises.mkdir(versionDir, { recursive: true })
   const nodeMirror = getNodeMirror(opts.rawConfig, opts.releaseDir ?? 'release')
   const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion, nodeMirror)
   if (tarball.endsWith('.zip')) {
