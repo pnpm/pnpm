@@ -90,6 +90,7 @@ export interface BaseManifest {
   typings?: string
   types?: string
   publishConfig?: PublishConfig
+  readme?: string
 }
 
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>

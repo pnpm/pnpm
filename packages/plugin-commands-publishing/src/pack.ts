@@ -124,7 +124,9 @@ async function packPkg (destFile: string, filesMap: Record<string, string>, proj
     }
     const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
-      const publishManifest = await exportableManifest(projectDir, manifest)
+      const readmePath = Object.values(filesMap).find(name => name.toLowerCase().includes('readme.md'))
+      const readmeFile = readmePath ? fs.readFileSync(readmePath, 'utf8') : undefined
+      const publishManifest = await exportableManifest(projectDir, manifest, readmeFile)
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(publishManifest, null, 2))
       continue
     }
