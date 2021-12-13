@@ -130,5 +130,11 @@ test('renderPeerIssues() optional peer dependencies are printed only if they are
       conflicts: ['aaa'],
       intersections: {},
     },
+    empty: {
+      missing: {},
+      bad: {},
+      conflicts: [],
+      intersections: {},
+    },
   }))).toMatchSnapshot()
 })

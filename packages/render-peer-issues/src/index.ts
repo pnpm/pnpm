@@ -27,6 +27,7 @@ export default function (
     }
   }
   return Object.entries(projects)
+    .filter(([, project]) => Object.keys(project.dependencies).length > 0)
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
     .map(([projectKey, project]) => {
       let label = projectKey
