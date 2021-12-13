@@ -11,22 +11,24 @@ export default function (
   }
 ) {
   if (
-    isEmpty(peerDependencyIssues.bad) && (
-      isEmpty(peerDependencyIssues.missing) ||
-      Object.values(peerDependencyIssues.missingMergedByProjects)
-        .every(({ conflicts, intersections }) => conflicts.length === 0 && Object.keys(intersections).length === 0)
-    )
+    Object.values(peerDependencyIssues).every((peerIssuesOfProject) =>
+      isEmpty(peerIssuesOfProject.bad) && (
+        isEmpty(peerIssuesOfProject.missing) ||
+        peerIssuesOfProject.conflicts.length === 0 && Object.keys(peerIssuesOfProject.intersections).length === 0
+      ))
   ) return
   if (opts.strictPeerDependencies) {
     throw new PeerDependencyIssuesError(peerDependencyIssues)
   }
-  peerDependencyIssuesLogger.debug(peerDependencyIssues)
+  peerDependencyIssuesLogger.debug({
+    issuesByProjects: peerDependencyIssues,
+  })
 }
 
 export class PeerDependencyIssuesError extends PnpmError {
-  issues: PeerDependencyIssues
+  issuesByProjects: PeerDependencyIssues
   constructor (issues: PeerDependencyIssues) {
     super('PEER_DEP_ISSUES', 'Unmet peer dependencies')
-    this.issues = issues
+    this.issuesByProjects = issues
   }
 }

@@ -14,27 +14,24 @@ test('print peer dependency issues warning', (done) => {
   })
 
   peerDependencyIssuesLogger.debug({
-    missing: {},
-    bad: {
-      a: [
-        {
-          location: {
-            parents: [
-              {
-                name: 'b',
-                version: '1.0.0',
-              },
-            ],
-            projectId: '.',
-          },
-          foundVersion: '2',
-          optional: false,
-          wantedRange: '3',
-        },
-      ],
-    },
-    missingMergedByProjects: {
+    issuesByProjects: {
       '.': {
+        missing: {},
+        bad: {
+          a: [
+            {
+              parents: [
+                {
+                  name: 'b',
+                  version: '1.0.0',
+                },
+              ],
+              foundVersion: '2',
+              optional: false,
+              wantedRange: '3',
+            },
+          ],
+        },
         conflicts: [],
         intersections: {},
       },
@@ -60,30 +57,25 @@ test('print peer dependency issues error', (done) => {
 
   const err = new Error('some error')
   err['code'] = 'ERR_PNPM_PEER_DEP_ISSUES'
-  err['issues'] = {
-    missing: {},
-    bad: {
-      a: [
-        {
-          location: {
+  err['issuesByProjects'] = {
+    '.': {
+      missing: {},
+      bad: {
+        a: [
+          {
             parents: [
               {
                 name: 'b',
                 version: '1.0.0',
               },
             ],
-            projectId: '.',
+            optional: false,
+            wantedRange: '3',
           },
-          optional: false,
-          wantedRange: '3',
-        },
-      ],
-    },
-    missingMergedByProjects: {
-      '.': {
-        conflicts: [],
-        intersections: {},
+        ],
       },
+      conflicts: [],
+      intersections: {},
     },
   }
   logger.error(err, err)

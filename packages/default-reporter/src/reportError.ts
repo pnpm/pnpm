@@ -395,10 +395,10 @@ function hideSecureInfo (key: string, value: string) {
 
 function reportPeerDependencyIssuesError (
   err: Error,
-  msg: { issues: PeerDependencyIssues }
+  msg: { issuesByProjects: PeerDependencyIssues }
 ) {
   return {
     title: err.message,
-    body: renderPeerIssues(msg.issues),
+    body: renderPeerIssues(msg.issuesByProjects),
   }
 }
