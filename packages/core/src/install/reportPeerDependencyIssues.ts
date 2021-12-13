@@ -13,7 +13,8 @@ export default function (
   if (
     isEmpty(peerDependencyIssues.bad) && (
       isEmpty(peerDependencyIssues.missing) ||
-      Object.values(peerDependencyIssues.missingMergedByProjects).every(({ conflicts, intersections }) => conflicts.length === 0 && intersections.length === 0)
+      Object.values(peerDependencyIssues.missingMergedByProjects)
+        .every(({ conflicts, intersections }) => conflicts.length === 0 && Object.keys(intersections).length === 0)
     )
   ) return
   if (opts.strictPeerDependencies) {

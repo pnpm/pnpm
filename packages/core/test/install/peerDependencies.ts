@@ -184,9 +184,7 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
       missingMergedByProjects: {
         '.': {
           conflicts: [],
-          intersections: [
-            { peerName: 'ajv', versionRange: '>=4.10.0' },
-          ],
+          intersections: { ajv: '>=4.10.0' },
         },
       },
     })
@@ -223,9 +221,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
     missingMergedByProjects: {
       '.': {
         conflicts: [],
-        intersections: [
-          { peerName: 'ajv', versionRange: '>=4.10.0' },
-        ],
+        intersections: { ajv: '>=4.10.0' },
       },
     },
   })
@@ -356,9 +352,7 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
       missingMergedByProjects: {
         '.': {
           conflicts: [],
-          intersections: [
-            { peerName: 'peer-c', versionRange: '^1.0.0' },
-          ],
+          intersections: { 'peer-c': '^1.0.0' },
         },
       },
     })
@@ -1066,12 +1060,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
       missingMergedByProjects: {
         '.': {
           conflicts: [],
-          intersections: [
-            {
-              peerName: 'peer-a',
-              versionRange: '^1.0.0',
-            },
-          ],
+          intersections: { 'peer-a': '^1.0.0' },
         },
       },
     })
@@ -1132,12 +1121,7 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
       missingMergedByProjects: {
         '.': {
           conflicts: [],
-          intersections: [
-            {
-              peerName: 'peer-a',
-              versionRange: '^1.0.0',
-            },
-          ],
+          intersections: { 'peer-a': '^1.0.0' },
         },
       },
     })

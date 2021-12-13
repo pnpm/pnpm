@@ -16,7 +16,7 @@ export default function (
       const mergedPeers = missingMergedByProjects[projectId]
       if (
         !mergedPeers.conflicts.includes(peerName) &&
-        mergedPeers.intersections.every((intersection) => intersection.peerName !== peerName)
+        mergedPeers.intersections[peerName] == null
       ) {
         continue
       }
@@ -43,7 +43,7 @@ export default function (
       for (const conflict of missingMergedByProjects[projectKey].conflicts) {
         label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
       }
-      for (const { peerName, versionRange } of missingMergedByProjects[projectKey].intersections) {
+      for (const [peerName, versionRange] of Object.entries(missingMergedByProjects[projectKey].intersections)) {
         label += `\nadd ${peerName}@"${versionRange}"`
       }
       return archy(toArchyData(label, project))

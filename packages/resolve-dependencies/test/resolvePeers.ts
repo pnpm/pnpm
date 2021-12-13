@@ -384,12 +384,12 @@ describe('peer dependency issues', () => {
   })
   it('should pick the single wanted peer dependency range', () => {
     expect(peerDependencyIssues.missingMergedByProjects['project1'].intersections)
-      .toStrictEqual([{ peerName: 'peer', versionRange: '1' }])
+      .toStrictEqual({ peer: '1' })
     expect(peerDependencyIssues.missingMergedByProjects['project2'].intersections)
-      .toStrictEqual([{ peerName: 'peer', versionRange: '2' }])
+      .toStrictEqual({ peer: '2' })
   })
   it('should return the intersection of two compatible ranges', () => {
     expect(peerDependencyIssues.missingMergedByProjects['project4'].intersections)
-      .toStrictEqual([{ peerName: 'peer', versionRange: '>=2.2.0 <3.0.0' }])
+      .toStrictEqual({ peer: '>=2.2.0 <3.0.0' })
   })
 })

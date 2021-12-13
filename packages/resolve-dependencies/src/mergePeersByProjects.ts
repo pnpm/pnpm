@@ -8,25 +8,19 @@ export function mergePeersByProjects (missingPeersByProject: MissingPeersByProje
   for (const [projectPath, rangesByPeerNames] of Object.entries(missingPeersByProject)) {
     mergedPeersByProjects[projectPath] = {
       conflicts: [],
-      intersections: [],
+      intersections: {},
     }
     for (const [peerName, ranges] of Object.entries(rangesByPeerNames)) {
       if (ranges.every(({ optional }) => optional)) continue
       if (ranges.length === 1) {
-        mergedPeersByProjects[projectPath].intersections.push({
-          peerName,
-          versionRange: ranges[0].range,
-        })
+        mergedPeersByProjects[projectPath].intersections[peerName] = ranges[0].range
         continue
       }
       const intersection = intersect(...ranges.map(({ range }) => range))
       if (intersection === null) {
         mergedPeersByProjects[projectPath].conflicts.push(peerName)
       } else {
-        mergedPeersByProjects[projectPath].intersections.push({
-          peerName,
-          versionRange: intersection,
-        })
+        mergedPeersByProjects[projectPath].intersections[peerName] = intersection
       }
     }
   }

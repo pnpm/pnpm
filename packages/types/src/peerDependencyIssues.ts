@@ -27,10 +27,5 @@ export type MergedPeersByProjects = Record<string, MergedPeers>
 
 export interface MergedPeers {
   conflicts: string[]
-  intersections: PeerIntersection[]
-}
-
-export interface PeerIntersection {
-  peerName: string
-  versionRange: string
+  intersections: Record<string, string>
 }

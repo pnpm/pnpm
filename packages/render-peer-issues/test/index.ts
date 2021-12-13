@@ -80,11 +80,11 @@ test('renderPeerIssues()', () => {
     missingMergedByProjects: {
       '.': {
         conflicts: [],
-        intersections: [{ peerName: 'aaa', versionRange: '^1.0.0' }],
+        intersections: { aaa: '^1.0.0' },
       },
       'packages/0': {
         conflicts: [],
-        intersections: [{ peerName: 'ddd', versionRange: '^1.0.0' }],
+        intersections: { ddd: '^1.0.0' },
       },
     },
   }))).toMatchSnapshot()
@@ -149,7 +149,7 @@ test('renderPeerIssues() optional peer dependencies are printed only if they are
     missingMergedByProjects: {
       '.': {
         conflicts: ['aaa'],
-        intersections: [],
+        intersections: {},
       },
     },
   }))).toMatchSnapshot()
