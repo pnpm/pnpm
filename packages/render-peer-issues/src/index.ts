@@ -1,12 +1,12 @@
-import { PeerDependencyIssues } from '@pnpm/types'
+import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 
 export default function (
-  peerDependencyIssues: PeerDependencyIssues
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
 ) {
   const projects = {} as Record<string, PkgNode>
-  for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssues)) {
+  for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
     projects[projectId] = { dependencies: {}, peerIssues: [] }
     for (const [peerName, issues] of Object.entries(missing)) {
       if (
@@ -31,10 +31,10 @@ export default function (
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
     .map(([projectKey, project]) => {
       let label = projectKey
-      for (const conflict of peerDependencyIssues[projectKey].conflicts) {
+      for (const conflict of peerDependencyIssuesByProjects[projectKey].conflicts) {
         label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
       }
-      for (const [peerName, versionRange] of Object.entries(peerDependencyIssues[projectKey].intersections)) {
+      for (const [peerName, versionRange] of Object.entries(peerDependencyIssuesByProjects[projectKey].intersections)) {
         label += `\nadd ${formatNameAndRange(peerName, versionRange)}`
       }
       return archy(toArchyData(label, project))

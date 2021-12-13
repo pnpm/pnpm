@@ -12,9 +12,9 @@ export interface BadPeerDependencyIssue extends MissingPeerDependencyIssue {
 
 export type BadPeerIssuesByPeerName = Record<string, BadPeerDependencyIssue[]>
 
-export type PeerDependencyIssues = Record<string, PeerDependencyIssuesOfProject>
+export type PeerDependencyIssuesByProjects = Record<string, PeerDependencyIssues>
 
-export interface PeerDependencyIssuesOfProject {
+export interface PeerDependencyIssues {
   bad: BadPeerIssuesByPeerName
   missing: MissingPeerIssuesByPeerName
   conflicts: string[]

@@ -1,6 +1,6 @@
 import resolveDependencies from '@pnpm/resolve-dependencies'
 import getWantedDependencies from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
-import { PeerDependencyIssues } from '@pnpm/types'
+import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import getContext, { GetContextOptions, ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from './install'
 import { getPreferredVersionsFromLockfile } from './install/getPreferredVersions'
@@ -23,7 +23,7 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 export async function getPeerDependencyIssues (
   projects: ProjectOptions[],
   opts: ListMissingPeersOptions
-): Promise<PeerDependencyIssues> {
+): Promise<PeerDependencyIssuesByProjects> {
   const lockfileDir = opts.lockfileDir ?? process.cwd()
   const ctx = await getContext(projects, {
     force: false,
@@ -41,7 +41,7 @@ export async function getPeerDependencyIssues (
   }))
   const preferredVersions = ctx.wantedLockfile.packages ? getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages) : undefined
   const {
-    peerDependencyIssues,
+    peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
   } = await resolveDependencies(
     projectsToResolve,
@@ -79,5 +79,5 @@ export async function getPeerDependencyIssues (
 
   await waitTillAllFetchingsFinish()
 
-  return peerDependencyIssues
+  return peerDependencyIssuesByProjects
 }

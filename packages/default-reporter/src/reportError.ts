@@ -2,7 +2,7 @@ import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import renderPeerIssues from '@pnpm/render-peer-issues'
-import { PeerDependencyIssues } from '@pnpm/types'
+import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import equals from 'ramda/src/equals'
 import StackTracey from 'stacktracey'
@@ -395,7 +395,7 @@ function hideSecureInfo (key: string, value: string) {
 
 function reportPeerDependencyIssuesError (
   err: Error,
-  msg: { issuesByProjects: PeerDependencyIssues }
+  msg: { issuesByProjects: PeerDependencyIssuesByProjects }
 ) {
   return {
     title: err.message,
