@@ -211,12 +211,38 @@ describe('peer dependency issues', () => {
       peer: '1',
     },
   }
+  const fooWithOptionalPeer = {
+    name: 'foo',
+    depPath: 'foo/2.0.0',
+    version: '2.0.0',
+    peerDependencies: {
+      peer: '1',
+    },
+    peerDependenciesMeta: {
+      peer: {
+        optional: true,
+      },
+    },
+  }
   const barPkg = {
     name: 'bar',
     depPath: 'bar/1.0.0',
     version: '1.0.0',
     peerDependencies: {
       peer: '2',
+    },
+  }
+  const barWithOptionalPeer = {
+    name: 'bar',
+    depPath: 'bar/2.0.0',
+    version: '2.0.0',
+    peerDependencies: {
+      peer: '2',
+    },
+    peerDependenciesMeta: {
+      peer: {
+        optional: true,
+      },
     },
   }
   const qarPkg = {
@@ -263,6 +289,24 @@ describe('peer dependency issues', () => {
         rootDir: '',
         id: 'project4',
       },
+      {
+        directNodeIdsByAlias: {
+          foo: '>project5>foo/1.0.0',
+          bar: '>project5>bar/2.0.0',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project5',
+      },
+      {
+        directNodeIdsByAlias: {
+          foo: '>project6>foo/2.0.0',
+          bar: '>project6>bar/2.0.0',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project6',
+      },
     ],
     dependenciesTree: {
       '>project1>foo/1.0.0': {
@@ -301,6 +345,30 @@ describe('peer dependency issues', () => {
         resolvedPackage: qarPkg,
         depth: 0,
       },
+      '>project5>foo/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: fooPkg,
+        depth: 0,
+      },
+      '>project5>bar/2.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: barWithOptionalPeer,
+        depth: 0,
+      },
+      '>project6>foo/2.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: fooWithOptionalPeer,
+        depth: 0,
+      },
+      '>project6>bar/2.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: barWithOptionalPeer,
+        depth: 0,
+      },
     },
     virtualStoreDir: '',
     lockfileDir: '',
@@ -308,14 +376,20 @@ describe('peer dependency issues', () => {
   it('should find peer dependency conflicts', () => {
     expect(peerDependencyIssues.missingMergedByProjects['project3'].conflicts).toStrictEqual(['peer'])
   })
+  it('should find peer dependency conflicts when the peer is an optional peer of one of the dependencies', () => {
+    expect(peerDependencyIssues.missingMergedByProjects['project5'].conflicts).toStrictEqual(['peer'])
+  })
+  it('should ignore conflicts between missing optional peer dependencies', () => {
+    expect(peerDependencyIssues.missingMergedByProjects['project6'].conflicts).toStrictEqual([])
+  })
   it('should pick the single wanted peer dependency range', () => {
     expect(peerDependencyIssues.missingMergedByProjects['project1'].intersections)
-      .toStrictEqual([{ peerName: 'peer', versionRange: '1' }])
+      .toStrictEqual({ peer: '1' })
     expect(peerDependencyIssues.missingMergedByProjects['project2'].intersections)
-      .toStrictEqual([{ peerName: 'peer', versionRange: '2' }])
+      .toStrictEqual({ peer: '2' })
   })
   it('should return the intersection of two compatible ranges', () => {
     expect(peerDependencyIssues.missingMergedByProjects['project4'].intersections)
-      .toStrictEqual([{ peerName: 'peer', versionRange: '>=2.2.0 <3.0.0' }])
+      .toStrictEqual({ peer: '>=2.2.0 <3.0.0' })
   })
 })

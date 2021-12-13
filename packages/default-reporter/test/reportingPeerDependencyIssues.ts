@@ -28,6 +28,7 @@ test('print peer dependency issues warning', (done) => {
             projectId: '.',
           },
           foundVersion: '2',
+          optional: false,
           wantedRange: '3',
         },
       ],
@@ -35,7 +36,7 @@ test('print peer dependency issues warning', (done) => {
     missingMergedByProjects: {
       '.': {
         conflicts: [],
-        intersections: [],
+        intersections: {},
       },
     },
   })
@@ -73,6 +74,7 @@ test('print peer dependency issues error', (done) => {
             ],
             projectId: '.',
           },
+          optional: false,
           wantedRange: '3',
         },
       ],
@@ -80,7 +82,7 @@ test('print peer dependency issues error', (done) => {
     missingMergedByProjects: {
       '.': {
         conflicts: [],
-        intersections: [],
+        intersections: {},
       },
     },
   }
