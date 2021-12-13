@@ -711,11 +711,11 @@ importers:
   packages/exe:
     specifiers:
       '@pnpm/exe': 'link:'
-      '@pnpm/linux-arm64': workspace:6.24.0-0
-      '@pnpm/linux-x64': workspace:6.24.0-0
-      '@pnpm/macos-arm64': workspace:6.24.0-0
-      '@pnpm/macos-x64': workspace:6.24.0-0
-      '@pnpm/win-x64': workspace:6.24.0-0
+      '@pnpm/linux-arm64': workspace:6.24.0-1
+      '@pnpm/linux-x64': workspace:6.24.0-1
+      '@pnpm/macos-arm64': workspace:6.24.0-1
+      '@pnpm/macos-x64': workspace:6.24.0-1
+      '@pnpm/win-x64': workspace:6.24.0-1
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
