@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-outdated
 
+## 5.0.37
+
+### Patch Changes
+
+- Updated dependencies [30bfca967]
+- Updated dependencies [927c4a089]
+- Updated dependencies [10a4bd4db]
+  - @pnpm/config@13.7.0
+  - @pnpm/common-cli-options-help@0.8.0
+  - @pnpm/cli-utils@0.6.37
+  - @pnpm/lockfile-file@4.2.2
+  - @pnpm/modules-yaml@9.0.7
+  - @pnpm/outdated@9.0.22
+  - @pnpm/default-resolver@14.0.7
+
 ## 5.0.36
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/common-cli-options-help
 
+## 0.8.0
+
+### Minor Changes
+
+- 927c4a089: A new option `--aggregate-output` for `append-only` reporter is added. It aggregates lifecycle logs output for each command that is run in parallel, and only prints command logs when command is finished.
+
+  Related discussion: [#4070](https://github.com/pnpm/pnpm/discussions/4070).
+
 ## 0.7.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/directory-fetcher
 
+## 1.0.2
+
+### Patch Changes
+
+- @pnpm/fetcher-base@11.1.2
+- @pnpm/resolver-base@8.1.2
+
 ## 1.0.1
 
 ### Patch Changes

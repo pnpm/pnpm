@@ -1,5 +1,28 @@
 # @pnpm/config
 
+## 13.7.0
+
+### Minor Changes
+
+- 927c4a089: A new option `--aggregate-output` for `append-only` reporter is added. It aggregates lifecycle logs output for each command that is run in parallel, and only prints command logs when command is finished.
+
+  Related discussion: [#4070](https://github.com/pnpm/pnpm/discussions/4070).
+
+- 10a4bd4db: New option added for: `node-mirror:<releaseDir>`. The string value of this dynamic option is used as the base URL for downloading node when `use-node-version` is specified. The `<releaseDir>` portion of this argument can be any dir in `https://nodejs.org/download`. Which `<releaseDir>` dynamic config option gets selected depends on the value of `use-node-version`. If 'use-node-version' is a simple `x.x.x` version string, `<releaseDir>` becomes `release` and `node-mirror:release` is read. Defaults to `https://nodejs.org/download/<releaseDir>/`.
+
+### Patch Changes
+
+- 30bfca967: When normalizing registry URLs, a trailing slash should only be added if the registry URL has no path.
+
+  So `https://registry.npmjs.org` is changed to `https://registry.npmjs.org/` but `https://npm.pkg.github.com/owner` is unchanged.
+
+  Related issue: [#4034](https://github.com/pnpm/pnpm/issues/4034).
+
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/types@7.7.0
+  - @pnpm/pnpmfile@1.2.1
+  - @pnpm/read-project-manifest@2.0.8
+
 ## 13.6.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/git-resolver
 
+## 5.1.13
+
+### Patch Changes
+
+- c94104472: Don't make unnecessary retries when fetching Git-hosted packages [#2731](https://github.com/pnpm/pnpm/pull/2731).
+  - @pnpm/fetch@4.2.1
+  - @pnpm/resolver-base@8.1.2
+
 ## 5.1.12
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-env
 
+## 1.3.0
+
+### Minor Changes
+
+- 10a4bd4db: New option added for: `node-mirror:<releaseDir>`. The string value of this dynamic option is used as the base URL for downloading node when `use-node-version` is specified. The `<releaseDir>` portion of this argument can be any dir in `https://nodejs.org/download`. Which `<releaseDir>` dynamic config option gets selected depends on the value of `use-node-version`. If 'use-node-version' is a simple `x.x.x` version string, `<releaseDir>` becomes `release` and `node-mirror:release` is read. Defaults to `https://nodejs.org/download/<releaseDir>/`.
+
+### Patch Changes
+
+- Updated dependencies [30bfca967]
+- Updated dependencies [927c4a089]
+- Updated dependencies [10a4bd4db]
+- Updated dependencies [d00e1fc6a]
+  - @pnpm/config@13.7.0
+  - @pnpm/package-store@12.1.4
+  - @pnpm/fetch@4.2.1
+  - @pnpm/tarball-fetcher@9.3.12
+  - @pnpm/cli-utils@0.6.37
+  - @pnpm/fetcher-base@11.1.2
+
 ## 1.2.12
 
 ### Patch Changes

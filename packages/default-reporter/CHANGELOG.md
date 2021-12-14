@@ -1,5 +1,27 @@
 # @pnpm/default-reporter
 
+## 8.5.0
+
+### Minor Changes
+
+- ba9b2eba1: Add peerDependencyIssuesLogger.
+- 927c4a089: A new option `--aggregate-output` for `append-only` reporter is added. It aggregates lifecycle logs output for each command that is run in parallel, and only prints command logs when command is finished.
+
+  Related discussion: [#4070](https://github.com/pnpm/pnpm/discussions/4070).
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [30bfca967]
+- Updated dependencies [927c4a089]
+- Updated dependencies [10a4bd4db]
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/core-loggers@6.1.0
+  - @pnpm/config@13.7.0
+  - @pnpm/render-peer-issues@1.0.0
+  - @pnpm/types@7.7.0
+
 ## 8.4.2
 
 ### Patch Changes

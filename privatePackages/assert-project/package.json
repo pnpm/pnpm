@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "2.2.9",
+  "version": "2.2.10",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -42,9 +42,9 @@
   "dependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/lockfile-types": "workspace:3.1.1",
-    "@pnpm/modules-yaml": "workspace:9.0.6",
-    "@pnpm/types": "workspace:7.6.0",
+    "@pnpm/lockfile-types": "workspace:3.1.2",
+    "@pnpm/modules-yaml": "workspace:9.0.7",
+    "@pnpm/types": "workspace:7.7.0",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",
     "path-exists": "^4.0.0",

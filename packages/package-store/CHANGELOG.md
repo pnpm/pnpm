@@ -1,5 +1,21 @@
 # @pnpm/package-store
 
+## 12.1.4
+
+### Patch Changes
+
+- d00e1fc6a: `pnpm store prune` should not fail if there are unexpected subdirectories in the content-addressable store.
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [77ff0898b]
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/core-loggers@6.1.0
+  - @pnpm/package-requester@15.2.4
+  - @pnpm/types@7.7.0
+  - @pnpm/fetcher-base@11.1.2
+  - @pnpm/resolver-base@8.1.2
+  - @pnpm/store-controller-types@11.0.8
+  - @pnpm/cafs@3.0.10
+
 ## 12.1.3
 
 ### Patch Changes

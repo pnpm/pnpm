@@ -1,15 +1,24 @@
 # pnpm
 
-## 6.24.0-1
+## 6.24.0
 
 ### Minor Changes
+
+- Peer dependency issues are grouped and rendered in a nice hierarchy view.
+
+  This is how the peer dependency issues were printed in previous versions:
+
+  ![](https://i.imgur.com/CmJVb4F.png)
+
+  This is how they are displayed in pnpm v6.24:
+
+  ![](https://i.imgur.com/qUP7FVa.png)
 
 - New option added for: `node-mirror:<releaseDir>` [#4083](https://github.com/pnpm/pnpm/pull/4083). The string value of this dynamic option is used as the base URL for downloading node when `use-node-version` is specified. The `<releaseDir>` portion of this argument can be any dir in `https://nodejs.org/download`. Which `<releaseDir>` dynamic config option gets selected depends on the value of `use-node-version`. If 'use-node-version' is a simple `x.x.x` version string, `<releaseDir>` becomes `release` and `node-mirror:release` is read. Defaults to `https://nodejs.org/download/<releaseDir>/`.
 
 - 927c4a089: A new option `--aggregate-output` for `append-only` reporter is added. It aggregates lifecycle logs output for each command that is run in parallel, and only prints command logs when command is finished.
 
   Related discussion: [#4070](https://github.com/pnpm/pnpm/discussions/4070).
-
 
 ### Patch Changes
 

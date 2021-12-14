@@ -1,5 +1,21 @@
 # @pnpm/get-context
 
+## 5.3.0
+
+### Minor Changes
+
+- 25f0fa9fa: Export `GetContextOptions`.
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/core-loggers@6.1.0
+  - @pnpm/types@7.7.0
+  - @pnpm/read-projects-context@5.0.11
+  - @pnpm/lockfile-file@4.2.2
+  - @pnpm/modules-yaml@9.0.7
+
 ## 5.2.2
 
 ### Patch Changes

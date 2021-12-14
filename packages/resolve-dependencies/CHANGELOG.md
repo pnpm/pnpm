@@ -1,5 +1,37 @@
 # @pnpm/resolve-dependencies
 
+## 22.0.0
+
+### Major Changes
+
+- ae32d313e: Breaking changes to the API. New required options added: `defaultUpdateDepth` and `preferredVersions`.
+
+### Minor Changes
+
+- 25f0fa9fa: `resolveDependencies()` should return `peerDependenciesIssues`.
+
+### Patch Changes
+
+- 5af305f39: Installation should be finished before an error about bad/missing peer dependencies is printed and kills the process.
+- a626c60fc: When `strict-peer-dependencies` is used, don't fail on the first peer dependency issue. Print all the peer dependency issues and then stop the installation process [#4082](https://github.com/pnpm/pnpm/pull/4082).
+- Updated dependencies [ae32d313e]
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [81ed15666]
+  - @pnpm/which-version-is-pinned@1.0.0
+  - @pnpm/core-loggers@6.1.0
+  - @pnpm/types@7.7.0
+  - @pnpm/npm-resolver@12.1.3
+  - @pnpm/manifest-utils@2.1.3
+  - dependency-path@8.0.7
+  - @pnpm/lockfile-types@3.1.2
+  - @pnpm/lockfile-utils@3.1.3
+  - @pnpm/pick-registry-for-package@2.0.7
+  - @pnpm/prune-lockfile@3.0.11
+  - @pnpm/read-package-json@5.0.7
+  - @pnpm/resolver-base@8.1.2
+  - @pnpm/store-controller-types@11.0.8
+
 ## 21.2.3
 
 ### Patch Changes

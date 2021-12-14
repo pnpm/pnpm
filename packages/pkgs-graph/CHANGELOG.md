@@ -1,5 +1,11 @@
 # pkgs-graph
 
+## 6.1.3
+
+### Patch Changes
+
+- f82cc7f77: fix: when set workspace protocol the pkgs in workspace without version not ignore
+
 ## 6.1.2
 
 ### Patch Changes

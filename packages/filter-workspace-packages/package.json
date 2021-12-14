@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-workspace-packages",
-  "version": "4.4.8",
+  "version": "4.4.9",
   "description": "Filters packages in a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,13 +30,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/filter-workspace-packages#readme",
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/find-workspace-packages": "workspace:3.1.28",
+    "@pnpm/find-workspace-packages": "workspace:3.1.29",
     "@pnpm/matcher": "workspace:2.0.0",
     "execa": "npm:safe-execa@^0.1.1",
     "find-up": "^5.0.0",
     "is-subdir": "^1.1.1",
     "micromatch": "^4.0.2",
-    "pkgs-graph": "workspace:6.1.2",
+    "pkgs-graph": "workspace:6.1.3",
     "ramda": "^0.27.1"
   },
   "devDependencies": {

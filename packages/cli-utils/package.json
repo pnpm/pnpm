@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "0.6.36",
+  "version": "0.6.37",
   "description": "Utils for pnpm commands",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,17 +29,17 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cli-utils#readme",
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/types": "workspace:7.6.0",
+    "@pnpm/types": "workspace:7.7.0",
     "@types/ramda": "0.27.39"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:2.0.0",
-    "@pnpm/config": "workspace:13.6.1",
-    "@pnpm/default-reporter": "workspace:8.4.2",
+    "@pnpm/config": "workspace:13.7.0",
+    "@pnpm/default-reporter": "workspace:8.5.0",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/manifest-utils": "workspace:2.1.2",
-    "@pnpm/package-is-installable": "workspace:5.0.7",
-    "@pnpm/read-project-manifest": "workspace:2.0.7",
+    "@pnpm/manifest-utils": "workspace:2.1.3",
+    "@pnpm/package-is-installable": "workspace:5.0.8",
+    "@pnpm/read-project-manifest": "workspace:2.0.8",
     "chalk": "^4.1.0",
     "load-json-file": "^6.2.0"
   },

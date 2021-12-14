@@ -1,5 +1,16 @@
 # @pnpm/core-loggers
 
+## 6.1.0
+
+### Minor Changes
+
+- ba9b2eba1: Add peerDependencyIssuesLogger.
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/types@7.7.0
+
 ## 6.0.6
 
 ### Patch Changes

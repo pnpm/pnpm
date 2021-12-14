@@ -1,5 +1,53 @@
 # @pnpm/core
 
+## 2.1.0
+
+### Minor Changes
+
+- 25f0fa9fa: New function added to the core API: `getPeerDependencyIssues()`.
+
+### Patch Changes
+
+- 5af305f39: Installation should be finished before an error about bad/missing peer dependencies is printed and kills the process.
+- Updated dependencies [ae32d313e]
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [77ff0898b]
+- Updated dependencies [25f0fa9fa]
+- Updated dependencies [30bfca967]
+- Updated dependencies [5af305f39]
+- Updated dependencies [ae32d313e]
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [25f0fa9fa]
+- Updated dependencies [a626c60fc]
+  - @pnpm/which-version-is-pinned@1.0.0
+  - @pnpm/core-loggers@6.1.0
+  - @pnpm/package-requester@15.2.4
+  - @pnpm/resolve-dependencies@22.0.0
+  - @pnpm/normalize-registries@2.0.9
+  - @pnpm/types@7.7.0
+  - @pnpm/get-context@5.3.0
+  - @pnpm/build-modules@7.2.1
+  - @pnpm/headless@16.3.5
+  - @pnpm/lifecycle@12.1.1
+  - @pnpm/manifest-utils@2.1.3
+  - @pnpm/modules-cleaner@11.0.17
+  - @pnpm/remove-bins@2.0.9
+  - @pnpm/symlink-dependency@4.0.9
+  - @pnpm/lockfile-to-pnp@0.4.35
+  - dependency-path@8.0.7
+  - @pnpm/filter-lockfile@5.0.13
+  - @pnpm/hoist@5.2.8
+  - @pnpm/link-bins@6.2.6
+  - @pnpm/lockfile-file@4.2.2
+  - @pnpm/lockfile-utils@3.1.3
+  - @pnpm/lockfile-walker@4.0.11
+  - @pnpm/modules-yaml@9.0.7
+  - @pnpm/prune-lockfile@3.0.11
+  - @pnpm/read-package-json@5.0.7
+  - @pnpm/read-project-manifest@2.0.8
+  - @pnpm/resolver-base@8.1.2
+  - @pnpm/store-controller-types@11.0.8
+
 ## 2.0.1
 
 ### Patch Changes

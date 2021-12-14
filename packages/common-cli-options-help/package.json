@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/common-cli-options-help",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Help for some common CLI options",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

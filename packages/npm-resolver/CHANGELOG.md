@@ -1,5 +1,16 @@
 # @pnpm/npm-resolver
 
+## 12.1.3
+
+### Patch Changes
+
+- 81ed15666: Always add a trailing slash to the registry URL [#4052](https://github.com/pnpm/pnpm/issues/4052).
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/core-loggers@6.1.0
+  - @pnpm/types@7.7.0
+  - @pnpm/resolver-base@8.1.2
+
 ## 12.1.2
 
 ### Patch Changes

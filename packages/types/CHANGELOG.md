@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.7.0
+
+### Minor Changes
+
+- ba9b2eba1: Add types for peer dependency issues.
+
 ## 7.6.0
 
 ### Minor Changes

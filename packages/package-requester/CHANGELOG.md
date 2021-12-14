@@ -1,5 +1,22 @@
 # @pnpm/package-requester
 
+## 15.2.4
+
+### Patch Changes
+
+- 77ff0898b: Don't fail when the version of a package in the store is not a semver version.
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/core-loggers@6.1.0
+  - @pnpm/types@7.7.0
+  - @pnpm/package-is-installable@5.0.8
+  - dependency-path@8.0.7
+  - @pnpm/fetcher-base@11.1.2
+  - @pnpm/read-package-json@5.0.7
+  - @pnpm/resolver-base@8.1.2
+  - @pnpm/store-controller-types@11.0.8
+  - @pnpm/cafs@3.0.10
+
 ## 15.2.3
 
 ### Patch Changes
