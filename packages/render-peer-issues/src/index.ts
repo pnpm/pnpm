@@ -4,7 +4,8 @@ import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 
 export default function (
-  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
+  opts?: { width?: number }
 ) {
   const projects = {} as Record<string, PkgNode>
   for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
@@ -29,7 +30,7 @@ export default function (
   }
   const cliColumnsOptions = {
     newline: '\n  ',
-    width: process.stdout.columns - 2,
+    width: (opts?.width ?? process.stdout.columns) - 2,
   }
   return Object.entries(projects)
     .filter(([, project]) => Object.keys(project.dependencies).length > 0)
