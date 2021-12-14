@@ -43,7 +43,7 @@ export default function (
       if (Object.keys(intersections).length) {
         summary += `Peer dependencies that should be installed:\n  ${cliColumns(Object.entries(intersections).map(([name, version]) => formatNameAndRange(name, version)), cliColumnsOptions)}`
       }
-      const placeholder = '='.repeat(Math.max(0, process.stdout.columns - projectKey.length - 1))
+      const placeholder = '='.repeat(Math.max(2, process.stdout.columns - projectKey.length - 1))
       const title = `${projectKey} ${chalk.grey(placeholder)}`
       return `${archy(toArchyData(title, project))}${summary}`
     }).join('\n\n')
