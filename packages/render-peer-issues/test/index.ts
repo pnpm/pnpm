@@ -76,7 +76,7 @@ test('renderPeerIssues()', () => {
       conflicts: [],
       intersections: { aaa: '^1.0.0' },
     },
-  })).replace(/==+/g, '==')).toMatchSnapshot()
+  }))).toMatchSnapshot()
 })
 
 test('renderPeerIssues() optional peer dependencies are printed only if they are in conflict with non-optional peers', () => {
@@ -136,5 +136,5 @@ test('renderPeerIssues() optional peer dependencies are printed only if they are
       conflicts: [],
       intersections: {},
     },
-  })).replace(/==+/g, '==')).toMatchSnapshot()
+  }))).toMatchSnapshot()
 })

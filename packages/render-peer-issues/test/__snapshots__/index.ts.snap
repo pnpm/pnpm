@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`renderPeerIssues() 1`] = `
-". ==
+".
 └─┬ xxx
   ├── ✕ unmet peer bbb@^1.0.0: found 2
   └─┬ yyy
@@ -10,7 +10,7 @@ exports[`renderPeerIssues() 1`] = `
 Peer dependencies that should be installed:
   aaa@^1.0.0  
 
-packages/0 ==
+packages/0
 └─┬ zzz
   └── ✕ missing peer ddd@^1.0.0
 Peer dependencies that should be installed:
@@ -18,7 +18,7 @@ Peer dependencies that should be installed:
 `;
 
 exports[`renderPeerIssues() optional peer dependencies are printed only if they are in conflict with non-optional peers 1`] = `
-". ==
+".
 └─┬ xxx
   └─┬ yyy
     ├── ✕ missing peer aaa@^1.0.0
