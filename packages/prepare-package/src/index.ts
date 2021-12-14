@@ -12,7 +12,7 @@ export default async function preparePackage (pkgDir: string) {
     try {
       await execa(pm, ['install'], { cwd: pkgDir })
     } catch (err: any) { // eslint-disable-line
-      throw new PnpmError('PREPARE_PKG_FAILURE', `${err.shortMessage}`) // eslint-disable-line
+      throw new PnpmError('PREPARE_PKG_FAILURE', err.shortMessage ?? err.message)
     }
     await rimraf(path.join(pkgDir, 'node_modules'))
   }
