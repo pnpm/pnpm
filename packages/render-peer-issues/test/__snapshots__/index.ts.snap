@@ -11,8 +11,13 @@ Peer dependencies that should be installed:
   aaa@^1.0.0  
 
 packages/0
-└─┬ zzz
-  └── ✕ missing peer ddd@^1.0.0
+├─┬ zzz
+│ ├── ✕ missing peer ddd@^1.0.0
+│ └── ✕ missing peer eee@^1.0.0
+└─┬ www
+  └── ✕ missing peer eee@^2.0.0
+✕ Conflicting peer dependencies:
+  eee  
 Peer dependencies that should be installed:
   ddd@^1.0.0  "
 `;

@@ -36,16 +36,20 @@ export default function (
     .filter(([, project]) => Object.keys(project.dependencies).length > 0)
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
     .map(([projectKey, project]) => {
-      let summary = ''
+      const summaries = []
       const { conflicts, intersections } = peerDependencyIssuesByProjects[projectKey]
       if (conflicts.length) {
-        summary += chalk.red(`✕ Conflicting peer dependencies:\n  ${cliColumns(conflicts, cliColumnsOptions)}`)
+        summaries.push(
+          chalk.red(`✕ Conflicting peer dependencies:\n  ${cliColumns(conflicts, cliColumnsOptions)}`)
+        )
       }
       if (Object.keys(intersections).length) {
-        summary += `Peer dependencies that should be installed:\n  ${cliColumns(Object.entries(intersections).map(([name, version]) => formatNameAndRange(name, version)), cliColumnsOptions)}`
+        summaries.push(
+          `Peer dependencies that should be installed:\n  ${cliColumns(Object.entries(intersections).map(([name, version]) => formatNameAndRange(name, version)), cliColumnsOptions)}`
+        )
       }
       const title = chalk.white(projectKey)
-      return `${archy(toArchyData(title, project))}${summary}`
+      return `${archy(toArchyData(title, project))}${summaries.join('\n')}`
     }).join('\n\n')
 }
 

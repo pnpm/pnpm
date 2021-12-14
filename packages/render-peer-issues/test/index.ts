@@ -4,7 +4,7 @@ import stripAnsi from 'strip-ansi'
 test('renderPeerIssues()', () => {
   expect(stripAnsi(renderPeerIssues({
     'packages/0': {
-      conflicts: [],
+      conflicts: ['eee'],
       intersections: { ddd: '^1.0.0' },
       bad: {},
       missing: {
@@ -18,6 +18,28 @@ test('renderPeerIssues()', () => {
             ],
             optional: false,
             wantedRange: '^1.0.0',
+          },
+        ],
+        eee: [
+          {
+            parents: [
+              {
+                name: 'zzz',
+                version: '1.0.0',
+              },
+            ],
+            optional: false,
+            wantedRange: '^1.0.0',
+          },
+          {
+            parents: [
+              {
+                name: 'www',
+                version: '1.0.0',
+              },
+            ],
+            optional: false,
+            wantedRange: '^2.0.0',
           },
         ],
       },
