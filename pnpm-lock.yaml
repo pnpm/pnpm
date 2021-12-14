@@ -3063,11 +3063,13 @@ importers:
       '@types/archy': 0.0.31
       archy: ^1.0.0
       chalk: ^4.1.0
+      cli-columns: ^4.0.0
       strip-ansi: ^6.0.0
     dependencies:
       '@pnpm/types': link:../types
       archy: 1.0.0
       chalk: 4.1.2
+      cli-columns: 4.0.0
     devDependencies:
       '@pnpm/render-peer-issues': 'link:'
       '@types/archy': 0.0.31

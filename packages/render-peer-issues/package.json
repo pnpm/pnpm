@@ -31,7 +31,8 @@
   "dependencies": {
     "@pnpm/types": "workspace:7.6.0",
     "archy": "^1.0.0",
-    "chalk": "^4.1.0"
+    "chalk": "^4.1.0",
+    "cli-columns": "^4.0.0"
   },
   "devDependencies": {
     "@types/archy": "0.0.31",

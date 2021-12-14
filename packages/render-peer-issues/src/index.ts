@@ -1,9 +1,11 @@
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
+import cliColumns from 'cli-columns'
 
 export default function (
-  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
+  opts?: { width?: number }
 ) {
   const projects = {} as Record<string, PkgNode>
   for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
@@ -26,19 +28,25 @@ export default function (
       }
     }
   }
+  const cliColumnsOptions = {
+    newline: '\n  ',
+    width: (opts?.width ?? process.stdout.columns) - 2,
+  }
   return Object.entries(projects)
     .filter(([, project]) => Object.keys(project.dependencies).length > 0)
     .sort(([projectKey1], [projectKey2]) => projectKey1.localeCompare(projectKey2))
     .map(([projectKey, project]) => {
-      let label = projectKey
-      for (const conflict of peerDependencyIssuesByProjects[projectKey].conflicts) {
-        label += `\n${chalk.red(`✕ conflicting ranges for ${conflict}`)}`
+      let summary = ''
+      const { conflicts, intersections } = peerDependencyIssuesByProjects[projectKey]
+      if (conflicts.length) {
+        summary += chalk.red(`✕ Conflicting peer dependencies:\n  ${cliColumns(conflicts, cliColumnsOptions)}`)
       }
-      for (const [peerName, versionRange] of Object.entries(peerDependencyIssuesByProjects[projectKey].intersections)) {
-        label += `\nadd ${formatNameAndRange(peerName, versionRange)}`
+      if (Object.keys(intersections).length) {
+        summary += `Peer dependencies that should be installed:\n  ${cliColumns(Object.entries(intersections).map(([name, version]) => formatNameAndRange(name, version)), cliColumnsOptions)}`
       }
-      return archy(toArchyData(label, project))
-    }).join('')
+      const title = chalk.white(projectKey)
+      return `${archy(toArchyData(title, project))}${summary}`
+    }).join('\n\n')
 }
 
 function formatNameAndRange (name: string, range: string) {

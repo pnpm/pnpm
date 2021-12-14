@@ -2,25 +2,27 @@
 
 exports[`renderPeerIssues() 1`] = `
 ".
-│ add aaa@^1.0.0
 └─┬ xxx
   ├── ✕ unmet peer bbb@^1.0.0: found 2
   └─┬ yyy
     ├── ✕ missing peer aaa@\\">=1.0.0 <3.0.0\\"
     └── ✕ unmet peer ccc@^1.0.0: found 2
+Peer dependencies that should be installed:
+  aaa@^1.0.0  
+
 packages/0
-│ add ddd@^1.0.0
 └─┬ zzz
   └── ✕ missing peer ddd@^1.0.0
-"
+Peer dependencies that should be installed:
+  ddd@^1.0.0  "
 `;
 
 exports[`renderPeerIssues() optional peer dependencies are printed only if they are in conflict with non-optional peers 1`] = `
 ".
-│ ✕ conflicting ranges for aaa
 └─┬ xxx
   └─┬ yyy
     ├── ✕ missing peer aaa@^1.0.0
     └── ✕ missing peer aaa@^2.0.0
-"
+✕ Conflicting peer dependencies:
+  aaa  "
 `;
