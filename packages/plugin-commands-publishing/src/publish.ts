@@ -84,8 +84,8 @@ export function help () {
           },
           {
             description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password',
-            name: '--otp'
-          }
+            name: '--otp',
+          },
         ],
       },
     ],
