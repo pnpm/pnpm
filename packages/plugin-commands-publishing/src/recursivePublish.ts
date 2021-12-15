@@ -49,7 +49,6 @@ Partial<Pick<Config,
     original: string[]
   }
   reportSummary?: boolean
-  otp?: number
 }
 
 export default async function (
@@ -92,7 +91,7 @@ export default async function (
     if (opts.dryRun) {
       appendedArgs.push('--dry-run')
     }
-    if (opts.otp) {
+    if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
     const chunks = sortPackages(opts.selectedProjectsGraph)

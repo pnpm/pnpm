@@ -284,3 +284,7 @@ test('recursive publish writes publish summary', async () => {
     })
   }
 })
+
+test('recursive publish with otp', async () => {
+  
+})
