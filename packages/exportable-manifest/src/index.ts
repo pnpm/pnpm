@@ -58,7 +58,7 @@ export default async function makePublishManifest (dir: string, originalManifest
   }
 
   if (readmeFile) {
-    publishManifest.readme = readmeFile
+    publishManifest.readme ??= readmeFile
   }
 
   return publishManifest
