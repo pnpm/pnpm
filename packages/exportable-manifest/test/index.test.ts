@@ -45,3 +45,14 @@ test('publish lifecycle scripts are removed', async () => {
     },
   })
 })
+
+test('readme added to published manifest', async () => {
+  expect(await exportableManifest(process.cwd(), {
+    name: 'foo',
+    version: '1.0.0',
+  }, { readmeFile: 'readme content' })).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    readme: 'readme content',
+  })
+})
