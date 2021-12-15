@@ -36,7 +36,7 @@ const PREPUBLISH_SCRIPTS = [
   'postpublish',
 ]
 
-export default async function makePublishManifest (dir: string, originalManifest: ProjectManifest, readmeFile?: string) {
+export default async function makePublishManifest (dir: string, originalManifest: ProjectManifest, opts?: { readmeFile?: string }) {
   const publishManifest: ProjectManifest = omit(['pnpm', 'scripts'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
@@ -57,8 +57,8 @@ export default async function makePublishManifest (dir: string, originalManifest
       })
   }
 
-  if (readmeFile) {
-    publishManifest.readme ??= readmeFile
+  if (opts?.readmeFile) {
+    publishManifest.readme ??= opts.readmeFile
   }
 
   return publishManifest
