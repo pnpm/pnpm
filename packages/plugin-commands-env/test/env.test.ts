@@ -98,3 +98,38 @@ test('fail if a non-existend Node.js LTS is tried to be installed', async () => 
     }, ['use', 'boo'])
   ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching boo'))
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/4104
+test('it re-attempts failed downloads', async () => {
+  tempDir()
+
+  // This fixture was retrieved from http://nodejs.org/download/release/index.json on 2021-12-12.
+  const testReleaseInfoPath = path.join(__dirname, './fixtures/node-16.4.0-release-info.json')
+
+  const nockScope = nock('https://nodejs.org')
+    // Using nock's persist option since the default fetcher retries requests.
+    .persist()
+    .get('/download/release/index.json')
+    .replyWithFile(200, testReleaseInfoPath)
+    .persist()
+    .get(uri => uri.startsWith('/download/release/v16.4.0/'))
+    .replyWithError('Intentionally failing response for test')
+
+  try {
+    const attempts = 2
+    for (let i = 0; i < attempts; i++) {
+      await expect(
+        env.handler({
+          bin: process.cwd(),
+          global: true,
+          pnpmHomeDir: process.cwd(),
+          rawConfig: {},
+        }, ['use', '16.4.0'])
+      ).rejects.toThrow('Intentionally failing response for test')
+    }
+
+    expect(nockScope.isDone()).toBeTruthy()
+  } finally {
+    nock.cleanAll()
+  }
+})
