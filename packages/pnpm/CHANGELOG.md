@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.24.1
+
+### Patch Changes
+
+- If making an intersection of peer dependency ranges does not succeed, install should not crash [#4134](https://github.com/pnpm/pnpm/issues/4134).
+- A new line should be between the summary about conflicting peers and non-conflicting ones.
+- Always return an error message when the preparation of a package fails.
+- `pnpm publish` should add the content of the `README.md` file to the `readme` field of the published package's `package.json` files [#4117](https://github.com/pnpm/pnpm/pull/4117).
+- `pnpm publish` should work with the `--otp` option [#4115](https://github.com/pnpm/pnpm/pull/4115).
+
 ## 6.24.0
 
 ### Minor Changes

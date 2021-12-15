@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.2.35
+
+### Patch Changes
+
+- 890549b7d: feat: support --otp option
+- 6493e0c93: add readme file to published package.json file
+- Updated dependencies [6493e0c93]
+  - @pnpm/exportable-manifest@2.2.2
+  - @pnpm/types@7.7.1
+  - @pnpm/cli-utils@0.6.38
+  - @pnpm/config@13.7.1
+  - @pnpm/lifecycle@12.1.2
+  - @pnpm/package-bins@5.0.9
+  - @pnpm/pick-registry-for-package@2.0.8
+  - @pnpm/resolver-base@8.1.3
+  - @pnpm/sort-packages@2.1.5
+  - @pnpm/client@6.0.10
+
 ## 4.2.34
 
 ### Patch Changes

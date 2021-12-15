@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.7.1
+
+### Patch Changes
+
+- 6493e0c93: add readme file to published package.json file
+
 ## 7.7.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # @pnpm/pnpmfile
 
+## 1.2.2
+
+### Patch Changes
+
+- Updated dependencies [6493e0c93]
+  - @pnpm/types@7.7.1
+  - @pnpm/core-loggers@6.1.1
+  - @pnpm/lockfile-types@3.1.3
+
 ## 1.2.1
 
 ### Patch Changes

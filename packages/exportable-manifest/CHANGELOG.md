@@ -1,5 +1,14 @@
 # @pnpm/exportable-manifest
 
+## 2.2.2
+
+### Patch Changes
+
+- 6493e0c93: add readme file to published package.json file
+- Updated dependencies [6493e0c93]
+  - @pnpm/types@7.7.1
+  - @pnpm/read-project-manifest@2.0.9
+
 ## 2.2.1
 
 ### Patch Changes

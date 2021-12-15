@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cli-meta#readme",
   "devDependencies": {
-    "@pnpm/types": "workspace:7.7.0"
+    "@pnpm/types": "workspace:7.7.1"
   },
   "dependencies": {
     "load-json-file": "^6.2.0"

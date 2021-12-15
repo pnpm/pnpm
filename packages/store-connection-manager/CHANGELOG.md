@@ -1,5 +1,15 @@
 # @pnpm/store-connection-manager
 
+## 3.1.16
+
+### Patch Changes
+
+- @pnpm/cli-meta@2.0.0
+- @pnpm/config@13.7.1
+- @pnpm/package-store@12.1.5
+- @pnpm/server@11.0.15
+- @pnpm/client@6.0.10
+
 ## 3.1.15
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/local-resolver
 
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [6493e0c93]
+  - @pnpm/types@7.7.1
+  - @pnpm/read-project-manifest@2.0.9
+  - @pnpm/resolver-base@8.1.3
+
 ## 7.0.3
 
 ### Patch Changes

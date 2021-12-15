@@ -1,5 +1,24 @@
 # @pnpm/resolve-dependencies
 
+## 22.0.1
+
+### Patch Changes
+
+- cb1827b9c: If making an intersection of peer dependency ranges does not succeed, install should not crash [#4134](https://github.com/pnpm/pnpm/issues/4134).
+- Updated dependencies [6493e0c93]
+  - @pnpm/types@7.7.1
+  - @pnpm/core-loggers@6.1.1
+  - dependency-path@8.0.8
+  - @pnpm/lockfile-types@3.1.3
+  - @pnpm/lockfile-utils@3.1.4
+  - @pnpm/manifest-utils@2.1.4
+  - @pnpm/npm-resolver@12.1.4
+  - @pnpm/pick-registry-for-package@2.0.8
+  - @pnpm/prune-lockfile@3.0.12
+  - @pnpm/read-package-json@5.0.8
+  - @pnpm/resolver-base@8.1.3
+  - @pnpm/store-controller-types@11.0.9
+
 ## 22.0.0
 
 ### Major Changes

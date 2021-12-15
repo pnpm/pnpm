@@ -1,5 +1,12 @@
 # @pnpm/prepare-package
 
+## 1.0.9
+
+### Patch Changes
+
+- eec4b195d: Always return an error message when the preparation of a package fails.
+  - @pnpm/read-package-json@5.0.8
+
 ## 1.0.8
 
 ### Patch Changes
