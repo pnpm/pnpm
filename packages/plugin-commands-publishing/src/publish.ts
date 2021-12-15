@@ -82,6 +82,10 @@ export function help () {
             description: 'Save the list of the newly published packages to "pnpm-publish-summary.json". Useful when some other tooling is used to report the list of published packages.',
             name: '--report-summary',
           },
+          {
+            description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password',
+            name: '--otp',
+          },
         ],
       },
     ],

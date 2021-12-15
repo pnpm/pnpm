@@ -91,6 +91,9 @@ export default async function (
     if (opts.dryRun) {
       appendedArgs.push('--dry-run')
     }
+    if (opts.cliOptions['otp']) {
+      appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
+    }
     const chunks = sortPackages(opts.selectedProjectsGraph)
     const tag = opts.tag ?? 'latest'
     for (const chunk of chunks) {
