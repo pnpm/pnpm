@@ -217,6 +217,7 @@ test('recursive update with pattern and name in project', async () => {
     await update.handler({
       ...DEFAULT_OPTS,
       allProjects,
+      depth: 0,
       dir: process.cwd(),
       latest: true,
       lockfileDir,
@@ -388,6 +389,7 @@ test('recursive update in workspace should not add new dependencies', async () =
     await update.handler({
       ...DEFAULT_OPTS,
       ...await readProjects(process.cwd(), []),
+      depth: 0,
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),

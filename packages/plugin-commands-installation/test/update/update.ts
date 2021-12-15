@@ -70,7 +70,7 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
   expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
 })
 
-test('update: fail when package not in dependencies', async () => {
+test('update: fail when package not in dependencies and depth is 0', async () => {
   prepare({
     dependencies: {
       'peer-a': '1.0.0',
@@ -88,6 +88,7 @@ test('update: fail when package not in dependencies', async () => {
   try {
     await update.handler({
       ...DEFAULT_OPTS,
+      depth: 0,
       dir: process.cwd(),
       sharedWorkspaceLockfile: true,
       workspaceDir: process.cwd(),
