@@ -1,4 +1,11 @@
-export { PackageManifest } from '@pnpm/types'
+export {
+  BadPeerDependencyIssue,
+  MissingPeerDependencyIssue,
+  MissingPeerIssuesByPeerName,
+  PackageManifest,
+  PeerDependencyIssues,
+  PeerDependencyIssuesByProjects,
+} from '@pnpm/types'
 export * from './api'
 
 export { ProjectOptions, UnexpectedStoreError, UnexpectedVirtualStoreDirError } from '@pnpm/get-context'
