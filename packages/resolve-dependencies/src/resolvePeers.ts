@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import path from 'path'
+import { satisfiesWithPrereleases } from '@yarnpkg/core/lib/semverUtils'
 import {
   Dependencies,
   PeerDependencyIssues,
@@ -11,7 +12,6 @@ import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import pick from 'ramda/src/pick'
 import scan from 'ramda/src/scan'
-import semver from 'semver'
 import {
   DependenciesTree,
   DependenciesTreeNode,
@@ -415,7 +415,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
       continue
     }
 
-    if (!semver.satisfies(resolved.version, peerVersionRange, { loose: true })) {
+    if (!satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
       const location = getLocationFromNodeId({
         dependenciesTree: ctx.dependenciesTree,
         nodeId: ctx.nodeId,

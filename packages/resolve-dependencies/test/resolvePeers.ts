@@ -393,3 +393,66 @@ describe('peer dependency issues', () => {
       .toStrictEqual({ peer: '>=2.2.0 <3.0.0' })
   })
 })
+
+describe('unmet peer dependency issues', () => {
+  const { peerDependencyIssuesByProjects } = resolvePeers({
+    projects: [
+      {
+        directNodeIdsByAlias: {
+          foo: '>project1>foo/1.0.0',
+          peer1: '>project1>peer1/1.0.0-rc.0',
+          peer2: '>project1>peer2/1.1.0-rc.0',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project1',
+      },
+    ],
+    dependenciesTree: {
+      '>project1>foo/1.0.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'foo',
+          version: '1.0.0',
+          depPath: 'foo/1.0.0',
+          peerDependencies: {
+            peer1: '*',
+            peer2: '>=1',
+          },
+        },
+        depth: 0,
+      },
+      '>project1>peer1/1.0.0-rc.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'peer1',
+          version: '1.0.0-rc.0',
+          depPath: 'peer/1.0.0-rc.0',
+          peerDependencies: {},
+        },
+        depth: 0,
+      },
+      '>project1>peer2/1.1.0-rc.0': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'peer2',
+          version: '1.1.0-rc.0',
+          depPath: 'peer/1.1.0-rc.0',
+          peerDependencies: {},
+        },
+        depth: 0,
+      },
+    },
+    virtualStoreDir: '',
+    lockfileDir: '',
+  })
+  it('should not warn when the found package has prerelease version and the wanted range is *', () => {
+    expect(peerDependencyIssuesByProjects).not.toHaveProperty(['project1', 'bad', 'peer1'])
+  })
+  it('should not warn when the found package is a prerelease version but satisfies the range', () => {
+    expect(peerDependencyIssuesByProjects).not.toHaveProperty(['project1', 'bad', 'peer2'])
+  })
+})
