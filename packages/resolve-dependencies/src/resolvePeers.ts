@@ -415,7 +415,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
       continue
     }
 
-    if (!semver.satisfies(resolved.version, peerVersionRange, { loose: true })) {
+    if (!semver.satisfies(resolved.version, peerVersionRange, { loose: true }) && peerVersionRange !== '*') {
       const location = getLocationFromNodeId({
         dependenciesTree: ctx.dependenciesTree,
         nodeId: ctx.nodeId,
