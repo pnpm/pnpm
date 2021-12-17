@@ -3095,6 +3095,7 @@ importers:
       '@pnpm/which-version-is-pinned': workspace:1.0.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
+      '@yarnpkg/core': ^3.2.0-rc.4
       dependency-path: workspace:8.0.8
       encode-registry: ^3.0.0
       get-npm-tarball-url: ^2.0.3
@@ -3121,6 +3122,7 @@ importers:
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
       '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
+      '@yarnpkg/core': 3.2.0-rc.8
       dependency-path: link:../dependency-path
       encode-registry: 3.0.0
       get-npm-tarball-url: 2.0.3
