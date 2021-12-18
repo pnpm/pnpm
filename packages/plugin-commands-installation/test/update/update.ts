@@ -70,33 +70,44 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
   expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
 })
 
-test('update: fail when package not in dependencies', async () => {
-  prepare({
-    dependencies: {
-      'peer-a': '1.0.0',
-      'peer-c': '1.0.0',
-    },
+describe('update by package name', () => {
+  beforeAll(async () => {
+    prepare({
+      dependencies: {
+        'peer-a': '1.0.0',
+        'peer-c': '1.0.0',
+      },
+    })
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      workspaceDir: process.cwd(),
+    })
   })
-
-  await install.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    workspaceDir: process.cwd(),
+  it("should fail when the package isn't in the direct dependencies and depth is 0", async () => {
+    let err!: PnpmError
+    try {
+      await update.handler({
+        ...DEFAULT_OPTS,
+        depth: 0,
+        dir: process.cwd(),
+        sharedWorkspaceLockfile: true,
+        workspaceDir: process.cwd(),
+      }, ['peer-b'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
+    expect(err.message).toBe('None of the specified packages were found in the dependencies of any of the projects.')
   })
-
-  let err!: PnpmError
-  try {
+  it("shouldn't fail when the package isn't in the direct dependencies", async () => {
     await update.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       sharedWorkspaceLockfile: true,
       workspaceDir: process.cwd(),
     }, ['peer-b'])
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
-  expect(err.message).toBe('None of the specified packages were found in the dependencies of any of the projects.')
+  })
 })
 
 test('update --no-save should not update package.json and pnpm-lock.yaml', async () => {

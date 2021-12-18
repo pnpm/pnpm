@@ -217,6 +217,7 @@ test('recursive update with pattern and name in project', async () => {
     await update.handler({
       ...DEFAULT_OPTS,
       allProjects,
+      depth: 0,
       dir: process.cwd(),
       latest: true,
       lockfileDir,
@@ -229,6 +230,18 @@ test('recursive update with pattern and name in project', async () => {
   }
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
+
+  // This should not fail because depth=0 is not specified
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    latest: true,
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['this-does-not-exist'])
 
   await update.handler({
     ...DEFAULT_OPTS,
@@ -388,6 +401,7 @@ test('recursive update in workspace should not add new dependencies', async () =
     await update.handler({
       ...DEFAULT_OPTS,
       ...await readProjects(process.cwd(), []),
+      depth: 0,
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),

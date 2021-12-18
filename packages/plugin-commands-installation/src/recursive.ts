@@ -275,7 +275,7 @@ export default async function recursive (
         rootDir: opts.workspaceDir,
       } as MutatedProject)
     }
-    if ((mutatedImporters.length === 0) && cmdFullName === 'update') {
+    if ((mutatedImporters.length === 0) && cmdFullName === 'update' && opts.depth === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
@@ -412,7 +412,7 @@ export default async function recursive (
 
   throwOnFail(result)
 
-  if (!result.passes && cmdFullName === 'update') {
+  if (!result.passes && cmdFullName === 'update' && opts.depth === 0) {
     throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
       'None of the specified packages were found in the dependencies of any of the projects.')
   }

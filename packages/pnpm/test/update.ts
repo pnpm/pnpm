@@ -137,20 +137,6 @@ test('recursive update --no-shared-workspace-lockfile', async function () {
   expect(pkg.dependencies?.['foo']).toBe('^100.1.0')
 })
 
-test('update should not install the dependency if it is not present already', async () => {
-  const project = prepare()
-
-  let err!: Error
-  try {
-    await execPnpm(['update', 'is-positive'])
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err).toBeTruthy()
-
-  await project.hasNot('is-positive')
-})
-
 test('update --latest', async function () {
   const project = prepare()
 
