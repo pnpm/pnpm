@@ -22,6 +22,15 @@ Peer dependencies that should be installed:
   ddd@^1.0.0  "
 `;
 
+exports[`renderPeerIssues() format correctly the version ranges with spaces and "*" 1`] = `
+".
+└─┬ z
+  ├── ✕ missing peer a@\\"*\\"
+  └── ✕ missing peer b@\\"1 || 2\\"
+Peer dependencies that should be installed:
+  a@\\"*\\"       b@\\"1 || 2\\"  "
+`;
+
 exports[`renderPeerIssues() optional peer dependencies are printed only if they are in conflict with non-optional peers 1`] = `
 ".
 └─┬ xxx

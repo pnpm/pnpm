@@ -160,3 +160,39 @@ test('renderPeerIssues() optional peer dependencies are printed only if they are
     },
   }, { width: 500 }))).toMatchSnapshot()
 })
+
+test('renderPeerIssues() format correctly the version ranges with spaces and "*"', () => {
+  expect(stripAnsi(renderPeerIssues({
+    '.': {
+      conflicts: [],
+      intersections: { a: '*', b: '1 || 2' },
+      bad: {},
+      missing: {
+        a: [
+          {
+            parents: [
+              {
+                name: 'z',
+                version: '1.0.0',
+              },
+            ],
+            optional: false,
+            wantedRange: '*',
+          },
+        ],
+        b: [
+          {
+            parents: [
+              {
+                name: 'z',
+                version: '1.0.0',
+              },
+            ],
+            optional: false,
+            wantedRange: '1 || 2',
+          },
+        ],
+      },
+    },
+  }, { width: 500 }))).toMatchSnapshot()
+})

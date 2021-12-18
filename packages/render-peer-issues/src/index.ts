@@ -54,7 +54,7 @@ export default function (
 }
 
 function formatNameAndRange (name: string, range: string) {
-  if (range.includes(' ')) {
+  if (range.includes(' ') || range === '*') {
     return `${name}@"${range}"`
   }
   return `${name}@${range}`
