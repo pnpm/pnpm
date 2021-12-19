@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.3.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.39
+- @pnpm/find-workspace-packages@3.1.31
+
 ## 5.3.7
 
 ### Patch Changes

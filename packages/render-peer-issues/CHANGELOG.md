@@ -1,5 +1,11 @@
 # @pnpm/render-peer-issues
 
+## 1.0.2
+
+### Patch Changes
+
+- 6058f76cd: When printing peer dependency issues, print the "\*" range in double quotes. This will make it easier to copy the package resolutions and put them to the end of a `pnpm add` command for execution.
+
 ## 1.0.1
 
 ### Patch Changes

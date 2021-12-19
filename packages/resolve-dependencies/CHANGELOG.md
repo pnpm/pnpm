@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 22.0.2
+
+### Patch Changes
+
+- 7962c042e: Don't warn about unmet peer dependency when the peer is resolved from a prerelease version.
+
+  For instance, if a project has `react@*` as a peer dependency, then react `16.0.0-rc.0` should not cause a warning.
+
 ## 22.0.1
 
 ### Patch Changes

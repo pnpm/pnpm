@@ -1,5 +1,19 @@
 # pnpm
 
+## 6.24.2
+
+### Patch Changes
+
+- If pnpm previously failed to install node when the `use-node-version` option is set, that download and install will now be re-attempted when pnpm is ran again [#4104](https://github.com/pnpm/pnpm/issues/4104).
+
+- Don't warn about unmet peer dependency when the peer is resolved from a prerelease version [#4144](https://github.com/pnpm/pnpm/pull/4144).
+
+  For instance, if a project has `react@*` as a peer dependency, then react `16.0.0-rc.0` should not cause a warning.
+
+- `pnpm update pkg` should not fail if `pkg` not found as a direct dependency, unless `--depth=0` is passed as a CLI option [#4122](https://github.com/pnpm/pnpm/issues/4122).
+
+- When printing peer dependency issues, print the "\*" range in double quotes. This will make it easier to copy the package resolutions and put them to the end of a `pnpm add` command for execution.
+
 ## 6.24.1
 
 ### Patch Changes

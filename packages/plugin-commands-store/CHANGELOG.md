@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-store
 
+## 4.0.40
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.39
+
 ## 4.0.39
 
 ### Patch Changes

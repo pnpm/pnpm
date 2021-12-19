@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 2.1.2
+
+### Patch Changes
+
+- cb2e4e33a: Export peer dependency issue types.
+- Updated dependencies [7962c042e]
+  - @pnpm/resolve-dependencies@22.0.2
+
 ## 2.1.1
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-env
 
+## 1.4.0
+
+### Minor Changes
+
+- d16620cf9: If pnpm previously failed to install node when the `use-node-version` option is set, that download and install will now be re-attempted when pnpm is ran again.
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.39
+
 ## 1.3.1
 
 ### Patch Changes

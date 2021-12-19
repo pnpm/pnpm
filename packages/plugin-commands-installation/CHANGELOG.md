@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-installation
 
+## 8.0.5
+
+### Patch Changes
+
+- 40dc2f954: `pnpm update pkg` should not fail if `pkg` not found as a direct dependency, unless `--depth=0` is passed as a CLI option [#4122](https://github.com/pnpm/pnpm/issues/4122).
+- Updated dependencies [cb2e4e33a]
+  - @pnpm/core@2.1.2
+  - @pnpm/cli-utils@0.6.39
+  - @pnpm/find-workspace-packages@3.1.31
+  - @pnpm/plugin-commands-rebuild@5.3.8
+  - @pnpm/filter-workspace-packages@4.4.11
+
 ## 8.0.4
 
 ### Patch Changes
