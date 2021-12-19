@@ -38,7 +38,7 @@
     "@pnpm/git-fetcher": "workspace:4.1.13",
     "@pnpm/resolver-base": "workspace:8.1.4",
     "@pnpm/tarball-fetcher": "workspace:9.3.14",
-    "credentials-by-uri": "^2.0.0",
+    "credentials-by-uri": "^2.1.0",
     "mem": "^8.0.0"
   },
   "devDependencies": {

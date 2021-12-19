@@ -41,6 +41,7 @@ export const DEFAULT_OPTS = {
   storeDir: '../store',
   strictSsl: false,
   userAgent: 'pnpm',
+  userConfig: {},
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,

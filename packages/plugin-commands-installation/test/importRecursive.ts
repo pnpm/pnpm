@@ -39,6 +39,7 @@ const DEFAULT_OPTS = {
   storeDir: path.join(TMP, 'store'),
   strictSsl: false,
   userAgent: 'pnpm',
+  userConfig: {},
   useRunningStoreServer: false,
   useStoreServer: false,
 }

@@ -35,6 +35,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'registry'
 | 'strictSsl'
 | 'userAgent'
+| 'userConfig'
 | 'verifyStoreIntegrity'
 > & {
   ignoreFile?: (filename: string) => boolean
@@ -44,6 +45,7 @@ export default async (
   opts: CreateNewStoreControllerOptions
 ) => {
   const { resolve, fetchers } = createClient({
+    userConfig: opts.userConfig,
     authConfig: opts.rawConfig,
     ca: opts.ca,
     cacheDir: opts.cacheDir,

@@ -152,6 +152,7 @@ export type OutdatedCommandOptions = {
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
+| 'userConfig'
 >
 
 export async function handler (

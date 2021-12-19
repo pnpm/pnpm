@@ -17,6 +17,7 @@ export type PublishRecursiveOpts = Required<Pick<Config,
 | 'dir'
 | 'rawConfig'
 | 'registries'
+| 'userConfig'
 | 'workspaceDir'
 >> &
 Partial<Pick<Config,
@@ -58,6 +59,7 @@ export default async function (
   const resolve = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
+    userConfig: opts.userConfig,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

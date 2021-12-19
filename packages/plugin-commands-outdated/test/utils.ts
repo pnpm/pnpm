@@ -44,6 +44,7 @@ export const DEFAULT_OPTS = {
   strictSsl: false,
   tag: 'latest',
   userAgent: 'pnpm',
+  userConfig: {},
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,

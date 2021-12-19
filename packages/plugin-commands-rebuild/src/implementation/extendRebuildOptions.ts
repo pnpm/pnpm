@@ -27,6 +27,7 @@ export interface StrictRebuildOptions {
   development: boolean
   optional: boolean
   rawConfig: object
+  userConfig: Record<string, string>
   userAgent: string
   packageManager: {
     name: string

@@ -34,6 +34,7 @@ test('remove unreferenced packages', async () => {
     registries: { default: REGISTRY },
     reporter,
     storeDir,
+    userConfig: {},
   }, ['prune'])
 
   expect(reporter).toBeCalledWith(
@@ -55,6 +56,7 @@ test('remove unreferenced packages', async () => {
     registries: { default: REGISTRY },
     reporter,
     storeDir,
+    userConfig: {},
   }, ['prune'])
 
   expect(reporter).not.toBeCalledWith(
@@ -87,6 +89,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     registries: { default: REGISTRY },
     reporter,
     storeDir,
+    userConfig: {},
   }, ['prune'])
 
   expect(reporter).toBeCalledWith(
@@ -129,6 +132,7 @@ test('keep dependencies used by others', async () => {
     },
     registries: { default: REGISTRY },
     storeDir,
+    userConfig: {},
   }, ['prune'])
 
   await project.storeHasNot('camelcase-keys', '3.0.0')
@@ -151,6 +155,7 @@ test('keep dependency used by package', async () => {
     },
     registries: { default: REGISTRY },
     storeDir,
+    userConfig: {},
   }, ['prune'])
 
   await project.storeHas('is-positive', '3.1.0')
@@ -171,6 +176,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     },
     registries: { default: REGISTRY },
     storeDir,
+    userConfig: {},
   }, ['prune'])
 })
 
@@ -195,6 +201,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     registries: { default: REGISTRY },
     reporter,
     storeDir,
+    userConfig: {},
   }, ['prune'])
 
   expect(reporter).toBeCalledWith(

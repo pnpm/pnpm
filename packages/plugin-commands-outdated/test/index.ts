@@ -33,6 +33,7 @@ const OUTDATED_OPTIONS = {
   strictSsl: false,
   tag: 'latest',
   userAgent: '',
+  userConfig: {},
 }
 
 test('pnpm outdated: show details', async () => {
