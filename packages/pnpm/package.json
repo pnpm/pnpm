@@ -71,7 +71,7 @@
     "@zkochan/libnpx": "^13.1.5",
     "@zkochan/retry": "^0.2.0",
     "@zkochan/rimraf": "^2.1.1",
-    "anonymous-npm-registry-client": "0.1.2",
+    "anonymous-npm-registry-client": "0.2.0",
     "chalk": "^4.1.0",
     "cross-spawn": "^7.0.3",
     "cross-var-no-babel": "^1.2.0",

@@ -82,7 +82,7 @@
     "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4",
     "@types/sinon": "^9.0.11",
-    "anonymous-npm-registry-client": "0.1.2",
+    "anonymous-npm-registry-client": "0.2.0",
     "deep-require-cwd": "1.0.0",
     "execa": "npm:safe-execa@^0.1.1",
     "exists-link": "2.0.0",
