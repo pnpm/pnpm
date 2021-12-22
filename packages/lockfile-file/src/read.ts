@@ -97,6 +97,7 @@ async function _read (
     lockfile.importers = {
       '.': {
         specifiers: lockfile['specifiers'],
+        dependenciesMeta: lockfile['dependenciesMeta'],
       },
     }
     delete lockfile.specifiers

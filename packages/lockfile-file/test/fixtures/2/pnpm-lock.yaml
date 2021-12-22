@@ -1,1 +1,6 @@
 lockfileVersion: 3
+specifiers:
+  foo: '1'
+dependenciesMeta:
+  foo:
+    injected: true
