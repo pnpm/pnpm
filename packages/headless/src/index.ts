@@ -155,7 +155,9 @@ export default async (opts: HeadlessOptions) => {
       if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
         throw new PnpmError('OUTDATED_LOCKFILE',
           `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
-          path.relative(lockfileDir, path.join(rootDir, 'package.json')))
+          path.relative(lockfileDir, path.join(rootDir, 'package.json')), {
+            hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
+          })
       }
     }
   }

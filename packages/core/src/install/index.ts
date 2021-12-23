@@ -251,7 +251,9 @@ export async function mutateModules (
       )
     ) {
       if (needsFullResolution) {
-        throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot perform a frozen installation because the lockfile needs updates')
+        throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot perform a frozen installation because the lockfile needs updates', {
+          hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
+        })
       }
       if (!ctx.existsWantedLockfile) {
         if (ctx.projects.some((project) => pkgHasDependencies(project.manifest))) {

@@ -123,8 +123,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--lockfile-only',
           },
           {
-            description: "Don't generate a lockfile and fail if an update is needed",
-            name: '--frozen-lockfile',
+            description: "Don't generate a lockfile and fail if an update is needed. This setting is on by default in CI environments, so use --no-frozen-lockfile if you need to disable it for some reason",
+            name: '--[no-]frozen-lockfile',
           },
           {
             description: `If the available \`${WANTED_LOCKFILE}\` satisfies the \`package.json\` then perform a headless installation`,
