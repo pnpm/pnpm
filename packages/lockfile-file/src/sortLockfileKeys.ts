@@ -38,8 +38,9 @@ const ROOT_KEYS_ORDER = {
   dependencies: 11,
   optionalDependencies: 12,
   devDependencies: 13,
-  importers: 14,
-  packages: 15,
+  dependenciesMeta: 14,
+  importers: 15,
+  packages: 16,
 }
 
 function compareWithPriority (priority: Record<string, number>, left: string, right: string) {

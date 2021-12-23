@@ -15,7 +15,17 @@ test('readWantedLockfile()', async () => {
     const lockfile = await readWantedLockfile(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
     })
-    expect(lockfile!.lockfileVersion).toEqual(3)
+    expect(lockfile?.lockfileVersion).toEqual(3)
+    expect(lockfile?.importers).toStrictEqual({
+      '.': {
+        specifiers: {
+          foo: '1',
+        },
+        dependenciesMeta: {
+          foo: { injected: true },
+        },
+      },
+    })
   }
 
   try {
