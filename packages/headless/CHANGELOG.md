@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 16.3.7
+
+### Patch Changes
+
+- 08380076f: Add more details to the frozen lockfile error.
+- Updated dependencies [eb9ebd0f3]
+- Updated dependencies [eb9ebd0f3]
+  - @pnpm/lockfile-file@4.2.4
+  - @pnpm/lockfile-to-pnp@0.4.37
+
 ## 16.3.6
 
 ### Patch Changes

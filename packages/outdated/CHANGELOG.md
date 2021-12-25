@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 9.0.24
+
+### Patch Changes
+
+- Updated dependencies [eb9ebd0f3]
+- Updated dependencies [eb9ebd0f3]
+  - @pnpm/lockfile-file@4.2.4
+
 ## 9.0.23
 
 ### Patch Changes

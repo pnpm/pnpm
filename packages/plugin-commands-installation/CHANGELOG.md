@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-installation
 
+## 8.0.6
+
+### Patch Changes
+
+- 08380076f: Document `--no-frozen-lockfile` explicitly in the help of the install command.
+- Updated dependencies [08380076f]
+  - @pnpm/core@2.1.3
+  - @pnpm/outdated@9.0.24
+  - @pnpm/plugin-commands-rebuild@5.3.9
+
 ## 8.0.5
 
 ### Patch Changes

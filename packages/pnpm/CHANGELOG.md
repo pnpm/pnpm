@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.24.3
+
+### Patch Changes
+
+- Install with `--frozen-lockfile` should not fail when the project has injected dependencies and a dedicated lockfile [#4098](https://github.com/pnpm/pnpm/issues/4098).
+
 ## 6.24.2
 
 ### Patch Changes

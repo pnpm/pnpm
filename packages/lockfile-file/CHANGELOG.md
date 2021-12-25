@@ -1,5 +1,12 @@
 # @pnpm/lockfile-file
 
+## 4.2.4
+
+### Patch Changes
+
+- eb9ebd0f3: In a dedicated lockfile the `dependenciesMeta` field should be nested to `'.'` during normalization.
+- eb9ebd0f3: The `dependenciesMeta` field should be sorted after the dependencies fields.
+
 ## 4.2.3
 
 ### Patch Changes

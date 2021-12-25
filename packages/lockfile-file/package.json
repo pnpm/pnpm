@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-file",
-  "version": "4.2.3",
+  "version": "4.2.4",
   "description": "Read/write pnpm-lock.yaml files",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
