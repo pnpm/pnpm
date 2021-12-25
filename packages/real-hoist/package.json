@@ -1,0 +1,42 @@
+{
+  "name": "@pnpm/real-hoist",
+  "description": "Hoists dependencies in a node_modules created by pnpm",
+  "version": "0.0.0",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/real-hoist#readme",
+  "keywords": [
+    "pnpm6",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=12.17"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/real-hoist",
+  "scripts": {
+    "start": "pnpm run tsc -- --watch",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
+  },
+  "dependencies": {
+    "@pnpm/lockfile-utils": "workspace:3.1.5",
+    "@yarnpkg/nm": "^3.0.1-rc.8",
+    "dependency-path": "workspace:8.0.9"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/lockfile-file": "workspace:4.2.5",
+    "@pnpm/logger": "^4.0.0"
+  }
+}

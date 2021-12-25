@@ -818,3 +818,17 @@ test('installing with no modules directory', async () => {
 
   expect(await exists(path.join(prefix, 'node_modules'))).toBeFalsy()
 })
+
+test('installing with node-linker=node-modules', async () => {
+  const prefix = path.join(fixtures, 'has-several-versions-of-same-pkg')
+  await rimraf(path.join(prefix, 'node_modules'))
+
+  await headless(await testDefaults({
+    enableModulesDir: false,
+    lockfileDir: prefix,
+    nodeLinker: 'node-modules',
+  }))
+
+  expect(await exists(path.join(prefix, 'node_modules/ms'))).toBeTruthy()
+  expect(await exists(path.join(prefix, 'node_modules/send/node_modules/ms'))).toBeTruthy()
+})

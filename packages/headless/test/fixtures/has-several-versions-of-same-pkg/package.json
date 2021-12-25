@@ -1,0 +1,9 @@
+{
+  "name": "has-several-versions-of-same-pkg",
+  "version": "1.0.0",
+  "dependencies": {
+    "send": "0.17.2",
+    "has-flag": "1.0.0",
+    "ms": "1.0.0"
+  }
+}

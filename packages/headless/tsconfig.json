@@ -82,6 +82,9 @@
       "path": "../read-projects-context"
     },
     {
+      "path": "../real-hoist"
+    },
+    {
       "path": "../store-controller-types"
     },
     {

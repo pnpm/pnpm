@@ -28,6 +28,7 @@ import equals from 'ramda/src/equals'
 const brokenModulesLogger = logger('_broken_node_modules')
 
 export interface DependenciesGraphNode {
+  alias?: string // this is populated in HoistedDepGraphOnly
   hasBundledDependencies: boolean
   modules: string
   name: string
@@ -69,9 +70,15 @@ export interface DirectDependenciesByImporterId {
   [importerId: string]: { [alias: string]: string }
 }
 
+export interface DepHierarchy {
+  [depPath: string]: Record<string, DepHierarchy>
+}
+
 export interface LockfileToDepGraphResult {
   directDependenciesByImporterId: DirectDependenciesByImporterId
   graph: DependenciesGraph
+  hierarchy?: DepHierarchy
+  symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
 }
 
 export default async function lockfileToDepGraph (
