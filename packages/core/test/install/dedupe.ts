@@ -1,9 +1,7 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import pnpmRegistryMock from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/registry-mock'
 import { testDefaults } from '../utils'
-
-const addDistTag = pnpmRegistryMock.addDistTag
 
 test('prefer version ranges specified for top dependencies', async () => {
   const project = prepareEmpty()

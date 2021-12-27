@@ -1,9 +1,8 @@
 import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
-import RegClient from 'anonymous-npm-registry-client'
 import { testDefaults } from '../utils'
 
 const skipOnNode17 = process.version.split('.')[0] === 'v17' ? test.skip : test
@@ -11,16 +10,10 @@ const skipOnNode17 = process.version.split('.')[0] === 'v17' ? test.skip : test
 test('a package that need authentication', async () => {
   const project = prepareEmpty()
 
-  const client = new RegClient()
-
-  const data: { token: string } = await new Promise((resolve, reject) => {
-    client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
-      auth: {
-        email: 'foo@bar.com',
-        password: 'bar',
-        username: 'foo',
-      },
-    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
+  const data = await addUser({
+    email: 'foo@bar.com',
+    password: 'bar',
+    username: 'foo',
   })
 
   let authConfig = {
@@ -57,16 +50,10 @@ test('a package that need authentication', async () => {
 test('installing a package that need authentication, using password', async () => {
   const project = prepareEmpty()
 
-  const client = new RegClient()
-
-  await new Promise((resolve, reject) => {
-    client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
-      auth: {
-        email: 'foo@bar.com',
-        password: 'bar',
-        username: 'foo',
-      },
-    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
+  await addUser({
+    email: 'foo@bar.com',
+    password: 'bar',
+    username: 'foo',
   })
 
   const encodedPassword = Buffer.from('bar').toString('base64')
@@ -87,16 +74,10 @@ test('installing a package that need authentication, using password', async () =
 test('a package that need authentication, legacy way', async () => {
   const project = prepareEmpty()
 
-  const client = new RegClient()
-
-  await new Promise((resolve, reject) => {
-    client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
-      auth: {
-        email: 'foo@bar.com',
-        password: 'bar',
-        username: 'foo',
-      },
-    }, (err: Error, d: object) => err ? reject(err) : resolve(d))
+  await addUser({
+    email: 'foo@bar.com',
+    password: 'bar',
+    username: 'foo',
   })
 
   const authConfig = {
@@ -116,16 +97,10 @@ test('a package that need authentication, legacy way', async () => {
 test('a scoped package that need authentication specific to scope', async () => {
   const project = prepareEmpty()
 
-  const client = new RegClient()
-
-  const data: { token: string } = await new Promise((resolve, reject) => {
-    client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
-      auth: {
-        email: 'foo@bar.com',
-        password: 'bar',
-        username: 'foo',
-      },
-    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
+  const data = await addUser({
+    email: 'foo@bar.com',
+    password: 'bar',
+    username: 'foo',
   })
 
   const authConfig = {
@@ -162,16 +137,10 @@ test('a scoped package that need authentication specific to scope', async () => 
 test('a scoped package that need legacy authentication specific to scope', async () => {
   const project = prepareEmpty()
 
-  const client = new RegClient()
-
-  await new Promise((resolve, reject) => {
-    client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
-      auth: {
-        email: 'foo@bar.com',
-        password: 'bar',
-        username: 'foo',
-      },
-    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
+  await addUser({
+    email: 'foo@bar.com',
+    password: 'bar',
+    username: 'foo',
   })
 
   const authConfig = {
@@ -209,16 +178,10 @@ test('a scoped package that need legacy authentication specific to scope', async
 skipOnNode17('a package that need authentication reuses authorization tokens for tarball fetching', async () => {
   const project = prepareEmpty()
 
-  const client = new RegClient()
-
-  const data: { token: string } = await new Promise((resolve, reject) => {
-    client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
-      auth: {
-        email: 'foo@bar.com',
-        password: 'bar',
-        username: 'foo',
-      },
-    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
+  const data = await addUser({
+    email: 'foo@bar.com',
+    password: 'bar',
+    username: 'foo',
   })
 
   const authConfig = {
@@ -243,16 +206,10 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 skipOnNode17('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async () => {
   const project = prepareEmpty()
 
-  const client = new RegClient()
-
-  const data: { token: string } = await new Promise((resolve, reject) => {
-    client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
-      auth: {
-        email: 'foo@bar.com',
-        password: 'bar',
-        username: 'foo',
-      },
-    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
+  const data = await addUser({
+    email: 'foo@bar.com',
+    password: 'bar',
+    username: 'foo',
   })
 
   const authConfig = {

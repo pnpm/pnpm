@@ -41,7 +41,7 @@ importers:
       '@commitlint/prompt-cli': ^15.0.0
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': ^2.11.1
+      '@pnpm/registry-mock': ^2.12.1
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^27.0.0
       '@types/node': ^14.17.32
@@ -73,7 +73,7 @@ importers:
       '@commitlint/prompt-cli': 15.0.0
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.11.1
+      '@pnpm/registry-mock': 2.12.1
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 27.0.3
       '@types/node': 14.18.2
@@ -427,7 +427,6 @@ importers:
       '@types/sinon': ^9.0.11
       '@zkochan/npm-package-arg': ^2.0.1
       '@zkochan/rimraf': ^2.1.1
-      anonymous-npm-registry-client: 0.2.0
       deep-require-cwd: 1.0.0
       dependency-path: workspace:8.0.8
       execa: npm:safe-execa@^0.1.1
@@ -524,7 +523,6 @@ importers:
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
       '@types/sinon': 9.0.11
-      anonymous-npm-registry-client: 0.2.0
       deep-require-cwd: 1.0.0
       execa: /safe-execa/0.1.1
       exists-link: 2.0.0
@@ -2759,7 +2757,6 @@ importers:
       '@zkochan/libnpx': ^13.1.5
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^2.1.1
-      anonymous-npm-registry-client: 0.2.0
       chalk: ^4.1.0
       cross-spawn: ^7.0.3
       cross-var-no-babel: ^1.2.0
@@ -2851,7 +2848,6 @@ importers:
       '@zkochan/libnpx': 13.1.5
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 2.1.1
-      anonymous-npm-registry-client: 0.2.0
       chalk: 4.1.2
       cross-spawn: 7.0.3
       cross-var-no-babel: 1.2.0
@@ -4936,8 +4932,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.11.1:
-    resolution: {integrity: sha512-43uFC7OhJ86YXiwDs1pw22IlsJ+0KBKUAFXn6CABYI8I7VQqPnmJqkl+Slpq+eLepqpeVNiw6yVcx2BRxc+wCw==}
+  /@pnpm/registry-mock/2.12.1:
+    resolution: {integrity: sha512-o9Qd+8x5ZaYAqIgNrdtHNvKIC4xBVms37nVrS3OwOhl1kXG/+sEpoXI+Q05PsolVR4JTPwuKA/J53spgw5bUYw==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
