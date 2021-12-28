@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { MutatedProject, mutateModules } from '@pnpm/core'
@@ -17,18 +18,35 @@ test('inject local packages', async () => {
       'dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
-      'is-positive': '1.0.0',
+      'is-positive': '>=1.0.0',
     },
   }
   const project2Manifest = {
     name: 'project-2',
     version: '1.0.0',
     dependencies: {
-      'is-positive': '1.0.0',
       'project-1': 'workspace:1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '1.0.0',
     },
     dependenciesMeta: {
       'project-1': {
+        injected: true,
+      },
+    },
+  }
+  const project3Manifest = {
+    name: 'project-3',
+    version: '1.0.0',
+    dependencies: {
+      'project-2': 'workspace:1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '2.0.0',
+    },
+    dependenciesMeta: {
+      'project-2': {
         injected: true,
       },
     },
@@ -41,6 +59,10 @@ test('inject local packages', async () => {
     {
       location: 'project-2',
       package: project2Manifest,
+    },
+    {
+      location: 'project-3',
+      package: project3Manifest,
     },
   ])
 
@@ -57,6 +79,12 @@ test('inject local packages', async () => {
       mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
+    {
+      buildIndex: 0,
+      manifest: project3Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
   ]
   const workspacePackages = {
     'project-1': {
@@ -71,6 +99,12 @@ test('inject local packages', async () => {
         manifest: project2Manifest,
       },
     },
+    'project-3': {
+      '1.0.0': {
+        dir: path.resolve('project-3'),
+        manifest: project2Manifest,
+      },
+    },
   }
   await mutateModules(importers, await testDefaults({
     workspacePackages,
@@ -82,6 +116,11 @@ test('inject local packages', async () => {
 
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
+
+  await projects['project-3'].has('is-positive')
+  await projects['project-3'].has('project-2')
+
+  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
 
   const rootModules = assertProject(process.cwd())
   {
@@ -100,7 +139,7 @@ test('inject local packages', async () => {
       name: 'project-1',
       version: '1.0.0',
       peerDependencies: {
-        'is-positive': '1.0.0',
+        'is-positive': '>=1.0.0',
       },
       dependencies: {
         'is-negative': '1.0.0',
@@ -108,11 +147,26 @@ test('inject local packages', async () => {
       },
       dev: false,
     })
+    expect(lockfile.packages['file:project-2_is-positive@2.0.0']).toEqual({
+      resolution: {
+        directory: 'project-2',
+        type: 'directory',
+      },
+      id: 'file:project-2',
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'project-1': 'file:project-1_is-positive@2.0.0',
+      },
+      transitivePeerDependencies: ['is-positive'],
+      dev: false,
+    })
   }
 
   await rimraf('node_modules')
   await rimraf('project-1/node_modules')
   await rimraf('project-2/node_modules')
+  await rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
     frozenLockfile: true,
@@ -126,7 +180,12 @@ test('inject local packages', async () => {
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
 
-  // The injected project is updated when on of its dependencies needs to be updated
+  await projects['project-3'].has('is-positive')
+  await projects['project-3'].has('project-2')
+
+  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+
+  // The injected project is updated when one of its dependencies needs to be updated
   importers[0].manifest.dependencies!['is-negative'] = '2.0.0'
   await mutateModules(importers, await testDefaults({ workspacePackages }))
   {
@@ -145,7 +204,7 @@ test('inject local packages', async () => {
       name: 'project-1',
       version: '1.0.0',
       peerDependencies: {
-        'is-positive': '1.0.0',
+        'is-positive': '>=1.0.0',
       },
       dependencies: {
         'is-negative': '2.0.0',

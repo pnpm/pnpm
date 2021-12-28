@@ -1,4 +1,4 @@
-import { Dependencies, DependencyManifest } from '@pnpm/types'
+import { Dependencies, DependencyManifest, DependenciesMeta } from '@pnpm/types'
 
 export interface WantedDependency {
   alias: string
@@ -16,6 +16,7 @@ export default function getNonDevWantedDependencies (pkg: DependencyManifest) {
   return getWantedDependenciesFromGivenSet(
     filterDeps({ ...pkg.optionalDependencies, ...pkg.dependencies }),
     {
+      dependenciesMeta: pkg.dependenciesMeta ?? {},
       devDependencies: {},
       optionalDependencies: pkg.optionalDependencies ?? {},
     }
@@ -27,12 +28,14 @@ function getWantedDependenciesFromGivenSet (
   opts: {
     devDependencies: Dependencies
     optionalDependencies: Dependencies
+    dependenciesMeta: DependenciesMeta
   }
 ): WantedDependency[] {
   if (!deps) return []
   return Object.keys(deps).map((alias) => ({
     alias,
     dev: !!opts.devDependencies[alias],
+    injected: opts.dependenciesMeta[alias]?.injected,
     optional: !!opts.optionalDependencies[alias],
     pref: deps[alias],
   }))
