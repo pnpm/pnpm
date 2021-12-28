@@ -33,6 +33,19 @@ export default async function parseCliArgs (
   },
   inputArgv: string[]
 ): Promise<ParsedCliArgs> {
+  // transfer --config.unkonwn value -> --config.unkonwn=value
+  for (let i = 0; i < inputArgv.length; ++i) {
+    if (
+      inputArgv[i].startsWith('--config.') &&
+      inputArgv[i].split('=').length <= 1 &&
+      i !== inputArgv.length &&
+      !inputArgv[i + 1].startsWith('--')) {
+      inputArgv[i] += `=${inputArgv[i + 1]}`
+      inputArgv.splice(i + 1, 1)
+      i += 2
+    }
+  }
+
   const noptExploratoryResults = nopt(
     {
       filter: [String],

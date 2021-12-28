@@ -264,3 +264,43 @@ test('everything after an escape arg is a parameter, even if it has a help optio
   expect(cmd).toBe('exec')
   expect(params).toStrictEqual(['rm', '--help'])
 })
+
+test('--config.unknown value should not get error', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return {
+          bar: Boolean,
+          recursive: Boolean,
+          registry: String,
+        }
+      }
+      return {}
+    },
+    universalOptionsTypes: { filter: [String, Array] },
+  }, ['install', '--frozen-lockfile', '--registry=https://example.com', '--config.target_arch', 'x64', '--filter', 'foo'])
+  expect(cmd).toBe('install')
+  expect(options).toStrictEqual({
+    'frozen-lockfile': true, target_arch: 'x64', filter: ['foo'], registry: 'https://example.com', recursive: true,
+  })
+})
+
+test('--config.unknown=value works fine', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return {
+          bar: Boolean,
+          recursive: Boolean,
+          registry: String,
+        }
+      }
+      return {}
+    },
+    universalOptionsTypes: { filter: [String, Array] },
+  }, ['install', '--frozen-lockfile', '--config.target_arch=x64'])
+  expect(cmd).toBe('install')
+  expect(options).toHaveProperty(['target_arch'])
+})
