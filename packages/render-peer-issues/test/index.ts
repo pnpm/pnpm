@@ -73,6 +73,7 @@ test('renderPeerIssues()', () => {
               },
             ],
             foundVersion: '2',
+            resolvedFrom: [],
             optional: false,
             wantedRange: '^1.0.0',
           },
@@ -90,6 +91,12 @@ test('renderPeerIssues()', () => {
               },
             ],
             foundVersion: '2',
+            resolvedFrom: [
+              {
+                name: 'xxx',
+                version: '1.0.0',
+              },
+            ],
             optional: false,
             wantedRange: '^1.0.0',
           },

@@ -22,9 +22,16 @@ export default function (
       }
     }
     for (const [peerName, issues] of Object.entries(bad)) {
-      for (const { parents, foundVersion, wantedRange } of issues) {
+      for (const { parents, foundVersion, resolvedFrom, wantedRange } of issues) {
+        const nameAndRange = formatNameAndRange(peerName, wantedRange)
+        let msg!: string
+        if (resolvedFrom?.length > 0) {
+          msg = `✕ unmet peer ${nameAndRange}: found ${foundVersion} in ${resolvedFrom[resolvedFrom.length - 1].name}`
+        } else {
+          msg = `${chalk.yellowBright('✕ unmet peer')} ${nameAndRange}: found ${foundVersion}`
+        }
         // eslint-disable-next-line
-        createTree(projects[projectId], parents, `${chalk.red('✕ unmet peer')} ${formatNameAndRange(peerName, wantedRange)}: found ${foundVersion}`)
+        createTree(projects[projectId], parents, msg)
       }
     }
   }
@@ -49,8 +56,12 @@ export default function (
         )
       }
       const title = chalk.white(projectKey)
-      return `${archy(toArchyData(title, project))}${summaries.join('\n')}`
-    }).join('\n\n')
+      let summariesConcatenated = summaries.join('\n')
+      if (summariesConcatenated) {
+        summariesConcatenated += '\n'
+      }
+      return `${archy(toArchyData(title, project))}${summariesConcatenated}`
+    }).join('\n')
 }
 
 function formatNameAndRange (name: string, range: string) {
