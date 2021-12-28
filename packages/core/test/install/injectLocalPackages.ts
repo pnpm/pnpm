@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { MutatedProject, mutateModules } from '@pnpm/core'
@@ -116,6 +117,11 @@ test('inject local packages', async () => {
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
 
+  await projects['project-3'].has('is-positive')
+  await projects['project-3'].has('project-2')
+
+  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+
   const rootModules = assertProject(process.cwd())
   {
     const lockfile = await rootModules.readLockfile()
@@ -160,6 +166,7 @@ test('inject local packages', async () => {
   await rimraf('node_modules')
   await rimraf('project-1/node_modules')
   await rimraf('project-2/node_modules')
+  await rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
     frozenLockfile: true,
@@ -172,6 +179,11 @@ test('inject local packages', async () => {
 
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
+
+  await projects['project-3'].has('is-positive')
+  await projects['project-3'].has('project-2')
+
+  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
   importers[0].manifest.dependencies!['is-negative'] = '2.0.0'
