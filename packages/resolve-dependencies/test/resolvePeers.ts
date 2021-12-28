@@ -456,3 +456,63 @@ describe('unmet peer dependency issues', () => {
     expect(peerDependencyIssuesByProjects).not.toHaveProperty(['project1', 'bad', 'peer2'])
   })
 })
+
+describe.only('unmet peer dependency issue resolved from subdependency', () => {
+  const { peerDependencyIssuesByProjects } = resolvePeers({
+    projects: [
+      {
+        directNodeIdsByAlias: {
+          foo: '>project>foo/1.0.0>',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project',
+      },
+    ],
+    dependenciesTree: {
+      '>project>foo/1.0.0>': {
+        children: {
+          dep: '>project>foo/1.0.0>dep/1.0.0>',
+          bar: '>project>foo/1.0.0>bar/1.0.0>',
+        },
+        installable: true,
+        resolvedPackage: {
+          name: 'foo',
+          depPath: 'foo/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {},
+        },
+        depth: 0,
+      },
+      '>project>foo/1.0.0>dep/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'dep',
+          depPath: 'dep/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {},
+        },
+        depth: 1,
+      },
+      '>project>foo/1.0.0>bar/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'bar',
+          depPath: 'bar/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {
+            dep: '10',
+          },
+        },
+        depth: 1,
+      },
+    },
+    virtualStoreDir: '',
+    lockfileDir: '',
+  })
+  it('should return from where the bad peer dependency is resolved', () => {
+    expect(peerDependencyIssuesByProjects.project.bad.dep[0].resolvedFrom).toStrictEqual([{ name: 'foo', version: '1.0.0' }])
+  })
+})
