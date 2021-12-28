@@ -399,7 +399,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
 
     if (!resolved) {
       missingPeers.push(peerName)
-      const location = getLocationFromNodeId({
+      const location = getLocationFromNodeIdAndPkg({
         dependenciesTree: ctx.dependenciesTree,
         nodeId: ctx.nodeId,
         pkg: ctx.resolvedPackage,
@@ -416,7 +416,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
     }
 
     if (!satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
-      const location = getLocationFromNodeId({
+      const location = getLocationFromNodeIdAndPkg({
         dependenciesTree: ctx.dependenciesTree,
         nodeId: ctx.nodeId,
         pkg: ctx.resolvedPackage,
@@ -424,8 +424,15 @@ function resolvePeers<T extends PartialResolvedPackage> (
       if (!ctx.peerDependencyIssues.bad[peerName]) {
         ctx.peerDependencyIssues.bad[peerName] = []
       }
+      const peerLocation = resolved.nodeId == null
+        ? []
+        : getLocationFromNodeId({
+          dependenciesTree: ctx.dependenciesTree,
+          nodeId: resolved.nodeId,
+        }).parents
       ctx.peerDependencyIssues.bad[peerName].push({
         foundVersion: resolved.version,
+        resolvedFrom: peerLocation,
         parents: location.parents,
         optional: optionalPeer,
         wantedRange: peerVersionRange,
@@ -437,7 +444,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
   return { resolvedPeers, missingPeers }
 }
 
-function getLocationFromNodeId<T> (
+function getLocationFromNodeIdAndPkg<T> (
   {
     dependenciesTree,
     nodeId,
@@ -445,14 +452,30 @@ function getLocationFromNodeId<T> (
   }: {
     dependenciesTree: DependenciesTree<T>
     nodeId: string
-    pkg: PartialResolvedPackage
+    pkg: { name: string, version: string }
+  }
+) {
+  const { projectId, parents } = getLocationFromNodeId({ dependenciesTree, nodeId })
+  parents.push({ name: pkg.name, version: pkg.version })
+  return {
+    projectId,
+    parents,
+  }
+}
+
+function getLocationFromNodeId<T> (
+  {
+    dependenciesTree,
+    nodeId,
+  }: {
+    dependenciesTree: DependenciesTree<T>
+    nodeId: string
   }
 ) {
   const parts = splitNodeId(nodeId).slice(0, -1)
   const parents = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
     .slice(2)
     .map((nid) => pick(['name', 'version'], dependenciesTree[nid].resolvedPackage as ResolvedPackage))
-  parents.push({ name: pkg.name, version: pkg.version })
   return {
     projectId: parts[0],
     parents,

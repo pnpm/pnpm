@@ -24,7 +24,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
     projects: [
       {
         directNodeIdsByAlias: {
-          foo: 'foo/1.0.0',
+          foo: '>foo/1.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -32,25 +32,25 @@ test('resolve peer dependencies of cyclic dependencies', () => {
       },
     ],
     dependenciesTree: {
-      'foo/1.0.0': {
+      '>foo/1.0.0>': {
         children: {
-          bar: 'foo/1.0.0>bar/1.0.0',
+          bar: '>foo/1.0.0>bar/1.0.0>',
         },
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
       },
-      'foo/1.0.0>bar/1.0.0': {
+      '>foo/1.0.0>bar/1.0.0>': {
         children: {
-          qar: 'foo/1.0.0>bar/1.0.0>qar/1.0.0',
+          qar: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>',
         },
         installable: true,
         resolvedPackage: barPkg,
         depth: 1,
       },
-      'foo/1.0.0>bar/1.0.0>qar/1.0.0': {
+      '>foo/1.0.0>bar/1.0.0>qar/1.0.0>': {
         children: {
-          zoo: 'foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0',
+          zoo: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>',
         },
         installable: true,
         resolvedPackage: {
@@ -64,10 +64,10 @@ test('resolve peer dependencies of cyclic dependencies', () => {
         },
         depth: 2,
       },
-      'foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0': {
+      '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>': {
         children: {
-          foo: 'foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0',
-          bar: 'foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0',
+          foo: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>',
+          bar: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>',
         },
         installable: true,
         resolvedPackage: {
@@ -80,13 +80,13 @@ test('resolve peer dependencies of cyclic dependencies', () => {
         },
         depth: 3,
       },
-      'foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0': {
+      '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 4,
       },
-      'foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0': {
+      '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
@@ -131,8 +131,8 @@ test('when a package is referenced twice in the dependencies graph and one of th
     projects: [
       {
         directNodeIdsByAlias: {
-          zoo: 'zoo/1.0.0',
-          bar: 'bar/1.0.0',
+          zoo: '>zoo/1.0.0>',
+          bar: '>bar/1.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -140,44 +140,44 @@ test('when a package is referenced twice in the dependencies graph and one of th
       },
     ],
     dependenciesTree: {
-      'zoo/1.0.0': {
+      '>zoo/1.0.0>': {
         children: {
-          foo: 'zoo/1.0.0>foo/1.0.0',
+          foo: '>zoo/1.0.0>foo/1.0.0>',
         },
         installable: true,
         resolvedPackage: zooPkg,
         depth: 0,
       },
-      'zoo/1.0.0>foo/1.0.0': {
+      '>zoo/1.0.0>foo/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 1,
       },
-      'bar/1.0.0': {
+      '>bar/1.0.0>': {
         children: {
-          zoo: 'bar/1.0.0>zoo/1.0.0',
-          qar: 'bar/1.0.0>qar/1.0.0',
+          zoo: '>bar/1.0.0>zoo/1.0.0>',
+          qar: '>bar/1.0.0>qar/1.0.0>',
         },
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
       },
-      'bar/1.0.0>zoo/1.0.0': {
+      '>bar/1.0.0>zoo/1.0.0>': {
         children: {
-          foo: 'bar/1.0.0>zoo/1.0.0>foo/1.0.0',
+          foo: '>bar/1.0.0>zoo/1.0.0>foo/1.0.0>',
         },
         installable: true,
         resolvedPackage: zooPkg,
         depth: 1,
       },
-      'bar/1.0.0>zoo/1.0.0>foo/1.0.0': {
+      '>bar/1.0.0>zoo/1.0.0>foo/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 2,
       },
-      'bar/1.0.0>qar/1.0.0': {
+      '>bar/1.0.0>qar/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -257,7 +257,7 @@ describe('peer dependency issues', () => {
     projects: [
       {
         directNodeIdsByAlias: {
-          foo: '>project1>foo/1.0.0',
+          foo: '>project1>foo/1.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -265,7 +265,7 @@ describe('peer dependency issues', () => {
       },
       {
         directNodeIdsByAlias: {
-          bar: '>project2>bar/1.0.0',
+          bar: '>project2>bar/1.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -273,8 +273,8 @@ describe('peer dependency issues', () => {
       },
       {
         directNodeIdsByAlias: {
-          foo: '>project3>foo/1.0.0',
-          bar: '>project3>bar/1.0.0',
+          foo: '>project3>foo/1.0.0>',
+          bar: '>project3>bar/1.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -282,8 +282,8 @@ describe('peer dependency issues', () => {
       },
       {
         directNodeIdsByAlias: {
-          bar: '>project4>bar/1.0.0',
-          qar: '>project4>qar/1.0.0',
+          bar: '>project4>bar/1.0.0>',
+          qar: '>project4>qar/1.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -291,8 +291,8 @@ describe('peer dependency issues', () => {
       },
       {
         directNodeIdsByAlias: {
-          foo: '>project5>foo/1.0.0',
-          bar: '>project5>bar/2.0.0',
+          foo: '>project5>foo/1.0.0>',
+          bar: '>project5>bar/2.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -300,8 +300,8 @@ describe('peer dependency issues', () => {
       },
       {
         directNodeIdsByAlias: {
-          foo: '>project6>foo/2.0.0',
-          bar: '>project6>bar/2.0.0',
+          foo: '>project6>foo/2.0.0>',
+          bar: '>project6>bar/2.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -309,61 +309,61 @@ describe('peer dependency issues', () => {
       },
     ],
     dependenciesTree: {
-      '>project1>foo/1.0.0': {
+      '>project1>foo/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
       },
-      '>project2>bar/1.0.0': {
+      '>project2>bar/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
       },
-      '>project3>foo/1.0.0': {
+      '>project3>foo/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
       },
-      '>project3>bar/1.0.0': {
+      '>project3>bar/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
       },
-      '>project4>bar/1.0.0': {
+      '>project4>bar/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
       },
-      '>project4>qar/1.0.0': {
+      '>project4>qar/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: qarPkg,
         depth: 0,
       },
-      '>project5>foo/1.0.0': {
+      '>project5>foo/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
       },
-      '>project5>bar/2.0.0': {
+      '>project5>bar/2.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: barWithOptionalPeer,
         depth: 0,
       },
-      '>project6>foo/2.0.0': {
+      '>project6>foo/2.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: fooWithOptionalPeer,
         depth: 0,
       },
-      '>project6>bar/2.0.0': {
+      '>project6>bar/2.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: barWithOptionalPeer,
@@ -399,9 +399,9 @@ describe('unmet peer dependency issues', () => {
     projects: [
       {
         directNodeIdsByAlias: {
-          foo: '>project1>foo/1.0.0',
-          peer1: '>project1>peer1/1.0.0-rc.0',
-          peer2: '>project1>peer2/1.1.0-rc.0',
+          foo: '>project1>foo/1.0.0>',
+          peer1: '>project1>peer1/1.0.0-rc.0>',
+          peer2: '>project1>peer2/1.1.0-rc.0>',
         },
         topParents: [],
         rootDir: '',
@@ -409,7 +409,7 @@ describe('unmet peer dependency issues', () => {
       },
     ],
     dependenciesTree: {
-      '>project1>foo/1.0.0': {
+      '>project1>foo/1.0.0>': {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -423,7 +423,7 @@ describe('unmet peer dependency issues', () => {
         },
         depth: 0,
       },
-      '>project1>peer1/1.0.0-rc.0': {
+      '>project1>peer1/1.0.0-rc.0>': {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -434,7 +434,7 @@ describe('unmet peer dependency issues', () => {
         },
         depth: 0,
       },
-      '>project1>peer2/1.1.0-rc.0': {
+      '>project1>peer2/1.1.0-rc.0>': {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -454,5 +454,65 @@ describe('unmet peer dependency issues', () => {
   })
   it('should not warn when the found package is a prerelease version but satisfies the range', () => {
     expect(peerDependencyIssuesByProjects).not.toHaveProperty(['project1', 'bad', 'peer2'])
+  })
+})
+
+describe('unmet peer dependency issue resolved from subdependency', () => {
+  const { peerDependencyIssuesByProjects } = resolvePeers({
+    projects: [
+      {
+        directNodeIdsByAlias: {
+          foo: '>project>foo/1.0.0>',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project',
+      },
+    ],
+    dependenciesTree: {
+      '>project>foo/1.0.0>': {
+        children: {
+          dep: '>project>foo/1.0.0>dep/1.0.0>',
+          bar: '>project>foo/1.0.0>bar/1.0.0>',
+        },
+        installable: true,
+        resolvedPackage: {
+          name: 'foo',
+          depPath: 'foo/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {},
+        },
+        depth: 0,
+      },
+      '>project>foo/1.0.0>dep/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'dep',
+          depPath: 'dep/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {},
+        },
+        depth: 1,
+      },
+      '>project>foo/1.0.0>bar/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'bar',
+          depPath: 'bar/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {
+            dep: '10',
+          },
+        },
+        depth: 1,
+      },
+    },
+    virtualStoreDir: '',
+    lockfileDir: '',
+  })
+  it('should return from where the bad peer dependency is resolved', () => {
+    expect(peerDependencyIssuesByProjects.project.bad.dep[0].resolvedFrom).toStrictEqual([{ name: 'foo', version: '1.0.0' }])
   })
 })
