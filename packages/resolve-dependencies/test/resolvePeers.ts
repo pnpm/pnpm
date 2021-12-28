@@ -131,8 +131,8 @@ test('when a package is referenced twice in the dependencies graph and one of th
     projects: [
       {
         directNodeIdsByAlias: {
-          zoo: 'zoo/1.0.0',
-          bar: 'bar/1.0.0',
+          zoo: '>zoo/1.0.0>',
+          bar: '>bar/1.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -457,7 +457,7 @@ describe('unmet peer dependency issues', () => {
   })
 })
 
-describe.only('unmet peer dependency issue resolved from subdependency', () => {
+describe('unmet peer dependency issue resolved from subdependency', () => {
   const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
       {
