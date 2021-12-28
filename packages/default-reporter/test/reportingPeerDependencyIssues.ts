@@ -27,6 +27,7 @@ test('print peer dependency issues warning', (done) => {
                 },
               ],
               foundVersion: '2',
+              resolvedFrom: [],
               optional: false,
               wantedRange: '3',
             },
@@ -63,6 +64,7 @@ test('print peer dependency issues error', (done) => {
       bad: {
         a: [
           {
+            foundVersion: '2',
             parents: [
               {
                 name: 'b',
@@ -70,6 +72,7 @@ test('print peer dependency issues error', (done) => {
               },
             ],
             optional: false,
+            resolvedFrom: [],
             wantedRange: '3',
           },
         ],
