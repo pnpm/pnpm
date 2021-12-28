@@ -1,4 +1,4 @@
-import { PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { BadPeerDependencyIssue, PeerDependencyIssuesByProjects } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
@@ -22,16 +22,11 @@ export default function (
       }
     }
     for (const [peerName, issues] of Object.entries(bad)) {
-      for (const { parents, foundVersion, resolvedFrom, wantedRange } of issues) {
-        const nameAndRange = formatNameAndRange(peerName, wantedRange)
-        let msg!: string
-        if (resolvedFrom?.length > 0) {
-          msg = `✕ unmet peer ${nameAndRange}: found ${foundVersion} in ${resolvedFrom[resolvedFrom.length - 1].name}`
-        } else {
-          msg = `${chalk.yellowBright('✕ unmet peer')} ${nameAndRange}: found ${foundVersion}`
-        }
-        // eslint-disable-next-line
-        createTree(projects[projectId], parents, msg)
+      for (const issue of issues) {
+        createTree(projects[projectId], issue.parents, formatUnmetPeerMessage({
+          peerName,
+          ...issue,
+        }))
       }
     }
   }
@@ -62,6 +57,18 @@ export default function (
       }
       return `${archy(toArchyData(title, project))}${summariesConcatenated}`
     }).join('\n')
+}
+
+function formatUnmetPeerMessage (
+  { foundVersion, peerName, wantedRange, resolvedFrom }: BadPeerDependencyIssue & {
+    peerName: string
+  }
+) {
+  const nameAndRange = formatNameAndRange(peerName, wantedRange)
+  if (resolvedFrom && resolvedFrom.length > 0) {
+    return `✕ unmet peer ${nameAndRange}: found ${foundVersion} in ${resolvedFrom[resolvedFrom.length - 1].name}`
+  }
+  return `${chalk.yellowBright('✕ unmet peer')} ${nameAndRange}: found ${foundVersion}`
 }
 
 function formatNameAndRange (name: string, range: string) {
