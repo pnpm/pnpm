@@ -2,7 +2,7 @@
 import { promisify } from 'util'
 import { promises as fs } from 'fs'
 import path from 'path'
-import logger from '@pnpm/logger'
+import logger, { globalWarn } from '@pnpm/logger'
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
@@ -15,7 +15,13 @@ import tempy from 'tempy'
 
 jest.mock('@pnpm/logger', () => {
   const debug = jest.fn()
-  return () => ({ debug })
+  const globalWarn = jest.fn()
+
+  return {
+    __esModule: true,
+    default: () => ({ debug }),
+    globalWarn,
+  }
 })
 
 const binsConflictLogger = logger('bins-conflict')
@@ -35,6 +41,7 @@ const exoticManifestFixture = path.join(fixtures, 'exotic-manifest')
 const noNameFixture = path.join(fixtures, 'no-name')
 const noBinFixture = path.join(fixtures, 'no-bin')
 const windowShebangFixture = path.join(fixtures, 'bin-window-shebang')
+const binNotExistFixture = path.join(fixtures, 'bin-not-exist')
 
 const POWER_SHELL_IS_SUPPORTED = isWindows()
 const IS_WINDOWS = isWindows()
@@ -354,4 +361,18 @@ test('linkBins() fix window shebang line', async () => {
       expect(stat.isFile()).toBe(true)
     }
   }
+})
+
+test("linkBins() emits global warning when bin points to path that doesn't exist", async () => {
+  const binTarget = tempy.directory()
+
+  await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, {
+    allowExoticManifests: true,
+    warn: () => {},
+  })
+
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins([]))
+  expect(
+    globalWarn
+  ).toHaveBeenCalled()
 })
