@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 8.5.3
+
+### Patch Changes
+
+- Updated dependencies [b5734a4a7]
+- Updated dependencies [b5734a4a7]
+  - @pnpm/render-peer-issues@1.1.0
+  - @pnpm/types@7.8.0
+  - @pnpm/config@13.7.2
+  - @pnpm/core-loggers@6.1.2
+
 ## 8.5.2
 
 ### Patch Changes

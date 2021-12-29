@@ -1,5 +1,18 @@
 # dependencies-hierarchy
 
+## 10.0.20
+
+### Patch Changes
+
+- Updated dependencies [b5734a4a7]
+  - @pnpm/types@7.8.0
+  - dependency-path@8.0.9
+  - @pnpm/lockfile-file@4.2.5
+  - @pnpm/lockfile-utils@3.1.5
+  - @pnpm/modules-yaml@9.0.9
+  - @pnpm/normalize-registries@2.0.11
+  - @pnpm/read-package-json@5.0.9
+
 ## 10.0.19
 
 ### Patch Changes

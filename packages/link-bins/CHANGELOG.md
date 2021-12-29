@@ -1,5 +1,17 @@
 # @pnpm/link-bins
 
+## 6.2.8
+
+### Patch Changes
+
+- 701ea0746: Don't throw an error during install when the bin of a dependency points to a path that doesn't exist [#3763](https://github.com/pnpm/pnpm/issues/3763).
+- Updated dependencies [b5734a4a7]
+  - @pnpm/types@7.8.0
+  - @pnpm/manifest-utils@2.1.5
+  - @pnpm/package-bins@5.0.10
+  - @pnpm/read-package-json@5.0.9
+  - @pnpm/read-project-manifest@2.0.10
+
 ## 6.2.7
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.8.0
+
+### Minor Changes
+
+- b5734a4a7: Add `resolvedFrom` field to `BadPeerDependencyIssues`.
+
 ## 7.7.1
 
 ### Patch Changes

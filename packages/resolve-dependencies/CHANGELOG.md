@@ -1,5 +1,28 @@
 # @pnpm/resolve-dependencies
 
+## 22.1.0
+
+### Minor Changes
+
+- b5734a4a7: BadPeerDependencyIssue should contain the path to the package that has the dependency from which the peer dependency is resolved.
+
+### Patch Changes
+
+- b390c75a6: Injected subdependencies should be hard linked as well. So if `button` is injected into `card` and `card` is injected into `page`, then both `button` and `card` should be injected into `page`.
+- Updated dependencies [b5734a4a7]
+  - @pnpm/types@7.8.0
+  - @pnpm/core-loggers@6.1.2
+  - dependency-path@8.0.9
+  - @pnpm/lockfile-types@3.1.4
+  - @pnpm/lockfile-utils@3.1.5
+  - @pnpm/manifest-utils@2.1.5
+  - @pnpm/npm-resolver@12.1.5
+  - @pnpm/pick-registry-for-package@2.0.9
+  - @pnpm/prune-lockfile@3.0.13
+  - @pnpm/read-package-json@5.0.9
+  - @pnpm/resolver-base@8.1.4
+  - @pnpm/store-controller-types@11.0.10
+
 ## 22.0.2
 
 ### Patch Changes

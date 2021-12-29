@@ -1,5 +1,18 @@
 # @pnpm/render-peer-issues
 
+## 1.1.0
+
+### Minor Changes
+
+- b5734a4a7: When reporting unmet peer dependency issues, if the peer dependency is resolved not from a dependency installed by the user, then print the name of the parent package that has the bad peer dependency installed as a dependency.
+
+  ![](https://i.imgur.com/0kjij22.png)
+
+### Patch Changes
+
+- Updated dependencies [b5734a4a7]
+  - @pnpm/types@7.8.0
+
 ## 1.0.2
 
 ### Patch Changes

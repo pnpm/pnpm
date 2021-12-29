@@ -1,5 +1,19 @@
 # @pnpm/hoist
 
+## 5.2.10
+
+### Patch Changes
+
+- Updated dependencies [701ea0746]
+- Updated dependencies [b5734a4a7]
+  - @pnpm/link-bins@6.2.8
+  - @pnpm/types@7.8.0
+  - dependency-path@8.0.9
+  - @pnpm/lockfile-types@3.1.4
+  - @pnpm/lockfile-utils@3.1.5
+  - @pnpm/lockfile-walker@4.0.13
+  - @pnpm/symlink-dependency@4.0.11
+
 ## 5.2.9
 
 ### Patch Changes

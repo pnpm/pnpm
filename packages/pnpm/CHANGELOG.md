@@ -1,5 +1,17 @@
 # pnpm
 
+## 6.24.4
+
+### Patch Changes
+
+- Don't throw an error during install when the bin of a dependency points to a path that doesn't exist [#3763](https://github.com/pnpm/pnpm/issues/3763).
+
+- When reporting unmet peer dependency issues, if the peer dependency is resolved not from a dependency installed by the user, then print the name of the parent package that has the bad peer dependency installed as a dependency.
+
+  ![](https://i.imgur.com/0kjij22.png)
+
+- Injected subdependencies should be hard linked as well. So if `button` is injected into `card` and `card` is injected into `page`, then both `button` and `card` should be injected into `page` [#4167](https://github.com/pnpm/pnpm/pull/4167).
+
 ## 6.24.3
 
 ### Patch Changes
