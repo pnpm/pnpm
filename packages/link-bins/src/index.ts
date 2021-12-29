@@ -203,15 +203,15 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePath?: boolean }) {
   const externalBinPath = path.join(binsDir, cmd.name)
 
-  let nodePath: string[] | undefined
-  if (opts?.extendNodePath !== false) {
-    nodePath = await getBinNodePaths(cmd.path)
-    const binsParentDir = path.dirname(binsDir)
-    if (path.relative(cmd.path, binsParentDir) !== '') {
-      nodePath = union(nodePath, await getBinNodePaths(binsParentDir))
-    }
-  }
   try {
+    let nodePath: string[] | undefined
+    if (opts?.extendNodePath !== false) {
+      nodePath = await getBinNodePaths(cmd.path)
+      const binsParentDir = path.dirname(binsDir)
+      if (path.relative(cmd.path, binsParentDir) !== '') {
+        nodePath = union(nodePath, await getBinNodePaths(binsParentDir))
+      }
+    }
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: cmd.makePowerShellShim,
       nodePath,
