@@ -84,10 +84,10 @@ export default async function parseCliArgs (
       i !== inputArgv.length &&
       !inputArgv[i + 1].startsWith('--') &&
       !BOOLEAN_CONFIG.has(inputArgv[i].split('.')[1])
-      ) {
-        inputArgv[i] += `=${inputArgv[i + 1]}`
-        inputArgv.splice(i + 1, 1)
-        i += 2
+    ) {
+      inputArgv[i] += `=${inputArgv[i + 1]}`
+      inputArgv.splice(i + 1, 1)
+      i += 2
     }
   }
 
