@@ -75,7 +75,6 @@ export default async function parseCliArgs (
   },
   inputArgv: string[]
 ): Promise<ParsedCliArgs> {
-
   // transfer --config.unkonwn value -> --config.unkonwn=value
   // some option like enable-xxx may get ignored
   for (let i = 0; i < inputArgv.length; ++i) {
@@ -86,9 +85,9 @@ export default async function parseCliArgs (
       !inputArgv[i + 1].startsWith('--') &&
       !BOOLEAN_CONFIG.has(inputArgv[i].split('.')[1])
       ) {
-      inputArgv[i] += `=${inputArgv[i + 1]}`
-      inputArgv.splice(i + 1, 1)
-      i += 2
+        inputArgv[i] += `=${inputArgv[i + 1]}`
+        inputArgv.splice(i + 1, 1)
+        i += 2
     }
   }
 
