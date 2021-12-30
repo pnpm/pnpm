@@ -81,7 +81,6 @@ export default async function run (inputArgv: string[]) {
       return
     }
   }
-  process.env['npm_config_argv'] = JSON.stringify(argv)
 
   let config: Config & {
     forceSharedLockfile: boolean
@@ -108,6 +107,10 @@ export default async function run (inputArgv: string[]) {
     printError(err.message, hint)
     process.exitCode = 1
     return
+  }
+  if (!config.useBetaCli) {
+    process.env['npm_config_argv'] = JSON.stringify(argv)
+    config.rawConfig.argv = process.env['npm_config_argv']
   }
 
   let write: (text: string) => void = process.stdout.write.bind(process.stdout)
