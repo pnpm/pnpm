@@ -17,11 +17,12 @@ export type ClientOptions = {
   retry?: RetryTimeoutOptions
   timeout?: number
   userAgent?: string
+  userConfig?: Record<string, string>
 } & ResolverFactoryOptions & AgentOptions
 
 export default function (opts: ClientOptions) {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry))
+  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry, opts.userConfig))
   return {
     fetchers: createFetchers(fetchFromRegistry, getCredentials, opts),
     resolve: createResolve(fetchFromRegistry, getCredentials, opts),

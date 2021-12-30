@@ -4,6 +4,7 @@ import path from 'path'
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
+import loadNpmConf from '@zkochan/npm-conf'
 
 import symlinkDir from 'symlink-dir'
 
@@ -724,4 +725,36 @@ test('getConfig() converts noproxy to noProxy', async () => {
     },
   })
   expect(config.noProxy).toBe('www.foo.com')
+})
+
+test('getConfig() returns the userconfig', async () => {
+  prepareEmpty()
+  await fs.mkdir('user-home')
+  await fs.writeFile(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() returns the userconfig even when overridden locally', async () => {
+  prepareEmpty()
+  await fs.mkdir('user-home')
+  await fs.writeFile(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
+  await fs.writeFile('.npmrc', 'registry = https://project-local.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.registry).toEqual('https://project-local.example.test')
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
 })

@@ -42,6 +42,7 @@ Partial<Pick<Config,
 | 'selectedProjectsGraph'
 | 'strictSsl'
 | 'userAgent'
+| 'userConfig'
 | 'verifyStoreIntegrity'
 >> & {
   access?: 'public' | 'restricted'
@@ -58,6 +59,7 @@ export default async function (
   const resolve = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
+    userConfig: opts.userConfig,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

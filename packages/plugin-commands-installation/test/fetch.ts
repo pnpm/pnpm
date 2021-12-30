@@ -27,6 +27,7 @@ const DEFAULT_OPTIONS = {
     default: REGISTRY_URL,
   },
   sort: true,
+  userConfig: {},
   workspaceConcurrency: 1,
 }
 

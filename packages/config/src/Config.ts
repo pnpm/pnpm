@@ -143,6 +143,7 @@ export interface Config {
   changedFilesIgnorePattern?: string[]
   extendNodePath?: boolean
   rootProjectManifest?: ProjectManifest
+  userConfig: Record<string, string>
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

@@ -29,6 +29,7 @@ const DEFAULT_OPTIONS = {
   },
   sort: true,
   storeDir: path.join(TMP, 'store'),
+  userConfig: {},
   workspaceConcurrency: 1,
 }
 

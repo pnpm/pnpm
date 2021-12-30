@@ -296,7 +296,7 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/resolver-base': workspace:8.1.4
       '@pnpm/tarball-fetcher': workspace:9.3.14
-      credentials-by-uri: ^2.0.0
+      credentials-by-uri: ^2.1.0
       mem: ^8.0.0
     dependencies:
       '@pnpm/default-resolver': link:../default-resolver
@@ -306,7 +306,7 @@ importers:
       '@pnpm/git-fetcher': link:../git-fetcher
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
-      credentials-by-uri: 2.0.0
+      credentials-by-uri: 2.1.0
       mem: 8.1.1
     devDependencies:
       '@pnpm/client': 'link:'
@@ -4772,7 +4772,6 @@ packages:
   /@pnpm/error/2.0.0:
     resolution: {integrity: sha512-mgj4h0LWGpDPZwsEH75VFQhr2Njut3PcaCQatERIoO3zmKGqCsLfla9cWYH9+zn0fcwnKhnJ+FBzoiY2LhnCtw==}
     engines: {node: '>=12.17'}
-    dev: true
 
   /@pnpm/exec/2.0.0:
     resolution: {integrity: sha512-b5ALfWEOFQprWKntN7MF8XWCyslBk2c8u20GEDcDDQOs6c0HyHlWxX5lig8riQKdS000U6YyS4L4b32NOleXAQ==}
@@ -7602,10 +7601,11 @@ packages:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
     dev: true
 
-  /credentials-by-uri/2.0.0:
-    resolution: {integrity: sha512-HptfRWLKfaeewvzKPybPFsR8TRbLSsu5MvHQLc6FWqvIS1CqFHze+IteKQlpLXzx4KwSteZa0MdsN/jEYESVXA==}
+  /credentials-by-uri/2.1.0:
+    resolution: {integrity: sha512-Ia57VrZYcs4YTPUB4Pirjf3MYsSdc7mAYGC99lUKii0KsohmZgpPvVOeqW1NWBCRg3HVrLOtSreLqkmFIUi8WQ==}
     engines: {node: '>=10'}
     dependencies:
+      '@pnpm/error': 2.0.0
       nerf-dart: 1.0.0
     dev: false
 
