@@ -265,7 +265,8 @@ test('everything after an escape arg is a parameter, even if it has a help optio
   expect(params).toStrictEqual(['rm', '--help'])
 })
 
-test('--config.unknown value should not get error', async () => {
+// fix: https://github.com/pnpm/pnpm/issues/4159
+test('`--config.unknown value` should not get error', async () => {
   const { cmd, options } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
@@ -286,7 +287,27 @@ test('--config.unknown value should not get error', async () => {
   })
 })
 
-test('--config.unknown=value works fine', async () => {
+test('`--config` should work as expected when option is boolean', async () => {
+  const { cmd, options, argv } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return {
+          bar: Boolean,
+          recursive: Boolean,
+          registry: String,
+        }
+      }
+      return {}
+    },
+    universalOptionsTypes: { filter: [String, Array] },
+  }, ['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--', '--flag=true'])
+  expect(cmd).toBe('run')
+  expect(options).toEqual({ 'enable-pre-post-scripts': true, recursive: true })
+  expect(argv.remain).toEqual(['run', 'foo', 'arg', '--flag=true'])
+})
+
+test('--config.unknown=value should work fine', async () => {
   const { cmd, options } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
