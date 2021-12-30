@@ -35,11 +35,10 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'registry'
 | 'strictSsl'
 | 'userAgent'
-| 'userConfig'
 | 'verifyStoreIntegrity'
 > & {
   ignoreFile?: (filename: string) => boolean
-}
+} & Partial<Pick<Config, 'userConfig'>>
 
 export default async (
   opts: CreateNewStoreControllerOptions

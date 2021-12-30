@@ -152,8 +152,7 @@ export type OutdatedCommandOptions = {
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
-| 'userConfig'
->
+> & Partial<Pick<Config, 'userConfig'>>
 
 export async function handler (
   opts: OutdatedCommandOptions,

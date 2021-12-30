@@ -17,7 +17,6 @@ export type PublishRecursiveOpts = Required<Pick<Config,
 | 'dir'
 | 'rawConfig'
 | 'registries'
-| 'userConfig'
 | 'workspaceDir'
 >> &
 Partial<Pick<Config,
@@ -43,6 +42,7 @@ Partial<Pick<Config,
 | 'selectedProjectsGraph'
 | 'strictSsl'
 | 'userAgent'
+| 'userConfig'
 | 'verifyStoreIntegrity'
 >> & {
   access?: 'public' | 'restricted'
