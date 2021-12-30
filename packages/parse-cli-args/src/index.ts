@@ -5,6 +5,48 @@ import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
+const BOOLEAN_CONFIG = new Set([
+  'bail',
+  'enable-modules-dir',
+  'enable-pre-post-scripts',
+  'extend-node-path',
+  'frozen-lockfile',
+  'frozen-shrinkwrap',
+  'git-checks',
+  'hoist',
+  'ignore-pnpmfile',
+  'ignore-workspace-root-check',
+  'lockfile',
+  'lockfile-only',
+  'offline',
+  'prefer-frozen-lockfile',
+  'prefer-frozen-shrinkwrap',
+  'prefer-offline',
+  'prefer-workspace-packages',
+  'recursive-install',
+  'aggregate-output',
+  'save-peer',
+  'save-workspace-protocol',
+  'shamefully-flatten',
+  'shamefully-hoist',
+  'shared-workspace-lockfile',
+  'shared-workspace-shrinkwrap',
+  'shell-emulator',
+  'shrinkwrap-only',
+  'side-effects-cache',
+  'side-effects-cache-readonly',
+  'symlink',
+  'sort',
+  'stream',
+  'strict-peer-dependencies',
+  'use-beta-cli',
+  'use-running-store-server',
+  'use-store-server',
+  'use-stderr',
+  'verify-store-integrity',
+  'workspace-root',
+])
+
 export interface ParsedCliArgs {
   argv: {
     remain: string[]
@@ -33,13 +75,17 @@ export default async function parseCliArgs (
   },
   inputArgv: string[]
 ): Promise<ParsedCliArgs> {
+
   // transfer --config.unkonwn value -> --config.unkonwn=value
+  // some option like enable-xxx may get ignored
   for (let i = 0; i < inputArgv.length; ++i) {
     if (
       inputArgv[i].startsWith('--config.') &&
       inputArgv[i].split('=').length <= 1 &&
       i !== inputArgv.length &&
-      !inputArgv[i + 1].startsWith('--')) {
+      !inputArgv[i + 1].startsWith('--') &&
+      !BOOLEAN_CONFIG.has(inputArgv[i].split('.')[1])
+      ) {
       inputArgv[i] += `=${inputArgv[i + 1]}`
       inputArgv.splice(i + 1, 1)
       i += 2
