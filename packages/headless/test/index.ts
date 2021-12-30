@@ -820,8 +820,7 @@ test('installing with no modules directory', async () => {
 })
 
 test('installing with node-linker=node-modules', async () => {
-  const prefix = path.join(fixtures, 'has-several-versions-of-same-pkg')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('has-several-versions-of-same-pkg')
 
   await headless(await testDefaults({
     enableModulesDir: false,
