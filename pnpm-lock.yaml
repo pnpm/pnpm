@@ -1652,6 +1652,7 @@ importers:
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/resolve-workspace-range': workspace:2.1.0
       '@pnpm/resolver-base': workspace:8.1.4
+      '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.8.0
       '@types/lru-cache': ^5.1.0
       '@types/normalize-path': ^3.0.0
@@ -1698,6 +1699,7 @@ importers:
       '@pnpm/fetch': link:../fetch
       '@pnpm/logger': 4.0.0
       '@pnpm/npm-resolver': 'link:'
+      '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/lru-cache': 5.1.1
       '@types/normalize-path': 3.0.0
       '@types/semver': 7.3.9
