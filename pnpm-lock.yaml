@@ -3272,10 +3272,10 @@ importers:
       '@pnpm/package-store': workspace:12.1.6
       '@pnpm/prepare-package': workspace:1.0.10
       '@pnpm/tarball-fetcher': 'link:'
+      '@pnpm/test-fixtures': workspace:*
       '@types/retry': ^0.12.0
       '@types/ssri': ^7.1.0
       '@zkochan/retry': ^0.2.0
-      cp-file: ^9.0.0
       nock: 12.0.3
       ramda: ^0.27.1
       ssri: ^8.0.1
@@ -3295,9 +3295,9 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/package-store': link:../package-store
       '@pnpm/tarball-fetcher': 'link:'
+      '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/retry': 0.12.1
       '@types/ssri': 7.1.1
-      cp-file: 9.1.0
       nock: 12.0.3
       tempy: 1.0.1
 
@@ -7520,16 +7520,6 @@ packages:
   /cp-file/7.0.0:
     resolution: {integrity: sha512-0Cbj7gyvFVApzpK/uhCtQ/9kE9UnYpxMzaq5nQQC/Dh4iaj5fxp7iEFIullrYwzj8nf0qnsI1Qsx34hAeAebvw==}
     engines: {node: '>=8'}
-    dependencies:
-      graceful-fs: 4.2.8
-      make-dir: 3.1.0
-      nested-error-stacks: 2.1.0
-      p-event: 4.2.0
-    dev: true
-
-  /cp-file/9.1.0:
-    resolution: {integrity: sha512-3scnzFj/94eb7y4wyXRWwvzLFaQp87yyfTnChIjlfYrVqp5lVO3E2hIJMeQIltUT0K2ZAB3An1qXcBmwGyvuwA==}
-    engines: {node: '>=10'}
     dependencies:
       graceful-fs: 4.2.8
       make-dir: 3.1.0

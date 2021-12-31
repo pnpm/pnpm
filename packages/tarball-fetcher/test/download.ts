@@ -4,11 +4,11 @@ import path from 'path'
 import PnpmError, { FetchError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/package-store'
+import fixtures from '@pnpm/test-fixtures'
 import createFetcher, {
   BadTarballError,
   TarballIntegrityError,
 } from '@pnpm/tarball-fetcher'
-import cpFile from 'cp-file'
 import nock from 'nock'
 import ssri from 'ssri'
 import tempy from 'tempy'
@@ -16,7 +16,8 @@ import tempy from 'tempy'
 const cafsDir = tempy.directory()
 const cafs = createCafsStore(cafsDir)
 
-const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
+const f = fixtures(__dirname)
+const tarballPath = f.find('babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const registry = 'http://example.com/'
@@ -92,7 +93,7 @@ test('fail when integrity check fails two times in a row', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
     .times(2)
-    .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
+    .replyWithFile(200, f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
       'Content-Length': '1194',
     })
 
@@ -122,7 +123,7 @@ test('fail when integrity check fails two times in a row', async () => {
 test('retry when integrity check fails', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
-    .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
+    .replyWithFile(200, f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
       'Content-Length': '1194',
     })
     .get('/foo.tgz')
@@ -155,10 +156,7 @@ test('fail when integrity check of local file fails', async () => {
   const storeDir = tempy.directory()
   process.chdir(storeDir)
 
-  await cpFile(
-    path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
-    path.resolve('tar.tgz')
-  )
+  f.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', 'tar.tgz')
   const resolution = {
     integrity: tarballIntegrity,
     tarball: 'file:tar.tgz',
@@ -183,10 +181,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
   process.chdir(tempy.directory())
 
   const localTarballLocation = path.resolve('tar.tgz')
-  await cpFile(
-    path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
-    localTarballLocation
-  )
+  f.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', localTarballLocation)
   const resolution = {
     integrity: await getFileIntegrity(localTarballLocation),
     tarball: 'file:tar.tgz',
@@ -202,7 +197,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
 test("don't fail when fetching a local tarball in offline mode", async () => {
   process.chdir(tempy.directory())
 
-  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
     integrity: await getFileIntegrity(tarballAbsoluteLocation),
     tarball: `file:${tarballAbsoluteLocation}`,
@@ -226,7 +221,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
 test('fail when trying to fetch a non-local tarball in offline mode', async () => {
   process.chdir(tempy.directory())
 
-  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
     integrity: await getFileIntegrity(tarballAbsoluteLocation),
     tarball: `${registry}foo.tgz`,
