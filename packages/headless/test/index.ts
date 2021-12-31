@@ -1,5 +1,5 @@
 /// <reference path="../../../typings/index.d.ts" />
-import { promises as fs, writeFileSync } from 'fs'
+import { promises as fs, realpathSync, writeFileSync } from 'fs'
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
@@ -818,3 +818,51 @@ test('installing with no modules directory', async () => {
 
   expect(await exists(path.join(prefix, 'node_modules'))).toBeFalsy()
 })
+
+test('installing with node-linker=node-modules', async () => {
+  const prefix = f.prepare('has-several-versions-of-same-pkg')
+
+  await headless(await testDefaults({
+    enableModulesDir: false,
+    lockfileDir: prefix,
+    nodeLinker: 'node-modules',
+  }))
+
+  expect(await exists(path.join(prefix, 'node_modules/ms'))).toBeTruthy()
+  expect(await exists(path.join(prefix, 'node_modules/send/node_modules/ms'))).toBeTruthy()
+})
+
+test('installing in a workspace with node-linker=node-modules', async () => {
+  const prefix = f.prepare('workspace2')
+
+  let { projects } = await readprojectsContext(
+    [
+      {
+        rootDir: path.join(prefix, 'foo'),
+      },
+      {
+        rootDir: path.join(prefix, 'bar'),
+      },
+    ],
+    { lockfileDir: prefix }
+  )
+
+  projects = await Promise.all(
+    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
+  )
+  await headless(await testDefaults({
+    lockfileDir: prefix,
+    nodeLinker: 'node-modules',
+    projects,
+  }))
+
+  expect(realpathSync('bar/node_modules/foo')).toBe(path.resolve('foo'))
+  expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
+  expect(readPkgVersion(path.join(prefix, 'foo/node_modules/express'))).toBe('4.17.2')
+  expect(readPkgVersion(path.join(prefix, 'node_modules/webpack'))).toBe('5.65.0')
+  expect(readPkgVersion(path.join(prefix, 'node_modules/express'))).toBe('2.5.11')
+})
+
+function readPkgVersion (dir: string): string {
+  return loadJsonFile.sync<{ version: string }>(path.join(dir, 'package.json')).version
+}

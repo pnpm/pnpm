@@ -63,12 +63,25 @@ import omit from 'ramda/src/omit'
 import props from 'ramda/src/props'
 import realpathMissing from 'realpath-missing'
 import lockfileToDepGraph, {
+  DirectDependenciesByImporterId,
+  DepHierarchy,
   DependenciesGraph,
   DependenciesGraphNode,
   LockfileToDepGraphOptions,
 } from './lockfileToDepGraph'
+import lockfileToHoistedDepGraph from './lockfileToHoistedDepGraph'
 
 export type ReporterFunction = (logObj: LogBase) => void
+
+export interface Project {
+  binsDir: string
+  buildIndex: number
+  manifest: ProjectManifest
+  modulesDir: string
+  id: string
+  pruneDirectDependencies?: boolean
+  rootDir: string
+}
 
 export interface HeadlessOptions {
   childConcurrency?: number
@@ -84,15 +97,7 @@ export interface HeadlessOptions {
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
   include: IncludedDependencies
-  projects: Array<{
-    binsDir: string
-    buildIndex: number
-    manifest: ProjectManifest
-    modulesDir: string
-    id: string
-    pruneDirectDependencies?: boolean
-    rootDir: string
-  }>
+  projects: Project[]
   prunedAt?: string
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
@@ -125,6 +130,7 @@ export interface HeadlessOptions {
   pendingBuilds: string[]
   skipped: Set<string>
   enableModulesDir?: boolean
+  nodeLinker?: 'pnpm' | 'node-modules' | 'pnp'
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -220,18 +226,26 @@ export default async (opts: HeadlessOptions) => {
     includeIncompatiblePackages: opts.force,
     lockfileDir,
   })
-  const { directDependenciesByImporterId, graph } = await lockfileToDepGraph(
-    filteredLockfile,
-    opts.force ? null : currentLockfile,
-    {
-      ...opts,
-      importerIds,
-      lockfileDir,
-      skipped,
-      virtualStoreDir,
-      nodeVersion: opts.currentEngine.nodeVersion,
-      pnpmVersion: opts.currentEngine.pnpmVersion,
-    } as LockfileToDepGraphOptions
+  const lockfileToDepGraphOpts = {
+    ...opts,
+    importerIds,
+    lockfileDir,
+    skipped,
+    virtualStoreDir,
+    nodeVersion: opts.currentEngine.nodeVersion,
+    pnpmVersion: opts.currentEngine.pnpmVersion,
+  } as LockfileToDepGraphOptions
+  const { hierarchy, directDependenciesByImporterId, graph, symlinkedDirectDependenciesByImporterId } = await (
+    opts.nodeLinker === 'node-modules'
+      ? lockfileToHoistedDepGraph(
+        filteredLockfile,
+        lockfileToDepGraphOpts
+      )
+      : lockfileToDepGraph(
+        filteredLockfile,
+        opts.force ? null : currentLockfile,
+        lockfileToDepGraphOpts
+      )
   )
   if (opts.enablePnp) {
     const importerNames = fromPairs(
@@ -259,7 +273,26 @@ export default async (opts: HeadlessOptions) => {
   }
 
   let newHoistedDependencies!: HoistedDependencies
-  if (opts.enableModulesDir !== false) {
+  if (opts.nodeLinker === 'node-modules' && hierarchy) {
+    await linkAllPkgsInOrder(opts.storeController, graph, hierarchy, {
+      force: opts.force,
+      lockfileDir: opts.lockfileDir,
+      targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+    })
+    stageLogger.debug({
+      prefix: lockfileDir,
+      stage: 'importing_done',
+    })
+
+    await symlinkDirectDependencies({
+      directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
+      filteredLockfile,
+      lockfileDir,
+      projects: opts.projects,
+      registries: opts.registries,
+      symlink: opts.symlink,
+    })
+  } else if (opts.enableModulesDir !== false) {
     await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
     await Promise.all([
       opts.symlink === false
@@ -311,26 +344,14 @@ export default async (opts: HeadlessOptions) => {
 
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
-      await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
-        if (opts.symlink !== false) {
-          await linkRootPackages(filteredLockfile, {
-            importerId: id,
-            importerModulesDir: modulesDir,
-            lockfileDir,
-            projectDir: rootDir,
-            projects: opts.projects,
-            registries: opts.registries,
-            rootDependencies: directDependenciesByImporterId[id],
-          })
-        }
-
-        // Even though headless installation will never update the package.json
-        // this needs to be logged because otherwise install summary won't be printed
-        packageManifestLogger.debug({
-          prefix: rootDir,
-          updated: manifest,
-        })
-      }))
+      await symlinkDirectDependencies({
+        directDependenciesByImporterId,
+        filteredLockfile,
+        lockfileDir,
+        projects: opts.projects,
+        registries: opts.registries,
+        symlink: opts.symlink,
+      })
     }
   }
 
@@ -457,6 +478,43 @@ export default async (opts: HeadlessOptions) => {
   }
 }
 
+type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'projects' | 'registries' | 'symlink' | 'lockfileDir'> & {
+  filteredLockfile: Lockfile
+  directDependenciesByImporterId: DirectDependenciesByImporterId
+}
+
+async function symlinkDirectDependencies (
+  {
+    filteredLockfile,
+    directDependenciesByImporterId,
+    lockfileDir,
+    projects,
+    registries,
+    symlink,
+  }: SymlinkDirectDependenciesOpts
+) {
+  await Promise.all(projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
+    if (symlink !== false) {
+      await linkRootPackages(filteredLockfile, {
+        importerId: id,
+        importerModulesDir: modulesDir,
+        lockfileDir,
+        projectDir: rootDir,
+        projects,
+        registries,
+        rootDependencies: directDependenciesByImporterId[id],
+      })
+    }
+
+    // Even though headless installation will never update the package.json
+    // this needs to be logged because otherwise install summary won't be printed
+    packageManifestLogger.debug({
+      prefix: rootDir,
+      updated: manifest,
+    })
+  }))
+}
+
 async function linkBinsOfImporter (
   { manifest, modulesDir, binsDir, rootDir }: {
     binsDir: string
@@ -557,6 +615,46 @@ async function linkRootPackages (
           prefix: opts.projectDir,
         })
       })
+  )
+}
+
+async function linkAllPkgsInOrder (
+  storeController: StoreController,
+  graph: DependenciesGraph,
+  hierarchy: DepHierarchy,
+  opts: {
+    force: boolean
+    lockfileDir: string
+    targetEngine?: string
+  }
+) {
+  await Promise.all(
+    Object.entries(hierarchy).map(async ([dir, deps]) => {
+      const depNode = graph[dir]
+      let filesResponse!: PackageFilesResponse
+      try {
+        filesResponse = await depNode.fetchingFiles()
+      } catch (err: any) { // eslint-disable-line
+        if (depNode.optional) return
+        throw err
+      }
+
+      const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
+        filesResponse,
+        force: opts.force,
+        targetEngine: opts.targetEngine,
+      })
+      if (importMethod) {
+        progressLogger.debug({
+          method: importMethod,
+          requester: opts.lockfileDir,
+          status: 'imported',
+          to: depNode.dir,
+        })
+      }
+      depNode.isBuilt = isBuilt
+      return linkAllPkgsInOrder(storeController, graph, deps, opts)
+    })
   )
 }
 

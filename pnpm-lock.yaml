@@ -1058,6 +1058,7 @@ importers:
       '@pnpm/read-package-json': workspace:5.0.9
       '@pnpm/read-project-manifest': workspace:2.0.10
       '@pnpm/read-projects-context': workspace:5.0.14
+      '@pnpm/real-hoist': workspace:0.0.0
       '@pnpm/store-controller-types': workspace:11.0.10
       '@pnpm/store-path': ^5.0.0
       '@pnpm/symlink-dependency': workspace:4.0.11
@@ -1099,6 +1100,7 @@ importers:
       '@pnpm/package-requester': link:../package-requester
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
+      '@pnpm/real-hoist': link:../real-hoist
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
@@ -3006,6 +3008,23 @@ importers:
     devDependencies:
       '@pnpm/logger': 4.0.0
       '@pnpm/read-projects-context': 'link:'
+
+  packages/real-hoist:
+    specifiers:
+      '@pnpm/lockfile-file': workspace:4.2.5
+      '@pnpm/lockfile-utils': workspace:3.1.5
+      '@pnpm/logger': ^4.0.0
+      '@pnpm/real-hoist': 'link:'
+      '@yarnpkg/nm': ^3.0.1-rc.8
+      dependency-path: workspace:8.0.9
+    dependencies:
+      '@pnpm/lockfile-utils': link:../lockfile-utils
+      '@yarnpkg/nm': 3.0.1-rc.8
+      dependency-path: link:../dependency-path
+    devDependencies:
+      '@pnpm/lockfile-file': link:../lockfile-file
+      '@pnpm/logger': 4.0.0
+      '@pnpm/real-hoist': 'link:'
 
   packages/remove-bins:
     specifiers:
@@ -5725,6 +5744,14 @@ packages:
 
   /@yarnpkg/lockfile/1.1.0:
     resolution: {integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==}
+    dev: false
+
+  /@yarnpkg/nm/3.0.1-rc.8:
+    resolution: {integrity: sha512-EuYgE1UGieFL3Mm0OIVnOtKcTqTdRZl2jRsr6/ZUxsTj0pkC7rDVeD1qGCfYWS7HjztRnpyBM73rODif33nRHA==}
+    engines: {node: '>=12 <14 || 14.2 - 14.9 || >14.10.0'}
+    dependencies:
+      '@yarnpkg/core': 3.2.0-rc.8
+      '@yarnpkg/fslib': 2.6.1-rc.3
     dev: false
 
   /@yarnpkg/parsers/2.3.0:

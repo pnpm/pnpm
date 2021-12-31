@@ -47,6 +47,7 @@ export interface StrictInstallOptions {
   engineStrict: boolean
   neverBuiltDependencies: string[]
   nodeExecPath?: string
+  nodeLinker?: 'node-modules' | 'pnpm' | 'pnp'
   nodeVersion: string
   packageExtensions: Record<string, PackageExtension>
   packageManager: {
@@ -126,6 +127,7 @@ const defaults = async (opts: InstallOptions) => {
     lockfileOnly: false,
     neverBuiltDependencies: [] as string[],
     nodeVersion: process.version,
+    nodeLinker: 'pnpm',
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',
     ignorePackageManifest: false,
