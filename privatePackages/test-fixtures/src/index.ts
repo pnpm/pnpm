@@ -1,23 +1,34 @@
-import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
-import ncpCB from 'ncp'
+import { tempDir } from '@pnpm/prepare'
+import fsx from 'fs-extra'
 
-const ncp = promisify(ncpCB)
-
-export async function copyFixture (fixtureName: string, dest: string, searchFromDir?: string) {
-  const fixturePath = pathToLocalPkg(fixtureName, searchFromDir)
-  if (!fixturePath) throw new Error(`${fixtureName} not found`)
-  return ncp(fixturePath, dest)
+export default function (searchFromDir: string) {
+  return {
+    copy: copyFixture.bind(null, searchFromDir),
+    find: findFixture.bind(null, searchFromDir),
+    prepare: prepareFixture.bind(null, searchFromDir),
+  }
 }
 
-export function pathToLocalPkg (pkgName: string, _dir?: string) {
-  let dir = _dir ?? __dirname
+function prepareFixture (searchFromDir: string, name: string): string {
+  const dir = tempDir()
+  copyFixture(searchFromDir, name, dir)
+  return dir
+}
+
+function copyFixture (searchFromDir: string, name: string, dest: string): void {
+  const fixturePath = findFixture(searchFromDir, name)
+  if (!fixturePath) throw new Error(`${name} not found`)
+  fsx.copySync(fixturePath, dest)
+}
+
+function findFixture (dir: string, name: string): string {
   const { root } = path.parse(dir)
   while (true) {
-    const checkDir = path.join(dir, 'fixtures', pkgName)
+    const checkDir = path.join(dir, 'fixtures', name)
     if (fs.existsSync(checkDir)) return checkDir
-    if (dir === root) throw new Error(`Local package "${pkgName}" not found`)
+    if (dir === root) throw new Error(`Local package "${name}" not found`)
     dir = path.dirname(dir)
   }
 }

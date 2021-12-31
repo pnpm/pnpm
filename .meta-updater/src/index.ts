@@ -131,9 +131,6 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
     scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
-    if (manifest.name === '@pnpm/headless') {
-      scripts._test = `ts-node test/pretest && ${scripts._test}`
-    }
     break
   }
   default:

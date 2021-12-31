@@ -2,9 +2,10 @@ import path from 'path'
 import { install, link, prune } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { copyFixture } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const f = fixtures(__dirname)
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -33,7 +34,7 @@ const DEFAULT_OPTIONS = {
 test('prune removes external link that is not in package.json', async () => {
   const project = prepare(undefined)
   const storeDir = path.resolve('store')
-  await copyFixture('local-pkg', 'local')
+  f.copy('local-pkg', 'local')
 
   await link.handler({
     ...DEFAULT_OPTIONS,

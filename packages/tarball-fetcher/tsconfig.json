@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
       "path": "../core-loggers"
     },
     {

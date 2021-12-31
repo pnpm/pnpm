@@ -6,19 +6,21 @@ import _createResolveFromNpm, {
   RegistryResponseError,
   NoMatchingVersionError,
 } from '@pnpm/npm-resolver'
+import fixtures from '@pnpm/test-fixtures'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import exists from 'path-exists'
 import tempy from 'tempy'
 
+const f = fixtures(__dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const isPositiveMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive.json'))
-const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
-const isPositiveMetaFull = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-full.json'))
-const isPositiveBrokenMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-broken.json'))
-const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
-const jsonMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'JSON.json'))
-const brokenIntegrity = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'broken-integrity.json'))
+const isPositiveMeta = loadJsonFile.sync<any>(f.find('is-positive.json'))
+const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(f.find('is-positive-with-deprecated.json'))
+const isPositiveMetaFull = loadJsonFile.sync<any>(f.find('is-positive-full.json'))
+const isPositiveBrokenMeta = loadJsonFile.sync<any>(f.find('is-positive-broken.json'))
+const sindresorhusIsMeta = loadJsonFile.sync<any>(f.find('sindresorhus-is.json'))
+const jsonMeta = loadJsonFile.sync<any>(f.find('JSON.json'))
+const brokenIntegrity = loadJsonFile.sync<any>(f.find('broken-integrity.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registry = 'https://registry.npmjs.org/'
@@ -1616,7 +1618,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
 test('request to a package with malformed metadata', async () => {
   nock(registry)
     .get('/code-snippet')
-    .reply(200, loadJsonFile.sync(path.join(__dirname, 'meta/malformed.json')))
+    .reply(200, loadJsonFile.sync(f.find('malformed.json')))
 
   const cacheDir = tempy.directory()
   const resolve = createResolveFromNpm({ cacheDir })

@@ -10,7 +10,7 @@ import {
   StatsLog,
 } from '@pnpm/core-loggers'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
@@ -34,6 +34,7 @@ import {
   testDefaults,
 } from '../utils'
 
+const f = fixtures(__dirname)
 const IS_WINDOWS = isWindows()
 
 const testOnNonWindows = IS_WINDOWS ? test.skip : test
@@ -811,7 +812,7 @@ test('install a dependency with * range', async () => {
 test('should throw error when trying to install a package without name', async () => {
   prepareEmpty()
   await expect(
-    addDependenciesToPackage({}, [`file:${pathToLocalPkg('missing-pkg-name.tgz')}`], await testDefaults())
+    addDependenciesToPackage({}, [`file:${f.find('missing-pkg-name.tgz')}`], await testDefaults())
   ).rejects.toThrow(/^Can't install .*: Missing package name$/)
 })
 

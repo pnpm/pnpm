@@ -1,4 +1,3 @@
-import { promisify } from 'util'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -9,7 +8,7 @@ import {
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import { PackageManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import {
@@ -21,10 +20,9 @@ import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import existsSymlink from 'exists-link'
-import ncpCB from 'ncp'
 import { testDefaults } from './utils'
 
-const ncp = promisify(ncpCB.ncp)
+const f = fixtures(__dirname)
 
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()
@@ -207,7 +205,7 @@ test('relative link is uninstalled', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  f.copy(linkedPkgName, linkedPkgPath)
   const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { dir: string, manifest: PackageManifest }))
   await mutateModules([
     {

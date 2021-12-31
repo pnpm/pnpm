@@ -4,7 +4,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -18,6 +18,8 @@ import exists from 'path-exists'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
 import { testDefaults } from '../utils'
+
+const f = fixtures(__dirname)
 
 test("don't fail when peer dependency is fetched from GitHub", async () => {
   prepareEmpty()
@@ -1139,7 +1141,7 @@ test('local tarball dependency with peer dependency', async () => {
   const reporter = sinon.spy()
 
   const manifest = await addDependenciesToPackage({}, [
-    `file:${pathToLocalPkg('tar-pkg-with-peers/tar-pkg-with-peers-1.0.0.tgz')}`,
+    `file:${f.find('tar-pkg-with-peers/tar-pkg-with-peers-1.0.0.tgz')}`,
     'bar@100.0.0',
     'foo@100.0.0',
   ], await testDefaults({ reporter }))

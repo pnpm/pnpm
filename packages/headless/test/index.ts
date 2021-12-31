@@ -16,7 +16,7 @@ import { tempDir } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { copyFixture } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
@@ -25,11 +25,11 @@ import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import testDefaults from './utils/testDefaults'
 
-const fixtures = path.join(__dirname, 'fixtures')
+const f = fixtures(__dirname)
 const skipOnWindows = isWindows() ? test.skip : test
 
 test('installing a simple project', async () => {
-  const prefix = path.join(fixtures, 'simple')
+  const prefix = f.prepare('simple')
   const reporter = sinon.spy()
 
   await headless(await testDefaults({
@@ -82,8 +82,7 @@ test('installing a simple project', async () => {
 })
 
 test('installing only prod deps', async () => {
-  const prefix = path.join(fixtures, 'simple')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('simple')
 
   await headless(await testDefaults({
     include: {
@@ -104,8 +103,7 @@ test('installing only prod deps', async () => {
 })
 
 test('installing only dev deps', async () => {
-  const prefix = path.join(fixtures, 'simple')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('simple')
 
   await headless(await testDefaults({
     include: {
@@ -124,8 +122,7 @@ test('installing only dev deps', async () => {
 })
 
 test('installing with package manifest ignored', async () => {
-  const prefix = path.join(fixtures, 'ignore-package-manifest')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('ignore-package-manifest')
   const opt = await testDefaults({
     projects: [],
     include: {
@@ -149,8 +146,7 @@ test('installing with package manifest ignored', async () => {
 })
 
 test('installing only prod package with package manifest ignored', async () => {
-  const prefix = path.join(fixtures, 'ignore-package-manifest')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('ignore-package-manifest')
   const opt = await testDefaults({
     projects: [],
     include: {
@@ -174,8 +170,7 @@ test('installing only prod package with package manifest ignored', async () => {
 })
 
 test('installing only dev package with package manifest ignored', async () => {
-  const prefix = path.join(fixtures, 'ignore-package-manifest')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('ignore-package-manifest')
   const opt = await testDefaults({
     projects: [],
     include: {
@@ -199,7 +194,7 @@ test('installing only dev package with package manifest ignored', async () => {
 })
 
 test('installing non-prod deps then all deps', async () => {
-  const prefix = path.join(fixtures, 'prod-dep-is-dev-subdep')
+  const prefix = f.prepare('prod-dep-is-dev-subdep')
 
   await headless(await testDefaults({
     include: {
@@ -267,8 +262,7 @@ test('installing non-prod deps then all deps', async () => {
 })
 
 test('installing only optional deps', async () => {
-  const prefix = path.join(fixtures, 'simple')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('simple')
 
   await headless(await testDefaults({
     development: false,
@@ -291,8 +285,7 @@ test('installing only optional deps', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1958
 test('not installing optional deps', async () => {
-  const prefix = path.join(fixtures, 'simple-with-optional-dep')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('simple-with-optional-dep')
 
   await headless(await testDefaults({
     include: {
@@ -309,7 +302,7 @@ test('not installing optional deps', async () => {
 })
 
 test('skipping optional dependency if it cannot be fetched', async () => {
-  const prefix = path.join(fixtures, 'has-nonexistent-optional-dep')
+  const prefix = f.prepare('has-nonexistent-optional-dep')
   const reporter = sinon.spy()
 
   await headless(await testDefaults({
@@ -331,9 +324,7 @@ test('skipping optional dependency if it cannot be fetched', async () => {
 })
 
 test('run pre/postinstall scripts', async () => {
-  const prefix = path.join(fixtures, 'deps-have-lifecycle-scripts')
-  const outputJsonPath = path.join(prefix, 'output.json')
-  await rimraf(outputJsonPath)
+  let prefix = f.prepare('deps-have-lifecycle-scripts')
 
   await headless(await testDefaults({ lockfileDir: prefix }))
 
@@ -344,14 +335,13 @@ test('run pre/postinstall scripts', async () => {
   const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
   expect(typeof generatedByPostinstall).toBe('function')
 
-  expect(require(outputJsonPath)).toStrictEqual(['install', 'postinstall']) // eslint-disable-line
+  expect(require(path.join(prefix, 'output.json'))).toStrictEqual(['install', 'postinstall']) // eslint-disable-line
 
-  await rimraf(outputJsonPath)
-  await rimraf(path.join(prefix, 'node_modules'))
+  prefix = f.prepare('deps-have-lifecycle-scripts')
 
   await headless(await testDefaults({ lockfileDir: prefix, ignoreScripts: true }))
 
-  expect(await exists(outputJsonPath)).toBeFalsy()
+  expect(await exists(path.join(prefix, 'output.json'))).toBeFalsy()
 
   const nmPath = path.join(prefix, 'node_modules')
   const modulesYaml = await readModulesYaml(nmPath)
@@ -360,22 +350,21 @@ test('run pre/postinstall scripts', async () => {
 })
 
 test('orphan packages are removed', async () => {
-  const projectDir = tempDir()
-
-  const destPackageJsonPath = path.join(projectDir, 'package.json')
-  const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
-
-  const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
-  const simpleDir = path.join(fixtures, 'simple')
-  await fs.copyFile(path.join(simpleWithMoreDepsDir, 'package.json'), destPackageJsonPath)
-  await fs.copyFile(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  const projectDir = f.prepare('simple-with-more-deps')
 
   await headless(await testDefaults({
     lockfileDir: projectDir,
   }))
 
-  await fs.copyFile(path.join(simpleDir, 'package.json'), destPackageJsonPath)
-  await fs.copyFile(path.join(simpleDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  const simpleDir = f.find('simple')
+  await fs.copyFile(
+    path.join(simpleDir, 'package.json'),
+    path.join(projectDir, 'package.json')
+  )
+  await fs.copyFile(
+    path.join(simpleDir, WANTED_LOCKFILE),
+    path.join(projectDir, WANTED_LOCKFILE)
+  )
 
   const reporter = sinon.spy()
   await headless(await testDefaults({
@@ -403,13 +392,13 @@ test('available packages are used when node_modules is not clean', async () => {
   const destPackageJsonPath = path.join(projectDir, 'package.json')
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
-  const hasGlobDir = path.join(fixtures, 'has-glob')
-  const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
+  const hasGlobDir = f.find('has-glob')
   await fs.copyFile(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   await fs.copyFile(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({ lockfileDir: projectDir }))
 
+  const hasGlobAndRimrafDir = f.find('has-glob-and-rimraf')
   await fs.copyFile(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   await fs.copyFile(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
@@ -440,13 +429,13 @@ test('available packages are relinked during forced install', async () => {
   const destPackageJsonPath = path.join(projectDir, 'package.json')
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
-  const hasGlobDir = path.join(fixtures, 'has-glob')
-  const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
+  const hasGlobDir = f.find('has-glob')
   await fs.copyFile(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   await fs.copyFile(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({ lockfileDir: projectDir }))
 
+  const hasGlobAndRimrafDir = f.find('has-glob-and-rimraf')
   await fs.copyFile(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   await fs.copyFile(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
@@ -474,10 +463,10 @@ test('available packages are relinked during forced install', async () => {
 test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async () => {
   const projectDir = tempDir()
 
-  const simpleDir = path.join(fixtures, 'simple')
+  const simpleDir = f.find('simple')
   await fs.copyFile(path.join(simpleDir, 'package.json'), path.join(projectDir, 'package.json'))
 
-  const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
+  const simpleWithMoreDepsDir = f.find('simple-with-more-deps')
   await fs.copyFile(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), path.join(projectDir, WANTED_LOCKFILE))
 
   try {
@@ -489,7 +478,8 @@ test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async (
 })
 
 test('installing local dependency', async () => {
-  const prefix = path.join(fixtures, 'has-local-dep')
+  let prefix = f.prepare('has-local-dep')
+  prefix = path.join(prefix, 'pkg')
   const reporter = sinon.spy()
 
   await headless(await testDefaults({ lockfileDir: prefix, reporter }))
@@ -499,7 +489,7 @@ test('installing local dependency', async () => {
 })
 
 test('installing local directory dependency', async () => {
-  const prefix = path.join(fixtures, 'has-local-dir-dep')
+  const prefix = f.prepare('has-local-dir-dep')
   const reporter = sinon.spy()
 
   await headless(await testDefaults({ lockfileDir: prefix, reporter }))
@@ -511,7 +501,7 @@ test('installing local directory dependency', async () => {
 test('installing using passed in lockfile files', async () => {
   const prefix = tempDir()
 
-  const simplePkgPath = path.join(fixtures, 'simple')
+  const simplePkgPath = f.find('simple')
   await fs.copyFile(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
   await fs.copyFile(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
 
@@ -531,7 +521,7 @@ test('installing using passed in lockfile files', async () => {
 })
 
 test('installation of a dependency that has a resolved peer in subdeps', async () => {
-  const prefix = path.join(fixtures, 'resolved-peer-deps-in-subdeps')
+  const prefix = f.prepare('resolved-peer-deps-in-subdeps')
 
   await headless(await testDefaults({ lockfileDir: prefix }))
 
@@ -540,7 +530,7 @@ test('installation of a dependency that has a resolved peer in subdeps', async (
 })
 
 test('installing with hoistPattern=*', async () => {
-  const prefix = path.join(fixtures, 'simple-shamefully-flatten')
+  const prefix = f.prepare('simple-shamefully-flatten')
   const reporter = jest.fn()
 
   await headless(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*' }))
@@ -599,8 +589,7 @@ test('installing with hoistPattern=*', async () => {
 })
 
 test('installing with publicHoistPattern=*', async () => {
-  const prefix = path.join(fixtures, 'simple-shamefully-flatten')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const prefix = f.prepare('simple-shamefully-flatten')
   const reporter = sinon.spy()
 
   await headless(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: '*' }))
@@ -656,8 +645,7 @@ test('installing with publicHoistPattern=*', async () => {
 })
 
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
-  const lockfileDir = tempDir()
-  await copyFixture('pkg-with-external-lockfile', lockfileDir)
+  const lockfileDir = f.prepare('pkg-with-external-lockfile')
   const prefix = path.join(lockfileDir, 'pkg')
 
   let { projects } = await readprojectsContext(
@@ -686,7 +674,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
 skipOnWindows('using side effects cache', async () => {
-  const prefix = path.join(fixtures, 'side-effects')
+  let prefix = f.prepare('side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
@@ -707,7 +695,7 @@ skipOnWindows('using side effects cache', async () => {
   expect(cacheIntegrity).toHaveProperty(['sideEffects', ENGINE_NAME, 'build/binding.Makefile'])
   await writeJsonFile(cacheIntegrityPath, cacheIntegrity)
 
-  await rimraf(path.join(prefix, 'node_modules'))
+  prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({
     lockfileDir: prefix,
     sideEffectsCacheRead: true,
@@ -722,7 +710,7 @@ skipOnWindows('using side effects cache', async () => {
 })
 
 test.skip('using side effects cache and hoistPattern=*', async () => {
-  const lockfileDir = path.join(fixtures, 'side-effects-of-subdep')
+  const lockfileDir = f.prepare('side-effects-of-subdep')
 
   const { projects } = await readprojectsContext(
     [
@@ -762,7 +750,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
 })
 
 test('installing in a workspace', async () => {
-  const workspaceFixture = path.join(__dirname, 'workspace-fixture')
+  const workspaceFixture = f.prepare('workspace')
 
   let { projects } = await readprojectsContext(
     [
@@ -803,9 +791,7 @@ test('installing in a workspace', async () => {
 })
 
 test('installing with no symlinks but with PnP', async () => {
-  const prefix = path.join(fixtures, 'simple')
-  await rimraf(path.join(prefix, 'node_modules'))
-  await rimraf(path.join(prefix, '.pnp.cjs'))
+  const prefix = f.prepare('simple')
 
   await headless(await testDefaults({
     enablePnp: true,
@@ -823,9 +809,7 @@ test('installing with no symlinks but with PnP', async () => {
 })
 
 test('installing with no modules directory', async () => {
-  const prefix = path.join(fixtures, 'simple')
-  await rimraf(path.join(prefix, 'node_modules'))
-  await rimraf(path.join(prefix, '.pnp.cjs'))
+  const prefix = f.prepare('simple')
 
   await headless(await testDefaults({
     enableModulesDir: false,

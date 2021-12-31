@@ -58,6 +58,7 @@
   "devDependencies": {
     "@pnpm/fetch": "workspace:4.2.3",
     "@pnpm/logger": "^4.0.0",
+    "@pnpm/test-fixtures": "workspace:*",
     "@types/lru-cache": "^5.1.0",
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "^7.3.4",

@@ -1,18 +1,13 @@
 /// <reference path="../../../typings/index.d.ts" />
-import { promisify } from 'util'
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { importCommand } from '@pnpm/plugin-commands-installation'
-import { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { readProjects } from '@pnpm/filter-workspace-packages'
+import fixtures from '@pnpm/test-fixtures'
 import tempy from 'tempy'
-import ncpCB from 'ncp'
 
-const ncp = promisify(ncpCB)
-
-const fixtures = path.join(__dirname, '../../../fixtures')
-
+const f = fixtures(__dirname)
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 const TMP = tempy.directory()
 
@@ -45,9 +40,7 @@ const DEFAULT_OPTS = {
 }
 
 test('import from shared yarn.lock of monorepo', async () => {
-  tempDir()
-
-  await ncp(path.join(fixtures, 'workspace-has-shared-yarn-lock'), process.cwd())
+  f.prepare('workspace-has-shared-yarn-lock')
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -69,9 +62,7 @@ test('import from shared yarn.lock of monorepo', async () => {
 })
 
 test('import from shared package-lock.json of monorepo', async () => {
-  tempDir()
-
-  await ncp(path.join(fixtures, 'workspace-has-shared-package-lock-json'), process.cwd())
+  f.prepare('workspace-has-shared-package-lock-json')
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -93,9 +84,7 @@ test('import from shared package-lock.json of monorepo', async () => {
 })
 
 test('import from shared npm-shrinkwrap.json of monorepo', async () => {
-  tempDir()
-
-  await ncp(path.join(fixtures, 'workspace-has-shared-npm-shrinkwrap-json'), process.cwd())
+  f.prepare('workspace-has-shared-npm-shrinkwrap-json')
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,

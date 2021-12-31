@@ -4,10 +4,12 @@ import readYamlFile from 'read-yaml-file'
 import { install, link } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import assertProject, { isExecutable } from '@pnpm/assert-project'
-import { copyFixture } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import PATH from 'path-name'
 import writePkg from 'write-pkg'
 import { DEFAULT_OPTS } from './utils'
+
+const f = fixtures(__dirname)
 
 test('linking multiple packages', async () => {
   const project = prepare()
@@ -80,7 +82,7 @@ test('relative link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  await copyFixture(linkedPkgName, linkedPkgPath)
+  f.copy(linkedPkgName, linkedPkgPath)
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -111,7 +113,7 @@ test('absolute link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  await copyFixture(linkedPkgName, linkedPkgPath)
+  f.copy(linkedPkgName, linkedPkgPath)
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),

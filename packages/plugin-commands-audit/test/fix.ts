@@ -1,13 +1,13 @@
 import path from 'path'
-import { copyFixture } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
 import loadJsonFile from 'load-json-file'
-import tempy from 'tempy'
+
+const f = fixtures(__dirname)
 
 test('overrides are added for vulnerable dependencies', async () => {
-  const tmp = tempy.directory()
-  await copyFixture('has-vulnerabilities', tmp, __dirname)
+  const tmp = f.prepare('has-vulnerabilities')
 
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
@@ -27,8 +27,7 @@ test('overrides are added for vulnerable dependencies', async () => {
 })
 
 test('no overrides are added if no vulnerabilities are found', async () => {
-  const tmp = tempy.directory()
-  await copyFixture('fixture', tmp, __dirname)
+  const tmp = f.prepare('fixture')
 
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',

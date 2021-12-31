@@ -1,14 +1,13 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import { promisify } from 'util'
 import { promises as fs } from 'fs'
 import path from 'path'
 import logger, { globalWarn } from '@pnpm/logger'
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
+import fixtures from '@pnpm/test-fixtures'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
-import ncpcb from 'ncp'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import tempy from 'tempy'
@@ -25,23 +24,13 @@ jest.mock('@pnpm/logger', () => {
 })
 
 const binsConflictLogger = logger('bins-conflict')
-const ncp = promisify(ncpcb)
+// The fixture directories are copied to before the tests run
+// This happens because the tests convert some of the files into executables
+const f = fixtures(__dirname)
 
 beforeEach(() => {
   binsConflictLogger.debug['mockClear']()
 })
-
-// The fixtures directory is copied to fixtures_for_testing before the tests run
-// This happens because the tests conver some of the files into executables
-const fixtures = path.join(__dirname, 'fixtures_for_testing')
-const simpleFixture = path.join(fixtures, 'simple-fixture')
-const binNameConflictsFixture = path.join(fixtures, 'bin-name-conflicts')
-const foobarFixture = path.join(fixtures, 'foobar')
-const exoticManifestFixture = path.join(fixtures, 'exotic-manifest')
-const noNameFixture = path.join(fixtures, 'no-name')
-const noBinFixture = path.join(fixtures, 'no-bin')
-const windowShebangFixture = path.join(fixtures, 'bin-window-shebang')
-const binNotExistFixture = path.join(fixtures, 'bin-not-exist')
 
 const POWER_SHELL_IS_SUPPORTED = isWindows()
 const IS_WINDOWS = isWindows()
@@ -61,6 +50,7 @@ function getExpectedBins (bins: string[]) {
 test('linkBins()', async () => {
   const binTarget = tempy.directory()
   const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
@@ -81,9 +71,10 @@ test('linkBins()', async () => {
 
 test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => {
   const binTarget = tempy.directory()
+  const fixture = f.prepare('pnpm-cli')
   const warn = jest.fn()
 
-  await linkBins(path.join(fixtures, 'pnpm-cli/node_modules'), binTarget, { warn })
+  await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })
 
   const bins = await fs.readdir(binTarget)
   expect(bins).toContain('pnpm')
@@ -92,6 +83,7 @@ test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => 
 
 test('linkBins() finds exotic manifests', async () => {
   const binTarget = tempy.directory()
+  const exoticManifestFixture = f.prepare('exotic-manifest')
   const warn = jest.fn()
 
   await linkBins(path.join(exoticManifestFixture, 'node_modules'), binTarget, {
@@ -118,7 +110,7 @@ test('linkBins() do not fail on directory w/o manifest file', async () => {
   const binTarget = tempy.directory()
   const warn = jest.fn()
 
-  await linkBins(path.join(fixtures, 'dir-with-no-manifest/node_modules'), binTarget, {
+  await linkBins(f.find('dir-with-no-manifest/node_modules'), binTarget, {
     allowExoticManifests: false,
     warn,
   })
@@ -130,7 +122,7 @@ test('linkBins() with exotic manifests do not fail on directory w/o manifest fil
   const binTarget = tempy.directory()
   const warn = jest.fn()
 
-  await linkBins(path.join(fixtures, 'dir-with-no-manifest/node_modules'), binTarget, {
+  await linkBins(f.find('dir-with-no-manifest/node_modules'), binTarget, {
     allowExoticManifests: true,
     warn,
   })
@@ -139,8 +131,7 @@ test('linkBins() with exotic manifests do not fail on directory w/o manifest fil
 })
 
 test('linkBins() does not link own bins', async () => {
-  const target = tempy.directory()
-  await ncp(foobarFixture, target)
+  const target = f.prepare('foobar')
 
   const warn = jest.fn()
   const modules = path.join(target, 'node_modules')
@@ -154,6 +145,7 @@ test('linkBins() does not link own bins', async () => {
 
 test('linkBinsOfPackages()', async () => {
   const binTarget = tempy.directory()
+  const simpleFixture = f.prepare('simple-fixture')
   const warn = jest.fn()
 
   await linkBinsOfPackages(
@@ -177,6 +169,7 @@ test('linkBinsOfPackages()', async () => {
 
 test('linkBins() resolves conflicts. Prefer packages that use their name as bin name', async () => {
   const binTarget = tempy.directory()
+  const binNameConflictsFixture = f.prepare('bin-name-conflicts')
   const warn = jest.fn()
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
@@ -206,6 +199,7 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
 
 test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their name as bin name', async () => {
   const binTarget = tempy.directory()
+  const binNameConflictsFixture = f.prepare('bin-name-conflicts')
   const warn = jest.fn()
 
   const modulesPath = path.join(binNameConflictsFixture, 'node_modules')
@@ -250,6 +244,7 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
 
 test('linkBins() resolves conflicts. Prefer packages are direct dependencies', async () => {
   const binTarget = tempy.directory()
+  const binNameConflictsFixture = f.prepare('bin-name-conflicts')
   const warn = jest.fn()
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, {
@@ -281,6 +276,7 @@ test('linkBins() resolves conflicts. Prefer packages are direct dependencies', a
 
 test('linkBins() would throw error if package has no name field', async () => {
   const binTarget = tempy.directory()
+  const noNameFixture = f.prepare('no-name')
   const warn = jest.fn()
 
   try {
@@ -299,6 +295,7 @@ test('linkBins() would throw error if package has no name field', async () => {
 
 test('linkBins() would give warning if package has no bin field', async () => {
   const binTarget = tempy.directory()
+  const noBinFixture = f.prepare('no-bin')
   const warn = jest.fn()
 
   await linkBins(path.join(noBinFixture, 'packages'), binTarget, {
@@ -312,6 +309,7 @@ test('linkBins() would give warning if package has no bin field', async () => {
 
 test('linkBins() would not give warning if package has no bin field but inside node_modules', async () => {
   const binTarget = tempy.directory()
+  const noBinFixture = f.prepare('no-bin')
   const warn = jest.fn()
 
   await linkBins(path.join(noBinFixture, 'node_modules'), binTarget, {
@@ -325,13 +323,14 @@ test('linkBins() would not give warning if package has no bin field but inside n
 test('linkBins() links commands from bin directory with a subdirectory', async () => {
   const binTarget = tempy.directory()
 
-  await linkBins(path.join(fixtures, 'bin-dir'), binTarget, { warn: () => {} })
+  await linkBins(f.find('bin-dir'), binTarget, { warn: () => {} })
 
   expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['index.js']))
 })
 
 test('linkBins() fix window shebang line', async () => {
   const binTarget = tempy.directory()
+  const windowShebangFixture = f.prepare('bin-window-shebang')
   const warn = jest.fn()
 
   await linkBins(path.join(windowShebangFixture, 'node_modules'), binTarget, { warn })
@@ -365,6 +364,7 @@ test('linkBins() fix window shebang line', async () => {
 
 test("linkBins() emits global warning when bin points to path that doesn't exist", async () => {
   const binTarget = tempy.directory()
+  const binNotExistFixture = f.prepare('bin-not-exist')
 
   await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, {
     allowExoticManifests: true,

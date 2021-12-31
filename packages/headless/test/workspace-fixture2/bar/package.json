@@ -1,9 +1,0 @@
-{
-  "name": "bar",
-  "version": "1.0.0",
-  "dependencies": {
-    "foo": "1.0.0",
-    "is-positive": "1.0.0",
-    "express": "4.16.4"
-  }
-}
