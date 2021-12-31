@@ -1,3 +1,4 @@
 packages:
   - "**"
   - "!workspace/**"
+  - "!workspace2/**"

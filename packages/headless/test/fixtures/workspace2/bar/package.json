@@ -1,0 +1,9 @@
+{
+  "name": "bar",
+  "version": "1.0.0",
+  "dependencies": {
+    "express": "2",
+    "foo": "workspace:*",
+    "webpack": "5.65.0"
+  }
+}
