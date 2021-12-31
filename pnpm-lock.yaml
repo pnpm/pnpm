@@ -1207,9 +1207,9 @@ importers:
       '@pnpm/read-modules-dir': workspace:3.0.1
       '@pnpm/read-package-json': workspace:5.0.9
       '@pnpm/read-project-manifest': workspace:2.0.10
+      '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.8.0
       '@types/is-windows': ^1.0.0
-      '@types/ncp': ^2.0.4
       '@types/node': ^14.17.32
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
@@ -1218,7 +1218,6 @@ importers:
       cmd-extension: ^1.0.2
       is-subdir: ^1.1.1
       is-windows: ^1.0.2
-      ncp: ^2.0.0
       normalize-path: ^3.0.0
       p-settle: ^4.1.1
       path-exists: ^4.0.0
@@ -1242,13 +1241,12 @@ importers:
     devDependencies:
       '@pnpm/link-bins': 'link:'
       '@pnpm/logger': 4.0.0
+      '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/is-windows': 1.0.0
-      '@types/ncp': 2.0.5
       '@types/node': 14.18.2
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
       cmd-extension: 1.0.2
-      ncp: 2.0.0
       path-exists: 4.0.0
       tempy: 1.0.1
 
