@@ -4,7 +4,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { copyFixture } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import execa from 'execa'
 import exists from 'path-exists'
 import sinon from 'sinon'
@@ -12,6 +12,7 @@ import { DEFAULT_OPTS } from './utils'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
+const f = fixtures(__dirname)
 
 test('rebuilds dependencies', async () => {
   const project = prepareEmpty()
@@ -73,7 +74,7 @@ test('rebuild does not fail when a linked package is present', async () => {
   prepareEmpty()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
-  await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
+  f.copy('local-pkg', path.resolve('..', 'local-pkg'))
 
   await execa('node', [
     pnpmBin,

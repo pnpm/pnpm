@@ -1,5 +1,4 @@
 /// <reference path="../../../typings/index.d.ts" />
-import { promisify } from 'util'
 import { promises as fs, statSync } from 'fs'
 import path from 'path'
 import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
@@ -8,18 +7,18 @@ import { streamParser } from '@pnpm/logger'
 import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import fixtures from '@pnpm/test-fixtures'
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import { depPathToFilename } from 'dependency-path'
 import loadJsonFile from 'load-json-file'
-import ncpCB from 'ncp'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import tempy from 'tempy'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
-const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
-const ncp = promisify(ncpCB as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+const f = fixtures(__dirname)
+const IS_POSTIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
 
 const authConfig = { registry }
 
@@ -176,7 +175,7 @@ test('refetch local tarball if its integrity has changed', async () => {
   const projectDir = tempy.directory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
   const tarballRelativePath = path.relative(projectDir, tarballPath)
-  await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
+  f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballRelativePath}`
   const wantedPackage = { pref: tarball }
   const storeDir = tempy.directory()
@@ -224,7 +223,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     expect(await response.bundledManifest!()).toBeTruthy()
   }
 
-  await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
+  f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
   await delay(50)
 
   {
@@ -292,7 +291,7 @@ test('refetch local tarball if its integrity has changed', async () => {
 test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async () => {
   const projectDir = tempy.directory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
-  await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
+  f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballPath}`
   const wantedPackage = { pref: tarball }
   const storeDir = path.join(__dirname, '..', '.store')
@@ -327,7 +326,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     expect(await response.bundledManifest!()).toBeTruthy()
   }
 
-  await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
+  f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
   await delay(50)
 
   {

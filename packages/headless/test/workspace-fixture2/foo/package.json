@@ -1,7 +1,0 @@
-{
-  "name": "foo",
-  "version": "1.0.0",
-  "dependencies": {
-    "is-negative": "1.0.0"
-  }
-}

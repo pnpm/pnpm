@@ -1,17 +1,14 @@
 /// <reference path="../../../typings/index.d.ts" />
-import { promisify } from 'util'
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import PnpmError from '@pnpm/error'
 import { importCommand } from '@pnpm/plugin-commands-installation'
-import prepare, { tempDir } from '@pnpm/prepare'
+import prepare from '@pnpm/prepare'
+import fixtures from '@pnpm/test-fixtures'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import tempy from 'tempy'
-import ncpCB from 'ncp'
 
-const ncp = promisify(ncpCB)
-
-const fixtures = path.join(__dirname, '../../../fixtures')
+const f = fixtures(__dirname)
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 const TMP = tempy.directory()
@@ -46,9 +43,7 @@ const DEFAULT_OPTS = {
 
 test('import from package-lock.json', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  tempDir()
-
-  await ncp(path.join(fixtures, 'has-package-lock-json'), process.cwd())
+  f.prepare('has-package-lock-json')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -67,9 +62,8 @@ test('import from package-lock.json', async () => {
 
 test('import from yarn.lock', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  tempDir()
 
-  await ncp(path.join(fixtures, 'has-yarn-lock'), process.cwd())
+  f.prepare('has-yarn-lock')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -87,9 +81,7 @@ test('import from yarn.lock', async () => {
 })
 
 test('import from yarn2 lock file', async () => {
-  tempDir()
-
-  await ncp(path.join(fixtures, 'has-yarn2-lock'), process.cwd())
+  f.prepare('has-yarn2-lock')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -109,9 +101,8 @@ test('import from yarn2 lock file', async () => {
 
 test('import from npm-shrinkwrap.json', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  tempDir()
 
-  await ncp(path.join(fixtures, 'has-npm-shrinkwrap-json'), process.cwd())
+  f.prepare('has-npm-shrinkwrap-json')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,

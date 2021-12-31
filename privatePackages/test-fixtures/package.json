@@ -16,9 +16,6 @@
   "files": [
     "lib/"
   ],
-  "devDependencies": {
-    "@types/ncp": "^2.0.4"
-  },
   "directories": {
     "test": "test"
   },
@@ -35,6 +32,7 @@
     "test": "pnpm run tsc"
   },
   "dependencies": {
-    "ncp": "^2.0.0"
+    "@pnpm/prepare": "workspace:0.0.31",
+    "fs-extra": "^10.0.0"
   }
 }

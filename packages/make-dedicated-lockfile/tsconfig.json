@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../privatePackages/prepare"
+      "path": "../../privatePackages/test-fixtures"
     },
     {
       "path": "../error"

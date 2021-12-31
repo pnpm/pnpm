@@ -2,11 +2,13 @@ import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
-import { copyFixture } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, mutateModules } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
+
+const f = fixtures(__dirname)
 
 test.skip('subsequent installation uses same lockfile directory by default', async () => {
   prepareEmpty()
@@ -40,7 +42,7 @@ test.skip('subsequent installation fails if a different lockfile directory is sp
 test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async () => {
   const project = prepareEmpty()
 
-  await copyFixture('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', 'pkg.tgz')
+  f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', 'pkg.tgz')
 
   const lockfileDir = path.resolve('..')
   const [{ manifest }] = await mutateModules(

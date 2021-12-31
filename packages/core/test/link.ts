@@ -1,4 +1,3 @@
-import { promisify } from 'util'
 import { promises as fs } from 'fs'
 import path from 'path'
 import {
@@ -8,18 +7,17 @@ import {
   linkFromGlobal,
   linkToGlobal,
 } from '@pnpm/core'
-import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import fixtures from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'
 import { RootLog } from '@pnpm/core-loggers'
 import { isExecutable } from '@pnpm/assert-project'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
-import ncpCB from 'ncp'
 import symlink from 'symlink-dir'
 import { testDefaults } from './utils'
 
-const ncp = promisify(ncpCB.ncp)
+const f = fixtures(__dirname)
 
 test('relative link', async () => {
   const project = prepareEmpty()
@@ -27,7 +25,7 @@ test('relative link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  f.copy(linkedPkgName, linkedPkgPath)
   await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults({
     dir: process.cwd(),
     manifest: {
@@ -54,7 +52,7 @@ test('relative link is linked by the name of the alias', async () => {
 
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  f.copy(linkedPkgName, linkedPkgPath)
   await install({
     dependencies: {
       hello: `link:../${linkedPkgName}`,
@@ -80,7 +78,7 @@ test('relative link is not rewritten by argumentless install', async () => {
   const reporter = sinon.spy()
   const opts = await testDefaults()
 
-  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  f.copy(linkedPkgName, linkedPkgPath)
   const manifest = await link(
     [linkedPkgPath],
     path.join(process.cwd(), 'node_modules'),
@@ -118,7 +116,7 @@ test('relative link is rewritten by named installation to regular dependency', a
   const reporter = sinon.spy()
   const opts = await testDefaults({ fastUnpack: false })
 
-  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  f.copy(linkedPkgName, linkedPkgPath)
   let manifest = await link(
     [linkedPkgPath],
     path.join(process.cwd(), 'node_modules'),
@@ -163,7 +161,7 @@ test('global link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  f.copy(linkedPkgName, linkedPkgPath)
 
   const opts = await testDefaults()
 
@@ -217,7 +215,7 @@ test('relative link uses realpath when contained in a symlinked dir', async () =
 
   // `process.cwd()` is now `.tmp/X/project`.
 
-  await ncp(pathToLocalPkg('symlink-workspace'), path.resolve('../symlink-workspace'))
+  f.copy('symlink-workspace', path.resolve('../symlink-workspace'))
 
   const app1RelPath = '../symlink-workspace/app1'
   const app2RelPath = '../symlink-workspace/app2'

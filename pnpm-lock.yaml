@@ -1466,13 +1466,11 @@ importers:
       '@pnpm/lockfile-file': workspace:4.2.5
       '@pnpm/logger': ^4.0.0
       '@pnpm/make-dedicated-lockfile': 'link:'
-      '@pnpm/prepare': workspace:0.0.31
       '@pnpm/prune-lockfile': workspace:3.0.13
       '@pnpm/read-project-manifest': workspace:2.0.10
+      '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.8.0
-      '@types/ncp': ^2.0.4
       '@types/ramda': 0.27.39
-      ncp: ^2.0.0
       ramda: ^0.27.1
       rename-overwrite: ^4.0.0
     dependencies:
@@ -1489,10 +1487,8 @@ importers:
       rename-overwrite: 4.0.0
     devDependencies:
       '@pnpm/make-dedicated-lockfile': 'link:'
-      '@pnpm/prepare': link:../../privatePackages/prepare
-      '@types/ncp': 2.0.5
+      '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/ramda': 0.27.39
-      ncp: 2.0.0
 
   packages/manifest-utils:
     specifiers:
@@ -1810,15 +1806,14 @@ importers:
       '@pnpm/read-package-json': workspace:5.0.9
       '@pnpm/resolver-base': workspace:8.1.4
       '@pnpm/store-controller-types': workspace:11.0.10
+      '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.8.0
-      '@types/ncp': ^2.0.4
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
       '@types/ssri': ^7.1.0
       delay: ^5.0.0
       dependency-path: workspace:8.0.9
       load-json-file: ^6.2.0
-      ncp: ^2.0.0
       nock: 12.0.3
       normalize-path: ^3.0.0
       p-defer: ^3.0.0
@@ -1858,12 +1853,11 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/package-requester': 'link:'
       '@pnpm/package-store': link:../package-store
-      '@types/ncp': 2.0.5
+      '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
       '@types/ssri': 7.1.1
       delay: 5.0.0
-      ncp: 2.0.0
       nock: 12.0.3
       normalize-path: 3.0.0
       tempy: 1.0.1
@@ -3431,14 +3425,14 @@ importers:
 
   privatePackages/test-fixtures:
     specifiers:
+      '@pnpm/prepare': workspace:0.0.31
       '@pnpm/test-fixtures': 'link:'
-      '@types/ncp': ^2.0.4
-      ncp: ^2.0.0
+      fs-extra: ^10.0.0
     dependencies:
-      ncp: 2.0.0
+      '@pnpm/prepare': link:../prepare
+      fs-extra: 10.0.0
     devDependencies:
       '@pnpm/test-fixtures': 'link:'
-      '@types/ncp': 2.0.5
 
   typings:
     specifiers: {}
@@ -9207,7 +9201,6 @@ packages:
       graceful-fs: 4.2.8
       jsonfile: 6.1.0
       universalify: 2.0.0
-    dev: true
 
   /fs-extra/4.0.3:
     resolution: {integrity: sha512-q6rbdDd1o2mAnQreO7YADIxf/Whx4AHBiRf6d+/cVT8h44ss+lHgxf1FemcqDnQt9X3ct4McHr+JMGlYSsK7Cg==}
@@ -12023,6 +12016,7 @@ packages:
   /ncp/2.0.0:
     resolution: {integrity: sha1-GVoh1sRuNh0vsSgbo4uR6d9727M=}
     hasBin: true
+    dev: true
 
   /ndjson/2.0.0:
     resolution: {integrity: sha512-nGl7LRGrzugTtaFcJMhLbpzJM6XdivmbkdlaGcrk/LXg2KL/YBC6z1g70xh0/al+oFuVFP8N8kiWRucmeEH/qQ==}
@@ -12285,6 +12279,7 @@ packages:
 
   /npmlog/4.1.2:
     resolution: {integrity: sha512-2uUqazuKlTaSI/dC8AzicUck7+IrEaOnN/e0jd3Xtt1KcGpwx30v50mL7oPyr/h9bL3E4aZccVwpwP+5W9Vjkg==}
+    requiresBuild: true
     dependencies:
       are-we-there-yet: 1.1.7
       console-control-strings: 1.1.0
