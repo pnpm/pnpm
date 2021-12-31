@@ -6,6 +6,7 @@ module.exports = {
     '<rootDir>/test/utils/distTags.ts',
     '<rootDir>/test/utils/index.ts',
     '<rootDir>/test/utils/testDefaults.ts',
+    '<rootDir>/test/fixtures/.+',
   ],
 }
 
