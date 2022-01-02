@@ -12,7 +12,7 @@ import {
 } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import getContext, { PnpmContext, ProjectOptions } from '@pnpm/get-context'
-import headless from '@pnpm/headless'
+import headless, { Project } from '@pnpm/headless'
 import runLifecycleHook, {
   makeNodeRequireOption,
   runLifecycleHooksConcurrently,
@@ -267,52 +267,15 @@ export async function mutateModules (
         }
         try {
           await headless({
-            childConcurrency: opts.childConcurrency,
+            ...ctx,
+            ...opts,
             currentEngine: {
               nodeVersion: opts.nodeVersion,
               pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
             },
-            currentLockfile: ctx.currentLockfile,
-            enablePnp: opts.enablePnp,
-            engineStrict: opts.engineStrict,
-            extendNodePath: opts.extendNodePath,
-            extraBinPaths: opts.extraBinPaths,
-            force: opts.force,
-            hoistedDependencies: ctx.hoistedDependencies,
-            hoistPattern: ctx.hoistPattern,
-            ignoreScripts: opts.ignoreScripts,
-            ignorePackageManifest: opts.ignorePackageManifest,
-            include: opts.include,
-            lockfileDir: ctx.lockfileDir,
-            modulesDir: opts.modulesDir,
-            nodeLinker: opts.nodeLinker,
-            ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
-            packageManager: opts.packageManager,
-            pendingBuilds: ctx.pendingBuilds,
-            projects: ctx.projects as Array<{
-              binsDir: string
-              buildIndex: number
-              id: string
-              manifest: ProjectManifest
-              modulesDir: string
-              rootDir: string
-              pruneDirectDependencies?: boolean
-            }>,
-            pruneStore: opts.pruneStore,
+            projects: ctx.projects as Project[],
             prunedAt: ctx.modulesFile?.prunedAt,
             pruneVirtualStore,
-            publicHoistPattern: ctx.publicHoistPattern,
-            rawConfig: opts.rawConfig,
-            registries: ctx.registries,
-            sideEffectsCacheRead: opts.sideEffectsCacheRead,
-            sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-            symlink: opts.symlink,
-            skipped: ctx.skipped,
-            storeController: opts.storeController,
-            storeDir: opts.storeDir,
-            unsafePerm: opts.unsafePerm,
-            userAgent: opts.userAgent,
-            virtualStoreDir: ctx.virtualStoreDir,
             wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
           })
           return projects
@@ -951,11 +914,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     await finishLockfileUpdates()
     await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
 
-    // This is only needed because otherwise the reporter will hang
-    stageLogger.debug({
-      prefix: opts.lockfileDir,
-      stage: 'importing_done',
-    })
+    if (opts.nodeLinker !== 'node-modules') {
+      // This is only needed because otherwise the reporter will hang
+      stageLogger.debug({
+        prefix: opts.lockfileDir,
+        stage: 'importing_done',
+      })
+    }
   }
 
   await waitTillAllFetchingsFinish()
@@ -977,6 +942,24 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
+    if (opts.nodeLinker === 'node-modules' && !opts.lockfileOnly) {
+      const result = await _installInContext(projects, ctx, {
+        ...opts,
+        lockfileOnly: true,
+      })
+      await headless({
+        ...ctx,
+        ...opts,
+        currentEngine: {
+          nodeVersion: opts.nodeVersion,
+          pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+        },
+        projects: ctx.projects as Project[],
+        prunedAt: ctx.modulesFile?.prunedAt,
+        wantedLockfile: result.newLockfile,
+      })
+      return result
+    }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line
     if (!BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) throw error
