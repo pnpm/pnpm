@@ -73,7 +73,7 @@ export interface Config {
   enablePrePostScripts?: boolean
   useNodeVersion?: string
   useStderr?: boolean
-  nodeLinker?: 'node-modules' | 'pnpm' | 'pnp'
+  nodeLinker?: 'hoisted-node-modules' | 'isolated-node-modules' | 'pnp'
 
   // proxy
   httpProxy?: string

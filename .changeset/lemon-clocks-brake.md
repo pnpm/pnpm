@@ -4,4 +4,4 @@
 "@pnpm/headless": minor
 ---
 
-nodeLinker may accept a new value: node-modules. node-modules will create a "classic" node_modules folder without using symlinks.
+nodeLinker may accept two new values: `isolated-node-modules` and `hoisted-node-modules`. `hoisted-node-modules` will create a "classic" `node_modules` folder without using symlinks.
