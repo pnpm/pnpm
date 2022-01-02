@@ -977,6 +977,62 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
+    if (opts.nodeLinker === 'node-modules') {
+      const result = await _installInContext(projects, ctx, {
+        ...opts,
+        lockfileOnly: true,
+      })
+      await headless({
+        childConcurrency: opts.childConcurrency,
+        currentEngine: {
+          nodeVersion: opts.nodeVersion,
+          pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+        },
+        currentLockfile: ctx.currentLockfile,
+        enablePnp: opts.enablePnp,
+        engineStrict: opts.engineStrict,
+        extendNodePath: opts.extendNodePath,
+        extraBinPaths: opts.extraBinPaths,
+        force: opts.force,
+        hoistedDependencies: ctx.hoistedDependencies,
+        hoistPattern: ctx.hoistPattern,
+        ignoreScripts: opts.ignoreScripts,
+        ignorePackageManifest: opts.ignorePackageManifest,
+        include: opts.include,
+        lockfileDir: ctx.lockfileDir,
+        modulesDir: opts.modulesDir,
+        nodeLinker: opts.nodeLinker,
+        ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
+        packageManager: opts.packageManager,
+        pendingBuilds: ctx.pendingBuilds,
+        projects: ctx.projects as Array<{
+          binsDir: string
+          buildIndex: number
+          id: string
+          manifest: ProjectManifest
+          modulesDir: string
+          rootDir: string
+          pruneDirectDependencies?: boolean
+        }>,
+        pruneStore: opts.pruneStore,
+        prunedAt: ctx.modulesFile?.prunedAt,
+        pruneVirtualStore: opts.pruneVirtualStore,
+        publicHoistPattern: ctx.publicHoistPattern,
+        rawConfig: opts.rawConfig,
+        registries: ctx.registries,
+        sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+        symlink: opts.symlink,
+        skipped: ctx.skipped,
+        storeController: opts.storeController,
+        storeDir: opts.storeDir,
+        unsafePerm: opts.unsafePerm,
+        userAgent: opts.userAgent,
+        virtualStoreDir: ctx.virtualStoreDir,
+        wantedLockfile: result.newLockfile,
+      })
+      return result
+    }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line
     if (!BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) throw error

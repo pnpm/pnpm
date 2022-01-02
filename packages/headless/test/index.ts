@@ -1,5 +1,5 @@
 /// <reference path="../../../typings/index.d.ts" />
-import { promises as fs, realpathSync, writeFileSync } from 'fs'
+import { promises as fs, existsSync, realpathSync, writeFileSync } from 'fs'
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
@@ -828,8 +828,9 @@ test('installing with node-linker=node-modules', async () => {
     nodeLinker: 'node-modules',
   }))
 
-  expect(await exists(path.join(prefix, 'node_modules/ms'))).toBeTruthy()
-  expect(await exists(path.join(prefix, 'node_modules/send/node_modules/ms'))).toBeTruthy()
+  expect(realpathSync('node_modules/ms')).toBe(path.resolve('node_modules/ms'))
+  expect(realpathSync('node_modules/send')).toBe(path.resolve('node_modules/send'))
+  expect(existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
 })
 
 test('installing in a workspace with node-linker=node-modules', async () => {
@@ -858,6 +859,7 @@ test('installing in a workspace with node-linker=node-modules', async () => {
 
   expect(realpathSync('bar/node_modules/foo')).toBe(path.resolve('foo'))
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
+  expect(realpathSync('foo/node_modules/express')).toBe(path.resolve('foo/node_modules/express'))
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/express'))).toBe('4.17.2')
   expect(readPkgVersion(path.join(prefix, 'node_modules/webpack'))).toBe('5.65.0')
   expect(readPkgVersion(path.join(prefix, 'node_modules/express'))).toBe('2.5.11')
