@@ -914,11 +914,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     await finishLockfileUpdates()
     await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
 
-    // This is only needed because otherwise the reporter will hang
-    stageLogger.debug({
-      prefix: opts.lockfileDir,
-      stage: 'importing_done',
-    })
+    if (opts.nodeLinker !== 'node-modules') {
+      // This is only needed because otherwise the reporter will hang
+      stageLogger.debug({
+        prefix: opts.lockfileDir,
+        stage: 'importing_done',
+      })
+    }
   }
 
   await waitTillAllFetchingsFinish()
@@ -940,7 +942,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
-    if (opts.nodeLinker === 'node-modules') {
+    if (opts.nodeLinker === 'node-modules' && !opts.lockfileOnly) {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
