@@ -1,4 +1,8 @@
-import { progressLogger, statsLogger } from '@pnpm/core-loggers'
+import {
+  progressLogger,
+  removalLogger,
+  statsLogger,
+} from '@pnpm/core-loggers'
 import {
   PackageFilesResponse,
   StoreController,
@@ -21,6 +25,7 @@ export default async function linkHoistedModules (
     targetEngine?: string
   }
 ): Promise<void> {
+  // TODO: remove nested node modules first
   const dirsToRemove = difference(
     Object.keys(prevGraph),
     Object.keys(graph)
@@ -30,9 +35,24 @@ export default async function linkHoistedModules (
     removed: dirsToRemove.length,
   })
   await Promise.all([
-    ...dirsToRemove.map((dir) => rimraf(dir)),
+    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
     linkAllPkgsInOrder(storeController, graph, prevGraph, hierarchy, opts),
   ])
+}
+
+async function tryRemoveDir (dir: string) {
+  removalLogger.debug(dir)
+  try {
+    await rimraf(dir)
+  } catch (err: any) { // eslint-disable-line
+    /* Just ignoring for now. Not even logging.
+    logger.warn({
+      error: err,
+      message: `Failed to remove "${pathToRemove}"`,
+      prefix: lockfileDir,
+    })
+    */
+  }
 }
 
 async function linkAllPkgsInOrder (
