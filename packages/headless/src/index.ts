@@ -62,9 +62,9 @@ import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
 import props from 'ramda/src/props'
 import realpathMissing from 'realpath-missing'
+import linkHoistedModules from './linkHoistedModules'
 import lockfileToDepGraph, {
   DirectDependenciesByImporterId,
-  DepHierarchy,
   DependenciesGraph,
   DependenciesGraphNode,
   LockfileToDepGraphOptions,
@@ -178,31 +178,33 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const skipped = opts.skipped || new Set<string>()
-  if (currentLockfile != null && !opts.ignorePackageManifest) {
-    await prune(
-      opts.projects,
-      {
-        currentLockfile,
-        dryRun: false,
-        hoistedDependencies: opts.hoistedDependencies,
-        hoistedModulesDir: (opts.hoistPattern == null) ? undefined : hoistedModulesDir,
-        include: opts.include,
-        lockfileDir,
-        pruneStore: opts.pruneStore,
-        pruneVirtualStore: opts.pruneVirtualStore,
-        publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
-        registries: opts.registries,
-        skipped,
-        storeController: opts.storeController,
-        virtualStoreDir,
-        wantedLockfile,
-      }
-    )
-  } else {
-    statsLogger.debug({
-      prefix: lockfileDir,
-      removed: 0,
-    })
+  if (opts.nodeLinker !== 'hoisted') {
+    if (currentLockfile != null && !opts.ignorePackageManifest) {
+      await prune(
+        opts.projects,
+        {
+          currentLockfile,
+          dryRun: false,
+          hoistedDependencies: opts.hoistedDependencies,
+          hoistedModulesDir: (opts.hoistPattern == null) ? undefined : hoistedModulesDir,
+          include: opts.include,
+          lockfileDir,
+          pruneStore: opts.pruneStore,
+          pruneVirtualStore: opts.pruneVirtualStore,
+          publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
+          registries: opts.registries,
+          skipped,
+          storeController: opts.storeController,
+          virtualStoreDir,
+          wantedLockfile,
+        }
+      )
+    } else {
+      statsLogger.debug({
+        prefix: lockfileDir,
+        removed: 0,
+      })
+    }
   }
 
   stageLogger.debug({
@@ -235,10 +237,17 @@ export default async (opts: HeadlessOptions) => {
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
   } as LockfileToDepGraphOptions
-  const { hierarchy, directDependenciesByImporterId, graph, symlinkedDirectDependenciesByImporterId } = await (
+  const {
+    directDependenciesByImporterId,
+    graph,
+    hierarchy,
+    prevGraph,
+    symlinkedDirectDependenciesByImporterId,
+  } = await (
     opts.nodeLinker === 'hoisted'
       ? lockfileToHoistedDepGraph(
         filteredLockfile,
+        currentLockfile,
         lockfileToDepGraphOpts
       )
       : lockfileToDepGraph(
@@ -273,8 +282,8 @@ export default async (opts: HeadlessOptions) => {
   }
 
   let newHoistedDependencies!: HoistedDependencies
-  if (opts.nodeLinker === 'hoisted' && hierarchy) {
-    await linkAllPkgsInOrder(opts.storeController, graph, hierarchy, {
+  if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
+    await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
       force: opts.force,
       lockfileDir: opts.lockfileDir,
       targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
@@ -615,46 +624,6 @@ async function linkRootPackages (
           prefix: opts.projectDir,
         })
       })
-  )
-}
-
-async function linkAllPkgsInOrder (
-  storeController: StoreController,
-  graph: DependenciesGraph,
-  hierarchy: DepHierarchy,
-  opts: {
-    force: boolean
-    lockfileDir: string
-    targetEngine?: string
-  }
-) {
-  await Promise.all(
-    Object.entries(hierarchy).map(async ([dir, deps]) => {
-      const depNode = graph[dir]
-      let filesResponse!: PackageFilesResponse
-      try {
-        filesResponse = await depNode.fetchingFiles()
-      } catch (err: any) { // eslint-disable-line
-        if (depNode.optional) return
-        throw err
-      }
-
-      const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse,
-        force: opts.force,
-        targetEngine: opts.targetEngine,
-      })
-      if (importMethod) {
-        progressLogger.debug({
-          method: importMethod,
-          requester: opts.lockfileDir,
-          status: 'imported',
-          to: depNode.dir,
-        })
-      }
-      depNode.isBuilt = isBuilt
-      return linkAllPkgsInOrder(storeController, graph, deps, opts)
-    })
   )
 }
 

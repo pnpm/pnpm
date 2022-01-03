@@ -44,11 +44,29 @@ export interface LockfileToHoistedDepGraphOptions {
 
 export default async function lockfileToHoistedDepGraph (
   lockfile: Lockfile,
+  currentLockfile: Lockfile | null,
   opts: LockfileToHoistedDepGraphOptions
 ): Promise<LockfileToDepGraphResult> {
+  let prevGraph!: DependenciesGraph
+  if (currentLockfile?.packages != null) {
+    prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, opts)).graph
+  } else {
+    prevGraph = {}
+  }
+  return {
+    ...(await _lockfileToHoistedDepGraph(lockfile, opts)),
+    prevGraph,
+  }
+}
+
+async function _lockfileToHoistedDepGraph (
+  lockfile: Lockfile,
+  opts: LockfileToHoistedDepGraphOptions
+): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const tree = hoist(lockfile)
   const graph: DependenciesGraph = {}
-  let hierarchy = await fetchDeps(lockfile, opts, graph, path.join(opts.lockfileDir, 'node_modules'), tree.dependencies)
+  const modulesDir = path.join(opts.lockfileDir, 'node_modules')
+  let hierarchy = await fetchDeps(lockfile, opts, graph, modulesDir, tree.dependencies)
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {
     '.': directDepsMap(Object.keys(hierarchy), graph),
   }
@@ -57,7 +75,8 @@ export default async function lockfileToHoistedDepGraph (
     const reference = Array.from(rootDep.references)[0]
     if (reference.startsWith('workspace:')) {
       const importerId = reference.replace('workspace:', '')
-      const nextHierarchy = (await fetchDeps(lockfile, opts, graph, path.join(opts.lockfileDir, importerId, 'node_modules'), rootDep.dependencies))
+      const modulesDir = path.join(opts.lockfileDir, importerId, 'node_modules')
+      const nextHierarchy = (await fetchDeps(lockfile, opts, graph, modulesDir, rootDep.dependencies))
       hierarchy = {
         ...hierarchy,
         ...nextHierarchy,
@@ -69,7 +88,12 @@ export default async function lockfileToHoistedDepGraph (
       directDependenciesByImporterId[importerId] = directDepsMap(Object.keys(nextHierarchy), graph)
     }
   }
-  return { directDependenciesByImporterId, graph, hierarchy, symlinkedDirectDependenciesByImporterId }
+  return {
+    directDependenciesByImporterId,
+    graph,
+    hierarchy,
+    symlinkedDirectDependenciesByImporterId,
+  }
 }
 
 function directDepsMap (directDepDirs: string[], graph: DependenciesGraph): Record<string, string> {
