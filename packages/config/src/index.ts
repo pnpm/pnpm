@@ -72,7 +72,7 @@ export const types = Object.assign({
   'modules-cache-max-age': Number,
   'modules-dir': String,
   'network-concurrency': Number,
-  'node-linker': ['pnp', 'isolated-node-modules', 'hoisted-node-modules'],
+  'node-linker': ['pnp', 'isolated', 'hoisted'],
   noproxy: String,
   'npm-path': String,
   offline: Boolean,
