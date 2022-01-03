@@ -819,13 +819,13 @@ test('installing with no modules directory', async () => {
   expect(await exists(path.join(prefix, 'node_modules'))).toBeFalsy()
 })
 
-test('installing with node-linker=node-modules', async () => {
+test('installing with node-linker=hoisted', async () => {
   const prefix = f.prepare('has-several-versions-of-same-pkg')
 
   await headless(await testDefaults({
     enableModulesDir: false,
     lockfileDir: prefix,
-    nodeLinker: 'node-modules',
+    nodeLinker: 'hoisted',
   }))
 
   expect(realpathSync('node_modules/ms')).toBe(path.resolve('node_modules/ms'))
@@ -833,7 +833,7 @@ test('installing with node-linker=node-modules', async () => {
   expect(existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
 })
 
-test('installing in a workspace with node-linker=node-modules', async () => {
+test('installing in a workspace with node-linker=hoisted', async () => {
   const prefix = f.prepare('workspace2')
 
   let { projects } = await readprojectsContext(
@@ -853,7 +853,7 @@ test('installing in a workspace with node-linker=node-modules', async () => {
   )
   await headless(await testDefaults({
     lockfileDir: prefix,
-    nodeLinker: 'node-modules',
+    nodeLinker: 'hoisted',
     projects,
   }))
 

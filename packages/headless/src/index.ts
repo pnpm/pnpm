@@ -130,7 +130,7 @@ export interface HeadlessOptions {
   pendingBuilds: string[]
   skipped: Set<string>
   enableModulesDir?: boolean
-  nodeLinker?: 'pnpm' | 'node-modules' | 'pnp'
+  nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -236,7 +236,7 @@ export default async (opts: HeadlessOptions) => {
     pnpmVersion: opts.currentEngine.pnpmVersion,
   } as LockfileToDepGraphOptions
   const { hierarchy, directDependenciesByImporterId, graph, symlinkedDirectDependenciesByImporterId } = await (
-    opts.nodeLinker === 'node-modules'
+    opts.nodeLinker === 'hoisted'
       ? lockfileToHoistedDepGraph(
         filteredLockfile,
         lockfileToDepGraphOpts
@@ -273,7 +273,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   let newHoistedDependencies!: HoistedDependencies
-  if (opts.nodeLinker === 'node-modules' && hierarchy) {
+  if (opts.nodeLinker === 'hoisted' && hierarchy) {
     await linkAllPkgsInOrder(opts.storeController, graph, hierarchy, {
       force: opts.force,
       lockfileDir: opts.lockfileDir,

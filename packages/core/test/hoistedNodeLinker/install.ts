@@ -4,7 +4,7 @@ import { install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { testDefaults } from '../utils'
 
-test('installing with node-modules node-linker', async () => {
+test('installing with hoisted node-linker', async () => {
   prepareEmpty()
 
   await install({
@@ -14,7 +14,7 @@ test('installing with node-modules node-linker', async () => {
       ms: '1.0.0',
     },
   }, await testDefaults({
-    nodeLinker: 'node-modules',
+    nodeLinker: 'hoisted',
   }))
 
   expect(fs.realpathSync('node_modules/send')).toEqual(path.resolve('node_modules/send'))

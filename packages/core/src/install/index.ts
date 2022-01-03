@@ -914,7 +914,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     await finishLockfileUpdates()
     await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
 
-    if (opts.nodeLinker !== 'node-modules') {
+    if (opts.nodeLinker !== 'hoisted') {
       // This is only needed because otherwise the reporter will hang
       stageLogger.debug({
         prefix: opts.lockfileDir,
@@ -942,7 +942,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
-    if (opts.nodeLinker === 'node-modules' && !opts.lockfileOnly) {
+    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly) {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
