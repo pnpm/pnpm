@@ -45,7 +45,8 @@ function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Reco
   return new Set(Object.entries(deps).map(([alias, ref]) => {
     const depPath = dp.refToRelative(ref, alias)!
     if (!depPath) {
-      let node = nodes.get(ref)
+      const key = `${alias}:${ref}`
+      let node = nodes.get(key)
       if (!node) {
         node = {
           name: alias,
@@ -55,11 +56,12 @@ function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Reco
           dependencies: new Set(),
           peerNames: new Set(),
         }
-        nodes.set(depPath, node)
+        nodes.set(key, node)
       }
       return node
     }
-    let node = nodes.get(depPath)
+    const key = `${alias}:${depPath}`
+    let node = nodes.get(key)
     if (!node) {
       // const { name, version, peersSuffix } = nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath])
       const pkgSnapshot = lockfile.packages![depPath]
@@ -75,7 +77,7 @@ function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Reco
           ...(pkgSnapshot.transitivePeerDependencies ?? []),
         ]),
       }
-      nodes.set(depPath, node)
+      nodes.set(key, node)
       node.dependencies = toTree(nodes, lockfile, { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
     }
     return node

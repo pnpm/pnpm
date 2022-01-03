@@ -109,3 +109,18 @@ test('adding a new dependency to one of the the workspace projects', async () =>
   expect(loadJsonFile<{ version: string }>('node_modules/bar/package.json').version).toBe('100.0.0')
   expect(loadJsonFile<{ version: string }>('node_modules/is-negative/package.json').version).toBe('1.0.0')
 })
+
+test('installing the same package with alias and no alias', async () => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['pkg-with-1-aliased-dep@100.0.0', 'dep-of-pkg-with-1-dep@^100.0.0'],
+    await testDefaults({ nodeLinker: 'hoisted' })
+  )
+
+  expect(loadJsonFile<{ version: string }>('node_modules/pkg-with-1-aliased-dep/package.json').version).toBe('100.0.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/dep-of-pkg-with-1-dep/package.json').version).toBe('100.0.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/dep/package.json').version).toBe('100.0.0')
+})
