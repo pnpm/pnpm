@@ -217,7 +217,7 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     skipped,
   }
-  const importerIds = opts.ignorePackageManifest
+  const importerIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
     ? Object.keys(wantedLockfile.importers)
     : opts.projects.map(({ id }) => id)
   const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, importerIds, {

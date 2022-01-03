@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { addDependenciesToPackage, install } from '@pnpm/core'
+import { addDependenciesToPackage, install, mutateModules } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { sync as loadJsonFile } from 'load-json-file'
 import { addDistTag, testDefaults } from '../utils'
@@ -65,4 +65,47 @@ test('preserve subdeps on update', async () => {
   expect(loadJsonFile<{ version: string }>('node_modules/bar/package.json').version).toBe('100.1.0')
   expect(loadJsonFile<{ version: string }>('node_modules/foobarqar/package.json').version).toBe('1.0.1')
   expect(loadJsonFile<{ version: string }>('node_modules/foobarqar/node_modules/bar/package.json').version).toBe('100.0.0')
+})
+
+test('adding a new dependency to one of the the workspace projects', async () => {
+  prepareEmpty()
+
+  let [{ manifest }] = await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          bar: '100.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 1,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          foobarqar: '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ], await testDefaults({ nodeLinker: 'hoisted' }))
+  manifest = await addDependenciesToPackage(
+    manifest,
+    ['is-negative@1.0.0'],
+    await testDefaults({ nodeLinker: 'hoisted', prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' })
+  )
+
+  expect(manifest.dependencies).toStrictEqual({ bar: '100.0.0' })
+  expect(manifest.devDependencies).toStrictEqual({ 'is-negative': '1.0.0' })
+  expect(loadJsonFile<{ version: string }>('node_modules/bar/package.json').version).toBe('100.0.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/is-negative/package.json').version).toBe('1.0.0')
 })
