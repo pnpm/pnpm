@@ -423,7 +423,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.6
       '@zkochan/npm-package-arg': ^2.0.1
       '@zkochan/rimraf': ^2.1.1
       deep-require-cwd: 1.0.0
@@ -519,7 +519,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.6
       deep-require-cwd: 1.0.0
       execa: /safe-execa/0.1.1
       exists-link: 2.0.0
@@ -1067,7 +1067,7 @@ importers:
       '@types/fs-extra': ^9.0.5
       '@types/ramda': 0.27.39
       '@types/rimraf': ^3.0.0
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.6
       '@zkochan/rimraf': ^2.1.1
       dependency-path: workspace:8.0.9
       is-windows: ^1.0.2
@@ -1123,7 +1123,7 @@ importers:
       '@types/fs-extra': 9.0.13
       '@types/ramda': 0.27.39
       '@types/rimraf': 3.0.2
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.6
       '@zkochan/rimraf': 2.1.1
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -2117,7 +2117,7 @@ importers:
       '@types/is-ci': ^3.0.0
       '@types/proxyquire': ^1.3.28
       '@types/ramda': 0.27.39
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.6
       '@types/yarnpkg__lockfile': ^1.1.5
       '@types/zkochan__table': npm:@types/table@6.0.0
       '@yarnpkg/core': ^3.2.0-rc.4
@@ -2207,7 +2207,7 @@ importers:
       '@types/is-ci': 3.0.0
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.39
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.6
       '@types/yarnpkg__lockfile': 1.1.5
       '@types/zkochan__table': /@types/table/6.0.0
       path-name: 1.0.0
@@ -2347,7 +2347,7 @@ importers:
       '@types/npm-packlist': ^1.1.2
       '@types/proxyquire': ^1.3.28
       '@types/ramda': 0.27.39
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.6
       '@types/tar': ^4.0.5
       '@zkochan/rimraf': ^2.1.1
       cross-spawn: ^7.0.3
@@ -2401,7 +2401,7 @@ importers:
       '@types/npm-packlist': 1.1.2
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.39
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.6
       '@types/tar': 4.0.5
       cross-spawn: 7.0.3
       is-ci: 3.0.1
@@ -2438,7 +2438,7 @@ importers:
       '@pnpm/types': workspace:7.8.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
-      '@types/sinon': ^9.0.11
+      '@types/sinon': ^10.0.6
       '@zkochan/npm-package-arg': ^2.0.1
       camelcase-keys: ^6.2.2
       dependency-path: workspace:8.0.9
@@ -2493,7 +2493,7 @@ importers:
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
-      '@types/sinon': 9.0.11
+      '@types/sinon': 10.0.6
       execa: /safe-execa/0.1.1
       path-exists: 4.0.0
       sinon: 11.1.2
@@ -5368,14 +5368,10 @@ packages:
     resolution: {integrity: sha512-OSitN9PP9E/c4tlt1Qdj3CAz5uHD9Da5rhUqlaKyQRCX1T7Zdpbk6YdeZbR2eiE2ce+NMBgVnMxGqpaPSNQDUQ==}
     dev: true
 
-  /@types/sinon/9.0.11:
-    resolution: {integrity: sha512-PwP4UY33SeeVKodNE37ZlOsR9cReypbMJOhZ7BVE0lB+Hix3efCOxiJWiE5Ia+yL9Cn2Ch72EjFTRze8RZsNtg==}
+  /@types/sinon/10.0.6:
+    resolution: {integrity: sha512-6EF+wzMWvBNeGrfP3Nx60hhx+FfwSg1JJBLAAP/IdIUq0EYkqCYf70VT3PhuhPX9eLD+Dp+lNdpb/ZeHG8Yezg==}
     dependencies:
-      '@types/sinonjs__fake-timers': 8.1.1
-    dev: true
-
-  /@types/sinonjs__fake-timers/8.1.1:
-    resolution: {integrity: sha512-0kSuKjAS0TrGLJ0M/+8MaFkGsQhZpB6pxOmvS3K8FYI72K//YmdfoW9X2qPsAKh1mkwxGD5zib9s1FIFed6E8g==}
+      '@sinonjs/fake-timers': 7.1.2
     dev: true
 
   /@types/ssri/7.1.1:

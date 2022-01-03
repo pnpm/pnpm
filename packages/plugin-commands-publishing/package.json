@@ -42,7 +42,7 @@
     "@types/npm-packlist": "^1.1.2",
     "@types/proxyquire": "^1.3.28",
     "@types/ramda": "0.27.39",
-    "@types/sinon": "^9.0.11",
+    "@types/sinon": "^10.0.6",
     "@types/tar": "^4.0.5",
     "cross-spawn": "^7.0.3",
     "is-ci": "^3.0.0",
