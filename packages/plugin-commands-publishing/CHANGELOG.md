@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.3.0
+
+### Minor Changes
+
+- a6cf11cb7: New optional setting added: userConfig. userConfig may contain token helpers.
+
+### Patch Changes
+
+- Updated dependencies [a6cf11cb7]
+- Updated dependencies [732d4962f]
+- Updated dependencies [a6cf11cb7]
+  - @pnpm/client@6.1.0
+  - @pnpm/config@13.8.0
+  - @pnpm/cli-utils@0.6.41
+
 ## 4.2.37
 
 ### Patch Changes

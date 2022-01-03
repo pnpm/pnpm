@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-outdated
 
+## 5.1.0
+
+### Minor Changes
+
+- a6cf11cb7: New optional setting added: userConfig. userConfig may contain token helpers.
+
+### Patch Changes
+
+- Updated dependencies [732d4962f]
+- Updated dependencies [a6cf11cb7]
+  - @pnpm/config@13.8.0
+  - @pnpm/outdated@9.0.26
+  - @pnpm/cli-utils@0.6.41
+
 ## 5.0.41
 
 ### Patch Changes

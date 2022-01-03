@@ -1,5 +1,17 @@
 # @pnpm/config
 
+## 13.8.0
+
+### Minor Changes
+
+- 732d4962f: nodeLinker may accept two new values: `isolated` and `hoisted`.
+
+  `hoisted` will create a "classic" `node_modules` folder without using symlinks.
+
+  `isolated` will be the default value that creates a symlinked `node_modules`.
+
+- a6cf11cb7: `userConfig` added to the config object, which contain only the settings set in the user's home config file.
+
 ## 13.7.2
 
 ### Patch Changes

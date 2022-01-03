@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 9.0.26
+
+### Patch Changes
+
+- Updated dependencies [a6cf11cb7]
+  - @pnpm/client@6.1.0
+
 ## 9.0.25
 
 ### Patch Changes

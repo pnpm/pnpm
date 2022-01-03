@@ -1,5 +1,11 @@
 # @pnpm/client
 
+## 6.1.0
+
+### Minor Changes
+
+- a6cf11cb7: New optional setting added: userConfig. userConfig may contain token helpers.
+
 ## 6.0.11
 
 ### Patch Changes

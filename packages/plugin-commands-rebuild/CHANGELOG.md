@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.4.0
+
+### Minor Changes
+
+- a6cf11cb7: New optional setting added: userConfig. userConfig may contain token helpers.
+
+### Patch Changes
+
+- Updated dependencies [a6cf11cb7]
+- Updated dependencies [732d4962f]
+- Updated dependencies [a6cf11cb7]
+  - @pnpm/store-connection-manager@3.2.0
+  - @pnpm/config@13.8.0
+  - @pnpm/cli-utils@0.6.41
+  - @pnpm/find-workspace-packages@3.1.33
+
 ## 5.3.10
 
 ### Patch Changes

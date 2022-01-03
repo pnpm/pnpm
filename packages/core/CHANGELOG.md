@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 2.2.0
+
+### Minor Changes
+
+- 732d4962f: nodeLinker may accept two new values: `isolated` and `hoisted`.
+
+  `hoisted` will create a "classic" `node_modules` folder without using symlinks.
+
+  `isolated` will be the default value that creates a symlinked `node_modules`.
+
+### Patch Changes
+
+- Updated dependencies [732d4962f]
+  - @pnpm/headless@16.4.0
+  - @pnpm/package-requester@15.2.6
+  - @pnpm/lockfile-to-pnp@0.4.39
+
 ## 2.1.4
 
 ### Patch Changes
