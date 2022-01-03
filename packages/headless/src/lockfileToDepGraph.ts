@@ -79,6 +79,7 @@ export interface LockfileToDepGraphResult {
   graph: DependenciesGraph
   hierarchy?: DepHierarchy
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
+  prevGraph?: DependenciesGraph
 }
 
 export default async function lockfileToDepGraph (
