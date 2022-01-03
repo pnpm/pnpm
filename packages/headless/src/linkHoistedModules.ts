@@ -1,4 +1,4 @@
-import { progressLogger } from '@pnpm/core-loggers'
+import { progressLogger, statsLogger } from '@pnpm/core-loggers'
 import {
   PackageFilesResponse,
   StoreController,
@@ -25,15 +25,20 @@ export default async function linkHoistedModules (
     Object.keys(prevGraph),
     Object.keys(graph)
   )
+  statsLogger.debug({
+    prefix: opts.lockfileDir,
+    removed: dirsToRemove.length,
+  })
   await Promise.all([
     ...dirsToRemove.map((dir) => rimraf(dir)),
-    linkAllPkgsInOrder(storeController, graph, hierarchy, opts),
+    linkAllPkgsInOrder(storeController, graph, prevGraph, hierarchy, opts),
   ])
 }
 
 async function linkAllPkgsInOrder (
   storeController: StoreController,
   graph: DependenciesGraph,
+  prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   opts: {
     force: boolean
@@ -54,7 +59,7 @@ async function linkAllPkgsInOrder (
 
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
-        force: opts.force,
+        force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
         targetEngine: opts.targetEngine,
       })
       if (importMethod) {
@@ -66,7 +71,7 @@ async function linkAllPkgsInOrder (
         })
       }
       depNode.isBuilt = isBuilt
-      return linkAllPkgsInOrder(storeController, graph, deps, opts)
+      return linkAllPkgsInOrder(storeController, graph, prevGraph, deps, opts)
     })
   )
 }
