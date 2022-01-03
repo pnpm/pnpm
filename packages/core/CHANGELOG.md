@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 2.2.1
+
+### Patch Changes
+
+- @pnpm/headless@16.4.1
+
 ## 2.2.0
 
 ### Minor Changes

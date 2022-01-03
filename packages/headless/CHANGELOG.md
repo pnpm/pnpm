@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 16.4.1
+
+### Patch Changes
+
+- Updated dependencies [1018ec1fd]
+  - @pnpm/real-hoist@0.1.1
+
 ## 16.4.0
 
 ### Minor Changes

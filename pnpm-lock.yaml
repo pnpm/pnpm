@@ -386,7 +386,7 @@ importers:
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-lockfile': workspace:5.0.15
       '@pnpm/get-context': workspace:5.3.3
-      '@pnpm/headless': workspace:16.4.0
+      '@pnpm/headless': workspace:16.4.1
       '@pnpm/hoist': workspace:5.2.10
       '@pnpm/lifecycle': workspace:12.1.3
       '@pnpm/link-bins': workspace:6.2.8
@@ -705,11 +705,11 @@ importers:
   packages/exe:
     specifiers:
       '@pnpm/exe': 'link:'
-      '@pnpm/linux-arm64': workspace:6.25.0-0
-      '@pnpm/linux-x64': workspace:6.25.0-0
-      '@pnpm/macos-arm64': workspace:6.25.0-0
-      '@pnpm/macos-x64': workspace:6.25.0-0
-      '@pnpm/win-x64': workspace:6.25.0-0
+      '@pnpm/linux-arm64': workspace:6.25.0-1
+      '@pnpm/linux-x64': workspace:6.25.0-1
+      '@pnpm/macos-arm64': workspace:6.25.0-1
+      '@pnpm/macos-x64': workspace:6.25.0-1
+      '@pnpm/win-x64': workspace:6.25.0-1
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
@@ -1058,7 +1058,7 @@ importers:
       '@pnpm/read-package-json': workspace:5.0.9
       '@pnpm/read-project-manifest': workspace:2.0.10
       '@pnpm/read-projects-context': workspace:5.0.14
-      '@pnpm/real-hoist': workspace:0.1.0
+      '@pnpm/real-hoist': workspace:0.1.1
       '@pnpm/store-controller-types': workspace:11.0.10
       '@pnpm/store-path': ^5.0.0
       '@pnpm/symlink-dependency': workspace:4.0.11
@@ -2089,7 +2089,7 @@ importers:
       '@pnpm/common-cli-options-help': workspace:0.8.0
       '@pnpm/config': workspace:13.8.0
       '@pnpm/constants': workspace:5.0.0
-      '@pnpm/core': workspace:2.2.0
+      '@pnpm/core': workspace:2.2.1
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-workspace-packages': workspace:4.4.13
       '@pnpm/find-workspace-dir': workspace:3.0.1
@@ -2229,7 +2229,7 @@ importers:
       '@pnpm/filter-workspace-packages': workspace:4.4.13
       '@pnpm/list': workspace:6.2.17
       '@pnpm/logger': ^4.0.0
-      '@pnpm/plugin-commands-installation': workspace:8.1.0
+      '@pnpm/plugin-commands-installation': workspace:8.1.1
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': workspace:0.0.31
       '@pnpm/types': workspace:7.8.0
@@ -2275,7 +2275,7 @@ importers:
       '@pnpm/matcher': workspace:2.0.0
       '@pnpm/modules-yaml': workspace:9.0.9
       '@pnpm/outdated': workspace:9.0.26
-      '@pnpm/plugin-commands-installation': workspace:8.1.0
+      '@pnpm/plugin-commands-installation': workspace:8.1.1
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': workspace:0.0.31
       '@pnpm/semver-diff': ^1.0.2
@@ -2716,7 +2716,7 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.9
       '@pnpm/plugin-commands-audit': workspace:5.1.32
       '@pnpm/plugin-commands-env': workspace:1.4.2
-      '@pnpm/plugin-commands-installation': workspace:8.1.0
+      '@pnpm/plugin-commands-installation': workspace:8.1.1
       '@pnpm/plugin-commands-listing': workspace:4.1.0
       '@pnpm/plugin-commands-outdated': workspace:5.1.0
       '@pnpm/plugin-commands-publishing': workspace:4.3.0

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "8.1.0",
+  "version": "8.1.1",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -62,7 +62,7 @@
     "@pnpm/common-cli-options-help": "workspace:0.8.0",
     "@pnpm/config": "workspace:13.8.0",
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/core": "workspace:2.2.0",
+    "@pnpm/core": "workspace:2.2.1",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/filter-workspace-packages": "workspace:4.4.13",
     "@pnpm/find-workspace-dir": "workspace:3.0.1",
