@@ -1,5 +1,13 @@
 # @pnpm/get-context
 
+## 5.3.4
+
+### Patch Changes
+
+- Updated dependencies [7375396db]
+  - @pnpm/modules-yaml@9.0.10
+  - @pnpm/read-projects-context@5.0.15
+
 ## 5.3.3
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 2.2.2
+
+### Patch Changes
+
+- 7bac7e8be: Don't write a lockfile if useLockfile is set to false.
+- 7375396db: Save the value of the active `nodeLinker` to `node_modules/.modules.yaml`.
+- Updated dependencies [7375396db]
+  - @pnpm/headless@16.4.2
+  - @pnpm/modules-yaml@9.0.10
+  - @pnpm/lockfile-to-pnp@0.4.40
+  - @pnpm/get-context@5.3.4
+  - @pnpm/link-bins@6.2.8
+  - @pnpm/package-requester@15.2.6
+
 ## 2.2.1
 
 ### Patch Changes

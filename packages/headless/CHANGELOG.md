@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 16.4.2
+
+### Patch Changes
+
+- 7375396db: Save the value of the active `nodeLinker` to `node_modules/.modules.yaml`.
+- Updated dependencies [7375396db]
+  - @pnpm/modules-yaml@9.0.10
+  - @pnpm/lockfile-to-pnp@0.4.40
+  - @pnpm/link-bins@6.2.8
+  - @pnpm/package-requester@15.2.6
+
 ## 16.4.1
 
 ### Patch Changes

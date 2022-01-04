@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 8.1.2
+
+### Patch Changes
+
+- 0da31c70c: Allow to set `node-linker` through CLI options.
+- Updated dependencies [7bac7e8be]
+- Updated dependencies [8fe8f5e55]
+- Updated dependencies [7375396db]
+  - @pnpm/core@2.2.2
+  - @pnpm/config@13.9.0
+  - @pnpm/cli-utils@0.6.42
+  - @pnpm/plugin-commands-rebuild@5.4.1
+  - @pnpm/store-connection-manager@3.2.1
+  - @pnpm/outdated@9.0.27
+  - @pnpm/find-workspace-packages@3.1.34
+  - @pnpm/filter-workspace-packages@4.4.14
+  - @pnpm/package-store@12.1.6
+
 ## 8.1.1
 
 ### Patch Changes

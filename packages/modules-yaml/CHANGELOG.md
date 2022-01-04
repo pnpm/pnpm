@@ -1,5 +1,11 @@
 # @pnpm/modules-yaml
 
+## 9.0.10
+
+### Patch Changes
+
+- 7375396db: Save the value of the active `nodeLinker` to `node_modules/.modules.yaml`.
+
 ## 9.0.9
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/test-fixtures",
   "description": "Test fixtures",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -32,7 +32,7 @@
     "test": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/prepare": "workspace:0.0.31",
+    "@pnpm/prepare": "workspace:0.0.32",
     "fs-extra": "^10.0.0"
   }
 }

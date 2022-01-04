@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 10.0.21
+
+### Patch Changes
+
+- Updated dependencies [7375396db]
+  - @pnpm/modules-yaml@9.0.10
+
 ## 10.0.20
 
 ### Patch Changes

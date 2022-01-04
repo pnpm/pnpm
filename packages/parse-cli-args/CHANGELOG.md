@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 4.4.0
+
+### Minor Changes
+
+- 8fe8f5e55: New CLI option: `--ignore-workspace`. When used, pnpm ignores any workspace configuration found in the current or parent directories.
+
 ## 4.3.0
 
 ### Minor Changes

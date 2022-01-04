@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.25.0-1
+## 6.25.0-2
 
 ### Minor Changes
 
@@ -8,9 +8,9 @@
 
   To use this new installation mode, set the `node-linker` setting to `hoisted`. These are the supported values of `node-linker`:
 
-    - `isolated` - the default value.
-    - `hoisted` - flat `node_modules` without symlinks.
-    - `pnp` - no `node_modules`. Yarn's Plug'n'Play managed by pnpm.
+  - `isolated` - the default value.
+  - `hoisted` - flat `node_modules` without symlinks.
+  - `pnp` - no `node_modules`. Yarn's Plug'n'Play managed by pnpm.
 
   Related issue: [#4073](https://github.com/pnpm/pnpm/issues/4073)
 
@@ -41,6 +41,8 @@
 
   - [pnpm/credentials-by-uri#2](https://github.com/pnpm/credentials-by-uri/pull/2)
   - [#4163](https://github.com/pnpm/pnpm/pull/4163)
+
+- New CLI option: `--ignore-workspace`. When used, pnpm ignores any workspace configuration found in the current or parent directories.
 
 ## 6.24.4
 

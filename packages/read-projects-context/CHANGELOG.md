@@ -1,5 +1,12 @@
 # @pnpm/read-projects-context
 
+## 5.0.15
+
+### Patch Changes
+
+- Updated dependencies [7375396db]
+  - @pnpm/modules-yaml@9.0.10
+
 ## 5.0.14
 
 ### Patch Changes
