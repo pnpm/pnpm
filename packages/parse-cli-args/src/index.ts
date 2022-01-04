@@ -120,7 +120,7 @@ export default async function parseCliArgs (
     }
   }
   const dir = options['dir'] ?? process.cwd()
-  const workspaceDir = options['global'] // eslint-disable-line
+  const workspaceDir = options['global'] || options['ignore-workspace'] // eslint-disable-line
     ? undefined
     : await findWorkspaceDir(dir)
   if (options['workspace-root']) {

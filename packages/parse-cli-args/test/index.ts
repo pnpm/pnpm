@@ -66,6 +66,14 @@ test('when runnning a global command inside a workspace, the workspace should be
   expect(workspaceDir).toBeFalsy()
 })
 
+test('when runnning with --ignore-workspace option inside a workspace, the workspace should be ignored', async () => {
+  const { workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { global: Boolean },
+  }, ['--ignore-workspace', 'add', 'foo'])
+  expect(workspaceDir).toBeFalsy()
+})
+
 test('command is used recursively', async () => {
   const { cmd, options } = await parseCliArgs({
     ...DEFAULT_OPTS,

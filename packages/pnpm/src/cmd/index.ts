@@ -42,6 +42,7 @@ export const GLOBAL_OPTIONS = pick([
   'test-pattern',
   'changed-files-ignore-pattern',
   'use-stderr',
+  'ignore-workspace',
   'workspace-packages',
   'workspace-root',
 ], allTypes)

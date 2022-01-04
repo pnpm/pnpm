@@ -61,6 +61,7 @@ export const types = Object.assign({
   hoist: Boolean,
   'hoist-pattern': Array,
   'ignore-pnpmfile': Boolean,
+  'ignore-workspace': Boolean,
   'ignore-workspace-root-check': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
   lockfile: Boolean,
