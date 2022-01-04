@@ -897,6 +897,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           hoistPattern: ctx.hoistPattern,
           included: ctx.include,
           layoutVersion: LAYOUT_VERSION,
+          nodeLinker: opts.nodeLinker,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           publicHoistPattern: ctx.publicHoistPattern,

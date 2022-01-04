@@ -448,6 +448,7 @@ export default async (opts: HeadlessOptions) => {
       hoistPattern: opts.hoistPattern,
       included: opts.include,
       layoutVersion: LAYOUT_VERSION,
+      nodeLinker: opts.nodeLinker,
       packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
       pendingBuilds: opts.pendingBuilds,
       publicHoistPattern: opts.publicHoistPattern,

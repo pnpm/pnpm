@@ -3,6 +3,7 @@ import path from 'path'
 import { addDependenciesToPackage, install, mutateModules } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { sync as loadJsonFile } from 'load-json-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { addDistTag, testDefaults } from '../utils'
 
 test('installing with hoisted node-linker', async () => {
@@ -22,6 +23,8 @@ test('installing with hoisted node-linker', async () => {
   expect(fs.realpathSync('node_modules/has-flag')).toEqual(path.resolve('node_modules/has-flag'))
   expect(fs.realpathSync('node_modules/ms')).toEqual(path.resolve('node_modules/ms'))
   expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
+
+  expect(readYamlFile<{ nodeLinker: string }>('node_modules/.modules.yaml').nodeLinker).toBe('hoisted')
 })
 
 test('installing with hoisted node-linker and no lockfile', async () => {

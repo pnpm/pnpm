@@ -18,6 +18,7 @@ export interface Modules {
   hoistPattern?: string[]
   included: IncludedDependencies
   layoutVersion: number
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   packageManager: string
   pendingBuilds: string[]
   prunedAt: string
