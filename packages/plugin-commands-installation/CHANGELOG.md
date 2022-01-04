@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 8.1.3
+
+### Patch Changes
+
+- @pnpm/core@2.2.3
+
 ## 8.1.2
 
 ### Patch Changes

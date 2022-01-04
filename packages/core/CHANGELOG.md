@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 2.2.3
+
+### Patch Changes
+
+- Updated dependencies [0b5662fc5]
+  - @pnpm/headless@16.4.3
+
 ## 2.2.2
 
 ### Patch Changes

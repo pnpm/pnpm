@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 16.4.3
+
+### Patch Changes
+
+- 0b5662fc5: The commands should be linked to `node_modules/.bin` directory when `nodeLinker=hoisted` is used.
+
 ## 16.4.2
 
 ### Patch Changes
