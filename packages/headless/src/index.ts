@@ -284,6 +284,7 @@ export default async (opts: HeadlessOptions) => {
   let newHoistedDependencies!: HoistedDependencies
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
+      extendNodePath: opts.extendNodePath,
       force: opts.force,
       lockfileDir: opts.lockfileDir,
       targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,

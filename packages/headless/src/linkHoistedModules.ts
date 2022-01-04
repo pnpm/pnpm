@@ -1,8 +1,11 @@
+import path from 'path'
 import {
   progressLogger,
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
+import linkBins from '@pnpm/link-bins'
+import logger from '@pnpm/logger'
 import {
   PackageFilesResponse,
   StoreController,
@@ -20,6 +23,7 @@ export default async function linkHoistedModules (
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   opts: {
+    extendNodePath?: boolean
     force: boolean
     lockfileDir: string
     targetEngine?: string
@@ -36,7 +40,19 @@ export default async function linkHoistedModules (
   })
   await Promise.all([
     ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
-    linkAllPkgsInOrder(storeController, graph, prevGraph, hierarchy, opts),
+    ...Object.entries(hierarchy)
+      .map(([parentDir, depsHierarchy]) => {
+        function warn (message: string) {
+          logger.info({
+            message,
+            prefix: parentDir,
+          })
+        }
+        return linkAllPkgsInOrder(storeController, graph, prevGraph, depsHierarchy, parentDir, {
+          ...opts,
+          warn,
+        })
+      }),
   ])
 }
 
@@ -60,10 +76,13 @@ async function linkAllPkgsInOrder (
   graph: DependenciesGraph,
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
+  parentDir: string,
   opts: {
+    extendNodePath?: boolean
     force: boolean
     lockfileDir: string
     targetEngine?: string
+    warn: (message: string) => void
   }
 ) {
   await Promise.all(
@@ -91,7 +110,14 @@ async function linkAllPkgsInOrder (
         })
       }
       depNode.isBuilt = isBuilt
-      return linkAllPkgsInOrder(storeController, graph, prevGraph, deps, opts)
+      return linkAllPkgsInOrder(storeController, graph, prevGraph, deps, dir, opts)
     })
   )
+  const modulesDir = path.join(parentDir, 'node_modules')
+  const binsDir = path.join(modulesDir, '.bin')
+  await linkBins(modulesDir, binsDir, {
+    allowExoticManifests: true,
+    extendNodePath: opts.extendNodePath,
+    warn: opts.warn,
+  })
 }

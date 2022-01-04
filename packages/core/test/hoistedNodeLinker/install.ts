@@ -86,7 +86,7 @@ test('preserve subdeps on update', async () => {
   expect(loadJsonFile<{ version: string }>('node_modules/foobarqar/node_modules/bar/package.json').version).toBe('100.0.0')
 })
 
-test('adding a new dependency to one of the the workspace projects', async () => {
+test('adding a new dependency to one of the workspace projects', async () => {
   prepareEmpty()
 
   let [{ manifest }] = await mutateModules([
@@ -142,4 +142,21 @@ test('installing the same package with alias and no alias', async () => {
   expect(loadJsonFile<{ version: string }>('node_modules/pkg-with-1-aliased-dep/package.json').version).toBe('100.0.0')
   expect(loadJsonFile<{ version: string }>('node_modules/dep-of-pkg-with-1-dep/package.json').version).toBe('100.0.0')
   expect(loadJsonFile<{ version: string }>('node_modules/dep/package.json').version).toBe('100.0.0')
+})
+
+test('run pre/postinstall scripts. bin files should be linked in a hoisted node_modules', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example'],
+    await testDefaults({ fastUnpack: false, nodeLinker: 'hoisted', targetDependenciesField: 'devDependencies' })
+  )
+
+  expect(fs.existsSync('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+
+  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+  expect(typeof generatedByPreinstall).toBe('function')
+
+  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  expect(typeof generatedByPostinstall).toBe('function')
 })
