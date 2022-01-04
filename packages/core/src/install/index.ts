@@ -912,7 +912,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ])
   } else {
     await finishLockfileUpdates()
-    await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
+    if (opts.useLockfile) {
+      await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
+    }
 
     if (opts.nodeLinker !== 'hoisted') {
       // This is only needed because otherwise the reporter will hang

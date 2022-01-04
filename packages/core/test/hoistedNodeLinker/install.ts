@@ -24,6 +24,22 @@ test('installing with hoisted node-linker', async () => {
   expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
 })
 
+test('installing with hoisted node-linker and no lockfile', async () => {
+  prepareEmpty()
+
+  await install({
+    dependencies: {
+      ms: '1.0.0',
+    },
+  }, await testDefaults({
+    useLockfile: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(fs.realpathSync('node_modules/ms')).toEqual(path.resolve('node_modules/ms'))
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy()
+})
+
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage(
