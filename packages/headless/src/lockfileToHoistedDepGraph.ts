@@ -66,21 +66,21 @@ async function _lockfileToHoistedDepGraph (
   const tree = hoist(lockfile)
   const graph: DependenciesGraph = {}
   const modulesDir = path.join(opts.lockfileDir, 'node_modules')
-  let hierarchy = await fetchDeps(lockfile, opts, graph, modulesDir, tree.dependencies)
+  const hierarchy = {
+    [opts.lockfileDir]: await fetchDeps(lockfile, opts, graph, modulesDir, tree.dependencies),
+  }
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {
-    '.': directDepsMap(Object.keys(hierarchy), graph),
+    '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
   }
   const symlinkedDirectDependenciesByImporterId: DirectDependenciesByImporterId = { '.': {} }
   for (const rootDep of Array.from(tree.dependencies)) {
     const reference = Array.from(rootDep.references)[0]
     if (reference.startsWith('workspace:')) {
       const importerId = reference.replace('workspace:', '')
-      const modulesDir = path.join(opts.lockfileDir, importerId, 'node_modules')
+      const projectDir = path.join(opts.lockfileDir, importerId)
+      const modulesDir = path.join(projectDir, 'node_modules')
       const nextHierarchy = (await fetchDeps(lockfile, opts, graph, modulesDir, rootDep.dependencies))
-      hierarchy = {
-        ...hierarchy,
-        ...nextHierarchy,
-      }
+      hierarchy[projectDir] = nextHierarchy
 
       const importer = lockfile.importers[importerId]
       const importerDir = path.join(opts.lockfileDir, importerId)
