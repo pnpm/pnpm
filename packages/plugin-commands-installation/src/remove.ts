@@ -55,6 +55,7 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'node-linker',
     'package-import-method',
     'pnpmfile',
     'reporter',

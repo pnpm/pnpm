@@ -34,6 +34,7 @@ export function rcOptionsTypes () {
     'lockfile',
     'modules-dir',
     'network-concurrency',
+    'node-linker',
     'noproxy',
     'npmPath',
     'package-import-method',
