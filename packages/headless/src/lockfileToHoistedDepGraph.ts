@@ -1,8 +1,5 @@
 import path from 'path'
 import {
-  progressLogger,
-} from '@pnpm/core-loggers'
-import {
   Lockfile,
   ProjectSnapshot,
 } from '@pnpm/lockfile-file'
@@ -163,11 +160,6 @@ async function fetchDeps (
     }
     const dir = path.join(modules, dep.name)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
-    progressLogger.debug({
-      packageId,
-      requester: opts.lockfileDir,
-      status: 'resolved',
-    })
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
     try {
       fetchResponse = opts.storeController.fetchPackage({
@@ -185,19 +177,6 @@ async function fetchDeps (
       if (pkgSnapshot.optional) return
       throw err
     }
-    fetchResponse.files() // eslint-disable-line
-      .then(({ fromStore }) => {
-        progressLogger.debug({
-          packageId,
-          requester: opts.lockfileDir,
-          status: fromStore
-            ? 'found_in_store'
-            : 'fetched',
-        })
-      })
-      .catch(() => {
-        // ignore
-      })
     graph[dir] = {
       alias: dep.name,
       children: {},

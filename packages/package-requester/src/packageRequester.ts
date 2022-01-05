@@ -8,7 +8,7 @@ import {
   PackageFileInfo,
   PackageFilesIndex,
 } from '@pnpm/cafs'
-import { fetchingProgressLogger } from '@pnpm/core-loggers'
+import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import {
   Cafs,
@@ -349,6 +349,14 @@ function fetchToStore (
     // Otherwise, if a package was not in store when the server started, it will be always
     // reported as "downloaded" instead of "reused".
     files.promise.then((cache) => { // eslint-disable-line
+      progressLogger.debug({
+        packageId: opts.pkg.id,
+        requester: opts.lockfileDir,
+        status: cache.fromStore
+          ? 'found_in_store'
+          : 'fetched',
+      })
+
       // If it's already in the store, we don't need to update the cache
       if (cache.fromStore) {
         return
