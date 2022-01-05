@@ -156,19 +156,6 @@ export default async function lockfileToDepGraph (
           if (pkgSnapshot.optional) return
           throw err
         }
-        fetchResponse.files() // eslint-disable-line
-          .then(({ fromStore }) => {
-            progressLogger.debug({
-              packageId,
-              requester: opts.lockfileDir,
-              status: fromStore
-                ? 'found_in_store'
-                : 'fetched',
-            })
-          })
-          .catch(() => {
-            // ignore
-          })
         graph[dir] = {
           children: {},
           depPath,
