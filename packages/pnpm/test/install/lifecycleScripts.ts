@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs'
 import path from 'path'
 import prepare from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
@@ -99,6 +100,24 @@ test('prepare is executed after argumentless installation', () => {
   expect(result.stdout.toString()).toContain('Hello world!')
 })
 
+test('lifecycle events don\'t have when config is set', async () => {
+  prepare({
+    dependencies: {
+      'write-lifecycle-env': '^1.0.0',
+    },
+    scripts: {
+      postinstall: 'write-lifecycle-env',
+    },
+  })
+  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
+
+  execPnpmSync(['install'])
+
+  const lifecycleEnv = await loadJsonFile<object>('env.json')
+
+  expect(lifecycleEnv['npm_config_argv']).toStrictEqual(undefined)
+})
+
 test('lifecycle events have proper npm_config_argv', async () => {
   prepare({
     dependencies: {
@@ -108,6 +127,7 @@ test('lifecycle events have proper npm_config_argv', async () => {
       postinstall: 'write-lifecycle-env',
     },
   })
+  await fs.writeFile('.npmrc', 'use-beta-cli=false', 'utf8')
 
   execPnpmSync(['install'])
 
