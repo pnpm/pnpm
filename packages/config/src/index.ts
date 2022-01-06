@@ -220,7 +220,7 @@ export default async (
   })
 
   npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
-  console.log('npmConfig list: ', npmConfig.list);
+  console.log('npmConfig list: ', npmConfig.list)
 
   delete cliOptions.prefix
 
