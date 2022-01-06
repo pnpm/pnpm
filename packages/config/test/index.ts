@@ -758,3 +758,17 @@ test('getConfig() returns the userconfig even when overridden locally', async ()
   expect(config.registry).toEqual('https://project-local.example.test')
   expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
 })
+
+test('getConfig() return the correct target_arch config when the user passed it', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'frozen-lockfile': true,
+      target_arch: 'x64',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.rawConfig['target-arch']).toBe('x64')
+})
