@@ -220,6 +220,7 @@ export default async (
   })
 
   npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
+  console.log('npmConfig list: ', npmConfig.list);
 
   delete cliOptions.prefix
 
@@ -250,6 +251,7 @@ export default async (
     { registry: 'https://registry.npmjs.org/' },
     ...[...npmConfig.list].reverse(),
     cliOptions,
+    cliOptions['target_arch'] ? { 'target-arch': cliOptions['target_arch'] } : null,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   pnpmConfig.registries = {
