@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "12.1.6",
+  "version": "12.1.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -18,7 +18,7 @@
     "@pnpm/cafs": "workspace:3.0.12",
     "@pnpm/core-loggers": "workspace:6.1.2",
     "@pnpm/fetcher-base": "workspace:11.1.4",
-    "@pnpm/package-requester": "workspace:15.2.6",
+    "@pnpm/package-requester": "workspace:16.0.0",
     "@pnpm/resolver-base": "workspace:8.1.4",
     "@pnpm/store-controller-types": "workspace:11.0.10",
     "@pnpm/types": "workspace:7.8.0",

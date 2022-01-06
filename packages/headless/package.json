@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "16.4.3",
+  "version": "17.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -18,7 +18,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:6.1.0",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.1.6",
+    "@pnpm/package-store": "workspace:12.1.7",
     "@pnpm/prepare": "workspace:0.0.32",
     "@pnpm/read-projects-context": "workspace:5.0.15",
     "@pnpm/store-path": "^5.0.0",
@@ -81,7 +81,7 @@
     "@pnpm/modules-cleaner": "workspace:11.0.19",
     "@pnpm/modules-yaml": "workspace:9.0.10",
     "@pnpm/package-is-installable": "workspace:5.0.10",
-    "@pnpm/package-requester": "workspace:15.2.6",
+    "@pnpm/package-requester": "workspace:16.0.0",
     "@pnpm/read-package-json": "workspace:5.0.9",
     "@pnpm/read-project-manifest": "workspace:2.0.10",
     "@pnpm/real-hoist": "workspace:0.1.1",

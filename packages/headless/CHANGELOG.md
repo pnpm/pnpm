@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 17.0.0
+
+### Major Changes
+
+- 8ddcd5116: Don't log fetch statuses of packages. This logging was moved to `@pnpm/package-requester`.
+
+### Patch Changes
+
+- Updated dependencies [8ddcd5116]
+  - @pnpm/package-requester@16.0.0
+
 ## 16.4.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 23.0.0
+
+### Major Changes
+
+- 8ddcd5116: Don't log fetch statuses of packages. This logging was moved to `@pnpm/package-requester`.
+
 ## 22.1.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 # pnpm
 
-## 6.25.0-3
+## 6.25.0
 
 ### Minor Changes
 
@@ -36,6 +36,8 @@
   - [#4163](https://github.com/pnpm/pnpm/pull/4163)
 
 - New CLI option: `--ignore-workspace`. When used, pnpm ignores any workspace configuration found in the current or parent directories.
+
+- If `use-beta-cli` is `true`, then don't set `npm_config_argv` env variable for scripts [#4175](https://github.com/pnpm/pnpm/pull/4175).
 
 ## 6.24.4
 

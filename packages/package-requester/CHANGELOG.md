@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 16.0.0
+
+### Major Changes
+
+- 8ddcd5116: Log the fetch statuses of packages for the progress reporter.
+
 ## 15.2.6
 
 ### Patch Changes
