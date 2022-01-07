@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/parse-cli-args
+pnpm add @pnpm/parse-cli-args
 ```
 
 ## License

@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/make-dedicated-lockfile
+pnpm add @pnpm/make-dedicated-lockfile
 ```
 
 ## Usage

@@ -9,7 +9,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/list
+pnpm add @pnpm/list
 ```
 
 ## License

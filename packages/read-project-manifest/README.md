@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<npm|yarn|pnpm> add @pnpm/read-project-manifest
+pnpm add @pnpm/read-project-manifest
 ```
 
 ## Usage

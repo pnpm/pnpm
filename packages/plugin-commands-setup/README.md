@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/plugin-commands-setup
+pnpm add @pnpm/plugin-commands-setup
 ```
 
 ## License

@@ -7,7 +7,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/git-fetcher
+pnpm add @pnpm/git-fetcher
 ```
 
 ## License

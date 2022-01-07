@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/build-modules
+pnpm add @pnpm/build-modules
 ```
 
 ## License

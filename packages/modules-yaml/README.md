@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/modules-yaml
+pnpm add @pnpm/modules-yaml
 ```
 
 ## Usage

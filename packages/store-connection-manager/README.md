@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/store-connection-manager
+pnpm add @pnpm/store-connection-manager
 ```
 
 ## License

@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/graceful-fs
+pnpm add @pnpm/graceful-fs
 ```
 
 ## License

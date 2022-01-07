@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/read-package-json
+pnpm add @pnpm/read-package-json
 ```
 
 ## Usage

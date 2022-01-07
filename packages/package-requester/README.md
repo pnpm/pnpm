@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/logger @pnpm/package-requester
+pnpm add @pnpm/logger @pnpm/package-requester
 ```
 
 ## License

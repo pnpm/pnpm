@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/client
+pnpm add @pnpm/client
 ```
 
 ## License

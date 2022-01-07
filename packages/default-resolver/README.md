@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/default-resolver
+pnpm add @pnpm/default-resolver
 ```
 
 ## License

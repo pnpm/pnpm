@@ -5,7 +5,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/default-reporter
+pnpm add @pnpm/default-reporter
 ```
 
 ## Usage

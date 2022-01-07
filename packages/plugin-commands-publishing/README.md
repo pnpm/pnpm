@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/plugin-commands-publishing
+pnpm add @pnpm/plugin-commands-publishing
 ```
 
 ## License

@@ -7,7 +7,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/tarball-fetcher
+pnpm add @pnpm/tarball-fetcher
 ```
 
 ## License

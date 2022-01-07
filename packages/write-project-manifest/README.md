@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<npm|yarn|pnpm> add @pnpm/write-project-manifest
+pnpm add @pnpm/write-project-manifest
 ```
 
 ## Usage

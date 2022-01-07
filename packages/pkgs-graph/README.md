@@ -7,7 +7,7 @@
 ## Installation
 
 ```
-<npm|yarn|pnpm> add pkgs-graph
+pnpm add pkgs-graph
 ```
 
 ## Usage

@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/outdated
+pnpm add @pnpm/outdated
 ```
 
 ## License

@@ -7,13 +7,13 @@
 Install it via npm.
 
 ```
-<pnpm|yarn|npm> add @pnpm/core
+pnpm add @pnpm/core
 ```
 
 It also depends on `@pnpm/logger` version `1`, so install it as well via:
 
 ```
-<pnpm|yarn|npm> add @pnpm/logger@1
+pnpm add @pnpm/logger@1
 ```
 
 ## API

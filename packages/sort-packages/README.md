@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/sort-packages
+pnpm add @pnpm/sort-packages
 ```
 
 ## License

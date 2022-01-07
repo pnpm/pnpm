@@ -7,7 +7,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/directory-fetcher
+pnpm add @pnpm/directory-fetcher
 ```
 
 ## License

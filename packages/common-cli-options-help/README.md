@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/common-cli-options-help
+pnpm add @pnpm/common-cli-options-help
 ```
 
 ## License

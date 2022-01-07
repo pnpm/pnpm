@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/find-workspace-packages
+pnpm add @pnpm/find-workspace-packages
 ```
 
 ## License

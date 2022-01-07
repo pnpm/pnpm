@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/plugin-commands-script-runners
+pnpm add @pnpm/plugin-commands-script-runners
 ```
 
 ## License

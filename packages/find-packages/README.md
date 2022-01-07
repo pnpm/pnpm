@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<npm|yarn|pnpm> add find-packages
+pnpm add find-packages
 ```
 
 ## Usage

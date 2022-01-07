@@ -5,7 +5,7 @@
 ## Install
 
 ```
-<pnpm|yarn|npm> add @pnpm/prune-lockfile
+pnpm add @pnpm/prune-lockfile
 ```
 
 ## License

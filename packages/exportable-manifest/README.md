@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/exportable-manifest
+pnpm add @pnpm/exportable-manifest
 ```
 
 ## License

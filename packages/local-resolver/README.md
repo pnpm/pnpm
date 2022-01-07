@@ -9,7 +9,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/local-resolver
+pnpm add @pnpm/local-resolver
 ```
 
 ## Usage

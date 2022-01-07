@@ -9,7 +9,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/git-resolver
+pnpm add @pnpm/git-resolver
 ```
 
 ## Usage

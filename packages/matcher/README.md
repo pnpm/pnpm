@@ -5,7 +5,7 @@
 ## Install
 
 ```
-<pnpm|yarn|npm> add @pnpm/matcher
+pnpm add @pnpm/matcher
 ```
 
 ## Usage

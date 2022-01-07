@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/prepare-package
+pnpm add @pnpm/prepare-package
 ```
 
 ## License

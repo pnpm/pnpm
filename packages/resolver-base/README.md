@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/resolver-base
+pnpm add @pnpm/resolver-base
 ```
 
 ## Usage

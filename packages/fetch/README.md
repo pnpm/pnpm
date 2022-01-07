@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/fetch
+pnpm add @pnpm/fetch
 ```
 
 ## License

@@ -5,7 +5,7 @@
 ## Install
 
 ```
-<pnpm|yarn|npm> add @pnpm/lockfile-walker
+pnpm add @pnpm/lockfile-walker
 ```
 
 ## License

@@ -12,7 +12,7 @@ Like `path` but for packages in a symlinked `node_modules`. Symlinked `node_modu
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add dependency-path
+pnpm add dependency-path
 ```
 
 ## Usage

@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/types
+pnpm add @pnpm/types
 ```
 
 ## Usage

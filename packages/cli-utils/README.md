@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/cli-utils
+pnpm add @pnpm/cli-utils
 ```
 
 ## License

@@ -11,7 +11,7 @@ A symlinked `node_modules` is created when installing using [pnpm](https://githu
 ## Installation
 
 ```
-<pnpm|npm|yarn> add dependencies-hierarchy
+pnpm add dependencies-hierarchy
 ```
 
 ## License

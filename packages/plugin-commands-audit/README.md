@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/plugin-commands-audit
+pnpm add @pnpm/plugin-commands-audit
 ```
 
 ## License

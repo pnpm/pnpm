@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/constants
+pnpm add @pnpm/constants
 ```
 
 ## License

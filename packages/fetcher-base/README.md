@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/fetcher-base
+pnpm add @pnpm/fetcher-base
 ```
 
 ## Usage

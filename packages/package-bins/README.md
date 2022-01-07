@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|yarn|npm> add @pnpm/package-bins
+pnpm add @pnpm/package-bins
 ```
 
 ## Usage

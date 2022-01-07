@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/config
+pnpm add @pnpm/config
 ```
 
 ## Usage

@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/get-context
+pnpm add @pnpm/get-context
 ```
 
 ## License

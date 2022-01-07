@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/cafs
+pnpm add @pnpm/cafs
 ```
 
 ## License

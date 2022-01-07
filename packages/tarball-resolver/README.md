@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/tarball-resolver
+pnpm add @pnpm/tarball-resolver
 ```
 
 ## Usage

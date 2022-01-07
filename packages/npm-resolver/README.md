@@ -9,7 +9,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/npm-resolver
+pnpm add @pnpm/npm-resolver
 ```
 
 ## Usage

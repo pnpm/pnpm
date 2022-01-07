@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-<pnpm|npm|yarn> add @pnpm/global-bin-dir
+pnpm add @pnpm/global-bin-dir
 ```
 
 ## License

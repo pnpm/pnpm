@@ -5,7 +5,7 @@
 ## Installation
 
 ```
-<pnpm|npm|yarn> add @pnpm/package-store
+pnpm add @pnpm/package-store
 ```
 
 ## License
