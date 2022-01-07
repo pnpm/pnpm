@@ -5,6 +5,15 @@
     "sourceType": "module"
   },
   "rules": {
+    "import/no-extraneous-dependencies": [
+      "error",
+      {
+        "devDependencies": [
+          "**/packages/pnpm/**",
+          "**/test/**"
+        ]
+      }
+    ],
     "@typescript-eslint/indent": [
         "error",
         2,

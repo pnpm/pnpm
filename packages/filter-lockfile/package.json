@@ -34,6 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
+    "@pnpm/filter-lockfile": "workspace:5.0.15",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39",
     "tempy": "^1.0.0",

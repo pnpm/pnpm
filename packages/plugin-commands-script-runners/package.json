@@ -36,7 +36,9 @@
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:4.4.14",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/prepare": "workspace:0.0.32",
+    "@pnpm/plugin-commands-script-runners": "workspace:4.5.11",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "2.12.1",
     "@types/ramda": "0.27.39",
     "is-windows": "^1.0.2",
     "write-yaml-file": "^4.2.0"

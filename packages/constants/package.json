@@ -28,5 +28,8 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/constants#readme",
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/constants": "workspace:5.0.0"
+  }
 }

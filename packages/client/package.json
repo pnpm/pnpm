@@ -42,6 +42,7 @@
     "mem": "^8.0.0"
   },
   "devDependencies": {
+    "@pnpm/client": "workspace:6.1.0",
     "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

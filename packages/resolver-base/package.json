@@ -32,5 +32,8 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/resolver-base": "workspace:8.1.4"
+  }
 }

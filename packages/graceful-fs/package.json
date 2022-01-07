@@ -30,5 +30,8 @@
   "dependencies": {
     "graceful-fs": "^4.2.6"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/graceful-fs": "workspace:1.0.0"
+  }
 }

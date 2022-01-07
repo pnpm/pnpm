@@ -41,10 +41,12 @@
     "@pnpm/read-package-json": "workspace:5.0.9",
     "@pnpm/store-controller-types": "workspace:11.0.10",
     "@pnpm/types": "workspace:7.8.0",
+    "@zkochan/rimraf": "^2.1.1",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
+    "@pnpm/lifecycle": "workspace:12.1.3",
     "@pnpm/logger": "^4.0.0",
     "@types/rimraf": "^3.0.0",
     "@zkochan/rimraf": "^2.1.1",

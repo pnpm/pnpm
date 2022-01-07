@@ -38,7 +38,8 @@
   "devDependencies": {
     "@pnpm/client": "workspace:6.1.0",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/prepare": "workspace:0.0.32",
+    "@pnpm/package-store": "workspace:12.1.7",
+    "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.27.39",
     "@types/ssri": "^7.1.0",
     "tempy": "^1.0.0"

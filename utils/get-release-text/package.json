@@ -12,5 +12,8 @@
     "remark-parse": "^7.0.1",
     "remark-stringify": "^7.0.3",
     "unified": "^8.3.2"
+  },
+  "devDependencies": {
+    "@pnpm/get-release-text": "workspace:*"
   }
 }

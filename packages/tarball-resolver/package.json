@@ -31,5 +31,8 @@
   "funding": "https://opencollective.com/pnpm",
   "keywords": [
     "pnpm6"
-  ]
+  ],
+  "devDependencies": {
+    "@pnpm/tarball-resolver": "workspace:5.0.9"
+  }
 }

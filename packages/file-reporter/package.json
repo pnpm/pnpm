@@ -33,6 +33,7 @@
     "path-exists": "^4.0.0"
   },
   "devDependencies": {
+    "@pnpm/file-reporter": "workspace:2.0.0",
     "exists-file": "^3.0.2",
     "ndjson": "^2.0.0"
   },

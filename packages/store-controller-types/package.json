@@ -33,5 +33,8 @@
     "@pnpm/resolver-base": "workspace:8.1.4",
     "@pnpm/types": "workspace:7.8.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/store-controller-types": "workspace:11.0.10"
+  }
 }

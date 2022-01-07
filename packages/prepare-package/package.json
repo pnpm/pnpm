@@ -34,5 +34,8 @@
     "execa": "npm:safe-execa@^0.1.1",
     "preferred-pm": "^3.0.3"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/prepare-package": "workspace:1.0.10"
+  }
 }

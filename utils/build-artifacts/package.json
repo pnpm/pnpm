@@ -8,5 +8,8 @@
   },
   "scripts": {
     "build": "shx rm -rf dist && pnpm -w compile && node main.mjs"
+  },
+  "devDependencies": {
+    "@pnpm/build-artifacts": "workspace:*"
   }
 }

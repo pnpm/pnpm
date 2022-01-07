@@ -40,6 +40,7 @@
     "@pnpm/tarball-resolver": "workspace:5.0.9"
   },
   "devDependencies": {
+    "@pnpm/default-resolver": "workspace:14.0.9",
     "@pnpm/fetch": "workspace:4.2.3",
     "@pnpm/logger": "^4.0.0"
   },

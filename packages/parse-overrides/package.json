@@ -31,5 +31,8 @@
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/parse-wanted-dependency": "workspace:2.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/parse-overrides": "workspace:1.0.0"
   }
 }

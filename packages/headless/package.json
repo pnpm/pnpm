@@ -17,10 +17,12 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:6.1.0",
+    "@pnpm/headless": "workspace:17.0.1",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.1.7",
-    "@pnpm/prepare": "workspace:0.0.32",
+    "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:5.0.15",
+    "@pnpm/registry-mock": "2.12.1",
     "@pnpm/store-path": "^5.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.5",

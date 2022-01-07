@@ -54,6 +54,7 @@
     "strip-ansi": "^6.0.0"
   },
   "devDependencies": {
+    "@pnpm/default-reporter": "workspace:8.5.5",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",

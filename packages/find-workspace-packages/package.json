@@ -35,5 +35,8 @@
     "find-packages": "workspace:8.0.10",
     "read-yaml-file": "^2.1.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/find-workspace-packages": "workspace:3.1.34"
+  }
 }

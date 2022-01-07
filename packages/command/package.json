@@ -27,5 +27,8 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/command#readme",
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/command": "workspace:2.0.0"
+  }
 }

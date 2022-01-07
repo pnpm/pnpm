@@ -30,5 +30,8 @@
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-promise": "^5.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/eslint-config": "workspace:*"
   }
 }

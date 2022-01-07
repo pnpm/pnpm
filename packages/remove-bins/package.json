@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
+    "@pnpm/remove-bins": "workspace:2.0.11",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.27.39"
   },

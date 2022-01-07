@@ -36,5 +36,8 @@
     "load-json-file": "^6.2.0",
     "npm-packlist": "^2.2.2",
     "ramda": "^0.27.1"
+  },
+  "devDependencies": {
+    "@pnpm/directory-fetcher": "workspace:1.0.4"
   }
 }

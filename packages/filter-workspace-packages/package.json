@@ -40,6 +40,7 @@
     "ramda": "^0.27.1"
   },
   "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:4.4.14",
     "@types/is-ci": "^3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/micromatch": "^4.0.1",

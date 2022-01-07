@@ -35,6 +35,7 @@
     "cli-columns": "^4.0.0"
   },
   "devDependencies": {
+    "@pnpm/render-peer-issues": "workspace:1.1.0",
     "@types/archy": "0.0.31",
     "strip-ansi": "^6.0.0"
   }

@@ -50,7 +50,8 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/prepare": "workspace:0.0.32",
+    "@pnpm/plugin-commands-env": "workspace:1.4.4",
+    "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
     "execa": "npm:safe-execa@^0.1.1",
     "nock": "12.0.3",

@@ -37,6 +37,7 @@
     "write-yaml-file": "^4.2.0"
   },
   "devDependencies": {
+    "@pnpm/modules-yaml": "workspace:9.0.10",
     "@types/is-windows": "^1.0.0",
     "tempy": "^1.0.0"
   },

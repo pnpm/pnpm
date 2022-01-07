@@ -41,6 +41,7 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
+    "@pnpm/local-resolver": "workspace:7.0.5",
     "@types/normalize-path": "^3.0.0",
     "@types/ssri": "^7.1.0"
   },

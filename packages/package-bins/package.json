@@ -36,6 +36,7 @@
     "is-subdir": "^1.1.1"
   },
   "devDependencies": {
+    "@pnpm/package-bins": "workspace:5.0.10",
     "@types/node": "^14.17.32"
   },
   "funding": "https://opencollective.com/pnpm"

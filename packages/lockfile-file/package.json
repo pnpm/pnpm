@@ -34,6 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
+    "@pnpm/lockfile-file": "workspace:4.2.5",
     "@pnpm/logger": "^4.0.0",
     "@types/js-yaml": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
