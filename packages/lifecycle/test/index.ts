@@ -2,7 +2,7 @@
 import path from 'path'
 import runLifecycleHook, { runPostinstallHooks } from '@pnpm/lifecycle'
 import loadJsonFile from 'load-json-file'
-import rimraf from 'rimraf'
+import rimraf from '@zkochan/rimraf'
 
 const fixtures = path.join(__dirname, 'fixtures')
 const rootModulesDir = path.join(__dirname, '..', 'node_modules')
@@ -39,7 +39,7 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
 
 test('runPostinstallHooks()', async () => {
   const pkgRoot = path.join(fixtures, 'with-many-scripts')
-  rimraf.sync(path.join(pkgRoot, 'output.json'))
+  await rimraf(path.join(pkgRoot, 'output.json'))
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
     optional: false,

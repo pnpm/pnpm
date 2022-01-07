@@ -1174,6 +1174,7 @@ importers:
       '@pnpm/store-controller-types': workspace:11.0.10
       '@pnpm/types': workspace:7.8.0
       '@types/rimraf': ^3.0.0
+      '@zkochan/rimraf': ^2.1.1
       json-append: 1.1.1
       load-json-file: ^6.2.0
       path-exists: ^4.0.0
@@ -1191,6 +1192,7 @@ importers:
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 4.0.0
       '@types/rimraf': 3.0.2
+      '@zkochan/rimraf': 2.1.1
       json-append: 1.1.1
       load-json-file: 6.2.0
 
@@ -2162,6 +2164,7 @@ importers:
       '@pnpm/find-workspace-packages': link:../find-workspace-packages
       '@pnpm/graceful-fs': link:../graceful-fs
       '@pnpm/manifest-utils': link:../manifest-utils
+      '@pnpm/matcher': link:../matcher
       '@pnpm/outdated': link:../outdated
       '@pnpm/package-store': link:../package-store
       '@pnpm/parse-wanted-dependency': link:../parse-wanted-dependency
@@ -2198,7 +2201,6 @@ importers:
       '@pnpm/assert-project': link:../../privatePackages/assert-project
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/logger': 4.0.0
-      '@pnpm/matcher': link:../matcher
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
@@ -2305,11 +2307,13 @@ importers:
       '@pnpm/outdated': link:../outdated
       '@pnpm/semver-diff': 1.1.0
       '@pnpm/store-path': 5.0.0
+      '@pnpm/types': link:../types
       '@zkochan/table': 1.0.0
       chalk: 4.1.2
       lru-cache: 6.0.0
       ramda: 0.27.1
       render-help: 1.0.2
+      strip-ansi: 6.0.1
       wrap-ansi: 7.0.0
     devDependencies:
       '@pnpm/constants': link:../constants
@@ -2317,12 +2321,10 @@ importers:
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/types': link:../types
       '@types/lru-cache': 5.1.1
       '@types/ramda': 0.27.39
       '@types/wrap-ansi': 3.0.0
       '@types/zkochan__table': /@types/table/6.0.0
-      strip-ansi: 6.0.1
 
   packages/plugin-commands-publishing:
     specifiers:
@@ -2536,6 +2538,7 @@ importers:
       '@pnpm/sort-packages': link:../sort-packages
       '@pnpm/store-path': 5.0.0
       '@pnpm/types': link:../types
+      '@zkochan/rimraf': 2.1.1
       execa: /safe-execa/0.1.1
       p-limit: 3.1.0
       path-exists: 4.0.0
@@ -2549,7 +2552,6 @@ importers:
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/ramda': 0.27.39
-      '@zkochan/rimraf': 2.1.1
       is-windows: 1.0.2
       write-yaml-file: 4.2.0
 
@@ -2671,6 +2673,7 @@ importers:
       archy: 1.0.0
       dependency-path: link:../dependency-path
       dint: 5.1.0
+      load-json-file: 6.2.0
       p-filter: 2.1.0
       ramda: 0.27.1
       render-help: 1.0.2
@@ -2685,7 +2688,6 @@ importers:
       '@types/ssri': 7.1.1
       '@zkochan/rimraf': 2.1.1
       execa: /safe-execa/0.1.1
-      load-json-file: 6.2.0
       path-exists: 4.0.0
       ssri: 8.0.1
       tempy: 1.0.1

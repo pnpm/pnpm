@@ -42,7 +42,6 @@
     "@types/ssri": "^7.1.0",
     "@zkochan/rimraf": "^2.1.1",
     "execa": "npm:safe-execa@^0.1.1",
-    "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
     "ssri": "^8.0.1",
     "tempy": "^1.0.0"
@@ -64,6 +63,7 @@
     "archy": "^1.0.0",
     "dependency-path": "workspace:8.0.9",
     "dint": "^5.1.0",
+    "load-json-file": "^6.2.0",
     "p-filter": "^2.1.0",
     "ramda": "^0.27.1",
     "render-help": "^1.0.1"

@@ -47,6 +47,7 @@
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
     "@types/rimraf": "^3.0.0",
+    "@zkochan/rimraf": "^2.1.1",
     "json-append": "1.1.1",
     "load-json-file": "^6.2.0"
   },

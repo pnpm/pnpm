@@ -1,9 +1,8 @@
 import path from 'path'
-import { promisify } from 'util'
 import { install, fetch } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf from 'rimraf'
+import rimraf from '@zkochan/rimraf'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -46,8 +45,8 @@ test('fetch dependencies', async () => {
     storeDir,
   })
 
-  await promisify(rimraf)(path.resolve(project.dir(), 'node_modules'))
-  await promisify(rimraf)(path.resolve(project.dir(), './package.json'))
+  await rimraf(path.resolve(project.dir(), 'node_modules'))
+  await rimraf(path.resolve(project.dir(), './package.json'))
 
   await project.storeHasNot('is-negative')
   await project.storeHasNot('is-positive')
@@ -77,8 +76,8 @@ test('fetch production dependencies', async () => {
     storeDir,
   })
 
-  await promisify(rimraf)(path.resolve(project.dir(), 'node_modules'))
-  await promisify(rimraf)(path.resolve(project.dir(), './package.json'))
+  await rimraf(path.resolve(project.dir(), 'node_modules'))
+  await rimraf(path.resolve(project.dir(), './package.json'))
 
   await project.storeHasNot('is-negative')
   await project.storeHasNot('is-positive')
@@ -109,8 +108,8 @@ test('fetch only dev dependencies', async () => {
     storeDir,
   })
 
-  await promisify(rimraf)(path.resolve(project.dir(), 'node_modules'))
-  await promisify(rimraf)(path.resolve(project.dir(), './package.json'))
+  await rimraf(path.resolve(project.dir(), 'node_modules'))
+  await rimraf(path.resolve(project.dir(), './package.json'))
 
   await project.storeHasNot('is-negative')
   await project.storeHasNot('is-positive')
