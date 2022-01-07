@@ -1103,6 +1103,7 @@ importers:
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
+      '@zkochan/rimraf': 2.1.1
       dependency-path: link:../dependency-path
       p-limit: 3.1.0
       path-absolute: 1.0.1
@@ -1123,7 +1124,6 @@ importers:
       '@types/ramda': 0.27.39
       '@types/rimraf': 3.0.2
       '@types/sinon': 10.0.6
-      '@zkochan/rimraf': 2.1.1
       is-windows: 1.0.2
       isexe: 2.0.0
       load-json-file: 6.2.0
