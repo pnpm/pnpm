@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 17.0.1
+
+### Patch Changes
+
+- df69150fc: `@zkochan/rimraf` should be a prod dependency.
+- Updated dependencies [cbd2f3e2a]
+  - @pnpm/real-hoist@0.1.2
+
 ## 17.0.0
 
 ### Major Changes

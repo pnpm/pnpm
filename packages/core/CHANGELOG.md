@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 2.2.5
+
+### Patch Changes
+
+- Updated dependencies [df69150fc]
+- Updated dependencies [cbd2f3e2a]
+  - @pnpm/headless@17.0.1
+  - @pnpm/resolve-dependencies@23.0.1
+
 ## 2.2.4
 
 ### Patch Changes

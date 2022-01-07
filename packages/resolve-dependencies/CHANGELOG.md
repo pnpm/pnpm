@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 23.0.1
+
+### Patch Changes
+
+- cbd2f3e2a: Downgrade and pin Yarn lib versions.
+
 ## 23.0.0
 
 ### Major Changes

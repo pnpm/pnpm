@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 8.1.5
+
+### Patch Changes
+
+- cbd2f3e2a: Downgrade and pin Yarn lib versions.
+  - @pnpm/core@2.2.5
+
 ## 8.1.4
 
 ### Patch Changes
