@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@pnpm/lockfile-utils": "workspace:3.1.5",
-    "@yarnpkg/nm": "^3.0.1-rc.8",
+    "@yarnpkg/nm": "3.0.1-rc.9",
     "dependency-path": "workspace:8.0.9"
   },
   "funding": "https://opencollective.com/pnpm",

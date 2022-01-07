@@ -61,7 +61,8 @@
   },
   "pnpm": {
     "overrides": {
-      "@yarnpkg/parsers@2": "2.3.0",
+      "@yarnpkg/core@^3.2.0-rc.8": "3.2.0-rc.9",
+      "@yarnpkg/parsers": "2.5.0-rc.7",
       "ansi-regex@<5": "^5.0.1",
       "glob-parent@3": "^5.1.2",
       "hosted-git-info@<3.0.8": "^3.0.8",
