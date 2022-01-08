@@ -1,4 +1,1 @@
-module.exports = {
-  ...require('../../jest.config.js'),
-  testPathIgnorePatterns: ['test/utils.ts'],
-}
+module.exports = require('../../jest.config.js')
