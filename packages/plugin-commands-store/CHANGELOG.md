@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-store
 
+## 4.1.3
+
+### Patch Changes
+
+- ea24c69fe: `load-json-file` is a dev dependency.
+  - @pnpm/cli-utils@0.6.43
+
 ## 4.1.2
 
 ### Patch Changes

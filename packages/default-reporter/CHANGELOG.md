@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.5.6
+
+### Patch Changes
+
+- ea24c69fe: `@pnpm/logger` should be a peer dependency.
+
 ## 8.5.5
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 8.1.6
+
+### Patch Changes
+
+- ea24c69fe: `@pnpm/matcher` should be a prod dependency.
+  - @pnpm/core@2.2.6
+  - @pnpm/cli-utils@0.6.43
+  - @pnpm/find-workspace-packages@3.1.35
+  - @pnpm/plugin-commands-rebuild@5.4.3
+  - @pnpm/filter-workspace-packages@4.4.15
+
 ## 8.1.5
 
 ### Patch Changes

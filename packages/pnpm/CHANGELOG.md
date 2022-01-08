@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.25.1
+
+### Patch Changes
+
+- Run the install scripts of hoisted dependencies in a workspace with no root project [#4209](https://github.com/pnpm/pnpm/issues/4209).
+
 ## 6.25.0
 
 ### Minor Changes

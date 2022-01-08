@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 17.0.2
+
+### Patch Changes
+
+- 0b78577f5: Run the install scripts of hoisted dependencies in a workspace with no root project.
+- Updated dependencies [ea24c69fe]
+  - @pnpm/build-modules@7.2.4
+
 ## 17.0.1
 
 ### Patch Changes

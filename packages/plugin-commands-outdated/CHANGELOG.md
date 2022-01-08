@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-outdated
 
+## 5.1.2
+
+### Patch Changes
+
+- ea24c69fe: `strip-ansi` should be a prod dependency.
+  - @pnpm/cli-utils@0.6.43
+
 ## 5.1.1
 
 ### Patch Changes

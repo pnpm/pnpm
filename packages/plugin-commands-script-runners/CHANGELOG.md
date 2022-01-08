@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.5.12
+
+### Patch Changes
+
+- ea24c69fe: `@zkochan/rimraf` should be a prod dependency.
+  - @pnpm/cli-utils@0.6.43
+
 ## 4.5.11
 
 ### Patch Changes

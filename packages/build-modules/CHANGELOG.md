@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 7.2.4
+
+### Patch Changes
+
+- ea24c69fe: `@pnpm/logger` should be a peer dependency.
+
 ## 7.2.3
 
 ### Patch Changes
