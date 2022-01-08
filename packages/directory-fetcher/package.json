@@ -34,7 +34,7 @@
     "@pnpm/fetcher-base": "workspace:11.1.4",
     "@pnpm/resolver-base": "workspace:8.1.4",
     "load-json-file": "^6.2.0",
-    "npm-packlist": "^2.2.2",
+    "npm-packlist": "^3.0.0",
     "ramda": "^0.27.1"
   },
   "devDependencies": {
