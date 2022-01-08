@@ -13,6 +13,7 @@
     "write-yaml-file": "^4.2.0"
   },
   "devDependencies": {
+    "@pnpm/prepare": "workspace:*",
     "@types/node": "^14.17.32"
   },
   "scripts": {

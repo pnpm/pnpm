@@ -30,6 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-server#readme",
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
+    "@pnpm/plugin-commands-server": "workspace:3.0.60",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.27.39",
     "@types/signal-exit": "^3.0.0"

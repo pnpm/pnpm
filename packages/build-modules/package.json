@@ -45,6 +45,7 @@
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
+    "@pnpm/build-modules": "workspace:7.2.3",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39"
   },

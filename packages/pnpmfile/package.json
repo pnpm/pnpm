@@ -29,7 +29,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pnpmfile#readme",
   "devDependencies": {
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/logger": "^4.0.0",
+    "@pnpm/pnpmfile": "workspace:1.2.3"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.1.2",

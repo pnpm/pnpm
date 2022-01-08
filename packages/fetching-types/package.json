@@ -32,5 +32,8 @@
   "dependencies": {
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "3.0.0-beta.9"
+  },
+  "devDependencies": {
+    "@pnpm/fetching-types": "workspace:2.2.1"
   }
 }

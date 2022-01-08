@@ -15,5 +15,8 @@
     "normalize-path": "^3.0.0",
     "path-exists": "^4.0.0",
     "write-json-file": "^4.3.0"
+  },
+  "devDependencies": {
+    "@pnpm-private/updater": "workspace:*"
   }
 }

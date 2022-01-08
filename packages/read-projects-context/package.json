@@ -35,7 +35,8 @@
     "realpath-missing": "^1.1.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/logger": "^4.0.0",
+    "@pnpm/read-projects-context": "workspace:5.0.15"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

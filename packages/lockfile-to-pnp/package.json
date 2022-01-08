@@ -34,8 +34,8 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
+    "@pnpm/lockfile-to-pnp": "workspace:0.4.40",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/types": "workspace:7.8.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
     "rimraf": "^3.0.2"
@@ -45,6 +45,7 @@
     "@pnpm/lockfile-file": "workspace:4.2.5",
     "@pnpm/lockfile-utils": "workspace:3.1.5",
     "@pnpm/read-project-manifest": "workspace:2.0.10",
+    "@pnpm/types": "workspace:7.8.0",
     "@yarnpkg/pnp": "^2.3.2",
     "dependency-path": "workspace:8.0.9",
     "normalize-path": "^3.0.0",

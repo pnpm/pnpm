@@ -5,6 +5,7 @@
   "license": "MIT",
   "main": "index.js",
   "devDependencies": {
-    "@babel/register": "^7.13.16"
+    "@babel/register": "^7.13.16",
+    "@pnpm/ts-execution-runtime": "workspace:*"
   }
 }

@@ -35,5 +35,8 @@
     "fast-glob": "^3.2.4",
     "p-filter": "^2.1.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "find-packages": "workspace:8.0.10"
+  }
 }

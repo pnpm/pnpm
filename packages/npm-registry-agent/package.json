@@ -18,6 +18,7 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "devDependencies": {
+    "@pnpm/npm-registry-agent": "workspace:5.0.2",
     "@types/http-proxy-agent": "^4.0.0",
     "@types/lru-cache": "^5.1.0"
   },

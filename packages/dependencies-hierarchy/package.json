@@ -47,7 +47,8 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/logger": "^4.0.0",
-    "@types/normalize-path": "^3.0.0"
+    "@types/normalize-path": "^3.0.0",
+    "dependencies-hierarchy": "workspace:10.0.21"
   },
   "funding": "https://opencollective.com/pnpm"
 }

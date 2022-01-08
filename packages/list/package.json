@@ -48,6 +48,7 @@
     "semver": "^7.3.4"
   },
   "devDependencies": {
+    "@pnpm/list": "workspace:6.2.18",
     "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
     "@types/ramda": "0.27.39",

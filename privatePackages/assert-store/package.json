@@ -42,6 +42,10 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:3.0.12",
+    "@pnpm/registry-mock": "2.12.1",
     "path-exists": "^4.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/assert-store": "workspace:*"
   }
 }

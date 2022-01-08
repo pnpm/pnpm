@@ -28,8 +28,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cli-utils#readme",
   "devDependencies": {
+    "@pnpm/cli-utils": "workspace:0.6.42",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/types": "workspace:7.8.0",
     "@types/ramda": "0.27.39"
   },
   "dependencies": {
@@ -40,6 +40,7 @@
     "@pnpm/manifest-utils": "workspace:2.1.5",
     "@pnpm/package-is-installable": "workspace:5.0.10",
     "@pnpm/read-project-manifest": "workspace:2.0.10",
+    "@pnpm/types": "workspace:7.8.0",
     "chalk": "^4.1.0",
     "load-json-file": "^6.2.0"
   },

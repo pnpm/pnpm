@@ -43,6 +43,7 @@
     "strip-bom": "^4.0.0"
   },
   "devDependencies": {
+    "@pnpm/read-project-manifest": "workspace:2.0.10",
     "@types/is-windows": "^1.0.0",
     "@types/json5": "^2.2.0",
     "@types/parse-json": "^4.0.0",

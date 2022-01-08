@@ -35,6 +35,7 @@
     "write-yaml-file": "^4.2.0"
   },
   "devDependencies": {
+    "@pnpm/write-project-manifest": "workspace:2.0.9",
     "@types/json5": "^2.2.0",
     "@types/write-file-atomic": "^3.0.1",
     "tempy": "^1.0.0"

@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
+    "@pnpm/modules-cleaner": "workspace:11.0.19",
     "@types/ramda": "0.27.39"
   },
   "bugs": {

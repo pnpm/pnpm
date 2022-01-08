@@ -32,5 +32,8 @@
     "@pnpm/types": "workspace:7.8.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils#readme",
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/manifest-utils": "workspace:2.1.5"
+  }
 }

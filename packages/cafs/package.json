@@ -31,6 +31,7 @@
     "tar-stream": "^2.2.0"
   },
   "devDependencies": {
+    "@pnpm/cafs": "workspace:3.0.12",
     "@types/concat-stream": "^1.6.0",
     "@types/node": "^14.17.32",
     "@types/ssri": "^7.1.0",

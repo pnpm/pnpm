@@ -32,7 +32,10 @@
     "test": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/prepare": "workspace:0.0.32",
+    "@pnpm/prepare": "workspace:*",
     "fs-extra": "^10.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/test-fixtures": "workspace:*"
   }
 }

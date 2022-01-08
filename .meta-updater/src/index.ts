@@ -20,7 +20,19 @@ export default async (workspaceDir: string) => {
   return {
     'package.json': (manifest: ProjectManifest & { keywords?: string[] }, dir: string) => {
       if (!isSubdir(pkgsDir, dir)) {
+        if (manifest.name) {
+          manifest.devDependencies = {
+            ...manifest.devDependencies,
+            [manifest.name]: `workspace:*`,
+          }
+        }
         return manifest
+      }
+      if (manifest.name && manifest.name !== 'pnpm') {
+        manifest.devDependencies = {
+          ...manifest.devDependencies,
+          [manifest.name]: `workspace:${manifest.version}`,
+        }
       }
       manifest.keywords = [
         pnpmMajorKeyword,

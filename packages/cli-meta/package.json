@@ -28,9 +28,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cli-meta#readme",
   "devDependencies": {
-    "@pnpm/types": "workspace:7.8.0"
+    "@pnpm/cli-meta": "workspace:2.0.0"
   },
   "dependencies": {
+    "@pnpm/types": "workspace:7.8.0",
     "load-json-file": "^6.2.0"
   },
   "funding": "https://opencollective.com/pnpm"

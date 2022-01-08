@@ -15,6 +15,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
+    "@pnpm/hoist": "workspace:5.2.10",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39"
   },

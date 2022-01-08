@@ -35,5 +35,8 @@
     "load-json-file": "^6.2.0",
     "normalize-package-data": "^3.0.2"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/read-package-json": "workspace:5.0.9"
+  }
 }

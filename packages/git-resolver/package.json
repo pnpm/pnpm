@@ -39,6 +39,7 @@
     "semver": "^7.3.4"
   },
   "devDependencies": {
+    "@pnpm/git-resolver": "workspace:5.1.15",
     "@types/hosted-git-info": "^3.0.1",
     "@types/is-windows": "^1.0.0",
     "@types/semver": "^7.3.4",

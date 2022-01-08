@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
+    "@pnpm/package-is-installable": "workspace:5.0.10",
     "@types/semver": "^7.3.4"
   },
   "bugs": {
