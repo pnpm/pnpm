@@ -61,6 +61,7 @@ import equals from 'ramda/src/equals'
 import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
 import props from 'ramda/src/props'
+import union from 'ramda/src/union'
 import realpathMissing from 'realpath-missing'
 import linkHoistedModules from './linkHoistedModules'
 import lockfileToDepGraph, {
@@ -385,9 +386,9 @@ export default async (opts: HeadlessOptions) => {
       )
   } else {
     const directNodes = new Set<string>()
-    for (const id of importerIds) {
+    for (const id of union(importerIds, ['.'])) {
       Object
-        .values(directDependenciesByImporterId[id])
+        .values(directDependenciesByImporterId[id] ?? {})
         .filter((loc) => graph[loc])
         .forEach((loc) => {
           directNodes.add(loc)

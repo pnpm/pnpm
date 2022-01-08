@@ -160,3 +160,26 @@ test('run pre/postinstall scripts. bin files should be linked in a hoisted node_
   const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
   expect(typeof generatedByPostinstall).toBe('function')
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/4209
+test('running install scripts in a workspace that has no root project', async () => {
+  prepareEmpty()
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'pre-and-postinstall-scripts-example': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+  ], await testDefaults({ fastUnpack: false, nodeLinker: 'hoisted' }))
+
+  expect(fs.existsSync('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+})
