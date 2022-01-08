@@ -91,7 +91,6 @@
     "path-exists": "^4.0.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "workspace:6.1.3",
-    "pnpm": "workspace:6.25.0",
     "ps-list": "^7.2.0",
     "ramda": "^0.27.1",
     "read-yaml-file": "^2.1.0",

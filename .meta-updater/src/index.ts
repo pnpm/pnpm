@@ -28,7 +28,7 @@ export default async (workspaceDir: string) => {
         }
         return manifest
       }
-      if (manifest.name) {
+      if (manifest.name && manifest.name !== 'pnpm') {
         manifest.devDependencies = {
           ...manifest.devDependencies,
           [manifest.name]: `workspace:${manifest.version}`,
