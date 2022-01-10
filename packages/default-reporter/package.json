@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "pnpm tsc --watch",
+    "start": "tsc --watch",
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "pretty-test": "ts-node test | tap-diff",
     "just-test-preview": "ts-node test --type-check",
