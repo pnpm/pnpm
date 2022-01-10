@@ -18,7 +18,7 @@
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/resolve-workspace-range",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolve-workspace-range#readme",
   "scripts": {
-    "start": "pnpm run tsc -- --watch",
+    "start": "tsc --watch",
     "test": "pnpm run compile",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "pnpm run compile",

@@ -64,7 +64,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/package-store",
   "scripts": {
-    "start": "pnpm run tsc -- --watch",
+    "start": "tsc --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "pretest": "rimraf .tmp",

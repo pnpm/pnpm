@@ -12,7 +12,7 @@
     "node": ">=12.17"
   },
   "scripts": {
-    "start": "pnpm tsc --watch",
+    "start": "tsc --watch",
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:jest": "jest",

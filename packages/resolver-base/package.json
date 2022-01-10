@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "pnpm run tsc -- --watch",
+    "start": "tsc --watch",
     "lint": "eslint src/**/*.ts",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
