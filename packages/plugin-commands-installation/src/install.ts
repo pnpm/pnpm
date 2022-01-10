@@ -238,6 +238,7 @@ by any dependencies, so it is an emulation of a flat node_modules',
 
 export type InstallCommandOptions = Pick<Config,
 | 'allProjects'
+| 'autoInstallPeers'
 | 'bail'
 | 'bin'
 | 'cliOptions'

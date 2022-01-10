@@ -35,6 +35,7 @@ const OVERWRITE_UPDATE_OPTIONS = {
 
 export type InstallDepsOptions = Pick<Config,
 | 'allProjects'
+| 'autoInstallPeers'
 | 'bail'
 | 'bin'
 | 'cliOptions'
@@ -233,13 +234,13 @@ when running add/update with the --workspace option')
     }
     let [updatedImporter] = await mutateModules([mutatedProject], installOpts)
     if (opts.save !== false) {
-      if (!isEmpty(updatedImporter.peerDependencyIssues?.intersections ?? {})) {
+      if (opts.autoInstallPeers && !isEmpty(updatedImporter.peerDependencyIssues?.intersections ?? {})) {
         logger.info({
           message: 'Installing missing peer dependencies',
           prefix: opts.dir,
         })
         const dependencySelectors = Object.entries(updatedImporter.peerDependencyIssues!.intersections)
-          .map(([name, version]) => `${name}@${version}`)
+          .map(([name, version]: [string, string]) => `${name}@${version}`)
         const result = await mutateModules([
           {
             ...mutatedProject,

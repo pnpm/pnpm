@@ -13,6 +13,7 @@ export interface Config {
   selectedProjectsGraph?: ProjectsGraph
 
   allowNew: boolean
+  autoInstallPeers?: boolean
   bail: boolean
   color: 'always' | 'auto' | 'never'
   cliOptions: Record<string, any>, // eslint-disable-line

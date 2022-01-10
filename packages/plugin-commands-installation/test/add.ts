@@ -293,6 +293,7 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
   prepare()
   await add.handler({
     ...DEFAULT_OPTIONS,
+    autoInstallPeers: true,
     dir: process.cwd(),
     linkWorkspacePackages: false,
   }, ['abc@1.0.0'])
