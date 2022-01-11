@@ -97,11 +97,17 @@ export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'nam
 
 export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDependencies' | 'peerDependencies' | 'peerDependenciesMeta'>
 
+export interface PeerDependencyRules {
+  ignoreMissing?: string[]
+  allowedVersions?: Record<string, string>
+}
+
 export type ProjectManifest = BaseManifest & {
   pnpm?: {
     neverBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
+    peerDependencyRules?: PeerDependencyRules
   }
   private?: boolean
   resolutions?: Record<string, string>

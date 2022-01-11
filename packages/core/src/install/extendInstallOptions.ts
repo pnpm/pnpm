@@ -7,6 +7,7 @@ import { WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   PackageExtension,
+  PeerDependencyRules,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -80,6 +81,7 @@ export interface StrictInstallOptions {
   symlink: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
+  peerDependencyRules: PeerDependencyRules
 
   hoistPattern: string[] | undefined
   forceHoistPattern: boolean

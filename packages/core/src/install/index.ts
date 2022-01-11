@@ -49,6 +49,7 @@ import {
   DependenciesField,
   DependencyManifest,
   PackageExtension,
+  PeerDependencyRules,
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
@@ -68,6 +69,7 @@ import removeDeps from '../uninstall/removeDeps'
 import allProjectsAreUpToDate from './allProjectsAreUpToDate'
 import createPackageExtender from './createPackageExtender'
 import createVersionsOverrider from './createVersionsOverrider'
+import createPeerDependencyPatcher from './createPeerDependencyPatcher'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
@@ -170,6 +172,7 @@ export async function mutateModules (
     overrides: opts.overrides,
     lockfileDir: opts.lockfileDir,
     packageExtensions: opts.packageExtensions,
+    peerDependencyRules: opts.peerDependencyRules,
   })
   const ctx = await getContext(projects, opts)
   const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
@@ -483,11 +486,13 @@ export function createReadPackageHook (
     lockfileDir,
     overrides,
     packageExtensions,
+    peerDependencyRules,
     readPackageHook,
   }: {
     lockfileDir: string
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
+    peerDependencyRules?: PeerDependencyRules
     readPackageHook?: ReadPackageHook
   }
 ): ReadPackageHook | undefined {
@@ -497,6 +502,12 @@ export function createReadPackageHook (
   }
   if (!isEmpty(packageExtensions ?? {})) {
     hooks.push(createPackageExtender(packageExtensions!))
+  }
+  if (
+    peerDependencyRules != null &&
+    (!isEmpty(peerDependencyRules.ignoreMissing) || !isEmpty(peerDependencyRules.allowedVersions))
+  ) {
+    hooks.push(createPeerDependencyPatcher(peerDependencyRules))
   }
   if (hooks.length === 0) {
     return readPackageHook
