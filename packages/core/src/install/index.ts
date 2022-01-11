@@ -49,6 +49,7 @@ import {
   DependenciesField,
   DependencyManifest,
   PackageExtension,
+  PeerDependencyIssues,
   PeerDependencyRules,
   ProjectManifest,
   ReadPackageHook,
@@ -149,7 +150,7 @@ export async function mutateModules (
   maybeOpts: InstallOptions & {
     preferredVersions?: PreferredVersions
   }
-) {
+): Promise<UpdatedProject[]> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -195,7 +196,7 @@ export async function mutateModules (
 
   return result
 
-  async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
+  async function _install (): Promise<UpdatedProject[]> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       rawConfig: opts.rawConfig,
@@ -598,6 +599,17 @@ export type ImporterToUpdate = {
   wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean }>
 } & DependenciesMutation
 
+export interface UpdatedProject {
+  manifest: ProjectManifest
+  peerDependencyIssues?: PeerDependencyIssues
+  rootDir: string
+}
+
+interface InstallFunctionResult {
+  newLockfile: Lockfile
+  projects: UpdatedProject[]
+}
+
 type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
@@ -611,7 +623,7 @@ type InstallFunction = (
     pruneVirtualStore: boolean
     currentLockfileIsUpToDate: boolean
   }
-) => Promise<{ projects: Array<{ rootDir: string, manifest: ProjectManifest }>, newLockfile: Lockfile }>
+) => Promise<InstallFunctionResult>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
@@ -950,7 +962,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   return {
     newLockfile,
-    projects: projects.map(({ manifest, rootDir }) => ({ rootDir, manifest })),
+    projects: projects.map(({ id, manifest, rootDir }) => ({
+      manifest,
+      peerDependencyIssues: peerDependencyIssuesByProjects[id],
+      rootDir,
+    })),
   }
 }
 

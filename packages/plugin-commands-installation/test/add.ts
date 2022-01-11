@@ -288,3 +288,20 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
     ).toMatch(/~([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$/)
   }
 })
+
+test('pnpm add automatically installs missing peer dependencies', async () => {
+  prepare()
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    autoInstallPeers: true,
+    dir: process.cwd(),
+    linkWorkspacePackages: false,
+  }, ['abc@1.0.0'])
+
+  const manifest = (await import(path.resolve('package.json')))
+
+  expect(manifest.dependencies['abc']).toBe('1.0.0')
+  expect(manifest.devDependencies['peer-a']).toBe('^1.0.0')
+  expect(manifest.devDependencies['peer-b']).toBe('^1.0.0')
+  expect(manifest.devDependencies['peer-c']).toBe('^1.0.0')
+})

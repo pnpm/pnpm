@@ -13,11 +13,13 @@ import { IncludedDependencies, Project } from '@pnpm/types'
 import {
   install,
   mutateModules,
+  MutatedProject,
   WorkspacePackages,
 } from '@pnpm/core'
 import logger from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import isSubdir from 'is-subdir'
+import isEmpty from 'ramda/src/isEmpty'
 import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
@@ -33,6 +35,7 @@ const OVERWRITE_UPDATE_OPTIONS = {
 
 export type InstallDepsOptions = Pick<Config,
 | 'allProjects'
+| 'autoInstallPeers'
 | 'bail'
 | 'bin'
 | 'cliOptions'
@@ -218,20 +221,37 @@ when running add/update with the --workspace option')
     }
   }
   if (params?.length) {
-    const [updatedImporter] = await mutateModules([
-      {
-        allowNew: opts.allowNew,
-        binsDir: installOpts.bin,
-        dependencySelectors: params,
-        manifest,
-        mutation: 'installSome',
-        peer: opts.savePeer,
-        pinnedVersion: getPinnedVersion(opts),
-        rootDir: installOpts.dir,
-        targetDependenciesField: getSaveType(installOpts),
-      },
-    ], installOpts)
+    const mutatedProject: MutatedProject = {
+      allowNew: opts.allowNew,
+      binsDir: installOpts.bin,
+      dependencySelectors: params,
+      manifest,
+      mutation: 'installSome',
+      peer: opts.savePeer,
+      pinnedVersion: getPinnedVersion(opts),
+      rootDir: installOpts.dir,
+      targetDependenciesField: getSaveType(installOpts),
+    }
+    let [updatedImporter] = await mutateModules([mutatedProject], installOpts)
     if (opts.save !== false) {
+      if (opts.autoInstallPeers && !isEmpty(updatedImporter.peerDependencyIssues?.intersections ?? {})) {
+        logger.info({
+          message: 'Installing missing peer dependencies',
+          prefix: opts.dir,
+        })
+        const dependencySelectors = Object.entries(updatedImporter.peerDependencyIssues!.intersections)
+          .map(([name, version]: [string, string]) => `${name}@${version}`)
+        const result = await mutateModules([
+          {
+            ...mutatedProject,
+            dependencySelectors,
+            manifest: updatedImporter.manifest,
+            peer: false,
+            targetDependenciesField: 'devDependencies',
+          },
+        ], installOpts)
+        updatedImporter = result[0]
+      }
       await writeProjectManifest(updatedImporter.manifest)
     }
     return
