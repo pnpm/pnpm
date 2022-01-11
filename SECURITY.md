@@ -10,4 +10,4 @@
 
 ## Reporting a Vulnerability
 
-Send and email to zoltankochan@gmail.com
+Send and email to security@pnpm.io
