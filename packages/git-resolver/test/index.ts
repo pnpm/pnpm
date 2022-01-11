@@ -84,7 +84,7 @@ test('resolveFromGit() with tag', async () => {
   })
 })
 
-test('resolveFromGit() with tag (v-prefixed tag)', async () => {
+test.skip('resolveFromGit() with tag (v-prefixed tag)', async () => {
   const resolveResult = await resolveFromGit({ pref: 'andreineculau/npm-publish-git#v0.0.7' })
   expect(resolveResult).toStrictEqual({
     id: 'github.com/andreineculau/npm-publish-git/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
@@ -108,7 +108,7 @@ test('resolveFromGit() with strict semver', async () => {
   })
 })
 
-test('resolveFromGit() with strict semver (v-prefixed tag)', async () => {
+test.skip('resolveFromGit() with strict semver (v-prefixed tag)', async () => {
   const resolveResult = await resolveFromGit({ pref: 'andreineculau/npm-publish-git#semver:v0.0.7' })
   expect(resolveResult).toStrictEqual({
     id: 'github.com/andreineculau/npm-publish-git/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
@@ -132,7 +132,7 @@ test('resolveFromGit() with range semver', async () => {
   })
 })
 
-test('resolveFromGit() with range semver (v-prefixed tag)', async () => {
+test.skip('resolveFromGit() with range semver (v-prefixed tag)', async () => {
   const resolveResult = await resolveFromGit({ pref: 'andreineculau/npm-publish-git#semver:<=v0.0.7' })
   expect(resolveResult).toStrictEqual({
     id: 'github.com/andreineculau/npm-publish-git/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
