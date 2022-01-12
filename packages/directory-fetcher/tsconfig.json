@@ -10,7 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../read-project-manifest"
     },
     {
       "path": "../resolver-base"
