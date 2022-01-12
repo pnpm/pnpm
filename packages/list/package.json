@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "6.2.18",
+  "version": "6.2.19",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,20 +35,20 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
     "@pnpm/matcher": "workspace:2.0.0",
-    "@pnpm/read-package-json": "workspace:5.0.9",
-    "@pnpm/read-project-manifest": "workspace:2.0.10",
-    "@pnpm/types": "workspace:7.8.0",
+    "@pnpm/read-package-json": "workspace:5.0.10",
+    "@pnpm/read-project-manifest": "workspace:2.0.11",
+    "@pnpm/types": "workspace:7.9.0",
     "@zkochan/npm-package-arg": "^2.0.1",
     "archy": "^1.0.0",
     "chalk": "^4.1.0",
     "cli-columns": "^4.0.0",
-    "dependencies-hierarchy": "workspace:10.0.21",
+    "dependencies-hierarchy": "workspace:10.0.22",
     "p-limit": "^3.1.0",
     "ramda": "^0.27.1",
     "semver": "^7.3.4"
   },
   "devDependencies": {
-    "@pnpm/list": "workspace:6.2.18",
+    "@pnpm/list": "workspace:6.2.19",
     "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
     "@types/ramda": "0.27.39",

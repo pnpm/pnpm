@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "14.0.9",
+  "version": "14.0.10",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,15 +33,15 @@
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/fetching-types": "workspace:2.2.1",
-    "@pnpm/git-resolver": "workspace:5.1.15",
-    "@pnpm/local-resolver": "workspace:7.0.5",
-    "@pnpm/npm-resolver": "workspace:12.1.5",
-    "@pnpm/resolver-base": "workspace:8.1.4",
-    "@pnpm/tarball-resolver": "workspace:5.0.9"
+    "@pnpm/git-resolver": "workspace:5.1.16",
+    "@pnpm/local-resolver": "workspace:7.0.6",
+    "@pnpm/npm-resolver": "workspace:12.1.6",
+    "@pnpm/resolver-base": "workspace:8.1.5",
+    "@pnpm/tarball-resolver": "workspace:5.0.10"
   },
   "devDependencies": {
-    "@pnpm/default-resolver": "workspace:14.0.9",
-    "@pnpm/fetch": "workspace:4.2.3",
+    "@pnpm/default-resolver": "workspace:14.0.10",
+    "@pnpm/fetch": "workspace:4.2.4",
     "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

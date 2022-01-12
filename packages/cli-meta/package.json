@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-meta",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Reads the metainfo of the currently running pnpm instance",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -28,10 +28,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cli-meta#readme",
   "devDependencies": {
-    "@pnpm/cli-meta": "workspace:2.0.0"
+    "@pnpm/cli-meta": "workspace:2.0.1"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:7.8.0",
+    "@pnpm/types": "workspace:7.9.0",
     "load-json-file": "^6.2.0"
   },
   "funding": "https://opencollective.com/pnpm"

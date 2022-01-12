@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "5.0.15",
+  "version": "5.0.16",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -28,15 +28,15 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:4.2.5",
-    "@pnpm/modules-yaml": "workspace:9.0.10",
-    "@pnpm/normalize-registries": "workspace:2.0.11",
-    "@pnpm/types": "workspace:7.8.0",
+    "@pnpm/lockfile-file": "workspace:4.2.6",
+    "@pnpm/modules-yaml": "workspace:9.0.11",
+    "@pnpm/normalize-registries": "workspace:2.0.12",
+    "@pnpm/types": "workspace:7.9.0",
     "realpath-missing": "^1.1.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/read-projects-context": "workspace:5.0.15"
+    "@pnpm/read-projects-context": "workspace:5.0.16"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
-  "version": "4.0.11",
+  "version": "4.0.12",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/symlink-dependency": "workspace:4.0.11"
+    "@pnpm/symlink-dependency": "workspace:4.0.12"
   },
   "directories": {
     "test": "test"
@@ -39,8 +39,8 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:6.1.2",
-    "@pnpm/types": "workspace:7.8.0",
+    "@pnpm/core-loggers": "workspace:6.1.3",
+    "@pnpm/types": "workspace:7.9.0",
     "symlink-dir": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

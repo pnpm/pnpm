@@ -1,5 +1,16 @@
 # @pnpm/get-context
 
+## 5.3.5
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+  - @pnpm/core-loggers@6.1.3
+  - @pnpm/lockfile-file@4.2.6
+  - @pnpm/modules-yaml@9.0.11
+  - @pnpm/read-projects-context@5.0.16
+
 ## 5.3.4
 
 ### Patch Changes

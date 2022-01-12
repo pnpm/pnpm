@@ -1,5 +1,15 @@
 # @pnpm/directory-fetcher
 
+## 1.0.5
+
+### Patch Changes
+
+- aa1f9dc19: Don't fail if the linked package has no `package.json` file.
+- 4f78a2a5f: Update npm-packlist to v3.
+  - @pnpm/fetcher-base@11.1.5
+  - @pnpm/read-project-manifest@2.0.11
+  - @pnpm/resolver-base@8.1.5
+
 ## 1.0.4
 
 ### Patch Changes

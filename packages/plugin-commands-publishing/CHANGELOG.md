@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.3.3
+
+### Patch Changes
+
+- 4f78a2a5f: Update npm-packlist to v3.
+- Updated dependencies [e76151f66]
+- Updated dependencies [26cd01b88]
+  - @pnpm/config@13.10.0
+  - @pnpm/types@7.9.0
+  - @pnpm/client@6.1.1
+  - @pnpm/lifecycle@12.1.4
+  - @pnpm/cli-utils@0.6.44
+  - @pnpm/exportable-manifest@2.2.4
+  - @pnpm/package-bins@5.0.11
+  - @pnpm/pick-registry-for-package@2.0.10
+  - @pnpm/resolver-base@8.1.5
+  - @pnpm/sort-packages@2.1.7
+
 ## 4.3.2
 
 ### Patch Changes

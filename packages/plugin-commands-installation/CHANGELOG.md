@@ -1,5 +1,51 @@
 # @pnpm/plugin-commands-installation
 
+## 8.2.0
+
+### Minor Changes
+
+- 26cd01b88: In order to mute some types of peer dependency warnings, a new section in `package.json` may be used for declaring peer dependency warning rules. For example, the next configuration will turn off any warnings about missing `babel-loader` peer dependency and about `@angular/common`, when the wanted version of `@angular/common` is not v13.
+
+  ```json
+  {
+    "name": "foo",
+    "version": "0.0.0",
+    "pnpm": {
+      "peerDependencyRules": {
+        "ignoreMissing": ["babel-loader"],
+        "allowedVersions": {
+          "@angular/common": "13"
+        }
+      }
+    }
+  }
+  ```
+
+- e76151f66: New setting supported: `auto-install-peers`. When it is set to `true`, `pnpm add <pkg>` automatically installs any missing peer dependencies as `devDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [50ee25ae2]
+- Updated dependencies [26cd01b88]
+- Updated dependencies [e76151f66]
+- Updated dependencies [26cd01b88]
+- Updated dependencies [e76151f66]
+  - @pnpm/core@2.3.0
+  - @pnpm/config@13.10.0
+  - @pnpm/types@7.9.0
+  - @pnpm/cli-utils@0.6.44
+  - @pnpm/plugin-commands-rebuild@5.4.4
+  - @pnpm/store-connection-manager@3.2.3
+  - @pnpm/find-workspace-packages@3.1.36
+  - @pnpm/manifest-utils@2.1.6
+  - @pnpm/outdated@9.0.28
+  - @pnpm/package-store@12.1.8
+  - @pnpm/pnpmfile@1.2.4
+  - @pnpm/read-project-manifest@2.0.11
+  - @pnpm/resolver-base@8.1.5
+  - @pnpm/sort-packages@2.1.7
+  - @pnpm/filter-workspace-packages@4.4.16
+
 ## 8.1.6
 
 ### Patch Changes

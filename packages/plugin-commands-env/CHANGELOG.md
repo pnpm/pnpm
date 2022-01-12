@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-env
 
+## 1.4.6
+
+### Patch Changes
+
+- Updated dependencies [e76151f66]
+  - @pnpm/config@13.10.0
+  - @pnpm/cli-utils@0.6.44
+  - @pnpm/fetcher-base@11.1.5
+  - @pnpm/package-store@12.1.8
+  - @pnpm/fetch@4.2.4
+  - @pnpm/tarball-fetcher@9.3.15
+
 ## 1.4.5
 
 ### Patch Changes

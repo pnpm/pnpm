@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/local-resolver",
-  "version": "7.0.5",
+  "version": "7.0.6",
   "description": "Resolver for local packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,14 +34,14 @@
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/graceful-fs": "workspace:1.0.0",
-    "@pnpm/read-project-manifest": "workspace:2.0.10",
-    "@pnpm/resolver-base": "workspace:8.1.4",
-    "@pnpm/types": "workspace:7.8.0",
+    "@pnpm/read-project-manifest": "workspace:2.0.11",
+    "@pnpm/resolver-base": "workspace:8.1.5",
+    "@pnpm/types": "workspace:7.9.0",
     "normalize-path": "^3.0.0",
     "ssri": "^8.0.1"
   },
   "devDependencies": {
-    "@pnpm/local-resolver": "workspace:7.0.5",
+    "@pnpm/local-resolver": "workspace:7.0.6",
     "@types/normalize-path": "^3.0.0",
     "@types/ssri": "^7.1.0"
   },

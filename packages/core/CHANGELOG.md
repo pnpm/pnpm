@@ -1,5 +1,44 @@
 # @pnpm/core
 
+## 2.3.0
+
+### Minor Changes
+
+- 26cd01b88: New optional option supported: `peerDependencyRules`. This setting allows to mute specific peer dependency warnings.
+- e76151f66: `mutateModules()` returns the peer dependency issues of each installed project.
+
+### Patch Changes
+
+- 50ee25ae2: Export `MutateModulesOptions`.
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+  - @pnpm/lifecycle@12.1.4
+  - @pnpm/lockfile-to-pnp@0.4.41
+  - @pnpm/build-modules@7.2.5
+  - @pnpm/core-loggers@6.1.3
+  - dependency-path@8.0.10
+  - @pnpm/filter-lockfile@5.0.16
+  - @pnpm/get-context@5.3.5
+  - @pnpm/headless@17.0.3
+  - @pnpm/hoist@5.2.11
+  - @pnpm/link-bins@6.2.9
+  - @pnpm/lockfile-file@4.2.6
+  - @pnpm/lockfile-utils@3.1.6
+  - @pnpm/lockfile-walker@4.0.14
+  - @pnpm/manifest-utils@2.1.6
+  - @pnpm/modules-cleaner@11.0.20
+  - @pnpm/modules-yaml@9.0.11
+  - @pnpm/normalize-registries@2.0.12
+  - @pnpm/package-requester@16.0.1
+  - @pnpm/prune-lockfile@3.0.14
+  - @pnpm/read-package-json@5.0.10
+  - @pnpm/read-project-manifest@2.0.11
+  - @pnpm/remove-bins@2.0.12
+  - @pnpm/resolve-dependencies@23.0.2
+  - @pnpm/resolver-base@8.1.5
+  - @pnpm/store-controller-types@11.0.11
+  - @pnpm/symlink-dependency@4.0.12
+
 ## 2.2.6
 
 ### Patch Changes

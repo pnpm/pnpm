@@ -1,5 +1,14 @@
 # @pnpm/find-workspace-packages
 
+## 3.1.36
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+  - @pnpm/cli-utils@0.6.44
+  - find-packages@8.0.11
+
 ## 3.1.35
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-resolver",
-  "version": "5.0.9",
+  "version": "5.0.10",
   "description": "Resolver for tarball dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -26,13 +26,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/tarball-resolver#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "workspace:8.1.4"
+    "@pnpm/resolver-base": "workspace:8.1.5"
   },
   "funding": "https://opencollective.com/pnpm",
   "keywords": [
     "pnpm6"
   ],
   "devDependencies": {
-    "@pnpm/tarball-resolver": "workspace:5.0.9"
+    "@pnpm/tarball-resolver": "workspace:5.0.10"
   }
 }

@@ -1,5 +1,12 @@
 # @pnpm/render-peer-issues
 
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+
 ## 1.1.0
 
 ### Minor Changes

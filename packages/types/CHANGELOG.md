@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.9.0
+
+### Minor Changes
+
+- 26cd01b88: New field added to package.json.pnpm section: peerDependencyRules.
+
 ## 7.8.0
 
 ### Minor Changes

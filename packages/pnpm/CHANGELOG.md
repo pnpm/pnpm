@@ -1,5 +1,28 @@
 # pnpm
 
+## 6.26.0
+
+### Minor Changes
+
+- In order to mute some types of peer dependency warnings, a new section in `package.json` may be used for declaring peer dependency warning rules. For example, the next configuration will turn off any warnings about missing `babel-loader` peer dependency and about `@angular/common`, when the wanted version of `@angular/common` is not v13.
+
+  ```json
+  {
+    "name": "foo",
+    "version": "0.0.0",
+    "pnpm": {
+      "peerDependencyRules": {
+        "ignoreMissing": ["babel-loader"],
+        "allowedVersions": {
+          "@angular/common": "13"
+        }
+      }
+    }
+  }
+  ```
+
+- New setting supported: `auto-install-peers`. When it is set to `true`, `pnpm add <pkg>` automatically installs any missing peer dependencies as `devDependencies` [#4213](https://github.com/pnpm/pnpm/pull/4213).
+
 ## 6.25.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/lockfile-types
 
+## 3.1.5
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+
 ## 3.1.4
 
 ### Patch Changes

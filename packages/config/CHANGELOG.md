@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 13.10.0
+
+### Minor Changes
+
+- e76151f66: New setting supported: `auto-install-peers`. When it is set to `true`, `pnpm add <pkg>` automatically installs any missing peer dependencies as `devDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+  - @pnpm/pnpmfile@1.2.4
+  - @pnpm/read-project-manifest@2.0.11
+
 ## 13.9.0
 
 ### Minor Changes
