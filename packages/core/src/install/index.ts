@@ -145,11 +145,13 @@ interface ProjectToBeInstalled {
 
 export type MutatedProject = ProjectOptions & DependenciesMutation
 
+export type MutateModulesOptions = InstallOptions & {
+  preferredVersions?: PreferredVersions
+}
+
 export async function mutateModules (
   projects: MutatedProject[],
-  maybeOpts: InstallOptions & {
-    preferredVersions?: PreferredVersions
-  }
+  maybeOpts: MutateModulesOptions
 ): Promise<UpdatedProject[]> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {

@@ -37,6 +37,7 @@ export interface StrictInstallOptions {
   storeDir: string
   reporter: ReporterFunction
   force: boolean
+  forcePublicHoistPattern: boolean
   update: boolean
   updateMatching?: (pkgName: string) => boolean
   updatePackageManifest?: boolean

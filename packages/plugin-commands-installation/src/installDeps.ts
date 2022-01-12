@@ -13,6 +13,7 @@ import { IncludedDependencies, Project } from '@pnpm/types'
 import {
   install,
   mutateModules,
+  MutateModulesOptions,
   MutatedProject,
   WorkspacePackages,
 } from '@pnpm/core'
@@ -174,7 +175,7 @@ when running add/update with the --workspace option')
   }
 
   const store = await createOrConnectStoreController(opts)
-  const installOpts = {
+  const installOpts: MutateModulesOptions = {
     ...opts,
     ...getOptionsFromRootManifest(manifest),
     forceHoistPattern,
@@ -223,14 +224,14 @@ when running add/update with the --workspace option')
   if (params?.length) {
     const mutatedProject: MutatedProject = {
       allowNew: opts.allowNew,
-      binsDir: installOpts.bin,
+      binsDir: opts.bin,
       dependencySelectors: params,
       manifest,
       mutation: 'installSome',
       peer: opts.savePeer,
       pinnedVersion: getPinnedVersion(opts),
-      rootDir: installOpts.dir,
-      targetDependenciesField: getSaveType(installOpts),
+      rootDir: opts.dir,
+      targetDependenciesField: getSaveType(opts),
     }
     let [updatedImporter] = await mutateModules([mutatedProject], installOpts)
     if (opts.save !== false) {
