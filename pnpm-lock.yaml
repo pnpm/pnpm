@@ -686,18 +686,20 @@ importers:
     specifiers:
       '@pnpm/directory-fetcher': workspace:1.0.4
       '@pnpm/fetcher-base': workspace:11.1.4
+      '@pnpm/read-project-manifest': workspace:2.0.10
       '@pnpm/resolver-base': workspace:8.1.4
-      load-json-file: ^6.2.0
+      '@pnpm/test-fixtures': workspace:*
       npm-packlist: ^3.0.0
       ramda: ^0.27.1
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
+      '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/resolver-base': link:../resolver-base
-      load-json-file: 6.2.0
       npm-packlist: 3.0.0
       ramda: 0.27.1
     devDependencies:
       '@pnpm/directory-fetcher': 'link:'
+      '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
 
   packages/error:
     specifiers:
