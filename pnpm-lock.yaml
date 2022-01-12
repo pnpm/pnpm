@@ -6,7 +6,6 @@ neverBuiltDependencies:
 
 overrides:
   '@yarnpkg/core': 3.2.0-rc.9
-  '@yarnpkg/parsers': 2.5.0-rc.7
   ansi-regex@<5: ^5.0.1
   glob-parent@3: ^5.1.2
   hosted-git-info@<3.0.8: ^3.0.8
@@ -1176,7 +1175,7 @@ importers:
       '@pnpm/directory-fetcher': workspace:1.0.4
       '@pnpm/lifecycle': workspace:12.1.3
       '@pnpm/logger': ^4.0.0
-      '@pnpm/npm-lifecycle': ^1.0.3
+      '@pnpm/npm-lifecycle': ^1.0.4
       '@pnpm/read-package-json': workspace:5.0.9
       '@pnpm/store-controller-types': workspace:11.0.10
       '@pnpm/types': workspace:7.8.0
@@ -1189,7 +1188,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/directory-fetcher': link:../directory-fetcher
-      '@pnpm/npm-lifecycle': 1.0.3
+      '@pnpm/npm-lifecycle': 1.0.4
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
@@ -4928,12 +4927,12 @@ packages:
     dependencies:
       abbrev: 1.1.1
 
-  /@pnpm/npm-lifecycle/1.0.3:
-    resolution: {integrity: sha512-DWBCctE1OtT2y652g1+IBn5gO7vf7V5mUKdmR0Prz5DRzlVkhEYpyHbvFUAGiItdH07eOunblc6dQXhhw4InrA==}
+  /@pnpm/npm-lifecycle/1.0.4:
+    resolution: {integrity: sha512-iEBd+wKi9dyo/vQuhxCPDiw33Liv2OCc5V4DpE01ij07vGshflP7p5GL8xkH16fBXxXAvPZ3wIs6wj4aNMt97A==}
     engines: {node: '>=12.17'}
     dependencies:
       '@pnpm/byline': 1.0.0
-      '@yarnpkg/shell': 2.4.1
+      '@yarnpkg/shell': 3.2.0-rc.8
       node-gyp: 8.4.1
       resolve-from: 5.0.0
       slide: 1.1.6
@@ -5831,6 +5830,14 @@ packages:
       tslib: 1.14.1
     dev: false
 
+  /@yarnpkg/parsers/2.5.0-rc.8:
+    resolution: {integrity: sha512-SKwYysjXYF/1Qd/atEvm4a4m92QvPwza0ye3T/p/huVp9fAkvPnQw49E+M4/2lnT+DY0rljjp57xkYkrSdpetQ==}
+    engines: {node: '>=12 <14 || 14.2 - 14.9 || >14.10.0'}
+    dependencies:
+      js-yaml: 3.14.1
+      tslib: 1.14.1
+    dev: false
+
   /@yarnpkg/pnp/2.3.2:
     resolution: {integrity: sha512-JdwHu1WBCISqJEhIwx6Hbpe8MYsYbkGMxoxolkDiAeJ9IGEe08mQcbX1YmUDV1ozSWlm9JZE90nMylcDsXRFpA==}
     engines: {node: '>=10.19.0'}
@@ -5848,28 +5855,13 @@ packages:
       '@yarnpkg/fslib': 2.6.1-rc.5
     dev: false
 
-  /@yarnpkg/shell/2.4.1:
-    resolution: {integrity: sha512-oNNJkH8ZI5uwu0dMkJf737yMSY1WXn9gp55DqSA5wAOhKvV5DJTXFETxkVgBQhO6Bow9tMGSpvowTMD/oAW/9g==}
-    engines: {node: '>=10.19.0'}
-    hasBin: true
-    dependencies:
-      '@yarnpkg/fslib': 2.6.0
-      '@yarnpkg/parsers': 2.5.0-rc.7
-      clipanion: 2.6.2
-      cross-spawn: 7.0.3
-      fast-glob: 3.2.10
-      micromatch: 4.0.4
-      stream-buffers: 3.0.2
-      tslib: 1.14.1
-    dev: false
-
   /@yarnpkg/shell/3.2.0-rc.8:
     resolution: {integrity: sha512-UEcdjx+0gUwa3N/fWfnlqae//b7cNc1Imla+W7jqc9XMoydk3CG5EISx+5KY2hjrhpaZ55bXUP9Z6q0mjo+KdA==}
     engines: {node: '>=12 <14 || 14.2 - 14.9 || >14.10.0'}
     hasBin: true
     dependencies:
       '@yarnpkg/fslib': 2.6.1-rc.5
-      '@yarnpkg/parsers': 2.5.0-rc.7
+      '@yarnpkg/parsers': 2.5.0-rc.8
       chalk: 3.0.0
       clipanion: 3.2.0-rc.5
       cross-spawn: 7.0.3
@@ -6959,10 +6951,6 @@ packages:
   /cli-width/2.2.1:
     resolution: {integrity: sha512-GRMWDxpOB6Dgk2E5Uo+3eEBvtOOlimMmpbFiKuLFnQzYDavtLFY3K5ona41jgN/WdRZtG7utuVSVTL4HbZHGkw==}
     dev: true
-
-  /clipanion/2.6.2:
-    resolution: {integrity: sha512-0tOHJNMF9+4R3qcbBL+4IxLErpaYSYvzs10aXuECDbZdJOuJHdagJMAqvLdeaUQTI/o2uSCDRpet6ywDiKOAYw==}
-    dev: false
 
   /clipanion/3.1.0:
     resolution: {integrity: sha512-v025Hz+IDQ15FpOyK8p02h5bFznMu6rLFsJSyOPR+7WrbSnZ1Ek6pblPukV7K5tC/dsWfncQPIrJ4iUy2PXkbw==}
