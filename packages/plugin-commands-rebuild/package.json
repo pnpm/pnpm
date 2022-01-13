@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "5.4.4",
+  "version": "5.4.5",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,9 +33,9 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-rebuild#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:4.4.16",
+    "@pnpm/filter-workspace-packages": "workspace:4.4.17",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-rebuild": "workspace:5.4.4",
+    "@pnpm/plugin-commands-rebuild": "workspace:5.4.5",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.12.1",
     "@pnpm/test-fixtures": "workspace:*",
@@ -48,12 +48,12 @@
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.44",
+    "@pnpm/cli-utils": "workspace:0.6.45",
     "@pnpm/common-cli-options-help": "workspace:0.8.0",
     "@pnpm/config": "workspace:13.10.0",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/core-loggers": "workspace:6.1.3",
-    "@pnpm/find-workspace-packages": "workspace:3.1.36",
+    "@pnpm/find-workspace-packages": "workspace:3.1.37",
     "@pnpm/get-context": "workspace:5.3.5",
     "@pnpm/lifecycle": "workspace:12.1.4",
     "@pnpm/link-bins": "workspace:6.2.9",

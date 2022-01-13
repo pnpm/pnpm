@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-server",
-  "version": "3.0.62",
+  "version": "3.0.63",
   "description": "Commands for controlling the store server",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,14 +30,14 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-server#readme",
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-server": "workspace:3.0.62",
+    "@pnpm/plugin-commands-server": "workspace:3.0.63",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.27.39",
     "@types/signal-exit": "^3.0.0"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:2.0.1",
-    "@pnpm/cli-utils": "workspace:0.6.44",
+    "@pnpm/cli-utils": "workspace:0.6.45",
     "@pnpm/common-cli-options-help": "workspace:0.8.0",
     "@pnpm/config": "workspace:13.10.0",
     "@pnpm/error": "workspace:2.0.0",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "4.1.4",
+  "version": "4.1.5",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,7 +36,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/lockfile-file": "workspace:4.2.6",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-store": "workspace:4.1.4",
+    "@pnpm/plugin-commands-store": "workspace:4.1.5",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.12.1",
     "@types/archy": "0.0.31",
@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:3.0.13",
-    "@pnpm/cli-utils": "workspace:0.6.44",
+    "@pnpm/cli-utils": "workspace:0.6.45",
     "@pnpm/config": "workspace:13.10.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/get-context": "workspace:5.3.5",

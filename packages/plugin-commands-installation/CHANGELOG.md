@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-installation
 
+## 8.2.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.45
+- @pnpm/find-workspace-packages@3.1.37
+- @pnpm/plugin-commands-rebuild@5.4.5
+- @pnpm/filter-workspace-packages@4.4.17
+
 ## 8.2.0
 
 ### Minor Changes

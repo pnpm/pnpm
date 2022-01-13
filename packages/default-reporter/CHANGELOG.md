@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.5.8
+
+### Patch Changes
+
+- a1ffef5ca: Print warnings about deprecated subdependencies [#4227](https://github.com/pnpm/pnpm/issues/4227).
+
 ## 8.5.7
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.26.1
+
+### Patch Changes
+
+- During installation, override any symlinks in `node_modules`. This was an issue only with `node-linker=hoisted` [#4229](https://github.com/pnpm/pnpm/pull/4229).
+- Print warnings about deprecated subdependencies [#4227](https://github.com/pnpm/pnpm/issues/4227).
+
 ## 6.26.0
 
 ### Minor Changes
