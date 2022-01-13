@@ -4,6 +4,7 @@ import { addDependenciesToPackage, install, mutateModules } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
+import symlinkDir from 'symlink-dir'
 import { addDistTag, testDefaults } from '../utils'
 
 test('installing with hoisted node-linker', async () => {
@@ -62,6 +63,20 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
   await project.storeHas('is-positive', '3.1.0')
   expect(updatedManifest.dependencies?.['is-positive']).toBe('3.1.0')
   expect(loadJsonFile<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.1.0')
+})
+
+test('overwriting existing files in node_modules', async () => {
+  prepareEmpty()
+  await symlinkDir(__dirname, path.resolve('node_modules/is-positive'))
+
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['is-positive@3.0.0'],
+    await testDefaults({ nodeLinker: 'hoisted', save: true })
+  )
+
+  expect(manifest.dependencies?.['is-positive']).toBe('3.0.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.0.0')
 })
 
 test('preserve subdeps on update', async () => {
