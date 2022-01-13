@@ -1,6 +1,6 @@
 import { DeprecationLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
-import { filter, map } from 'rxjs/operators'
+import { map } from 'rxjs/operators'
 import chalk from 'chalk'
 import formatWarn from './utils/formatWarn'
 import { zoomOut } from './utils/zooming'
@@ -13,8 +13,6 @@ export default (
   }
 ) => {
   return deprecation$.pipe(
-    // print warnings only about deprecated packages from the root
-    filter((log) => log.depth === 0),
     map((log) => {
       if (!opts.isRecursive && log.prefix === opts.cwd) {
         return Rx.of({
