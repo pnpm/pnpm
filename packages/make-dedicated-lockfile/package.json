@@ -42,7 +42,7 @@
     "@pnpm/read-project-manifest": "workspace:2.0.11",
     "@pnpm/types": "workspace:7.9.0",
     "ramda": "^0.27.1",
-    "rename-overwrite": "^4.0.0"
+    "rename-overwrite": "^4.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
