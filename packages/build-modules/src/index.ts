@@ -10,6 +10,9 @@ import { DependencyManifest, PackageManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
 import graphSequencer from 'graph-sequencer'
 import filter from 'ramda/src/filter'
+import calcDepStateObj, { DepStateObj } from './calcDepStateObj'
+
+export { calcDepStateObj, DepStateObj }
 
 export default async (
   depGraph: DependenciesGraph,
@@ -17,6 +20,7 @@ export default async (
   opts: {
     childConcurrency?: number
     depsToBuild?: Set<string>
+    depStateCache: DepStateObj
     extendNodePath?: boolean
     extraBinPaths?: string[]
     extraEnv?: Record<string, string>
@@ -70,6 +74,7 @@ async function buildDependency (
     extendNodePath?: boolean
     extraBinPaths?: string[]
     extraEnv?: Record<string, string>
+    depStateCache: DepStateObj
     lockfileDir: string
     optional: boolean
     rawConfig: object
@@ -103,7 +108,7 @@ async function buildDependency (
     if (hasSideEffects && opts.sideEffectsCacheWrite) {
       try {
         await opts.storeController.upload(depNode.dir, {
-          engine: ENGINE_NAME,
+          engine: `${ENGINE_NAME}-${JSON.stringify(calcDepStateObj(depNode, depGraph, opts.depStateCache))}`,
           filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err: any) { // eslint-disable-line
@@ -167,6 +172,7 @@ function getSubgraphToBuild (
 
 export interface DependenciesGraphNode {
   children: {[alias: string]: string}
+  depPath: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest>
   filesIndexFile: string

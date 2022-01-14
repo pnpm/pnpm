@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import buildModules from '@pnpm/build-modules'
+import buildModules, { calcDepStateObj, DepStateObj } from '@pnpm/build-modules'
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
@@ -147,6 +147,7 @@ export default async (opts: HeadlessOptions) => {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
+  const depStateCache: DepStateObj = {}
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
@@ -314,6 +315,8 @@ export default async (opts: HeadlessOptions) => {
         }),
       linkAllPkgs(opts.storeController, depNodes, {
         force: opts.force,
+        depGraph: graph,
+        depStateCache,
         lockfileDir: opts.lockfileDir,
         targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
       }),
@@ -407,6 +410,7 @@ export default async (opts: HeadlessOptions) => {
       extraBinPaths,
       extendNodePath: opts.extendNodePath,
       extraEnv,
+      depStateCache,
       lockfileDir,
       optional: opts.include.optionalDependencies,
       rawConfig: opts.rawConfig,
@@ -636,6 +640,8 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
+    depGraph: DependenciesGraph
+    depStateCache: DepStateObj
     force: boolean
     lockfileDir: string
     targetEngine?: string
@@ -654,7 +660,7 @@ async function linkAllPkgs (
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
-        targetEngine: opts.targetEngine,
+        targetEngine: opts.targetEngine ? `${opts.targetEngine}-${JSON.stringify(calcDepStateObj(depNode, opts.depGraph, opts.depStateCache))}` : opts.targetEngine,
       })
       if (importMethod) {
         progressLogger.debug({

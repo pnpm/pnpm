@@ -185,6 +185,7 @@ importers:
       graph-sequencer: 2.0.0
       ramda: ^0.27.1
       run-groups: ^3.0.1
+      sort-keys: ^4.2.0
     dependencies:
       '@pnpm/constants': link:../constants
       '@pnpm/core-loggers': link:../core-loggers
@@ -196,6 +197,7 @@ importers:
       graph-sequencer: 2.0.0
       ramda: 0.27.2
       run-groups: 3.0.1
+      sort-keys: 4.2.0
     devDependencies:
       '@pnpm/build-modules': 'link:'
       '@pnpm/logger': 4.0.0

@@ -819,6 +819,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
       await buildModules(dependenciesGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
+        depStateCache: {},
         depsToBuild: new Set(result.newDepPaths),
         extendNodePath: opts.extendNodePath,
         extraBinPaths: ctx.extraBinPaths,
