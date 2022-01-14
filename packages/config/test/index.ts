@@ -15,6 +15,7 @@ process.env['npm_config_hoist'] = 'true'
 delete process.env.npm_config_registry
 delete process.env.npm_config_virtual_store_dir
 delete process.env.npm_config_shared_workspace_lockfile
+delete process.env.npm_config_side_effects_cache
 
 test('getConfig()', async () => {
   const { config } = await getConfig({
@@ -757,4 +758,34 @@ test('getConfig() returns the userconfig even when overridden locally', async ()
   })
   expect(config.registry).toEqual('https://project-local.example.test')
   expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache is set', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'side-effects-cache': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config).toBeDefined()
+  expect(config.sideEffectsCacheRead).toBeTruthy()
+  expect(config.sideEffectsCacheWrite).toBeTruthy()
+})
+
+test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache-readonly is set', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'side-effects-cache-readonly': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config).toBeDefined()
+  expect(config.sideEffectsCacheRead).toBeTruthy()
+  expect(config.sideEffectsCacheWrite).toBeFalsy()
 })

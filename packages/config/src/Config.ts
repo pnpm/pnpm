@@ -65,8 +65,10 @@ export interface Config {
     version: string
   }
   preferOffline?: boolean
-  sideEffectsCache?: boolean
-  sideEffectsCacheReadonly?: boolean
+  sideEffectsCache?: boolean // for backward compatibility
+  sideEffectsCacheReadonly?: boolean // for backward compatibility
+  sideEffectsCacheRead?: boolean
+  sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
   dev?: boolean
   ignoreCurrentPrefs?: boolean

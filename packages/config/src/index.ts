@@ -467,6 +467,8 @@ export default async (
   if (!pnpmConfig.userConfig) {
     pnpmConfig.userConfig = npmConfig.sources.user?.data
   }
+  pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
+  pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
   if (opts.checkUnknownSetting) {
     const settingKeys = Object.keys({
