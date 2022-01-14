@@ -3,7 +3,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import * as dp from 'dependency-path'
-import { hoist, HoisterTree, HoisterResult } from '@yarnpkg/nm/lib/hoist'
+import { hoist, HoisterDependencyKind, HoisterTree, HoisterResult } from '@yarnpkg/nm/lib/hoist'
 
 export { HoisterResult }
 
@@ -14,7 +14,7 @@ export default function hoistByLockfile (lockfile: Lockfile): HoisterResult {
     identName: '.',
     reference: '',
     peerNames: new Set<string>([]),
-    isWorkspace: true,
+    dependencyKind: HoisterDependencyKind.WORKSPACE,
     dependencies: toTree(nodes, lockfile, {
       ...lockfile.importers['.']?.dependencies,
       ...lockfile.importers['.']?.devDependencies,
@@ -28,7 +28,7 @@ export default function hoistByLockfile (lockfile: Lockfile): HoisterResult {
       identName: encodeURIComponent(importerId),
       reference: `workspace:${importerId}`,
       peerNames: new Set<string>([]),
-      isWorkspace: true,
+      dependencyKind: HoisterDependencyKind.WORKSPACE,
       dependencies: toTree(nodes, lockfile, {
         ...importer.dependencies,
         ...importer.devDependencies,
@@ -52,7 +52,7 @@ function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Reco
           name: alias,
           identName: alias,
           reference: ref,
-          isWorkspace: false,
+          dependencyKind: HoisterDependencyKind.REGULAR,
           dependencies: new Set(),
           peerNames: new Set(),
         }
@@ -70,7 +70,7 @@ function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Reco
         name: alias,
         identName: pkgName,
         reference: depPath,
-        isWorkspace: false,
+        dependencyKind: HoisterDependencyKind.REGULAR,
         dependencies: new Set(),
         peerNames: new Set([
           ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
