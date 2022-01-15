@@ -6,14 +6,12 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepareEmpty } from '@pnpm/prepare'
 import { ENGINE_NAME } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
-import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 import { testDefaults } from '../utils'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
-const skipOnWindows = isWindows() ? test.skip : test
 
 test.skip('caching side effects of native package', async () => {
   prepareEmpty()
@@ -71,7 +69,7 @@ test.skip('caching side effects of native package when hoisting is used', async 
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 })
 
-skipOnWindows('using side effects cache', async () => {
+test('using side effects cache', async () => {
   prepareEmpty()
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -82,13 +80,14 @@ skipOnWindows('using side effects cache', async () => {
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
   }, {}, {}, { packageImportMethod: 'copy' })
-  const manifest = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts)
+  const manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example@1.0.0'], opts)
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/10/0c9ac65f21cb83e1d3b9339731937e96d930d0000075d266d3443307659d27759e81f3bc0e87b202ade1f10c4af6845d060b4a985ee6b3ccc4de163a3d2171-index.json')
+  const filesIndexFile = path.join(opts.storeDir, 'files/2e/28a020ed7c488057d208cd705442e275352fcf88a32b32d0d312668308cb87db3a6df9171ce90d501c3de162b2a6dd5cf62ed7ae8c76532f95adfac924b9a8-index.json')
   const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
-  expect(filesIndex.sideEffects).toHaveProperty([ENGINE_NAME, 'build/Makefile'])
-  delete filesIndex.sideEffects![ENGINE_NAME]['build/Makefile']
+  expect(filesIndex.sideEffects).toHaveProperty([ENGINE_NAME, 'generated-by-preinstall.js'])
+  expect(filesIndex.sideEffects).toHaveProperty([ENGINE_NAME, 'generated-by-postinstall.js'])
+  delete filesIndex.sideEffects![ENGINE_NAME]['generated-by-postinstall.js']
   await writeJsonFile(filesIndexFile, filesIndex)
 
   await rimraf('node_modules')
@@ -100,10 +99,10 @@ skipOnWindows('using side effects cache', async () => {
     storeDir: opts.storeDir,
     verifyStoreIntegrity: false,
   }, {}, {}, { packageImportMethod: 'copy' })
-  await addDependenciesToPackage(manifest, ['diskusage@1.1.3'], opts2)
+  await addDependenciesToPackage(manifest, ['pre-and-postinstall-scripts-example@1.0.0'], opts2)
 
-  expect(await exists(path.resolve('node_modules/diskusage/build/Makefile'))).toBeFalsy() // side effects cache correctly used
-  expect(await exists(path.resolve('node_modules/diskusage/build/binding.Makefile'))).toBeTruthy() // side effects cache correctly used
+  expect(await exists(path.resolve('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy() // side effects cache correctly used
+  expect(await exists(path.resolve('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy() // side effects cache correctly used
 })
 
 test.skip('readonly side effects cache', async () => {
@@ -140,7 +139,7 @@ test.skip('readonly side effects cache', async () => {
   expect(await exists(path.join(opts2.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`))).toBeFalsy()
 })
 
-skipOnWindows('uploading errors do not interrupt installation', async () => {
+test('uploading errors do not interrupt installation', async () => {
   prepareEmpty()
 
   const opts = await testDefaults({
@@ -151,10 +150,11 @@ skipOnWindows('uploading errors do not interrupt installation', async () => {
   opts.storeController.upload = async () => {
     throw new Error('an unexpected error')
   }
-  await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts)
+  await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example@1.0.0'], opts)
 
-  expect(await exists('node_modules/diskusage/build')).toBeTruthy()
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
-  expect(await exists(cacheBuildDir)).toBeFalsy()
+  const filesIndexFile = path.join(opts.storeDir, 'files/2e/28a020ed7c488057d208cd705442e275352fcf88a32b32d0d312668308cb87db3a6df9171ce90d501c3de162b2a6dd5cf62ed7ae8c76532f95adfac924b9a8-index.json')
+  const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+  expect(filesIndex.sideEffects).toBeFalsy()
 })

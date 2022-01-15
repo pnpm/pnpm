@@ -18,7 +18,6 @@ import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
-import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import sinon from 'sinon'
@@ -26,7 +25,6 @@ import writeJsonFile from 'write-json-file'
 import testDefaults from './utils/testDefaults'
 
 const f = fixtures(__dirname)
-const skipOnWindows = isWindows() ? test.skip : test
 
 test('installing a simple project', async () => {
   const prefix = f.prepare('simple')
@@ -673,7 +671,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-skipOnWindows('using side effects cache', async () => {
+test('using side effects cache', async () => {
   let prefix = f.prepare('side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -686,13 +684,13 @@ skipOnWindows('using side effects cache', async () => {
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts)
 
-  const cacheIntegrityPath = path.join(opts.storeDir, 'files/10/0c9ac65f21cb83e1d3b9339731937e96d930d0000075d266d3443307659d27759e81f3bc0e87b202ade1f10c4af6845d060b4a985ee6b3ccc4de163a3d2171-index.json')
+  const cacheIntegrityPath = path.join(opts.storeDir, 'files/2e/28a020ed7c488057d208cd705442e275352fcf88a32b32d0d312668308cb87db3a6df9171ce90d501c3de162b2a6dd5cf62ed7ae8c76532f95adfac924b9a8-index.json')
   const cacheIntegrity = await loadJsonFile(cacheIntegrityPath)
   expect(cacheIntegrity!['sideEffects']).toBeTruthy()
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', ENGINE_NAME, 'build/Makefile'])
-  delete cacheIntegrity!['sideEffects'][ENGINE_NAME]['build/Makefile']
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', ENGINE_NAME, 'generated-by-postinstall.js'])
+  delete cacheIntegrity!['sideEffects'][ENGINE_NAME]['generated-by-postinstall.js']
 
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', ENGINE_NAME, 'build/binding.Makefile'])
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', ENGINE_NAME, 'generated-by-preinstall.js'])
   await writeJsonFile(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')
@@ -705,8 +703,8 @@ skipOnWindows('using side effects cache', async () => {
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts2)
 
-  expect(await exists(path.join(prefix, 'node_modules/diskusage/build/Makefile'))).toBeFalsy()
-  expect(await exists(path.join(prefix, 'node_modules/diskusage/build/binding.Makefile'))).toBeTruthy()
+  expect(await exists(path.join(prefix, 'node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy()
+  expect(await exists(path.join(prefix, 'node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy()
 })
 
 test.skip('using side effects cache and hoistPattern=*', async () => {

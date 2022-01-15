@@ -1,25 +1,21 @@
 lockfileVersion: 5.3
 
 specifiers:
-  diskusage: 1.1.3
+  pre-and-postinstall-scripts-example: 1.0.0
 
 dependencies:
-  diskusage: 1.1.3
+  pre-and-postinstall-scripts-example: 1.0.0
 
 packages:
 
-  /diskusage/1.1.3:
-    resolution: {integrity: sha512-EAyaxl8hy4Ph07kzlzGTfpbZMNAAAHXSZtNEMwdlnSd1noHzvA6HsgKt4fEMSvaEXQYLSphe5rPMxN4WOj0hcQ==}
+  /hello-world-js-bin/1.0.0:
+    resolution: {integrity: sha512-g9DaVvwKClJZUDrsYc7DRhvwMuGLzWlKOJlrHWZz5qiT/RdE1jdT+7Fh1T5XNKW7Oa/pbyxHNz7fK1+vLXe/3w==}
+    hasBin: true
+    dev: false
+
+  /pre-and-postinstall-scripts-example/1.0.0:
+    resolution: {integrity: sha512-LiigIO18SIBX0gjNcFRC4nU1L8+Ioysy0NMSZoMIy4fbOm35FxzpDVAcPeFisqbdXPYu166MdlMvla36ySS5qA==}
     requiresBuild: true
     dependencies:
-      es6-promise: 4.2.8
-      nan: 2.14.1
-    dev: false
-
-  /es6-promise/4.2.8:
-    resolution: {integrity: sha512-HJDGx5daxeIvxdBxvG2cb9g4tEvwIk3i8+nhX0yGrYmZUzbkdg8QbDevheDB8gd0//uPj4c1EQua8Q+MViT0/w==}
-    dev: false
-
-  /nan/2.14.1:
-    resolution: {integrity: sha512-isWHgVjnFjh2x2yuJ/tj3JbwoHu3UC2dX5G/88Cm24yB6YopVgxvBObDY7n5xW6ExmFhJpSEQqFPvq9zaXc8Jw==}
+      hello-world-js-bin: 1.0.0
     dev: false
