@@ -59,6 +59,7 @@ import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import equals from 'ramda/src/equals'
 import fromPairs from 'ramda/src/fromPairs'
+import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
 import props from 'ramda/src/props'
 import union from 'ramda/src/union'
@@ -657,10 +658,14 @@ async function linkAllPkgs (
         throw err
       }
 
+      let targetEngine: string | undefined
+      if (opts.targetEngine && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+        targetEngine = `${opts.targetEngine}-${JSON.stringify(calcDepStateObj(depNode, opts.depGraph, opts.depStateCache))}`
+      }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
-        targetEngine: opts.targetEngine ? `${opts.targetEngine}-${JSON.stringify(calcDepStateObj(depNode, opts.depGraph, opts.depStateCache))}` : opts.targetEngine,
+        targetEngine,
       })
       if (importMethod) {
         progressLogger.debug({
