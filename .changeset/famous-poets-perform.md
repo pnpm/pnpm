@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-Update command works fine when devDependencies with empty version
+Update command should work when there is a dependency with emty version in `devDependencies` [#4196](https://github.com/pnpm/pnpm/issues/4196).
