@@ -23,4 +23,3 @@ test('guessDependencyType()', () => {
     })
   ).toEqual('dependencies')
 })
-
