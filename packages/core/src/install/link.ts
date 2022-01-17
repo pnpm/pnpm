@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { calcDepStateObj, DepStateObj } from '@pnpm/build-modules'
+import calcDepStateObj, { DepStateObj } from '@pnpm/calc-dep-state'
 import { ENGINE_NAME } from '@pnpm/constants'
 import {
   progressLogger,

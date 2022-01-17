@@ -1,21 +1,29 @@
 import sortKeys from 'sort-keys'
-import { DependenciesGraph, DependenciesGraphNode } from '.'
+
+export interface DepsGraph {
+  [depPath: string]: DepsGraphNode
+}
+
+export interface DepsGraphNode {
+  children: {[alias: string]: string}
+  depPath: string
+}
 
 export interface DepStateObj {
   [depPath: string]: DepStateObj | {}
 }
 
 export default function calcDepStateObj (
-  node: DependenciesGraphNode | null,
-  depsGraph: DependenciesGraph,
+  node: DepsGraphNode | null,
+  depsGraph: DepsGraph,
   cache: DepStateObj
 ): DepStateObj {
   return _calcDepStateObj(node, depsGraph, cache, new Set())
 }
 
 function _calcDepStateObj (
-  node: DependenciesGraphNode | null,
-  depsGraph: DependenciesGraph,
+  node: DepsGraphNode | null,
+  depsGraph: DepsGraph,
   cache: DepStateObj,
   parents: Set<string>
 ): DepStateObj {

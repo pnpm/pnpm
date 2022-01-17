@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../calc-dep-state"
+    },
+    {
       "path": "../constants"
     },
     {

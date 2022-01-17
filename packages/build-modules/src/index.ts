@@ -1,4 +1,5 @@
 import path from 'path'
+import calcDepStateObj, { DepStateObj } from '@pnpm/calc-dep-state'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
@@ -10,9 +11,8 @@ import { DependencyManifest, PackageManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
 import graphSequencer from 'graph-sequencer'
 import filter from 'ramda/src/filter'
-import calcDepStateObj, { DepStateObj } from './calcDepStateObj'
 
-export { calcDepStateObj, DepStateObj }
+export { DepStateObj }
 
 export default async (
   depGraph: DependenciesGraph,

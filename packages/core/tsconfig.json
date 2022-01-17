@@ -28,6 +28,9 @@
       "path": "../cafs"
     },
     {
+      "path": "../calc-dep-state"
+    },
+    {
       "path": "../client"
     },
     {
