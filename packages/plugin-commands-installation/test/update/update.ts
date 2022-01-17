@@ -187,7 +187,7 @@ test('update should work normal when set empty string version', async () => {
   expect(lockfile.packages['/peer-a/1.0.1']).toBeTruthy()
   expect(lockfile.packages['/peer-b/2.0.0']).toBeTruthy()
   expect(lockfile.packages['/peer-c/3.0.0']).toBeTruthy()
-  expect(lockfile.devDependencies['peer-a']).toEqual('1.0.1')
+  expect(lockfile.dependencies['peer-a']).toEqual('1.0.1')
   expect(lockfile.devDependencies['peer-b']).toEqual('2.0.0')
   expect(lockfile.devDependencies['peer-c']).toEqual('3.0.0')
 })
