@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import buildModules from '@pnpm/build-modules'
-import calcDepState, { DepStateObj } from '@pnpm/calc-dep-state'
+import { calcDepState, DepStateObj } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -661,7 +661,7 @@ async function linkAllPkgs (
 
       let targetEngine: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode, opts.depGraph, opts.depStateCache)
+        targetEngine = calcDepState(depNode.dir, opts.depGraph, opts.depStateCache)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

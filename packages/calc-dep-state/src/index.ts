@@ -14,35 +14,35 @@ export interface DepStateObj {
   [depPath: string]: DepStateObj | {}
 }
 
-export default function calcDepState (
-  node: DepsGraphNode | null,
+export function calcDepState (
+  nodeId: string,
   depsGraph: DepsGraph,
   cache: DepStateObj
 ): string {
-  const depStateObj = calcDepStateObj(node, depsGraph, cache, new Set())
+  const depStateObj = calcDepStateObj(nodeId, depsGraph, cache, new Set())
   return `${ENGINE_NAME}-${JSON.stringify(depStateObj)}`
 }
 
 function calcDepStateObj (
-  node: DepsGraphNode | null,
+  nodeId: string,
   depsGraph: DepsGraph,
   cache: DepStateObj,
   parents: Set<string>
 ): DepStateObj {
+  if (cache[nodeId]) return cache[nodeId]
+  const node = depsGraph[nodeId]
   if (!node) return {}
   const nextParents = new Set([...Array.from(parents), node.depPath])
   const state: DepStateObj = {}
-  for (const childKey of Object.values(node.children)) {
-    const child = depsGraph[childKey]
+  for (const childId of Object.values(node.children)) {
+    const child = depsGraph[childId]
     if (!child) continue
     if (parents.has(child.depPath)) {
       state[child.depPath] = {}
       continue
     }
-    if (!cache[child.depPath]) {
-      cache[child.depPath] = calcDepStateObj(child, depsGraph, cache, nextParents)
-    }
-    state[child.depPath] = cache[child.depPath]
+    state[child.depPath] = calcDepStateObj(childId, depsGraph, cache, nextParents)
   }
-  return sortKeys(state)
+  cache[nodeId] = sortKeys(state)
+  return cache[nodeId]
 }

@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import calcDepStateObj, { DepStateObj } from '@pnpm/calc-dep-state'
+import { calcDepState, DepStateObj } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   rootLogger,
@@ -407,7 +407,7 @@ async function linkAllPkgs (
 
       let targetEngine: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepStateObj(depNode, opts.depGraph, opts.depStateCache)
+        targetEngine = calcDepState(depNode.depPath, opts.depGraph, opts.depStateCache)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

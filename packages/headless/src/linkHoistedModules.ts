@@ -1,5 +1,5 @@
 import path from 'path'
-import calcDepState, { DepStateObj } from '@pnpm/calc-dep-state'
+import { calcDepState, DepStateObj } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   removalLogger,
@@ -102,7 +102,7 @@ async function linkAllPkgsInOrder (
 
       let targetEngine: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode, graph, opts.depStateCache)
+        targetEngine = calcDepState(dir, graph, opts.depStateCache)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
