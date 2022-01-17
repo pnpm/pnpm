@@ -3,7 +3,6 @@ import { ENGINE_NAME } from '@pnpm/constants'
 
 test('calcDepState()', () => {
   expect(calcDepState('/registry/foo/1.0.0', {
-
     'registry/foo/1.0.0': {
       depPath: '/foo/1.0.0',
       children: {

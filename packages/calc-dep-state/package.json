@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/calc-dep-state",
   "version": "0.0.0",
-  "description": "Creates a state object for a dependency",
+  "description": "Calculates the state of a dependency",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
