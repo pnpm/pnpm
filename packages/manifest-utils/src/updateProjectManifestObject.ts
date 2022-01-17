@@ -61,5 +61,5 @@ function findSpec (alias: string, manifest: ProjectManifest): string | undefined
 
 export function guessDependencyType (alias: string, manifest: ProjectManifest): DependenciesField | undefined {
   return DEPENDENCIES_FIELDS
-    .find((depField) => Boolean(manifest[depField]?.[alias]))
+    .find((depField) => manifest[depField]?.[alias] === '' || Boolean(manifest[depField]?.[alias]))
 }
