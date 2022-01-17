@@ -1,9 +1,8 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import buildModules from '@pnpm/build-modules'
-import calcDepStateObj, { DepStateObj } from '@pnpm/calc-dep-state'
+import calcDepState, { DepStateObj } from '@pnpm/calc-dep-state'
 import {
-  ENGINE_NAME,
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -288,10 +287,11 @@ export default async (opts: HeadlessOptions) => {
   let newHoistedDependencies!: HoistedDependencies
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
+      depStateCache,
       extendNodePath: opts.extendNodePath,
       force: opts.force,
       lockfileDir: opts.lockfileDir,
-      targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
     })
     stageLogger.debug({
       prefix: lockfileDir,
@@ -320,7 +320,7 @@ export default async (opts: HeadlessOptions) => {
         depGraph: graph,
         depStateCache,
         lockfileDir: opts.lockfileDir,
-        targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+        sideEffectsCacheRead: opts.sideEffectsCacheRead,
       }),
     ])
 
@@ -646,7 +646,7 @@ async function linkAllPkgs (
     depStateCache: DepStateObj
     force: boolean
     lockfileDir: string
-    targetEngine?: string
+    sideEffectsCacheRead: boolean
   }
 ) {
   return Promise.all(
@@ -660,8 +660,8 @@ async function linkAllPkgs (
       }
 
       let targetEngine: string | undefined
-      if (opts.targetEngine && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = `${opts.targetEngine}-${JSON.stringify(calcDepStateObj(depNode, opts.depGraph, opts.depStateCache))}`
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+        targetEngine = calcDepState(depNode, opts.depGraph, opts.depStateCache)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import calcDepStateObj, { DepStateObj } from '@pnpm/calc-dep-state'
-import { ENGINE_NAME } from '@pnpm/constants'
 import {
   progressLogger,
   rootLogger,
@@ -351,7 +350,7 @@ async function linkNewPackages (
       depStateCache: opts.depStateCache,
       force: opts.force,
       lockfileDir: opts.lockfileDir,
-      targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
     }),
   ])
 
@@ -399,7 +398,7 @@ async function linkAllPkgs (
     depStateCache: DepStateObj
     force: boolean
     lockfileDir: string
-    targetEngine?: string
+    sideEffectsCacheRead: boolean
   }
 ) {
   return Promise.all(
@@ -407,8 +406,8 @@ async function linkAllPkgs (
       const filesResponse = await depNode.fetchingFiles()
 
       let targetEngine: string | undefined
-      if (opts.targetEngine && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = `${opts.targetEngine}-${JSON.stringify(calcDepStateObj(depNode, opts.depGraph, opts.depStateCache))}`
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+        targetEngine = calcDepStateObj(depNode, opts.depGraph, opts.depStateCache)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

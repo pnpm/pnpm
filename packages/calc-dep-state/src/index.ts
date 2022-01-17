@@ -1,3 +1,4 @@
+import { ENGINE_NAME } from '@pnpm/constants'
 import sortKeys from 'sort-keys'
 
 export interface DepsGraph {
@@ -13,15 +14,16 @@ export interface DepStateObj {
   [depPath: string]: DepStateObj | {}
 }
 
-export default function calcDepStateObj (
+export default function calcDepState (
   node: DepsGraphNode | null,
   depsGraph: DepsGraph,
   cache: DepStateObj
-): DepStateObj {
-  return _calcDepStateObj(node, depsGraph, cache, new Set())
+): string {
+  const depStateObj = calcDepStateObj(node, depsGraph, cache, new Set())
+  return `${ENGINE_NAME}-${JSON.stringify(depStateObj)}`
 }
 
-function _calcDepStateObj (
+function calcDepStateObj (
   node: DepsGraphNode | null,
   depsGraph: DepsGraph,
   cache: DepStateObj,
@@ -38,7 +40,7 @@ function _calcDepStateObj (
       continue
     }
     if (!cache[child.depPath]) {
-      cache[child.depPath] = _calcDepStateObj(child, depsGraph, cache, nextParents)
+      cache[child.depPath] = calcDepStateObj(child, depsGraph, cache, nextParents)
     }
     state[child.depPath] = cache[child.depPath]
   }

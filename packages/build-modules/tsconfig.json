@@ -13,9 +13,6 @@
       "path": "../calc-dep-state"
     },
     {
-      "path": "../constants"
-    },
-    {
       "path": "../core-loggers"
     },
     {

@@ -1,6 +1,5 @@
 import path from 'path'
 import calcDepStateObj, { DepStateObj } from '@pnpm/calc-dep-state'
-import { ENGINE_NAME } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
@@ -108,7 +107,7 @@ async function buildDependency (
     if (hasSideEffects && opts.sideEffectsCacheWrite) {
       try {
         await opts.storeController.upload(depNode.dir, {
-          engine: `${ENGINE_NAME}-${JSON.stringify(calcDepStateObj(depNode, depGraph, opts.depStateCache))}`,
+          engine: calcDepStateObj(depNode, depGraph, opts.depStateCache),
           filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err: any) { // eslint-disable-line
