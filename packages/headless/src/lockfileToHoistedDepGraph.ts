@@ -16,6 +16,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import hoist, { HoisterResult } from '@pnpm/real-hoist'
+import * as dp from 'dependency-path'
 import {
   DependenciesGraph,
   DepHierarchy,
@@ -63,8 +64,9 @@ async function _lockfileToHoistedDepGraph (
   const tree = hoist(lockfile)
   const graph: DependenciesGraph = {}
   const modulesDir = path.join(opts.lockfileDir, 'node_modules')
+  const pkgLocationByDepPath: Record<string, string> = {}
   const hierarchy = {
-    [opts.lockfileDir]: await fetchDeps(lockfile, opts, graph, modulesDir, tree.dependencies),
+    [opts.lockfileDir]: await fetchDeps(lockfile, opts, graph, modulesDir, tree.dependencies, pkgLocationByDepPath),
   }
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {
     '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
@@ -76,7 +78,7 @@ async function _lockfileToHoistedDepGraph (
       const importerId = reference.replace('workspace:', '')
       const projectDir = path.join(opts.lockfileDir, importerId)
       const modulesDir = path.join(projectDir, 'node_modules')
-      const nextHierarchy = (await fetchDeps(lockfile, opts, graph, modulesDir, rootDep.dependencies))
+      const nextHierarchy = (await fetchDeps(lockfile, opts, graph, modulesDir, rootDep.dependencies, pkgLocationByDepPath))
       hierarchy[projectDir] = nextHierarchy
 
       const importer = lockfile.importers[importerId]
@@ -125,7 +127,8 @@ async function fetchDeps (
   opts: LockfileToHoistedDepGraphOptions,
   graph: DependenciesGraph,
   modules: string,
-  deps: Set<HoisterResult>
+  deps: Set<HoisterResult>,
+  pkgLocationByDepPath: Record<string, string>
 ): Promise<DepHierarchy> {
   const depHierarchy = {}
   await Promise.all(Array.from(deps).map(async (dep) => {
@@ -194,7 +197,21 @@ async function fetchDeps (
       prepare: pkgSnapshot.prepare === true,
       requiresBuild: pkgSnapshot.requiresBuild === true,
     }
-    depHierarchy[dir] = await fetchDeps(lockfile, opts, graph, path.join(dir, 'node_modules'), dep.dependencies)
+    pkgLocationByDepPath[depPath] = dir
+    depHierarchy[dir] = await fetchDeps(lockfile, opts, graph, path.join(dir, 'node_modules'), dep.dependencies, pkgLocationByDepPath)
+
+    const allDeps = {
+      ...pkgSnapshot.dependencies,
+      ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+    }
+    const children = {}
+    for (const [childName, childRef] of Object.entries(allDeps)) {
+      const childDepPath = dp.refToRelative(childRef, childName)
+      if (childDepPath && pkgLocationByDepPath[childDepPath]) {
+        children[childName] = pkgLocationByDepPath[childDepPath]
+      }
+    }
+    graph[dir].children = children
   }))
   return depHierarchy
 }

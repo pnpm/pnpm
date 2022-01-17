@@ -671,13 +671,14 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test('using side effects cache', async () => {
+test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker=%s', async (nodeLinker) => {
   let prefix = f.prepare('side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
     lockfileDir: prefix,
+    nodeLinker,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -697,6 +698,7 @@ test('using side effects cache', async () => {
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({
     lockfileDir: prefix,
+    nodeLinker,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     storeDir: opts.storeDir,
