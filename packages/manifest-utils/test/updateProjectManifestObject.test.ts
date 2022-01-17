@@ -24,3 +24,6 @@ test('guessDependencyType()', () => {
   ).toEqual('dependencies')
 })
 
+test('updateProjectManifestObject()', async () => {
+  
+})
