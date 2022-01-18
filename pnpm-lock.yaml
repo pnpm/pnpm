@@ -350,7 +350,6 @@ importers:
       '@types/which': ^2.0.0
       '@zkochan/npm-conf': 2.0.2
       camelcase: ^6.2.0
-      can-write-to-dir: ^1.1.1
       is-subdir: ^1.1.1
       normalize-registry-url: 2.0.0
       ramda: ^0.27.1
@@ -366,7 +365,6 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/npm-conf': 2.0.2
       camelcase: 6.3.0
-      can-write-to-dir: 1.1.1
       is-subdir: 1.2.0
       normalize-registry-url: 2.0.0
       ramda: 0.27.2

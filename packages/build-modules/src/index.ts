@@ -20,7 +20,6 @@ export default async (
     childConcurrency?: number
     depsToBuild?: Set<string>
     depsStateCache: DepsStateCache
-    extendNodePath?: boolean
     extraBinPaths?: string[]
     extraEnv?: Record<string, string>
     lockfileDir: string
@@ -70,7 +69,6 @@ async function buildDependency (
   depPath: string,
   depGraph: DependenciesGraph,
   opts: {
-    extendNodePath?: boolean
     extraBinPaths?: string[]
     extraEnv?: Record<string, string>
     depsStateCache: DepsStateCache
@@ -192,7 +190,6 @@ export async function linkBinsOfDependencies (
   depNode: DependenciesGraphNode,
   depGraph: DependenciesGraph,
   opts: {
-    extendNodePath?: boolean
     optional: boolean
     warn: (message: string) => void
   }
@@ -230,11 +227,11 @@ export async function linkBinsOfDependencies (
     }))
   )
 
-  await linkBinsOfPackages(pkgs, binPath, { extendNodePath: opts.extendNodePath, warn: opts.warn })
+  await linkBinsOfPackages(pkgs, binPath)
 
   // link also the bundled dependencies` bins
   if (depNode.hasBundledDependencies) {
     const bundledModules = path.join(depNode.dir, 'node_modules')
-    await linkBins(bundledModules, binPath, { extendNodePath: opts.extendNodePath, warn: opts.warn })
+    await linkBins(bundledModules, binPath, { warn: opts.warn })
   }
 }

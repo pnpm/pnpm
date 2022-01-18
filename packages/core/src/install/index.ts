@@ -764,7 +764,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         dependenciesByProjectId,
         depsStateCache,
         force: opts.force,
-        extendNodePath: opts.extendNodePath,
         hoistedDependencies: ctx.hoistedDependencies,
         hoistedModulesDir: ctx.hoistedModulesDir,
         hoistPattern: ctx.hoistPattern,
@@ -823,7 +822,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         childConcurrency: opts.childConcurrency,
         depsStateCache,
         depsToBuild: new Set(result.newDepPaths),
-        extendNodePath: opts.extendNodePath,
         extraBinPaths: ctx.extraBinPaths,
         extraEnv,
         lockfileDir: ctx.lockfileDir,
@@ -861,7 +859,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }, {})
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
-          extendNodePath: opts.extendNodePath,
           projectManifest: project.manifest,
           nodeExecPathByAlias,
           warn: binWarn.bind(null, project.rootDir),
@@ -891,8 +888,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             )
           )
             .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
-          project.binsDir,
-          { extendNodePath: opts.extendNodePath, warn: binWarn.bind(null, project.rootDir) }
+          project.binsDir
         )
       }
       const projectToInstall = projects[index]

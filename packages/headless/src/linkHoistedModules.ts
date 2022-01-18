@@ -26,7 +26,6 @@ export default async function linkHoistedModules (
   hierarchy: DepHierarchy,
   opts: {
     depsStateCache: DepsStateCache
-    extendNodePath?: boolean
     force: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
@@ -82,7 +81,6 @@ async function linkAllPkgsInOrder (
   parentDir: string,
   opts: {
     depsStateCache: DepsStateCache
-    extendNodePath?: boolean
     force: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
@@ -125,7 +123,6 @@ async function linkAllPkgsInOrder (
   const binsDir = path.join(modulesDir, '.bin')
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
-    extendNodePath: opts.extendNodePath,
     warn: opts.warn,
   })
 }

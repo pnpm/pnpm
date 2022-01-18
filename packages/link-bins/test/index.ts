@@ -146,7 +146,6 @@ test('linkBins() does not link own bins', async () => {
 test('linkBinsOfPackages()', async () => {
   const binTarget = tempy.directory()
   const simpleFixture = f.prepare('simple-fixture')
-  const warn = jest.fn()
 
   await linkBinsOfPackages(
     [
@@ -155,11 +154,9 @@ test('linkBinsOfPackages()', async () => {
         manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
       },
     ],
-    binTarget,
-    { warn }
+    binTarget
   )
 
-  expect(warn).not.toHaveBeenCalled()
   expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
   expect(await exists(binLocation)).toBe(true)
@@ -200,7 +197,6 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
 test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their name as bin name', async () => {
   const binTarget = tempy.directory()
   const binNameConflictsFixture = f.prepare('bin-name-conflicts')
-  const warn = jest.fn()
 
   const modulesPath = path.join(binNameConflictsFixture, 'node_modules')
 
@@ -215,8 +211,7 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
         manifest: (await import(path.join(modulesPath, 'foo', 'package.json'))).default,
       },
     ],
-    binTarget,
-    { warn }
+    binTarget
   )
 
   expect(binsConflictLogger.debug).toHaveBeenCalledWith({

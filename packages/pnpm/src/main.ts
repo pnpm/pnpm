@@ -108,10 +108,6 @@ export default async function run (inputArgv: string[]) {
     process.exitCode = 1
     return
   }
-  if (!config.useBetaCli) {
-    process.env['npm_config_argv'] = JSON.stringify(argv)
-    config.rawConfig.argv = process.env['npm_config_argv']
-  }
 
   let write: (text: string) => void = process.stdout.write.bind(process.stdout)
   // chalk reads the FORCE_COLOR env variable
@@ -194,7 +190,7 @@ export default async function run (inputArgv: string[]) {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: false })
-    } else if (config.useBetaCli && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+    } else if (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test') {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: false })
     }
 
@@ -204,7 +200,7 @@ export default async function run (inputArgv: string[]) {
       workspaceDir: wsDir,
       testPattern: config.testPattern,
       changedFilesIgnorePattern: config.changedFilesIgnorePattern,
-      useGlobDirFiltering: config.useBetaCli,
+      useGlobDirFiltering: true,
     })
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (isEmpty(config.selectedProjectsGraph)) {
