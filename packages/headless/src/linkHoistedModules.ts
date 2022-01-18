@@ -1,5 +1,5 @@
 import path from 'path'
-import { calcDepState, DepStateObj } from '@pnpm/calc-dep-state'
+import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   removalLogger,
@@ -25,7 +25,7 @@ export default async function linkHoistedModules (
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   opts: {
-    depStateCache: DepStateObj
+    depsStateCache: DepsStateCache
     extendNodePath?: boolean
     force: boolean
     lockfileDir: string
@@ -81,7 +81,7 @@ async function linkAllPkgsInOrder (
   hierarchy: DepHierarchy,
   parentDir: string,
   opts: {
-    depStateCache: DepStateObj
+    depsStateCache: DepsStateCache
     extendNodePath?: boolean
     force: boolean
     lockfileDir: string
@@ -102,7 +102,7 @@ async function linkAllPkgsInOrder (
 
       let targetEngine: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(dir, graph, opts.depStateCache)
+        targetEngine = calcDepState(dir, graph, opts.depsStateCache)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

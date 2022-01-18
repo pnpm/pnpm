@@ -1,5 +1,5 @@
 import path from 'path'
-import { calcDepState, DepStateObj } from '@pnpm/calc-dep-state'
+import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
@@ -11,7 +11,7 @@ import runGroups from 'run-groups'
 import graphSequencer from 'graph-sequencer'
 import filter from 'ramda/src/filter'
 
-export { DepStateObj }
+export { DepsStateCache }
 
 export default async (
   depGraph: DependenciesGraph,
@@ -19,7 +19,7 @@ export default async (
   opts: {
     childConcurrency?: number
     depsToBuild?: Set<string>
-    depStateCache: DepStateObj
+    depsStateCache: DepsStateCache
     extendNodePath?: boolean
     extraBinPaths?: string[]
     extraEnv?: Record<string, string>
@@ -73,7 +73,7 @@ async function buildDependency (
     extendNodePath?: boolean
     extraBinPaths?: string[]
     extraEnv?: Record<string, string>
-    depStateCache: DepStateObj
+    depsStateCache: DepsStateCache
     lockfileDir: string
     optional: boolean
     rawConfig: object
@@ -107,7 +107,7 @@ async function buildDependency (
     if (hasSideEffects && opts.sideEffectsCacheWrite) {
       try {
         await opts.storeController.upload(depNode.dir, {
-          engine: calcDepState(depPath, depGraph, opts.depStateCache),
+          engine: calcDepState(depPath, depGraph, opts.depsStateCache),
           filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err: any) { // eslint-disable-line

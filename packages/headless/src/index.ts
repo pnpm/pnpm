@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import buildModules from '@pnpm/build-modules'
-import { calcDepState, DepStateObj } from '@pnpm/calc-dep-state'
+import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -148,7 +148,7 @@ export default async (opts: HeadlessOptions) => {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
-  const depStateCache: DepStateObj = {}
+  const depsStateCache: DepsStateCache = {}
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
@@ -287,7 +287,7 @@ export default async (opts: HeadlessOptions) => {
   let newHoistedDependencies!: HoistedDependencies
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
-      depStateCache,
+      depsStateCache,
       extendNodePath: opts.extendNodePath,
       force: opts.force,
       lockfileDir: opts.lockfileDir,
@@ -318,7 +318,7 @@ export default async (opts: HeadlessOptions) => {
       linkAllPkgs(opts.storeController, depNodes, {
         force: opts.force,
         depGraph: graph,
-        depStateCache,
+        depsStateCache,
         lockfileDir: opts.lockfileDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
       }),
@@ -412,7 +412,7 @@ export default async (opts: HeadlessOptions) => {
       extraBinPaths,
       extendNodePath: opts.extendNodePath,
       extraEnv,
-      depStateCache,
+      depsStateCache,
       lockfileDir,
       optional: opts.include.optionalDependencies,
       rawConfig: opts.rawConfig,
@@ -643,7 +643,7 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     depGraph: DependenciesGraph
-    depStateCache: DepStateObj
+    depsStateCache: DepsStateCache
     force: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
@@ -661,7 +661,7 @@ async function linkAllPkgs (
 
       let targetEngine: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode.dir, opts.depGraph, opts.depStateCache)
+        targetEngine = calcDepState(depNode.dir, opts.depGraph, opts.depsStateCache)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

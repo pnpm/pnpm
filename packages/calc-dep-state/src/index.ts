@@ -10,6 +10,10 @@ export interface DepsGraphNode {
   depPath: string
 }
 
+export interface DepsStateCache {
+  [nodeId: string]: DepStateObj
+}
+
 export interface DepStateObj {
   [depPath: string]: DepStateObj | {}
 }
@@ -17,7 +21,7 @@ export interface DepStateObj {
 export function calcDepState (
   nodeId: string,
   depsGraph: DepsGraph,
-  cache: DepStateObj
+  cache: DepsStateCache
 ): string {
   const depStateObj = calcDepStateObj(nodeId, depsGraph, cache, new Set())
   return `${ENGINE_NAME}-${JSON.stringify(depStateObj)}`
@@ -26,7 +30,7 @@ export function calcDepState (
 function calcDepStateObj (
   nodeId: string,
   depsGraph: DepsGraph,
-  cache: DepStateObj,
+  cache: DepsStateCache,
   parents: Set<string>
 ): DepStateObj {
   if (cache[nodeId]) return cache[nodeId]

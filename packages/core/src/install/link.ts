@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { calcDepState, DepStateObj } from '@pnpm/calc-dep-state'
+import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   rootLogger,
@@ -47,7 +47,7 @@ export default async function linkPackages (
       [id: string]: {[alias: string]: string}
     }
     force: boolean
-    depStateCache: DepStateObj
+    depsStateCache: DepsStateCache
     extendNodePath?: boolean
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir: string
@@ -139,7 +139,7 @@ export default async function linkPackages (
     depGraph,
     {
       force: opts.force,
-      depStateCache: opts.depStateCache,
+      depsStateCache: opts.depsStateCache,
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -284,7 +284,7 @@ async function linkNewPackages (
   wantedLockfile: Lockfile,
   depGraph: DependenciesGraph,
   opts: {
-    depStateCache: DepStateObj
+    depsStateCache: DepsStateCache
     force: boolean
     optional: boolean
     lockfileDir: string
@@ -347,7 +347,7 @@ async function linkNewPackages (
       }),
     linkAllPkgs(opts.storeController, newPkgs, {
       depGraph,
-      depStateCache: opts.depStateCache,
+      depsStateCache: opts.depsStateCache,
       force: opts.force,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -395,7 +395,7 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     depGraph: DependenciesGraph
-    depStateCache: DepStateObj
+    depsStateCache: DepsStateCache
     force: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
@@ -407,7 +407,7 @@ async function linkAllPkgs (
 
       let targetEngine: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode.depPath, opts.depGraph, opts.depStateCache)
+        targetEngine = calcDepState(depNode.depPath, opts.depGraph, opts.depsStateCache)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
