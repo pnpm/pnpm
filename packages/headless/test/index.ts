@@ -671,13 +671,14 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test('using side effects cache', async () => {
+test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker=%s', async (nodeLinker) => {
   let prefix = f.prepare('side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
     lockfileDir: prefix,
+    nodeLinker,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -687,15 +688,17 @@ test('using side effects cache', async () => {
   const cacheIntegrityPath = path.join(opts.storeDir, 'files/2e/28a020ed7c488057d208cd705442e275352fcf88a32b32d0d312668308cb87db3a6df9171ce90d501c3de162b2a6dd5cf62ed7ae8c76532f95adfac924b9a8-index.json')
   const cacheIntegrity = await loadJsonFile(cacheIntegrityPath)
   expect(cacheIntegrity!['sideEffects']).toBeTruthy()
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', ENGINE_NAME, 'generated-by-postinstall.js'])
-  delete cacheIntegrity!['sideEffects'][ENGINE_NAME]['generated-by-postinstall.js']
+  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/hello-world-js-bin/1.0.0': {} })}`
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
+  delete cacheIntegrity!['sideEffects'][sideEffectsKey]['generated-by-postinstall.js']
 
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', ENGINE_NAME, 'generated-by-preinstall.js'])
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-preinstall.js'])
   await writeJsonFile(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({
     lockfileDir: prefix,
+    nodeLinker,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     storeDir: opts.storeDir,

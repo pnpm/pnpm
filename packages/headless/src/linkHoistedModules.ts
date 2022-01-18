@@ -1,4 +1,5 @@
 import path from 'path'
+import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   removalLogger,
@@ -11,6 +12,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import difference from 'ramda/src/difference'
+import isEmpty from 'ramda/src/isEmpty'
 import rimraf from '@zkochan/rimraf'
 import {
   DepHierarchy,
@@ -23,10 +25,11 @@ export default async function linkHoistedModules (
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   opts: {
+    depsStateCache: DepsStateCache
     extendNodePath?: boolean
     force: boolean
     lockfileDir: string
-    targetEngine?: string
+    sideEffectsCacheRead: boolean
   }
 ): Promise<void> {
   // TODO: remove nested node modules first
@@ -78,10 +81,11 @@ async function linkAllPkgsInOrder (
   hierarchy: DepHierarchy,
   parentDir: string,
   opts: {
+    depsStateCache: DepsStateCache
     extendNodePath?: boolean
     force: boolean
     lockfileDir: string
-    targetEngine?: string
+    sideEffectsCacheRead: boolean
     warn: (message: string) => void
   }
 ) {
@@ -96,10 +100,14 @@ async function linkAllPkgsInOrder (
         throw err
       }
 
+      let targetEngine: string | undefined
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+        targetEngine = calcDepState(dir, graph, opts.depsStateCache)
+      }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
-        targetEngine: opts.targetEngine,
+        targetEngine,
       })
       if (importMethod) {
         progressLogger.debug({

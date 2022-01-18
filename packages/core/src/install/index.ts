@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import path from 'path'
-import buildModules, { linkBinsOfDependencies } from '@pnpm/build-modules'
+import buildModules, { DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -753,6 +753,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
+  const depsStateCache: DepsStateCache = {}
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (!opts.lockfileOnly && opts.enableModulesDir) {
     const result = await linkPackages(
@@ -761,6 +762,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       {
         currentLockfile: ctx.currentLockfile,
         dependenciesByProjectId,
+        depsStateCache,
         force: opts.force,
         extendNodePath: opts.extendNodePath,
         hoistedDependencies: ctx.hoistedDependencies,
@@ -819,6 +821,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
       await buildModules(dependenciesGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
+        depsStateCache,
         depsToBuild: new Set(result.newDepPaths),
         extendNodePath: opts.extendNodePath,
         extraBinPaths: ctx.extraBinPaths,

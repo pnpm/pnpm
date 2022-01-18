@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import buildModules from '@pnpm/build-modules'
+import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
-  ENGINE_NAME,
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -59,6 +59,7 @@ import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import equals from 'ramda/src/equals'
 import fromPairs from 'ramda/src/fromPairs'
+import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
 import props from 'ramda/src/props'
 import union from 'ramda/src/union'
@@ -147,6 +148,7 @@ export default async (opts: HeadlessOptions) => {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
+  const depsStateCache: DepsStateCache = {}
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
@@ -285,10 +287,11 @@ export default async (opts: HeadlessOptions) => {
   let newHoistedDependencies!: HoistedDependencies
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
+      depsStateCache,
       extendNodePath: opts.extendNodePath,
       force: opts.force,
       lockfileDir: opts.lockfileDir,
-      targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
     })
     stageLogger.debug({
       prefix: lockfileDir,
@@ -314,8 +317,10 @@ export default async (opts: HeadlessOptions) => {
         }),
       linkAllPkgs(opts.storeController, depNodes, {
         force: opts.force,
+        depGraph: graph,
+        depsStateCache,
         lockfileDir: opts.lockfileDir,
-        targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+        sideEffectsCacheRead: opts.sideEffectsCacheRead,
       }),
     ])
 
@@ -407,6 +412,7 @@ export default async (opts: HeadlessOptions) => {
       extraBinPaths,
       extendNodePath: opts.extendNodePath,
       extraEnv,
+      depsStateCache,
       lockfileDir,
       optional: opts.include.optionalDependencies,
       rawConfig: opts.rawConfig,
@@ -636,9 +642,11 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
+    depGraph: DependenciesGraph
+    depsStateCache: DepsStateCache
     force: boolean
     lockfileDir: string
-    targetEngine?: string
+    sideEffectsCacheRead: boolean
   }
 ) {
   return Promise.all(
@@ -651,10 +659,14 @@ async function linkAllPkgs (
         throw err
       }
 
+      let targetEngine: string | undefined
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+        targetEngine = calcDepState(depNode.dir, opts.depGraph, opts.depsStateCache)
+      }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
-        targetEngine: opts.targetEngine,
+        targetEngine,
       })
       if (importMethod) {
         progressLogger.debug({

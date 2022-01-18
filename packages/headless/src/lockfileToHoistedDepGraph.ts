@@ -1,6 +1,7 @@
 import path from 'path'
 import {
   Lockfile,
+  PackageSnapshot,
   ProjectSnapshot,
 } from '@pnpm/lockfile-file'
 import {
@@ -16,6 +17,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import hoist, { HoisterResult } from '@pnpm/real-hoist'
+import * as dp from 'dependency-path'
 import {
   DependenciesGraph,
   DepHierarchy,
@@ -63,8 +65,14 @@ async function _lockfileToHoistedDepGraph (
   const tree = hoist(lockfile)
   const graph: DependenciesGraph = {}
   const modulesDir = path.join(opts.lockfileDir, 'node_modules')
+  const fetchDepsOpts = {
+    ...opts,
+    lockfile,
+    graph,
+    pkgLocationByDepPath: {},
+  }
   const hierarchy = {
-    [opts.lockfileDir]: await fetchDeps(lockfile, opts, graph, modulesDir, tree.dependencies),
+    [opts.lockfileDir]: await fetchDeps(fetchDepsOpts, modulesDir, tree.dependencies),
   }
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {
     '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
@@ -76,7 +84,7 @@ async function _lockfileToHoistedDepGraph (
       const importerId = reference.replace('workspace:', '')
       const projectDir = path.join(opts.lockfileDir, importerId)
       const modulesDir = path.join(projectDir, 'node_modules')
-      const nextHierarchy = (await fetchDeps(lockfile, opts, graph, modulesDir, rootDep.dependencies))
+      const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
       hierarchy[projectDir] = nextHierarchy
 
       const importer = lockfile.importers[importerId]
@@ -121,9 +129,11 @@ function pickLinkedDirectDeps (
 }
 
 async function fetchDeps (
-  lockfile: Lockfile,
-  opts: LockfileToHoistedDepGraphOptions,
-  graph: DependenciesGraph,
+  opts: {
+    graph: DependenciesGraph
+    lockfile: Lockfile
+    pkgLocationByDepPath: Record<string, string>
+  } & LockfileToHoistedDepGraphOptions,
   modules: string,
   deps: Set<HoisterResult>
 ): Promise<DepHierarchy> {
@@ -131,7 +141,7 @@ async function fetchDeps (
   await Promise.all(Array.from(deps).map(async (dep) => {
     const depPath = Array.from(dep.references)[0]
     if (opts.skipped.has(depPath) || depPath.startsWith('workspace:')) return
-    const pkgSnapshot = lockfile.packages![depPath]
+    const pkgSnapshot = opts.lockfile.packages![depPath]
     if (!pkgSnapshot) {
       // it is a link
       return
@@ -177,7 +187,7 @@ async function fetchDeps (
       if (pkgSnapshot.optional) return
       throw err
     }
-    graph[dir] = {
+    opts.graph[dir] = {
       alias: dep.name,
       children: {},
       depPath,
@@ -194,7 +204,28 @@ async function fetchDeps (
       prepare: pkgSnapshot.prepare === true,
       requiresBuild: pkgSnapshot.requiresBuild === true,
     }
-    depHierarchy[dir] = await fetchDeps(lockfile, opts, graph, path.join(dir, 'node_modules'), dep.dependencies)
+    opts.pkgLocationByDepPath[depPath] = dir
+    depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
+    opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationByDepPath, opts)
   }))
   return depHierarchy
+}
+
+function getChildren (
+  pkgSnapshot: PackageSnapshot,
+  pkgLocationByDepPath: Record<string, string>,
+  opts: { include: IncludedDependencies }
+) {
+  const allDeps = {
+    ...pkgSnapshot.dependencies,
+    ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+  }
+  const children = {}
+  for (const [childName, childRef] of Object.entries(allDeps)) {
+    const childDepPath = dp.refToRelative(childRef, childName)
+    if (childDepPath && pkgLocationByDepPath[childDepPath]) {
+      children[childName] = pkgLocationByDepPath[childDepPath]
+    }
+  }
+  return children
 }

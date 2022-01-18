@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { ENGINE_NAME } from '@pnpm/constants'
+import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   rootLogger,
@@ -30,6 +30,7 @@ import pLimit from 'p-limit'
 import pathExists from 'path-exists'
 import fromPairs from 'ramda/src/fromPairs'
 import equals from 'ramda/src/equals'
+import isEmpty from 'ramda/src/isEmpty'
 import difference from 'ramda/src/difference'
 import omit from 'ramda/src/omit'
 import props from 'ramda/src/props'
@@ -46,6 +47,7 @@ export default async function linkPackages (
       [id: string]: {[alias: string]: string}
     }
     force: boolean
+    depsStateCache: DepsStateCache
     extendNodePath?: boolean
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir: string
@@ -137,6 +139,7 @@ export default async function linkPackages (
     depGraph,
     {
       force: opts.force,
+      depsStateCache: opts.depsStateCache,
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -281,6 +284,7 @@ async function linkNewPackages (
   wantedLockfile: Lockfile,
   depGraph: DependenciesGraph,
   opts: {
+    depsStateCache: DepsStateCache
     force: boolean
     optional: boolean
     lockfileDir: string
@@ -342,9 +346,11 @@ async function linkNewPackages (
         optional: opts.optional,
       }),
     linkAllPkgs(opts.storeController, newPkgs, {
+      depGraph,
+      depsStateCache: opts.depsStateCache,
       force: opts.force,
       lockfileDir: opts.lockfileDir,
-      targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
     }),
   ])
 
@@ -388,19 +394,25 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
+    depGraph: DependenciesGraph
+    depsStateCache: DepsStateCache
     force: boolean
     lockfileDir: string
-    targetEngine?: string
+    sideEffectsCacheRead: boolean
   }
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
+      let targetEngine: string | undefined
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+        targetEngine = calcDepState(depNode.depPath, opts.depGraph, opts.depsStateCache)
+      }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
-        targetEngine: opts.targetEngine,
+        targetEngine,
       })
       if (importMethod) {
         progressLogger.debug({

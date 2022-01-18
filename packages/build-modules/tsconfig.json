@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../constants"
+      "path": "../calc-dep-state"
     },
     {
       "path": "../core-loggers"
