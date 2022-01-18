@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.11.0
+
+### Minor Changes
+
+- fff0e4493: Set `side-effects-cache-read` and `side-effects-cache-write`.
+
 ## 13.10.0
 
 ### Minor Changes

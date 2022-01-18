@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 0.1.4
+
+### Patch Changes
+
+- 6b877aad5: Update `@yarnpkg/nm` to `v3.0.1-rc.10`.
+
 ## 0.1.3
 
 ### Patch Changes

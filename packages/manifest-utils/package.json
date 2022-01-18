@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/manifest-utils",
   "description": "Utils for dealing with package manifest",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -35,6 +35,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/manifest-utils": "workspace:2.1.6"
+    "@pnpm/manifest-utils": "workspace:2.1.7"
   }
 }

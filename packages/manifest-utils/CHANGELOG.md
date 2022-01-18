@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 2.1.7
+
+### Patch Changes
+
+- 8a2cad034: fix: version set be correct when set empty version
+
 ## 2.1.6
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 9.0.29
+
+### Patch Changes
+
+- Updated dependencies [8a2cad034]
+  - @pnpm/manifest-utils@2.1.7
+
 ## 9.0.28
 
 ### Patch Changes

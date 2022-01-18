@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-installation
 
+## 8.3.0
+
+### Minor Changes
+
+- 1cadc231a: Side effects cache is not an experimental feature anymore.
+
+  Side effects cache is saved separately for packages with different dependencies. So if `foo` has `bar` in the dependencies, then a separate cache will be created each time `foo` is installed with a different version of `bar` [#4238](https://github.com/pnpm/pnpm/pull/4238).
+
+### Patch Changes
+
+- Updated dependencies [fff0e4493]
+- Updated dependencies [1cadc231a]
+- Updated dependencies [8a2cad034]
+- Updated dependencies [4bdf7bcac]
+  - @pnpm/config@13.11.0
+  - @pnpm/core@2.4.0
+  - @pnpm/manifest-utils@2.1.7
+  - @pnpm/cli-utils@0.6.46
+  - @pnpm/plugin-commands-rebuild@5.4.6
+  - @pnpm/store-connection-manager@3.2.4
+  - @pnpm/outdated@9.0.29
+  - @pnpm/find-workspace-packages@3.1.38
+  - @pnpm/filter-workspace-packages@4.4.18
+
 ## 8.2.1
 
 ### Patch Changes

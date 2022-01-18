@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 23.0.3
+
+### Patch Changes
+
+- Updated dependencies [8a2cad034]
+  - @pnpm/manifest-utils@2.1.7
+
 ## 23.0.2
 
 ### Patch Changes

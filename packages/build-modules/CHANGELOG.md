@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 8.0.0
+
+### Major Changes
+
+- 1cadc231a: New required option added: `depsStateCache`.
+
+### Patch Changes
+
+- Updated dependencies [1cadc231a]
+  - @pnpm/calc-dep-state@1.0.0
+  - @pnpm/link-bins@6.2.10
+
 ## 7.2.5
 
 ### Patch Changes

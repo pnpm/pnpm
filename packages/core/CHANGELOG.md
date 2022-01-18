@@ -1,5 +1,30 @@
 # @pnpm/core
 
+## 2.4.0
+
+### Minor Changes
+
+- 1cadc231a: Side effects cache is not an experimental feature anymore.
+
+  Side effects cache is saved separately for packages with different dependencies. So if `foo` has `bar` in the dependencies, then a separate cache will be created each time `foo` is installed with a different version of `bar` [#4238](https://github.com/pnpm/pnpm/pull/4238).
+
+### Patch Changes
+
+- 4bdf7bcac: `@pnpm/registry-mock` should be a dev dependency.
+- Updated dependencies [43e4246d3]
+- Updated dependencies [1cadc231a]
+- Updated dependencies [8a2cad034]
+- Updated dependencies [1cadc231a]
+- Updated dependencies [1cadc231a]
+  - @pnpm/headless@17.1.0
+  - @pnpm/manifest-utils@2.1.7
+  - @pnpm/calc-dep-state@1.0.0
+  - @pnpm/build-modules@8.0.0
+  - @pnpm/lockfile-to-pnp@0.4.42
+  - @pnpm/link-bins@6.2.10
+  - @pnpm/resolve-dependencies@23.0.3
+  - @pnpm/hoist@5.2.12
+
 ## 2.3.0
 
 ### Minor Changes

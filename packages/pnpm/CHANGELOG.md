@@ -1,5 +1,18 @@
 # pnpm
 
+## 6.27.0
+
+### Minor Changes
+
+- Side effects cache is not an experimental feature anymore.
+
+  Side effects cache is saved separately for packages with different dependencies. So if `foo` has `bar` in the dependencies, then a separate cache will be created each time `foo` is installed with a different version of `bar` [#4238](https://github.com/pnpm/pnpm/pull/4238).
+
+### Patch Changes
+
+- Update command should work when there is a dependency with emty version in `devDependencies` [#4196](https://github.com/pnpm/pnpm/issues/4196).
+- Side effects cache should work in a workspace.
+
 ## 6.26.1
 
 ### Patch Changes
