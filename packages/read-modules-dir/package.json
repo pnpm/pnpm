@@ -22,7 +22,7 @@
     "test": "pnpm run compile",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint -- --fix"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

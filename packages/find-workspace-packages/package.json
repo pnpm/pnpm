@@ -16,7 +16,7 @@
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint -- --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/find-workspace-packages",
   "keywords": [

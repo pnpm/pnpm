@@ -28,7 +28,7 @@ jobs:
       uses: actions/checkout@v1
     - name: Install pnpm
       uses: pnpm/action-setup@v2.0.1
-      with: 
+      with:
         version: next
     - name: Setup Node
       uses: actions/setup-node@v2
@@ -41,6 +41,17 @@ jobs:
       run: pnpm install
     # - name: Audit
       # run: pnpm audit
+    - name: Cache TypeScript and Jest
+      uses: actions/cache@v2
+      with:
+        path: |
+          packages/*/lib
+          packages/*/tsconfig.tsbuildinfo
+          privatePackages/*/lib
+          privatePackages/*/tsconfig.tsbuildinfo
+          .jest-cache
+        key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
+        restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
     - name: run tests (main)
       if: github.ref == 'refs/heads/main'
       run: pnpm run test-main
