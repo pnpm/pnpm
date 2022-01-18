@@ -49,7 +49,8 @@ jobs:
           packages/*/tsconfig.tsbuildinfo
           privatePackages/*/lib
           privatePackages/*/tsconfig.tsbuildinfo
-        key: ${{ runner.os }}-${{ matrix.node }}-test
+          .jest-cache
+        key: ${{ runner.os }}-${{ matrix.node }}-test1
     - name: run tests (main)
       if: github.ref == 'refs/heads/main'
       run: pnpm run test-main
