@@ -41,7 +41,7 @@ jobs:
       run: pnpm install
     # - name: Audit
       # run: pnpm audit
-    - name: Cache TypeScript
+    - name: Cache TypeScript and Jest
       uses: actions/cache@v2
       with:
         path: |
@@ -50,7 +50,8 @@ jobs:
           privatePackages/*/lib
           privatePackages/*/tsconfig.tsbuildinfo
           .jest-cache
-        key: ${{ runner.os }}-${{ matrix.node }}-test1
+        key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
+        restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
     - name: run tests (main)
       if: github.ref == 'refs/heads/main'
       run: pnpm run test-main
