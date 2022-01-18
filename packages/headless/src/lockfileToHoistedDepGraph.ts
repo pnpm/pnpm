@@ -1,6 +1,7 @@
 import path from 'path'
 import {
   Lockfile,
+  PackageSnapshot,
   ProjectSnapshot,
 } from '@pnpm/lockfile-file'
 import {
@@ -199,19 +200,26 @@ async function fetchDeps (
     }
     pkgLocationByDepPath[depPath] = dir
     depHierarchy[dir] = await fetchDeps(lockfile, opts, graph, path.join(dir, 'node_modules'), dep.dependencies, pkgLocationByDepPath)
-
-    const allDeps = {
-      ...pkgSnapshot.dependencies,
-      ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
-    }
-    const children = {}
-    for (const [childName, childRef] of Object.entries(allDeps)) {
-      const childDepPath = dp.refToRelative(childRef, childName)
-      if (childDepPath && pkgLocationByDepPath[childDepPath]) {
-        children[childName] = pkgLocationByDepPath[childDepPath]
-      }
-    }
-    graph[dir].children = children
+    graph[dir].children = getChildren(pkgSnapshot, pkgLocationByDepPath, opts)
   }))
   return depHierarchy
+}
+
+function getChildren (
+  pkgSnapshot: PackageSnapshot,
+  pkgLocationByDepPath: Record<string, string>,
+  opts: { include: IncludedDependencies }
+) {
+  const allDeps = {
+    ...pkgSnapshot.dependencies,
+    ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+  }
+  const children = {}
+  for (const [childName, childRef] of Object.entries(allDeps)) {
+    const childDepPath = dp.refToRelative(childRef, childName)
+    if (childDepPath && pkgLocationByDepPath[childDepPath]) {
+      children[childName] = pkgLocationByDepPath[childDepPath]
+    }
+  }
+  return children
 }
