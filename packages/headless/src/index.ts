@@ -446,7 +446,10 @@ export default async (opts: HeadlessOptions) => {
             )
               .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
             project.binsDir,
-            { warn: (message: string) => logger.info({ message, prefix: project.rootDir }) }
+            {
+              extendNodePath: opts.extendNodePath,
+              warn: (message: string) => logger.info({ message, prefix: project.rootDir }),
+            }
           )
         }
       }))

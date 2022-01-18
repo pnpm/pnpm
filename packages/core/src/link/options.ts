@@ -22,6 +22,7 @@ interface StrictLinkOptions {
   reporter: ReporterFunction
   targetDependenciesField?: DependenciesField
   dir: string
+  extendNodePath: boolean
 
   hoistPattern: string[] | undefined
   forceHoistPattern: boolean
@@ -53,6 +54,7 @@ async function defaults (opts: LinkOptions) {
   return {
     binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,
+    extendNodePath: true,
     force: false,
     forceSharedLockfile: false,
     hoistPattern: undefined,
