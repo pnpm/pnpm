@@ -19,7 +19,6 @@ export interface StrictInstallOptions {
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean
-  extendNodePath: boolean
   extraBinPaths: string[]
   useLockfile: boolean
   linkWorkspacePackagesDepth: number
@@ -108,7 +107,6 @@ const defaults = async (opts: InstallOptions) => {
     depth: 0,
     enablePnp: false,
     engineStrict: false,
-    extendNodePath: true,
     force: false,
     forceSharedLockfile: false,
     frozenLockfile: false,
