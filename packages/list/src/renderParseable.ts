@@ -44,6 +44,9 @@ function renderParseableForPackage (
       if (pkg.version) {
         firstLine += `@${pkg.version}`
       }
+      if (pkg.private) {
+        firstLine += ':PRIVATE'
+      }
     }
     return [
       firstLine,

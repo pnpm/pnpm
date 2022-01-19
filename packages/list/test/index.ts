@@ -27,6 +27,7 @@ const fixtureWithNoPkgVersion = path.join(fixtures, 'fixture-with-no-pkg-version
 const fixtureWithExternalLockfile = path.join(fixtures, 'fixture-with-external-shrinkwrap', 'pkg')
 const workspaceWith2Pkgs = path.join(fixtures, 'workspace-with-2-pkgs')
 const workspaceWithDifferentDeps = path.join(fixtures, 'workspace-with-different-deps')
+const workspaceWithPrivatePkgs = path.join(fixtures, 'workspace-with-private-pkgs')
 const emptyFixture = path.join(fixtures, 'empty')
 const fixtureWithAliasedDep = path.join(fixtures, 'with-aliased-dep')
 
@@ -55,6 +56,25 @@ ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}
 
 ${boldHighlighted(`foo@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/foo')}`)}
+
+${DEPENDENCIES}
+is-positive ${VERSION_CLR('1.0.0')}`)
+})
+
+test('list in workspace with private package', async () => {
+  expect(await list([
+    path.join(workspaceWithPrivatePkgs, 'packages/private'),
+    path.join(workspaceWithPrivatePkgs, 'packages/public'),
+  ], {
+    lockfileDir: workspaceWithPrivatePkgs,
+  })).toBe(`${LEGEND}
+
+${boldHighlighted(`private@1.0.0 ${path.join(workspaceWithPrivatePkgs, 'packages/private')} (PRIVATE)`)}
+
+${DEPENDENCIES}
+is-positive ${VERSION_CLR('1.0.0')}
+
+${boldHighlighted(`public@1.0.0 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}`)}
 
 ${DEPENDENCIES}
 is-positive ${VERSION_CLR('1.0.0')}`)
@@ -228,6 +248,72 @@ ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
   https://github.com/kevva/is-negative#readme`)
 })
 
+test('parseable list in workspace with private package', async () => {
+  expect(await list([
+    path.join(workspaceWithPrivatePkgs, 'packages/private'),
+    path.join(workspaceWithPrivatePkgs, 'packages/public'),
+  ], {
+    reportAs: 'parseable',
+    lockfileDir: workspaceWithPrivatePkgs,
+  })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}
+${path.join(workspaceWithPrivatePkgs, 'packages/private/node_modules/.pnpm/is-positive@1.0.0')}
+${path.join(workspaceWithPrivatePkgs, 'packages/public')}
+${path.join(workspaceWithPrivatePkgs, 'packages/public/node_modules/.pnpm/is-positive@1.0.0')}`)
+})
+
+test('long parseable list in workspace with private package', async () => {
+  expect(await list([
+    path.join(workspaceWithPrivatePkgs, 'packages/private'),
+    path.join(workspaceWithPrivatePkgs, 'packages/public'),
+  ], {
+    reportAs: 'parseable',
+    long: true,
+    lockfileDir: workspaceWithPrivatePkgs,
+  })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}:private@1.0.0:PRIVATE
+${path.join(workspaceWithPrivatePkgs, 'packages/private/node_modules/.pnpm/is-positive@1.0.0')}:is-positive@1.0.0
+${path.join(workspaceWithPrivatePkgs, 'packages/public')}:public@1.0.0
+${path.join(workspaceWithPrivatePkgs, 'packages/public/node_modules/.pnpm/is-positive@1.0.0')}:is-positive@1.0.0`)
+})
+
+test('JSON list in workspace with private package', async () => {
+  expect(await list([
+    path.join(workspaceWithPrivatePkgs, 'packages/private'),
+    path.join(workspaceWithPrivatePkgs, 'packages/public'),
+  ], {
+    reportAs: 'json',
+    lockfileDir: workspaceWithPrivatePkgs,
+  })).toBe(
+    JSON.stringify([
+      {
+        name: 'private',
+        version: '1.0.0',
+        path: path.join(workspaceWithPrivatePkgs, 'packages/private'),
+        private: true,
+        dependencies: {
+          'is-positive': {
+            from: 'is-positive',
+            version: '1.0.0',
+            resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          },
+        },
+      },
+      {
+        name: 'public',
+        version: '1.0.0',
+        path: path.join(workspaceWithPrivatePkgs, 'packages/public'),
+        private: false,
+        dependencies: {
+          'is-positive': {
+            from: 'is-positive',
+            version: '1.0.0',
+            resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          },
+        },
+      },
+    ], null, 2)
+  )
+})
+
 test('parseable list with depth 1', async () => {
   expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture })).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0')}
@@ -246,6 +332,7 @@ test('JSON list with depth 1', async () => {
     name: 'fixture',
     version: '1.0.0',
     path: fixture,
+    private: false,
     dependencies: {
       'write-json-file': {
         from: 'write-json-file',
@@ -321,6 +408,7 @@ test('JSON list with aliased dep', async () => {
         name: 'with-aliased-dep',
         version: '1.0.0',
         path: fixtureWithAliasedDep,
+        private: false,
         dependencies: {
           positive: {
             from: 'is-positive',
@@ -338,6 +426,7 @@ test('JSON list with aliased dep', async () => {
       name: 'with-aliased-dep',
       version: '1.0.0',
       path: fixtureWithAliasedDep,
+      private: false,
       dependencies: {
         positive: {
           from: 'is-positive',
