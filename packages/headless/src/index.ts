@@ -463,7 +463,7 @@ export default async (opts: HeadlessOptions) => {
     }
     const injectedDeps = {}
     for (const project of projectsToBeBuilt) {
-      injectedDeps[project.id] = project.targetDirs
+      injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
     }
     await writeModulesYaml(rootModulesDir, {
       hoistedDependencies: newHoistedDependencies,
