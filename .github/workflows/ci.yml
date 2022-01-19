@@ -68,5 +68,5 @@ jobs:
       run: pnpm --dir=fixtures run prepareFixtures
     - name: lint
       run: pnpm lint -- --quiet
-    - name: test-main
-      run: pnpm run test-main
+    # - name: test-main
+      # run: pnpm run test-main
