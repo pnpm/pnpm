@@ -515,7 +515,9 @@ export function createReadPackageHook (
   if (hooks.length === 0) {
     return readPackageHook
   }
-  const readPackageAndExtend = hooks.length === 1 ? hooks[0] : pipeWith(async (f, res) => f(await res), [hooks[0], hooks[1]]) as ReadPackageHook
+  const readPackageAndExtend = hooks.length === 1
+    ? hooks[0]
+    : pipeWith(async (f, res) => f(await res), hooks as any) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
   if (readPackageHook != null) {
     return (async (manifest: ProjectManifest, dir?: string) => readPackageAndExtend(await readPackageHook(manifest, dir), dir)) as ReadPackageHook
   }
