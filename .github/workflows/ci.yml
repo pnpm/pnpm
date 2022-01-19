@@ -52,9 +52,17 @@ jobs:
           .jest-cache
         key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
         restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
-    - name: run tests (main)
-      if: github.ref == 'refs/heads/main'
+    # - name: run tests (main)
+    #   if: github.ref == 'refs/heads/main'
+    #   run: pnpm run test-main
+    # - name: run tests (branch)
+    #   if: github.ref != 'refs/heads/main'
+    #   run: pnpm run test-branch
+    - name: compile-only
+      run: pnpm run compile-only
+    - name: prepareFixtures
+      run: pnpm --dir=fixtures run prepareFixtures
+    - name: lint
+      run: pnpm lint -- --quiet
+    - name: test-main
       run: pnpm run test-main
-    - name: run tests (branch)
-      if: github.ref != 'refs/heads/main'
-      run: pnpm run test-branch
