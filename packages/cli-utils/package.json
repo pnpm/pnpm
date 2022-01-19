@@ -12,7 +12,7 @@
     "node": ">=12.17"
   },
   "scripts": {
-    "lint": "eslint src/**/*.ts",
+    "lint": "eslint src/**/*.ts --cache --cache-strategy content",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint -- --fix",
     "test": "pnpm run compile"

@@ -190,9 +190,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   }
   if (scripts.lint) {
     if (fs.existsSync(path.join(dir, 'test'))) {
-      scripts.lint = 'eslint src/**/*.ts test/**/*.ts'
+      scripts.lint = 'eslint src/**/*.ts test/**/*.ts --cache --cache-strategy content'
     } else {
-      scripts.lint = 'eslint src/**/*.ts'
+      scripts.lint = 'eslint src/**/*.ts --cache --cache-strategy content'
     }
   }
   const files: string[] = []

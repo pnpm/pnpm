@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "start": "tsc --watch",
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint src/**/*.ts test/**/*.ts --cache --cache-strategy content",
     "pretty-test": "ts-node test | tap-diff",
     "just-test-preview": "ts-node test --type-check",
     "_test": "jest",
