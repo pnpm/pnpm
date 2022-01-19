@@ -9,8 +9,12 @@ export default function extendProjectsWithTargetDirs<T> (
   ctx: {
     lockfileDir: string
     virtualStoreDir: string
+    pkgLocationByDepPath?: Record<string, string>
   }
 ) {
+  const getLocalLocation = ctx.pkgLocationByDepPath != null
+    ? (depPath: string) => ctx.pkgLocationByDepPath![depPath]
+    : (depPath: string, pkgName: string) => path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.lockfileDir), 'node_modules', pkgName)
   const projectsById: Record<string, T & { targetDirs: string[], stages?: string[] }> =
     fromPairs(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
   Object.entries(lockfile.packages ?? {})
@@ -19,7 +23,7 @@ export default function extendProjectsWithTargetDirs<T> (
       const pkgId = pkg.id ?? depPath
       const importerId = pkgId.replace(/^file:/, '')
       if (projectsById[importerId] == null) return
-      const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.lockfileDir), 'node_modules', pkg.name!)
+      const localLocation = getLocalLocation(depPath, pkg.name!)
       projectsById[importerId].targetDirs.push(localLocation)
       projectsById[importerId].stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
     })

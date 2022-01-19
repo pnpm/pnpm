@@ -80,6 +80,7 @@ export interface LockfileToDepGraphResult {
   hierarchy?: DepHierarchy
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
+  pkgLocationByDepPath?: Record<string, string>
 }
 
 export default async function lockfileToDepGraph (

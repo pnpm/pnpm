@@ -97,6 +97,7 @@ async function _lockfileToHoistedDepGraph (
     directDependenciesByImporterId,
     graph,
     hierarchy,
+    pkgLocationByDepPath: fetchDepsOpts.pkgLocationByDepPath,
     symlinkedDirectDependenciesByImporterId,
   }
 }

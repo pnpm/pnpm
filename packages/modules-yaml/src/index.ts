@@ -28,6 +28,7 @@ export interface Modules {
   skipped: string[]
   storeDir: string
   virtualStoreDir: string
+  injectedDeps?: Record<string, string[]>
 }
 
 export async function read (modulesDir: string): Promise<Modules | null> {
