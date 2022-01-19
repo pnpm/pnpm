@@ -5517,7 +5517,7 @@ packages:
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     peerDependencies:
       '@typescript-eslint/parser': ^5.0.0
-      eslint: '*'
+      eslint: ^6.0.0 || ^7.0.0 || ^8.0.0 || *
       typescript: '*'
     peerDependenciesMeta:
       typescript:
@@ -5543,7 +5543,7 @@ packages:
     resolution: {integrity: sha512-ZohdsbXadjGBSK0/r+d87X0SBmKzOq4/S5nzK6SBgJspFo9/CUDJ7hjayuze+JK7CZQLDMroqytp7pOcFKTxZA==}
     engines: {node: ^10.12.0 || >=12.0.0}
     peerDependencies:
-      eslint: '*'
+      eslint: ^5.0.0 || ^6.0.0 || ^7.0.0 || *
       typescript: '*'
     peerDependenciesMeta:
       typescript:
@@ -5563,7 +5563,7 @@ packages:
     resolution: {integrity: sha512-pJB2CCeHWtwOAeIxv8CHVGJhI5FNyJAIpx5Pt72YkK3QfEzt6qAlXZuyaBmyfOdM62qU0rbxJzNToPTVeJGrQw==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     peerDependencies:
-      eslint: '*'
+      eslint: ^6.0.0 || ^7.0.0 || ^8.0.0 || *
       typescript: '*'
     peerDependenciesMeta:
       typescript:
@@ -5670,7 +5670,7 @@ packages:
     resolution: {integrity: sha512-IGYwlt1CVcFoE2ueW4/ioEwybR60RAdGeiJX/iDAw0t5w0wK3S7QncDwpmsM70nKgGTuVchEWB8lwZwHqPAWRg==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     peerDependencies:
-      eslint: '*'
+      eslint: ^6.0.0 || ^7.0.0 || ^8.0.0 || *
     dependencies:
       '@types/json-schema': 7.0.9
       '@typescript-eslint/scope-manager': 5.10.0
@@ -8177,8 +8177,8 @@ packages:
   /eslint-config-standard-with-typescript/21.0.1_7a569f8fdfece9776f5138743ddf9d19:
     resolution: {integrity: sha512-FeiMHljEJ346Y0I/HpAymNKdrgKEpHpcg/D93FvPHWfCzbT4QyUJba/0FwntZeGLXfUiWDSeKmdJD597d9wwiw==}
     peerDependencies:
-      '@typescript-eslint/eslint-plugin': ^5.6.0
-      eslint: '*'
+      '@typescript-eslint/eslint-plugin': ^4.0.1 || ^5.6.0
+      eslint: ^7.12.1 || *
       eslint-plugin-import: ^2.22.1
       eslint-plugin-node: ^11.1.0
       eslint-plugin-promise: ^4.2.1 || ^5.0.0
@@ -8199,7 +8199,7 @@ packages:
   /eslint-config-standard/16.0.3_122ae18802e4780317a0414610684b00:
     resolution: {integrity: sha512-x4fmJL5hGqNJKGHSjnLdgA6U6h1YW/G2dW9fA+cyVur4SK6lyue8+UgNKWlZtUDTXvgKDD/Oa3GQjmB5kjtVvg==}
     peerDependencies:
-      eslint: '*'
+      eslint: ^7.12.1 || *
       eslint-plugin-import: ^2.22.1
       eslint-plugin-node: ^11.1.0
       eslint-plugin-promise: ^4.2.1 || ^5.0.0
@@ -8235,7 +8235,7 @@ packages:
     resolution: {integrity: sha512-GUmAsJaN4Fc7Gbtl8uOBlayo2DqhwWvEzykMHSCZHU3XdJ+NSzzZcVhXh3VxX5icqQ+oQdIEawXX8xkR3mIFmQ==}
     engines: {node: '>=8.10.0'}
     peerDependencies:
-      eslint: '*'
+      eslint: '>=4.19.1 || *'
     dependencies:
       eslint: 8.7.0
       eslint-utils: 2.1.0
@@ -8246,7 +8246,7 @@ packages:
     resolution: {integrity: sha512-/KJBASVFxpu0xg1kIBn9AUa8hQVnszpwgE7Ld0lKAlx7Ie87yzEzCgSkekt+le/YVhiaosO4Y14GDAOc41nfxA==}
     engines: {node: '>=4'}
     peerDependencies:
-      eslint: '*'
+      eslint: ^2 || ^3 || ^4 || ^5 || ^6 || ^7.2.0 || ^8 || *
     dependencies:
       array-includes: 3.1.4
       array.prototype.flat: 1.2.5
@@ -8268,7 +8268,7 @@ packages:
     resolution: {integrity: sha512-oUwtPJ1W0SKD0Tr+wqu92c5xuCeQqB3hSCHasn/ZgjFdA9iDGNkNf2Zi9ztY7X+hNuMib23LNGRm6+uN+KLE3g==}
     engines: {node: '>=8.10.0'}
     peerDependencies:
-      eslint: '*'
+      eslint: '>=5.16.0 || *'
     dependencies:
       eslint: 8.7.0
       eslint-plugin-es: 3.0.1_eslint@8.7.0
@@ -8283,7 +8283,7 @@ packages:
     resolution: {integrity: sha512-SftLb1pUG01QYq2A/hGAWfDRXqYD82zE7j7TopDOyNdU+7SvvoXREls/+PRTY17vUXzXnZA/zfnyKgRH6x4JJw==}
     engines: {node: ^10.12.0 || >=12.0.0}
     peerDependencies:
-      eslint: '*'
+      eslint: ^7.0.0 || *
     dependencies:
       eslint: 8.7.0
     dev: false
@@ -8315,7 +8315,7 @@ packages:
     resolution: {integrity: sha512-uuQC43IGctw68pJA1RgbQS8/NP7rch6Cwd4j3ZBtgo4/8Flj4eGE7ZYSZRN3iq5pVUv6GPdW5Z1RFleo84uLDA==}
     engines: {node: ^10.0.0 || ^12.0.0 || >= 14.0.0}
     peerDependencies:
-      eslint: '*'
+      eslint: '>=5 || *'
     dependencies:
       eslint: 8.7.0
       eslint-visitor-keys: 2.1.0
