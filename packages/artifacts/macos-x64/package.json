@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/macos-x64",
-  "version": "6.27.0",
+  "version": "6.27.1",
   "license": "MIT",
   "publishConfig": {
     "bin": {
@@ -23,6 +23,6 @@
     "pnpm6"
   ],
   "devDependencies": {
-    "@pnpm/macos-x64": "workspace:6.27.0"
+    "@pnpm/macos-x64": "workspace:6.27.1"
   }
 }

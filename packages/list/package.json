@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "6.2.19",
+  "version": "6.3.0",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -48,7 +48,7 @@
     "semver": "^7.3.4"
   },
   "devDependencies": {
-    "@pnpm/list": "workspace:6.2.19",
+    "@pnpm/list": "workspace:6.3.0",
     "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
     "@types/ramda": "0.27.39",

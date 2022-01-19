@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 6.3.0
+
+### Minor Changes
+
+- 57af1b1b5: pnpm list to show information whether the package is private or not
+
 ## 6.2.19
 
 ### Patch Changes

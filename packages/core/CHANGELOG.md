@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 2.4.1
+
+### Patch Changes
+
+- 08d781b80: `peerDependencyRules` should work when both `overrides` and `packageExtensions` are present as well.
+
 ## 2.4.0
 
 ### Minor Changes

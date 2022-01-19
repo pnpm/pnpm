@@ -117,31 +117,31 @@ importers:
 
   packages/artifacts/linux-arm64:
     specifiers:
-      '@pnpm/linux-arm64': workspace:6.27.0
+      '@pnpm/linux-arm64': workspace:6.27.1
     devDependencies:
       '@pnpm/linux-arm64': 'link:'
 
   packages/artifacts/linux-x64:
     specifiers:
-      '@pnpm/linux-x64': workspace:6.27.0
+      '@pnpm/linux-x64': workspace:6.27.1
     devDependencies:
       '@pnpm/linux-x64': 'link:'
 
   packages/artifacts/macos-arm64:
     specifiers:
-      '@pnpm/macos-arm64': workspace:6.27.0
+      '@pnpm/macos-arm64': workspace:6.27.1
     devDependencies:
       '@pnpm/macos-arm64': 'link:'
 
   packages/artifacts/macos-x64:
     specifiers:
-      '@pnpm/macos-x64': workspace:6.27.0
+      '@pnpm/macos-x64': workspace:6.27.1
     devDependencies:
       '@pnpm/macos-x64': 'link:'
 
   packages/artifacts/win-x64:
     specifiers:
-      '@pnpm/win-x64': workspace:6.27.0
+      '@pnpm/win-x64': workspace:6.27.1
     devDependencies:
       '@pnpm/win-x64': 'link:'
 
@@ -394,7 +394,7 @@ importers:
       '@pnpm/calc-dep-state': workspace:1.0.0
       '@pnpm/client': workspace:6.1.1
       '@pnpm/constants': workspace:5.0.0
-      '@pnpm/core': workspace:2.4.0
+      '@pnpm/core': workspace:2.4.1
       '@pnpm/core-loggers': workspace:6.1.3
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-lockfile': workspace:5.0.16
@@ -722,12 +722,12 @@ importers:
 
   packages/exe:
     specifiers:
-      '@pnpm/exe': workspace:6.27.0
-      '@pnpm/linux-arm64': workspace:6.27.0
-      '@pnpm/linux-x64': workspace:6.27.0
-      '@pnpm/macos-arm64': workspace:6.27.0
-      '@pnpm/macos-x64': workspace:6.27.0
-      '@pnpm/win-x64': workspace:6.27.0
+      '@pnpm/exe': workspace:6.27.1
+      '@pnpm/linux-arm64': workspace:6.27.1
+      '@pnpm/linux-x64': workspace:6.27.1
+      '@pnpm/macos-arm64': workspace:6.27.1
+      '@pnpm/macos-x64': workspace:6.27.1
+      '@pnpm/win-x64': workspace:6.27.1
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
@@ -1272,7 +1272,7 @@ importers:
 
   packages/list:
     specifiers:
-      '@pnpm/list': workspace:6.2.19
+      '@pnpm/list': workspace:6.3.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/matcher': workspace:2.0.0
       '@pnpm/read-package-json': workspace:5.0.10
@@ -2113,7 +2113,7 @@ importers:
       '@pnpm/common-cli-options-help': workspace:0.8.0
       '@pnpm/config': workspace:13.11.0
       '@pnpm/constants': workspace:5.0.0
-      '@pnpm/core': workspace:2.4.0
+      '@pnpm/core': workspace:2.4.1
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-workspace-packages': workspace:4.4.18
       '@pnpm/find-workspace-dir': workspace:3.0.1
@@ -2127,7 +2127,7 @@ importers:
       '@pnpm/outdated': workspace:9.0.29
       '@pnpm/package-store': workspace:12.1.8
       '@pnpm/parse-wanted-dependency': workspace:2.0.0
-      '@pnpm/plugin-commands-installation': workspace:8.3.0
+      '@pnpm/plugin-commands-installation': workspace:8.3.1
       '@pnpm/plugin-commands-rebuild': workspace:5.4.6
       '@pnpm/pnpmfile': workspace:1.2.4
       '@pnpm/prepare': workspace:*
@@ -2253,10 +2253,10 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-workspace-packages': workspace:4.4.18
-      '@pnpm/list': workspace:6.2.19
+      '@pnpm/list': workspace:6.3.0
       '@pnpm/logger': ^4.0.0
-      '@pnpm/plugin-commands-installation': workspace:8.3.0
-      '@pnpm/plugin-commands-listing': workspace:4.1.5
+      '@pnpm/plugin-commands-installation': workspace:8.3.1
+      '@pnpm/plugin-commands-listing': workspace:4.1.6
       '@pnpm/prepare': workspace:*
       '@pnpm/registry-mock': 2.12.1
       '@pnpm/types': workspace:7.9.0
@@ -2303,7 +2303,7 @@ importers:
       '@pnpm/matcher': workspace:2.0.0
       '@pnpm/modules-yaml': workspace:9.0.11
       '@pnpm/outdated': workspace:9.0.29
-      '@pnpm/plugin-commands-installation': workspace:8.3.0
+      '@pnpm/plugin-commands-installation': workspace:8.3.1
       '@pnpm/plugin-commands-outdated': workspace:5.1.5
       '@pnpm/prepare': workspace:*
       '@pnpm/registry-mock': 2.12.1
@@ -2754,8 +2754,8 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.10
       '@pnpm/plugin-commands-audit': workspace:5.1.37
       '@pnpm/plugin-commands-env': workspace:1.4.8
-      '@pnpm/plugin-commands-installation': workspace:8.3.0
-      '@pnpm/plugin-commands-listing': workspace:4.1.5
+      '@pnpm/plugin-commands-installation': workspace:8.3.1
+      '@pnpm/plugin-commands-listing': workspace:4.1.6
       '@pnpm/plugin-commands-outdated': workspace:5.1.5
       '@pnpm/plugin-commands-publishing': workspace:4.3.5
       '@pnpm/plugin-commands-rebuild': workspace:5.4.6
