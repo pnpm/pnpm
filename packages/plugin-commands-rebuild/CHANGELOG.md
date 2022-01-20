@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.4.7
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+- Updated dependencies [cdc521cfa]
+  - @pnpm/modules-yaml@9.1.0
+  - @pnpm/lockfile-utils@3.2.0
+  - @pnpm/get-context@5.3.6
+  - @pnpm/config@13.11.0
+  - @pnpm/link-bins@6.2.10
+
 ## 5.4.6
 
 ### Patch Changes

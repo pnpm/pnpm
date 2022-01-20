@@ -1,5 +1,12 @@
 # @pnpm/mount-modules
 
+## 0.1.21
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+
 ## 0.1.20
 
 ### Patch Changes

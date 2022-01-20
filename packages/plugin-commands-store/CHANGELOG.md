@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-store
 
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+  - @pnpm/get-context@5.3.6
+  - @pnpm/config@13.11.0
+
 ## 4.1.6
 
 ### Patch Changes

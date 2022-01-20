@@ -138,6 +138,7 @@ export interface Config {
   enablePnp?: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
+  embedReadme?: boolean
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean

@@ -1,5 +1,28 @@
 # @pnpm/core
 
+## 2.5.0
+
+### Minor Changes
+
+- cdc521cfa: All the locations of injected dependencies are saved in the modules state file at `node_modules/.modules.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+- Updated dependencies [cdc521cfa]
+- Updated dependencies [cdc521cfa]
+  - @pnpm/headless@17.2.0
+  - @pnpm/modules-yaml@9.1.0
+  - @pnpm/lockfile-utils@3.2.0
+  - @pnpm/get-context@5.3.6
+  - @pnpm/filter-lockfile@5.0.17
+  - @pnpm/hoist@5.2.13
+  - @pnpm/lockfile-to-pnp@0.4.43
+  - @pnpm/modules-cleaner@11.0.21
+  - @pnpm/resolve-dependencies@23.0.4
+  - @pnpm/link-bins@6.2.10
+  - @pnpm/package-requester@16.0.1
+
 ## 2.4.1
 
 ### Patch Changes

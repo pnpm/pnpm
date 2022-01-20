@@ -308,7 +308,6 @@ export async function mutateModules (
 
     const projectsToInstall = [] as ImporterToUpdate[]
 
-    const projectsToBeInstalled = ctx.projects.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
     let preferredSpecs: Record<string, string> | null = null
 
     // TODO: make it concurrent
@@ -460,20 +459,9 @@ export async function mutateModules (
       makePartialCurrentLockfile,
       needsFullResolution,
       pruneVirtualStore,
+      scriptsOpts,
       updateLockfileMinorVersion: true,
     })
-
-    if (!opts.ignoreScripts) {
-      if (opts.enablePnp) {
-        scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
-      }
-      const projectsToBeBuilt = extendProjectsWithTargetDirs(projectsToBeInstalled, result.newLockfile, ctx)
-      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],
-        projectsToBeBuilt,
-        opts.childConcurrency,
-        scriptsOpts
-      )
-    }
 
     return result.projects
   }
@@ -625,6 +613,7 @@ type InstallFunction = (
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
     pruneVirtualStore: boolean
+    scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
   }
 ) => Promise<InstallFunctionResult>
@@ -903,6 +892,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
+    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, ctx)
     await Promise.all([
       opts.useLockfile
         ? writeLockfiles({
@@ -917,11 +907,18 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
+        const injectedDeps = {}
+        for (const project of projectsWithTargetDirs) {
+          if (project.targetDirs.length > 0) {
+            injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
+          }
+        }
         return writeModulesYaml(ctx.rootModulesDir, {
           ...ctx.modulesFile,
           hoistedDependencies: result.newHoistedDependencies,
           hoistPattern: ctx.hoistPattern,
           included: ctx.include,
+          injectedDeps,
           layoutVersion: LAYOUT_VERSION,
           nodeLinker: opts.nodeLinker,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
@@ -937,6 +934,17 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
       })(),
     ])
+    if (!opts.ignoreScripts) {
+      if (opts.enablePnp) {
+        opts.scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
+      }
+      const projectsToBeBuilt = projectsWithTargetDirs.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
+      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],
+        projectsToBeBuilt,
+        opts.childConcurrency,
+        opts.scriptsOpts
+      )
+    }
   } else {
     await finishLockfileUpdates()
     if (opts.useLockfile) {

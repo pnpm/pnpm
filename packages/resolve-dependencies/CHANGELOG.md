@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 23.0.4
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+  - @pnpm/npm-resolver@12.1.6
+
 ## 23.0.3
 
 ### Patch Changes

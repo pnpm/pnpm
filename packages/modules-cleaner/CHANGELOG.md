@@ -1,5 +1,13 @@
 # @pnpm/modules-cleaner
 
+## 11.0.21
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+  - @pnpm/filter-lockfile@5.0.17
+
 ## 11.0.20
 
 ### Patch Changes

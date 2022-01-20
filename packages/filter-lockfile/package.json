@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-lockfile",
-  "version": "5.0.16",
+  "version": "5.0.17",
   "description": "Filters a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/filter-lockfile": "workspace:5.0.16",
+    "@pnpm/filter-lockfile": "workspace:5.0.17",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39",
     "tempy": "^1.0.0",
@@ -45,7 +45,7 @@
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/lockfile-types": "workspace:3.1.5",
-    "@pnpm/lockfile-utils": "workspace:3.1.6",
+    "@pnpm/lockfile-utils": "workspace:3.2.0",
     "@pnpm/lockfile-walker": "workspace:4.0.14",
     "@pnpm/package-is-installable": "workspace:5.0.11",
     "@pnpm/types": "workspace:7.9.0",

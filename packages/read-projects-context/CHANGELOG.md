@@ -1,5 +1,12 @@
 # @pnpm/read-projects-context
 
+## 5.0.17
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/modules-yaml@9.1.0
+
 ## 5.0.16
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "11.0.20",
+  "version": "11.0.21",
   "description": "Exports util functions to clean up node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,9 +29,9 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.1.3",
-    "@pnpm/filter-lockfile": "workspace:5.0.16",
+    "@pnpm/filter-lockfile": "workspace:5.0.17",
     "@pnpm/lockfile-types": "workspace:3.1.5",
-    "@pnpm/lockfile-utils": "workspace:3.1.6",
+    "@pnpm/lockfile-utils": "workspace:3.2.0",
     "@pnpm/read-modules-dir": "workspace:3.0.1",
     "@pnpm/remove-bins": "workspace:2.0.12",
     "@pnpm/store-controller-types": "workspace:11.0.11",
@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/modules-cleaner": "workspace:11.0.20",
+    "@pnpm/modules-cleaner": "workspace:11.0.21",
     "@types/ramda": "0.27.39"
   },
   "bugs": {

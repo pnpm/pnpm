@@ -243,6 +243,7 @@ export default async (opts: HeadlessOptions) => {
     directDependenciesByImporterId,
     graph,
     hierarchy,
+    pkgLocationByDepPath,
     prevGraph,
     symlinkedDirectDependenciesByImporterId,
   } = await (
@@ -423,6 +424,12 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(opts.projects, wantedLockfile, {
+    lockfileDir: opts.lockfileDir,
+    pkgLocationByDepPath,
+    virtualStoreDir,
+  })
+
   if (opts.enableModulesDir !== false) {
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
@@ -446,10 +453,17 @@ export default async (opts: HeadlessOptions) => {
         }
       }))
     }
+    const injectedDeps = {}
+    for (const project of projectsToBeBuilt) {
+      if (project.targetDirs.length > 0) {
+        injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
+      }
+    }
     await writeModulesYaml(rootModulesDir, {
       hoistedDependencies: newHoistedDependencies,
       hoistPattern: opts.hoistPattern,
       included: opts.include,
+      injectedDeps,
       layoutVersion: LAYOUT_VERSION,
       nodeLinker: opts.nodeLinker,
       packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
@@ -474,10 +488,6 @@ export default async (opts: HeadlessOptions) => {
   await opts.storeController.close()
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
-    const projectsToBeBuilt = extendProjectsWithTargetDirs(opts.projects, wantedLockfile, {
-      lockfileDir: opts.lockfileDir,
-      virtualStoreDir,
-    })
     await runLifecycleHooksConcurrently(
       ['preinstall', 'install', 'postinstall', 'prepare'],
       projectsToBeBuilt,
