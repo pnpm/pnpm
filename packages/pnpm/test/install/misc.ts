@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { promises as fs, writeFileSync } from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
@@ -80,7 +80,7 @@ test('write to stderr when --use-stderr is used', async () => {
 test('install with package-lock=false in .npmrc', async () => {
   const project = prepare()
 
-  await fs.writeFile('.npmrc', 'package-lock=false', 'utf8')
+  writeFileSync('.npmrc', 'package-lock=false', 'utf8')
 
   await execPnpm(['add', 'is-positive'])
 
@@ -238,10 +238,17 @@ test('`pnpm add` should fail if no package name was provided', () => {
   expect(stdout.toString()).toContain('`pnpm add` requires the package name')
 })
 
-test('`pnpm recursive add` should fail if no package name was provided', () => {
-  prepare()
+test('`pnpm -r add` should fail if no package name was provided', () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
 
-  const { status, stdout } = execPnpmSync(['recursive', 'add'])
+  writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+
+  const { status, stdout } = execPnpmSync(['-r', 'add'])
 
   expect(status).toBe(1)
   expect(stdout.toString()).toContain('`pnpm add` requires the package name')

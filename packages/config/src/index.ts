@@ -1,6 +1,5 @@
 import path from 'path'
 import fs from 'fs'
-import os from 'os'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import globalBinDir from '@pnpm/global-bin-dir'
@@ -9,13 +8,11 @@ import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import camelcase from 'camelcase'
 import loadNpmConf from '@zkochan/npm-conf'
 import npmTypes from '@zkochan/npm-conf/lib/types'
-import { sync as canWriteToDir } from 'can-write-to-dir'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
 import getScopeRegistries from './getScopeRegistries'
-import findBestGlobalPrefix from './findBestGlobalPrefix'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
   Config,
@@ -27,8 +24,6 @@ import { getWorkspaceConcurrency } from './concurrency'
 export { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
-
-const PNPM_GLOBAL = 'pnpm-global'
 
 async function which (cmd: string) {
   return new Promise<string>((resolve, reject) => {
@@ -46,7 +41,6 @@ export const types = Object.assign({
   dir: String,
   'enable-modules-dir': Boolean,
   'enable-pre-post-scripts': Boolean,
-  'extend-node-path': Boolean,
   'fetch-timeout': Number,
   'fetching-concurrency': Number,
   filter: [String, Array],
@@ -175,7 +169,6 @@ export default async (
     bail: true,
     color: 'auto',
     'enable-modules-dir': true,
-    'extend-node-path': true,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
@@ -203,6 +196,7 @@ export default async (
     'save-peer': false,
     'save-workspace-protocol': true,
     'scripts-prepend-node-path': false,
+    'side-effects-cache': true,
     symlink: true,
     'shared-workspace-lockfile': true,
     'shared-workspace-shrinkwrap': true,
@@ -282,20 +276,8 @@ export default async (
     let globalDirRoot
     if (pnpmConfig['globalDir']) {
       globalDirRoot = pnpmConfig['globalDir']
-    } else if (pnpmConfig.useBetaCli) {
-      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global-packages')
     } else {
-      let npmGlobalPrefix: string = findBestGlobalPrefix(npmConfig.globalPrefix, process.env)
-      const globalDirName = `${path.sep}${PNPM_GLOBAL}${path.sep}`
-      if (npmGlobalPrefix.includes(globalDirName)) {
-        npmGlobalPrefix = npmGlobalPrefix.substring(0, npmGlobalPrefix.indexOf(globalDirName))
-      } else {
-        const npmGlobalBinDir = process.platform === 'win32'
-          ? npmGlobalPrefix
-          : path.resolve(npmGlobalPrefix, 'bin')
-        knownGlobalBinDirCandidates.push(npmGlobalBinDir)
-      }
-      globalDirRoot = path.join(firstWithWriteAccess([npmGlobalPrefix, os.homedir()]), PNPM_GLOBAL)
+      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global-packages')
     }
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
@@ -318,7 +300,6 @@ export default async (
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
-    pnpmConfig.extendNodePath = false
     if ((pnpmConfig.hoistPattern != null) && (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')) {
       if (opts.cliOptions['hoist-pattern']) {
         throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
@@ -500,24 +481,4 @@ function getProcessEnv (env: string) {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
-}
-
-function firstWithWriteAccess (dirs: string[]) {
-  const first = dirs.find((dir) => {
-    try {
-      return canWriteToDir(dir)
-    } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') throw err
-    }
-    try {
-      fs.mkdirSync(dir, { recursive: true })
-      return true
-    } catch (err: any) { // eslint-disable-line
-      return false
-    }
-  })
-  if (first == null) {
-    throw new PnpmError('NO_SUITABLE_GLOBAL_DIR', `pnpm has no write access to global direcotry. Tried locations: ${dirs.join(', ')}`)
-  }
-  return first
 }

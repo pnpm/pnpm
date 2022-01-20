@@ -144,10 +144,7 @@ export default async function link (
   }
 
   const linkToBin = maybeOpts?.linkToBin ?? path.join(destModules, '.bin')
-  await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin, {
-    extendNodePath: opts.extendNodePath,
-    warn: (message: string) => logger.info({ message, prefix: opts.dir }),
-  })
+  await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin)
 
   let newPkg!: ProjectManifest
   if (opts.targetDependenciesField) {

@@ -558,27 +558,6 @@ test('bin specified in the directories property linked to .bin folder', async ()
   await project.isExecutable('.bin/pkg-with-directories-bin')
 })
 
-test('command shim is created withoud NODE_PATH', async () => {
-  const project = prepareEmpty()
-
-  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({ fastUnpack: false, extendNodePath: false }))
-
-  {
-    await project.isExecutable('.bin/rimraf')
-    const cmdContent = await fs.readFile('node_modules/.bin/rimraf')
-    expect(cmdContent).not.toContain('NODE_PATH')
-  }
-
-  await rimraf('node_modules')
-  await install(manifest, await testDefaults({ extendNodePath: true, fastUnpack: false, frozenLockfile: true }))
-
-  {
-    await project.isExecutable('.bin/rimraf')
-    const cmdContent = await fs.readFile('node_modules/.bin/rimraf')
-    expect(cmdContent).not.toContain('NODE_PATH')
-  }
-})
-
 testOnNonWindows('building native addons', async () => {
   const project = prepareEmpty()
 

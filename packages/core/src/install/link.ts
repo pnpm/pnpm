@@ -48,7 +48,6 @@ export default async function linkPackages (
     }
     force: boolean
     depsStateCache: DepsStateCache
-    extendNodePath?: boolean
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir: string
     hoistPattern?: string[]
@@ -249,7 +248,6 @@ export default async function linkPackages (
       packages: omit(Array.from(opts.skipped), currentLockfile.packages),
     }
     newHoistedDependencies = await hoist({
-      extendNodePath: opts.extendNodePath,
       lockfile: hoistLockfile,
       importerIds: projectIds,
       lockfileDir: opts.lockfileDir,

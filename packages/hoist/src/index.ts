@@ -16,7 +16,6 @@ const hoistLogger = logger('hoist')
 
 export default async function hoistByLockfile (
   opts: {
-    extendNodePath?: boolean
     lockfile: Lockfile
     lockfileDir: string
     importerIds?: string[]
@@ -67,7 +66,7 @@ export default async function hoistByLockfile (
   // the bins of the project's direct dependencies.
   // This is possible because the publicly hoisted modules
   // are in the same directory as the regular dependencies.
-  await linkAllBins(opts.privateHoistedModulesDir, { extendNodePath: opts.extendNodePath })
+  await linkAllBins(opts.privateHoistedModulesDir)
 
   return hoistedDependencies
 }
@@ -87,14 +86,14 @@ function createGetAliasHoistType (
   }
 }
 
-async function linkAllBins (modulesDir: string, opts: { extendNodePath?: boolean }) {
+async function linkAllBins (modulesDir: string) {
   const bin = path.join(modulesDir, '.bin')
   const warn: WarnFunction = (message, code) => {
     if (code === 'BINARIES_CONFLICT') return
     logger.info({ message, prefix: path.join(modulesDir, '../..') })
   }
   try {
-    await linkBins(modulesDir, bin, { allowExoticManifests: true, extendNodePath: opts.extendNodePath, warn })
+    await linkBins(modulesDir, bin, { allowExoticManifests: true, warn })
   } catch (err: any) { // eslint-disable-line
     // Some packages generate their commands with lifecycle hooks.
     // At this stage, such commands are not generated yet.

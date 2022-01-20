@@ -145,7 +145,6 @@ export interface Config {
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
-  extendNodePath?: boolean
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
 }

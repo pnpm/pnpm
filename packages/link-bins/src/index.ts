@@ -1,5 +1,4 @@
 import { promises as fs } from 'fs'
-import Module from 'module'
 import path from 'path'
 import PnpmError from '@pnpm/error'
 import logger, { globalWarn } from '@pnpm/logger'
@@ -17,7 +16,6 @@ import pSettle from 'p-settle'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
-import union from 'ramda/src/union'
 import unnest from 'ramda/src/unnest'
 import partition from 'ramda/src/partition'
 import fixBin from 'bin-links/lib/fix-bin'
@@ -36,7 +34,6 @@ export default async (
   binsDir: string,
   opts: {
     allowExoticManifests?: boolean
-    extendNodePath?: boolean
     nodeExecPathByAlias?: Record<string, string>
     projectManifest?: ProjectManifest
     warn: WarnFunction
@@ -71,7 +68,7 @@ export default async (
   )
 
   const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
-  return linkBins(cmdsToLink, binsDir, opts)
+  return linkBins(cmdsToLink, binsDir)
 }
 
 function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
@@ -89,11 +86,7 @@ export async function linkBinsOfPackages (
     nodeExecPath?: string
     location: string
   }>,
-  binsTarget: string,
-  opts: {
-    extendNodePath?: boolean
-    warn: WarnFunction
-  }
+  binsTarget: string
 ): Promise<string[]> {
   if (pkgs.length === 0) return []
 
@@ -105,7 +98,7 @@ export async function linkBinsOfPackages (
       .filter((cmds: Command[]) => cmds.length)
   )
 
-  return linkBins(allCmds, binsTarget, opts)
+  return linkBins(allCmds, binsTarget)
 }
 
 type CommandInfo = Command & {
@@ -117,10 +110,7 @@ type CommandInfo = Command & {
 
 async function linkBins (
   allCmds: CommandInfo[],
-  binsDir: string,
-  opts: {
-    extendNodePath?: boolean
-  }
+  binsDir: string
 ): Promise<string[]> {
   if (allCmds.length === 0) return [] as string[]
 
@@ -128,7 +118,7 @@ async function linkBins (
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = partition(({ ownName }) => ownName, allCmds)
 
-  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir, opts)))
+  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir)))
 
   const usedNames = fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
@@ -142,7 +132,7 @@ async function linkBins (
       return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
-    return linkBin(cmd, binsDir, opts)
+    return linkBin(cmd, binsDir)
   }))
 
   // We want to create all commands that we can create before throwing an exception
@@ -200,21 +190,12 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }))
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePath?: boolean }) {
+async function linkBin (cmd: CommandInfo, binsDir: string) {
   const externalBinPath = path.join(binsDir, cmd.name)
 
   try {
-    let nodePath: string[] | undefined
-    if (opts?.extendNodePath !== false) {
-      nodePath = await getBinNodePaths(cmd.path)
-      const binsParentDir = path.dirname(binsDir)
-      if (path.relative(cmd.path, binsParentDir) !== '') {
-        nodePath = union(nodePath, await getBinNodePaths(binsParentDir))
-      }
-    }
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: cmd.makePowerShellShim,
-      nodePath,
       nodeExecPath: cmd.nodeExecPath,
     })
   } catch (err: any) { // eslint-disable-line
@@ -229,16 +210,6 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePa
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await fixBin(cmd.path, 0o755)
   }
-}
-
-async function getBinNodePaths (target: string): Promise<string[]> {
-  const targetDir = path.dirname(target)
-  const targetRealPath = await fs.realpath(targetDir)
-
-  return union(
-    Module['_nodeModulePaths'](targetRealPath),
-    Module['_nodeModulePaths'](targetDir)
-  )
 }
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {

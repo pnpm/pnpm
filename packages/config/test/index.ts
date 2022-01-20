@@ -62,7 +62,6 @@ test('correct settings on global install', async () => {
     },
   })
   expect(config.save).toBe(true)
-  expect(config.extendNodePath).toBe(false)
 })
 
 test('throw error if --shared-workspace-lockfile is used with --global', async () => {
@@ -773,19 +772,4 @@ test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-
   expect(config).toBeDefined()
   expect(config.sideEffectsCacheRead).toBeTruthy()
   expect(config.sideEffectsCacheWrite).toBeTruthy()
-})
-
-test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache-readonly is set', async () => {
-  const { config } = await getConfig({
-    cliOptions: {
-      'side-effects-cache-readonly': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-  expect(config).toBeDefined()
-  expect(config.sideEffectsCacheRead).toBeTruthy()
-  expect(config.sideEffectsCacheWrite).toBeFalsy()
 })
