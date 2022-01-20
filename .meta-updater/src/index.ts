@@ -167,6 +167,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (scripts.posttest) {
       scripts._test = `${scripts._test} && pnpm posttest`
     }
+    if (manifest.name === '@pnpm/server') {
+      scripts._test += ' --detectOpenHandles'
+    }
   }
   scripts.compile = 'tsc --build && pnpm run lint -- --fix'
   delete scripts.tsc

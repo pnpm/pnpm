@@ -13,7 +13,7 @@
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
-    "_test": "jest",
+    "_test": "jest --detectOpenHandles",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint -- --fix"
