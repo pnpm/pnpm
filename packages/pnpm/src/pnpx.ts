@@ -1,20 +1,16 @@
-import path from 'path'
-import findWorkspaceDir from '@pnpm/find-workspace-dir'
-import storePath from '@pnpm/store-path'
-import npx from '@zkochan/libnpx/index'
-import PATH from 'path-name'
+import errorHandler from './err'
+import main from './main'
 
-const PNPM_PATH = path.join(__dirname, 'pnpm.cjs')
+// Avoid "Possible EventEmitter memory leak detected" warnings
+// because it breaks pnpm's CLI output
+process.setMaxListeners(0)
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
-; (async () => {
-  const workspaceRoot = await findWorkspaceDir(process.cwd())
-  if (workspaceRoot) {
-    process.env[PATH] = `${path.join(workspaceRoot, 'node_modules/.bin')}${path.delimiter}${process.env[PATH] ?? ''}`
+;(async () => {
+  try {
+    const argv = process.argv.slice(2)
+    await main(['dlx', ...argv])
+  } catch (err: any) { // eslint-disable-line
+    errorHandler(err)
   }
-  npx({
-    ...npx.parseArgs(process.argv, PNPM_PATH),
-    cache: path.join(await storePath(process.cwd(), '~/.pnpm-store'), 'tmp'),
-    installerStdio: 'inherit',
-  })
 })()

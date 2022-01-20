@@ -2766,7 +2766,6 @@ importers:
       '@pnpm/read-project-manifest': workspace:2.0.11
       '@pnpm/registry-mock': 2.12.1
       '@pnpm/run-npm': workspace:3.1.0
-      '@pnpm/store-path': ^5.0.0
       '@pnpm/tabtab': ^0.1.2
       '@pnpm/ts-execution-runtime': workspace:*
       '@pnpm/types': workspace:7.9.0
@@ -2778,7 +2777,6 @@ importers:
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.4
       '@types/which': ^2.0.0
-      '@zkochan/libnpx': ^13.1.5
       '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': ^2.1.1
       chalk: ^4.1.0
@@ -2856,7 +2854,6 @@ importers:
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/registry-mock': 2.12.1
       '@pnpm/run-npm': link:../run-npm
-      '@pnpm/store-path': 5.0.0
       '@pnpm/tabtab': 0.1.2
       '@pnpm/ts-execution-runtime': link:../../utils/ts-execution-runtime
       '@pnpm/types': link:../types
@@ -2868,7 +2865,6 @@ importers:
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
       '@types/which': 2.0.1
-      '@zkochan/libnpx': 13.1.5
       '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 2.1.1
       chalk: 4.1.2
@@ -5935,21 +5931,6 @@ packages:
     dependencies:
       argparse: 2.0.1
 
-  /@zkochan/libnpx/13.1.5:
-    resolution: {integrity: sha512-QFwTz6VCe1U/Qk9hzJG5zgIR+Zt/DIeuvY9nwo802lhw37pR/PLXPsF8F+H3M26sU6bfSwJaVd7DgOYQ58xYDg==}
-    engines: {node: '>=10.13'}
-    dependencies:
-      '@zkochan/npm-package-arg': 2.0.1
-      '@zkochan/rimraf': 2.1.1
-      dotenv: 8.6.0
-      enquirer: 2.3.6
-      path-name: 1.0.0
-      safe-buffer: 5.2.1
-      which: 2.0.2
-      y18n: 4.0.3
-      yargs: 15.4.1
-    dev: true
-
   /@zkochan/npm-conf/2.0.2:
     resolution: {integrity: sha512-nF6cxXu/3x0gbIGZdiajpL6diySPoU5T5Mh0TXSjHp2shZoqtZgRj3zdIc/pkd6kKAWaktFvOFFo5kTqwne/tg==}
     engines: {node: '>=10'}
@@ -5963,6 +5944,7 @@ packages:
       hosted-git-info: /@zkochan/hosted-git-info/4.0.2
       semver: 7.3.5
       validate-npm-package-name: 3.0.0
+    dev: false
 
   /@zkochan/pkg/0.0.0-2:
     resolution: {integrity: sha512-ryvBDQsbH2/H0hwy9owJ/+E9p8W3ip0X1yJrkTt2ncMaScEjZb/y8YO7AYqnwOmGO6i31B/42Nx0znAca+febg==}
@@ -7796,11 +7778,6 @@ packages:
     engines: {node: '>=8'}
     dependencies:
       is-obj: 2.0.0
-    dev: true
-
-  /dotenv/8.6.0:
-    resolution: {integrity: sha512-IrPdXQsk2BbzvCBGBOTmmSH5SodmqZNt4ERAZDmW4CT+tL8VtvinqywuANaFu4bOMWki16nqf0e4oC0QIaDr/g==}
-    engines: {node: '>=10'}
     dev: true
 
   /duplexify/3.7.1:
