@@ -2,7 +2,6 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
-import isWindows from 'is-windows'
 import { execPnpmSync } from './utils'
 
 test('pnpm root', async () => {
@@ -22,16 +21,10 @@ test('pnpm root -g', async () => {
   const global = path.resolve('global')
   await fs.mkdir(global)
 
-  const env = { NPM_CONFIG_PREFIX: global }
-  if (process.env.APPDATA) env['APPDATA'] = global
+  const env = { XDG_DATA_HOME: global }
 
   const result = execPnpmSync(['root', '-g'], { env })
 
   expect(result.status).toBe(0)
-
-  if (isWindows()) {
-    expect(result.stdout.toString()).toBe(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules`) + '\n')
-  } else {
-    expect(result.stdout.toString()).toBe(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules`) + '\n')
-  }
+  expect(result.stdout.toString()).toBe(path.join(global, `pnpm/global-packages/${LAYOUT_VERSION}/node_modules`) + '\n')
 })
