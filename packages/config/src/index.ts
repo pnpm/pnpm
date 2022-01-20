@@ -120,6 +120,7 @@ export const types = Object.assign({
   'workspace-root': Boolean,
   'test-pattern': [String, Array],
   'changed-files-ignore-pattern': [String, Array],
+  'embed-readme': Boolean,
 }, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
@@ -217,6 +218,10 @@ export default async (
     'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': 4,
     'workspace-prefix': opts.workspaceDir,
+    /**
+     * @todo Make `false` by default in v7.
+     */
+    'embed-readme': true,
   })
 
   npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')

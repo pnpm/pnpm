@@ -26,6 +26,7 @@ export function rcOptionsTypes () {
     'registry',
     'tag',
     'unsafe-perm',
+    'embed-readme',
   ], allTypes)
 }
 
@@ -104,7 +105,7 @@ export async function handler (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch'>,
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme'>,
   params: string[]
 ) {
   if (opts.gitChecks !== false && await isGitRepo()) {

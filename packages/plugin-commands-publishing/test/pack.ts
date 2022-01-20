@@ -127,3 +127,41 @@ const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
     expect(modeIsExecutable(stat.mode)).toBeFalsy()
   }
 })
+
+test('pack: should embed readme', async () => {
+  tempDir()
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: path.join(__dirname, '../fixtures/readme'),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+    embedReadme: true,
+  })
+
+  await tar.x({ file: 'readme-0.0.0.tgz' })
+
+  const pkg = await import(path.resolve('package/package.json'))
+
+  expect(pkg.readme).toBeTruthy()
+})
+
+test('pack: should not embed readme', async () => {
+  tempDir()
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: path.join(__dirname, '../fixtures/readme'),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+    embedReadme: false,
+  })
+
+  await tar.x({ file: 'readme-0.0.0.tgz' })
+
+  const pkg = await import(path.resolve('package/package.json'))
+
+  expect(pkg.readme).toBeFalsy()
+})
