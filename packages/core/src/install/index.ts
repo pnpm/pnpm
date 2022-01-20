@@ -913,7 +913,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
         const injectedDeps = {}
         for (const project of projectsWithTargetDirs) {
-          injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
+          if (project.targetDirs.length > 0) {
+            injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
+          }
         }
         return writeModulesYaml(ctx.rootModulesDir, {
           ...ctx.modulesFile,
