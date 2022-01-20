@@ -1,5 +1,12 @@
 # @pnpm/filter-lockfile
 
+## 5.0.17
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+
 ## 5.0.16
 
 ### Patch Changes

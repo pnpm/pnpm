@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-outdated
 
+## 5.1.6
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/modules-yaml@9.1.0
+  - @pnpm/outdated@9.0.30
+  - @pnpm/config@13.11.0
+
 ## 5.1.5
 
 ### Patch Changes

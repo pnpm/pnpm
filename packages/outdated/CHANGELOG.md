@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 9.0.30
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+- Updated dependencies [cdc521cfa]
+  - @pnpm/modules-yaml@9.1.0
+  - @pnpm/lockfile-utils@3.2.0
+
 ## 9.0.29
 
 ### Patch Changes

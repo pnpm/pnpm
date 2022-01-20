@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-yaml",
-  "version": "9.0.11",
+  "version": "9.1.0",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -37,7 +37,7 @@
     "write-yaml-file": "^4.2.0"
   },
   "devDependencies": {
-    "@pnpm/modules-yaml": "workspace:9.0.11",
+    "@pnpm/modules-yaml": "workspace:9.1.0",
     "@types/is-windows": "^1.0.0",
     "tempy": "^1.0.0"
   },

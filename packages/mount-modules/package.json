@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/mount-modules",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "Mounts a node_modules directory with FUSE",
   "main": "lib/index.js",
   "bin": "bin/mount-modules.js",
@@ -38,13 +38,13 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/mount-modules": "workspace:0.1.20",
+    "@pnpm/mount-modules": "workspace:0.1.21",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:3.0.13",
     "@pnpm/lockfile-file": "workspace:4.2.6",
-    "@pnpm/lockfile-utils": "workspace:3.1.6",
+    "@pnpm/lockfile-utils": "workspace:3.2.0",
     "@pnpm/store-path": "^5.0.0",
     "@pnpm/types": "workspace:7.9.0",
     "dependency-path": "workspace:8.0.10",

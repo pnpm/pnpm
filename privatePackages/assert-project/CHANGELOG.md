@@ -1,5 +1,12 @@
 # @pnpm/assert-project
 
+## 2.2.15
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/modules-yaml@9.1.0
+
 ## 2.2.14
 
 ### Patch Changes

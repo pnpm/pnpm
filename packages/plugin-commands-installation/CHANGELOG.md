@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 8.3.2
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/core@2.5.0
+  - @pnpm/outdated@9.0.30
+  - @pnpm/plugin-commands-rebuild@5.4.7
+  - @pnpm/config@13.11.0
+  - @pnpm/package-store@12.1.8
+
 ## 8.3.1
 
 ### Patch Changes

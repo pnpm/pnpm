@@ -1,5 +1,13 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.4.43
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+  - @pnpm/config@13.11.0
+
 ## 0.4.42
 
 ### Patch Changes

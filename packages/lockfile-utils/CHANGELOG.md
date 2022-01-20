@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 3.2.0
+
+### Minor Changes
+
+- cdc521cfa: Injected package location should be properly detected in a hoisted `node_modules`.
+
 ## 3.1.6
 
 ### Patch Changes

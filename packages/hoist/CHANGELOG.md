@@ -1,5 +1,13 @@
 # @pnpm/hoist
 
+## 5.2.13
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+  - @pnpm/link-bins@6.2.10
+
 ## 5.2.12
 
 ### Patch Changes

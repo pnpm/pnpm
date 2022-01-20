@@ -1,5 +1,14 @@
 # dependencies-hierarchy
 
+## 10.0.23
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+- Updated dependencies [cdc521cfa]
+  - @pnpm/modules-yaml@9.1.0
+  - @pnpm/lockfile-utils@3.2.0
+
 ## 10.0.22
 
 ### Patch Changes

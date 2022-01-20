@@ -1,5 +1,11 @@
 # @pnpm/modules-yaml
 
+## 9.1.0
+
+### Minor Changes
+
+- cdc521cfa: New field added: injectedDeps.
+
 ## 9.0.11
 
 ### Patch Changes

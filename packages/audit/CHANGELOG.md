@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 2.2.5
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+
 ## 2.2.4
 
 ### Patch Changes
