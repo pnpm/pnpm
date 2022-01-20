@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.27.1
+
+### Patch Changes
+
+- `peerDependencyRules` should work when both `overrides` and `packageExtensions` are present as well [#4255](https://github.com/pnpm/pnpm/pull/4255).
+- `pnpm list` should show information whether a package is private or not [#4246](https://github.com/pnpm/pnpm/issues/4246).
+
 ## 6.27.0
 
 ### Minor Changes

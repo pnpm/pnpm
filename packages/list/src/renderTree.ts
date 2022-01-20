@@ -60,6 +60,10 @@ async function renderTreeForPackage (
     label += ' '
   }
   label += pkg.path
+
+  if (pkg.private) {
+    label += ' (PRIVATE)'
+  }
   let output = `${chalk.bold.underline(label)}\n`
   const useColumns = opts.depth === 0 && !opts.long && !opts.search
   const dependenciesFields: string[] = [

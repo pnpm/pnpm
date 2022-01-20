@@ -40,3 +40,5 @@ storage
 yarn.lock
 
 RELEASE.md
+
+.jest-cache

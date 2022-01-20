@@ -110,7 +110,13 @@
     "neverBuiltDependencies": [
       "core-js",
       "level"
-    ]
+    ],
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "eslint": "*",
+        "@typescript-eslint/eslint-plugin": "^5.6.0"
+      }
+    }
   },
   "packageManager": "pnpm@6.23.0"
 }

@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "6.27.0",
+  "version": "6.27.1",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -42,8 +42,8 @@
     "@pnpm/pick-registry-for-package": "workspace:2.0.10",
     "@pnpm/plugin-commands-audit": "workspace:5.1.37",
     "@pnpm/plugin-commands-env": "workspace:1.4.8",
-    "@pnpm/plugin-commands-installation": "workspace:8.3.0",
-    "@pnpm/plugin-commands-listing": "workspace:4.1.5",
+    "@pnpm/plugin-commands-installation": "workspace:8.3.1",
+    "@pnpm/plugin-commands-listing": "workspace:4.1.6",
     "@pnpm/plugin-commands-outdated": "workspace:5.1.5",
     "@pnpm/plugin-commands-publishing": "workspace:4.3.5",
     "@pnpm/plugin-commands-rebuild": "workspace:5.4.6",
@@ -159,7 +159,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
+    "compile": "tsc --build && pnpm run lint -- --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
   },
   "publishConfig": {
     "tag": "next",

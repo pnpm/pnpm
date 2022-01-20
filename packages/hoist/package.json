@@ -37,7 +37,7 @@
     "test": "pnpm run compile",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint -- --fix"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:5.0.0",

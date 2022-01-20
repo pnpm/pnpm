@@ -1,0 +1,25 @@
+lockfileVersion: 5.3
+
+importers:
+
+  .:
+    specifiers: {}
+
+  packages/private:
+    specifiers:
+      is-positive: 1.0.0
+    dependencies:
+      is-positive: 1.0.0
+
+  packages/public:
+    specifiers:
+      is-positive: 1.0.0
+    dependencies:
+      is-positive: 1.0.0
+
+packages:
+
+  /is-positive/1.0.0:
+    resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
+    engines: {node: '>=0.10.0'}
+    dev: false

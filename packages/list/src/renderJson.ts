@@ -21,6 +21,7 @@ export default async function (
       name: pkg.name,
       version: pkg.version,
       path: pkg.path,
+      private: !!pkg.private,
     }
     for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
       if (pkg[dependenciesField]?.length) {
