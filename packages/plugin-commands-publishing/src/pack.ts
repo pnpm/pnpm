@@ -110,8 +110,6 @@ export async function handler (
   return path.relative(opts.dir, path.join(dir, tarballName))
 }
 
-const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
-
 async function readReadmeFile (filesMap: Record<string, string>) {
   const readmePath = Object.keys(filesMap).find(name => /^package\/readme\.md$/i.test(name))
   const readmeFile = readmePath ? await fs.promises.readFile(filesMap[readmePath], 'utf8') : undefined
@@ -140,11 +138,7 @@ async function packPkg (opts: {
   const mtime = new Date('1985-10-26T08:15:00.000Z')
   const pack = tar.pack()
   for (const [name, source] of Object.entries(filesMap)) {
-    let isExecutable = bins.some((bin) => path.relative(bin, source) === '')
-    if (!isExecutable) {
-      const { mode: existingMode } = await fs.promises.stat(source)
-      isExecutable = modeIsExecutable(existingMode)
-    }
+    const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
     const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
       const readmeFile = embedReadme ? await readReadmeFile(filesMap) : undefined
