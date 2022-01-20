@@ -55,7 +55,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig'> & Partial<Pick<Config, 'extraBinPaths'>> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme'> & Partial<Pick<Config, 'extraBinPaths'>> & {
     argv: {
       original: string[]
     }
@@ -98,7 +98,12 @@ export async function handler (
   const destDir = opts.packDestination
     ? (path.isAbsolute(opts.packDestination) ? opts.packDestination : path.join(dir, opts.packDestination ?? '.'))
     : dir
-  await packPkg(path.join(destDir, tarballName), filesMap, dir)
+  await packPkg({
+    destFile: path.join(destDir, tarballName),
+    filesMap,
+    projectDir: dir,
+    embedReadme: opts.embedReadme,
+  })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
   }
@@ -107,7 +112,25 @@ export async function handler (
 
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
-async function packPkg (destFile: string, filesMap: Record<string, string>, projectDir: string): Promise<void> {
+async function readReadmeFile (filesMap: Record<string, string>) {
+  const readmePath = Object.keys(filesMap).find(name => /^package\/readme\.md$/i.test(name))
+  const readmeFile = readmePath ? await fs.promises.readFile(filesMap[readmePath], 'utf8') : undefined
+
+  return readmeFile
+}
+
+async function packPkg (opts: {
+  destFile: string
+  filesMap: Record<string, string>
+  projectDir: string
+  embedReadme?: boolean
+}): Promise<void> {
+  const {
+    destFile,
+    filesMap,
+    projectDir,
+    embedReadme,
+  } = opts
   const { manifest } = await readProjectManifest(projectDir, {})
   const bins = [
     ...(await binify(manifest as DependencyManifest, projectDir)).map(({ path }) => path),
@@ -124,8 +147,7 @@ async function packPkg (destFile: string, filesMap: Record<string, string>, proj
     }
     const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
-      const readmePath = Object.keys(filesMap).find(name => /^package\/readme.md$/i.test(name))
-      const readmeFile = readmePath ? await fs.promises.readFile(filesMap[readmePath], 'utf8') : undefined
+      const readmeFile = embedReadme ? await readReadmeFile(filesMap) : undefined
       const publishManifest = await exportableManifest(projectDir, manifest, { readmeFile })
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(publishManifest, null, 2))
       continue
