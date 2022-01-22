@@ -101,7 +101,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/core#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/core#readme",
   "keywords": [
     "pnpm6",
     "dependency manager",
@@ -129,7 +129,7 @@
   "engines": {
     "node": ">=12.17"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/core",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/core",
   "scripts": {
     "start": "tsc --watch",
     "?commit": "echo 'Run Git commit wizard'",

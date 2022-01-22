@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/fetch",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/fetch",
   "keywords": [
     "pnpm6",
     "fetch",
@@ -31,7 +31,7 @@
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/fetch#readme",
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.1.3",
     "@pnpm/fetching-types": "workspace:2.2.1",

@@ -18,7 +18,7 @@
   "engines": {
     "node": ">=12.17"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/dependencies-hierarchy",
   "keywords": [
     "pnpm6",
     "hierarchy",
@@ -30,7 +30,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependencies-hierarchy#readme",
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:4.2.6",
     "@pnpm/lockfile-utils": "workspace:3.2.0",

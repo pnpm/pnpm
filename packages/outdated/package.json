@@ -21,7 +21,7 @@
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/outdated",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/outdated",
   "keywords": [
     "pnpm6",
     "pnpm",
@@ -31,7 +31,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/outdated#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/outdated#readme",
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"
   },

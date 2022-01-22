@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/pnpmfile",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/pnpmfile",
   "keywords": [
     "pnpm6",
     "pnpm"
@@ -27,7 +27,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pnpmfile#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/pnpmfile#readme",
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
     "@pnpm/pnpmfile": "workspace:1.2.4"

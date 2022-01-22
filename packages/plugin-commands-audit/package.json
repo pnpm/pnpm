@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-audit",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-audit",
   "keywords": [
     "pnpm6",
     "pnpm",
@@ -28,7 +28,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-audit#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-audit#readme",
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "workspace:5.1.38",
     "@pnpm/test-fixtures": "workspace:*",

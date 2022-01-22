@@ -19,7 +19,7 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/lifecycle",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/lifecycle",
   "keywords": [
     "pnpm6",
     "pnpm",
@@ -30,7 +30,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lifecycle#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/lifecycle#readme",
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"
   },

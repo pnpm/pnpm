@@ -17,7 +17,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/prepare-package",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/prepare-package",
   "keywords": [
     "pnpm6",
     "pnpm"
@@ -26,7 +26,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/prepare-package#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/prepare-package#readme",
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/read-package-json": "workspace:5.0.10",

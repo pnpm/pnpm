@@ -19,7 +19,7 @@
     "fix": "tslint -c tslint.json --project . --fix",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/link-bins",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/link-bins",
   "keywords": [
     "pnpm6",
     "pnpm",
@@ -29,7 +29,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/link-bins#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/link-bins#readme",
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/manifest-utils": "workspace:2.1.7",
