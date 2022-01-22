@@ -32,8 +32,8 @@
   "env": {
     "node": ">=10"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/npm-registry-agent",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/npm-registry-agent#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/npm-registry-agent",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/npm-registry-agent#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

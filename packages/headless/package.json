@@ -39,7 +39,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/headless#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/headless#readme",
   "keywords": [
     "pnpm6",
     "pnpm",
@@ -50,7 +50,7 @@
   "engines": {
     "node": ">=12.17"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/headless",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/headless",
   "scripts": {
     "start": "tsc --watch",
     "commit": "commit",

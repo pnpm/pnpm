@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/client",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/client",
   "keywords": [
     "pnpm6",
     "pnpm",
@@ -29,7 +29,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/client#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/client#readme",
   "dependencies": {
     "@pnpm/default-resolver": "workspace:14.0.10",
     "@pnpm/directory-fetcher": "workspace:1.0.5",

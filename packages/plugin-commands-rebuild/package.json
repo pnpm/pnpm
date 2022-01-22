@@ -21,7 +21,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint -- --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-rebuild",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-rebuild",
   "keywords": [
     "pnpm6",
     "pnpm",
@@ -31,7 +31,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-rebuild#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-rebuild#readme",
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:4.4.18",
     "@pnpm/logger": "^4.0.0",
