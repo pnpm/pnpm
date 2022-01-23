@@ -207,11 +207,57 @@ test('any unknown command is treated as a script', async () => {
     fallbackCommand: 'run',
     getCommandLongName: () => null,
     universalOptionsTypes: { filter: [String, Array] },
-  }, ['foo', '--recursive'])
+  }, ['--recursive', 'foo'])
   expect(cmd).toBe('run')
   expect(params).toStrictEqual(['foo'])
   expect(options).toHaveProperty(['recursive'])
   expect(fallbackCommandUsed).toBeTruthy()
+})
+
+test('run script with --help before script name is help command', async () => {
+  const { cmd, params } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+  }, ['run', '--help', 'foo'])
+  expect(cmd).toBe('help')
+  expect(params).toStrictEqual(['run', 'foo'])
+})
+
+test.each([
+  ['foo', { params: 'foo', options: {} }],
+  ['foo --bar baz --qux', { params: 'foo --bar baz --qux', options: {} }],
+  ['-r foo', { params: 'foo', options: { recursive: true } }],
+  ['-r foo --bar baz --qux', { params: 'foo --bar baz --qux', options: { recursive: true } }],
+
+  // Edge case where option value is the script name. Fortunately nopt handles this correctly.
+  ['--test-pattern test test foo', { params: 'test foo', options: { 'test-pattern': ['test'] } }],
+
+  // Ensure even builtin flags are passed to the script.
+  ['foo -r', { params: 'foo -r', options: {} }],
+  ['foo --recursive', { params: 'foo --recursive', options: {} }],
+  ['foo -h', { params: 'foo -h', options: {} }],
+  ['foo --help', { params: 'foo --help', options: {} }],
+  ['foo --filter=bar', { params: 'foo --filter=bar', options: {} }],
+])('run script arguments are correct for: %s', async (testInput, expected) => {
+  for (const testWithCommandFallback of [true, false]) {
+    // Whether or not the leading "run" portion of the command is written
+    // shouldn't affect its arg parsing. Test both scenarios for good measure.
+    const input = [...(testWithCommandFallback ? [] : ['run']), ...testInput.split(' ')]
+
+    const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs({
+      ...DEFAULT_OPTS,
+      fallbackCommand: 'run',
+      getCommandLongName: (name) => name === 'run' ? 'run' : null,
+      universalOptionsTypes: { filter: [String, Array], 'test-pattern': [String, Array] },
+    }, input)
+    expect(cmd).toBe('run')
+    expect(params).toStrictEqual(expected.params.split(' '))
+    expect(options).toStrictEqual(expected.options)
+
+    if (testWithCommandFallback) {
+      expect(fallbackCommandUsed).toBeTruthy()
+    }
+  }
 })
 
 test("don't use the fallback command if no command is present", async () => {
