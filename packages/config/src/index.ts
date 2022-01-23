@@ -212,10 +212,7 @@ export default async (
     'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': 4,
     'workspace-prefix': opts.workspaceDir,
-    /**
-     * @todo Make `false` by default in v7.
-     */
-    'embed-readme': true,
+    'embed-readme': false,
   })
 
   npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
