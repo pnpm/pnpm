@@ -124,7 +124,7 @@ test('adding new dep does not fail if node_modules was created with --public-hoi
 test('pnpx works', () => {
   prepareEmpty()
 
-  const result = execPnpxSync(['--yes', 'hello-world-js-bin'])
+  const result = execPnpxSync(['hello-world-js-bin'])
 
   expect(result.stdout.toString()).toMatch(/Hello world!/)
   expect(result.status).toBe(0)

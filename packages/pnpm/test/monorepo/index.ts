@@ -17,7 +17,7 @@ import exists from 'path-exists'
 import tempy from 'tempy'
 import symlink from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
-import { execPnpm, execPnpmSync, execPnpxSync } from '../utils'
+import { execPnpm, execPnpmSync } from '../utils'
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -1267,7 +1267,7 @@ test("linking the package's bin to another workspace package in a monorepo", asy
   await projects.main.isExecutable('.bin/hello')
 })
 
-test('pnpx sees the bins from the root of the workspace', async () => {
+test('pnpm sees the bins from the root of the workspace', async () => {
   preparePackages([
     {
       location: '.',
@@ -1293,17 +1293,17 @@ test('pnpx sees the bins from the root of the workspace', async () => {
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['install'])
 
   process.chdir('project-1')
 
-  const result = execPnpxSync(['print-version'])
+  const result = execPnpmSync(['print-version'])
 
   expect(result.stdout.toString()).toContain('2.0.0')
 
   process.chdir('../project-2')
 
-  expect(execPnpxSync(['print-version']).stdout.toString()).toContain('1.0.0')
+  expect(execPnpmSync(['print-version']).stdout.toString()).toContain('1.0.0')
 })
 
 test('root package is included when not specified', async () => {
