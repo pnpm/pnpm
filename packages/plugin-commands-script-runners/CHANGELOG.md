@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.5.16
+
+### Patch Changes
+
+- 9c0f7e69a: `pnpm exec` should look for the executed command in the `node_modules/.bin` directory that is relative to the current working directory. Only after that should it look for the executable in the workspace root.
+- Updated dependencies [b7566b979]
+  - @pnpm/config@13.12.0
+  - @pnpm/cli-utils@0.6.47
+
 ## 4.5.15
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.12.0
+
+### Minor Changes
+
+- b7566b979: embed-readme option was added
+
 ## 13.11.0
 
 ### Minor Changes

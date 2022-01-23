@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.4.0
+
+### Minor Changes
+
+- b7566b979: embed-readme option was added
+
+### Patch Changes
+
+- Updated dependencies [b7566b979]
+  - @pnpm/config@13.12.0
+  - @pnpm/cli-utils@0.6.47
+
 ## 4.3.5
 
 ### Patch Changes
