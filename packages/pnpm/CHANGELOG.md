@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.28.0
+
+### Minor Changes
+
+- New option added: `embed-readme`. When `false`, `pnpm publish` doesn't save the readme file's content to `package.json` before publish [#4265](https://github.com/pnpm/pnpm/pull/4265).
+
+### Patch Changes
+
+- `pnpm exec` should look for the executed command in the `node_modules/.bin` directory that is relative to the current working directory. Only after that should it look for the executable in the workspace root.
+
 ## 6.27.2
 
 ### Patch Changes
