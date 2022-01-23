@@ -125,8 +125,8 @@ export async function handler (
               ...process.env,
               ...extraEnv,
               [PATH]: [
-                ...opts.extraBinPaths,
                 path.join(opts.dir, 'node_modules/.bin'),
+                ...opts.extraBinPaths,
                 process.env[PATH],
               ].join(path.delimiter),
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
