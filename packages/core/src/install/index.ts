@@ -870,10 +870,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             await Promise.all(
               directPkgs.map(async (dep) => {
                 const manifest = await dep.fetchingBundledManifest?.() ?? await safeReadProjectManifestOnly(dep.dir)
+                let nodeExecPath: string | undefined
+                if (manifest?.name) {
+                  nodeExecPath = project.manifest.dependenciesMeta?.[manifest.name]?.node
+                }
                 return {
                   location: dep.dir,
                   manifest,
-                  nodeExecPath: project.manifest.dependenciesMeta?.[manifest!.name!]?.node,
+                  nodeExecPath,
                 }
               })
             )

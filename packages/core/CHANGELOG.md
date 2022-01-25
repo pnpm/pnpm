@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 2.5.2
+
+### Patch Changes
+
+- c1383044d: Fixed an exception that was caused by reading the name property from a manifest that was not defined.
+
 ## 2.5.1
 
 ### Patch Changes
