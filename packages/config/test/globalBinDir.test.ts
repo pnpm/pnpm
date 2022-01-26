@@ -1,8 +1,10 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
+import pathName from 'path-name'
 import { homedir } from 'os'
 import getConfig from '@pnpm/config'
 
+const globalBinDir = path.join(homedir(), '.local', 'pnpm')
 const isWindows = process.platform === 'win32'
 
 jest.mock('@zkochan/npm-conf/lib/conf', () => {
@@ -34,12 +36,15 @@ test('respects global-bin-dir in npmrc', async () => {
     cliOptions: {
       global: true,
     },
+    env: {
+      [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName]!}`,
+    },
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
     },
   })
-  expect(config.bin).toBe(path.join(homedir(), '.local', 'pnpm'))
+  expect(config.bin).toBe(globalBinDir)
 })
 
 test('respects global-bin-dir rather than dir', async () => {
@@ -48,10 +53,13 @@ test('respects global-bin-dir rather than dir', async () => {
       global: true,
       dir: __dirname,
     },
+    env: {
+      [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName]!}`,
+    },
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
     },
   })
-  expect(config.bin).toBe(path.join(homedir(), '.local', 'pnpm'))
+  expect(config.bin).toBe(globalBinDir)
 })

@@ -130,8 +130,10 @@ export default async (
     rcOptionsTypes?: Record<string, unknown>
     workspaceDir?: string | undefined
     checkUnknownSetting?: boolean
+    env?: Record<string, string | undefined>
   }
 ): Promise<{ config: Config, warnings: string[] }> => {
+  const env = opts.env ?? process.env
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}
   const warnings = new Array<string>()
@@ -282,10 +284,10 @@ export default async (
     }
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
-    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? process.env.PNPM_HOME
+    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
-      checkGlobalBinDir(pnpmConfig.bin, { shouldAllowWrite: opts.globalDirShouldAllowWrite })
+      checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
     } else {
       throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
