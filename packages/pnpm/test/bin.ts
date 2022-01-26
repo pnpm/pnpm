@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import PATH_NAME from 'path-name'
 import { tempDir } from '@pnpm/prepare'
-import PATH from 'path-name'
 import { execPnpmSync } from './utils'
 
 test('pnpm bin', async () => {
@@ -17,8 +17,13 @@ test('pnpm bin', async () => {
 test('pnpm bin -g', async () => {
   tempDir()
 
-  const result = execPnpmSync(['bin', '-g'])
+  const env = {
+    PNPM_HOME: process.cwd(),
+    [PATH_NAME]: process.cwd(),
+  }
+
+  const result = execPnpmSync(['bin', '-g'], { env })
 
   expect(result.status).toStrictEqual(0)
-  expect(process.env[PATH]!).toContain(result.stdout.toString().trim())
+  expect(result.stdout.toString().trim()).toEqual(env.PNPM_HOME)
 })
