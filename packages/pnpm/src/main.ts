@@ -231,6 +231,7 @@ export default async function run (inputArgv: string[]) {
       !config.offline &&
       !config.preferOffline &&
       !config.fallbackCommandUsed &&
+      !config.updateNotifier &&
       (cmd === 'install' || cmd === 'add')
     ) {
       checkForUpdates(config).catch(() => { /* Ignore */ })

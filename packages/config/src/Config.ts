@@ -92,6 +92,7 @@ export interface Config {
 
   userAgent?: string
   tag?: string
+  updateNotifier?: boolean
 
   alwaysAuth?: boolean
 

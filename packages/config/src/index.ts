@@ -121,6 +121,7 @@ export const types = Object.assign({
   'test-pattern': [String, Array],
   'changed-files-ignore-pattern': [String, Array],
   'embed-readme': Boolean,
+  'update-notifier': Boolean,
 }, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
@@ -222,6 +223,7 @@ export default async (
      * @todo Make `false` by default in v7.
      */
     'embed-readme': true,
+    'update-notifier': true,
   })
 
   npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
