@@ -226,6 +226,7 @@ export default async function run (inputArgv: string[]) {
     await new Promise<void>((resolve) => setTimeout(() => resolve(), 0))
 
     if (
+      config.updateNotifier !== false &&
       !isCI &&
       !selfUpdate &&
       !config.offline &&

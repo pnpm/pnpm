@@ -121,6 +121,7 @@ export const types = Object.assign({
   'test-pattern': [String, Array],
   'changed-files-ignore-pattern': [String, Array],
   'embed-readme': Boolean,
+  'update-notifier': Boolean,
 }, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
