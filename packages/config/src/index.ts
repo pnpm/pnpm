@@ -223,7 +223,6 @@ export default async (
      * @todo Make `false` by default in v7.
      */
     'embed-readme': true,
-    'update-notifier': true,
   })
 
   npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')

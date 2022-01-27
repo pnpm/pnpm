@@ -226,12 +226,12 @@ export default async function run (inputArgv: string[]) {
     await new Promise<void>((resolve) => setTimeout(() => resolve(), 0))
 
     if (
+      config.updateNotifier !== false &&
       !isCI &&
       !selfUpdate &&
       !config.offline &&
       !config.preferOffline &&
       !config.fallbackCommandUsed &&
-      !config.updateNotifier &&
       (cmd === 'install' || cmd === 'add')
     ) {
       checkForUpdates(config).catch(() => { /* Ignore */ })
