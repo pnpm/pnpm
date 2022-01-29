@@ -77,7 +77,11 @@ test('run lifecycle events of global packages in correct working directory', asy
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
 
   await execPnpm(['install', '-g', 'postinstall-calls-pnpm@1.0.0'], { env })
 
