@@ -26,7 +26,11 @@ skipOnWindows('self-update stops the store server', async () => {
   const pnpmHome = path.join(global, 'pnpm')
   await fs.mkdir(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
 
   await execPnpm(['install', '-g', 'pnpm', '--store-dir', path.resolve('..', 'store')], { env })
 
