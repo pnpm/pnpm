@@ -1320,3 +1320,23 @@ test('installing a package with broken bin', async () => {
 
   await project.has('broken-bin')
 })
+
+test('a package should be able to be a dependency of itself', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['@paul-soporan/test-package-self-require-trap@2.0.0'], await testDefaults())
+
+  const subpkg = '.pnpm/@paul-soporan+test-package-self-require-trap@2.0.0/node_modules/@paul-soporan/test-package-self-require-trap/node_modules/@paul-soporan/test-package-self-require-trap/package.json'
+  {
+    const pkg = project.requireModule(subpkg)
+    expect(pkg.version).toBe('1.0.0')
+  }
+
+  await rimraf('node_modules')
+  await install(manifest, await testDefaults({ frozenLockfile: true }))
+
+  {
+    const pkg = project.requireModule(subpkg)
+    expect(pkg.version).toBe('1.0.0')
+  }
+})
