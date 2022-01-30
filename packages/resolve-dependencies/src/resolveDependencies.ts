@@ -713,7 +713,7 @@ async function resolveDependency (
       options.parentPkg.nodeId,
       options.parentPkg.depPath,
       depPath
-    )
+    ) || depPath === options.parentPkg.depPath
   ) {
     return null
   }
