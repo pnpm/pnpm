@@ -83,6 +83,7 @@ export interface StrictInstallOptions {
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
 
+  publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
   forceHoistPattern: boolean
 
@@ -111,6 +112,7 @@ const defaults = async (opts: InstallOptions) => {
     forceSharedLockfile: false,
     frozenLockfile: false,
     hoistPattern: undefined,
+    publicHoistPattern: undefined,
     hooks: {},
     ignoreCurrentPrefs: false,
     ignoreScripts: false,

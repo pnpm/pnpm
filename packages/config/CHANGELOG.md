@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.13.0
+
+### Minor Changes
+
+- 334e5340a: Add support of the `update-notifier` configuration option [#4158](https://github.com/pnpm/pnpm/issues/4158).
+
 ## 13.12.0
 
 ### Minor Changes

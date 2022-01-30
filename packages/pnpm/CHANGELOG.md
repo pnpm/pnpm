@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.29.0
+
+### Minor Changes
+
+- Add support of the `update-notifier` configuration option [#4158](https://github.com/pnpm/pnpm/issues/4158).
+
+### Patch Changes
+
+- A package should be able to be a dependency of itself.
+
 ## 6.28.0
 
 ### Minor Changes

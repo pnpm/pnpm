@@ -1,6 +1,6 @@
 {
   "pkg": {
-    "assets": "dist/pnpmrc",
+    "assets": ["dist/pnpmrc", "dist/scripts/*"],
     "targets": ["node14-linuxstatic-x64"],
     "outputPath": "../artifacts/linuxstatic-x64"
   }

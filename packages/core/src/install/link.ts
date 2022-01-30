@@ -421,6 +421,14 @@ async function linkAllPkgs (
         })
       }
       depNode.isBuilt = isBuilt
+
+      const selfDep = depNode.children[depNode.name]
+      if (selfDep) {
+        const pkg = opts.depGraph[selfDep]
+        if (!pkg || !pkg.installable && pkg.optional) return
+        const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
+        await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
+      }
     })
   )
 }
@@ -447,21 +455,14 @@ async function linkAllModules (
             }, {})
 
         await Promise.all(
-          Object.keys(childrenToLink)
-            .map(async (childAlias) => {
-              if (childrenToLink[childAlias].startsWith('link:')) {
-                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childrenToLink[childAlias].substr(5)), modules, childAlias))
+          Object.entries(childrenToLink)
+            .map(async ([childAlias, childDepPath]) => {
+              if (childDepPath.startsWith('link:')) {
+                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.substr(5)), modules, childAlias))
                 return
               }
-              const pkg = depGraph[childrenToLink[childAlias]]
-              if (!pkg || !pkg.installable && pkg.optional) return
-              if (childAlias === name) {
-                logger.warn({
-                  message: `Cannot link dependency with name ${childAlias} to ${modules}. Dependency's name should differ from the parent's name.`,
-                  prefix: opts.lockfileDir,
-                })
-                return
-              }
+              const pkg = depGraph[childDepPath]
+              if (!pkg || !pkg.installable && pkg.optional || childAlias === name) return
               await limitLinking(async () => symlinkDependency(pkg.dir, modules, childAlias))
             })
         )
