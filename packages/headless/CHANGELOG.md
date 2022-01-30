@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 17.2.2
+
+### Patch Changes
+
+- 37d09a68f: A package should be able to be a dependency of itself.
+  - @pnpm/lockfile-to-pnp@0.4.45
+
 ## 17.2.1
 
 ### Patch Changes

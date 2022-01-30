@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 24.0.0
+
+### Major Changes
+
+- 37d09a68f: Don't skip a dependency that is named the same way as the package, if it has a different version.
+
 ## 23.0.4
 
 ### Patch Changes

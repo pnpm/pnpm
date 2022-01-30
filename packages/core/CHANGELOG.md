@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 2.5.3
+
+### Patch Changes
+
+- 37d09a68f: A package should be able to be a dependency of itself.
+- Updated dependencies [37d09a68f]
+- Updated dependencies [37d09a68f]
+  - @pnpm/resolve-dependencies@24.0.0
+  - @pnpm/headless@17.2.2
+  - @pnpm/lockfile-to-pnp@0.4.45
+
 ## 2.5.2
 
 ### Patch Changes
