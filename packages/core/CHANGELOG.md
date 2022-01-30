@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 2.5.4
+
+### Patch Changes
+
+- cc727797f: Add `publicHoistPattern` to the fields of `InstallOptions`.
+
 ## 2.5.3
 
 ### Patch Changes
