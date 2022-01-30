@@ -464,10 +464,7 @@ async function linkAllModules (
                 return
               }
               const pkg = depGraph[childDepPath]
-              if (!pkg || !pkg.installable && pkg.optional) return
-              if (childAlias === name) {
-                return
-              }
+              if (!pkg || !pkg.installable && pkg.optional || childAlias === name) return
               await limitLinking(async () => symlinkDependency(pkg.dir, modules, childAlias))
             })
         )
