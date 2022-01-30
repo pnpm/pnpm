@@ -107,7 +107,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
       FILTERING,
     ],
     url: docsUrl('run'),
-    usages: ['pnpm run <command> [-- <args>...]'],
+    usages: ['pnpm run <command> [<args>...]'],
   })
 }
 
@@ -134,6 +134,11 @@ export async function handler (
 ) {
   let dir: string
   const [scriptName, ...passedThruArgs] = params
+  // For backward compatibility
+  const firstDoubleDash = passedThruArgs.findIndex((arg) => arg === '--')
+  if (firstDoubleDash !== -1) {
+    passedThruArgs.splice(firstDoubleDash, 1)
+  }
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
       return runRecursive(params, opts)

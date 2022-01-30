@@ -59,7 +59,12 @@ export default async function parseCliArgs (
     cmd = opts.fallbackCommand!
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
-  } else if (noptExploratoryResults['help']) {
+  // The run command has special casing for --help and is handled further below.
+  } else if (cmd !== 'run' && noptExploratoryResults['help']) {
+    return getParsedArgsForHelp()
+  }
+
+  function getParsedArgsForHelp () {
     return {
       argv: noptExploratoryResults.argv,
       cmd: 'help',
@@ -69,6 +74,7 @@ export default async function parseCliArgs (
       fallbackCommandUsed: false,
     }
   }
+
   const types = {
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(commandName),
@@ -84,6 +90,26 @@ export default async function parseCliArgs (
     return 'add'
   }
 
+  function getEscapeArgsWithSpecialCaseForRun () {
+    if (cmd !== 'run') {
+      return opts.escapeArgs
+    }
+
+    // We'd like everything after the run script's name to be passed to the
+    // script's argv itself. For example, "pnpm run echo --test" should pass
+    // "--test" to the "echo" script. This requires determining the script's
+    // name and declaring it as the "escape arg".
+    //
+    // The name of the run script is normally the second argument (ex: pnpm
+    // run foo), but can be pushed back by recursive commands (ex: pnpm
+    // recursive run foo) or becomes the first argument when the fallback
+    // command (ex: pnpm foo) is set to 'run'.
+    const indexOfRunScriptName = 1 +
+      (recursiveCommandUsed ? 1 : 0) +
+      (fallbackCommandUsed && opts.fallbackCommand === 'run' ? -1 : 0)
+    return [noptExploratoryResults.argv.remain[indexOfRunScriptName]]
+  }
+
   const { argv, ...options } = nopt(
     {
       recursive: Boolean,
@@ -95,8 +121,14 @@ export default async function parseCliArgs (
     },
     inputArgv,
     0,
-    { escapeArgs: opts.escapeArgs }
+    { escapeArgs: getEscapeArgsWithSpecialCaseForRun() }
   )
+
+  // For the run command, it's not clear whether --help should be passed to the
+  // underlying script or invoke pnpm's help text until an additional nopt call.
+  if (cmd === 'run' && options['help']) {
+    return getParsedArgsForHelp()
+  }
 
   if (opts.renamedOptions != null) {
     for (const cliOption of Object.keys(options)) {

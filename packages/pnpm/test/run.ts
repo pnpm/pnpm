@@ -17,13 +17,74 @@ test('run -r: pass the args to the command that is specfied in the build script'
   await fs.writeFile('project/args.json', '[]', 'utf8')
   await fs.writeFile('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--', '--flag=true'])
+  await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--flag=true'])
 
   const { default: args } = await import(path.resolve('project/args.json'))
   expect(args).toStrictEqual([
     [],
     ['arg', '--flag=true'],
     [],
+  ])
+})
+
+test('run: pass the args to the command that is specfied in the build script', async () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      foo: 'node recordArgs',
+      postfoo: 'node recordArgs',
+      prefoo: 'node recordArgs',
+    },
+  })
+  await fs.writeFile('args.json', '[]', 'utf8')
+  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+
+  await execPnpm(['run', 'foo', 'arg', '--flag=true'])
+
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
+    ['arg', '--flag=true'],
+  ])
+})
+
+// Before pnpm v7, `--` was required to pass flags to a build script.
+test('run: handle -- in a backwards compatible manner', async () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      foo: 'node recordArgs',
+      postfoo: 'node recordArgs',
+      prefoo: 'node recordArgs',
+    },
+  })
+  await fs.writeFile('args.json', '[]', 'utf8')
+  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+
+  await execPnpm(['run', 'foo', 'arg', '--', '--flag=true'])
+
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
+    ['arg', '--flag=true'],
+  ])
+})
+
+test('run: pass -- to the build script if specified twice', async () => {
+  prepare({
+    name: 'project',
+    scripts: {
+      foo: 'node recordArgs',
+      postfoo: 'node recordArgs',
+      prefoo: 'node recordArgs',
+    },
+  })
+  await fs.writeFile('args.json', '[]', 'utf8')
+  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+
+  await execPnpm(['run', 'foo', '--', 'arg', '--', '--flag=true'])
+
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([
+    ['arg', '--', '--flag=true'],
   ])
 })
 
