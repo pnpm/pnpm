@@ -428,7 +428,8 @@ async function linkAllPkgs (
       if (selfDep) {
         const pkg = opts.depGraph[selfDep]
         if (!pkg || !pkg.installable && pkg.optional) return
-        await limitLinking(async () => symlinkDependency(pkg.dir, path.join(depNode.modules, depNode.name, 'node_modules'), depNode.name))
+        const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
+        await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
       }
     })
   )
@@ -456,13 +457,13 @@ async function linkAllModules (
             }, {})
 
         await Promise.all(
-          Object.keys(childrenToLink)
-            .map(async (childAlias) => {
-              if (childrenToLink[childAlias].startsWith('link:')) {
-                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childrenToLink[childAlias].substr(5)), modules, childAlias))
+          Object.entries(childrenToLink)
+            .map(async ([childAlias, childDepPath]) => {
+              if (childDepPath.startsWith('link:')) {
+                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.substr(5)), modules, childAlias))
                 return
               }
-              const pkg = depGraph[childrenToLink[childAlias]]
+              const pkg = depGraph[childDepPath]
               if (!pkg || !pkg.installable && pkg.optional) return
               if (childAlias === name) {
                 return
