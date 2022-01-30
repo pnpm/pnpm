@@ -30,7 +30,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/read-package-json": "workspace:5.0.10",
-    "@zkochan/rimraf": "^2.1.1",
+    "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.1",
     "preferred-pm": "^3.0.3"
   },

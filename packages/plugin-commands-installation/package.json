@@ -85,7 +85,7 @@
     "@yarnpkg/core": "3.2.0-rc.9",
     "@yarnpkg/lockfile": "^1.1.0",
     "@yarnpkg/parsers": "2.5.0-rc.7",
-    "@zkochan/rimraf": "^2.1.1",
+    "@zkochan/rimraf": "^2.1.2",
     "@zkochan/table": "^1.0.0",
     "@zkochan/which": "^2.0.3",
     "camelcase-keys": "^6.2.2",

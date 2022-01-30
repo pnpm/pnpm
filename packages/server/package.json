@@ -40,7 +40,7 @@
     "@pnpm/server": "workspace:11.0.17",
     "@types/mz": "^2.7.3",
     "@types/uuid": "^8.3.0",
-    "@zkochan/rimraf": "^2.1.1",
+    "@zkochan/rimraf": "^2.1.2",
     "get-port": "^5.1.1",
     "is-port-reachable": "3.0.0",
     "load-json-file": "^6.2.0",

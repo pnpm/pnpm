@@ -49,7 +49,7 @@
     "@pnpm/types": "workspace:7.9.0",
     "@pnpm/which-version-is-pinned": "workspace:1.0.0",
     "@zkochan/npm-package-arg": "^2.0.1",
-    "@zkochan/rimraf": "^2.1.1",
+    "@zkochan/rimraf": "^2.1.2",
     "dependency-path": "workspace:8.0.10",
     "graph-sequencer": "2.0.0",
     "is-inner-link": "^4.0.0",
