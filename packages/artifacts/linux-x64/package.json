@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/linux-x64",
-  "version": "6.29.0",
+  "version": "6.29.1",
   "license": "MIT",
   "publishConfig": {
     "bin": {
@@ -23,6 +23,6 @@
     "pnpm6"
   ],
   "devDependencies": {
-    "@pnpm/linux-x64": "workspace:6.29.0"
+    "@pnpm/linux-x64": "workspace:6.29.1"
   }
 }
