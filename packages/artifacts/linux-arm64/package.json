@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/linux-arm64",
-  "version": "6.29.1",
+  "version": "7.0.0-alpha.0",
   "license": "MIT",
   "publishConfig": {
     "bin": {
@@ -20,9 +20,9 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "keywords": [
-    "pnpm6"
+    "pnpm7"
   ],
   "devDependencies": {
-    "@pnpm/linux-arm64": "workspace:6.29.1"
+    "@pnpm/linux-arm64": "workspace:7.0.0-alpha.0"
   }
 }

@@ -103,7 +103,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/core#readme",
   "keywords": [
-    "pnpm6",
+    "pnpm7",
     "dependency manager",
     "install",
     "installer",

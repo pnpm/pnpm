@@ -24,7 +24,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-script-runners",
   "keywords": [
-    "pnpm6",
+    "pnpm7",
     "pnpm",
     "scripts"
   ],

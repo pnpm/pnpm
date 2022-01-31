@@ -41,7 +41,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/headless#readme",
   "keywords": [
-    "pnpm6",
+    "pnpm7",
     "pnpm",
     "install",
     "installer"

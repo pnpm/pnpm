@@ -30,7 +30,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "keywords": [
-    "pnpm6"
+    "pnpm7"
   ],
   "devDependencies": {
     "@pnpm/tarball-resolver": "workspace:5.0.10"

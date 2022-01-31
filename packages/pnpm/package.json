@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "6.29.1",
+  "version": "7.0.0-alpha.0",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -109,7 +109,7 @@
   },
   "homepage": "https://pnpm.io",
   "keywords": [
-    "pnpm6",
+    "pnpm7",
     "dependency manager",
     "install",
     "installer",

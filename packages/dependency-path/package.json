@@ -17,7 +17,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path",
   "keywords": [
-    "pnpm6",
+    "pnpm7",
     "node_modules",
     "pnpm",
     "path"

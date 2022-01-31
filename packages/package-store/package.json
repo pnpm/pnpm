@@ -49,7 +49,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/package-store#readme",
   "keywords": [
-    "pnpm6",
+    "pnpm7",
     "store",
     "storage",
     "global store",
