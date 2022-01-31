@@ -1,12 +1,13 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
+import PATH_NAME from 'path-name'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
 import { execPnpmSync } from './utils'
 
 test('pnpm root', async () => {
   tempDir()
-  await fs.writeFile('package.json', '{}', 'utf8')
+  fs.writeFileSync('package.json', '{}', 'utf8')
 
   const result = execPnpmSync(['root'])
 
@@ -19,9 +20,10 @@ test('pnpm root -g', async () => {
   tempDir()
 
   const global = path.resolve('global')
-  await fs.mkdir(global)
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
 
-  const env = { XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   const result = execPnpmSync(['root', '-g'], { env })
 

@@ -2,7 +2,6 @@ import path from 'path'
 import fs from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
-import globalBinDir from '@pnpm/global-bin-dir'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import camelcase from 'camelcase'
@@ -12,6 +11,7 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
+import { checkGlobalBinDir } from './checkGlobalBinDir'
 import getScopeRegistries from './getScopeRegistries'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
@@ -131,8 +131,10 @@ export default async (
     rcOptionsTypes?: Record<string, unknown>
     workspaceDir?: string | undefined
     checkUnknownSetting?: boolean
+    env?: Record<string, string | undefined>
   }
 ): Promise<{ config: Config, warnings: string[] }> => {
+  const env = opts.env ?? process.env
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}
   const warnings = new Array<string>()
@@ -275,7 +277,6 @@ export default async (
   pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions['global']) {
-    const knownGlobalBinDirCandidates: string[] = []
     let globalDirRoot
     if (pnpmConfig['globalDir']) {
       globalDirRoot = pnpmConfig['globalDir']
@@ -284,18 +285,14 @@ export default async (
     }
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
-    const npmConfigGlobalBinDir = npmConfig.get('global-bin-dir')
-    if (typeof npmConfigGlobalBinDir === 'string') {
-      fs.mkdirSync(npmConfigGlobalBinDir, { recursive: true })
-      pnpmConfig.bin = npmConfigGlobalBinDir
+    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
+    if (pnpmConfig.bin) {
+      fs.mkdirSync(pnpmConfig.bin, { recursive: true })
+      checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
     } else {
-      pnpmConfig.bin = cliOptions.dir
-        ? (
-          process.platform === 'win32'
-            ? cliOptions.dir
-            : path.resolve(cliOptions.dir, 'bin')
-        )
-        : globalBinDir(knownGlobalBinDirCandidates, { shouldAllowWrite: opts.globalDirShouldAllowWrite === true })
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+        hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+      })
     }
     pnpmConfig.save = true
     pnpmConfig.allowNew = true

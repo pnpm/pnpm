@@ -19,9 +19,6 @@
       "path": "../error"
     },
     {
-      "path": "../global-bin-dir"
-    },
-    {
       "path": "../pnpmfile"
     },
     {

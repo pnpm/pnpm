@@ -1,6 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import { promises as fs } from 'fs'
 import path from 'path'
+import PATH from 'path-name'
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
@@ -16,6 +17,11 @@ delete process.env.npm_config_registry
 delete process.env.npm_config_virtual_store_dir
 delete process.env.npm_config_shared_workspace_lockfile
 delete process.env.npm_config_side_effects_cache
+
+const env = {
+  PNPM_HOME: __dirname,
+  [PATH]: __dirname,
+}
 
 test('getConfig()', async () => {
   const { config } = await getConfig({
@@ -39,6 +45,7 @@ test('throw error if --link-workspace-packages is used with --global', async () 
         global: true,
         'link-workspace-packages': true,
       },
+      env,
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
@@ -56,6 +63,7 @@ test('correct settings on global install', async () => {
       global: true,
       save: false,
     },
+    env,
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
@@ -71,6 +79,7 @@ test('throw error if --shared-workspace-lockfile is used with --global', async (
         global: true,
         'shared-workspace-lockfile': true,
       },
+      env,
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
@@ -89,6 +98,7 @@ test('throw error if --lockfile-dir is used with --global', async () => {
         global: true,
         'lockfile-dir': '/home/src',
       },
+      env,
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
@@ -107,6 +117,7 @@ test('throw error if --hoist-pattern is used with --global', async () => {
         global: true,
         'hoist-pattern': 'eslint',
       },
+      env,
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
@@ -125,6 +136,7 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
         global: true,
         'virtual-store-dir': 'pkgs',
       },
+      env,
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
@@ -167,6 +179,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
       cliOptions: {
         global: true,
       },
+      env,
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',

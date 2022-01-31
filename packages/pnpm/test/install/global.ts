@@ -1,5 +1,6 @@
 import path from 'path'
-import { promises as fs } from 'fs'
+import PATH_NAME from 'path-name'
+import fs from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import isWindows from 'is-windows'
@@ -12,9 +13,10 @@ import {
 test('global installation', async () => {
   prepare()
   const global = path.resolve('..', 'global')
-  await fs.mkdir(global)
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
 
-  const env = { XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   await execPnpm(['install', '--global', 'is-positive'], { env })
 
@@ -33,8 +35,11 @@ test('global installation', async () => {
 
 test('global installation to custom directory with --global-dir', async () => {
   prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome }
 
-  await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'])
+  await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'], { env })
 
   const { default: isPositive } = await import(path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`))
   expect(typeof isPositive).toBe('function')
@@ -45,9 +50,10 @@ test('always install latest when doing global installation without spec', async 
   await addDistTag('peer-c', '2.0.0', 'latest')
 
   const global = path.resolve('..', 'global')
-  await fs.mkdir(global)
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
 
-  const env = { XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   await execPnpm(['install', '-g', 'peer-c@1'], { env })
   await execPnpm(['install', '-g', 'peer-c'], { env })
@@ -68,9 +74,14 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   prepare()
   const global = path.resolve('..', 'global')
-  await fs.mkdir(global)
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
 
-  const env = { XDG_DATA_HOME: global }
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
 
   await execPnpm(['install', '-g', 'postinstall-calls-pnpm@1.0.0'], { env })
 
