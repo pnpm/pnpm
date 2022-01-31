@@ -47,8 +47,10 @@ test('run: pass the args to the command that is specfied in the build script', a
   ])
 })
 
-// Before pnpm v7, `--` was required to pass flags to a build script.
-test('run: handle -- in a backwards compatible manner', async () => {
+// Before pnpm v7, `--` was required to pass flags to a build script. Now all
+// arguments after the script name should be passed to the build script, even
+// `--`.
+test('run: pass all arguments after script name to the build script, even --', async () => {
   prepare({
     name: 'project',
     scripts: {
@@ -61,26 +63,6 @@ test('run: handle -- in a backwards compatible manner', async () => {
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await execPnpm(['run', 'foo', 'arg', '--', '--flag=true'])
-
-  const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([
-    ['arg', '--flag=true'],
-  ])
-})
-
-test('run: pass -- to the build script if specified twice', async () => {
-  prepare({
-    name: 'project',
-    scripts: {
-      foo: 'node recordArgs',
-      postfoo: 'node recordArgs',
-      prefoo: 'node recordArgs',
-    },
-  })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
-
-  await execPnpm(['run', 'foo', '--', 'arg', '--', '--flag=true'])
 
   const { default: args } = await import(path.resolve('args.json'))
   expect(args).toStrictEqual([
