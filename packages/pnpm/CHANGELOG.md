@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.29.1
+
+### Patch Changes
+
+- Installation should not hang when there are broken symlinks in `node_modules`.
+
 ## 6.29.0
 
 ### Minor Changes

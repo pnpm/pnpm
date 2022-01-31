@@ -45,7 +45,7 @@
     "@pnpm/modules-yaml": "workspace:9.1.0",
     "@pnpm/read-projects-context": "workspace:5.0.17",
     "@pnpm/types": "workspace:7.9.0",
-    "@zkochan/rimraf": "^2.1.1",
+    "@zkochan/rimraf": "^2.1.2",
     "is-ci": "^3.0.0",
     "path-absolute": "^1.0.1",
     "ramda": "^0.27.1"

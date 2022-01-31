@@ -32,7 +32,7 @@
     "@pnpm/package-bins": "workspace:5.0.11",
     "@pnpm/read-package-json": "workspace:5.0.10",
     "@pnpm/types": "workspace:7.9.0",
-    "@zkochan/rimraf": "^2.1.1",
+    "@zkochan/rimraf": "^2.1.2",
     "cmd-extension": "^1.0.2",
     "is-windows": "^1.0.2"
   },

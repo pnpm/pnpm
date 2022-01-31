@@ -50,7 +50,7 @@
     "p-memoize": "4.0.1",
     "parse-npm-tarball-url": "^3.0.0",
     "path-temp": "^2.0.0",
-    "rename-overwrite": "^4.0.1",
+    "rename-overwrite": "^4.0.2",
     "semver": "^7.3.4",
     "ssri": "^8.0.1",
     "version-selector-type": "^3.0.0"

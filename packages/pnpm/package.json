@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "6.29.0",
+  "version": "6.29.1",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -68,7 +68,7 @@
     "@types/semver": "^7.3.4",
     "@types/which": "^2.0.0",
     "@zkochan/retry": "^0.2.0",
-    "@zkochan/rimraf": "^2.1.1",
+    "@zkochan/rimraf": "^2.1.2",
     "chalk": "^4.1.0",
     "cross-spawn": "^7.0.3",
     "cross-var-no-babel": "^1.2.0",
