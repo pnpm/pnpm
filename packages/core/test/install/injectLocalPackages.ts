@@ -357,8 +357,6 @@ test('inject local packages when node-linker is hoisted', async () => {
     version: '1.0.0',
     dependencies: {
       'is-negative': '1.0.0',
-    },
-    devDependencies: {
       'dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
@@ -370,6 +368,7 @@ test('inject local packages when node-linker is hoisted', async () => {
     version: '1.0.0',
     dependencies: {
       'project-1': 'workspace:1.0.0',
+      'dep-of-pkg-with-1-dep': '101.0.0',
     },
     devDependencies: {
       'is-positive': '1.0.0',
@@ -461,6 +460,7 @@ test('inject local packages when node-linker is hoisted', async () => {
   await rootModules.has('is-positive')
 
   await projects['project-2'].has('project-1')
+  await projects['project-2'].has('project-1/node_modules/dep-of-pkg-with-1-dep')
 
   await projects['project-3'].has('project-1')
   await projects['project-3'].has('project-2')
@@ -485,6 +485,7 @@ test('inject local packages when node-linker is hoisted', async () => {
         'is-positive': '>=1.0.0',
       },
       dependencies: {
+        'dep-of-pkg-with-1-dep': '100.0.0',
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
@@ -499,6 +500,7 @@ test('inject local packages when node-linker is hoisted', async () => {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {
+        'dep-of-pkg-with-1-dep': '101.0.0',
         'project-1': 'file:project-1_is-positive@2.0.0',
       },
       transitivePeerDependencies: ['is-positive'],
