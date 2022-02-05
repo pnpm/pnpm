@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [7ae349cd3]
+  - @pnpm/lifecycle@12.1.5
+
 ## 8.0.0
 
 ### Major Changes

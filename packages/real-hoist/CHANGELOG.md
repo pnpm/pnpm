@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 0.1.6
+
+### Patch Changes
+
+- 329e186e9: Allow to set hoistingLimits for the hoisted node linker.
+
 ## 0.1.5
 
 ### Patch Changes

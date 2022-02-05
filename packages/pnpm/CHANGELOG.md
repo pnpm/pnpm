@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.29.2
+
+### Patch Changes
+
+- `node_modules` directories inside injected dependencies should not be overwritten [#4299](https://github.com/pnpm/pnpm/pull/4299).
+
 ## 6.29.1
 
 ### Patch Changes

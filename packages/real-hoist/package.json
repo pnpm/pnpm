@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/real-hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -38,6 +38,6 @@
   "devDependencies": {
     "@pnpm/lockfile-file": "workspace:4.2.6",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/real-hoist": "workspace:0.1.5"
+    "@pnpm/real-hoist": "workspace:0.1.6"
   }
 }

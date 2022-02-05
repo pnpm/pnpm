@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "2.5.4",
+  "version": "2.6.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -15,16 +15,16 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:8.0.0",
+    "@pnpm/build-modules": "workspace:8.0.1",
     "@pnpm/calc-dep-state": "workspace:1.0.0",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/core-loggers": "workspace:6.1.3",
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/filter-lockfile": "workspace:5.0.17",
     "@pnpm/get-context": "workspace:5.3.6",
-    "@pnpm/headless": "workspace:17.2.2",
+    "@pnpm/headless": "workspace:17.3.0",
     "@pnpm/hoist": "workspace:5.2.13",
-    "@pnpm/lifecycle": "workspace:12.1.4",
+    "@pnpm/lifecycle": "workspace:12.1.5",
     "@pnpm/link-bins": "workspace:6.2.10",
     "@pnpm/lockfile-file": "workspace:4.2.6",
     "@pnpm/lockfile-to-pnp": "workspace:0.4.45",
@@ -70,7 +70,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:3.0.13",
     "@pnpm/client": "workspace:6.1.1",
-    "@pnpm/core": "workspace:2.5.4",
+    "@pnpm/core": "workspace:2.6.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.1.8",
     "@pnpm/prepare": "workspace:*",
