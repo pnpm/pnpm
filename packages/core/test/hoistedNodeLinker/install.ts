@@ -198,3 +198,21 @@ test('running install scripts in a workspace that has no root project', async ()
 
   expect(fs.existsSync('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 })
+
+test('hoistingLimits should prevent packages to be hoisted', async () => {
+  prepareEmpty()
+
+  const hoistingLimits = new Map()
+  hoistingLimits.set('.@', new Set(['send']))
+  await install({
+    dependencies: {
+      send: '0.17.2',
+    },
+  }, await testDefaults({
+    nodeLinker: 'hoisted',
+    hoistingLimits,
+  }))
+
+  expect(fs.existsSync('node_modules/ms')).toBeFalsy()
+  expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
+})

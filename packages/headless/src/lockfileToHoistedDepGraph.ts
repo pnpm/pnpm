@@ -16,7 +16,7 @@ import {
   FetchPackageToStoreFunction,
   StoreController,
 } from '@pnpm/store-controller-types'
-import hoist, { HoisterResult } from '@pnpm/real-hoist'
+import hoist, { HoistingLimits, HoisterResult } from '@pnpm/real-hoist'
 import * as dp from 'dependency-path'
 import {
   DependenciesGraph,
@@ -28,6 +28,7 @@ import {
 export interface LockfileToHoistedDepGraphOptions {
   engineStrict: boolean
   force: boolean
+  hoistingLimits?: HoistingLimits
   importerIds: string[]
   include: IncludedDependencies
   lockfileDir: string
@@ -62,7 +63,7 @@ async function _lockfileToHoistedDepGraph (
   lockfile: Lockfile,
   opts: LockfileToHoistedDepGraphOptions
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
-  const tree = hoist(lockfile)
+  const tree = hoist(lockfile, { hoistingLimits: opts.hoistingLimits })
   const graph: DependenciesGraph = {}
   const modulesDir = path.join(opts.lockfileDir, 'node_modules')
   const fetchDepsOpts = {
