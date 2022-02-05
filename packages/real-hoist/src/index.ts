@@ -5,9 +5,16 @@ import {
 import * as dp from 'dependency-path'
 import { hoist, HoisterDependencyKind, HoisterTree, HoisterResult } from '@yarnpkg/nm/lib/hoist'
 
+export type HoistingLimits = Map<string, Set<string>>
+
 export { HoisterResult }
 
-export default function hoistByLockfile (lockfile: Lockfile): HoisterResult {
+export default function hoistByLockfile (
+  lockfile: Lockfile,
+  opts?: {
+    hoistingLimits?: HoistingLimits
+  }
+): HoisterResult {
   const nodes = new Map<string, HoisterTree>()
   const node: HoisterTree = {
     name: '.',
@@ -38,7 +45,7 @@ export default function hoistByLockfile (lockfile: Lockfile): HoisterResult {
     node.dependencies.add(importerNode)
   }
 
-  return hoist(node)
+  return hoist(node, opts)
 }
 
 function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Record<string, string>): Set<HoisterTree> {
