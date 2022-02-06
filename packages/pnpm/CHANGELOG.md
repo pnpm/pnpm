@@ -1,5 +1,17 @@
 # pnpm
 
+## 6.30.0
+
+### Minor Changes
+
+- When checking that a package is linked from the store, check the existence of the package and read its stats with a single filesystem operation [#4304](https://github.com/pnpm/pnpm/pull/4304).
+
+## 6.29.2
+
+### Patch Changes
+
+- `node_modules` directories inside injected dependencies should not be overwritten [#4299](https://github.com/pnpm/pnpm/pull/4299).
+
 ## 6.29.1
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 2.6.0
+
+### Minor Changes
+
+- 329e186e9: Allow to set hoistingLimits for the hoisted node linker.
+
+### Patch Changes
+
+- Updated dependencies [7ae349cd3]
+- Updated dependencies [329e186e9]
+  - @pnpm/lifecycle@12.1.5
+  - @pnpm/headless@17.3.0
+  - @pnpm/build-modules@8.0.1
+
 ## 2.5.4
 
 ### Patch Changes

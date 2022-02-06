@@ -6,6 +6,7 @@ export {
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
+export { HoistingLimits } from '@pnpm/headless'
 export * from './api'
 
 export { ProjectOptions, UnexpectedStoreError, UnexpectedVirtualStoreDirError } from '@pnpm/get-context'

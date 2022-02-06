@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "12.1.4",
+  "version": "12.1.5",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -45,7 +45,7 @@
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
-    "@pnpm/lifecycle": "workspace:12.1.4",
+    "@pnpm/lifecycle": "workspace:12.1.5",
     "@pnpm/logger": "^4.0.0",
     "@types/rimraf": "^3.0.0",
     "@zkochan/rimraf": "^2.1.2",

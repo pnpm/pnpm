@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 12.1.5
+
+### Patch Changes
+
+- 7ae349cd3: `node_modules` directories inside injected dependencies should not be overwritten.
+
 ## 12.1.4
 
 ### Patch Changes

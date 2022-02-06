@@ -46,6 +46,7 @@ import {
   IncludedDependencies,
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
+import { HoistingLimits } from '@pnpm/real-hoist'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
@@ -73,6 +74,8 @@ import lockfileToDepGraph, {
 } from './lockfileToDepGraph'
 import lockfileToHoistedDepGraph from './lockfileToHoistedDepGraph'
 
+export { HoistingLimits }
+
 export type ReporterFunction = (logObj: LogBase) => void
 
 export interface Project {
@@ -95,6 +98,7 @@ export interface HeadlessOptions {
   enablePnp?: boolean
   engineStrict: boolean
   extraBinPaths?: string[]
+  hoistingLimits?: HoistingLimits
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
   include: IncludedDependencies

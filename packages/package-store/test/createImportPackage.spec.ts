@@ -145,3 +145,51 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
   expect(fsMock.promises.copyFile).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
   expect(fsMock.promises.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
 })
+
+test('packageImportMethod=hardlink does not relink package from store if package.json is linked from the store', async () => {
+  const importPackage = createImportPackage('hardlink')
+  fsMock.promises.copyFile = jest.fn()
+  fsMock.promises.rename = jest.fn()
+  fsMock.promises.stat = jest.fn(() => ({ ino: 1 }))
+  expect(await importPackage('project/package', {
+    filesMap: {
+      'index.js': 'hash2',
+      'package.json': 'hash1',
+    },
+    force: false,
+    fromStore: true,
+  })).toBe(undefined)
+})
+
+test('packageImportMethod=hardlink relinks package from store if package.json is not linked from the store', async () => {
+  const importPackage = createImportPackage('hardlink')
+  fsMock.promises.copyFile = jest.fn()
+  fsMock.promises.rename = jest.fn()
+  let ino = 0
+  fsMock.promises.stat = jest.fn(() => ({ ino: ++ino }))
+  expect(await importPackage('project/package', {
+    filesMap: {
+      'index.js': 'hash2',
+      'package.json': 'hash1',
+    },
+    force: false,
+    fromStore: true,
+  })).toBe('hardlink')
+})
+
+test('packageImportMethod=hardlink does not relink package from store if package.json is not present in the store', async () => {
+  const importPackage = createImportPackage('hardlink')
+  fsMock.promises.copyFile = jest.fn()
+  fsMock.promises.rename = jest.fn()
+  fsMock.promises.stat = jest.fn((file) => {
+    expect(typeof file).toBe('string')
+    return { ino: 1 }
+  })
+  expect(await importPackage('project/package', {
+    filesMap: {
+      'index.js': 'hash2',
+    },
+    force: false,
+    fromStore: true,
+  })).toBe(undefined)
+})
