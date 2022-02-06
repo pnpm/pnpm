@@ -1,4 +1,4 @@
-import { constants, promises as fs } from 'fs'
+import { constants, promises as fs, Stats } from 'fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
@@ -107,9 +107,11 @@ async function hardlinkPkg (
   to: string,
   opts: ImportOptions
 ) {
-  const pkgJsonPath = path.join(to, 'package.json')
-
-  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, opts.filesMap['package.json'], to)) {
+  if (
+    !opts.fromStore ||
+    opts.force ||
+    !await pkgLinkedToStore(opts.filesMap, to)
+  ) {
     await importIndexedDir(importFile, to, opts.filesMap)
     return 'hardlink'
   }
@@ -131,18 +133,32 @@ async function linkOrCopy (existingPath: string, newPath: string) {
 }
 
 async function pkgLinkedToStore (
-  pkgJsonPath: string,
-  pkgJsonPathInStore: string,
+  filesMap: Record<string, string>,
   to: string
 ) {
-  if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
+  if (filesMap['package.json']) {
+    if (await isSameFile(path.join(to, 'package.json'), filesMap['package.json'])) {
+      return true
+    }
+  } else {
+    // An injected package might not have a package.json.
+    // This will probably only even happen in a Bit workspace.
+    const [anyFile] = Object.keys(filesMap)
+    if (await isSameFile(path.join(to, anyFile), filesMap[anyFile])) return true
+  }
   globalInfo(`Relinking ${to} from the store`)
   return false
 }
 
-async function isSameFile (file1: string, file2: string) {
-  const stats = await Promise.all([fs.stat(file1), fs.stat(file2)])
-  return stats[0].ino === stats[1].ino
+async function isSameFile (linkedFile: string, fileFromStore: string) {
+  let stats0!: Stats
+  try {
+    stats0 = await fs.stat(linkedFile)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return false
+  }
+  const stats1 = await fs.stat(fileFromStore)
+  return stats0.ino === stats1.ino
 }
 
 export async function copyPkg (
