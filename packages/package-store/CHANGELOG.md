@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 12.1.9
+
+### Patch Changes
+
+- 50e347d23: When checking whether a package is linked from the store, don't fail if the package has no `package.json` file.
+  - @pnpm/package-requester@16.0.1
+
 ## 12.1.8
 
 ### Patch Changes
