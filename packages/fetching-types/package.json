@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/fetching-types#readme",
   "scripts": {
-    "compile": "tsc --build && pnpm run lint -- --fix",
+    "compile": "tsc --build && pnpm run lint --fix",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile"
