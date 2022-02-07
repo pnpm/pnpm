@@ -1,5 +1,6 @@
-import { promises as fs } from 'fs'
+import { promises as fs, mkdirSync } from 'fs'
 import path from 'path'
+import PATH_NAME from 'path-name'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { execPnpm, execPnpmSync } from './utils'
 
@@ -123,8 +124,17 @@ test('silent run only prints the output of the child process', async () => {
 
 test('silent dlx prints the output of the child process only', async () => {
   prepare({})
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  mkdirSync(global)
 
-  const result = execPnpmSync(['--silent', 'dlx', 'shx', 'echo', 'hi'])
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`, // eslint-disable-line
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+
+  const result = execPnpmSync(['--silent', 'dlx', 'shx', 'echo', 'hi'], { env })
 
   expect(result.stdout.toString().trim()).toBe('hi')
 })

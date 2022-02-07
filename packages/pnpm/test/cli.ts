@@ -1,6 +1,7 @@
-import { createReadStream, promises as fs } from 'fs'
+import { createReadStream, promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import pathExists from 'path-exists'
+import PATH_NAME from 'path-name'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
@@ -123,8 +124,17 @@ test('adding new dep does not fail if node_modules was created with --public-hoi
 
 test('pnpx works', () => {
   prepareEmpty()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  mkdirSync(global)
 
-  const result = execPnpxSync(['hello-world-js-bin'])
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`, // eslint-disable-line
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+
+  const result = execPnpxSync(['hello-world-js-bin'], { env })
 
   expect(result.stdout.toString()).toMatch(/Hello world!/)
   expect(result.status).toBe(0)
