@@ -77,9 +77,12 @@ export function execPnpmSync (args: string[], opts?: { env: Object }): ChildProc
   }) as ChildProcess
 }
 
-export function execPnpxSync (args: string[]): ChildProcess {
+export function execPnpxSync (args: string[], opts?: { env: Object }): ChildProcess {
   return crossSpawn.sync(process.execPath, [pnpxBinLocation, ...args], {
-    env: createEnv(),
+    env: {
+      ...createEnv(),
+      ...opts?.env,
+    } as NodeJS.ProcessEnv,
   }) as ChildProcess
 }
 

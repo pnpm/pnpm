@@ -22,7 +22,7 @@
     "test": "pnpm run compile",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "semver": "^7.3.4"

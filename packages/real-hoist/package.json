@@ -27,7 +27,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/lockfile-utils": "workspace:3.2.0",

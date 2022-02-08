@@ -27,16 +27,16 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@v1
     - name: Install pnpm
-      uses: pnpm/action-setup@v2.0.1
+      uses: pnpm/action-setup@pnpm-v7
       with:
-        version: next
+        version: next-7
     - name: Setup Node
       uses: actions/setup-node@v2
       with:
         node-version: ${{ matrix.node }}
         cache: 'pnpm'
     - name: Install npm@7
-      run: pnpm add --global npm@7
+      run: npm add --global npm@7
     - name: pnpm install
       run: pnpm install
     # - name: Audit
