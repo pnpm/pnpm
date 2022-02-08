@@ -383,13 +383,6 @@ test('adding new dependency in the root should fail if neither --workspace-root 
   }
 
   {
-    const { status } = execPnpmSync(['add', 'is-negative', '-W'])
-
-    expect(status).toBe(0)
-    await project.has('is-negative')
-  }
-
-  {
     const { status } = execPnpmSync(['add', 'is-odd', '--workspace-root'])
 
     expect(status).toBe(0)
