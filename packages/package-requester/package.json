@@ -64,7 +64,7 @@
     "@pnpm/client": "workspace:6.1.1",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-requester": "workspace:16.0.1",
-    "@pnpm/package-store": "workspace:12.1.9",
+    "@pnpm/package-store": "workspace:12.1.10",
     "@pnpm/registry-mock": "2.12.1",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",

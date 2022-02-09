@@ -8,8 +8,10 @@ import importIndexedDir, { ImportFile } from '../fs/importIndexedDir'
 
 const limitLinking = pLimit(16)
 
+type FilesMap = Record<string, string>
+
 interface ImportOptions {
-  filesMap: Record<string, string>
+  filesMap: FilesMap
   force: boolean
   fromStore: boolean
 }
@@ -133,32 +135,34 @@ async function linkOrCopy (existingPath: string, newPath: string) {
 }
 
 async function pkgLinkedToStore (
-  filesMap: Record<string, string>,
+  filesMap: FilesMap,
   to: string
 ) {
   if (filesMap['package.json']) {
-    if (await isSameFile(path.join(to, 'package.json'), filesMap['package.json'])) {
+    if (await isSameFile('package.json', to, filesMap)) {
       return true
     }
   } else {
     // An injected package might not have a package.json.
     // This will probably only even happen in a Bit workspace.
     const [anyFile] = Object.keys(filesMap)
-    if (await isSameFile(path.join(to, anyFile), filesMap[anyFile])) return true
+    if (await isSameFile(anyFile, to, filesMap)) return true
   }
-  globalInfo(`Relinking ${to} from the store`)
   return false
 }
 
-async function isSameFile (linkedFile: string, fileFromStore: string) {
+async function isSameFile (filename: string, linkedPkgDir: string, filesMap: FilesMap) {
+  const linkedFile = path.join(linkedPkgDir, filename)
   let stats0!: Stats
   try {
     stats0 = await fs.stat(linkedFile)
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') return false
   }
-  const stats1 = await fs.stat(fileFromStore)
-  return stats0.ino === stats1.ino
+  const stats1 = await fs.stat(filesMap[filename])
+  if (stats0.ino === stats1.ino) return true
+  globalInfo(`Relinking ${linkedPkgDir} from the store`)
+  return false
 }
 
 export async function copyPkg (

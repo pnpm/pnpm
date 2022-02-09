@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-env",
-  "version": "1.4.11",
+  "version": "1.4.12",
   "description": "pnpm commands for managing Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,7 +35,7 @@
     "@pnpm/error": "workspace:2.0.0",
     "@pnpm/fetch": "workspace:4.2.4",
     "@pnpm/fetcher-base": "workspace:11.1.5",
-    "@pnpm/package-store": "workspace:12.1.9",
+    "@pnpm/package-store": "workspace:12.1.10",
     "@pnpm/store-path": "^5.0.0",
     "@pnpm/tarball-fetcher": "workspace:9.3.15",
     "@zkochan/cmd-shim": "^5.2.1",
@@ -50,7 +50,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/plugin-commands-env": "workspace:1.4.11",
+    "@pnpm/plugin-commands-env": "workspace:1.4.12",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
     "execa": "npm:safe-execa@^0.1.1",

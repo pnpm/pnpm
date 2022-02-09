@@ -72,7 +72,7 @@
     "@pnpm/client": "workspace:6.1.1",
     "@pnpm/core": "workspace:2.6.0",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.1.9",
+    "@pnpm/package-store": "workspace:12.1.10",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.12.1",
     "@pnpm/store-path": "^5.0.0",
