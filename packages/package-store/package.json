@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "12.1.9",
+  "version": "12.1.10",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -38,7 +38,7 @@
   "devDependencies": {
     "@pnpm/client": "workspace:6.1.1",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.1.9",
+    "@pnpm/package-store": "workspace:12.1.10",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.27.39",
     "@types/ssri": "^7.1.0",

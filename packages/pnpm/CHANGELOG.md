@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.30.1
+
+### Patch Changes
+
+- This fixes an issue introduced in pnpm v6.30.0.
+
+  When a package is not linked to `node_modules`, no info message should be printed about it being "relinked" from the store [#4314](https://github.com/pnpm/pnpm/issues/4314).
+
 ## 6.30.0
 
 ### Minor Changes
