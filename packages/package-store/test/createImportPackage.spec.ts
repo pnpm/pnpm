@@ -11,6 +11,12 @@ jest.mock('fs', () => {
 })
 jest.mock('path-temp', () => (dir: string) => path.join(dir, '_tmp'))
 jest.mock('rename-overwrite', () => jest.fn())
+const globalInfo = jest.fn()
+const globalWarn = jest.fn()
+const baseLogger = jest.fn(() => ({ debug: jest.fn() }))
+baseLogger['globalInfo'] = globalInfo
+baseLogger['globalWarn'] = globalWarn
+jest.mock('@pnpm/logger', () => baseLogger)
 
 // eslint-disable-next-line
 import createImportPackage from '@pnpm/package-store/lib/storeController/createImportPackage'
@@ -162,6 +168,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
 })
 
 test('packageImportMethod=hardlink relinks package from store if package.json is not linked from the store', async () => {
+  globalInfo.mockReset()
   const importPackage = createImportPackage('hardlink')
   fsMock.promises.copyFile = jest.fn()
   fsMock.promises.rename = jest.fn()
@@ -175,6 +182,7 @@ test('packageImportMethod=hardlink relinks package from store if package.json is
     force: false,
     fromStore: true,
   })).toBe('hardlink')
+  expect(globalInfo).toBeCalledWith('Relinking project/package from the store')
 })
 
 test('packageImportMethod=hardlink does not relink package from store if package.json is not present in the store', async () => {
@@ -192,4 +200,28 @@ test('packageImportMethod=hardlink does not relink package from store if package
     force: false,
     fromStore: true,
   })).toBe(undefined)
+})
+
+test('packageImportMethod=hardlink links packages when they are not found', async () => {
+  globalInfo.mockReset()
+  const importPackage = createImportPackage('hardlink')
+  fsMock.promises.copyFile = jest.fn()
+  fsMock.promises.rename = jest.fn()
+  fsMock.promises.stat = jest.fn((file) => {
+    if (file === path.join('project/package', 'package.json')) {
+      const err = new Error()
+      err['code'] = 'ENOENT'
+      throw err
+    }
+    return { ino: 0 }
+  })
+  expect(await importPackage('project/package', {
+    filesMap: {
+      'index.js': 'hash2',
+      'package.json': 'hash1',
+    },
+    force: false,
+    fromStore: true,
+  })).toBe('hardlink')
+  expect(globalInfo).not.toBeCalledWith('Relinking project/package from the store')
 })
