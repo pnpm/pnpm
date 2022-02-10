@@ -8,10 +8,10 @@ import sortPackages from '@pnpm/sort-packages'
 import { Project } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
-import PATH from 'path-name'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import existsInDir from './existsInDir'
+import { makeEnv } from './makeEnv'
 import {
   PARALLEL_OPTION_HELP,
   shorthands as runShorthands,
@@ -70,7 +70,7 @@ export async function handler (
     reverse?: boolean
     sort?: boolean
     workspaceConcurrency?: number
-  } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'recursive' | 'workspaceDir'>,
+  } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
   // For backward compatibility
@@ -119,18 +119,20 @@ export async function handler (
           const extraEnv = pnpPath
             ? makeNodeRequireOption(pnpPath)
             : {}
-          await execa(params[0], params.slice(1), {
-            cwd: prefix,
-            env: {
-              ...process.env,
+          const env = makeEnv({
+            extraEnv: {
               ...extraEnv,
-              [PATH]: [
-                path.join(opts.dir, 'node_modules/.bin'),
-                ...opts.extraBinPaths,
-                process.env[PATH],
-              ].join(path.delimiter),
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
             },
+            prependPaths: [
+              path.join(opts.dir, 'node_modules/.bin'),
+              ...opts.extraBinPaths,
+            ],
+            userAgent: opts.userAgent,
+          })
+          await execa(params[0], params.slice(1), {
+            cwd: prefix,
+            env,
             stdio: 'inherit',
           })
           result.passes++
