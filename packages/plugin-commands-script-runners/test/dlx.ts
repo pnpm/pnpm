@@ -8,10 +8,15 @@ beforeEach((execa as jest.Mock).mockClear)
 
 test('dlx should work with scoped packages', async () => {
   prepareEmpty()
+  const userAgent = 'pnpm/0.0.0'
 
-  await dlx.handler({}, ['@foo/bar'])
+  await dlx.handler({ userAgent }, ['@foo/bar'])
 
-  expect(execa).toBeCalledWith('bar', [], expect.anything())
+  expect(execa).toBeCalledWith('bar', [], expect.objectContaining({
+    env: expect.objectContaining({
+      npm_config_user_agent: userAgent,
+    }),
+  }))
 })
 
 test('dlx should work with versioned packages', async () => {
