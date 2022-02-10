@@ -60,7 +60,7 @@ importers:
       ts-jest: 27.1.3
       ts-node: ^10.4.0
       typescript: 4.6.0-beta
-      verdaccio: 5.5.0
+      verdaccio: ^5.5.2
     devDependencies:
       '@babel/core': 7.17.2
       '@babel/plugin-proposal-dynamic-import': 7.16.7_@babel+core@7.17.2
@@ -91,7 +91,7 @@ importers:
       ts-jest: 27.1.3_b6661d2815432df67610ecfd94d2c2e8
       ts-node: 10.5.0_65f0f064776d8f9eb45329b20088056e
       typescript: 4.6.0-beta
-      verdaccio: 5.5.0
+      verdaccio: 5.5.2
 
   .meta-updater:
     specifiers:
@@ -5771,11 +5771,6 @@ packages:
     resolution: {integrity: sha512-19FebNvwNiJkk68fFEq/kNOcPNKYX/NoPFqOlZH6mGUGUo3htHh4tD5k2WepAZpBeK9SC868UiPbMizdIXquSg==}
     engines: {node: '>=8', npm: '>=5'}
 
-  /@verdaccio/ui-theme/6.0.0-6-next.15:
-    resolution: {integrity: sha512-qKqsk3OUIG1VJh2cgkA8H1nSyB1ybMw9VAiWkBarv8uriRkwG+cIcEMUXZuG1pnr6ieNLsYtLRGKbnlBhIpSaA==}
-    engines: {node: '>=14', npm: '>=6'}
-    dev: true
-
   /@verdaccio/ui-theme/6.0.0-6-next.16:
     resolution: {integrity: sha512-FbYl3273qaA0/fRwrvE876/HuvU81zjsnR70rCEojBelDuddl3xbY1LVdvthCjUGuIj2SUNpTzGhyROdqHJUCg==}
 
@@ -10520,8 +10515,8 @@ packages:
       nwsapi: 2.2.0
       parse5: 5.1.0
       pn: 1.1.0
-      request: 2.88.0
-      request-promise-native: 1.0.9_request@2.88.0
+      request: 2.88.2
+      request-promise-native: 1.0.9_request@2.88.2
       saxes: 3.1.11
       symbol-tree: 3.2.4
       tough-cookie: 3.0.1
@@ -11093,12 +11088,6 @@ packages:
     resolution: {integrity: sha512-1RUZVgQlpJSPWYbFSpmudq5nHY1doEIv89gBtF0s4gW1GF2XorxcA/70M5vq7rLv0a6mhOUccRsqkwhwLCIQ2Q==}
     dev: false
 
-  /marked/2.1.3:
-    resolution: {integrity: sha512-/Q+7MGzaETqifOMWYEA7HVMaZb4XbcRfaOzcSsHZEith83KGlvaSG33u0SKu89Mj5h+T8V2hM+8O45Qc5XTgwA==}
-    engines: {node: '>= 10'}
-    hasBin: true
-    dev: true
-
   /marked/4.0.10:
     resolution: {integrity: sha512-+QvuFj0nGgO970fySghXGmuw+Fd0gD2x3+MqCWLIPf5oxdv1Ka6b2q+z9RP01P/IaKPMEramy+7cNy/Lw8c3hw==}
     engines: {node: '>= 12'}
@@ -11274,12 +11263,6 @@ packages:
     resolution: {integrity: sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg==}
     engines: {node: '>=4'}
     hasBin: true
-
-  /mime/2.6.0:
-    resolution: {integrity: sha512-USPkMeET31rOMiarsBNIHZKLGgvKc/LrjofAnBlOttf5ajRvqiRA8QsenbcooctK6d6Ts6aqZXBA+XbkKthiQg==}
-    engines: {node: '>=4.0.0'}
-    hasBin: true
-    dev: true
 
   /mime/3.0.0:
     resolution: {integrity: sha512-jSCU7/VB1loIWBZe14aEYHU/+1UMEHoaO7qxCOVJOw9GgH72VAWppxNcjU+x9a2k3GSIBXNKxXQFqRvvZ7vr3A==}
@@ -12898,24 +12881,24 @@ packages:
     engines: {node: '>=8'}
     dev: false
 
-  /request-promise-core/1.1.4_request@2.88.0:
+  /request-promise-core/1.1.4_request@2.88.2:
     resolution: {integrity: sha512-TTbAfBBRdWD7aNNOoVOBH4pN/KigV6LyapYNNlAPA8JwbovRti1E88m3sYAwsLi5ryhPKsE9APwnjFTgdUjTpw==}
     engines: {node: '>=0.10.0'}
     peerDependencies:
       request: ^2.34
     dependencies:
       lodash: 4.17.21
-      request: 2.88.0
+      request: 2.88.2
 
-  /request-promise-native/1.0.9_request@2.88.0:
+  /request-promise-native/1.0.9_request@2.88.2:
     resolution: {integrity: sha512-wcW+sIUiWnKgNY0dqCpOZkUbF/I+YPi+f09JZIDa39Ec+q82CpSYniDp+ISgTTbKmnpJWASeJBPZmoxH84wt3g==}
     engines: {node: '>=0.12.0'}
     deprecated: request-promise-native has been deprecated because it extends the now deprecated request package, see https://github.com/request/request/issues/3142
     peerDependencies:
       request: ^2.34
     dependencies:
-      request: 2.88.0
-      request-promise-core: 1.1.4_request@2.88.0
+      request: 2.88.2
+      request-promise-core: 1.1.4_request@2.88.2
       stealthy-require: 1.1.1
       tough-cookie: 2.5.0
 
@@ -14610,61 +14593,6 @@ packages:
       bcryptjs: 2.4.3
       http-errors: 1.8.1
       unix-crypt-td-js: 1.1.4
-
-  /verdaccio/5.5.0:
-    resolution: {integrity: sha512-isHIHRpjoT0cUXQyH1wAAHnO0E5Ky+pMVaaYThrzsjlkQHS2rp04xj7VPQrVHTJFIbv2VTIHRjWriw0J2Ilt8g==}
-    engines: {node: '>=12', npm: '>=6'}
-    hasBin: true
-    dependencies:
-      '@verdaccio/commons-api': 10.1.0
-      '@verdaccio/local-storage': 10.1.1
-      '@verdaccio/readme': 10.2.1
-      '@verdaccio/streams': 10.1.0
-      '@verdaccio/ui-theme': 6.0.0-6-next.15
-      async: 3.2.3
-      body-parser: 1.19.1
-      clipanion: 3.2.0-rc.6
-      compression: 1.7.4
-      cookies: 0.8.0
-      cors: 2.8.5
-      dayjs: 1.10.7
-      debug: 4.3.3
-      envinfo: 7.8.1
-      eslint-import-resolver-node: 0.3.6
-      express: 4.17.2
-      express-rate-limit: 5.5.1
-      fast-safe-stringify: 2.1.1
-      handlebars: 4.7.7
-      http-errors: 1.8.1
-      js-yaml: /@zkochan/js-yaml/0.0.5
-      JSONStream: 1.3.5
-      jsonwebtoken: 8.5.1
-      kleur: 4.1.4
-      lodash: 4.17.21
-      lru-cache: 6.0.0
-      lunr-mutable-indexes: 2.3.2
-      marked: 2.1.3
-      memoizee: 0.4.15
-      mime: 2.6.0
-      minimatch: 3.0.4
-      mkdirp: 1.0.4
-      mv: 2.1.1
-      pino: 6.13.4
-      pkginfo: 0.4.1
-      prettier-bytes: 1.0.4
-      pretty-ms: 7.0.1
-      request: 2.88.0
-      semver: 7.3.5
-      validator: 13.7.0
-      verdaccio-audit: 10.1.1
-      verdaccio-htpasswd: 10.1.0
-    transitivePeerDependencies:
-      - bufferutil
-      - canvas
-      - encoding
-      - supports-color
-      - utf-8-validate
-    dev: true
 
   /verdaccio/5.5.2:
     resolution: {integrity: sha512-SU107gfxE8FLrwp5GezhmWE0otWTAb7xIcz/m931vqOPjeH2MwbMf0+WuCDQ5O80XxdwurlK/JFNRYzDzqUrMA==}
