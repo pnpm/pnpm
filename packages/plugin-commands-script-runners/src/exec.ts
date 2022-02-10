@@ -119,19 +119,20 @@ export async function handler (
           const extraEnv = pnpPath
             ? makeNodeRequireOption(pnpPath)
             : {}
+          const env = makeEnv({
+            extraEnv: {
+              ...extraEnv,
+              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
+            },
+            prependPaths: [
+              path.join(opts.dir, 'node_modules/.bin'),
+              ...opts.extraBinPaths,
+            ],
+            userAgent: opts.userAgent,
+          })
           await execa(params[0], params.slice(1), {
             cwd: prefix,
-            env: makeEnv({
-              extraEnv: {
-                ...extraEnv,
-                PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
-              },
-              prependPaths: [
-                path.join(opts.dir, 'node_modules/.bin'),
-                ...opts.extraBinPaths,
-              ],
-              userAgent: opts.userAgent,
-            }),
+            env,
             stdio: 'inherit',
           })
           result.passes++
