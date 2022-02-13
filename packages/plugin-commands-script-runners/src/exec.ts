@@ -19,17 +19,21 @@ import {
 
 export const shorthands = {
   parallel: runShorthands.parallel,
+  c: '--shell-mode',
 }
 
 export const commandNames = ['exec']
 
 export function rcOptionsTypes () {
-  return pick([
-    'bail',
-    'sort',
-    'unsafe-perm',
-    'workspace-concurrency',
-  ], types)
+  return {
+    ...pick([
+      'bail',
+      'sort',
+      'unsafe-perm',
+      'workspace-concurrency',
+    ], types),
+    'shell-mode': Boolean,
+  }
 }
 
 export const cliOptionsTypes = () => ({
@@ -54,11 +58,18 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
+          {
+            description: 'If exist, runs file inside of a shell. \
+Uses /bin/sh on UNIX and \\cmd.exe on Windows. \
+The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
+            name: '--shell-mode',
+            shortAlias: '-c',
+          },
         ],
       },
     ],
     url: docsUrl('exec'),
-    usages: ['pnpm [-r] exec <command> [args...]'],
+    usages: ['pnpm [-r] [-c] exec <command> [args...]'],
   })
 }
 
@@ -70,6 +81,7 @@ export async function handler (
     reverse?: boolean
     sort?: boolean
     workspaceConcurrency?: number
+    shellMode?: boolean
   } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
@@ -134,6 +146,7 @@ export async function handler (
             cwd: prefix,
             env,
             stdio: 'inherit',
+            shell: opts.shellMode ?? false,
           })
           result.passes++
         } catch (err: any) { // eslint-disable-line

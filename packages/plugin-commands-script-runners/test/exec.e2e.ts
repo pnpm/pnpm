@@ -414,6 +414,35 @@ test('pnpm exec outside of projects', async () => {
   expect(outputs).toStrictEqual([])
 })
 
+test('pnpm exec shell mode', async () => {
+  prepareEmpty()
+
+  const echoArgs = process.platform === 'win32' ? '%PNPM_PACKAGE_NAME% > name.txt' : '$PNPM_PACKAGE_NAME > name.txt'
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: false,
+    selectedProjectsGraph: {
+      [process.cwd()]: {
+        dependencies: [],
+        package: {
+          dir: process.cwd(),
+          writeProjectManifest: async () => {},
+          manifest: {
+            name: 'test_shell_mode',
+          },
+        },
+      },
+    },
+    shellMode: true,
+  }, ['echo', echoArgs])
+
+  const result = (await fs.readFile(path.resolve('name.txt'), 'utf8')).trim()
+
+  expect(result).toBe('test_shell_mode')
+})
+
 test('pnpm recursive exec works with PnP', async () => {
   preparePackages([
     {
