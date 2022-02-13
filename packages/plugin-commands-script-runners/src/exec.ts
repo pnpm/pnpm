@@ -61,7 +61,6 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'If exist, runs file inside of a shell. \
 Uses /bin/sh on UNIX and \\cmd.exe on Windows. \
-A different shell can be specified as a string. \
 The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
             name: '--shell-mode',
             shortAlias: '-c',
