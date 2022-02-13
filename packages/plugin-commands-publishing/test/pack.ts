@@ -165,3 +165,33 @@ test('pack: should not embed readme', async () => {
 
   expect(pkg.readme).toBeFalsy()
 })
+
+test('pack: remove publishConfig', async () => {
+  prepare({
+    name: 'remove-publish-config',
+    version: '0.0.0',
+    main: 'index.d.js',
+    publishConfig: {
+      types: 'index.d.ts',
+      main: 'index.js',
+    },
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+    embedReadme: false,
+  })
+
+  await tar.x({ file: 'remove-publish-config-0.0.0.tgz' })
+
+  expect((await import(path.resolve('package/package.json'))).default).toStrictEqual({
+    name: 'remove-publish-config',
+    version: '0.0.0',
+    main: 'index.js',
+    types: 'index.d.ts',
+  })
+})
