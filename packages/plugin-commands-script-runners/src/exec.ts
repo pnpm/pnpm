@@ -19,6 +19,7 @@ import {
 
 export const shorthands = {
   parallel: runShorthands.parallel,
+  c: '--shell-mode',
 }
 
 export const commandNames = ['exec']
@@ -63,6 +64,7 @@ Uses /bin/sh on UNIX and \\cmd.exe on Windows. \
 A different shell can be specified as a string. \
 The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
             name: '--shell-mode',
+            shortAlias: '-c',
           },
         ],
       },
