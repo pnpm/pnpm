@@ -417,6 +417,8 @@ test('pnpm exec outside of projects', async () => {
 test('pnpm exec shell mode', async () => {
   prepareEmpty()
 
+  const echoArgs = process.platform === 'win32' ? '%PNPM_PACKAGE_NAME% > name.txt' : '$PNPM_PACKAGE_NAME > name.txt'
+
   await exec.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -434,7 +436,7 @@ test('pnpm exec shell mode', async () => {
       },
     },
     shellMode: true,
-  }, ['echo', '$PNPM_PACKAGE_NAME > name.txt'])
+  }, ['echo', echoArgs])
 
   const result = (await fs.readFile(path.resolve('name.txt'), 'utf8')).trim()
 

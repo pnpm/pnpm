@@ -70,7 +70,7 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
       },
     ],
     url: docsUrl('exec'),
-    usages: ['pnpm [-r] [--shell-mode] exec <command> [args...]'],
+    usages: ['pnpm [-r] [-c] exec <command> [args...]'],
   })
 }
 
