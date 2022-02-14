@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.5.0
+
+### Minor Changes
+
+- e1b459008: Remove meaningless keys from `publishConfig` when the `pack` or `publish` commands are used [#4311](https://github.com/pnpm/pnpm/issues/4311)
+
+### Patch Changes
+
+- Updated dependencies [e1b459008]
+  - @pnpm/exportable-manifest@2.3.0
+
 ## 4.4.2
 
 ### Patch Changes
