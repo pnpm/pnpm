@@ -39,8 +39,8 @@ jobs:
       run: npm add --global npm@7
     - name: pnpm install
       run: pnpm install
-    # - name: Audit
-      # run: pnpm audit
+    - name: Audit
+      run: pnpm audit
     - name: Cache TypeScript and Jest
       uses: actions/cache@v2
       with:

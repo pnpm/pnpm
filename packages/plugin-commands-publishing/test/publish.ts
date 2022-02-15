@@ -268,20 +268,6 @@ test('publish: package with all possible fields in publishConfig', async () => {
     types: './published-types.d.ts',
     typings: './published-typings.d.ts',
 
-    publishConfig: {
-      bin: './published-bin.js',
-      browser: './published-browser.js',
-      es2015: './published-es2015.js',
-      esnext: './published-esnext.js',
-      exports: './published-exports.js',
-      main: './published.js',
-      module: './published.mjs',
-      types: './published-types.d.ts',
-      typings: './published-typings.d.ts',
-      'umd:main': './published-umd.js',
-      unpkg: './published-unpkg.js',
-    },
-
     browser: './published-browser.js',
     es2015: './published-es2015.js',
     esnext: './published-esnext.js',

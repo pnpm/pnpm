@@ -6,8 +6,8 @@ import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config } from '@pnpm/config'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import PATH from 'path-name'
 import renderHelp from 'render-help'
+import { makeEnv } from './makeEnv'
 
 export const commandNames = ['dlx']
 
@@ -43,7 +43,7 @@ export function help () {
 export async function handler (
   opts: {
     package?: string[]
-  } & Pick<Config, 'reporter'>,
+  } & Pick<Config, 'reporter' | 'userAgent'>,
   params: string[]
 ) {
   const prefix = path.join(fs.realpathSync(os.tmpdir()), `dlx-${process.pid.toString()}`)
@@ -69,13 +69,7 @@ export async function handler (
     stdio: 'inherit',
   })
   await execa(versionless(scopeless(params[0])), params.slice(1), {
-    env: {
-      ...process.env,
-      [PATH]: [
-        bins,
-        process.env[PATH],
-      ].join(path.delimiter),
-    },
+    env: makeEnv({ userAgent: opts.userAgent, prependPaths: [bins] }),
     stdio: 'inherit',
   })
 }

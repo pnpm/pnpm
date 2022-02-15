@@ -8,10 +8,10 @@ import sortPackages from '@pnpm/sort-packages'
 import { Project } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
-import PATH from 'path-name'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import existsInDir from './existsInDir'
+import { makeEnv } from './makeEnv'
 import {
   PARALLEL_OPTION_HELP,
   shorthands as runShorthands,
@@ -19,17 +19,21 @@ import {
 
 export const shorthands = {
   parallel: runShorthands.parallel,
+  c: '--shell-mode',
 }
 
 export const commandNames = ['exec']
 
 export function rcOptionsTypes () {
-  return pick([
-    'bail',
-    'sort',
-    'unsafe-perm',
-    'workspace-concurrency',
-  ], types)
+  return {
+    ...pick([
+      'bail',
+      'sort',
+      'unsafe-perm',
+      'workspace-concurrency',
+    ], types),
+    'shell-mode': Boolean,
+  }
 }
 
 export const cliOptionsTypes = () => ({
@@ -54,11 +58,18 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
+          {
+            description: 'If exist, runs file inside of a shell. \
+Uses /bin/sh on UNIX and \\cmd.exe on Windows. \
+The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
+            name: '--shell-mode',
+            shortAlias: '-c',
+          },
         ],
       },
     ],
     url: docsUrl('exec'),
-    usages: ['pnpm [-r] exec <command> [args...]'],
+    usages: ['pnpm [-r] [-c] exec <command> [args...]'],
   })
 }
 
@@ -70,7 +81,8 @@ export async function handler (
     reverse?: boolean
     sort?: boolean
     workspaceConcurrency?: number
-  } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'recursive' | 'workspaceDir'>,
+    shellMode?: boolean
+  } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
   // For backward compatibility
@@ -119,19 +131,22 @@ export async function handler (
           const extraEnv = pnpPath
             ? makeNodeRequireOption(pnpPath)
             : {}
-          await execa(params[0], params.slice(1), {
-            cwd: prefix,
-            env: {
-              ...process.env,
+          const env = makeEnv({
+            extraEnv: {
               ...extraEnv,
-              [PATH]: [
-                path.join(opts.dir, 'node_modules/.bin'),
-                ...opts.extraBinPaths,
-                process.env[PATH],
-              ].join(path.delimiter),
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
             },
+            prependPaths: [
+              path.join(opts.dir, 'node_modules/.bin'),
+              ...opts.extraBinPaths,
+            ],
+            userAgent: opts.userAgent,
+          })
+          await execa(params[0], params.slice(1), {
+            cwd: prefix,
+            env,
             stdio: 'inherit',
+            shell: opts.shellMode ?? false,
           })
           result.passes++
         } catch (err: any) { // eslint-disable-line

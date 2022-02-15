@@ -1,5 +1,33 @@
 # pnpm
 
+## 6.31.0
+
+### Minor Changes
+
+- Added `--shell-mode`/`-c` option support to `pnpm exec` [#4328](https://github.com/pnpm/pnpm/pull/4328)
+
+  - `--shell-mode`: shell interpreter. See: https://github.com/sindresorhus/execa/tree/484f28de7c35da5150155e7a523cbb20de161a4f#shell
+
+  Usage example:
+
+  ```shell
+  pnpm -r --shell-mode exec -- echo \"\$PNPM_PACKAGE_NAME\"
+  pnpm -r -c exec -- echo \"\$PNPM_PACKAGE_NAME\"
+  ```
+
+  ```json
+  {
+    "scripts": {
+      "check": " pnpm -r --shell-mode exec -- echo \"\\$PNPM_PACKAGE_NAME\""
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Remove meaningless keys from `publishConfig` when the `pack` or `publish` commands are used [#4311](https://github.com/pnpm/pnpm/issues/4311)
+- The `pnpx`, `pnpm dlx`, `pnpm create`, and `pnpm exec` commands should set the `npm_config_user_agent` env variable [#3985](https://github.com/pnpm/pnpm/issues/3985).
+
 ## 6.30.1
 
 ### Patch Changes

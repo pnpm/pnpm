@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 2.3.0
+
+### Minor Changes
+
+- e1b459008: Remove meaningless keys from `publishConfig` when the `pack` or `publish` commands are used [#4311](https://github.com/pnpm/pnpm/issues/4311)
+
 ## 2.2.4
 
 ### Patch Changes

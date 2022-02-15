@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.0
+
+### Minor Changes
+
+- e96fe4d9e: `pnpm uni` is an alias of `pnpm uninstall`.
+
 ## 8.3.9
 
 ### Patch Changes

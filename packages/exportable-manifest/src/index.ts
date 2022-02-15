@@ -3,6 +3,7 @@ import PnpmError from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import fromPairs from 'ramda/src/fromPairs'
+import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
 
 // property keys that are copied from publishConfig into the manifest
@@ -48,13 +49,18 @@ export default async function makePublishManifest (dir: string, originalManifest
     }
   }
 
-  const { publishConfig } = originalManifest
+  const { publishConfig } = publishManifest
   if (publishConfig != null) {
     Object.keys(publishConfig)
       .filter(key => PUBLISH_CONFIG_WHITELIST.has(key))
       .forEach(key => {
         publishManifest[key] = publishConfig[key]
+        delete publishConfig[key]
       })
+
+    if (isEmpty(publishConfig)) {
+      delete publishManifest.publishConfig
+    }
   }
 
   if (opts?.readmeFile) {
