@@ -71,6 +71,18 @@ test('run: pass all arguments after script name to the build script, even --', a
   ])
 })
 
+test('run: unknown flags to pnpm and show an error', () => {
+  preparePackages([{
+    name: 'project',
+    scripts: {
+      hello: 'node -e "process.stdout.write(\'hello\')"',
+    },
+  }])
+
+  const result = execPnpmSync(['--unknown', 'hello'])
+  expect((result.stdout as Buffer).toString('utf8')).toMatch(/Unknown option: 'unknown'/)
+})
+
 test('test -r: pass the args to the command that is specfied in the build script of a package.json manifest', async () => {
   preparePackages([{
     name: 'project',

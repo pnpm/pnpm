@@ -65,7 +65,7 @@ export default async function run (inputArgv: string[]) {
     return
   }
 
-  if (unknownOptions.size > 0 && !fallbackCommandUsed) {
+  if (unknownOptions.size > 0) {
     const unknownOptionsArray = Array.from(unknownOptions.keys())
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
