@@ -36,5 +36,6 @@ export default {
   W: '--ignore-workspace-root-check',
   w: '--workspace-root',
   i: '--interactive',
+  F: '--filter',
 }
 // eslint-enable
