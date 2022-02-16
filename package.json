@@ -21,7 +21,7 @@
     "meta-updater": "pnpm --filter=@pnpm-private/updater compile && pnpm --config.use-node-version=16.4.0 exec meta-updater",
     "lint:meta": "pnpm run meta-updater --test",
     "copy-artifacts": "ts-node utils/scripts/src/copy-artifacts.ts",
-    "make-release-description": "pnpm run write-release-text --filter @pnpm/get-release-text",
+    "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
     "release": "pnpm --filter=@pnpm/exe publish --tag=next-7 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-7 --access=public"
   },
   "devDependencies": {
