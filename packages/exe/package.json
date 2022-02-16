@@ -30,7 +30,7 @@
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "prepublishOnly": "pnpm run compile --filter pnpm && ts-node ./scripts/build-artifacts.ts"
+    "prepublishOnly": "pnpm --filter=pnpm run compile && ts-node ./scripts/build-artifacts.ts"
   },
   "keywords": [
     "pnpm7"
