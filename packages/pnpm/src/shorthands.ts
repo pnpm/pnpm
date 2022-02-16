@@ -35,5 +35,6 @@ export default {
   'prefer-frozen-shrinkwrap': '--prefer-frozen-lockfile',
   w: '--workspace-root',
   i: '--interactive',
+  F: '--filter',
 }
 // eslint-enable
