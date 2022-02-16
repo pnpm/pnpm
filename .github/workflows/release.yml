@@ -25,7 +25,7 @@ jobs:
           sudo mv ldid /usr/local/bin
       - name: install pnpm and npm
         run: |
-          curl -L https://get.pnpm.io/v6.16.js | node - add --global pnpm@next npm@7
+          curl -L https://get.pnpm.io/v6.16.js | node - add --global pnpm@next-7 npm@7
       - name: pnpm install
         run: pnpm install
       - name: Publish Packages
