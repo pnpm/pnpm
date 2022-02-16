@@ -1,5 +1,36 @@
 # pnpm
 
+## 7.0.0-alpha.1
+
+### Major Changes
+
+- The root package is excluded by default, when running `pnpm -r exec|run|add` [#2769](https://github.com/pnpm/pnpm/issues/2769).
+- Filtering by path is done by globs.
+
+  In pnpm v6, in order to pick packages under a certain directory, the following filter was used: `--filter=./apps`
+
+  In pnpm v7, a glob should be used: `--filter=./apps/**`
+
+- The `NODE_PATH` env variable is not set in the command shims (the files in `node_modules/.bin`). This env variable was really long and frequently caused errors on Windows.
+
+  Also, the `extend-node-path` setting is removed.
+
+  Related PR: [#4253](https://github.com/pnpm/pnpm/pull/4253)
+
+- The `embed-readme` setting is `false` by default.
+- When using `pnpm run <script>`, all command line arguments after the script name are now passed to the script's argv, even `--`. For example, `pnpm run echo --hello -- world` will now pass `--hello -- world` to the `echo` script's argv. Previously flagged arguments (e.g. `--silent`) were intepreted as pnpm arguments unless `--` came before it.
+- Side effects cache is turned on by default. To turn it off, use `side-effects-cache=false`.
+- The `npm_config_argv` env variable is not set for scripts [#4153](https://github.com/pnpm/pnpm/discussions/4153).
+- `pnpx` is now just an alias of `pnpm dlx`.
+
+  If you want to just execute the command of a dependency, run `pnpm <cmd>`. For instance, `pnpm eslint`.
+
+  If you want to install and execute, use `pnpm dlx <pkg name>`.
+
+- `pnpm install -g pkg` will add the global command only to a predefined location. pnpm will not try to add a bin to the global Node.js or npm folder. To set the global bin directory, either set the `PNPM_HOME` env variable or the [`global-bin-dir`](https://pnpm.io/npmrc#global-bin-dir) setting.
+- `pnpm pack` should only pack a file as an executable if it's a bin or listed in the `publishConfig.executableFiles` array.
+- `-W` is not an alias of `--ignore-workspace-root-check` anymore. Just use `-w` or `--workspace-root` instead, which will also allow to install dependencies in the root of the workspace.
+
 ## 6.31.0
 
 ### Minor Changes
