@@ -443,7 +443,7 @@ test('scripts have access to unlisted bins when hoisting is used', async () => {
   expect(project.requireModule('pkg-that-calls-unlisted-dep-in-hooks/output.json')).toStrictEqual(['Hello world!'])
 })
 
-test('selectively ignore scripts in some dependencies', async () => {
+test('selectively ignore scripts in some dependencies by neverBuiltDependencies', async () => {
   const project = prepareEmpty()
   const neverBuiltDependencies = ['pre-and-postinstall-scripts-example']
   const manifest = await addDependenciesToPackage({},
@@ -463,6 +463,44 @@ test('selectively ignore scripts in some dependencies', async () => {
   await rimraf('node_modules')
 
   await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, neverBuiltDependencies }))
+
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
+})
+
+test('throw an exception when both neverBuiltDependencies and onlyBuiltDependencies are used', async () => {
+  prepareEmpty()
+
+  await expect(
+    addDependenciesToPackage(
+      {},
+      ['pre-and-postinstall-scripts-example'],
+      await testDefaults({ onlyBuiltDependencies: ['foo'], neverBuiltDependencies: ['bar'] })
+    )
+  ).rejects.toThrow(/Cannot have both/)
+})
+
+test('selectively allow scripts in some dependencies by onlyBuiltDependencies', async () => {
+  const project = prepareEmpty()
+  const onlyBuiltDependencies = ['install-script-example']
+  const manifest = await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    await testDefaults({ fastUnpack: false, onlyBuiltDependencies })
+  )
+
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
+  expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
+  expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(true)
+
+  await rimraf('node_modules')
+
+  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, onlyBuiltDependencies }))
 
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
@@ -498,6 +536,55 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
     expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
     expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
     expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+  }
+})
+
+test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
+  const project = prepareEmpty()
+  const manifest = await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    await testDefaults({ fastUnpack: false })
+  )
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.onlyBuiltDependencies).toBeFalsy()
+    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+  }
+
+  const onlyBuiltDependencies: string[] = []
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ onlyBuiltDependencies }))
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
+    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
+  }
+
+  onlyBuiltDependencies.push('pre-and-postinstall-scripts-example')
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ onlyBuiltDependencies }))
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
+    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(true)
+    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
   }
 })
 

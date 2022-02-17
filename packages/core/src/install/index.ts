@@ -223,14 +223,18 @@ export async function mutateModules (
       )
     }
     const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
-    let needsFullResolution = !maybeOpts.ignorePackageManifest && (
-      !equals(ctx.wantedLockfile.overrides ?? {}, opts.overrides ?? {}) ||
-      !equals((ctx.wantedLockfile.neverBuiltDependencies ?? []).sort(), (opts.neverBuiltDependencies ?? []).sort()) ||
-      ctx.wantedLockfile.packageExtensionsChecksum !== packageExtensionsChecksum) ||
+    let needsFullResolution = !maybeOpts.ignorePackageManifest &&
+      lockfileIsUpToDate(ctx.wantedLockfile, {
+        overrides: opts.overrides,
+        neverBuiltDependencies: opts.neverBuiltDependencies,
+        onlyBuiltDependencies: opts.onlyBuiltDependencies,
+        packageExtensionsChecksum,
+      }) ||
       opts.fixLockfile
     if (needsFullResolution) {
       ctx.wantedLockfile.overrides = opts.overrides
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
+      ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
     }
     const frozenLockfile = opts.frozenLockfile ||
@@ -467,6 +471,25 @@ export async function mutateModules (
   }
 }
 
+function lockfileIsUpToDate (
+  lockfile: Lockfile,
+  {
+    neverBuiltDependencies,
+    onlyBuiltDependencies,
+    overrides,
+    packageExtensionsChecksum,
+  }: {
+    neverBuiltDependencies?: string[]
+    onlyBuiltDependencies?: string[]
+    overrides?: Record<string, string>
+    packageExtensionsChecksum?: string
+  }) {
+  return !equals(lockfile.overrides ?? {}, overrides ?? {}) ||
+    !equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
+    !equals(onlyBuiltDependencies?.sort(), lockfile.onlyBuiltDependencies) ||
+    lockfile.packageExtensionsChecksum !== packageExtensionsChecksum
+}
+
 export function createObjectChecksum (obj: Object) {
   const s = JSON.stringify(obj)
   return crypto.createHash('md5').update(s).digest('hex')
@@ -608,7 +631,8 @@ type InstallFunction = (
   opts: StrictInstallOptions & {
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
-    neverBuiltDependencies: string[]
+    neverBuiltDependencies?: string[]
+    onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
@@ -705,6 +729,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } = await resolveDependencies(
     projects,
     {
+      allowBuild: createAllowBuildFunction(opts),
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,
       dryRun: opts.lockfileOnly,
@@ -714,7 +739,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       hooks: opts.hooks,
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
-      neverBuiltDependencies: new Set(opts.neverBuiltDependencies),
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       preferWorkspacePackages: opts.preferWorkspacePackages,
@@ -983,6 +1007,22 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       rootDir,
     })),
   }
+}
+
+function createAllowBuildFunction (
+  opts: {
+    neverBuiltDependencies?: string[]
+    onlyBuiltDependencies?: string[]
+  }
+): undefined | ((pkgName: string) => boolean) {
+  if (opts.neverBuiltDependencies != null && opts.neverBuiltDependencies.length > 0) {
+    const neverBuiltDependencies = new Set(opts.neverBuiltDependencies)
+    return (pkgName) => !neverBuiltDependencies.has(pkgName)
+  } else if (opts.onlyBuiltDependencies != null) {
+    const onlyBuiltDependencies = new Set(opts.onlyBuiltDependencies)
+    return (pkgName) => onlyBuiltDependencies.has(pkgName)
+  }
+  return undefined
 }
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {

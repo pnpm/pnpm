@@ -116,6 +116,7 @@ export interface ChildrenByParentDepPath {
 }
 
 export interface ResolutionContext {
+  allowBuild?: (pkgName: string) => boolean
   updatedSet: Set<string>
   defaultTag: string
   dryRun: boolean
@@ -128,7 +129,6 @@ export interface ResolutionContext {
   currentLockfile: Lockfile
   linkWorkspacePackagesDepth: number
   lockfileDir: string
-  neverBuiltDependencies: Set<string>
   storeController: StoreController
   // the IDs of packages that are not installable
   skipped: Set<string>
@@ -784,11 +784,11 @@ async function resolveDependency (
     })
 
     ctx.resolvedPackagesByDepPath[depPath] = getResolvedPackage({
+      allowBuild: ctx.allowBuild,
       dependencyLockfile: currentPkg.dependencyLockfile,
       depPath,
       force: ctx.force,
       hasBin,
-      neverBuiltDependencies: ctx.neverBuiltDependencies,
       pkg,
       pkgResponse,
       prepare,
@@ -843,11 +843,11 @@ function pkgIsLeaf (pkg: PackageManifest) {
 
 function getResolvedPackage (
   options: {
+    allowBuild?: (pkgName: string) => boolean
     dependencyLockfile?: PackageSnapshot
     depPath: string
     force: boolean
     hasBin: boolean
-    neverBuiltDependencies: Set<string>
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
@@ -855,6 +855,10 @@ function getResolvedPackage (
   }
 ) {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
+
+  const requiresBuild = (options.allowBuild == null || options.allowBuild(options.pkg.name))
+    ? ((options.dependencyLockfile != null) ? Boolean(options.dependencyLockfile.requiresBuild) : undefined)
+    : false
 
   return {
     additionalInfo: {
@@ -881,9 +885,7 @@ function getResolvedPackage (
     peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
-    requiresBuild: options.neverBuiltDependencies.has(options.pkg.name)
-      ? false
-      : ((options.dependencyLockfile != null) ? Boolean(options.dependencyLockfile.requiresBuild) : undefined),
+    requiresBuild,
     resolution: options.pkgResponse.body.resolution,
     version: options.pkg.version,
   }

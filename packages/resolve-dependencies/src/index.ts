@@ -195,7 +195,12 @@ export default async function (
   if (opts.forceFullResolution && opts.wantedLockfile != null) {
     for (const [depPath, pkg] of Object.entries(dependenciesGraph)) {
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-      if (opts.neverBuiltDependencies?.has(pkg.name) || opts.wantedLockfile.packages?.[depPath] == null || pkg.requiresBuild) continue
+      if (
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+        (opts.allowBuild != null && !opts.allowBuild(pkg.name)) ||
+        (opts.wantedLockfile.packages?.[depPath] == null) ||
+        pkg.requiresBuild
+      ) continue
       pendingRequiresBuilds.push(depPath)
     }
   }
