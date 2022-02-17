@@ -1,5 +1,4 @@
 ---
-"@pnpm/core": minor
 "pnpm": minor
 ---
 
