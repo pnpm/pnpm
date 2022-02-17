@@ -16,5 +16,6 @@ test('makeDedicatedLockfile()', async () => {
     '/is-positive/1.0.0',
     '/lodash/1.0.0',
     '/ramda/0.26.0',
+    '/request/2.0.0',
   ])
 })
