@@ -486,7 +486,7 @@ function lockfileIsUpToDate (
   }) {
   return !equals(lockfile.overrides ?? {}, overrides ?? {}) ||
     !equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
-    !equals((lockfile.onlyBuiltDependencies ?? []).sort(), (onlyBuiltDependencies ?? []).sort()) ||
+    !equals(onlyBuiltDependencies?.sort(), lockfile.onlyBuiltDependencies) ||
     lockfile.packageExtensionsChecksum !== packageExtensionsChecksum
 }
 

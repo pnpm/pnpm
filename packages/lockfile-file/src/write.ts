@@ -127,11 +127,7 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
     }
   }
   if (lockfileToSave.onlyBuiltDependencies != null) {
-    if (isEmpty(lockfileToSave.onlyBuiltDependencies)) {
-      delete lockfileToSave.onlyBuiltDependencies
-    } else {
-      lockfileToSave.onlyBuiltDependencies = lockfileToSave.onlyBuiltDependencies.sort()
-    }
+    lockfileToSave.onlyBuiltDependencies = lockfileToSave.onlyBuiltDependencies.sort()
   }
   if (!lockfileToSave.packageExtensionsChecksum) {
     delete lockfileToSave.packageExtensionsChecksum

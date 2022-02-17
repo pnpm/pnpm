@@ -49,7 +49,7 @@ export interface StrictInstallOptions {
   verifyStoreIntegrity: boolean
   engineStrict: boolean
   neverBuiltDependencies: string[]
-  onlyBuiltDependencies: string[]
+  onlyBuiltDependencies?: string[]
   nodeExecPath?: string
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion: string
@@ -132,7 +132,6 @@ const defaults = async (opts: InstallOptions) => {
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
     neverBuiltDependencies: [] as string[],
-    onlyBuiltDependencies: [] as string[],
     nodeVersion: process.version,
     nodeLinker: 'isolated',
     overrides: {},

@@ -16,7 +16,7 @@ export default function getOptionsFromRootManifest (manifest: ProjectManifest): 
   // so we cannot call it resolutions
   const overrides = manifest.pnpm?.overrides ?? manifest.resolutions
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies ?? []
-  const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies ?? []
+  const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
   const packageExtensions = manifest.pnpm?.packageExtensions
   const peerDependencyRules = manifest.pnpm?.peerDependencyRules
   return {
