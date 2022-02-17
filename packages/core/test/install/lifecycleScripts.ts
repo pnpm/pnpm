@@ -474,9 +474,9 @@ test('throw an exception when both neverBuiltDependencies and onlyBuiltDependenc
 
   await expect(
     addDependenciesToPackage(
-      { pnpm: { onlyBuiltDependencies: ['foo'], neverBuiltDependencies: ['bar'] } },
+      {},
       ['pre-and-postinstall-scripts-example'],
-      await testDefaults()
+      await testDefaults({ onlyBuiltDependencies: ['foo'], neverBuiltDependencies: ['bar'] })
     )
   ).rejects.toThrow(/Cannot have both/)
 })
@@ -484,9 +484,9 @@ test('throw an exception when both neverBuiltDependencies and onlyBuiltDependenc
 test('selectively allow scripts in some dependencies by onlyBuiltDependencies', async () => {
   const project = prepareEmpty()
   const onlyBuiltDependencies = ['install-script-example']
-  const manifest = await addDependenciesToPackage({ pnpm: { onlyBuiltDependencies } },
+  const manifest = await addDependenciesToPackage({},
     ['pre-and-postinstall-scripts-example', 'install-script-example'],
-    await testDefaults({ fastUnpack: false })
+    await testDefaults({ fastUnpack: false, onlyBuiltDependencies })
   )
 
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
@@ -500,7 +500,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
 
   await rimraf('node_modules')
 
-  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, onlyBuiltDependencies }))
 
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
@@ -554,7 +554,6 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   }
 
   const onlyBuiltDependencies: string[] = []
-  manifest.pnpm = { onlyBuiltDependencies }
   await mutateModules([
     {
       buildIndex: 0,
@@ -562,7 +561,7 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults())
+  ], await testDefaults({ onlyBuiltDependencies }))
 
   {
     const lockfile = await project.readLockfile()
@@ -579,7 +578,7 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults())
+  ], await testDefaults({ onlyBuiltDependencies }))
 
   {
     const lockfile = await project.readLockfile()

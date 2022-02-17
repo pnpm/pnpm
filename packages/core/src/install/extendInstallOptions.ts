@@ -181,6 +181,9 @@ export default async (
       }
     }
   }
+  if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
+    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
+  }
   const defaultOpts = await defaults(opts)
   const extendedOpts = {
     ...defaultOpts,
