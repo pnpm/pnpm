@@ -53,6 +53,7 @@ export default async function (lockfileDir: string, projectDir: string) {
   try {
     await pnpmExec([
       'install',
+      '--frozen-lockfile',
       '--lockfile-dir=.',
       '--lockfile-only',
       '--filter=.',
