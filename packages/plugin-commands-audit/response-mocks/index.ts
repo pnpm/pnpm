@@ -2,10 +2,9 @@ import path from 'path'
 import loadJsonFile from 'load-json-file'
 
 // eslint-disable-next-line
-const response1 = loadJsonFile.sync<any>(path.join(__dirname, 'response1.json'))
+export const DEV_VULN_ONLY_RESP = loadJsonFile.sync<any>(path.join(__dirname, 'dev-vulnerabilities-only-response.json'))
 // eslint-disable-next-line
-const response2 = loadJsonFile.sync<any>(path.join(__dirname, 'response2.json'))
+export const ALL_VULN_RESP = loadJsonFile.sync<any>(path.join(__dirname, 'all-vulnerabilities-response.json'))
 // eslint-disable-next-line
-const response3 = loadJsonFile.sync<any>(path.join(__dirname, 'response3.json'))
+export const NO_VULN_RESP = loadJsonFile.sync<any>(path.join(__dirname, 'no-vulnerabilities-response.json'))
 
-export { response1, response2, response3 }

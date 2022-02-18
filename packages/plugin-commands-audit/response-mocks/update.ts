@@ -23,11 +23,11 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
 }
 
 ; (async () => {
-  await writeResponse(path.join(__dirname, '../test/fixtures/has-vulnerabilities'), 'response1.json', {
+  await writeResponse(path.join(__dirname, '../test/fixtures/has-vulnerabilities'), 'dev-vulnerabilities-only-response.json', {
     dev: true,
     production: false,
   })
-  await writeResponse(path.join(__dirname, '../test/fixtures/has-vulnerabilities'), 'response2.json', {})
-  await writeResponse(path.join(__dirname, '../../../fixtures/has-outdated-deps'), 'response3.json', {})
+  await writeResponse(path.join(__dirname, '../test/fixtures/has-vulnerabilities'), 'all-vulnerabilities-response.json', {})
+  await writeResponse(path.join(__dirname, '../../../fixtures/has-outdated-deps'), 'no-vulnerabilities-response.json', {})
 })()
 

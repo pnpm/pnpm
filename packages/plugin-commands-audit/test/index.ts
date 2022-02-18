@@ -2,7 +2,7 @@ import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
-import { response1, response2, response3 } from '../response-mocks'
+import * as responses from '../response-mocks'
 
 test('audit', async () => {
   const { output, exitCode } = await audit.handler({
@@ -19,7 +19,7 @@ test('audit --dev', async () => {
   const registry = 'https://registry.npmjs.org/'
   nock(registry)
     .post('/-/npm/v1/security/audits')
-    .reply(200, response1)
+    .reply(200, responses.DEV_VULN_ONLY_RESP)
 
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
@@ -38,7 +38,7 @@ test('audit --audit-level', async () => {
   const registry = 'https://registry.npmjs.org/'
   nock(registry)
     .post('/-/npm/v1/security/audits')
-    .reply(200, response2)
+    .reply(200, responses.ALL_VULN_RESP)
 
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
@@ -56,7 +56,7 @@ test('audit: no vulnerabilities', async () => {
   const registry = 'https://registry.npmjs.org/'
   nock(registry)
     .post('/-/npm/v1/security/audits')
-    .reply(200, response3)
+    .reply(200, responses.NO_VULN_RESP)
 
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
@@ -73,7 +73,7 @@ test('audit --json', async () => {
   const registry = 'https://registry.npmjs.org/'
   nock(registry)
     .post('/-/npm/v1/security/audits')
-    .reply(200, response1)
+    .reply(200, responses.ALL_VULN_RESP)
 
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
@@ -92,7 +92,7 @@ test.skip('audit does not exit with code 1 if the found vulnerabilities are havi
   const registry = 'https://registry.npmjs.org/'
   nock(registry)
     .post('/-/npm/v1/security/audits')
-    .reply(200, response1)
+    .reply(200, responses.DEV_VULN_ONLY_RESP)
 
   const { output, exitCode } = await audit.handler({
     auditLevel: 'high',

@@ -4,7 +4,7 @@ import { ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
-import { response2, response3 } from '../response-mocks'
+import * as responses from '../response-mocks'
 
 const f = fixtures(__dirname)
 
@@ -14,7 +14,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   const registry = 'https://registry.npmjs.org/'
   nock(registry)
     .post('/-/npm/v1/security/audits')
-    .reply(200, response2)
+    .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
@@ -39,7 +39,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
   const registry = 'https://registry.npmjs.org/'
   nock(registry)
     .post('/-/npm/v1/security/audits')
-    .reply(200, response3)
+    .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
