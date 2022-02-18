@@ -4,7 +4,7 @@ import { ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
-import * as responses from '../response-mocks'
+import * as responses from './utils/responses'
 
 const f = fixtures(__dirname)
 const registries = {

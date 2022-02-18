@@ -7,4 +7,3 @@ export const DEV_VULN_ONLY_RESP = loadJsonFile.sync<any>(path.join(__dirname, 'd
 export const ALL_VULN_RESP = loadJsonFile.sync<any>(path.join(__dirname, 'all-vulnerabilities-response.json'))
 // eslint-disable-next-line
 export const NO_VULN_RESP = loadJsonFile.sync<any>(path.join(__dirname, 'no-vulnerabilities-response.json'))
-

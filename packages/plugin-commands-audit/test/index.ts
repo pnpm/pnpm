@@ -2,7 +2,7 @@ import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
-import * as responses from '../response-mocks'
+import * as responses from './utils/responses'
 
 const registries = {
   default: 'https://registry.npmjs.org/',

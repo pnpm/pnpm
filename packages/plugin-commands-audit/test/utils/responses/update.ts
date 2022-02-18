@@ -1,7 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
 import audit from '@pnpm/audit'
+import { readWantedLockfile } from '@pnpm/lockfile-file'
+import fixtures from '@pnpm/test-fixtures'
+
+const f = fixtures(__dirname)
 
 async function writeResponse (lockfileDir: string, filename: string, opts: {
   production?: boolean
@@ -22,12 +25,12 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
   fs.writeFileSync(path.join(__dirname, filename), JSON.stringify(auditReport, null, 2))
 }
 
+// eslint-disable-next-line
 ; (async () => {
-  await writeResponse(path.join(__dirname, '../test/fixtures/has-vulnerabilities'), 'dev-vulnerabilities-only-response.json', {
+  await writeResponse(f.find('has-vulnerabilities'), 'dev-vulnerabilities-only-response.json', {
     dev: true,
     production: false,
   })
-  await writeResponse(path.join(__dirname, '../test/fixtures/has-vulnerabilities'), 'all-vulnerabilities-response.json', {})
-  await writeResponse(path.join(__dirname, '../../../fixtures/has-outdated-deps'), 'no-vulnerabilities-response.json', {})
+  await writeResponse(f.find('has-vulnerabilities'), 'all-vulnerabilities-response.json', {})
+  await writeResponse(f.find('has-outdated-deps'), 'no-vulnerabilities-response.json', {})
 })()
-
