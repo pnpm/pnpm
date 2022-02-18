@@ -7,12 +7,14 @@ import nock from 'nock'
 import * as responses from '../response-mocks'
 
 const f = fixtures(__dirname)
+const registries = {
+  default: 'https://registry.npmjs.org/',
+}
 
 test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  const registry = 'https://registry.npmjs.org/'
-  nock(registry)
+  nock(registries.default)
     .post('/-/npm/v1/security/audits')
     .reply(200, responses.ALL_VULN_RESP)
 
@@ -20,9 +22,7 @@ test('overrides are added for vulnerable dependencies', async () => {
     auditLevel: 'moderate',
     dir: tmp,
     fix: true,
-    registries: {
-      default: registry,
-    },
+    registries,
   })
 
   expect(exitCode).toBe(0)
@@ -36,8 +36,7 @@ test('overrides are added for vulnerable dependencies', async () => {
 test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
-  const registry = 'https://registry.npmjs.org/'
-  nock(registry)
+  nock(registries.default)
     .post('/-/npm/v1/security/audits')
     .reply(200, responses.NO_VULN_RESP)
 
@@ -45,9 +44,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
     auditLevel: 'moderate',
     dir: tmp,
     fix: true,
-    registries: {
-      default: registry,
-    },
+    registries,
   })
 
   expect(exitCode).toBe(0)
