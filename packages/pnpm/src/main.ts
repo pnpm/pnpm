@@ -24,16 +24,16 @@ process
   .once('SIGTERM', () => process.exit(0))
 
 // Patch the global fs module here at the app level
-import fs = require('fs')
-import gfs = require('graceful-fs')
+import fs = require('fs') // eslint-disable-line
+import gfs = require('graceful-fs') // eslint-disable-line
 
 gfs.gracefulify(fs)
 loudRejection()
-import isCI = require('is-ci')
-import path = require('path')
-import R = require('ramda')
-import stripAnsi = require('strip-ansi')
-import which = require('which')
+import isCI = require('is-ci') // eslint-disable-line
+import path = require('path') // eslint-disable-line
+import R = require('ramda') // eslint-disable-line
+import stripAnsi = require('strip-ansi') // eslint-disable-line
+import which = require('which') // eslint-disable-line
 
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',

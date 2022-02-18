@@ -46,7 +46,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
 
   process.chdir('..')
 
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nlayoutVersion: 1`)
+  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nlayoutVersion: 1`) // eslint-disable-line
 
   await install(manifest, { ...opts, dir: path.resolve('pkg'), lockfileDir: process.cwd() })
 })

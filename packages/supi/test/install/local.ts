@@ -16,7 +16,7 @@ import symlinkDir = require('symlink-dir')
 
 test('scoped modules from a directory', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, [`file:${pathToLocalPkg('local-scoped-pkg')}`], await testDefaults())
+  await addDependenciesToPackage({}, [`file:${pathToLocalPkg('local-scoped-pkg')}`], await testDefaults()) // eslint-disable-line
 
   const m = project.requireModule('@scope/local-scoped-pkg')
 

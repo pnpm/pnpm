@@ -846,7 +846,7 @@ test('local tarball dependency with peer dependency', async () => {
   const reporter = sinon.spy()
 
   const manifest = await addDependenciesToPackage({}, [
-    `file:${pathToLocalPkg('tar-pkg-with-peers/tar-pkg-with-peers-1.0.0.tgz')}`,
+    `file:${pathToLocalPkg('tar-pkg-with-peers/tar-pkg-with-peers-1.0.0.tgz')}`, // eslint-disable-line
     'bar@100.0.0',
     'foo@100.0.0',
   ], await testDefaults({ reporter }))

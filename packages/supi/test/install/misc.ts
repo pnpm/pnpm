@@ -790,7 +790,7 @@ test('install a dependency with * range', async () => {
 test('should throw error when trying to install a package without name', async () => {
   prepareEmpty()
   await expect(
-    addDependenciesToPackage({}, [`file:${pathToLocalPkg('missing-pkg-name.tgz')}`], await testDefaults())
+    addDependenciesToPackage({}, [`file:${pathToLocalPkg('missing-pkg-name.tgz')}`], await testDefaults()) // eslint-disable-line
   ).rejects.toThrow(/^Can't install .*: Missing package name$/)
 })
 
