@@ -10,6 +10,15 @@
 <pnpm|npm|yarn> add @pnpm/plugin-commands-audit
 ```
 
+## Testing
+
+In order to have stable tests, the responses from the registry are mocked.
+To update the mocks, run:
+
+```
+pnpm run update-responses
+```
+
 ## License
 
 MIT © [Zoltan Kochan](https://www.kochan.io/)

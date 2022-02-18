@@ -1,29 +1,36 @@
 import { audit } from '@pnpm/plugin-commands-audit'
 import path = require('path')
 import stripAnsi = require('strip-ansi')
+import nock from 'nock'
+import * as responses from './utils/responses'
 
-const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
+const registries = {
+  default: 'https://registry.npmjs.org/',
+}
 
-// The audits give different results on Node 10, for some reason
-skipOnNode10('audit', async () => {
+test('audit', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
   expect(exitCode).toBe(1)
   expect(stripAnsi(output)).toMatchSnapshot()
 })
 
 test('audit --dev', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.DEV_VULN_ONLY_RESP)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     dev: true,
     production: false,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(exitCode).toBe(1)
@@ -31,12 +38,14 @@ test('audit --dev', async () => {
 })
 
 test('audit --audit-level', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(exitCode).toBe(1)
@@ -44,11 +53,13 @@ test('audit --audit-level', async () => {
 })
 
 test('audit: no vulnerabilities', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.NO_VULN_RESP)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
@@ -56,12 +67,14 @@ test('audit: no vulnerabilities', async () => {
 })
 
 test('audit --json', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     json: true,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   const json = JSON.parse(output)
@@ -70,13 +83,15 @@ test('audit --json', async () => {
 })
 
 test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.DEV_VULN_ONLY_RESP)
+
   const { output, exitCode } = await audit.handler({
     auditLevel: 'high',
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     dev: true,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(exitCode).toBe(0)
