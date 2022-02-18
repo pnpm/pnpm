@@ -1,0 +1,1969 @@
+{
+  "actions": [
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1005586,
+          "path": ".>karma>http-proxy",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": "http-proxy",
+      "target": "1.18.1",
+      "depth": 3
+    },
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1006110,
+          "path": ".>karma>chokidar>anymatch>micromatch>kind-of",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": "kind-of",
+      "target": "6.0.3",
+      "depth": 6
+    },
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1006724,
+          "path": ".>karma>log4js>hipchat-notifier>request>http-signature>jsprim>json-schema",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": "jsprim",
+      "target": "1.4.2",
+      "depth": 7
+    },
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1006865,
+          "path": ".>karma>http-proxy>follow-redirects",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1007026,
+          "path": ".>karma>http-proxy>follow-redirects",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": "follow-redirects",
+      "target": "1.14.9",
+      "depth": 4
+    },
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1006948,
+          "path": ".>karma>lodash",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1006949,
+          "path": ".>karma>lodash",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1006952,
+          "path": ".>karma>lodash",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": "lodash",
+      "target": "4.17.21",
+      "depth": 3
+    },
+    {
+      "action": "review",
+      "module": "jsonpointer",
+      "resolves": [
+        {
+          "id": 1004869,
+          "path": ".>karma>log4js>loggly>request>har-validator>is-my-json-valid>jsonpointer",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "axios",
+      "resolves": [
+        {
+          "id": 1005018,
+          "path": ".>axios",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1005506,
+          "path": ".>axios",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1006349,
+          "path": ".>axios",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "tar",
+      "resolves": [
+        {
+          "id": 1005040,
+          "path": ".>karma>chokidar>fsevents>node-pre-gyp>tar",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1005043,
+          "path": ".>karma>chokidar>fsevents>node-pre-gyp>tar",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1005046,
+          "path": ".>karma>chokidar>fsevents>node-pre-gyp>tar",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "pac-resolver",
+      "resolves": [
+        {
+          "id": 1005062,
+          "path": ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "url-parse",
+      "resolves": [
+        {
+          "id": 1005084,
+          "path": ".>karma>log4js>amqplib>url-parse",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1005404,
+          "path": ".>karma>log4js>amqplib>url-parse",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1007030,
+          "path": ".>karma>log4js>amqplib>url-parse",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "socket.io-parser",
+      "resolves": [
+        {
+          "id": 1005107,
+          "path": ".>karma>socket.io>socket.io-parser",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "xmlhttprequest-ssl",
+      "resolves": [
+        {
+          "id": 1005175,
+          "path": ".>karma>socket.io>socket.io-client>engine.io-client>xmlhttprequest-ssl",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1005260,
+          "path": ".>karma>socket.io>socket.io-client>engine.io-client>xmlhttprequest-ssl",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "redis",
+      "resolves": [
+        {
+          "id": 1005277,
+          "path": ".>karma>log4js>redis",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "nodemailer",
+      "resolves": [
+        {
+          "id": 1005307,
+          "path": ".>karma>log4js>nodemailer",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1006788,
+          "path": ".>karma>log4js>nodemailer",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "underscore",
+      "resolves": [
+        {
+          "id": 1005367,
+          "path": ".>karma>log4js>nodemailer>nodemailer-direct-transport>smtp-connection>httpntlm>underscore",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "netmask",
+      "resolves": [
+        {
+          "id": 1005392,
+          "path": ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver>netmask",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1006822,
+          "path": ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver>netmask",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "socket.io",
+      "resolves": [
+        {
+          "id": 1005490,
+          "path": ".>karma>socket.io",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "bl",
+      "resolves": [
+        {
+          "id": 1005563,
+          "path": ".>karma>log4js>loggly>request>bl",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "timespan",
+      "resolves": [
+        {
+          "id": 1005745,
+          "path": ".>karma>log4js>loggly>timespan",
+          "dev": false,
+          "bundled": false,
+          "optional": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "sync-exec",
+      "resolves": [
+        {
+          "id": 1005902,
+          "path": ".>sync-exec",
+          "dev": false,
+          "bundled": false,
+          "optional": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "minimist",
+      "resolves": [
+        {
+          "id": 1006180,
+          "path": ".>karma>chokidar>fsevents>node-pre-gyp>mkdirp>minimist",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1006180,
+          "path": ".>karma>optimist>minimist",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "braces",
+      "resolves": [
+        {
+          "id": 1006342,
+          "path": ".>karma>expand-braces>braces",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1006837,
+          "path": ".>karma>expand-braces>braces",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "tunnel-agent",
+      "resolves": [
+        {
+          "id": 1006373,
+          "path": ".>karma>log4js>loggly>request>tunnel-agent",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "cryptiles",
+      "resolves": [
+        {
+          "id": 1006603,
+          "path": ".>karma>log4js>loggly>request>hawk>cryptiles",
+          "dev": false,
+          "bundled": false,
+          "optional": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "hoek",
+      "resolves": [
+        {
+          "id": 1006659,
+          "path": ".>karma>log4js>loggly>request>hawk>hoek",
+          "dev": false,
+          "bundled": false,
+          "optional": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "follow-redirects",
+      "resolves": [
+        {
+          "id": 1006865,
+          "path": ".>axios>follow-redirects",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1007026,
+          "path": ".>axios>follow-redirects",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "log4js",
+      "resolves": [
+        {
+          "id": 1006902,
+          "path": ".>karma>log4js",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "glob-parent",
+      "resolves": [
+        {
+          "id": 1006947,
+          "path": ".>karma>chokidar>glob-parent",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "engine.io",
+      "resolves": [
+        {
+          "id": 1006975,
+          "path": ".>karma>socket.io>engine.io",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "karma",
+      "resolves": [
+        {
+          "id": 1006997,
+          "path": ".>karma",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "ajv",
+      "resolves": [
+        {
+          "id": 1007017,
+          "path": ".>karma>log4js>hipchat-notifier>request>har-validator>ajv",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    }
+  ],
+  "advisories": {
+    "1004869": {
+      "findings": [
+        {
+          "version": "4.0.1",
+          "paths": [
+            ".>karma>log4js>loggly>request>har-validator>is-my-json-valid>jsonpointer"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<5.0.0",
+      "module_name": "jsonpointer",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-282f-qqgm-c34q",
+      "cves": [
+        "CVE-2021-23807"
+      ],
+      "access": "public",
+      "patched_versions": ">=5.0.0",
+      "updated": "2021-11-04T16:58:08.000Z",
+      "recommendation": "Upgrade to version 5.0.0 or later",
+      "cwe": "CWE-843",
+      "found_by": null,
+      "deleted": null,
+      "id": 1004869,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-23807\n- https://github.com/janl/node-jsonpointer/pull/51\n- https://github.com/janl/node-jsonpointer/commit/a0345f3550cd9c4d89f33b126390202b89510ad4\n- https://snyk.io/vuln/SNYK-JS-JSONPOINTER-1577288\n- https://github.com/advisories/GHSA-282f-qqgm-c34q",
+      "created": "2021-11-18T16:00:48.459Z",
+      "reported_by": null,
+      "title": "Prototype Pollution in node-jsonpointer",
+      "npm_advisory_id": null,
+      "overview": "This affects the package `jsonpointer` before `5.0.0`. A type confusion vulnerability can lead to a bypass of a previous Prototype Pollution fix when the pointer components are arrays.",
+      "url": "https://github.com/advisories/GHSA-282f-qqgm-c34q"
+    },
+    "1005018": {
+      "findings": [
+        {
+          "version": "0.15.3",
+          "paths": [
+            ".>axios"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<=0.21.1",
+      "module_name": "axios",
+      "severity": "high",
+      "github_advisory_id": "GHSA-cph5-m8f7-6c5x",
+      "cves": [
+        "CVE-2021-3749"
+      ],
+      "access": "public",
+      "patched_versions": ">=0.21.2",
+      "updated": "2021-09-08T16:46:47.000Z",
+      "recommendation": "Upgrade to version 0.21.2 or later",
+      "cwe": "CWE-697",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005018,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-3749\n- https://github.com/axios/axios/commit/5b457116e31db0e88fede6c428e969e87f290929\n- https://huntr.dev/bounties/1e8f07fc-c384-4ff9-8498-0690de2e8c31\n- https://www.npmjs.com/package/axios\n- https://lists.apache.org/thread.html/r075d464dce95cd13c03ff9384658edcccd5ab2983b82bfc72b62bb10@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r216f0fd0a3833856d6a6a1fada488cadba45f447d87010024328ccf2@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r3ae6d2654f92c5851bdb73b35e96b0e4e3da39f28ac7a1b15ae3aab8@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r4bf1b32983f50be00f9752214c1b53738b621be1c2b0dbd68c7f2391@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r7324ecc35b8027a51cb6ed629490fcd3b2d7cf01c424746ed5744bf1@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r74d0b359408fff31f87445261f0ee13bdfcac7d66f6b8e846face321@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/ra15d63c54dc6474b29f72ae4324bcb03038758545b3ab800845de7a1@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/rc263bfc5b53afcb7e849605478d73f5556eb0c00d1f912084e407289@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/rfa094029c959da0f7c8cd7dc9c4e59d21b03457bf0cedf6c93e1bb0a@%3Cdev.druid.apache.org%3E\n- https://lists.apache.org/thread.html/rfc5c478053ff808671aef170f3d9fc9d05cc1fab8fb64431edc66103@%3Ccommits.druid.apache.org%3E\n- https://github.com/advisories/GHSA-cph5-m8f7-6c5x",
+      "created": "2021-11-18T16:00:48.489Z",
+      "reported_by": null,
+      "title": "Incorrect Comparison in axios",
+      "npm_advisory_id": null,
+      "overview": "axios is vulnerable to Inefficient Regular Expression Complexity",
+      "url": "https://github.com/advisories/GHSA-cph5-m8f7-6c5x"
+    },
+    "1005040": {
+      "findings": [
+        {
+          "version": "4.4.15",
+          "paths": [
+            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.4.18",
+      "module_name": "tar",
+      "severity": "high",
+      "github_advisory_id": "GHSA-5955-9wpr-37jh",
+      "cves": [
+        "CVE-2021-37713"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.4.18",
+      "updated": "2021-08-31T16:02:33.000Z",
+      "recommendation": "Upgrade to version 4.4.18 or later",
+      "cwe": "CWE-22",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005040,
+      "references": "- https://github.com/npm/node-tar/security/advisories/GHSA-5955-9wpr-37jh\n- https://www.npmjs.com/package/tar\n- https://nvd.nist.gov/vuln/detail/CVE-2021-37713\n- https://www.oracle.com/security-alerts/cpuoct2021.html\n- https://github.com/advisories/GHSA-5955-9wpr-37jh",
+      "created": "2021-11-18T16:00:48.492Z",
+      "reported_by": null,
+      "title": "Arbitrary File Creation/Overwrite on Windows via insufficient relative path sanitization",
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nArbitrary File Creation, Arbitrary File Overwrite, Arbitrary Code Execution\n\nnode-tar aims to guarantee that any file whose location would be outside of the extraction target directory is not extracted. This is, in part, accomplished by sanitizing absolute paths of entries within the archive, skipping archive entries that contain `..` path portions, and resolving the sanitized paths against the extraction target directory.\n\nThis logic was insufficient on Windows systems when extracting tar files that contained a path that was not an absolute path, but specified a drive letter different from the extraction target, such as `C:some\\path`.  If the drive letter does not match the extraction target, for example `D:\\extraction\\dir`, then the result of `path.resolve(extractionDirectory, entryPath)` would resolve against the current working directory on the `C:` drive, rather than the extraction target directory.\n\nAdditionally, a `..` portion of the path could occur immediately after the drive letter, such as `C:../foo`, and was not properly sanitized by the logic that checked for `..` within the normalized and split portions of the path.\n\nThis only affects users of `node-tar` on Windows systems.\n\n### Patches\n\n4.4.18 || 5.0.10 || 6.1.9\n\n### Workarounds\n\nThere is no reasonable way to work around this issue without performing the same path normalization procedures that node-tar now does.\n\nUsers are encouraged to upgrade to the latest patched versions of node-tar, rather than attempt to sanitize paths themselves.\n\n### Fix\n\nThe fixed versions strip path roots from all paths prior to being resolved against the extraction target folder, even if such paths are not \"absolute\".\n\nAdditionally, a path starting with a drive letter and then two dots, like `c:../`, would bypass the check for `..` path portions.  This is checked properly in the patched versions.\n\nFinally, a defense in depth check is added, such that if the `entry.absolute` is outside of the extraction taret, and we are not in preservePaths:true mode, a warning is raised on that entry, and it is skipped.  Currently, it is believed that this check is redundant, but it did catch some oversights in development.\n",
+      "url": "https://github.com/advisories/GHSA-5955-9wpr-37jh"
+    },
+    "1005043": {
+      "findings": [
+        {
+          "version": "4.4.15",
+          "paths": [
+            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.4.18",
+      "module_name": "tar",
+      "severity": "high",
+      "github_advisory_id": "GHSA-qq89-hq3f-393p",
+      "cves": [
+        "CVE-2021-37712"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.4.18",
+      "updated": "2021-08-31T16:02:05.000Z",
+      "recommendation": "Upgrade to version 4.4.18 or later",
+      "cwe": "CWE-22",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005043,
+      "references": "- https://github.com/npm/node-tar/security/advisories/GHSA-qq89-hq3f-393p\n- https://www.npmjs.com/package/tar\n- https://nvd.nist.gov/vuln/detail/CVE-2021-37712\n- https://www.oracle.com/security-alerts/cpuoct2021.html\n- https://www.debian.org/security/2021/dsa-5008\n- https://github.com/advisories/GHSA-qq89-hq3f-393p",
+      "created": "2021-11-18T16:00:48.493Z",
+      "reported_by": null,
+      "title": "Arbitrary File Creation/Overwrite via insufficient symlink protection due to directory cache poisoning using symbolic links",
+      "npm_advisory_id": null,
+      "overview": "### Impact\nArbitrary File Creation, Arbitrary File Overwrite, Arbitrary Code Execution\n\nnode-tar aims to guarantee that any file whose location would be modified by a symbolic link is not extracted. This is, in part, achieved by ensuring that extracted directories are not symlinks. Additionally, in order to prevent unnecessary stat calls to determine whether a given path is a directory, paths are cached when directories are created.\n\nThis logic was insufficient when extracting tar files that contained two directories and a symlink with names containing unicode values that normalized to the same value. Additionally, on Windows systems, long path portions would resolve to the same file system entities as their 8.3 \"short path\" counterparts. A specially crafted tar archive could thus include directories with two forms of the path that resolve to the same file system entity, followed by a symbolic link with a name in the first form, lastly followed by a file using the second form. It led to bypassing node-tar symlink checks on directories, essentially allowing an untrusted tar file to symlink into an arbitrary location and subsequently extracting arbitrary files into that location, thus allowing arbitrary file creation and overwrite.\n\nThe v3 branch of `node-tar` has been deprecated and did not receive patches for these issues. If you are still using a v3 release we recommend you update to a more recent version of `node-tar`. If this is not possible, a workaround is available below.\n\n### Patches\n\n6.1.9 || 5.0.10 || 4.4.18\n\n### Workarounds\n\nUsers may work around this vulnerability without upgrading by creating a custom filter method which prevents the extraction of symbolic links.\n\n```js\nconst tar = require('tar')\n\ntar.x({\n  file: 'archive.tgz',\n  filter: (file, entry) => {\n    if (entry.type === 'SymbolicLink') {\n      return false\n    } else {\n      return true\n    }\n  }\n})\n```\n\nUsers are encouraged to upgrade to the latest patched versions, rather than attempt to sanitize tar input themselves.\n\n#### Fix\n\nThe problem is addressed in the following ways, when comparing paths in the directory cache and path reservation systems:\n\n1. The `String.normalize('NFKD')` method is used to first normalize all unicode to its maximally compatible and multi-code-point form.\n2. All slashes are normalized to `/` on Windows systems (on posix systems, `\\` is a valid filename character, and thus left intact).\n3. When a symbolic link is encountered on Windows systems, the entire directory cache is cleared.  Collisions related to use of 8.3 short names to replace directories with other (non-symlink) types of entries may make archives fail to extract properly, but will not result in arbitrary file writes.\n",
+      "url": "https://github.com/advisories/GHSA-qq89-hq3f-393p"
+    },
+    "1005046": {
+      "findings": [
+        {
+          "version": "4.4.15",
+          "paths": [
+            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.4.16",
+      "module_name": "tar",
+      "severity": "high",
+      "github_advisory_id": "GHSA-9r2w-394v-53qc",
+      "cves": [
+        "CVE-2021-37701"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.4.16",
+      "updated": "2021-08-31T16:01:51.000Z",
+      "recommendation": "Upgrade to version 4.4.16 or later",
+      "cwe": "CWE-22",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005046,
+      "references": "- https://github.com/npm/node-tar/security/advisories/GHSA-9r2w-394v-53qc\n- https://www.npmjs.com/package/tar\n- https://nvd.nist.gov/vuln/detail/CVE-2021-37701\n- https://www.oracle.com/security-alerts/cpuoct2021.html\n- https://www.debian.org/security/2021/dsa-5008\n- https://github.com/advisories/GHSA-9r2w-394v-53qc",
+      "created": "2021-11-18T16:00:48.493Z",
+      "reported_by": null,
+      "title": "Arbitrary File Creation/Overwrite via insufficient symlink protection due to directory cache poisoning using symbolic links",
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nArbitrary File Creation, Arbitrary File Overwrite, Arbitrary Code Execution\n\n`node-tar` aims to guarantee that any file whose location would be modified by a symbolic link is not extracted. This is, in part, achieved by ensuring that extracted directories are not symlinks. Additionally, in order to prevent unnecessary stat calls to determine whether a given path is a directory, paths are cached when directories are created.\n\nThis logic was insufficient when extracting tar files that contained both a directory and a symlink with the same name as the directory, where the symlink and directory names in the archive entry used backslashes as a path separator on posix systems. The cache checking logic used both `\\` and `/` characters as path separators, however `\\` is a valid filename character on posix systems.\n\nBy first creating a directory, and then replacing that directory with a symlink, it was thus possible to bypass node-tar symlink checks on directories, essentially allowing an untrusted tar file to symlink into an arbitrary location and subsequently extracting arbitrary files into that location, thus allowing arbitrary file creation and overwrite.\n\nAdditionally, a similar confusion could arise on case-insensitive filesystems.  If a tar archive contained a directory at `FOO`, followed by a symbolic link named `foo`, then on case-insensitive file systems, the creation of the symbolic link would remove the directory from the filesystem, but _not_ from the internal directory cache, as it would not be treated as a cache hit.  A subsequent file entry within the `FOO` directory would then be placed in the target of the symbolic link, thinking that the directory had already been created. \n\nThese issues were addressed in releases 4.4.16, 5.0.8 and 6.1.7.\n\nThe v3 branch of `node-tar` has been deprecated and did not receive patches for these issues. If you are still using a v3 release we recommend you update to a more recent version of `node-tar`. If this is not possible, a workaround is available below.\n\n### Patches\n\n4.4.16 || 5.0.8 || 6.1.7\n\n### Workarounds\n\nUsers may work around this vulnerability without upgrading by creating a custom filter method which prevents the extraction of symbolic links.\n\n```js\nconst tar = require('tar')\n\ntar.x({\n  file: 'archive.tgz',\n  filter: (file, entry) => {\n    if (entry.type === 'SymbolicLink') {\n      return false\n    } else {\n      return true\n    }\n  }\n})\n```\n\nUsers are encouraged to upgrade to the latest patched versions, rather than attempt to sanitize tar input themselves.\n\n### Fix\n\nThe problem is addressed in the following ways:\n\n1. All paths are normalized to use `/` as a path separator, replacing `\\` with `/` on Windows systems, and leaving `\\` intact in the path on posix systems.  This is performed in depth, at every level of the program where paths are consumed.\n2. Directory cache pruning is performed case-insensitively.  This _may_ result in undue cache misses on case-sensitive file systems, but the performance impact is negligible.\n\n#### Caveat\n\nNote that this means that the `entry` objects exposed in various parts of tar's API will now always use `/` as a path separator, even on Windows systems.  This is not expected to cause problems, as `/` is a valid path separator on Windows systems, but _may_ result in issues if `entry.path` is compared against a path string coming from some other API such as `fs.realpath()` or `path.resolve()`.\n\nUsers are encouraged to always normalize paths using a well-tested method such as `path.resolve()` before comparing paths to one another.",
+      "url": "https://github.com/advisories/GHSA-9r2w-394v-53qc"
+    },
+    "1005062": {
+      "findings": [
+        {
+          "version": "3.0.0",
+          "paths": [
+            ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<5.0.0",
+      "module_name": "pac-resolver",
+      "severity": "high",
+      "github_advisory_id": "GHSA-9j49-mfvp-vmhm",
+      "cves": [
+        "CVE-2021-23406"
+      ],
+      "access": "public",
+      "patched_versions": ">=5.0.0",
+      "updated": "2021-08-25T19:28:31.000Z",
+      "recommendation": "Upgrade to version 5.0.0 or later",
+      "cwe": "CWE-94",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005062,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-23406\n- https://github.com/TooTallNate/node-degenerator/commit/9d25bb67d957bc2e5425fea7bf7a58b3fc64ff9e\n- https://github.com/TooTallNate/node-degenerator/commit/ccc3445354135398b6eb1a04c7d27c13b833f2d5\n- https://github.com/TooTallNate/node-pac-resolver/releases/tag/5.0.0\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1568506\n- https://snyk.io/vuln/SNYK-JS-PACRESOLVER-1564857\n- https://github.com/advisories/GHSA-9j49-mfvp-vmhm",
+      "created": "2021-11-18T16:00:48.495Z",
+      "reported_by": null,
+      "title": "Code Injection in pac-resolver",
+      "npm_advisory_id": null,
+      "overview": "This affects the package pac-resolver before 5.0.0. This can occur when used with untrusted input, due to unsafe PAC file handling. **NOTE:** The fix for this vulnerability is applied in the node-degenerator library, a dependency written by the same maintainer.",
+      "url": "https://github.com/advisories/GHSA-9j49-mfvp-vmhm"
+    },
+    "1005084": {
+      "findings": [
+        {
+          "version": "1.4.7",
+          "paths": [
+            ".>karma>log4js>amqplib>url-parse"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.5.2",
+      "module_name": "url-parse",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-hh27-ffr2-f2jc",
+      "cves": [
+        "CVE-2021-3664"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.5.2",
+      "updated": "2021-08-02T21:28:22.000Z",
+      "recommendation": "Upgrade to version 1.5.2 or later",
+      "cwe": "CWE-601",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005084,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-3664\n- https://github.com/unshiftio/url-parse/issues/205\n- https://github.com/unshiftio/url-parse/issues/206\n- https://github.com/unshiftio/url-parse/commit/81ab967889b08112d3356e451bf03e6aa0cbb7e0\n- https://huntr.dev/bounties/1625557993985-unshiftio/url-parse\n- https://github.com/advisories/GHSA-hh27-ffr2-f2jc",
+      "created": "2021-11-18T16:00:48.498Z",
+      "reported_by": null,
+      "title": "Open redirect in url-parse",
+      "npm_advisory_id": null,
+      "overview": "# Overview\n\nAffected versions of npm `url-parse` are vulnerable to URL Redirection to Untrusted Site.\n\n# Impact\n\nDepending on library usage and attacker intent, impacts may include allow/block list bypasses, SSRF attacks, open redirects, or other undesired behavior.",
+      "url": "https://github.com/advisories/GHSA-hh27-ffr2-f2jc"
+    },
+    "1005107": {
+      "findings": [
+        {
+          "version": "3.1.3",
+          "paths": [
+            ".>karma>socket.io>socket.io-parser"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<3.3.2",
+      "module_name": "socket.io-parser",
+      "severity": "high",
+      "github_advisory_id": "GHSA-xfhh-g9f5-x4m4",
+      "cves": [
+        "CVE-2020-36049"
+      ],
+      "access": "public",
+      "patched_versions": ">=3.3.2",
+      "updated": "2021-06-30T16:54:43.000Z",
+      "recommendation": "Upgrade to version 3.3.2 or later",
+      "cwe": "CWE-400",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005107,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-36049\n- https://github.com/socketio/socket.io-parser/commit/dcb942d24db97162ad16a67c2a0cf30875342d55\n- https://blog.caller.xyz/socketio-engineio-dos/\n- https://github.com/bcaller/kill-engine-io\n- https://github.com/socketio/socket.io-parser/releases/tag/3.3.2\n- https://github.com/socketio/socket.io-parser/releases/tag/3.4.1\n- https://www.npmjs.com/package/socket.io-parser\n- https://github.com/advisories/GHSA-xfhh-g9f5-x4m4",
+      "created": "2021-11-18T16:00:48.501Z",
+      "reported_by": null,
+      "title": "Resource exhaustion in socket.io-parser",
+      "npm_advisory_id": null,
+      "overview": "The `socket.io-parser` npm package before versions 3.3.2 and 3.4.1 allows attackers to cause a denial of service (memory consumption) via a large packet because a concatenation approach is used.",
+      "url": "https://github.com/advisories/GHSA-xfhh-g9f5-x4m4"
+    },
+    "1005175": {
+      "findings": [
+        {
+          "version": "1.5.5",
+          "paths": [
+            ".>karma>socket.io>socket.io-client>engine.io-client>xmlhttprequest-ssl"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.6.1",
+      "module_name": "xmlhttprequest-ssl",
+      "severity": "critical",
+      "github_advisory_id": "GHSA-72mh-269x-7mh5",
+      "cves": [
+        "CVE-2021-31597"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.6.1",
+      "updated": "2021-05-20T21:59:29.000Z",
+      "recommendation": "Upgrade to version 1.6.1 or later",
+      "cwe": "CWE-295",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005175,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-31597\n- https://github.com/mjwwit/node-XMLHttpRequest/commit/bf53329b61ca6afc5d28f6b8d2dc2e3ca740a9b2\n- https://github.com/mjwwit/node-XMLHttpRequest/compare/v1.6.0...1.6.1\n- https://people.kingsds.network/wesgarland/xmlhttprequest-ssl-vuln.txt\n- https://security.netapp.com/advisory/ntap-20210618-0004/\n- https://github.com/advisories/GHSA-72mh-269x-7mh5",
+      "created": "2021-11-18T16:00:48.519Z",
+      "reported_by": null,
+      "title": "Improper Certificate Validation in xmlhttprequest-ssl",
+      "npm_advisory_id": null,
+      "overview": "The xmlhttprequest-ssl package before 1.6.1 for Node.js disables SSL certificate validation by default, because rejectUnauthorized (when the property exists but is undefined) is considered to be false within the https.request function of Node.js. In other words, no certificate is ever rejected.",
+      "url": "https://github.com/advisories/GHSA-72mh-269x-7mh5"
+    },
+    "1005260": {
+      "findings": [
+        {
+          "version": "1.5.5",
+          "paths": [
+            ".>karma>socket.io>socket.io-client>engine.io-client>xmlhttprequest-ssl"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.6.2",
+      "module_name": "xmlhttprequest-ssl",
+      "severity": "high",
+      "github_advisory_id": "GHSA-h4j5-c7cj-74xg",
+      "cves": [
+        "CVE-2020-28502"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.6.2",
+      "updated": "2021-05-04T18:00:49.000Z",
+      "recommendation": "Upgrade to version 1.6.2 or later",
+      "cwe": "CWE-94",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005260,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-28502\n- https://github.com/driverdan/node-XMLHttpRequest/commit/983cfc244c7567ad6a59e366e55a8037e0497fe6\n- https://github.com/driverdan/node-XMLHttpRequest/blob/1.6.0/lib/XMLHttpRequest.js#L480\n- https://github.com/driverdan/node-XMLHttpRequest/blob/1.6.0/lib/XMLHttpRequest.js%23L480\n- https://github.com/mjwwit/node-XMLHttpRequest/blob/ae38832a0f1347c5e96dda665402509a3458e302/lib/XMLHttpRequest.js#L531\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1082937\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1082938\n- https://snyk.io/vuln/SNYK-JS-XMLHTTPREQUEST-1082935\n- https://snyk.io/vuln/SNYK-JS-XMLHTTPREQUESTSSL-1082936\n- https://github.com/mjwwit/node-XMLHttpRequest/commit/ee1e81fc67729c7c0eba5537ed7fe1e30a6b3291\n- https://github.com/advisories/GHSA-h4j5-c7cj-74xg",
+      "created": "2021-11-18T16:00:48.526Z",
+      "reported_by": null,
+      "title": "Arbitrary Code Injection",
+      "npm_advisory_id": null,
+      "overview": "This affects the package xmlhttprequest before 1.7.0; all versions of package xmlhttprequest-ssl. Provided requests are sent synchronously (async=False on xhr.open), malicious user input flowing into xhr.send could result in arbitrary code being injected and run.",
+      "url": "https://github.com/advisories/GHSA-h4j5-c7cj-74xg"
+    },
+    "1005277": {
+      "findings": [
+        {
+          "version": "2.8.0",
+          "paths": [
+            ".>karma>log4js>redis"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": ">=2.6.0 <3.1.1",
+      "module_name": "redis",
+      "severity": "low",
+      "github_advisory_id": "GHSA-35q2-47q7-3pc3",
+      "cves": [
+        "CVE-2021-29469"
+      ],
+      "access": "public",
+      "patched_versions": ">=3.1.1",
+      "updated": "2021-04-23T18:11:39.000Z",
+      "recommendation": "Upgrade to version 3.1.1 or later",
+      "cwe": "CWE-400",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005277,
+      "references": "- https://github.com/NodeRedis/node-redis/security/advisories/GHSA-35q2-47q7-3pc3\n- https://nvd.nist.gov/vuln/detail/CVE-2021-29469\n- https://github.com/NodeRedis/node-redis/commit/2d11b6dc9b9774464a91fb4b448bad8bf699629e\n- https://github.com/NodeRedis/node-redis/releases/tag/v3.1.1\n- https://security.netapp.com/advisory/ntap-20210611-0010/\n- https://github.com/advisories/GHSA-35q2-47q7-3pc3",
+      "created": "2021-11-18T16:00:48.528Z",
+      "reported_by": null,
+      "title": "Potential exponential regex in monitor mode",
+      "npm_advisory_id": null,
+      "overview": "### Impact\nWhen a client is in monitoring mode, the regex begin used to detected monitor messages could cause exponential backtracking on some strings. This issue could lead to a denial of service.\n\n### Patches\nThe problem was fixed in commit [`2d11b6d`](https://github.com/NodeRedis/node-redis/commit/2d11b6dc9b9774464a91fb4b448bad8bf699629e) and was released in version `3.1.1`.\n\n### References\n#1569 (GHSL-2021-026)",
+      "url": "https://github.com/advisories/GHSA-35q2-47q7-3pc3"
+    },
+    "1005307": {
+      "findings": [
+        {
+          "version": "2.7.2",
+          "paths": [
+            ".>karma>log4js>nodemailer"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<6.4.16",
+      "module_name": "nodemailer",
+      "severity": "critical",
+      "github_advisory_id": "GHSA-48ww-j4fc-435p",
+      "cves": [
+        "CVE-2020-7769"
+      ],
+      "access": "public",
+      "patched_versions": ">=6.4.16",
+      "updated": "2021-04-19T22:42:20.000Z",
+      "recommendation": "Upgrade to version 6.4.16 or later",
+      "cwe": "CWE-88",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005307,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-7769\n- https://github.com/nodemailer/nodemailer/commit/ba31c64c910d884579875c52d57ac45acc47aa54\n- https://github.com/nodemailer/nodemailer/blob/33b62e2ea6bc9215c99a9bb4bfba94e2fb27ebd0/lib/sendmail-transport/index.js#L75\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1039742\n- https://snyk.io/vuln/SNYK-JS-NODEMAILER-1038834\n- https://www.npmjs.com/package/nodemailer\n- https://github.com/nodemailer/nodemailer/blob/33b62e2ea6bc9215c99a9bb4bfba94e2fb27ebd0/lib/sendmail-transport/index.js%23L75\n- https://github.com/advisories/GHSA-48ww-j4fc-435p",
+      "created": "2021-11-18T16:00:48.531Z",
+      "reported_by": null,
+      "title": "Command injection in nodemailer",
+      "npm_advisory_id": null,
+      "overview": "This affects the package nodemailer before 6.4.16. Use of crafted recipient email addresses may result in arbitrary command flag injection in sendmail transport for sending mails.",
+      "url": "https://github.com/advisories/GHSA-48ww-j4fc-435p"
+    },
+    "1005367": {
+      "findings": [
+        {
+          "version": "1.7.0",
+          "paths": [
+            ".>karma>log4js>nodemailer>nodemailer-direct-transport>smtp-connection>httpntlm>underscore"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": ">=1.3.2 <1.12.1",
+      "module_name": "underscore",
+      "severity": "high",
+      "github_advisory_id": "GHSA-cf4h-3jhx-xvhq",
+      "cves": [
+        "CVE-2021-23358"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.12.1",
+      "updated": "2021-03-31T21:59:01.000Z",
+      "recommendation": "Upgrade to version 1.12.1 or later",
+      "cwe": "CWE-94",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005367,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-23358\n- https://github.com/jashkenas/underscore/pull/2917\n- https://github.com/jashkenas/underscore/commit/4c73526d43838ad6ab43a6134728776632adeb66\n- https://github.com/jashkenas/underscore/releases/tag/1.12.1\n- https://snyk.io/vuln/SNYK-JS-UNDERSCORE-1080984\n- https://www.npmjs.com/package/underscore\n- https://github.com/jashkenas/underscore/blob/master/modules/template.js%23L71\n- https://lists.debian.org/debian-lts-announce/2021/03/msg00038.html\n- https://www.debian.org/security/2021/dsa-4883\n- https://lists.apache.org/thread.html/r5df90c46f7000c4aab246e947f62361ecfb849c5a553dcdb0ef545e1@%3Cissues.cordova.apache.org%3E\n- https://lists.apache.org/thread.html/r770f910653772317b117ab4472b0a32c266ee4abbafda28b8a6f9306@%3Cissues.cordova.apache.org%3E\n- https://lists.apache.org/thread.html/raae088abdfa4fbd84e1d19d7a7ffe52bf8e426b83e6599ea9a734dba@%3Cissues.cordova.apache.org%3E\n- https://lists.apache.org/thread.html/rbc84926bacd377503a3f5c37b923c1931f9d343754488d94e6f08039@%3Cissues.cordova.apache.org%3E\n- https://lists.apache.org/thread.html/re69ee408b3983b43e9c4a82a9a17cbbf8681bb91a4b61b46f365aeaf@%3Cissues.cordova.apache.org%3E\n- https://www.tenable.com/security/tns-2021-14\n- https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/EOKATXXETD2PF3OR36Q5PD2VSVAR6J5Z/\n- https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/FGEE7U4Z655A2MK5EW4UQQZ7B64XJWBV/\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1081504\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBJASHKENAS-1081505\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1081503\n- https://github.com/advisories/GHSA-cf4h-3jhx-xvhq",
+      "created": "2021-11-18T16:00:48.535Z",
+      "reported_by": null,
+      "title": "Arbitrary Code Execution in underscore",
+      "npm_advisory_id": null,
+      "overview": "The package `underscore` from 1.13.0-0 and before 1.13.0-2, from 1.3.2 and before 1.12.1 are vulnerable to Arbitrary Code Execution via the template function, particularly when a variable property is passed as an argument as it is not sanitized.",
+      "url": "https://github.com/advisories/GHSA-cf4h-3jhx-xvhq"
+    },
+    "1005392": {
+      "findings": [
+        {
+          "version": "1.0.6",
+          "paths": [
+            ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver>netmask"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<2.0.1",
+      "module_name": "netmask",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-pch5-whg9-qr2r",
+      "cves": [
+        "CVE-2021-29418"
+      ],
+      "access": "public",
+      "patched_versions": ">=2.0.1",
+      "updated": "2021-03-29T21:31:25.000Z",
+      "recommendation": "Upgrade to version 2.0.1 or later",
+      "cwe": "CWE-20",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005392,
+      "references": "- https://github.com/rs/node-netmask/commit/3f19a056c4eb808ea4a29f234274c67bc5a848f4\n- https://sick.codes/sick-2021-011\n- https://sick.codes/universal-netmask-npm-package-used-by-270000-projects-vulnerable-to-octal-input-data-server-side-request-forgery-remote-file-inclusion-local-file-inclusion-and-more-cve-2021-28918/\n- https://www.npmjs.com/package/netmask\n- https://nvd.nist.gov/vuln/detail/CVE-2021-29418\n- https://vuln.ryotak.me/advisories/6\n- https://security.netapp.com/advisory/ntap-20210604-0001/\n- https://github.com/advisories/GHSA-pch5-whg9-qr2r",
+      "created": "2021-11-18T16:00:48.537Z",
+      "reported_by": null,
+      "title": "netmask npm package vulnerable to octal input data",
+      "npm_advisory_id": null,
+      "overview": "The netmask package before 2.0.1 for Node.js mishandles certain unexpected characters in an IP address string, such as an octal digit of 9. This (in some situations) allows attackers to bypass access control that is based on IP addresses. NOTE: this issue exists because of an incomplete fix for CVE-2021-28918.",
+      "url": "https://github.com/advisories/GHSA-pch5-whg9-qr2r"
+    },
+    "1005404": {
+      "findings": [
+        {
+          "version": "1.4.7",
+          "paths": [
+            ".>karma>log4js>amqplib>url-parse"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.5.0",
+      "module_name": "url-parse",
+      "severity": "high",
+      "github_advisory_id": "GHSA-9m6j-fcg5-2442",
+      "cves": [
+        "CVE-2021-27515"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.5.0",
+      "updated": "2021-03-22T21:04:52.000Z",
+      "recommendation": "Upgrade to version 1.5.0 or later",
+      "cwe": "CWE-23",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005404,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-27515\n- https://github.com/unshiftio/url-parse/pull/197\n- https://github.com/unshiftio/url-parse/commit/d1e7e8822f26e8a49794b757123b51386325b2b0\n- https://github.com/unshiftio/url-parse/compare/1.4.7...1.5.0\n- https://advisory.checkmarx.net/advisory/CX-2021-4306\n- https://github.com/advisories/GHSA-9m6j-fcg5-2442",
+      "created": "2021-11-18T16:00:48.538Z",
+      "reported_by": null,
+      "title": "Path traversal in url-parse",
+      "npm_advisory_id": null,
+      "overview": "url-parse before 1.5.0 mishandles certain uses of backslash such as http:\\/ and interprets the URI as a relative path.",
+      "url": "https://github.com/advisories/GHSA-9m6j-fcg5-2442"
+    },
+    "1005490": {
+      "findings": [
+        {
+          "version": "2.0.4",
+          "paths": [
+            ".>karma>socket.io"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<2.4.0",
+      "module_name": "socket.io",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-fxwf-4rqh-v8g3",
+      "cves": [
+        "CVE-2020-28481"
+      ],
+      "access": "public",
+      "patched_versions": ">=2.4.0",
+      "updated": "2021-01-20T05:39:25.000Z",
+      "recommendation": "Upgrade to version 2.4.0 or later",
+      "cwe": "CWE-346",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005490,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-28481\n- https://github.com/socketio/socket.io/issues/3671\n- https://github.com/socketio/socket.io/commit/f78a575f66ab693c3ea96ea88429ddb1a44c86c7\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1056358\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1056357\n- https://snyk.io/vuln/SNYK-JS-SOCKETIO-1024859\n- https://github.com/advisories/GHSA-fxwf-4rqh-v8g3",
+      "created": "2021-11-18T16:00:48.545Z",
+      "reported_by": null,
+      "title": "Insecure defaults due to CORS misconfiguration in socket.io",
+      "npm_advisory_id": null,
+      "overview": "The package socket.io before 2.4.0 are vulnerable to Insecure Defaults due to CORS Misconfiguration. All domains are whitelisted by default.",
+      "url": "https://github.com/advisories/GHSA-fxwf-4rqh-v8g3"
+    },
+    "1005506": {
+      "findings": [
+        {
+          "version": "0.15.3",
+          "paths": [
+            ".>axios"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<0.21.1",
+      "module_name": "axios",
+      "severity": "high",
+      "github_advisory_id": "GHSA-4w2v-q235-vp99",
+      "cves": [
+        "CVE-2020-28168"
+      ],
+      "access": "public",
+      "patched_versions": ">=0.21.1",
+      "updated": "2021-01-04T20:58:17.000Z",
+      "recommendation": "Upgrade to version 0.21.1 or later",
+      "cwe": "CWE-918",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005506,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-28168\n- https://github.com/axios/axios/issues/3369\n- https://github.com/axios/axios/commit/c7329fefc890050edd51e40e469a154d0117fc55\n- https://snyk.io/vuln/SNYK-JS-AXIOS-1038255\n- https://www.npmjs.com/package/axios\n- https://www.npmjs.com/advisories/1594\n- https://lists.apache.org/thread.html/r954d80fd18e9dafef6e813963eb7e08c228151c2b6268ecd63b35d1f@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r25d53acd06f29244b8a103781b0339c5e7efee9099a4d52f0c230e4a@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/rdfd2901b8b697a3f6e2c9c6ecc688fd90d7f881937affb5144d61d6e@%3Ccommits.druid.apache.org%3E\n- https://github.com/advisories/GHSA-4w2v-q235-vp99",
+      "created": "2021-11-18T16:00:48.546Z",
+      "reported_by": null,
+      "title": "Server-Side Request Forgery in Axios",
+      "npm_advisory_id": null,
+      "overview": "Axios NPM package 0.21.0 contains a Server-Side Request Forgery (SSRF) vulnerability where an attacker is able to bypass a proxy by providing a URL that responds with a redirect to a restricted host or IP address.",
+      "url": "https://github.com/advisories/GHSA-4w2v-q235-vp99"
+    },
+    "1005563": {
+      "findings": [
+        {
+          "version": "1.1.2",
+          "paths": [
+            ".>karma>log4js>loggly>request>bl"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.2.3",
+      "module_name": "bl",
+      "severity": "high",
+      "github_advisory_id": "GHSA-pp7h-53gx-mx7r",
+      "cves": [
+        "CVE-2020-8244"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.2.3",
+      "updated": "2020-09-08T19:01:38.000Z",
+      "recommendation": "Upgrade to version 1.2.3 or later",
+      "cwe": "CWE-125",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005563,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-8244\n- https://github.com/rvagg/bl/commit/8a8c13c880e2bef519133ea43e0e9b78b5d0c91e\n- https://github.com/rvagg/bl/commit/d3e240e3b8ba4048d3c76ef5fb9dd1f8872d3190\n- https://github.com/rvagg/bl/commit/dacc4ac7d5fcd6201bcf26fbd886951be9537466\n- https://hackerone.com/reports/966347\n- https://github.com/advisories/GHSA-pp7h-53gx-mx7r",
+      "created": "2021-11-18T16:00:48.550Z",
+      "reported_by": null,
+      "title": "Remote Memory Exposure in bl",
+      "npm_advisory_id": null,
+      "overview": "A buffer over-read vulnerability exists in bl <4.0.3, <3.0.1, <2.2.1, and <1.2.3 which could allow an attacker to supply user input (even typed) that if it ends up in consume() argument and can become negative, the BufferList state can be corrupted, tricking it into exposing uninitialized memory via regular .slice() calls.",
+      "url": "https://github.com/advisories/GHSA-pp7h-53gx-mx7r"
+    },
+    "1005586": {
+      "findings": [
+        {
+          "version": "1.18.0",
+          "paths": [
+            ".>karma>http-proxy"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.18.1",
+      "module_name": "http-proxy",
+      "severity": "high",
+      "github_advisory_id": "GHSA-6x33-pw7p-hmpq",
+      "cves": [],
+      "access": "public",
+      "patched_versions": ">=1.18.1",
+      "updated": "2020-08-31T19:01:07.000Z",
+      "recommendation": "Upgrade to version 1.18.1 or later",
+      "cwe": "",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005586,
+      "references": "- https://github.com/http-party/node-http-proxy/pull/1447/files\n- https://www.npmjs.com/advisories/1486\n- https://github.com/advisories/GHSA-6x33-pw7p-hmpq",
+      "created": "2021-11-18T16:00:48.552Z",
+      "reported_by": null,
+      "title": "Denial of Service in http-proxy",
+      "npm_advisory_id": null,
+      "overview": "Versions of `http-proxy` prior to 1.18.1 are vulnerable to Denial of Service. An HTTP request with a long body triggers an `ERR_HTTP_HEADERS_SENT` unhandled exception that crashes the proxy server. This is only possible when the proxy server sets headers in the proxy request using the `proxyReq.setHeader` function.   \n\nFor a proxy server running on `http://localhost:3000`, the following curl request triggers the unhandled exception:  \n```curl -XPOST http://localhost:3000 -d \"$(python -c 'print(\"x\"*1025)')\"```\n\n\n## Recommendation\n\nUpgrade to version 1.18.1 or later",
+      "url": "https://github.com/advisories/GHSA-6x33-pw7p-hmpq"
+    },
+    "1005745": {
+      "findings": [
+        {
+          "version": "2.3.0",
+          "paths": [
+            ".>karma>log4js>loggly>timespan"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<=2.3.0",
+      "module_name": "timespan",
+      "severity": "low",
+      "github_advisory_id": "GHSA-f523-2f5j-gfcg",
+      "cves": [
+        "CVE-2017-16115"
+      ],
+      "access": "public",
+      "patched_versions": "<0.0.0",
+      "updated": "2020-08-31T18:26:45.000Z",
+      "recommendation": "None",
+      "cwe": "CWE-400",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005745,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2017-16115\n- https://github.com/indexzero/TimeSpan.js/issues/10\n- https://github.com/advisories/GHSA-f523-2f5j-gfcg\n- https://www.npmjs.com/advisories/533\n- https://nodesecurity.io/advisories/533",
+      "created": "2021-11-18T16:00:48.567Z",
+      "reported_by": null,
+      "title": "Regular Expression Denial of Service in timespan",
+      "npm_advisory_id": null,
+      "overview": "Affected versions of `timespan` are vulnerable to a regular expression denial of service when parsing dates.\n\nThe amplification for this vulnerability is significant, with 50,000 characters resulting in the event loop being blocked for around 10 seconds.\n\n\n## Recommendation\n\nNo direct patch is available for this vulnerability.\n\nCurrently, the best available solution is to use a functionally equivalent alternative package.\n\nIt is also sufficient to ensure that user input is not being passed into `timespan`, or that the maximum length of such user input is drastically reduced. Limiting the input length to 150 characters should be sufficient in most cases.",
+      "url": "https://github.com/advisories/GHSA-f523-2f5j-gfcg"
+    },
+    "1005902": {
+      "findings": [
+        {
+          "version": "0.6.2",
+          "paths": [
+            ".>sync-exec"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<=0.6.2",
+      "module_name": "sync-exec",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-38h8-x697-gh8q",
+      "cves": [
+        "CVE-2017-16024"
+      ],
+      "access": "public",
+      "patched_versions": "<0.0.0",
+      "updated": "2020-08-31T18:18:48.000Z",
+      "recommendation": "None",
+      "cwe": "CWE-377",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005902,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2017-16024\n- https://github.com/gvarsanyi/sync-exec/issues/17\n- https://cwe.mitre.org/data/definitions/377.html\n- https://github.com/advisories/GHSA-38h8-x697-gh8q\n- https://www.npmjs.com/advisories/310\n- https://nodesecurity.io/advisories/310\n- https://www.owasp.org/index.php/Insecure_Temporary_File",
+      "created": "2021-11-18T16:00:48.581Z",
+      "reported_by": null,
+      "title": "Tmp files readable by other users in sync-exec",
+      "npm_advisory_id": null,
+      "overview": "Affected versions of `sync-exec` use files located in `/tmp/` to buffer command results before returning values. As `/tmp/` is almost always set with world readable permissions, this may allow low privilege users on the system to read the results of commands run via `sync-exec` under a higher privilege user.\n\n\n## Recommendation\n\nThere is currently no direct patch for `sync-exec`, as the `child_process.execSync` function provided in Node.js v0.12.0 and later provides the same functionality natively. \n\nThe best mitigation currently is to update to Node.js v0.12.0 or later, and migrate all uses of `sync-exec` to `child_process.execSync()`.",
+      "url": "https://github.com/advisories/GHSA-38h8-x697-gh8q"
+    },
+    "1006110": {
+      "findings": [
+        {
+          "version": "6.0.2",
+          "paths": [
+            ".>karma>chokidar>anymatch>micromatch>kind-of"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": ">=6.0.0 <6.0.3",
+      "module_name": "kind-of",
+      "severity": "high",
+      "github_advisory_id": "GHSA-6c8f-qphg-qjgp",
+      "cves": [
+        "CVE-2019-20149"
+      ],
+      "access": "public",
+      "patched_versions": ">=6.0.3",
+      "updated": "2020-07-01T18:33:47.000Z",
+      "recommendation": "Upgrade to version 6.0.3 or later",
+      "cwe": "CWE-668",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006110,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2019-20149\n- https://github.com/jonschlinkert/kind-of/issues/30\n- https://github.com/jonschlinkert/kind-of/pull/31\n- https://github.com/jonschlinkert/kind-of/commit/1df992ce6d5a1292048e5fe9c52c5382f941ee0b\n- https://snyk.io/vuln/SNYK-JS-KINDOF-537849\n- https://www.npmjs.com/advisories/1490\n- https://github.com/advisories/GHSA-6c8f-qphg-qjgp",
+      "created": "2021-11-18T16:00:48.599Z",
+      "reported_by": null,
+      "title": "Validation Bypass in kind-of",
+      "npm_advisory_id": null,
+      "overview": "Versions of `kind-of` 6.x prior to 6.0.3 are vulnerable to a Validation Bypass. A maliciously crafted object can alter the result of the type check, allowing attackers to bypass the type checking validation. \n\n\n## Recommendation\n\nUpgrade to versions 6.0.3 or later.",
+      "url": "https://github.com/advisories/GHSA-6c8f-qphg-qjgp"
+    },
+    "1006180": {
+      "findings": [
+        {
+          "version": "0.0.8",
+          "paths": [
+            ".>karma>chokidar>fsevents>node-pre-gyp>mkdirp>minimist"
+          ]
+        },
+        {
+          "version": "0.0.10",
+          "paths": [
+            ".>karma>optimist>minimist"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<0.2.1",
+      "module_name": "minimist",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-vh95-rmgr-6w4m",
+      "cves": [
+        "CVE-2020-7598"
+      ],
+      "access": "public",
+      "patched_versions": ">=0.2.1",
+      "updated": "2020-04-03T21:42:10.000Z",
+      "recommendation": "Upgrade to version 0.2.1 or later",
+      "cwe": "CWE-915",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006180,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-7598\n- https://github.com/substack/minimist/commit/38a4d1caead72ef99e824bb420a2528eec03d9ab\n- https://github.com/substack/minimist/commit/63e7ed05aa4b1889ec2f3b196426db4500cbda94\n- https://snyk.io/vuln/SNYK-JS-MINIMIST-559764\n- http://lists.opensuse.org/opensuse-security-announce/2020-06/msg00024.html\n- https://github.com/substack/minimist/commit/4cf1354839cb972e38496d35e12f806eea92c11f#diff-a1e0ee62c91705696ddb71aa30ad4f95\n- https://www.npmjs.com/advisories/1179\n- https://github.com/advisories/GHSA-vh95-rmgr-6w4m",
+      "created": "2021-11-18T16:00:48.604Z",
+      "reported_by": null,
+      "title": "Prototype Pollution in minimist",
+      "npm_advisory_id": null,
+      "overview": "Affected versions of `minimist` are vulnerable to prototype pollution. Arguments are not properly sanitized, allowing an attacker to modify the prototype of `Object`, causing the addition or modification of an existing property that will exist on all objects.  \nParsing the argument `--__proto__.y=Polluted` adds a `y` property with value `Polluted` to all objects. The argument `--__proto__=Polluted` raises and uncaught error and crashes the application.  \nThis is exploitable if attackers have control over the arguments being passed to `minimist`.\n\n\n\n## Recommendation\n\nUpgrade to versions 0.2.1, 1.2.3 or later.",
+      "url": "https://github.com/advisories/GHSA-vh95-rmgr-6w4m"
+    },
+    "1006342": {
+      "findings": [
+        {
+          "version": "0.1.5",
+          "paths": [
+            ".>karma>expand-braces>braces"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<2.3.1",
+      "module_name": "braces",
+      "severity": "low",
+      "github_advisory_id": "GHSA-g95f-p29q-9xw4",
+      "cves": [],
+      "access": "public",
+      "patched_versions": ">=2.3.1",
+      "updated": "2019-06-06T09:40:52.000Z",
+      "recommendation": "Upgrade to version 2.3.1 or later",
+      "cwe": "CWE-185",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006342,
+      "references": "- https://github.com/micromatch/braces/commit/abdafb0cae1e0c00f184abbadc692f4eaa98f451\n- https://www.npmjs.com/advisories/786\n- https://snyk.io/vuln/npm:braces:20180219\n- https://github.com/advisories/GHSA-g95f-p29q-9xw4",
+      "created": "2021-11-18T16:00:48.617Z",
+      "reported_by": null,
+      "title": "Regular Expression Denial of Service in braces",
+      "npm_advisory_id": null,
+      "overview": "Versions of `braces` prior to 2.3.1 are vulnerable to Regular Expression Denial of Service (ReDoS). Untrusted input may cause catastrophic backtracking while matching regular expressions. This can cause the application to be unresponsive leading to Denial of Service.\n\n\n## Recommendation\n\nUpgrade to version 2.3.1 or higher.",
+      "url": "https://github.com/advisories/GHSA-g95f-p29q-9xw4"
+    },
+    "1006349": {
+      "findings": [
+        {
+          "version": "0.15.3",
+          "paths": [
+            ".>axios"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<=0.18.0",
+      "module_name": "axios",
+      "severity": "high",
+      "github_advisory_id": "GHSA-42xw-2xvc-qx8m",
+      "cves": [
+        "CVE-2019-10742"
+      ],
+      "access": "public",
+      "patched_versions": ">=0.18.1",
+      "updated": "2019-06-05T16:22:11.000Z",
+      "recommendation": "Upgrade to version 0.18.1 or later",
+      "cwe": "CWE-20",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006349,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2019-10742\n- https://app.snyk.io/vuln/SNYK-JS-AXIOS-174505\n- https://github.com/axios/axios/issues/1098\n- https://github.com/axios/axios/pull/1485\n- https://snyk.io/vuln/SNYK-JS-AXIOS-174505\n- https://www.npmjs.com/advisories/880\n- https://github.com/advisories/GHSA-42xw-2xvc-qx8m",
+      "created": "2021-11-18T16:00:48.617Z",
+      "reported_by": null,
+      "title": "Denial of Service in axios",
+      "npm_advisory_id": null,
+      "overview": "Versions of `axios` prior to 0.18.1 are vulnerable to Denial of Service. If a request exceeds the `maxContentLength` property, the package prints an error but does not stop the request. This may cause high CPU usage and lead to Denial of Service.\n\n\n## Recommendation\n\nUpgrade to 0.18.1 or later.",
+      "url": "https://github.com/advisories/GHSA-42xw-2xvc-qx8m"
+    },
+    "1006373": {
+      "findings": [
+        {
+          "version": "0.4.3",
+          "paths": [
+            ".>karma>log4js>loggly>request>tunnel-agent"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<0.6.0",
+      "module_name": "tunnel-agent",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-xc7v-wxcw-j472",
+      "cves": [],
+      "access": "public",
+      "patched_versions": ">=0.6.0",
+      "updated": "2019-06-03T17:08:06.000Z",
+      "recommendation": "Upgrade to version 0.6.0 or later",
+      "cwe": "CWE-200",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006373,
+      "references": "- https://github.com/request/tunnel-agent/commit/9ca95ec7219daface8a6fc2674000653de0922c0\n- https://www.npmjs.com/advisories/598\n- https://gist.github.com/ChALkeR/fd6b2c445834244e7d440a043f9d2ff4\n- https://github.com/advisories/GHSA-xc7v-wxcw-j472",
+      "created": "2021-11-18T16:00:48.619Z",
+      "reported_by": null,
+      "title": "Memory Exposure in tunnel-agent",
+      "npm_advisory_id": null,
+      "overview": "Versions of `tunnel-agent` before 0.6.0 are vulnerable to memory exposure.\n\nThis is exploitable if user supplied input is provided to the auth value and is a number.\n\nProof-of-concept:\n```js\nrequire('request')({\n  method: 'GET',\n  uri: 'http://www.example.com',\n  tunnel: true,\n  proxy:{\n    protocol: 'http:',\n    host:'127.0.0.1',\n    port:8080,\n    auth:USERSUPPLIEDINPUT // number\n  }\n});\n```\n\n\n## Recommendation\n\nUpdate to version 0.6.0 or later.",
+      "url": "https://github.com/advisories/GHSA-xc7v-wxcw-j472"
+    },
+    "1006603": {
+      "findings": [
+        {
+          "version": "2.0.5",
+          "paths": [
+            ".>karma>log4js>loggly>request>hawk>cryptiles"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.1.2",
+      "module_name": "cryptiles",
+      "severity": "critical",
+      "github_advisory_id": "GHSA-rq8g-5pc5-wrhr",
+      "cves": [
+        "CVE-2018-1000620"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.1.2",
+      "updated": "2018-09-11T18:22:44.000Z",
+      "recommendation": "Upgrade to version 4.1.2 or later",
+      "cwe": "CWE-331",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006603,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2018-1000620\n- https://github.com/hapijs/cryptiles/issues/34\n- https://github.com/advisories/GHSA-rq8g-5pc5-wrhr\n- https://github.com/nodejs/security-wg/blob/master/vuln/npm/476.json\n- https://www.npmjs.com/advisories/720\n- https://www.npmjs.com/advisories/1464",
+      "created": "2021-11-18T16:00:48.639Z",
+      "reported_by": null,
+      "title": "Insufficient Entropy in cryptiles",
+      "npm_advisory_id": null,
+      "overview": "Versions of `cryptiles` prior to 4.1.2 are vulnerable to Insufficient Entropy. The `randomDigits()` method does not provide sufficient entropy and its generates digits that are not evenly distributed.\n\n\n## Recommendation\n\nUpgrade to version 4.1.2. The package is deprecated and has been moved to `@hapi/cryptiles` and it is strongly recommended to use the maintained package.",
+      "url": "https://github.com/advisories/GHSA-rq8g-5pc5-wrhr"
+    },
+    "1006659": {
+      "findings": [
+        {
+          "version": "2.16.3",
+          "paths": [
+            ".>karma>log4js>loggly>request>hawk>hoek"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.2.1",
+      "module_name": "hoek",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-jp4x-w63m-7wgm",
+      "cves": [
+        "CVE-2018-3728"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.2.1",
+      "updated": "2018-04-27T13:38:53.000Z",
+      "recommendation": "Upgrade to version 4.2.1 or later",
+      "cwe": "CWE-471",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006659,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2018-3728\n- https://hackerone.com/reports/310439\n- https://github.com/advisories/GHSA-jp4x-w63m-7wgm\n- https://www.npmjs.com/advisories/566\n- https://github.com/hapijs/hoek/commit/32ed5c9413321fbc37da5ca81a7cbab693786dee\n- https://access.redhat.com/errata/RHSA-2018:1263\n- https://access.redhat.com/errata/RHSA-2018:1264\n- https://nodesecurity.io/advisories/566\n- https://snyk.io/vuln/npm:hoek:20180212\n- http://www.securityfocus.com/bid/103108",
+      "created": "2021-11-18T16:00:48.643Z",
+      "reported_by": null,
+      "title": "Prototype Pollution in hoek",
+      "npm_advisory_id": null,
+      "overview": "Versions of `hoek` prior to 4.2.1 and 5.0.3 are vulnerable to prototype pollution.\n\nThe `merge` function, and the `applyToDefaults` and `applyToDefaultsWithShallow` functions which leverage `merge` behind the scenes, are vulnerable to a prototype pollution attack when provided an _unvalidated_ payload created from a JSON string containing the `__proto__` property.\n\nThis can be demonstrated like so:\n\n```javascript\nvar Hoek = require('hoek');\nvar malicious_payload = '{\"__proto__\":{\"oops\":\"It works !\"}}';\n\nvar a = {};\nconsole.log(\"Before : \" + a.oops);\nHoek.merge({}, JSON.parse(malicious_payload));\nconsole.log(\"After : \" + a.oops);\n```\n\nThis type of attack can be used to overwrite existing properties causing a potential denial of service.\n\n\n## Recommendation\n\nUpdate to version 4.2.1, 5.0.3 or later.",
+      "url": "https://github.com/advisories/GHSA-jp4x-w63m-7wgm"
+    },
+    "1006724": {
+      "findings": [
+        {
+          "version": "0.2.3",
+          "paths": [
+            ".>karma>log4js>hipchat-notifier>request>http-signature>jsprim>json-schema"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<0.4.0",
+      "module_name": "json-schema",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-896r-f27r-55mw",
+      "cves": [
+        "CVE-2021-3918"
+      ],
+      "access": "public",
+      "patched_versions": ">=0.4.0",
+      "updated": "2021-11-15T22:44:28.000Z",
+      "recommendation": "Upgrade to version 0.4.0 or later",
+      "cwe": "CWE-915",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006724,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-3918\n- https://github.com/kriszyp/json-schema/commit/22f146111f541d9737e832823699ad3528ca7741\n- https://huntr.dev/bounties/bb6ccd63-f505-4e3a-b55f-cd2662c261a9\n- https://github.com/kriszyp/json-schema/commit/b62f1da1ff5442f23443d6be6a92d00e65cba93a\n- https://github.com/kriszyp/json-schema/commit/f6f6a3b02d667aa4ba2d5d50cc19208c4462abfa\n- https://github.com/advisories/GHSA-896r-f27r-55mw",
+      "created": "2021-11-19T21:00:41.916Z",
+      "reported_by": null,
+      "title": "json-schema is vulnerable to Prototype Pollution",
+      "npm_advisory_id": null,
+      "overview": "json-schema is vulnerable to Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution')",
+      "url": "https://github.com/advisories/GHSA-896r-f27r-55mw"
+    },
+    "1006788": {
+      "findings": [
+        {
+          "version": "2.7.2",
+          "paths": [
+            ".>karma>log4js>nodemailer"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<6.6.1",
+      "module_name": "nodemailer",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-hwqf-gcqm-7353",
+      "cves": [
+        "CVE-2021-23400"
+      ],
+      "access": "public",
+      "patched_versions": ">=6.6.1",
+      "updated": "2021-06-30T17:38:02.000Z",
+      "recommendation": "Upgrade to version 6.6.1 or later",
+      "cwe": "CWE-74",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006788,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-23400\n- https://github.com/nodemailer/nodemailer/issues/1289\n- https://github.com/nodemailer/nodemailer/commit/7e02648cc8cd863f5085bad3cd09087bccf84b9f\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1314737\n- https://snyk.io/vuln/SNYK-JS-NODEMAILER-1296415\n- https://github.com/advisories/GHSA-hwqf-gcqm-7353",
+      "created": "2021-12-10T19:00:45.984Z",
+      "reported_by": null,
+      "title": "Header injection in nodemailer",
+      "npm_advisory_id": null,
+      "overview": "The package nodemailer before 6.6.1 are vulnerable to HTTP Header Injection if unsanitized user input that may contain newlines and carriage returns is passed into an address object.",
+      "url": "https://github.com/advisories/GHSA-hwqf-gcqm-7353"
+    },
+    "1006822": {
+      "findings": [
+        {
+          "version": "1.0.6",
+          "paths": [
+            ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver>netmask"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.1.0",
+      "module_name": "netmask",
+      "severity": "critical",
+      "github_advisory_id": "GHSA-4c7m-wxvm-r7gc",
+      "cves": [
+        "CVE-2021-28918"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.1.0",
+      "updated": "2021-04-13T16:13:23.000Z",
+      "recommendation": "Upgrade to version 1.1.0 or later",
+      "cwe": "CWE-20",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006822,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-28918\n- https://github.com/rs/node-netmask/blob/98294cb20695f2c6c36219a4fbcd4744fb8d0682/CHANGELOG.md#v110-mar-18-2021\n- https://github.com/sickcodes/security/blob/master/advisories/SICK-2021-011.md\n- https://www.bleepingcomputer.com/news/security/critical-netmask-networking-bug-impacts-thousands-of-applications/\n- https://www.npmjs.com/package/netmask\n- https://github.com/advisories/GHSA-pch5-whg9-qr2r\n- https://security.netapp.com/advisory/ntap-20210528-0010/\n- https://rootdaemon.com/2021/03/29/vulnerability-in-netmask-npm-package-affects-280000-projects/\n- https://github.com/advisories/GHSA-4c7m-wxvm-r7gc",
+      "created": "2022-01-04T20:00:43.966Z",
+      "reported_by": null,
+      "title": "Improper parsing of octal bytes in netmask",
+      "npm_advisory_id": null,
+      "overview": "Improper input validation of octal strings in netmask npm package v1.0.6 and below allows unauthenticated remote attackers to perform indeterminate SSRF, RFI, and LFI attacks on many of the dependent packages. A remote unauthenticated attacker can bypass packages relying on netmask to filter IPs and reach critical VPN or LAN hosts.\n\n:exclamation: NOTE: The fix for this issue was incomplete. A subsequent fix was made in version `2.0.1` which was assigned [CVE-2021-29418 / GHSA-pch5-whg9-qr2r](https://github.com/advisories/GHSA-pch5-whg9-qr2r). For complete protection from this vulnerability an upgrade to version 2.0.1 or later is recommended.",
+      "url": "https://github.com/advisories/GHSA-4c7m-wxvm-r7gc"
+    },
+    "1006837": {
+      "findings": [
+        {
+          "version": "0.1.5",
+          "paths": [
+            ".>karma>expand-braces>braces"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<2.3.1",
+      "module_name": "braces",
+      "severity": "low",
+      "github_advisory_id": "GHSA-cwfw-4gq5-mrqx",
+      "cves": [
+        "CVE-2018-1109"
+      ],
+      "access": "public",
+      "patched_versions": ">=2.3.1",
+      "updated": "2021-03-31T21:35:00.000Z",
+      "recommendation": "Upgrade to version 2.3.1 or later",
+      "cwe": "CWE-400",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006837,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2018-1109\n- https://github.com/micromatch/braces/commit/abdafb0cae1e0c00f184abbadc692f4eaa98f451\n- https://bugzilla.redhat.com/show_bug.cgi?id=1547272\n- https://snyk.io/vuln/npm:braces:20180219\n- https://github.com/advisories/GHSA-cwfw-4gq5-mrqx",
+      "created": "2022-01-06T21:00:43.096Z",
+      "reported_by": null,
+      "title": "Regular Expression Denial of Service (ReDoS) in braces",
+      "npm_advisory_id": null,
+      "overview": "A vulnerability was found in Braces versions prior to 2.3.1. Affected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) attacks.",
+      "url": "https://github.com/advisories/GHSA-cwfw-4gq5-mrqx"
+    },
+    "1006865": {
+      "findings": [
+        {
+          "version": "1.0.0",
+          "paths": [
+            ".>axios>follow-redirects"
+          ]
+        },
+        {
+          "version": "1.9.0",
+          "paths": [
+            ".>karma>http-proxy>follow-redirects"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.14.7",
+      "module_name": "follow-redirects",
+      "severity": "high",
+      "github_advisory_id": "GHSA-74fj-2j2h-c42q",
+      "cves": [
+        "CVE-2022-0155"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.14.7",
+      "updated": "2022-01-11T18:41:09.000Z",
+      "recommendation": "Upgrade to version 1.14.7 or later",
+      "cwe": "CWE-359",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006865,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2022-0155\n- https://github.com/follow-redirects/follow-redirects/commit/8b347cbcef7c7b72a6e9be20f5710c17d6163c22\n- https://huntr.dev/bounties/fc524e4b-ebb6-427d-ab67-a64181020406\n- https://github.com/advisories/GHSA-74fj-2j2h-c42q",
+      "created": "2022-01-12T23:00:43.967Z",
+      "reported_by": null,
+      "title": "Exposure of sensitive information in follow-redirects",
+      "npm_advisory_id": null,
+      "overview": "follow-redirects is vulnerable to Exposure of Private Personal Information to an Unauthorized Actor",
+      "url": "https://github.com/advisories/GHSA-74fj-2j2h-c42q"
+    },
+    "1006902": {
+      "findings": [
+        {
+          "version": "2.11.0",
+          "paths": [
+            ".>karma>log4js"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<6.4.0",
+      "module_name": "log4js",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-82v2-mx6x-wq7q",
+      "cves": [
+        "CVE-2022-21704"
+      ],
+      "access": "public",
+      "patched_versions": ">=6.4.0",
+      "updated": "2022-01-19T22:47:15.000Z",
+      "recommendation": "Upgrade to version 6.4.0 or later",
+      "cwe": "CWE-276",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006902,
+      "references": "- https://github.com/log4js-node/log4js-node/security/advisories/GHSA-82v2-mx6x-wq7q\n- https://github.com/log4js-node/log4js-node/pull/1141/commits/8042252861a1b65adb66931fdf702ead34fa9b76\n- https://github.com/log4js-node/streamroller/pull/87\n- https://github.com/log4js-node/log4js-node/blob/v6.4.0/CHANGELOG.md#640\n- https://nvd.nist.gov/vuln/detail/CVE-2022-21704\n- https://github.com/advisories/GHSA-82v2-mx6x-wq7q",
+      "created": "2022-01-25T20:00:44.170Z",
+      "reported_by": null,
+      "title": "Incorrect Default Permissions in log4js",
+      "npm_advisory_id": null,
+      "overview": "### Impact\r\nDefault file permissions for log files created by the file, fileSync and dateFile appenders are world-readable (in unix). This could cause problems if log files contain sensitive information. This would affect any users that have not supplied their own permissions for the files via the mode parameter in the config.\r\n\r\n### Patches\r\nFixed by:\r\n* https://github.com/log4js-node/log4js-node/pull/1141\r\n* https://github.com/log4js-node/streamroller/pull/87\r\n\r\nReleased to NPM in log4js@6.4.0\r\n\r\n### Workarounds\r\nEvery version of log4js published allows passing the mode parameter to the configuration of file appenders, see the documentation for details.\r\n\r\n### References\r\n\r\nThanks to [ranjit-git](https://www.huntr.dev/users/ranjit-git) for raising the issue, and to @peteriman for fixing the problem.\r\n\r\n### For more information\r\nIf you have any questions or comments about this advisory:\r\n* Open an issue in [logj4s-node](https://github.com/log4js-node/log4js-node)\r\n* Ask a question in the [slack channel](https://join.slack.com/t/log4js-node/shared_invite/enQtODkzMDQ3MzExMDczLWUzZmY0MmI0YWI1ZjFhODY0YjI0YmU1N2U5ZTRkOTYyYzg3MjY5NWI4M2FjZThjYjdiOGM0NjU2NzBmYTJjOGI)\r\n* Email us at [gareth.nomiddlename@gmail.com](mailto:gareth.nomiddlename@gmail.com)\r\n",
+      "url": "https://github.com/advisories/GHSA-82v2-mx6x-wq7q"
+    },
+    "1006947": {
+      "findings": [
+        {
+          "version": "3.1.0",
+          "paths": [
+            ".>karma>chokidar>glob-parent"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<5.1.2",
+      "module_name": "glob-parent",
+      "severity": "high",
+      "github_advisory_id": "GHSA-ww39-953v-wcq6",
+      "cves": [
+        "CVE-2020-28469"
+      ],
+      "access": "public",
+      "patched_versions": ">=5.1.2",
+      "updated": "2021-06-04T18:30:46.000Z",
+      "recommendation": "Upgrade to version 5.1.2 or later",
+      "cwe": "CWE-400",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006947,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-28469\n- https://github.com/gulpjs/glob-parent/pull/36\n- https://github.com/gulpjs/glob-parent/blob/6ce8d11f2f1ed8e80a9526b1dc8cf3aa71f43474/index.js%23L9\n- https://github.com/gulpjs/glob-parent/releases/tag/v5.1.2\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBES128-1059093\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1059092\n- https://snyk.io/vuln/SNYK-JS-GLOBPARENT-1016905\n- https://www.oracle.com/security-alerts/cpujan2022.html\n- https://github.com/advisories/GHSA-ww39-953v-wcq6",
+      "created": "2022-02-08T22:00:42.497Z",
+      "reported_by": null,
+      "title": "Regular expression denial of service",
+      "npm_advisory_id": null,
+      "overview": "This affects the package glob-parent before 5.1.2. The enclosure regex used to check for strings ending in enclosure containing path separator.",
+      "url": "https://github.com/advisories/GHSA-ww39-953v-wcq6"
+    },
+    "1006948": {
+      "findings": [
+        {
+          "version": "4.17.15",
+          "paths": [
+            ".>karma>lodash"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.17.21",
+      "module_name": "lodash",
+      "severity": "high",
+      "github_advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "cves": [
+        "CVE-2021-23337"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.17.21",
+      "updated": "2021-03-31T23:59:26.000Z",
+      "recommendation": "Upgrade to version 4.17.21 or later",
+      "cwe": "CWE-77",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006948,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-23337\n- https://github.com/lodash/lodash/commit/3469357cff396a26c363f8c1b5a91dde28ba4b1c\n- https://security.netapp.com/advisory/ntap-20210312-0006/\n- https://snyk.io/vuln/SNYK-JS-LODASH-1040724\n- https://github.com/lodash/lodash/blob/ddfd9b11a0126db2302cb70ec9973b66baec0975/lodash.js#L14851\n- https://github.com/lodash/lodash/blob/ddfd9b11a0126db2302cb70ec9973b66baec0975/lodash.js%23L14851\n- https://snyk.io/vuln/SNYK-JAVA-ORGFUJIONWEBJARS-1074932\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARS-1074930\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1074928\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBLODASH-1074931\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1074929\n- https://www.oracle.com//security-alerts/cpujul2021.html\n- https://www.oracle.com/security-alerts/cpuoct2021.html\n- https://www.oracle.com/security-alerts/cpujan2022.html\n- https://github.com/advisories/GHSA-35jh-r3h4-6jhm",
+      "created": "2022-02-08T22:00:42.498Z",
+      "reported_by": null,
+      "title": "Command Injection in lodash",
+      "npm_advisory_id": null,
+      "overview": "`lodash` versions prior to 4.17.21 are vulnerable to Command Injection via the template function.",
+      "url": "https://github.com/advisories/GHSA-35jh-r3h4-6jhm"
+    },
+    "1006949": {
+      "findings": [
+        {
+          "version": "4.17.15",
+          "paths": [
+            ".>karma>lodash"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.17.21",
+      "module_name": "lodash",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-29mw-wpgm-hmr9",
+      "cves": [
+        "CVE-2020-28500"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.17.21",
+      "updated": "2021-03-19T22:45:29.000Z",
+      "recommendation": "Upgrade to version 4.17.21 or later",
+      "cwe": "CWE-400",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006949,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-28500\n- https://github.com/lodash/lodash/pull/5065\n- https://github.com/lodash/lodash/pull/5065/commits/02906b8191d3c100c193fe6f7b27d1c40f200bb7\n- https://github.com/lodash/lodash/blob/npm/trimEnd.js%23L8\n- https://security.netapp.com/advisory/ntap-20210312-0006/\n- https://snyk.io/vuln/SNYK-JS-LODASH-1018905\n- https://snyk.io/vuln/SNYK-JAVA-ORGFUJIONWEBJARS-1074896\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARS-1074894\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1074892\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBLODASH-1074895\n- https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1074893\n- https://www.oracle.com//security-alerts/cpujul2021.html\n- https://www.oracle.com/security-alerts/cpuoct2021.html\n- https://www.oracle.com/security-alerts/cpujan2022.html\n- https://github.com/advisories/GHSA-29mw-wpgm-hmr9",
+      "created": "2022-02-08T22:00:42.498Z",
+      "reported_by": null,
+      "title": "Regular Expression Denial of Service (ReDoS) in lodash",
+      "npm_advisory_id": null,
+      "overview": "All versions of package lodash prior to 4.17.21 are vulnerable to Regular Expression Denial of Service (ReDoS) via the toNumber, trim and trimEnd functions. Steps to reproduce (provided by reporter Liyuan Chen): var lo = require('lodash'); function build_blank (n) { var ret = \"1\" for (var i = 0; i < n; i++) { ret += \" \" } return ret + \"1\"; } var s = build_blank(50000) var time0 = Date.now(); lo.trim(s) var time_cost0 = Date.now() - time0; console.log(\"time_cost0: \" + time_cost0) var time1 = Date.now(); lo.toNumber(s) var time_cost1 = Date.now() - time1; console.log(\"time_cost1: \" + time_cost1) var time2 = Date.now(); lo.trimEnd(s) var time_cost2 = Date.now() - time2; console.log(\"time_cost2: \" + time_cost2)",
+      "url": "https://github.com/advisories/GHSA-29mw-wpgm-hmr9"
+    },
+    "1006952": {
+      "findings": [
+        {
+          "version": "4.17.15",
+          "paths": [
+            ".>karma>lodash"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.17.19",
+      "module_name": "lodash",
+      "severity": "high",
+      "github_advisory_id": "GHSA-p6mc-m468-83gw",
+      "cves": [
+        "CVE-2020-8203"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.17.19",
+      "updated": "2020-07-15T19:15:01.000Z",
+      "recommendation": "Upgrade to version 4.17.19 or later",
+      "cwe": "CWE-770",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006952,
+      "references": "- https://github.com/lodash/lodash/issues/4744\n- https://github.com/lodash/lodash/commit/c84fe82760fb2d3e03a63379b297a1cc1a2fce12\n- https://www.npmjs.com/advisories/1523\n- https://nvd.nist.gov/vuln/detail/CVE-2020-8203\n- https://hackerone.com/reports/712065\n- https://security.netapp.com/advisory/ntap-20200724-0006/\n- https://github.com/lodash/lodash/issues/4874\n- https://www.oracle.com/security-alerts/cpuApr2021.html\n- https://www.oracle.com//security-alerts/cpujul2021.html\n- https://www.oracle.com/security-alerts/cpuoct2021.html\n- https://www.oracle.com/security-alerts/cpujan2022.html\n- https://github.com/advisories/GHSA-p6mc-m468-83gw",
+      "created": "2022-02-08T23:00:41.860Z",
+      "reported_by": null,
+      "title": "Prototype Pollution in lodash",
+      "npm_advisory_id": null,
+      "overview": "Versions of lodash prior to 4.17.19 are vulnerable to Prototype Pollution. The function zipObjectDeep allows a malicious user to modify the prototype of Object if the property identifiers are user-supplied. Being affected by this issue requires zipping objects based on user-provided property arrays.\n\nThis vulnerability causes the addition or modification of an existing property that will exist on all objects and may lead to Denial of Service or Code Execution under specific circumstances.",
+      "url": "https://github.com/advisories/GHSA-p6mc-m468-83gw"
+    },
+    "1006975": {
+      "findings": [
+        {
+          "version": "3.1.5",
+          "paths": [
+            ".>karma>socket.io>engine.io"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<4.0.0",
+      "module_name": "engine.io",
+      "severity": "high",
+      "github_advisory_id": "GHSA-j4f2-536g-r55m",
+      "cves": [
+        "CVE-2020-36048"
+      ],
+      "access": "public",
+      "patched_versions": ">=4.0.0",
+      "updated": "2021-04-06T22:58:34.000Z",
+      "recommendation": "Upgrade to version 4.0.0 or later",
+      "cwe": "CWE-400",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006975,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-36048\n- https://github.com/socketio/engine.io/commit/734f9d1268840722c41219e69eb58318e0b2ac6b\n- https://blog.caller.xyz/socketio-engineio-dos/\n- https://github.com/bcaller/kill-engine-io\n- https://github.com/advisories/GHSA-j4f2-536g-r55m",
+      "created": "2022-02-09T23:00:44.110Z",
+      "reported_by": null,
+      "title": "Resource exhaustion in engine.io ",
+      "npm_advisory_id": null,
+      "overview": "Engine.IO before 4.0.0 allows attackers to cause a denial of service (resource consumption) via a POST request to the long polling transport.",
+      "url": "https://github.com/advisories/GHSA-j4f2-536g-r55m"
+    },
+    "1006997": {
+      "findings": [
+        {
+          "version": "2.0.5",
+          "paths": [
+            ".>karma"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<6.3.14",
+      "module_name": "karma",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-7x7c-qm48-pq9c",
+      "cves": [
+        "CVE-2022-0437"
+      ],
+      "access": "public",
+      "patched_versions": ">=6.3.14",
+      "updated": "2022-02-07T21:57:21.000Z",
+      "recommendation": "Upgrade to version 6.3.14 or later",
+      "cwe": "CWE-79",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006997,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2022-0437\n- https://github.com/karma-runner/karma/commit/839578c45a8ac42fbc1d72105f97eab77dd3eb8a\n- https://huntr.dev/bounties/64b67ea1-5487-4382-a5f6-e8a95f798885\n- https://github.com/karma-runner/karma/releases/tag/v6.3.14\n- https://github.com/advisories/GHSA-7x7c-qm48-pq9c",
+      "created": "2022-02-11T00:00:43.705Z",
+      "reported_by": null,
+      "title": "Cross-site Scripting in karma",
+      "npm_advisory_id": null,
+      "overview": "karma prior to version 6.3.14 contains a cross-site scripting vulnerability.",
+      "url": "https://github.com/advisories/GHSA-7x7c-qm48-pq9c"
+    },
+    "1007017": {
+      "findings": [
+        {
+          "version": "6.10.2",
+          "paths": [
+            ".>karma>log4js>hipchat-notifier>request>har-validator>ajv"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<6.12.3",
+      "module_name": "ajv",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-v88g-cgmw-v5xw",
+      "cves": [
+        "CVE-2020-15366"
+      ],
+      "access": "public",
+      "patched_versions": ">=6.12.3",
+      "updated": "2021-05-10T21:23:42.000Z",
+      "recommendation": "Upgrade to version 6.12.3 or later",
+      "cwe": "CWE-915",
+      "found_by": null,
+      "deleted": null,
+      "id": 1007017,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-15366\n- https://github.com/ajv-validator/ajv/commit/65b2f7d76b190ac63a0d4e9154c712d7aa37049f\n- https://github.com/ajv-validator/ajv/releases/tag/v6.12.3\n- https://hackerone.com/bugs?subject=user&report_id=894259\n- https://github.com/ajv-validator/ajv/tags\n- https://github.com/advisories/GHSA-v88g-cgmw-v5xw",
+      "created": "2022-02-11T00:00:43.707Z",
+      "reported_by": null,
+      "title": "Prototype Pollution in Ajv",
+      "npm_advisory_id": null,
+      "overview": "An issue was discovered in ajv.validate() in Ajv (aka Another JSON Schema Validator) 6.12.2. A carefully crafted JSON schema could be provided that allows execution of other code by prototype pollution. (While untrusted schemas are recommended against, the worst case of an untrusted schema should be a denial of service, not execution of code.)",
+      "url": "https://github.com/advisories/GHSA-v88g-cgmw-v5xw"
+    },
+    "1007026": {
+      "findings": [
+        {
+          "version": "1.0.0",
+          "paths": [
+            ".>axios>follow-redirects"
+          ]
+        },
+        {
+          "version": "1.9.0",
+          "paths": [
+            ".>karma>http-proxy>follow-redirects"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.14.8",
+      "module_name": "follow-redirects",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-pw2r-vq6v-hr8c",
+      "cves": [
+        "CVE-2022-0536"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.14.8",
+      "updated": "2022-02-11T21:18:03.000Z",
+      "recommendation": "Upgrade to version 1.14.8 or later",
+      "cwe": "CWE-200",
+      "found_by": null,
+      "deleted": null,
+      "id": 1007026,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2022-0536\n- https://github.com/follow-redirects/follow-redirects/commit/62e546a99c07c3ee5e4e0718c84a6ca127c5c445\n- https://huntr.dev/bounties/7cf2bf90-52da-4d59-8028-a73b132de0db\n- https://github.com/advisories/GHSA-pw2r-vq6v-hr8c",
+      "created": "2022-02-14T23:00:43.878Z",
+      "reported_by": null,
+      "title": "Exposure of Sensitive Information to an Unauthorized Actor in follow-redirects",
+      "npm_advisory_id": null,
+      "overview": "Exposure of Sensitive Information to an Unauthorized Actor in NPM follow-redirects prior to 1.14.8.",
+      "url": "https://github.com/advisories/GHSA-pw2r-vq6v-hr8c"
+    },
+    "1007030": {
+      "findings": [
+        {
+          "version": "1.4.7",
+          "paths": [
+            ".>karma>log4js>amqplib>url-parse"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.5.6",
+      "module_name": "url-parse",
+      "severity": "high",
+      "github_advisory_id": "GHSA-rqff-837h-mm52",
+      "cves": [
+        "CVE-2022-0512"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.5.6",
+      "updated": "2022-02-16T22:37:40.000Z",
+      "recommendation": "Upgrade to version 1.5.6 or later",
+      "cwe": "CWE-639",
+      "found_by": null,
+      "deleted": null,
+      "id": 1007030,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2022-0512\n- https://github.com/unshiftio/url-parse/commit/9be7ee88afd2bb04e4d5a1a8da9a389ac13f8c40\n- https://huntr.dev/bounties/6d1bc51f-1876-4f5b-a2c2-734e09e8e05b\n- https://github.com/advisories/GHSA-rqff-837h-mm52",
+      "created": "2022-02-17T14:00:45.711Z",
+      "reported_by": null,
+      "title": "Authorization bypass in url-parse",
+      "npm_advisory_id": null,
+      "overview": "Authorization Bypass Through User-Controlled Key in NPM url-parse prior to 1.5.6.",
+      "url": "https://github.com/advisories/GHSA-rqff-837h-mm52"
+    }
+  },
+  "muted": [],
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 4,
+      "moderate": 17,
+      "high": 21,
+      "critical": 4
+    },
+    "dependencies": 439,
+    "devDependencies": 0,
+    "optionalDependencies": 0,
+    "totalDependencies": 439
+  }
+}

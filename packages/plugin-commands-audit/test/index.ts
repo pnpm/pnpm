@@ -2,29 +2,35 @@ import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
+import * as responses from './utils/responses'
 
-const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
+const registries = {
+  default: 'https://registry.npmjs.org/',
+}
 
-// The audits give different results on Node 10, for some reason
-skipOnNode10('audit', async () => {
+test('audit', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
   expect(exitCode).toBe(1)
   expect(stripAnsi(output)).toMatchSnapshot()
 })
 
 test('audit --dev', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.DEV_VULN_ONLY_RESP)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
     production: false,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(exitCode).toBe(1)
@@ -32,12 +38,14 @@ test('audit --dev', async () => {
 })
 
 test('audit --audit-level', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(exitCode).toBe(1)
@@ -45,11 +53,13 @@ test('audit --audit-level', async () => {
 })
 
 test('audit: no vulnerabilities', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.NO_VULN_RESP)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
@@ -57,12 +67,14 @@ test('audit: no vulnerabilities', async () => {
 })
 
 test('audit --json', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     json: true,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   const json = JSON.parse(output)
@@ -71,13 +83,15 @@ test('audit --json', async () => {
 })
 
 test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.DEV_VULN_ONLY_RESP)
+
   const { output, exitCode } = await audit.handler({
     auditLevel: 'high',
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(exitCode).toBe(0)
@@ -86,8 +100,7 @@ Severity: 1 moderate`)
 })
 
 test('audit does not exit with code 1 if the registry responds with a non-200 reponse and ignoreRegistryErrors is used', async () => {
-  const registry = 'https://registry-error.com'
-  nock(registry)
+  nock(registries.default)
     .post('/-/npm/v1/security/audits')
     .reply(500, { message: 'Something bad happened' })
   const { output, exitCode } = await audit.handler({
@@ -96,11 +109,9 @@ test('audit does not exit with code 1 if the registry responds with a non-200 re
     fetchRetries: 0,
     ignoreRegistryErrors: true,
     production: false,
-    registries: {
-      default: registry,
-    },
+    registries,
   })
 
   expect(exitCode).toBe(0)
-  expect(stripAnsi(output)).toBe('The audit endpoint (at https://registry-error.com/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
+  expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}`)
 })
