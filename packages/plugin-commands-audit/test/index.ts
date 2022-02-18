@@ -2,11 +2,9 @@ import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
+import { response1, response2, response3 } from '../response-mocks'
 
-const skipOnNode10 = process.version.split('.')[0] === 'v10' ? test.skip : test
-
-// The audits give different results on Node 10, for some reason
-skipOnNode10('audit', async () => {
+test('audit', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     registries: {
@@ -18,12 +16,17 @@ skipOnNode10('audit', async () => {
 })
 
 test('audit --dev', async () => {
+  const registry = 'https://registry.npmjs.org/'
+  nock(registry)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, response1)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
     production: false,
     registries: {
-      default: 'https://registry.npmjs.org/',
+      default: registry,
     },
   })
 
@@ -32,11 +35,16 @@ test('audit --dev', async () => {
 })
 
 test('audit --audit-level', async () => {
+  const registry = 'https://registry.npmjs.org/'
+  nock(registry)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, response2)
+
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     registries: {
-      default: 'https://registry.npmjs.org/',
+      default: registry,
     },
   })
 
@@ -45,10 +53,15 @@ test('audit --audit-level', async () => {
 })
 
 test('audit: no vulnerabilities', async () => {
+  const registry = 'https://registry.npmjs.org/'
+  nock(registry)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, response3)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
     registries: {
-      default: 'https://registry.npmjs.org/',
+      default: registry,
     },
   })
 
@@ -57,11 +70,16 @@ test('audit: no vulnerabilities', async () => {
 })
 
 test('audit --json', async () => {
+  const registry = 'https://registry.npmjs.org/'
+  nock(registry)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, response1)
+
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     json: true,
     registries: {
-      default: 'https://registry.npmjs.org/',
+      default: registry,
     },
   })
 
@@ -71,12 +89,17 @@ test('audit --json', async () => {
 })
 
 test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async () => {
+  const registry = 'https://registry.npmjs.org/'
+  nock(registry)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, response1)
+
   const { output, exitCode } = await audit.handler({
     auditLevel: 'high',
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
     registries: {
-      default: 'https://registry.npmjs.org/',
+      default: registry,
     },
   })
 

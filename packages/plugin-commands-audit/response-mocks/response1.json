@@ -1,0 +1,278 @@
+{
+  "actions": [
+    {
+      "action": "review",
+      "module": "axios",
+      "resolves": [
+        {
+          "id": 1005018,
+          "path": ".>axios",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1005506,
+          "path": ".>axios",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1006349,
+          "path": ".>axios",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "sync-exec",
+      "resolves": [
+        {
+          "id": 1005902,
+          "path": ".>sync-exec",
+          "dev": false,
+          "bundled": false,
+          "optional": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "follow-redirects",
+      "resolves": [
+        {
+          "id": 1006865,
+          "path": ".>axios>follow-redirects",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1007026,
+          "path": ".>axios>follow-redirects",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    }
+  ],
+  "advisories": {
+    "1005018": {
+      "findings": [
+        {
+          "version": "0.15.3",
+          "paths": [
+            ".>axios"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<=0.21.1",
+      "module_name": "axios",
+      "severity": "high",
+      "github_advisory_id": "GHSA-cph5-m8f7-6c5x",
+      "cves": [
+        "CVE-2021-3749"
+      ],
+      "access": "public",
+      "patched_versions": ">=0.21.2",
+      "updated": "2021-09-08T16:46:47.000Z",
+      "recommendation": "Upgrade to version 0.21.2 or later",
+      "cwe": "CWE-697",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005018,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2021-3749\n- https://github.com/axios/axios/commit/5b457116e31db0e88fede6c428e969e87f290929\n- https://huntr.dev/bounties/1e8f07fc-c384-4ff9-8498-0690de2e8c31\n- https://www.npmjs.com/package/axios\n- https://lists.apache.org/thread.html/r075d464dce95cd13c03ff9384658edcccd5ab2983b82bfc72b62bb10@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r216f0fd0a3833856d6a6a1fada488cadba45f447d87010024328ccf2@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r3ae6d2654f92c5851bdb73b35e96b0e4e3da39f28ac7a1b15ae3aab8@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r4bf1b32983f50be00f9752214c1b53738b621be1c2b0dbd68c7f2391@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r7324ecc35b8027a51cb6ed629490fcd3b2d7cf01c424746ed5744bf1@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r74d0b359408fff31f87445261f0ee13bdfcac7d66f6b8e846face321@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/ra15d63c54dc6474b29f72ae4324bcb03038758545b3ab800845de7a1@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/rc263bfc5b53afcb7e849605478d73f5556eb0c00d1f912084e407289@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/rfa094029c959da0f7c8cd7dc9c4e59d21b03457bf0cedf6c93e1bb0a@%3Cdev.druid.apache.org%3E\n- https://lists.apache.org/thread.html/rfc5c478053ff808671aef170f3d9fc9d05cc1fab8fb64431edc66103@%3Ccommits.druid.apache.org%3E\n- https://github.com/advisories/GHSA-cph5-m8f7-6c5x",
+      "created": "2021-11-18T16:00:48.489Z",
+      "reported_by": null,
+      "title": "Incorrect Comparison in axios",
+      "npm_advisory_id": null,
+      "overview": "axios is vulnerable to Inefficient Regular Expression Complexity",
+      "url": "https://github.com/advisories/GHSA-cph5-m8f7-6c5x"
+    },
+    "1005506": {
+      "findings": [
+        {
+          "version": "0.15.3",
+          "paths": [
+            ".>axios"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<0.21.1",
+      "module_name": "axios",
+      "severity": "high",
+      "github_advisory_id": "GHSA-4w2v-q235-vp99",
+      "cves": [
+        "CVE-2020-28168"
+      ],
+      "access": "public",
+      "patched_versions": ">=0.21.1",
+      "updated": "2021-01-04T20:58:17.000Z",
+      "recommendation": "Upgrade to version 0.21.1 or later",
+      "cwe": "CWE-918",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005506,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2020-28168\n- https://github.com/axios/axios/issues/3369\n- https://github.com/axios/axios/commit/c7329fefc890050edd51e40e469a154d0117fc55\n- https://snyk.io/vuln/SNYK-JS-AXIOS-1038255\n- https://www.npmjs.com/package/axios\n- https://www.npmjs.com/advisories/1594\n- https://lists.apache.org/thread.html/r954d80fd18e9dafef6e813963eb7e08c228151c2b6268ecd63b35d1f@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/r25d53acd06f29244b8a103781b0339c5e7efee9099a4d52f0c230e4a@%3Ccommits.druid.apache.org%3E\n- https://lists.apache.org/thread.html/rdfd2901b8b697a3f6e2c9c6ecc688fd90d7f881937affb5144d61d6e@%3Ccommits.druid.apache.org%3E\n- https://github.com/advisories/GHSA-4w2v-q235-vp99",
+      "created": "2021-11-18T16:00:48.546Z",
+      "reported_by": null,
+      "title": "Server-Side Request Forgery in Axios",
+      "npm_advisory_id": null,
+      "overview": "Axios NPM package 0.21.0 contains a Server-Side Request Forgery (SSRF) vulnerability where an attacker is able to bypass a proxy by providing a URL that responds with a redirect to a restricted host or IP address.",
+      "url": "https://github.com/advisories/GHSA-4w2v-q235-vp99"
+    },
+    "1005902": {
+      "findings": [
+        {
+          "version": "0.6.2",
+          "paths": [
+            ".>sync-exec"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<=0.6.2",
+      "module_name": "sync-exec",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-38h8-x697-gh8q",
+      "cves": [
+        "CVE-2017-16024"
+      ],
+      "access": "public",
+      "patched_versions": "<0.0.0",
+      "updated": "2020-08-31T18:18:48.000Z",
+      "recommendation": "None",
+      "cwe": "CWE-377",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005902,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2017-16024\n- https://github.com/gvarsanyi/sync-exec/issues/17\n- https://cwe.mitre.org/data/definitions/377.html\n- https://github.com/advisories/GHSA-38h8-x697-gh8q\n- https://www.npmjs.com/advisories/310\n- https://nodesecurity.io/advisories/310\n- https://www.owasp.org/index.php/Insecure_Temporary_File",
+      "created": "2021-11-18T16:00:48.581Z",
+      "reported_by": null,
+      "title": "Tmp files readable by other users in sync-exec",
+      "npm_advisory_id": null,
+      "overview": "Affected versions of `sync-exec` use files located in `/tmp/` to buffer command results before returning values. As `/tmp/` is almost always set with world readable permissions, this may allow low privilege users on the system to read the results of commands run via `sync-exec` under a higher privilege user.\n\n\n## Recommendation\n\nThere is currently no direct patch for `sync-exec`, as the `child_process.execSync` function provided in Node.js v0.12.0 and later provides the same functionality natively. \n\nThe best mitigation currently is to update to Node.js v0.12.0 or later, and migrate all uses of `sync-exec` to `child_process.execSync()`.",
+      "url": "https://github.com/advisories/GHSA-38h8-x697-gh8q"
+    },
+    "1006349": {
+      "findings": [
+        {
+          "version": "0.15.3",
+          "paths": [
+            ".>axios"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<=0.18.0",
+      "module_name": "axios",
+      "severity": "high",
+      "github_advisory_id": "GHSA-42xw-2xvc-qx8m",
+      "cves": [
+        "CVE-2019-10742"
+      ],
+      "access": "public",
+      "patched_versions": ">=0.18.1",
+      "updated": "2019-06-05T16:22:11.000Z",
+      "recommendation": "Upgrade to version 0.18.1 or later",
+      "cwe": "CWE-20",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006349,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2019-10742\n- https://app.snyk.io/vuln/SNYK-JS-AXIOS-174505\n- https://github.com/axios/axios/issues/1098\n- https://github.com/axios/axios/pull/1485\n- https://snyk.io/vuln/SNYK-JS-AXIOS-174505\n- https://www.npmjs.com/advisories/880\n- https://github.com/advisories/GHSA-42xw-2xvc-qx8m",
+      "created": "2021-11-18T16:00:48.617Z",
+      "reported_by": null,
+      "title": "Denial of Service in axios",
+      "npm_advisory_id": null,
+      "overview": "Versions of `axios` prior to 0.18.1 are vulnerable to Denial of Service. If a request exceeds the `maxContentLength` property, the package prints an error but does not stop the request. This may cause high CPU usage and lead to Denial of Service.\n\n\n## Recommendation\n\nUpgrade to 0.18.1 or later.",
+      "url": "https://github.com/advisories/GHSA-42xw-2xvc-qx8m"
+    },
+    "1006865": {
+      "findings": [
+        {
+          "version": "1.0.0",
+          "paths": [
+            ".>axios>follow-redirects"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.14.7",
+      "module_name": "follow-redirects",
+      "severity": "high",
+      "github_advisory_id": "GHSA-74fj-2j2h-c42q",
+      "cves": [
+        "CVE-2022-0155"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.14.7",
+      "updated": "2022-01-11T18:41:09.000Z",
+      "recommendation": "Upgrade to version 1.14.7 or later",
+      "cwe": "CWE-359",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006865,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2022-0155\n- https://github.com/follow-redirects/follow-redirects/commit/8b347cbcef7c7b72a6e9be20f5710c17d6163c22\n- https://huntr.dev/bounties/fc524e4b-ebb6-427d-ab67-a64181020406\n- https://github.com/advisories/GHSA-74fj-2j2h-c42q",
+      "created": "2022-01-12T23:00:43.967Z",
+      "reported_by": null,
+      "title": "Exposure of sensitive information in follow-redirects",
+      "npm_advisory_id": null,
+      "overview": "follow-redirects is vulnerable to Exposure of Private Personal Information to an Unauthorized Actor",
+      "url": "https://github.com/advisories/GHSA-74fj-2j2h-c42q"
+    },
+    "1007026": {
+      "findings": [
+        {
+          "version": "1.0.0",
+          "paths": [
+            ".>axios>follow-redirects"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.14.8",
+      "module_name": "follow-redirects",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-pw2r-vq6v-hr8c",
+      "cves": [
+        "CVE-2022-0536"
+      ],
+      "access": "public",
+      "patched_versions": ">=1.14.8",
+      "updated": "2022-02-11T21:18:03.000Z",
+      "recommendation": "Upgrade to version 1.14.8 or later",
+      "cwe": "CWE-200",
+      "found_by": null,
+      "deleted": null,
+      "id": 1007026,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2022-0536\n- https://github.com/follow-redirects/follow-redirects/commit/62e546a99c07c3ee5e4e0718c84a6ca127c5c445\n- https://huntr.dev/bounties/7cf2bf90-52da-4d59-8028-a73b132de0db\n- https://github.com/advisories/GHSA-pw2r-vq6v-hr8c",
+      "created": "2022-02-14T23:00:43.878Z",
+      "reported_by": null,
+      "title": "Exposure of Sensitive Information to an Unauthorized Actor in follow-redirects",
+      "npm_advisory_id": null,
+      "overview": "Exposure of Sensitive Information to an Unauthorized Actor in NPM follow-redirects prior to 1.14.8.",
+      "url": "https://github.com/advisories/GHSA-pw2r-vq6v-hr8c"
+    }
+  },
+  "muted": [],
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 2,
+      "high": 4,
+      "critical": 0
+    },
+    "dependencies": 6,
+    "devDependencies": 0,
+    "optionalDependencies": 0,
+    "totalDependencies": 6
+  }
+}
