@@ -3,19 +3,26 @@ import fixtures from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
 import loadJsonFile from 'load-json-file'
+import nock from 'nock'
+import * as responses from './utils/responses'
 
 const f = fixtures(__dirname)
+const registries = {
+  default: 'https://registry.npmjs.org/',
+}
 
 test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
+
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
     dir: tmp,
     fix: true,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(exitCode).toBe(0)
@@ -29,13 +36,15 @@ test('overrides are added for vulnerable dependencies', async () => {
 test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.NO_VULN_RESP)
+
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
     dir: tmp,
     fix: true,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
+    registries,
   })
 
   expect(exitCode).toBe(0)
