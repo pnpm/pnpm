@@ -61,8 +61,6 @@ importers:
       ts-node: ^10.4.0
       typescript: 4.6.0-beta
       verdaccio: ^5.5.2
-      vite: ^2.8.4
-      vitest: ^0.4.1
     devDependencies:
       '@babel/core': 7.17.4
       '@babel/plugin-proposal-dynamic-import': 7.16.7_@babel+core@7.17.4
@@ -94,8 +92,6 @@ importers:
       ts-node: 10.5.0_f93c5bb7acd9caa138186c328bcc3094
       typescript: 4.6.0-beta
       verdaccio: 5.6.0
-      vite: 2.8.4
-      vitest: 0.4.1_c8@7.11.0
 
   .meta-updater:
     specifiers:
@@ -3043,6 +3039,8 @@ importers:
       '@pnpm/real-hoist': workspace:0.1.6
       '@yarnpkg/nm': 3.0.1-rc.10
       dependency-path: workspace:8.0.10
+      vite: ^2.8.4
+      vitest: ^0.4.1
     dependencies:
       '@pnpm/lockfile-utils': link:../lockfile-utils
       '@yarnpkg/nm': 3.0.1-rc.10
@@ -3051,6 +3049,8 @@ importers:
       '@pnpm/lockfile-file': link:../lockfile-file
       '@pnpm/logger': 4.0.0
       '@pnpm/real-hoist': 'link:'
+      vite: 2.8.4
+      vitest: 0.4.1_c8@7.11.0
 
   packages/remove-bins:
     specifiers:
