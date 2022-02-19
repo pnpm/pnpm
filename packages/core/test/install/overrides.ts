@@ -111,3 +111,19 @@ test('versions are replaced with versions specified through overrides option', a
     )
   )
 })
+
+test('when adding a new dependency that is present in the overrides, use the spec from the override', async () => {
+  prepareEmpty()
+
+  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+
+  const overrides = {
+    bar: '100.1.0',
+  }
+  const manifest = await addDependenciesToPackage({},
+    ['bar'],
+    await testDefaults({ overrides })
+  )
+
+  expect(manifest.dependencies?.bar).toBe(overrides.bar)
+})
