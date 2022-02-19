@@ -1,5 +1,11 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.2.23
+
+### Patch Changes
+
+- 86707aa2e: Do not re-resolve dependency versions
+
 ## 0.2.22
 
 ### Patch Changes
