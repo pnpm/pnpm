@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-alpha.1
+## 7.0.0-alpha.2
 
 ### Major Changes
 
@@ -30,6 +30,36 @@
 - `pnpm install -g pkg` will add the global command only to a predefined location. pnpm will not try to add a bin to the global Node.js or npm folder. To set the global bin directory, either set the `PNPM_HOME` env variable or the [`global-bin-dir`](https://pnpm.io/npmrc#global-bin-dir) setting.
 - `pnpm pack` should only pack a file as an executable if it's a bin or listed in the `publishConfig.executableFiles` array.
 - `-W` is not an alias of `--ignore-workspace-root-check` anymore. Just use `-w` or `--workspace-root` instead, which will also allow to install dependencies in the root of the workspace.
+
+### Minor Changes
+
+- `-F` is a short alias of `--filter` [#3467](https://github.com/pnpm/pnpm/issues/3467).
+
+- A new setting is supported in the `pnpm` section of the `package.json` file [#4001](https://github.com/pnpm/pnpm/issues/4001). `onlyBuiltDependencies` is an array of package names that are allowed to be executed during installation. If this field exists, only mentioned packages will be able to run install scripts.
+
+  ```json
+  {
+    "pnpm": {
+      "onlyBuiltDependencies": ["fsevents"]
+    }
+  }
+  ```
+
+- When adding a new dependency, use the version specifier from the overrides, when present [#4313](https://github.com/pnpm/pnpm/issues/4313).
+
+  Normally, if the latest version of `foo` is `2.0.0`, then `pnpm add foo` installs `foo@^2.0.0`. This behavior changes if `foo` is specified in an override:
+
+  ```json
+  {
+    "pnpm": {
+      "overrides": {
+        "foo": "1.0.0"
+      }
+    }
+  }
+  ```
+
+  In this case, `pnpm add foo` will add `foo@1.0.0` to the dependency. However, if a version is explicitly specifying, then the specified version will be used and the override will be ignored. So `pnpm add foo@0` will install v0 and it doesn't matter what is in the overrides.
 
 ## 6.31.0
 

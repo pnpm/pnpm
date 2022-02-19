@@ -118,31 +118,31 @@ importers:
 
   packages/artifacts/linux-arm64:
     specifiers:
-      '@pnpm/linux-arm64': workspace:7.0.0-alpha.1
+      '@pnpm/linux-arm64': workspace:7.0.0-alpha.2
     devDependencies:
       '@pnpm/linux-arm64': 'link:'
 
   packages/artifacts/linux-x64:
     specifiers:
-      '@pnpm/linux-x64': workspace:7.0.0-alpha.1
+      '@pnpm/linux-x64': workspace:7.0.0-alpha.2
     devDependencies:
       '@pnpm/linux-x64': 'link:'
 
   packages/artifacts/macos-arm64:
     specifiers:
-      '@pnpm/macos-arm64': workspace:7.0.0-alpha.1
+      '@pnpm/macos-arm64': workspace:7.0.0-alpha.2
     devDependencies:
       '@pnpm/macos-arm64': 'link:'
 
   packages/artifacts/macos-x64:
     specifiers:
-      '@pnpm/macos-x64': workspace:7.0.0-alpha.1
+      '@pnpm/macos-x64': workspace:7.0.0-alpha.2
     devDependencies:
       '@pnpm/macos-x64': 'link:'
 
   packages/artifacts/win-x64:
     specifiers:
-      '@pnpm/win-x64': workspace:7.0.0-alpha.1
+      '@pnpm/win-x64': workspace:7.0.0-alpha.2
     devDependencies:
       '@pnpm/win-x64': 'link:'
 
@@ -723,12 +723,12 @@ importers:
 
   packages/exe:
     specifiers:
-      '@pnpm/exe': workspace:7.0.0-alpha.1
-      '@pnpm/linux-arm64': workspace:7.0.0-alpha.1
-      '@pnpm/linux-x64': workspace:7.0.0-alpha.1
-      '@pnpm/macos-arm64': workspace:7.0.0-alpha.1
-      '@pnpm/macos-x64': workspace:7.0.0-alpha.1
-      '@pnpm/win-x64': workspace:7.0.0-alpha.1
+      '@pnpm/exe': workspace:7.0.0-alpha.2
+      '@pnpm/linux-arm64': workspace:7.0.0-alpha.2
+      '@pnpm/linux-x64': workspace:7.0.0-alpha.2
+      '@pnpm/macos-arm64': workspace:7.0.0-alpha.2
+      '@pnpm/macos-x64': workspace:7.0.0-alpha.2
+      '@pnpm/win-x64': workspace:7.0.0-alpha.2
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
@@ -8260,7 +8260,7 @@ packages:
     resolution: {integrity: sha512-uuQC43IGctw68pJA1RgbQS8/NP7rch6Cwd4j3ZBtgo4/8Flj4eGE7ZYSZRN3iq5pVUv6GPdW5Z1RFleo84uLDA==}
     engines: {node: ^10.0.0 || ^12.0.0 || >= 14.0.0}
     peerDependencies:
-      eslint: '>=5 || *'
+      eslint: '>=5 || * || *'
     dependencies:
       eslint: 8.9.0
       eslint-visitor-keys: 2.1.0
