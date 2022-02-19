@@ -10,7 +10,9 @@ Normally, if the latest version of `foo` is `2.0.0`, then `pnpm add foo` install
 ```json
 {
   "pnpm": {
-    "foo": "1.0.0"
+    "overrides": {
+      "foo": "1.0.0"
+    }
   }
 }
 ```
