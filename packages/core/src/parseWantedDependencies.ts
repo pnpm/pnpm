@@ -13,6 +13,7 @@ export default function parseWantedDependencies (
     devDependencies: Dependencies
     optional: boolean
     optionalDependencies: Dependencies
+    overrides?: Record<string, string>
     updateWorkspaceDependencies?: boolean
     preferredSpecs?: Record<string, string>
   }
@@ -54,6 +55,13 @@ export default function parseWantedDependencies (
           ...result,
           pref: opts.preferredSpecs[alias],
           raw: `${rawWantedDependency}@${opts.preferredSpecs[alias]}`,
+        }
+      }
+      if (alias && opts.overrides?.[alias]) {
+        return {
+          ...result,
+          pref: opts.overrides[alias],
+          raw: `${alias}@${opts.overrides[alias]}`,
         }
       }
       return {

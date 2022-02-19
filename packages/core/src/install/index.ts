@@ -443,6 +443,7 @@ export async function mutateModules (
         optionalDependencies,
         updateWorkspaceDependencies: opts.update,
         preferredSpecs,
+        overrides: opts.overrides,
       })
       projectsToInstall.push({
         pruneDirectDependencies: false,
