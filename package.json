@@ -59,6 +59,7 @@
   "engines": {
     "pnpm": ">=7"
   },
+  "packageManager": "pnpm@7.0.0-alpha.1",
   "pnpm": {
     "overrides": {
       "@yarnpkg/core": "3.2.0-rc.9",
@@ -118,6 +119,5 @@
         "@typescript-eslint/eslint-plugin": "^5.6.0"
       }
     }
-  },
-  "packageManager": "pnpm@6.23.0"
+  }
 }
