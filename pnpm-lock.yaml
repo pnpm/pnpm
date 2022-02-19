@@ -1469,7 +1469,7 @@ importers:
       '@pnpm/find-workspace-dir': workspace:3.0.1
       '@pnpm/lockfile-file': workspace:4.2.6
       '@pnpm/logger': ^4.0.0
-      '@pnpm/make-dedicated-lockfile': workspace:0.2.22
+      '@pnpm/make-dedicated-lockfile': workspace:0.2.23
       '@pnpm/prune-lockfile': workspace:3.0.14
       '@pnpm/read-project-manifest': workspace:2.0.11
       '@pnpm/test-fixtures': workspace:*
