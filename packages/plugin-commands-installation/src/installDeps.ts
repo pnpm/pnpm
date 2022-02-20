@@ -17,7 +17,7 @@ import {
   MutatedProject,
   WorkspacePackages,
 } from '@pnpm/core'
-import logger, { globalInfo } from '@pnpm/logger'
+import logger from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import isSubdir from 'is-subdir'
 import isEmpty from 'ramda/src/isEmpty'
@@ -96,9 +96,6 @@ export default async function handler (
   opts: InstallDepsOptions,
   params: string[]
 ) {
-  if (process.env.NODE_ENV === 'production' && !opts.include?.devDependencies) {
-    globalInfo('NODE_ENV is set to production, so devDependencies will not be installed')
-  }
   if (opts.workspace) {
     if (opts.latest) {
       throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
