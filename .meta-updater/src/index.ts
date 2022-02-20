@@ -8,6 +8,8 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
+const NEXT_TAG = 'next-7'
+
 export default async (workspaceDir: string) => {
   const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'packages/pnpm/package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
@@ -19,6 +21,10 @@ export default async (workspaceDir: string) => {
   }
   return {
     'package.json': (manifest: ProjectManifest & { keywords?: string[] }, dir: string) => {
+      if (manifest.name === 'monorepo-root') {
+        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
+        return manifest
+      }
       if (!isSubdir(pkgsDir, dir)) {
         if (manifest.name) {
           manifest.devDependencies = {
@@ -159,6 +165,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       }
     }
     break
+  }
+  if (manifest.name === 'pnpm') {
+    manifest.publishConfig!.tag = NEXT_TAG
   }
   if (scripts._test) {
     if (scripts.pretest) {

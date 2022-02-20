@@ -1,4 +1,5 @@
 {
+  "name": "monorepo-root",
   "private": true,
   "scripts": {
     "bump": "changeset version && pnpm update-manifests",
