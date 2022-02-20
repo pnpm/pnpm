@@ -54,15 +54,42 @@ export type Command = (
   params: string[]
 ) => CommandResponse | Promise<CommandResponse>
 
-const commands: Array<{
-  cliOptionsTypes: () => Object
-  commandNames: string[]
-  completion?: CompletionFunc
+export interface CommandDefinition {
+  /** The main logic of the command. */
   handler: Function
+  /** The help text for the command that describes its usage and options. */
   help: () => string
+  /** The names that will trigger this command handler. */
+  commandNames: string[]
+  /**
+   * A function that returns an object whose keys are acceptable CLI options
+   * for this command and whose values are the types of values
+   * for these options for validation.
+   */
+  cliOptionsTypes: () => Object
+  /**
+   * A function that returns an object whose keys are acceptable options
+   * in the .npmrc file for this command and whose values are the types of values
+   * for these options for validation.
+   */
   rcOptionsTypes: () => Record<string, unknown>
+  /** Auto-completion provider for this command. */
+  completion?: CompletionFunc
+  /**
+   * Option names that will resolve into one or more of the other options.
+   *
+   * Example:
+   * ```ts
+   * {
+   *   D: '--dev',
+   *   parallel: ['--no-sort', '--recursive'],
+   * }
+   * ```
+   */
   shorthands?: Record<string, string | string[]>
-}> = [
+}
+
+const commands: CommandDefinition[] = [
   add,
   audit,
   bin,
