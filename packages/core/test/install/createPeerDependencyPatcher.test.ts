@@ -22,6 +22,7 @@ test('createPeerDependencyPatcher() extends peer ranges', () => {
     allowedVersions: {
       foo: '1',
       qar: '1',
+      baz: '*',
     },
   })
   const patchedPkg = patcher({
@@ -29,11 +30,13 @@ test('createPeerDependencyPatcher() extends peer ranges', () => {
       foo: '0',
       bar: '0',
       qar: '*',
+      baz: '1',
     },
   })
   expect(patchedPkg['peerDependencies']).toStrictEqual({
     foo: '0 || 1',
     bar: '0',
     qar: '*',
+    baz: '*',
   })
 })

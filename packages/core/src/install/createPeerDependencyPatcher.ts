@@ -18,7 +18,11 @@ export default function (
         peerDependencyRules.allowedVersions?.[peerName] &&
         peerVersion !== '*'
       ) {
-        pkg.peerDependencies![peerName] += ` || ${peerDependencyRules.allowedVersions[peerName]}`
+        if (peerDependencyRules.allowedVersions[peerName] === '*') {
+          pkg.peerDependencies![peerName] = '*'
+        } else {
+          pkg.peerDependencies![peerName] += ` || ${peerDependencyRules.allowedVersions[peerName]}`
+        }
       }
     }
     return pkg
