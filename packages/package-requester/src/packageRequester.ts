@@ -446,7 +446,7 @@ function fetchToStore (
             (
               pkgFilesIndex.name != null &&
               opts.pkg.name != null &&
-              pkgFilesIndex.name !== opts.pkg.name
+              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
             ) ||
             (
               pkgFilesIndex.version != null &&
