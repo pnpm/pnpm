@@ -35,7 +35,7 @@ export default (
   },
   opts: {
     cwd: string
-    env: Record<string, string | undefined>
+    env: NodeJS.ProcessEnv
     pnpmConfig?: Config
   }
 ) => {

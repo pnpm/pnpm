@@ -27,7 +27,7 @@ export default function (
     context: {
       argv: string[]
       config?: Config
-      env?: Record<string, string | undefined>
+      env?: NodeJS.ProcessEnv
     }
   }
 ): () => void {
@@ -94,7 +94,7 @@ export function toOutput$ (
     context: {
       argv: string[]
       config?: Config
-      env?: Record<string, string | undefined>
+      env?: NodeJS.ProcessEnv
     }
   }
 ): Rx.Observable<string> {

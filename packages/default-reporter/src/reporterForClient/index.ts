@@ -47,7 +47,7 @@ export default function (
     appendOnly?: boolean
     cmd: string
     config?: Config
-    env: Record<string, string | undefined>
+    env: NodeJS.ProcessEnv
     isRecursive: boolean
     logLevel?: LogLevel
     pnpmConfig?: Config
