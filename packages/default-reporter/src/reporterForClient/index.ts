@@ -47,6 +47,7 @@ export default function (
     appendOnly?: boolean
     cmd: string
     config?: Config
+    env: NodeJS.ProcessEnv
     isRecursive: boolean
     logLevel?: LogLevel
     pnpmConfig?: Config
@@ -107,6 +108,7 @@ export default function (
   if (!opts.isRecursive) {
     outputs.push(reportSummary(log$, {
       cwd,
+      env: opts.env,
       pnpmConfig: opts.pnpmConfig,
     }))
   }

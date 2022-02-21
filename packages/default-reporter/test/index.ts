@@ -383,6 +383,80 @@ ${ADD} bar ${versionColor('2.0.0')}
   })
 })
 
+test('in the installation summary report which dependency types are skipped', (done) => {
+  const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: {
+        dir: prefix,
+        production: true,
+        dev: false,
+        optional: false,
+      } as Config,
+      env: {
+        NODE_ENV: 'production',
+      },
+    },
+    streamParser: createStreamParser(),
+  })
+
+  packageManifestLogger.debug({
+    initial: {
+      name: 'foo',
+      version: '1.0.0',
+
+      dependencies: {
+        bar: '^2.0.0',
+        foo: '^1.0.0',
+      },
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/bar/2.0.0',
+      name: 'bar',
+      realName: 'bar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        bar: '^2.0.0',
+      },
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} bar ${versionColor('2.0.0')}
+
+${h1('optionalDependencies:')} skipped
+
+${h1('devDependencies:')} skipped because NODE_ENV is set to production
+`)
+    },
+  })
+})
+
 test('prints summary when some packages fail', (done) => {
   const output$ = toOutput$({
     context: { argv: ['run'], config: { recursive: true } as Config },

@@ -27,6 +27,7 @@ export default function (
     context: {
       argv: string[]
       config?: Config
+      env?: NodeJS.ProcessEnv
     }
   }
 ): () => void {
@@ -37,7 +38,13 @@ export default function (
     return () => subscription.unsubscribe()
   }
   const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
-  const output$ = toOutput$({ ...opts, reportingOptions: { ...opts.reportingOptions, outputMaxWidth } })
+  const output$ = toOutput$({
+    ...opts,
+    reportingOptions: {
+      ...opts.reportingOptions,
+      outputMaxWidth,
+    },
+  })
   if (opts.reportingOptions?.appendOnly) {
     const writeNext = opts.useStderr
       ? console.error.bind(console)
@@ -87,6 +94,7 @@ export function toOutput$ (
     context: {
       argv: string[]
       config?: Config
+      env?: NodeJS.ProcessEnv
     }
   }
 ): Rx.Observable<string> {
@@ -217,6 +225,7 @@ export function toOutput$ (
       appendOnly: opts.reportingOptions?.appendOnly,
       cmd: opts.context.argv[0],
       config: opts.context.config,
+      env: opts.context.env ?? process.env,
       isRecursive: opts.context.config?.['recursive'] === true,
       logLevel: opts.reportingOptions?.logLevel,
       pnpmConfig: opts.context.config,
