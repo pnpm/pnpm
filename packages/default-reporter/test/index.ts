@@ -394,6 +394,9 @@ test('in the installation summary report which dependency types are skipped', (d
         dev: false,
         optional: false,
       } as Config,
+      env: {
+        NODE_ENV: 'production',
+      },
     },
     streamParser: createStreamParser(),
   })
@@ -448,7 +451,7 @@ ${ADD} bar ${versionColor('2.0.0')}
 
 ${h1('optionalDependencies:')} skipped
 
-${h1('devDependencies:')} skipped
+${h1('devDependencies:')} skipped because NODE_ENV is set to production
 `)
     },
   })

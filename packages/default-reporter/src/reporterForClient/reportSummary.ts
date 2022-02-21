@@ -35,6 +35,7 @@ export default (
   },
   opts: {
     cwd: string
+    env: Record<string, string | undefined>
     pnpmConfig?: Config
   }
 ) => {
@@ -65,7 +66,7 @@ export default (
           } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
             msg += EOL
             msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
-            if (process.env.NODE_ENV === 'production' && depType === 'dev') {
+            if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
               msg += ' because NODE_ENV is set to production'
             }
             msg += EOL
