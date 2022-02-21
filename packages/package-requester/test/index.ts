@@ -943,6 +943,28 @@ test('throw exception if the package data in the store differs from the expected
     })
     await expect(files()).resolves.toStrictEqual(expect.anything())
   }
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+    })
+    const { files } = requestPackage.fetchPackageToStore({
+      force: false,
+      lockfileDir: tempy.directory(),
+      pkg: {
+        name: 'IS-positive',
+        version: 'v1.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+    })
+    await expect(files()).resolves.toStrictEqual(expect.anything())
+  }
 })
 
 test('the version in the bundled manifest should be normalized', async () => {
