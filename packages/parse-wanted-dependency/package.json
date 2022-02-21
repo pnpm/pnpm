@@ -27,7 +27,7 @@
     "test": "pnpm run compile",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "validate-npm-package-name": "3.0.0"

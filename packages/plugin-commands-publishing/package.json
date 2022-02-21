@@ -20,7 +20,7 @@
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7776 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-publishing",
   "keywords": [

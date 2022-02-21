@@ -34,7 +34,7 @@
     "test": "pnpm run compile",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/types": "workspace:7.9.0"

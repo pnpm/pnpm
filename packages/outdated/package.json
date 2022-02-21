@@ -19,7 +19,7 @@
     "test:jest": "jest",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7771 pnpm run test:e2e",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
-    "compile": "tsc --build && pnpm run lint -- --fix"
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/outdated",
   "keywords": [
