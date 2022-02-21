@@ -127,3 +127,20 @@ test('when adding a new dependency that is present in the overrides, use the spe
 
   expect(manifest.dependencies?.bar).toBe(overrides.bar)
 })
+
+test('explicitly specifying a version at install will ignore overrides', async () => {
+  prepareEmpty()
+
+  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+
+  const overrides = {
+    bar: '100.1.0',
+  }
+  const EXACT_VERSION = '100.0.0'
+  const manifest = await addDependenciesToPackage({},
+    [`bar@${EXACT_VERSION}`],
+    await testDefaults({ overrides })
+  )
+
+  expect(manifest.dependencies?.bar).toBe(EXACT_VERSION)
+})
