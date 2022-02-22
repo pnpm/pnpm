@@ -17,12 +17,14 @@ import {
   getSpecFromPackageManifest,
   guessDependencyType,
   PackageSpecObject,
+  PinnedVersion,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
 import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import whichVersionIsPinned from '@pnpm/which-version-is-pinned'
 import {
   DependenciesField,
   DEPENDENCIES_FIELDS,
@@ -78,13 +80,17 @@ export default async function link (
       throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${linkFromPath} must have a name field to be linked`)
     }
 
-    // if the package already exists and lock version, its version should not be changed
-    const shouldModifyVersion = maybeOpts.linkToBin ?? !/^\d.*/.test((opts.manifest?.dependencies ?? {})[manifest.name])
-
+    let pinnedVersion!: PinnedVersion
+    const existingVersion = opts.manifest?.dependencies?.[manifest.name]
+    if (existingVersion) {
+      pinnedVersion = whichVersionIsPinned(existingVersion) ?? opts.pinnedVersion
+    } else {
+      pinnedVersion = opts.pinnedVersion
+    }
     specsToUpsert.push({
       alias: manifest.name,
       pref: getPref(manifest.name, manifest.name, manifest.version, {
-        pinnedVersion: shouldModifyVersion ? opts.pinnedVersion : 'patch',
+        pinnedVersion,
       }),
       saveType: (opts.targetDependenciesField ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
     })
