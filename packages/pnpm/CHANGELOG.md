@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-alpha.2
+## 7.0.0-alpha.3
 
 ### Major Changes
 
@@ -30,6 +30,7 @@
 - `pnpm install -g pkg` will add the global command only to a predefined location. pnpm will not try to add a bin to the global Node.js or npm folder. To set the global bin directory, either set the `PNPM_HOME` env variable or the [`global-bin-dir`](https://pnpm.io/npmrc#global-bin-dir) setting.
 - `pnpm pack` should only pack a file as an executable if it's a bin or listed in the `publishConfig.executableFiles` array.
 - `-W` is not an alias of `--ignore-workspace-root-check` anymore. Just use `-w` or `--workspace-root` instead, which will also allow to install dependencies in the root of the workspace.
+- Allow to execute a lifecycle script in a directory that doesn't match the package's name. Previously this was only allowed with the `--unsafe-perm` CLI option [#3709](https://github.com/pnpm/pnpm/issues/3709).
 
 ## 6.32.0
 
