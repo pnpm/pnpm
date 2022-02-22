@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-yaml",
-  "version": "9.1.0",
+  "version": "9.1.1",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,13 +31,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/modules-yaml#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/types": "workspace:7.10.0",
     "is-windows": "^1.0.2",
     "read-yaml-file": "^2.1.0",
     "write-yaml-file": "^4.2.0"
   },
   "devDependencies": {
-    "@pnpm/modules-yaml": "workspace:9.1.0",
+    "@pnpm/modules-yaml": "workspace:9.1.1",
     "@types/is-windows": "^1.0.0",
     "tempy": "^1.0.0"
   },

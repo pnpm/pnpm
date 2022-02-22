@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/directory-fetcher",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A fetcher for local directory packages",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -31,14 +31,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/directory-fetcher#readme",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:11.1.5",
-    "@pnpm/read-project-manifest": "workspace:2.0.11",
-    "@pnpm/resolver-base": "workspace:8.1.5",
+    "@pnpm/fetcher-base": "workspace:11.1.6",
+    "@pnpm/read-project-manifest": "workspace:2.0.12",
+    "@pnpm/resolver-base": "workspace:8.1.6",
     "npm-packlist": "^3.0.0",
     "ramda": "^0.27.1"
   },
   "devDependencies": {
-    "@pnpm/directory-fetcher": "workspace:1.0.5",
+    "@pnpm/directory-fetcher": "workspace:1.0.6",
     "@pnpm/test-fixtures": "workspace:*"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-listing",
-  "version": "4.1.9",
+  "version": "4.1.10",
   "description": "The list and why commands of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,10 +33,10 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-listing#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/filter-workspace-packages": "workspace:4.4.20",
+    "@pnpm/filter-workspace-packages": "workspace:4.4.21",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-installation": "workspace:8.4.0",
-    "@pnpm/plugin-commands-listing": "workspace:4.1.9",
+    "@pnpm/plugin-commands-installation": "workspace:8.4.1",
+    "@pnpm/plugin-commands-listing": "workspace:4.1.10",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.12.1",
     "@types/ramda": "0.27.39",
@@ -45,12 +45,12 @@
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.48",
+    "@pnpm/cli-utils": "workspace:0.6.49",
     "@pnpm/common-cli-options-help": "workspace:0.8.0",
-    "@pnpm/config": "workspace:13.13.0",
+    "@pnpm/config": "workspace:13.13.1",
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/list": "workspace:6.3.1",
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/list": "workspace:6.3.2",
+    "@pnpm/types": "workspace:7.10.0",
     "ramda": "^0.27.1",
     "render-help": "^1.0.1"
   },

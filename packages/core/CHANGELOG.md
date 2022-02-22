@@ -1,5 +1,60 @@
 # @pnpm/core
 
+## 2.7.0
+
+### Minor Changes
+
+- b138d048c: New optional field supported: `onlyBuiltDependencies`.
+- d84b73b15: When adding a new dependency, use the version specifier from the overrides, when present [#4313](https://github.com/pnpm/pnpm/issues/4313).
+
+  Normally, if the latest version of `foo` is `2.0.0`, then `pnpm add foo` installs `foo@^2.0.0`. This behavior changes if `foo` is specified in an override:
+
+  ```json
+  {
+    "pnpm": {
+      "overrides": {
+        "foo": "1.0.0"
+      }
+    }
+  }
+  ```
+
+  In this case, `pnpm add foo` will add `foo@1.0.0` to the dependency. However, if a version is explicitly specifying, then the specified version will be used and the override will be ignored. So `pnpm add foo@0` will install v0 and it doesn't matter what is in the overrides.
+
+### Patch Changes
+
+- 076c3753a: When a peer dependency range is extended with `*`, just replace any range with `*`.
+- Updated dependencies [800fb2836]
+- Updated dependencies [b138d048c]
+- Updated dependencies [b138d048c]
+  - @pnpm/package-requester@16.0.2
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/resolve-dependencies@25.0.0
+  - @pnpm/headless@17.3.1
+  - @pnpm/get-context@5.3.7
+  - @pnpm/lockfile-to-pnp@0.4.46
+  - @pnpm/filter-lockfile@5.0.18
+  - @pnpm/hoist@5.2.14
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/lockfile-walker@4.0.15
+  - @pnpm/modules-cleaner@11.0.22
+  - @pnpm/prune-lockfile@3.0.15
+  - @pnpm/build-modules@8.0.2
+  - @pnpm/core-loggers@6.1.4
+  - dependency-path@8.0.11
+  - @pnpm/lifecycle@12.1.6
+  - @pnpm/link-bins@6.2.11
+  - @pnpm/manifest-utils@2.1.8
+  - @pnpm/modules-yaml@9.1.1
+  - @pnpm/normalize-registries@2.0.13
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/read-project-manifest@2.0.12
+  - @pnpm/remove-bins@2.0.13
+  - @pnpm/resolver-base@8.1.6
+  - @pnpm/store-controller-types@11.0.12
+  - @pnpm/symlink-dependency@4.0.13
+
 ## 2.6.0
 
 ### Minor Changes

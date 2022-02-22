@@ -1,5 +1,12 @@
 # dependency-path
 
+## 8.0.11
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+
 ## 8.0.10
 
 ### Patch Changes

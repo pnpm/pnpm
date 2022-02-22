@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/render-peer-issues",
   "description": "Visualizes peer dependency issues",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -29,13 +29,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/render-peer-issues#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/types": "workspace:7.10.0",
     "archy": "^1.0.0",
     "chalk": "^4.1.0",
     "cli-columns": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/render-peer-issues": "workspace:1.1.1",
+    "@pnpm/render-peer-issues": "workspace:1.1.2",
     "@types/archy": "0.0.31",
     "strip-ansi": "^6.0.0"
   }

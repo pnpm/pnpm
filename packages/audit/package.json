@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/audit",
-  "version": "2.2.5",
+  "version": "2.2.6",
   "description": "Audit a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,18 +30,18 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/audit#readme",
   "devDependencies": {
-    "@pnpm/audit": "workspace:2.2.5",
+    "@pnpm/audit": "workspace:2.2.6",
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/lockfile-file": "workspace:4.2.6",
+    "@pnpm/lockfile-file": "workspace:4.3.0",
     "nock": "12.0.3"
   },
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/fetch": "workspace:4.2.4",
-    "@pnpm/lockfile-types": "workspace:3.1.5",
-    "@pnpm/lockfile-utils": "workspace:3.2.0",
-    "@pnpm/lockfile-walker": "workspace:4.0.14",
-    "@pnpm/types": "workspace:7.9.0"
+    "@pnpm/fetch": "workspace:4.2.5",
+    "@pnpm/lockfile-types": "workspace:3.2.0",
+    "@pnpm/lockfile-utils": "workspace:3.2.1",
+    "@pnpm/lockfile-walker": "workspace:4.0.15",
+    "@pnpm/types": "workspace:7.10.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

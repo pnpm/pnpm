@@ -1,5 +1,13 @@
 # find-packages
 
+## 8.0.12
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/read-project-manifest@2.0.12
+
 ## 8.0.11
 
 ### Patch Changes

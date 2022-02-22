@@ -1,5 +1,27 @@
 # @pnpm/resolve-dependencies
 
+## 25.0.0
+
+### Major Changes
+
+- b138d048c: Removed the `neverBuiltDependencies` option. In order to ignore scripts of some dependencies, use the new `allowBuild`. `allowBuild` is a function that accepts the package name and returns `true` if the package should be allowed to build.
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/prune-lockfile@3.0.15
+  - @pnpm/core-loggers@6.1.4
+  - dependency-path@8.0.11
+  - @pnpm/manifest-utils@2.1.8
+  - @pnpm/npm-resolver@12.1.7
+  - @pnpm/pick-registry-for-package@2.0.11
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/resolver-base@8.1.6
+  - @pnpm/store-controller-types@11.0.12
+
 ## 24.0.0
 
 ### Major Changes

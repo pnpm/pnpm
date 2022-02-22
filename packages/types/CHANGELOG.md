@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 7.10.0
+
+### Minor Changes
+
+- b138d048c: New optional field supported: `onlyBuiltDependencies`.
+
 ## 7.9.0
 
 ### Minor Changes
