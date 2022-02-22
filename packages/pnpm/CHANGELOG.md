@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.32.1
+
+### Patch Changes
+
+- `onlyBuiltDependencies` should work [#4377](https://github.com/pnpm/pnpm/pull/4377). The new `onlyBuiltDependencies` feature was released with a bug in v6.32.0, so it didn't work.
+
 ## 6.32.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 2.7.1
+
+### Patch Changes
+
+- 4e3b99ae0: `onlyBuiltDependencies` should work.
+
 ## 2.7.0
 
 ### Minor Changes

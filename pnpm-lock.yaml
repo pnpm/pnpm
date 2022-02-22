@@ -118,31 +118,31 @@ importers:
 
   packages/artifacts/linux-arm64:
     specifiers:
-      '@pnpm/linux-arm64': workspace:6.32.0
+      '@pnpm/linux-arm64': workspace:6.32.1
     devDependencies:
       '@pnpm/linux-arm64': 'link:'
 
   packages/artifacts/linux-x64:
     specifiers:
-      '@pnpm/linux-x64': workspace:6.32.0
+      '@pnpm/linux-x64': workspace:6.32.1
     devDependencies:
       '@pnpm/linux-x64': 'link:'
 
   packages/artifacts/macos-arm64:
     specifiers:
-      '@pnpm/macos-arm64': workspace:6.32.0
+      '@pnpm/macos-arm64': workspace:6.32.1
     devDependencies:
       '@pnpm/macos-arm64': 'link:'
 
   packages/artifacts/macos-x64:
     specifiers:
-      '@pnpm/macos-x64': workspace:6.32.0
+      '@pnpm/macos-x64': workspace:6.32.1
     devDependencies:
       '@pnpm/macos-x64': 'link:'
 
   packages/artifacts/win-x64:
     specifiers:
-      '@pnpm/win-x64': workspace:6.32.0
+      '@pnpm/win-x64': workspace:6.32.1
     devDependencies:
       '@pnpm/win-x64': 'link:'
 
@@ -395,7 +395,7 @@ importers:
       '@pnpm/calc-dep-state': workspace:1.0.0
       '@pnpm/client': workspace:6.1.2
       '@pnpm/constants': workspace:5.0.0
-      '@pnpm/core': workspace:2.7.0
+      '@pnpm/core': workspace:2.7.1
       '@pnpm/core-loggers': workspace:6.1.4
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-lockfile': workspace:5.0.18
@@ -723,12 +723,12 @@ importers:
 
   packages/exe:
     specifiers:
-      '@pnpm/exe': workspace:6.32.0
-      '@pnpm/linux-arm64': workspace:6.32.0
-      '@pnpm/linux-x64': workspace:6.32.0
-      '@pnpm/macos-arm64': workspace:6.32.0
-      '@pnpm/macos-x64': workspace:6.32.0
-      '@pnpm/win-x64': workspace:6.32.0
+      '@pnpm/exe': workspace:6.32.1
+      '@pnpm/linux-arm64': workspace:6.32.1
+      '@pnpm/linux-x64': workspace:6.32.1
+      '@pnpm/macos-arm64': workspace:6.32.1
+      '@pnpm/macos-x64': workspace:6.32.1
+      '@pnpm/win-x64': workspace:6.32.1
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
@@ -2114,7 +2114,7 @@ importers:
       '@pnpm/common-cli-options-help': workspace:0.8.0
       '@pnpm/config': workspace:13.13.1
       '@pnpm/constants': workspace:5.0.0
-      '@pnpm/core': workspace:2.7.0
+      '@pnpm/core': workspace:2.7.1
       '@pnpm/error': workspace:2.0.0
       '@pnpm/filter-workspace-packages': workspace:4.4.21
       '@pnpm/find-workspace-dir': workspace:3.0.1
@@ -2128,7 +2128,7 @@ importers:
       '@pnpm/outdated': workspace:9.0.31
       '@pnpm/package-store': workspace:12.1.11
       '@pnpm/parse-wanted-dependency': workspace:2.0.0
-      '@pnpm/plugin-commands-installation': workspace:8.4.1
+      '@pnpm/plugin-commands-installation': workspace:8.4.2
       '@pnpm/plugin-commands-rebuild': workspace:5.4.13
       '@pnpm/pnpmfile': workspace:1.2.5
       '@pnpm/prepare': workspace:*
@@ -2256,7 +2256,7 @@ importers:
       '@pnpm/filter-workspace-packages': workspace:4.4.21
       '@pnpm/list': workspace:6.3.2
       '@pnpm/logger': ^4.0.0
-      '@pnpm/plugin-commands-installation': workspace:8.4.1
+      '@pnpm/plugin-commands-installation': workspace:8.4.2
       '@pnpm/plugin-commands-listing': workspace:4.1.10
       '@pnpm/prepare': workspace:*
       '@pnpm/registry-mock': 2.12.1
@@ -2304,7 +2304,7 @@ importers:
       '@pnpm/matcher': workspace:2.0.0
       '@pnpm/modules-yaml': workspace:9.1.1
       '@pnpm/outdated': workspace:9.0.31
-      '@pnpm/plugin-commands-installation': workspace:8.4.1
+      '@pnpm/plugin-commands-installation': workspace:8.4.2
       '@pnpm/plugin-commands-outdated': workspace:5.1.9
       '@pnpm/prepare': workspace:*
       '@pnpm/registry-mock': 2.12.1
@@ -2755,7 +2755,7 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.11
       '@pnpm/plugin-commands-audit': workspace:5.1.41
       '@pnpm/plugin-commands-env': workspace:1.4.13
-      '@pnpm/plugin-commands-installation': workspace:8.4.1
+      '@pnpm/plugin-commands-installation': workspace:8.4.2
       '@pnpm/plugin-commands-listing': workspace:4.1.10
       '@pnpm/plugin-commands-outdated': workspace:5.1.9
       '@pnpm/plugin-commands-publishing': workspace:4.5.1
@@ -5541,7 +5541,7 @@ packages:
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     peerDependencies:
       '@typescript-eslint/parser': ^5.0.0
-      eslint: ^6.0.0 || ^7.0.0 || ^8.0.0 || *
+      eslint: '*'
       typescript: '*'
     peerDependenciesMeta:
       typescript:
@@ -5567,7 +5567,7 @@ packages:
     resolution: {integrity: sha512-ZohdsbXadjGBSK0/r+d87X0SBmKzOq4/S5nzK6SBgJspFo9/CUDJ7hjayuze+JK7CZQLDMroqytp7pOcFKTxZA==}
     engines: {node: ^10.12.0 || >=12.0.0}
     peerDependencies:
-      eslint: ^5.0.0 || ^6.0.0 || ^7.0.0 || *
+      eslint: '*'
       typescript: '*'
     peerDependenciesMeta:
       typescript:
@@ -5587,7 +5587,7 @@ packages:
     resolution: {integrity: sha512-MfSwg9JMBojMUoGjUmX+D2stoQj1CBYTCP0qnnVtu9A+YQXVKNtLjasYh+jozOcrb/wau8TCfWOkQTiOAruBog==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     peerDependencies:
-      eslint: ^6.0.0 || ^7.0.0 || ^8.0.0 || *
+      eslint: '*'
       typescript: '*'
     peerDependenciesMeta:
       typescript:
@@ -5694,7 +5694,7 @@ packages:
     resolution: {integrity: sha512-k4J2WovnMPGI4PzKgDtQdNrCnmBHpMUFy21qjX2CoPdoBcSBIMvVBr9P2YDP8jOqZOeK3ThOL6VO/sy6jtnvzw==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     peerDependencies:
-      eslint: ^6.0.0 || ^7.0.0 || ^8.0.0 || *
+      eslint: '*'
     dependencies:
       '@types/json-schema': 7.0.9
       '@typescript-eslint/scope-manager': 5.12.0
@@ -8168,7 +8168,7 @@ packages:
     resolution: {integrity: sha512-FeiMHljEJ346Y0I/HpAymNKdrgKEpHpcg/D93FvPHWfCzbT4QyUJba/0FwntZeGLXfUiWDSeKmdJD597d9wwiw==}
     peerDependencies:
       '@typescript-eslint/eslint-plugin': ^4.0.1 || ^5.6.0
-      eslint: ^7.12.1 || *
+      eslint: '*'
       eslint-plugin-import: ^2.22.1
       eslint-plugin-node: ^11.1.0
       eslint-plugin-promise: ^4.2.1 || ^5.0.0
@@ -8189,7 +8189,7 @@ packages:
   /eslint-config-standard/16.0.3_2dae9da07848968bcc0999a5e5956768:
     resolution: {integrity: sha512-x4fmJL5hGqNJKGHSjnLdgA6U6h1YW/G2dW9fA+cyVur4SK6lyue8+UgNKWlZtUDTXvgKDD/Oa3GQjmB5kjtVvg==}
     peerDependencies:
-      eslint: ^7.12.1 || *
+      eslint: '*'
       eslint-plugin-import: ^2.22.1
       eslint-plugin-node: ^11.1.0
       eslint-plugin-promise: ^4.2.1 || ^5.0.0
@@ -8218,7 +8218,7 @@ packages:
     resolution: {integrity: sha512-GUmAsJaN4Fc7Gbtl8uOBlayo2DqhwWvEzykMHSCZHU3XdJ+NSzzZcVhXh3VxX5icqQ+oQdIEawXX8xkR3mIFmQ==}
     engines: {node: '>=8.10.0'}
     peerDependencies:
-      eslint: '>=4.19.1 || *'
+      eslint: '*'
     dependencies:
       eslint: 8.9.0
       eslint-utils: 2.1.0
@@ -8229,7 +8229,7 @@ packages:
     resolution: {integrity: sha512-/KJBASVFxpu0xg1kIBn9AUa8hQVnszpwgE7Ld0lKAlx7Ie87yzEzCgSkekt+le/YVhiaosO4Y14GDAOc41nfxA==}
     engines: {node: '>=4'}
     peerDependencies:
-      eslint: ^2 || ^3 || ^4 || ^5 || ^6 || ^7.2.0 || ^8 || *
+      eslint: '*'
     dependencies:
       array-includes: 3.1.4
       array.prototype.flat: 1.2.5
@@ -8251,7 +8251,7 @@ packages:
     resolution: {integrity: sha512-oUwtPJ1W0SKD0Tr+wqu92c5xuCeQqB3hSCHasn/ZgjFdA9iDGNkNf2Zi9ztY7X+hNuMib23LNGRm6+uN+KLE3g==}
     engines: {node: '>=8.10.0'}
     peerDependencies:
-      eslint: '>=5.16.0 || *'
+      eslint: '*'
     dependencies:
       eslint: 8.9.0
       eslint-plugin-es: 3.0.1_eslint@8.9.0
@@ -8266,7 +8266,7 @@ packages:
     resolution: {integrity: sha512-SftLb1pUG01QYq2A/hGAWfDRXqYD82zE7j7TopDOyNdU+7SvvoXREls/+PRTY17vUXzXnZA/zfnyKgRH6x4JJw==}
     engines: {node: ^10.12.0 || >=12.0.0}
     peerDependencies:
-      eslint: ^7.0.0 || *
+      eslint: '*'
     dependencies:
       eslint: 8.9.0
     dev: false
@@ -8298,7 +8298,7 @@ packages:
     resolution: {integrity: sha512-uuQC43IGctw68pJA1RgbQS8/NP7rch6Cwd4j3ZBtgo4/8Flj4eGE7ZYSZRN3iq5pVUv6GPdW5Z1RFleo84uLDA==}
     engines: {node: ^10.0.0 || ^12.0.0 || >= 14.0.0}
     peerDependencies:
-      eslint: '>=5 || * || *'
+      eslint: '*'
     dependencies:
       eslint: 8.9.0
       eslint-visitor-keys: 2.1.0
