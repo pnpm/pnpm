@@ -78,10 +78,13 @@ export default async function link (
       throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${linkFromPath} must have a name field to be linked`)
     }
 
+    // if the package already exists and lock version, its version should not be changed
+    const shouldModifyVersion = maybeOpts.linkToBin ?? !/^\d.*/.test((opts.manifest?.dependencies ?? {})[manifest.name])
+
     specsToUpsert.push({
       alias: manifest.name,
       pref: getPref(manifest.name, manifest.name, manifest.version, {
-        pinnedVersion: opts.pinnedVersion,
+        pinnedVersion: shouldModifyVersion ? opts.pinnedVersion : 'patch',
       }),
       saveType: (opts.targetDependenciesField ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
     })
