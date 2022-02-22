@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 8.5.12
+
+### Patch Changes
+
+- 5f00eb0e0: When some dependency types are skipped, let the user know via the installation summary.
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/config@13.13.1
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/render-peer-issues@1.1.2
+
 ## 8.5.11
 
 ### Patch Changes

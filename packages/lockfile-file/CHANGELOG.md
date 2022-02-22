@@ -1,5 +1,18 @@
 # @pnpm/lockfile-file
 
+## 4.3.0
+
+### Minor Changes
+
+- b138d048c: New optional field supported: `onlyBuiltDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/merge-lockfile-changes@2.0.8
+
 ## 4.2.6
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 13.13.1
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/pnpmfile@1.2.5
+  - @pnpm/read-project-manifest@2.0.12
+
 ## 13.13.0
 
 ### Minor Changes

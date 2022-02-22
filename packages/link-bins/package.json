@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "6.2.10",
+  "version": "6.2.11",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,12 +32,12 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/link-bins#readme",
   "dependencies": {
     "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/manifest-utils": "workspace:2.1.7",
-    "@pnpm/package-bins": "workspace:5.0.11",
+    "@pnpm/manifest-utils": "workspace:2.1.8",
+    "@pnpm/package-bins": "workspace:5.0.12",
     "@pnpm/read-modules-dir": "workspace:3.0.1",
-    "@pnpm/read-package-json": "workspace:5.0.10",
-    "@pnpm/read-project-manifest": "workspace:2.0.11",
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/read-package-json": "workspace:5.0.11",
+    "@pnpm/read-project-manifest": "workspace:2.0.12",
+    "@pnpm/types": "workspace:7.10.0",
     "@zkochan/cmd-shim": "^5.2.1",
     "bin-links": "^2.3.0",
     "is-subdir": "^1.1.1",
@@ -47,7 +47,7 @@
     "ramda": "^0.27.1"
   },
   "devDependencies": {
-    "@pnpm/link-bins": "workspace:6.2.10",
+    "@pnpm/link-bins": "workspace:6.2.11",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",

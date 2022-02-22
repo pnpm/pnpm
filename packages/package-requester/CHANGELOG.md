@@ -1,5 +1,21 @@
 # @pnpm/package-requester
 
+## 16.0.2
+
+### Patch Changes
+
+- 800fb2836: Ignore case, when verifying package name in the store [#4367](https://github.com/pnpm/pnpm/issues/4367).
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/core-loggers@6.1.4
+  - dependency-path@8.0.11
+  - @pnpm/fetcher-base@11.1.6
+  - @pnpm/package-is-installable@5.0.12
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/resolver-base@8.1.6
+  - @pnpm/store-controller-types@11.0.12
+  - @pnpm/cafs@3.0.14
+
 ## 16.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/test-fixtures
 
+## 0.0.4
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.35
+
 ## 0.0.3
 
 ### Patch Changes
