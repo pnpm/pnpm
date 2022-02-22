@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.2
+
+### Patch Changes
+
+- 4e3b99ae0: `onlyBuiltDependencies` should work.
+- Updated dependencies [4e3b99ae0]
+  - @pnpm/core@2.7.1
+
 ## 8.4.1
 
 ### Patch Changes
