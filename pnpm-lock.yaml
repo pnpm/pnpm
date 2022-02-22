@@ -1176,7 +1176,7 @@ importers:
       '@pnpm/directory-fetcher': workspace:1.0.5
       '@pnpm/lifecycle': workspace:12.1.5
       '@pnpm/logger': ^4.0.0
-      '@pnpm/npm-lifecycle': ^2.0.0-0
+      '@pnpm/npm-lifecycle': ^2.0.0-1
       '@pnpm/read-package-json': workspace:5.0.10
       '@pnpm/store-controller-types': workspace:11.0.11
       '@pnpm/types': workspace:7.9.0
@@ -1189,7 +1189,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/directory-fetcher': link:../directory-fetcher
-      '@pnpm/npm-lifecycle': 2.0.0-0
+      '@pnpm/npm-lifecycle': 2.0.0-1
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
@@ -4943,8 +4943,8 @@ packages:
     dependencies:
       abbrev: 1.1.1
 
-  /@pnpm/npm-lifecycle/2.0.0-0:
-    resolution: {integrity: sha512-3Zz3PRbtHxCB/P3dcxGwIl4FXlQjfIHXTzlEaEppGArFLa4FHIk0Wg033E2QkN5ylTBweukR8bq6ZQ8tTtWK4Q==}
+  /@pnpm/npm-lifecycle/2.0.0-1:
+    resolution: {integrity: sha512-eUeRVUxnr9xP50ESMuRDrWYN/AQmaV2g/Wvs3ckHBx7XFJw8ljix66L7R1S1FoUqxNn0BeyPeIE9ANwn/syIAQ==}
     engines: {node: '>=12.17'}
     dependencies:
       '@pnpm/byline': 1.0.0
@@ -8288,7 +8288,7 @@ packages:
     resolution: {integrity: sha512-uuQC43IGctw68pJA1RgbQS8/NP7rch6Cwd4j3ZBtgo4/8Flj4eGE7ZYSZRN3iq5pVUv6GPdW5Z1RFleo84uLDA==}
     engines: {node: ^10.0.0 || ^12.0.0 || >= 14.0.0}
     peerDependencies:
-      eslint: '>=5 || *'
+      eslint: '>=5 || * || *'
     dependencies:
       eslint: 8.9.0
       eslint-visitor-keys: 2.1.0
