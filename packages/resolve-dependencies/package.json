@@ -43,7 +43,7 @@
     "@pnpm/store-controller-types": "workspace:11.0.12",
     "@pnpm/types": "workspace:7.10.0",
     "@pnpm/which-version-is-pinned": "workspace:1.0.0",
-    "@yarnpkg/core": "3.2.0-rc.9",
+    "@yarnpkg/core": "3.2.0",
     "dependency-path": "workspace:8.0.11",
     "encode-registry": "^3.0.0",
     "get-npm-tarball-url": "^2.0.3",
