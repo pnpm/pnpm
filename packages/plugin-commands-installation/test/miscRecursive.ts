@@ -12,6 +12,7 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
+import symlinkDir from 'symlink-dir'
 
 test('recursive add/remove', async () => {
   const projects = preparePackages([
@@ -642,4 +643,31 @@ test('prefer-workspace-package', async () => {
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('pnpm-lock.yaml'))
   expect(lockfile.importers['project-1'].dependencies?.foo).toBe('link:../foo')
+})
+
+test('installing in monorepo with shared lockfile should work on virtual drives', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  const virtualPath = process.cwd() + '-virtual-disk'
+  // symlink simulates windows' subst
+  await symlinkDir(process.cwd(), virtualPath)
+  const { allProjects, selectedProjectsGraph } = await readProjects(virtualPath, [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    lockfileDir: virtualPath,
+    allProjects,
+    dir: virtualPath,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: virtualPath,
+  })
+
+  await projects['project-1'].has('is-positive')
 })
