@@ -716,7 +716,10 @@ importers:
 
   packages/error:
     specifiers:
+      '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.0.0
+    dependencies:
+      '@pnpm/constants': link:../constants
     devDependencies:
       '@pnpm/error': 'link:'
 
@@ -3034,6 +3037,7 @@ importers:
 
   packages/real-hoist:
     specifiers:
+      '@pnpm/error': workspace:2.0.0
       '@pnpm/lockfile-file': workspace:4.3.0
       '@pnpm/lockfile-utils': workspace:3.2.1
       '@pnpm/logger': ^4.0.0
@@ -3041,6 +3045,7 @@ importers:
       '@yarnpkg/nm': 3.0.1
       dependency-path: workspace:8.0.11
     dependencies:
+      '@pnpm/error': link:../error
       '@pnpm/lockfile-utils': link:../lockfile-utils
       '@yarnpkg/nm': 3.0.1
       dependency-path: link:../dependency-path
@@ -11706,6 +11711,7 @@ packages:
 
   /npmlog/4.1.2:
     resolution: {integrity: sha512-2uUqazuKlTaSI/dC8AzicUck7+IrEaOnN/e0jd3Xtt1KcGpwx30v50mL7oPyr/h9bL3E4aZccVwpwP+5W9Vjkg==}
+    requiresBuild: true
     dependencies:
       are-we-there-yet: 1.1.7
       console-control-strings: 1.1.0

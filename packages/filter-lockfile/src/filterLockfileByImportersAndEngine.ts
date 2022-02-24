@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   Lockfile,
   PackageSnapshots,
@@ -10,7 +11,6 @@ import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import unnest from 'ramda/src/unnest'
 import filterImporter from './filterImporter'
-import LockfileMissingDependencyError from './LockfileMissingDependencyError'
 
 const logger = pnpmLogger('lockfile')
 

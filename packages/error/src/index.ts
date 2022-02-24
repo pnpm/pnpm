@@ -1,3 +1,5 @@
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+
 export default class PnpmError extends Error {
   public readonly code: string
   public readonly hint?: string
@@ -54,4 +56,14 @@ export class FetchError extends PnpmError {
 function hideAuthInformation (authHeaderValue: string) {
   const [authType, token] = authHeaderValue.split(' ')
   return `${authType} ${token.substring(0, 4)}[hidden]`
+}
+
+export class LockfileMissingDependencyError extends PnpmError {
+  constructor (depPath: string) {
+    const message = `Broken lockfile: no entry for '${depPath}' in ${WANTED_LOCKFILE}`
+    super('LOCKFILE_MISSING_DEPENDENCY', message, {
+      hint: 'This issue is probably caused by a badly resolved merge conflict.\n' +
+        'To fix the lockfile, run \'pnpm install --no-frozen-lockfile\'.',
+    })
+  }
 }

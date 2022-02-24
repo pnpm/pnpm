@@ -1,3 +1,4 @@
+import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   Lockfile,
   nameVerFromPkgSnapshot,
@@ -72,6 +73,9 @@ function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Reco
     if (!node) {
       // const { name, version, peersSuffix } = nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath])
       const pkgSnapshot = lockfile.packages![depPath]
+      if (!pkgSnapshot) {
+        throw new LockfileMissingDependencyError(depPath)
+      }
       const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
       node = {
         name: alias,
