@@ -30,6 +30,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:2.0.0",
     "@pnpm/lockfile-utils": "workspace:3.2.1",
     "@yarnpkg/nm": "3.0.1",
     "dependency-path": "workspace:8.0.11"
