@@ -31,5 +31,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/error": "workspace:2.0.0"
+  },
+  "dependencies": {
+    "@pnpm/constants": "workspace:5.0.0"
   }
 }
