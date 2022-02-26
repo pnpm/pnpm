@@ -2,7 +2,7 @@
 >
 > I'm the creator of this project and I'm Ukrainian.
 >
-> **My country, Ukraine, [is being invaded by the Russian Federation, right now](https://www.bbc.com/news/world-europe-60504334)**. I've fled Kyiv and now I'm safe with my family in the western part of Ukraine. At least for now.
+> **My country, Ukraine, [is being invaded by the Russian Federation, right now](https://www.bbc.com/news/world-europe-60504334)**. I'm safe with my family in the western part of Ukraine. At least for now.
 > Russia is hitting target all over my country by ballistic missiles.
 >
 > **Please, save me and help to save my country!**
