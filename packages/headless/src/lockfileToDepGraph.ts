@@ -146,8 +146,6 @@ export default async function lockfileToDepGraph (
             force: false,
             lockfileDir: opts.lockfileDir,
             pkg: {
-              name: pkgName,
-              version: pkgVersion,
               id: packageId,
               resolution,
             },
