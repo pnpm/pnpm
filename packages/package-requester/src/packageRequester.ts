@@ -247,7 +247,7 @@ async function resolveAndFetch (
     force: forceFetch,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...pick(['name', 'version'], manifest ?? options.currentPkg ?? {}),
+      ...pick(['name', 'version'], manifest ?? {}),
       id,
       resolution,
     },
@@ -314,6 +314,9 @@ function fetchToStore (
     files: () => Promise<PackageFilesResponse>
     finishing: () => Promise<void>
   } {
+  if (!opts.pkg.name) {
+    opts.fetchRawManifest = true
+  }
   const targetRelative = depPathToFilename(opts.pkg.id, opts.lockfileDir)
   const target = path.join(ctx.storeDir, targetRelative)
 
@@ -550,11 +553,26 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               }
             })
         )
-        await writeJsonFile(filesIndexFile, {
-          name: opts.pkg.name,
-          version: opts.pkg.version,
-          files: integrity,
-        })
+        if (opts.pkg.name) {
+          await writeJsonFile(filesIndexFile, {
+            name: opts.pkg.name,
+            version: opts.pkg.version,
+            files: integrity,
+          })
+        } else {
+          // Even though we could take the package name from the lockfile,
+          // it is not safe because the lockfile may be broken or manually edited.
+          // To be safe, we read the package name from the downloaded package's package.json instead.
+          /* eslint-disable @typescript-eslint/no-floating-promises */
+          bundledManifest.promise
+            .then((manifest) => writeJsonFile(filesIndexFile, {
+              name: manifest.name,
+              version: manifest.version,
+              files: integrity,
+            }))
+            .catch()
+          /* eslint-enable @typescript-eslint/no-floating-promises */
+        }
         filesResult = {
           fromStore: false,
           filesIndex: integrity,

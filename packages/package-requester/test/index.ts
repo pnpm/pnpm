@@ -128,8 +128,6 @@ test('request package but skip fetching, when resolution is already available', 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkg: {
-      name: 'is-positive',
-      version: '1.0.0',
       id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
@@ -203,8 +201,6 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        name: '@pnpm/package-requester',
-        version: '0.8.1',
         id: pkgId,
         resolution: {
           integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
@@ -238,8 +234,6 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        name: '@pnpm/package-requester',
-        version: '0.8.1',
         id: pkgId,
         resolution: {
           integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
@@ -267,8 +261,6 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        name: '@pnpm/package-requester',
-        version: '0.8.1',
         id: pkgId,
         resolution: {
           integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
@@ -616,8 +608,6 @@ test('always return a package manifest in the response', async () => {
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       currentPkg: {
-        name: 'is-positive',
-        version: '1.0.0',
         id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
         resolution: {
           integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',

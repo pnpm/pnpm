@@ -74,8 +74,6 @@ export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
     id?: string
-    name?: string
-    version?: string
     resolution?: Resolution
   }
   defaultTag?: string
