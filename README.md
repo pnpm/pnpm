@@ -1,6 +1,6 @@
 > # 🇺🇦 UKRAINE NEEDS YOUR HELP NOW!
 >
-> I'm the creator of this project and I'm Ukrainian.
+> I'm the creator of this project.
 >
 > **My country, Ukraine, [is being invaded by the Russian Federation, right now](https://www.bbc.com/news/world-europe-60504334)**. I'm safe with my family in the western part of Ukraine. At least for now.
 > Russia is hitting target all over my country by ballistic missiles.
