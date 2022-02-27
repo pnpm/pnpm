@@ -884,6 +884,10 @@ test('throw exception if the package data in the store differs from the expected
         id: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
       },
+      expectedPkg: {
+        name: 'is-negative',
+        version: '1.0.0',
+      },
     })
     await expect(files()).rejects.toThrow(/Package name mismatch found while reading/)
   }
@@ -906,6 +910,10 @@ test('throw exception if the package data in the store differs from the expected
         version: '2.0.0',
         id: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
+      },
+      expectedPkg: {
+        name: 'is-negative',
+        version: '2.0.0',
       },
     })
     await expect(files()).rejects.toThrow(/Package name mismatch found while reading/)
@@ -930,6 +938,10 @@ test('throw exception if the package data in the store differs from the expected
         id: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
       },
+      expectedPkg: {
+        name: 'is-positive',
+        version: 'v1.0.0',
+      },
     })
     await expect(files()).resolves.toStrictEqual(expect.anything())
   }
@@ -951,6 +963,10 @@ test('throw exception if the package data in the store differs from the expected
         version: 'v1.0.0',
         id: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
+      },
+      expectedPkg: {
+        name: 'IS-positive',
+        version: 'v1.0.0',
       },
     })
     await expect(files()).resolves.toStrictEqual(expect.anything())
