@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 6.3.3
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.12
+- @pnpm/read-project-manifest@2.0.13
+- dependencies-hierarchy@10.0.25
+
 ## 6.3.2
 
 ### Patch Changes

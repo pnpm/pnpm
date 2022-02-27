@@ -1,5 +1,21 @@
 # @pnpm/package-requester
 
+## 17.0.0
+
+### Major Changes
+
+- 5c525db13: Changes to RequestPackageOptions: currentPkg.name and currentPkg.version removed.
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+- Updated dependencies [5c525db13]
+  - @pnpm/error@2.1.0
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/package-is-installable@5.0.13
+  - @pnpm/read-package-json@5.0.12
+  - @pnpm/cafs@3.0.15
+
 ## 16.0.2
 
 ### Patch Changes

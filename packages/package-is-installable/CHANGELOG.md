@@ -1,5 +1,12 @@
 # @pnpm/package-is-installable
 
+## 5.0.13
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
 ## 5.0.12
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 25.0.1
+
+### Patch Changes
+
+- 5c525db13: In order to guarantee that only correct data is written to the store, data from the lockfile should not be written to the store. Only data directly from the package tarball or package metadata.
+- Updated dependencies [70ba51da9]
+- Updated dependencies [5c525db13]
+  - @pnpm/error@2.1.0
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/manifest-utils@2.1.9
+  - @pnpm/npm-resolver@12.1.8
+  - @pnpm/read-package-json@5.0.12
+
 ## 25.0.0
 
 ### Major Changes

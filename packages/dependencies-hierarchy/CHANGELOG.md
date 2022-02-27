@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 10.0.25
+
+### Patch Changes
+
+- @pnpm/lockfile-file@4.3.1
+- @pnpm/read-package-json@5.0.12
+
 ## 10.0.24
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/default-resolver
 
+## 14.0.12
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/local-resolver@7.0.8
+  - @pnpm/npm-resolver@12.1.8
+
 ## 14.0.11
 
 ### Patch Changes

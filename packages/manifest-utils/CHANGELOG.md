@@ -1,5 +1,12 @@
 # @pnpm/manifest-utils
 
+## 2.1.9
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
 ## 2.1.8
 
 ### Patch Changes

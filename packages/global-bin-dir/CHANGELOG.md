@@ -1,5 +1,12 @@
 # @pnpm/global-bin-dir
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
 ## 3.0.0
 
 ### Major Changes

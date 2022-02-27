@@ -1,5 +1,11 @@
 # @pnpm/error
 
+## 2.1.0
+
+### Minor Changes
+
+- 70ba51da9: Add new error object: LockfileMissingDependencyError.
+
 ## 2.0.0
 
 ### Major Changes

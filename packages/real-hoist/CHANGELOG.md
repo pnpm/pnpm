@@ -1,5 +1,13 @@
 # @pnpm/real-hoist
 
+## 0.1.8
+
+### Patch Changes
+
+- 70ba51da9: Throw a meaningful error message on `pnpm install` when the lockfile is broken and `node-linker` is set to `hoisted`.
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
 ## 0.1.7
 
 ### Patch Changes
