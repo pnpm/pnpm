@@ -63,6 +63,10 @@ export interface FetchPackageToStoreOptions {
     version?: string
     resolution: Resolution
   }
+  expectedPkg?: {
+    name?: string
+    version?: string
+  }
 }
 
 export type RequestPackageFunction = (
@@ -75,6 +79,10 @@ export interface RequestPackageOptions {
   currentPkg?: {
     id?: string
     resolution?: Resolution
+  }
+  expectedPkg?: {
+    name?: string
+    version?: string
   }
   defaultTag?: string
   downloadPriority: number

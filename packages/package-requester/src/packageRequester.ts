@@ -31,6 +31,7 @@ import {
 import {
   BundledManifest,
   FetchPackageToStoreFunction,
+  FetchPackageToStoreOptions,
   PackageResponse,
   RequestPackageFunction,
   RequestPackageOptions,
@@ -242,15 +243,17 @@ async function resolveAndFetch (
     }
   }
 
+  const pkg = pick(['name', 'version'], manifest ?? {})
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...pick(['name', 'version'], manifest ?? {}),
+      ...pkg,
       id,
       resolution,
     },
+    expectedPkg: options.expectedPkg?.name != null ? options.expectedPkg : pkg,
   })
 
   return {
@@ -297,17 +300,7 @@ function fetchToStore (
     storeDir: string
     verifyStoreIntegrity: boolean
   },
-  opts: {
-    pkg: {
-      name?: string
-      version?: string
-      id: string
-      resolution: Resolution
-    }
-    fetchRawManifest?: boolean
-    force: boolean
-    lockfileDir: string
-  }
+  opts: FetchPackageToStoreOptions
 ): {
     bundledManifest?: () => Promise<BundledManifest>
     filesIndexFile: string
@@ -448,23 +441,23 @@ function fetchToStore (
           if (
             (
               pkgFilesIndex.name != null &&
-              opts.pkg.name != null &&
-              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
+              opts.expectedPkg?.name != null &&
+              pkgFilesIndex.name.toLowerCase() !== opts.expectedPkg.name.toLowerCase()
             ) ||
             (
               pkgFilesIndex.version != null &&
-              opts.pkg.version != null &&
+              opts.expectedPkg?.version != null &&
               // We used to not normalize the package versions before writing them to the lockfile and store.
               // So it may happen that the version will be in different formats.
               // For instance, v1.0.0 and 1.0.0
               // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
+              !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
             )
           ) {
             /* eslint-disable @typescript-eslint/restrict-template-expressions */
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', `\
 Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
-This means that the lockfile is broken. Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
+This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
 Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
             /* eslint-enable @typescript-eslint/restrict-template-expressions */
           }

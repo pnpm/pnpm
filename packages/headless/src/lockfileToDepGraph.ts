@@ -149,6 +149,10 @@ export default async function lockfileToDepGraph (
               id: packageId,
               resolution,
             },
+            expectedPkg: {
+              name: pkgName,
+              version: pkgVersion,
+            },
           })
           if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
         } catch (err: any) { // eslint-disable-line

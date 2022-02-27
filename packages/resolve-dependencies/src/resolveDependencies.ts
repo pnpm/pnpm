@@ -613,6 +613,7 @@ async function resolveDependency (
           resolution: currentPkg.resolution,
         }
         : undefined,
+      expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
