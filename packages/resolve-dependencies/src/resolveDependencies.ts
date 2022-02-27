@@ -609,12 +609,11 @@ async function resolveDependency (
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
         ? {
-          name: currentPkg.name,
-          version: currentPkg.version,
           id: currentPkg.pkgId,
           resolution: currentPkg.resolution,
         }
         : undefined,
+      expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
