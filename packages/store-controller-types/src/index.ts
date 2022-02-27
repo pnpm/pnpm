@@ -53,20 +53,23 @@ export type FetchPackageToStoreFunction = (
   finishing: () => Promise<void>
 }
 
+export interface PkgNameVersion {
+  name?: string
+  version?: string
+}
+
 export interface FetchPackageToStoreOptions {
   fetchRawManifest?: boolean
   force: boolean
   lockfileDir: string
-  pkg: {
+  pkg: PkgNameVersion & {
     id: string
-    name?: string
-    version?: string
     resolution: Resolution
   }
-  expectedPkg?: {
-    name?: string
-    version?: string
-  }
+  /**
+   * Expected package is the package name and version that are found in the lockfile.
+   */
+  expectedPkg?: PkgNameVersion
 }
 
 export type RequestPackageFunction = (
@@ -80,10 +83,10 @@ export interface RequestPackageOptions {
     id?: string
     resolution?: Resolution
   }
-  expectedPkg?: {
-    name?: string
-    version?: string
-  }
+  /**
+   * Expected package is the package name and version that are found in the lockfile.
+   */
+  expectedPkg?: PkgNameVersion
   defaultTag?: string
   downloadPriority: number
   projectDir: string

@@ -33,6 +33,7 @@ import {
   FetchPackageToStoreFunction,
   FetchPackageToStoreOptions,
   PackageResponse,
+  PkgNameVersion,
   RequestPackageFunction,
   RequestPackageOptions,
   WantedDependency,
@@ -546,10 +547,9 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               }
             })
         )
-        if (opts.pkg.name) {
-          await writeJsonFile(filesIndexFile, {
-            name: opts.pkg.name,
-            version: opts.pkg.version,
+        if (opts.pkg.name && opts.pkg.version) {
+          await writeFilesIndexFile(filesIndexFile, {
+            pkg: opts.pkg,
             files: integrity,
           })
         } else {
@@ -558,9 +558,8 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           // To be safe, we read the package name from the downloaded package's package.json instead.
           /* eslint-disable @typescript-eslint/no-floating-promises */
           bundledManifest.promise
-            .then((manifest) => writeJsonFile(filesIndexFile, {
-              name: manifest.name,
-              version: manifest.version,
+            .then((manifest) => writeFilesIndexFile(filesIndexFile, {
+              pkg: manifest,
               files: integrity,
             }))
             .catch()
@@ -593,6 +592,13 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       }
     }
   }
+}
+
+async function writeFilesIndexFile (filesIndexFile: string, opts: {
+  pkg: PkgNameVersion
+  files: Record<string, PackageFileInfo>
+}) {
+  await writeJsonFile(filesIndexFile, opts)
 }
 
 async function writeJsonFile (filePath: string, data: Object) {
