@@ -146,10 +146,12 @@ export default async function lockfileToDepGraph (
             force: false,
             lockfileDir: opts.lockfileDir,
             pkg: {
-              name: pkgName,
-              version: pkgVersion,
               id: packageId,
               resolution,
+            },
+            expectedPkg: {
+              name: pkgName,
+              version: pkgVersion,
             },
           })
           if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse

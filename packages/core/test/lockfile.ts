@@ -1337,3 +1337,40 @@ test('build metadata is always ignored in versions and the lockfile is not flick
   const updatedLockfile = await project.readLockfile()
   expect(initialPkgEntry).toStrictEqual(updatedLockfile.packages[depPath])
 })
+
+test('a broken lockfile should not break the store', async () => {
+  prepareEmpty()
+  const opts = await testDefaults()
+
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], { ...opts, lockfileOnly: true })
+
+  const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+  lockfile.packages!['/is-positive/1.0.0'].name = 'bad-name'
+  lockfile.packages!['/is-positive/1.0.0'].version = '1.0.0'
+
+  await writeYamlFile(WANTED_LOCKFILE, lockfile)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
+
+  delete lockfile.packages!['/is-positive/1.0.0'].name
+  delete lockfile.packages!['/is-positive/1.0.0'].version
+
+  await writeYamlFile(WANTED_LOCKFILE, lockfile)
+  await rimraf(path.resolve('node_modules'))
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
+})

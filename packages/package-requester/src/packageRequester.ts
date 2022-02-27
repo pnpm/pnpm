@@ -31,7 +31,9 @@ import {
 import {
   BundledManifest,
   FetchPackageToStoreFunction,
+  FetchPackageToStoreOptions,
   PackageResponse,
+  PkgNameVersion,
   RequestPackageFunction,
   RequestPackageOptions,
   WantedDependency,
@@ -242,15 +244,17 @@ async function resolveAndFetch (
     }
   }
 
+  const pkg = pick(['name', 'version'], manifest ?? {})
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...pick(['name', 'version'], manifest ?? options.currentPkg ?? {}),
+      ...pkg,
       id,
       resolution,
     },
+    expectedPkg: options.expectedPkg?.name != null ? options.expectedPkg : pkg,
   })
 
   return {
@@ -297,23 +301,16 @@ function fetchToStore (
     storeDir: string
     verifyStoreIntegrity: boolean
   },
-  opts: {
-    pkg: {
-      name?: string
-      version?: string
-      id: string
-      resolution: Resolution
-    }
-    fetchRawManifest?: boolean
-    force: boolean
-    lockfileDir: string
-  }
+  opts: FetchPackageToStoreOptions
 ): {
     bundledManifest?: () => Promise<BundledManifest>
     filesIndexFile: string
     files: () => Promise<PackageFilesResponse>
     finishing: () => Promise<void>
   } {
+  if (!opts.pkg.name) {
+    opts.fetchRawManifest = true
+  }
   const targetRelative = depPathToFilename(opts.pkg.id, opts.lockfileDir)
   const target = path.join(ctx.storeDir, targetRelative)
 
@@ -445,23 +442,23 @@ function fetchToStore (
           if (
             (
               pkgFilesIndex.name != null &&
-              opts.pkg.name != null &&
-              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
+              opts.expectedPkg?.name != null &&
+              pkgFilesIndex.name.toLowerCase() !== opts.expectedPkg.name.toLowerCase()
             ) ||
             (
               pkgFilesIndex.version != null &&
-              opts.pkg.version != null &&
+              opts.expectedPkg?.version != null &&
               // We used to not normalize the package versions before writing them to the lockfile and store.
               // So it may happen that the version will be in different formats.
               // For instance, v1.0.0 and 1.0.0
               // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
+              !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
             )
           ) {
             /* eslint-disable @typescript-eslint/restrict-template-expressions */
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', `\
 Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
-This means that the lockfile is broken. Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
+This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
 Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
             /* eslint-enable @typescript-eslint/restrict-template-expressions */
           }
@@ -550,11 +547,24 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               }
             })
         )
-        await writeJsonFile(filesIndexFile, {
-          name: opts.pkg.name,
-          version: opts.pkg.version,
-          files: integrity,
-        })
+        if (opts.pkg.name && opts.pkg.version) {
+          await writeFilesIndexFile(filesIndexFile, {
+            pkg: opts.pkg,
+            files: integrity,
+          })
+        } else {
+          // Even though we could take the package name from the lockfile,
+          // it is not safe because the lockfile may be broken or manually edited.
+          // To be safe, we read the package name from the downloaded package's package.json instead.
+          /* eslint-disable @typescript-eslint/no-floating-promises */
+          bundledManifest.promise
+            .then((manifest) => writeFilesIndexFile(filesIndexFile, {
+              pkg: manifest,
+              files: integrity,
+            }))
+            .catch()
+          /* eslint-enable @typescript-eslint/no-floating-promises */
+        }
         filesResult = {
           fromStore: false,
           filesIndex: integrity,
@@ -582,6 +592,20 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       }
     }
   }
+}
+
+async function writeFilesIndexFile (
+  filesIndexFile: string,
+  { pkg, files }: {
+    pkg: PkgNameVersion
+    files: Record<string, PackageFileInfo>
+  }
+) {
+  await writeJsonFile(filesIndexFile, {
+    name: pkg.name,
+    version: pkg.version,
+    files,
+  })
 }
 
 async function writeJsonFile (filePath: string, data: Object) {
