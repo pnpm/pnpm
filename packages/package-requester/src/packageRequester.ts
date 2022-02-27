@@ -594,11 +594,18 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
   }
 }
 
-async function writeFilesIndexFile (filesIndexFile: string, opts: {
-  pkg: PkgNameVersion
-  files: Record<string, PackageFileInfo>
-}) {
-  await writeJsonFile(filesIndexFile, opts)
+async function writeFilesIndexFile (
+  filesIndexFile: string,
+  { pkg, files }: {
+    pkg: PkgNameVersion
+    files: Record<string, PackageFileInfo>
+  }
+) {
+  await writeJsonFile(filesIndexFile, {
+    name: pkg.name,
+    version: pkg.version,
+    files,
+  })
 }
 
 async function writeJsonFile (filePath: string, data: Object) {
