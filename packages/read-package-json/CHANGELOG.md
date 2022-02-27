@@ -1,5 +1,12 @@
 # @pnpm/read-package-json
 
+## 5.0.12
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
 ## 5.0.11
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "10.0.24",
+  "version": "10.0.25",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,12 +32,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependencies-hierarchy#readme",
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:4.3.0",
+    "@pnpm/lockfile-file": "workspace:4.3.1",
     "@pnpm/lockfile-utils": "workspace:3.2.1",
     "@pnpm/modules-yaml": "workspace:9.1.1",
     "@pnpm/normalize-registries": "workspace:2.0.13",
     "@pnpm/read-modules-dir": "workspace:3.0.1",
-    "@pnpm/read-package-json": "workspace:5.0.11",
+    "@pnpm/read-package-json": "workspace:5.0.12",
     "@pnpm/types": "workspace:7.10.0",
     "dependency-path": "workspace:8.0.11",
     "normalize-path": "^3.0.0",
@@ -48,7 +48,7 @@
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
-    "dependencies-hierarchy": "workspace:10.0.24"
+    "dependencies-hierarchy": "workspace:10.0.25"
   },
   "funding": "https://opencollective.com/pnpm"
 }

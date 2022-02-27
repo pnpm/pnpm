@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-fetcher",
-  "version": "4.1.15",
+  "version": "4.1.16",
   "description": "A fetcher for git-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,14 +31,14 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/git-fetcher#readme",
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:11.1.6",
-    "@pnpm/prepare-package": "workspace:1.0.12",
+    "@pnpm/prepare-package": "workspace:1.0.13",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.1"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:3.0.14",
-    "@pnpm/git-fetcher": "workspace:4.1.15",
-    "@pnpm/package-store": "workspace:12.1.11",
+    "@pnpm/cafs": "workspace:3.0.15",
+    "@pnpm/git-fetcher": "workspace:4.1.16",
+    "@pnpm/package-store": "workspace:12.1.12",
     "@pnpm/types": "workspace:7.10.0",
     "p-defer": "^3.0.0",
     "tempy": "^1.0.0"

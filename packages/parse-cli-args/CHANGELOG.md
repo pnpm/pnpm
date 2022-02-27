@@ -1,5 +1,13 @@
 # @pnpm/parse-cli-args
 
+## 4.4.1
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/find-workspace-dir@3.0.2
+
 ## 4.4.0
 
 ### Minor Changes

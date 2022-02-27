@@ -1,5 +1,14 @@
 # @pnpm/filter-lockfile
 
+## 5.0.19
+
+### Patch Changes
+
+- 70ba51da9: Update `@pnpm/error`.
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/package-is-installable@5.0.13
+
 ## 5.0.18
 
 ### Patch Changes

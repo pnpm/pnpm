@@ -1,5 +1,11 @@
 # @pnpm/store-controller-types
 
+## 12.0.0
+
+### Major Changes
+
+- 5c525db13: Changes to RequestPackageOptions: currentPkg.name and currentPkg.version removed.
+
 ## 11.0.12
 
 ### Patch Changes

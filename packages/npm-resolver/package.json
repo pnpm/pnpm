@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "12.1.7",
+  "version": "12.1.8",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.1.4",
-    "@pnpm/error": "workspace:2.0.0",
+    "@pnpm/error": "workspace:2.1.0",
     "@pnpm/fetching-types": "workspace:2.2.1",
     "@pnpm/graceful-fs": "workspace:1.0.0",
     "@pnpm/resolve-workspace-range": "workspace:2.1.0",
@@ -58,7 +58,7 @@
   "devDependencies": {
     "@pnpm/fetch": "workspace:4.2.5",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/npm-resolver": "workspace:12.1.7",
+    "@pnpm/npm-resolver": "workspace:12.1.8",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/lru-cache": "^5.1.0",
     "@types/normalize-path": "^3.0.0",

@@ -1,5 +1,29 @@
 # @pnpm/headless
 
+## 17.3.2
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+- Updated dependencies [70ba51da9]
+- Updated dependencies [70ba51da9]
+- Updated dependencies [5c525db13]
+  - @pnpm/filter-lockfile@5.0.19
+  - @pnpm/real-hoist@0.1.8
+  - @pnpm/error@2.1.0
+  - @pnpm/package-requester@17.0.0
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/modules-cleaner@11.0.23
+  - @pnpm/link-bins@6.2.12
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/package-is-installable@5.0.13
+  - @pnpm/read-package-json@5.0.12
+  - @pnpm/read-project-manifest@2.0.13
+  - @pnpm/build-modules@8.0.3
+  - @pnpm/lifecycle@12.1.7
+  - @pnpm/lockfile-to-pnp@0.4.47
+  - @pnpm/hoist@5.2.15
+
 ## 17.3.1
 
 ### Patch Changes

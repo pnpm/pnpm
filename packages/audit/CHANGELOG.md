@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 2.2.7
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
 ## 2.2.6
 
 ### Patch Changes

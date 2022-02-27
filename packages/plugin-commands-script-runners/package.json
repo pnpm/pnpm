@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "4.6.1",
+  "version": "4.6.2",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,9 +34,9 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-script-runners#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:4.4.21",
+    "@pnpm/filter-workspace-packages": "workspace:4.4.22",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-script-runners": "workspace:4.6.1",
+    "@pnpm/plugin-commands-script-runners": "workspace:4.6.2",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.12.1",
     "@types/ramda": "0.27.39",
@@ -44,13 +44,13 @@
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.49",
+    "@pnpm/cli-utils": "workspace:0.6.50",
     "@pnpm/command": "workspace:2.0.0",
     "@pnpm/common-cli-options-help": "workspace:0.8.0",
-    "@pnpm/config": "workspace:13.13.1",
-    "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/lifecycle": "workspace:12.1.6",
-    "@pnpm/read-project-manifest": "workspace:2.0.12",
+    "@pnpm/config": "workspace:13.13.2",
+    "@pnpm/error": "workspace:2.1.0",
+    "@pnpm/lifecycle": "workspace:12.1.7",
+    "@pnpm/read-project-manifest": "workspace:2.0.13",
     "@pnpm/sort-packages": "workspace:2.1.8",
     "@pnpm/store-path": "^5.0.0",
     "@pnpm/types": "workspace:7.10.0",

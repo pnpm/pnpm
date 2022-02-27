@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 9.0.32
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/manifest-utils@2.1.9
+  - @pnpm/client@6.1.3
+
 ## 9.0.31
 
 ### Patch Changes

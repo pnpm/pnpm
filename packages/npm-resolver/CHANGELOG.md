@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 12.1.8
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
 ## 12.1.7
 
 ### Patch Changes

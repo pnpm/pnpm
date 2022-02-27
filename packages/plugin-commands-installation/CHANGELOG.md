@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.3
+
+### Patch Changes
+
+- 2149d345a: pnpm i should work correctly on virtual drives instead of silently shutting down
+- Updated dependencies [5c525db13]
+- Updated dependencies [70ba51da9]
+  - @pnpm/core@2.7.2
+  - @pnpm/error@2.1.0
+  - @pnpm/cli-utils@0.6.50
+  - @pnpm/config@13.13.2
+  - @pnpm/filter-workspace-packages@4.4.22
+  - @pnpm/find-workspace-dir@3.0.2
+  - @pnpm/manifest-utils@2.1.9
+  - @pnpm/outdated@9.0.32
+  - @pnpm/pnpmfile@1.2.6
+  - @pnpm/read-project-manifest@2.0.13
+  - @pnpm/store-connection-manager@3.2.10
+  - @pnpm/package-store@12.1.12
+  - @pnpm/plugin-commands-rebuild@5.4.14
+  - @pnpm/find-workspace-packages@3.1.42
+
 ## 8.4.2
 
 ### Patch Changes

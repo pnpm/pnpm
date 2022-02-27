@@ -1,5 +1,11 @@
 # find-packages
 
+## 8.0.13
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@2.0.13
+
 ## 8.0.12
 
 ### Patch Changes

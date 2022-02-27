@@ -1,5 +1,34 @@
 # @pnpm/core
 
+## 2.7.2
+
+### Patch Changes
+
+- 5c525db13: In order to guarantee that only correct data is written to the store, data from the lockfile should not be written to the store. Only data directly from the package tarball or package metadata.
+- Updated dependencies [5c525db13]
+- Updated dependencies [70ba51da9]
+- Updated dependencies [70ba51da9]
+- Updated dependencies [5c525db13]
+  - @pnpm/resolve-dependencies@25.0.1
+  - @pnpm/filter-lockfile@5.0.19
+  - @pnpm/error@2.1.0
+  - @pnpm/package-requester@17.0.0
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/headless@17.3.2
+  - @pnpm/modules-cleaner@11.0.23
+  - @pnpm/get-context@5.3.8
+  - @pnpm/link-bins@6.2.12
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/manifest-utils@2.1.9
+  - @pnpm/parse-overrides@1.0.1
+  - @pnpm/read-package-json@5.0.12
+  - @pnpm/read-project-manifest@2.0.13
+  - @pnpm/build-modules@8.0.3
+  - @pnpm/lifecycle@12.1.7
+  - @pnpm/lockfile-to-pnp@0.4.47
+  - @pnpm/hoist@5.2.15
+  - @pnpm/remove-bins@2.0.14
+
 ## 2.7.1
 
 ### Patch Changes

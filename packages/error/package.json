@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/error",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "An error class for pnpm errors",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/error#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/error": "workspace:2.0.0"
+    "@pnpm/error": "workspace:2.1.0"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:5.0.0"

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pnpmfile",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Reading a .pnpmfile.cjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,11 +30,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/pnpmfile#readme",
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/pnpmfile": "workspace:1.2.5"
+    "@pnpm/pnpmfile": "workspace:1.2.6"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.1.4",
-    "@pnpm/error": "workspace:2.0.0",
+    "@pnpm/error": "workspace:2.1.0",
     "@pnpm/lockfile-types": "workspace:3.2.0",
     "@pnpm/types": "workspace:7.10.0",
     "chalk": "^4.1.0",

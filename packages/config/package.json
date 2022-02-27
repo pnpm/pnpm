@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "13.13.1",
+  "version": "13.13.2",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,9 +33,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/config#readme",
   "dependencies": {
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/pnpmfile": "workspace:1.2.5",
-    "@pnpm/read-project-manifest": "workspace:2.0.12",
+    "@pnpm/error": "workspace:2.1.0",
+    "@pnpm/pnpmfile": "workspace:1.2.6",
+    "@pnpm/read-project-manifest": "workspace:2.0.13",
     "@pnpm/types": "workspace:7.10.0",
     "@zkochan/npm-conf": "2.0.2",
     "camelcase": "^6.2.0",
@@ -48,7 +48,7 @@
     "which": "^2.0.2"
   },
   "devDependencies": {
-    "@pnpm/config": "workspace:13.13.1",
+    "@pnpm/config": "workspace:13.13.2",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.27.39",
     "@types/which": "^2.0.0",

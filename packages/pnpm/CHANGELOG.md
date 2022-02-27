@@ -32,6 +32,13 @@
 - `-W` is not an alias of `--ignore-workspace-root-check` anymore. Just use `-w` or `--workspace-root` instead, which will also allow to install dependencies in the root of the workspace.
 - Allow to execute a lifecycle script in a directory that doesn't match the package's name. Previously this was only allowed with the `--unsafe-perm` CLI option [#3709](https://github.com/pnpm/pnpm/issues/3709).
 
+## 6.32.2
+
+### Patch Changes
+
+- In order to guarantee that only correct data is written to the store, data from the lockfile should not be written to the store. Only data directly from the package tarball or package metadata [#4395](https://github.com/pnpm/pnpm/pull/4395).
+- Throw a meaningful error message on `pnpm install` when the lockfile is broken and `node-linker` is set to `hoisted` [#4387](https://github.com/pnpm/pnpm/pull/4387).
+
 ## 6.32.1
 
 ### Patch Changes
