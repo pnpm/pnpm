@@ -29,7 +29,7 @@ test('local file', async () => {
   const project = prepareEmpty()
   f.copy('local-pkg', path.resolve('..', 'local-pkg'))
 
-  const manifest = await addDependenciesToPackage({}, ['file:../local-pkg'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], await testDefaults())
 
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
@@ -56,7 +56,7 @@ test('local directory with no package.json', async () => {
 
   const manifest = await addDependenciesToPackage({}, ['file:./pkg'], await testDefaults())
 
-  const expectedSpecs = { pkg: 'link:pkg' }
+  const expectedSpecs = { pkg: 'file:pkg' }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
   await project.has('pkg')
 
@@ -96,7 +96,7 @@ test('local file with symlinked node_modules', async () => {
   await fs.mkdir(path.join('..', 'node_modules'))
   await symlinkDir(path.join('..', 'node_modules'), 'node_modules')
 
-  const manifest = await addDependenciesToPackage({}, ['file:../local-pkg'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], await testDefaults())
 
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)

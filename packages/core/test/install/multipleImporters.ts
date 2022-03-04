@@ -359,7 +359,7 @@ test('headless install is used when package linked to another package in the wor
 
     dependencies: {
       'is-positive': '1.0.0',
-      'project-2': 'file:../project-2',
+      'project-2': 'link:../project-2',
     },
   }
   const pkg2 = {
