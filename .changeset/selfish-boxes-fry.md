@@ -46,3 +46,5 @@ The next scenario was not working prior to the fix. There are 3 projects in the 
   "name": "qar"
 }
 ```
+
+Related PR: [#4415](https://github.com/pnpm/pnpm/pull/4415).
