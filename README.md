@@ -43,6 +43,9 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://leniolabs.com" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://vercel.com" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180"></a>
+      </td>
     </tr>
   </tbody>
 </table>
