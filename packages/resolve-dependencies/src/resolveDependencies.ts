@@ -50,7 +50,6 @@ import {
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
-const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 
 export function nodeIdToParents (
   nodeId: string,
@@ -622,7 +621,7 @@ async function resolveDependency (
       preferWorkspacePackages: ctx.preferWorkspacePackages,
       projectDir: (
         options.currentDepth > 0 &&
-        (!wantedDependency.pref.startsWith('file:') || ctx.prefix.includes(NODE_MODULES))
+        !wantedDependency.pref.startsWith('file:')
       )
         ? ctx.lockfileDir
         : ctx.prefix,
