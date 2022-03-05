@@ -32,10 +32,10 @@ test('resolve workspace directory', async () => {
 
 test('resolve directory specified using the file: protocol', async () => {
   const resolveResult = await resolveFromLocal({ pref: 'file:..' }, { projectDir: __dirname })
-  expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.normalizedPref).toEqual('link:..')
+  expect(resolveResult!.id).toEqual('file:..')
+  expect(resolveResult!.normalizedPref).toEqual('file:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect(resolveResult!.resolution['directory']).toEqual(normalize(path.join(__dirname, '..')))
+  expect(resolveResult!.resolution['directory']).toEqual('..')
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
@@ -108,7 +108,7 @@ test('fail when resolving tarball specified with the link: protocol', async () =
 })
 
 test('fail when resolving from not existing directory an injected dependency', async () => {
-  const wantedDependency = { injected: true, pref: 'link:./dir-does-not-exist' }
+  const wantedDependency = { pref: 'file:./dir-does-not-exist' }
   const projectDir = __dirname
   await expect(
     resolveFromLocal(wantedDependency, { projectDir })
