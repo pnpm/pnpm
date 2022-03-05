@@ -12,6 +12,15 @@ test('resolve directory', async () => {
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
+test('resolve injected directory', async () => {
+  const resolveResult = await resolveFromLocal({ injected: true, pref: '..' }, { projectDir: __dirname })
+  expect(resolveResult!.id).toEqual('file:..')
+  expect(resolveResult!.normalizedPref).toEqual('file:..')
+  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['type']).toEqual('directory')
+})
+
 test('resolve workspace directory', async () => {
   const resolveResult = await resolveFromLocal({ pref: 'workspace:..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
