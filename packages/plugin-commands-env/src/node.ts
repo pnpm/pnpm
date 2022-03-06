@@ -32,10 +32,10 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'key'
 | 'localAddress'
 | 'noProxy'
+| 'nodeVersion'
 | 'rawConfig'
 | 'strictSsl'
 | 'storeDir'
-| 'useNodeVersion'
 | 'pnpmHomeDir'
 > & Partial<Pick<Config, 'configDir'>>
 
@@ -47,7 +47,7 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
 
 export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
   const nodesDir = path.join(opts.pnpmHomeDir, 'nodejs')
-  let wantedNodeVersion = opts.useNodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
+  let wantedNodeVersion = opts.nodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
   await fs.promises.mkdir(nodesDir, { recursive: true })
   if (wantedNodeVersion == null) {
     const response = await fetch('https://registry.npmjs.org/node')

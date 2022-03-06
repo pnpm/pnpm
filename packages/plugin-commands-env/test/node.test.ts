@@ -22,7 +22,7 @@ test('install Node uses node-mirror:release option', async () => {
     rawConfig: {
       'node-mirror:release': nodeMirrorRelease,
     },
-    useNodeVersion: '16.4.0',
+    nodeVersion: '16.4.0',
   }
 
   const fetchMock = jest.fn(async (url: string) => {

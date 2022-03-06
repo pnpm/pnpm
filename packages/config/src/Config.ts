@@ -74,7 +74,7 @@ export interface Config {
   ignoreCurrentPrefs?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
-  useNodeVersion?: string
+  nodeVersion?: string
   useStderr?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 
