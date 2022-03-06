@@ -621,7 +621,7 @@ async function resolveDependency (
       preferWorkspacePackages: ctx.preferWorkspacePackages,
       projectDir: (
         options.currentDepth > 0 &&
-        !wantedDependency.pref.startsWith('file:')
+        (!wantedDependency.pref.startsWith('file:') || !wantedDependency.injected)
       )
         ? ctx.lockfileDir
         : ctx.prefix,
