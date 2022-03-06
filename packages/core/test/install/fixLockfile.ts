@@ -119,7 +119,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
    * --fix-lockfile should not change the locked dependency version and only adding missing fields in this scene
    */
   await writeYamlFile(WANTED_LOCKFILE, {
-    lockfileVersion: 5.3,
+    lockfileVersion: '5.3',
     importers: {
       '.': {
         specifiers: {},

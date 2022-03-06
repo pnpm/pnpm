@@ -595,7 +595,7 @@ test('hoist packages which is in the dependencies tree of the selected projects'
    * instead of using is-positive@2.0.0 and does not hoist anything
    */
   await writeYamlFile(WANTED_LOCKFILE, {
-    lockfileVersion: 5.3,
+    lockfileVersion: '5.3',
     importers: {
       '.': {
         specifiers: {},
@@ -670,7 +670,7 @@ test('only hoist packages which is in the dependencies tree of the selected proj
   ]
 
   await writeYamlFile(WANTED_LOCKFILE, {
-    lockfileVersion: 5.3,
+    lockfileVersion: '5.3',
     importers: {
       '.': {
         specifiers: {},

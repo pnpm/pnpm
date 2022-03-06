@@ -45,7 +45,7 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
           specifiers: {},
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: '5',
     },
     workspacePackages,
   })).toBeTruthy()
@@ -83,7 +83,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
           specifiers: {},
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: '5',
     },
     workspacePackages,
   })).toBeTruthy()
@@ -121,7 +121,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
           specifiers: {},
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: '5',
     },
     workspacePackages,
   })).toBeTruthy()
@@ -159,7 +159,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
           specifiers: {},
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: '5',
     },
     workspacePackages,
   })).toBeFalsy()
@@ -217,7 +217,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
               specifiers: {},
             },
           },
-          lockfileVersion: 5,
+          lockfileVersion: '5',
         },
         workspacePackages,
       }
@@ -262,7 +262,7 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
           specifiers: {},
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: '5',
     },
     workspacePackages,
   })).toBeFalsy()
@@ -310,7 +310,7 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
           specifiers: {},
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: '5',
     },
     workspacePackages,
   })).toBeTruthy()

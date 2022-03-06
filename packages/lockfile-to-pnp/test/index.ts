@@ -21,7 +21,7 @@ test('lockfileToPackageRegistry', () => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     packages: {
       '/dep1/1.0.0': {
         dependencies: {
@@ -183,7 +183,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     packages: {
       '/haspeer/2.0.0_peer@1.0.0': {
         dependencies: {

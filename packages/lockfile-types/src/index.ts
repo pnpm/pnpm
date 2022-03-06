@@ -2,7 +2,7 @@ import { DependenciesMeta } from '@pnpm/types'
 
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
-  lockfileVersion: number
+  lockfileVersion: string
   packages?: PackageSnapshots
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]

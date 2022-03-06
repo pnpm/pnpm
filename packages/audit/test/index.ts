@@ -81,7 +81,7 @@ describe('audit', () => {
     try {
       await audit({
         importers: {},
-        lockfileVersion: 5,
+        lockfileVersion: '5',
       }, {
         registry,
         retry: {
