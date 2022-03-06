@@ -41,7 +41,7 @@ importers:
       '@commitlint/prompt-cli': ^16.0.0
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^27.4.0
       '@types/node': ^14.17.32
@@ -59,7 +59,7 @@ importers:
       ts-jest: 27.1.3
       ts-node: ^10.6.0
       typescript: 4.6.2
-      verdaccio: ^5.5.2
+      verdaccio: ^5.7.0
     devDependencies:
       '@babel/core': 7.17.5
       '@babel/plugin-proposal-dynamic-import': 7.16.7_@babel+core@7.17.5
@@ -72,7 +72,7 @@ importers:
       '@commitlint/prompt-cli': 16.2.1
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 27.4.1
       '@types/node': 14.18.12
@@ -90,7 +90,7 @@ importers:
       ts-jest: 27.1.3_c53d1ca518b3b945a0cb74482cae0a36
       ts-node: 10.6.0_ef4f5b62551ca68fc45e5a6c3dd7806a
       typescript: 4.6.2
-      verdaccio: 5.6.2
+      verdaccio: 5.7.0
 
   .meta-updater:
     specifiers:
@@ -421,7 +421,7 @@ importers:
       '@pnpm/read-modules-dir': workspace:3.0.1
       '@pnpm/read-package-json': workspace:5.0.12
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/remove-bins': workspace:2.0.14
       '@pnpm/resolve-dependencies': workspace:25.0.2
       '@pnpm/resolver-base': workspace:8.1.6
@@ -526,7 +526,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/store-path': 5.0.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/fs-extra': 9.0.13
@@ -1066,7 +1066,7 @@ importers:
       '@pnpm/read-project-manifest': workspace:2.0.13
       '@pnpm/read-projects-context': workspace:5.0.19
       '@pnpm/real-hoist': workspace:0.1.8
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/store-path': ^5.0.0
       '@pnpm/symlink-dependency': workspace:4.0.13
@@ -1127,7 +1127,7 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/read-projects-context': link:../read-projects-context
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/store-path': 5.0.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/fs-extra': 9.0.13
@@ -1812,7 +1812,7 @@ importers:
       '@pnpm/package-requester': workspace:17.0.0
       '@pnpm/package-store': workspace:12.1.12
       '@pnpm/read-package-json': workspace:5.0.12
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/test-fixtures': workspace:*
@@ -1862,7 +1862,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/package-requester': 'link:'
       '@pnpm/package-store': link:../package-store
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
@@ -2120,7 +2120,7 @@ importers:
       '@pnpm/pnpmfile': workspace:1.2.6
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/sort-packages': workspace:2.1.8
@@ -2217,7 +2217,7 @@ importers:
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/is-ci': 3.0.0
       '@types/proxyquire': 1.3.28
@@ -2248,7 +2248,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:8.4.4
       '@pnpm/plugin-commands-listing': workspace:4.1.11
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/types': workspace:7.10.0
       '@types/ramda': 0.27.39
       execa: npm:safe-execa@^0.1.1
@@ -2272,7 +2272,7 @@ importers:
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@types/ramda': 0.27.39
       execa: /safe-execa/0.1.1
       strip-ansi: 6.0.1
@@ -2296,7 +2296,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:8.4.4
       '@pnpm/plugin-commands-outdated': workspace:5.1.10
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.10.0
@@ -2339,7 +2339,7 @@ importers:
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@types/lru-cache': 5.1.1
       '@types/ramda': 0.27.39
       '@types/wrap-ansi': 3.0.0
@@ -2359,7 +2359,7 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.11
       '@pnpm/plugin-commands-publishing': workspace:4.5.2
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/run-npm': workspace:3.1.0
       '@pnpm/sort-packages': workspace:2.1.8
@@ -2418,7 +2418,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@types/cross-spawn': 6.0.2
       '@types/npm-packlist': 1.1.2
       '@types/proxyquire': 1.3.28
@@ -2453,7 +2453,7 @@ importers:
       '@pnpm/normalize-registries': workspace:2.0.13
       '@pnpm/plugin-commands-rebuild': workspace:5.4.14
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/sort-packages': workspace:2.1.8
       '@pnpm/store-connection-manager': workspace:3.2.10
       '@pnpm/store-controller-types': workspace:12.0.0
@@ -2513,7 +2513,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
@@ -2536,7 +2536,7 @@ importers:
       '@pnpm/plugin-commands-script-runners': workspace:4.6.2
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/sort-packages': workspace:2.1.8
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.10.0
@@ -2575,7 +2575,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@types/ramda': 0.27.39
       is-windows: 1.0.2
       write-yaml-file: 4.2.0
@@ -2662,7 +2662,7 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.11
       '@pnpm/plugin-commands-store': workspace:4.1.13
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/store-connection-manager': workspace:3.2.10
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/store-path': ^5.0.0
@@ -2709,7 +2709,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@types/archy': 0.0.31
       '@types/ramda': 0.27.39
       '@types/ssri': 7.1.1
@@ -2756,7 +2756,7 @@ importers:
       '@pnpm/prepare': workspace:*
       '@pnpm/read-package-json': workspace:5.0.12
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/run-npm': workspace:3.1.0
       '@pnpm/tabtab': ^0.1.2
       '@pnpm/ts-execution-runtime': workspace:*
@@ -2844,7 +2844,7 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/run-npm': link:../run-npm
       '@pnpm/tabtab': 0.1.2
       '@pnpm/ts-execution-runtime': link:../../utils/ts-execution-runtime
@@ -3402,7 +3402,7 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/lockfile-types': workspace:3.2.0
       '@pnpm/modules-yaml': workspace:9.1.1
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/types': workspace:7.10.0
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
@@ -3417,7 +3417,7 @@ importers:
       '@pnpm/constants': link:../../packages/constants
       '@pnpm/lockfile-types': link:../../packages/lockfile-types
       '@pnpm/modules-yaml': link:../../packages/modules-yaml
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       '@pnpm/types': link:../../packages/types
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -3434,11 +3434,11 @@ importers:
     specifiers:
       '@pnpm/assert-store': workspace:*
       '@pnpm/cafs': workspace:3.0.15
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       path-exists: ^4.0.0
     dependencies:
       '@pnpm/cafs': link:../../packages/cafs
-      '@pnpm/registry-mock': 2.12.1
+      '@pnpm/registry-mock': 2.14.0
       path-exists: 4.0.0
     devDependencies:
       '@pnpm/assert-store': 'link:'
@@ -5021,8 +5021,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.12.1:
-    resolution: {integrity: sha512-o9Qd+8x5ZaYAqIgNrdtHNvKIC4xBVms37nVrS3OwOhl1kXG/+sEpoXI+Q05PsolVR4JTPwuKA/J53spgw5bUYw==}
+  /@pnpm/registry-mock/2.14.0:
+    resolution: {integrity: sha512-I4P2IKxg7MDC4/Z09Ees3fhhPtdtOLdGT5xFfXvSdbcO+Q6ovTnJkpg+78rfY3hhaxHlwuQ9C2olt6rqBhokZg==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -5032,7 +5032,7 @@ packages:
       read-yaml-file: 2.1.0
       rimraf: 3.0.2
       tempy: 1.0.1
-      verdaccio: 5.6.2
+      verdaccio: 5.7.0
       write-yaml-file: 4.2.0
     transitivePeerDependencies:
       - bufferutil
@@ -5762,8 +5762,8 @@ packages:
     resolution: {integrity: sha512-FaIzCnDg0x0Js5kSQn1Le3YzDHl7XxrJ0QdIw5LrDUmLsH3VXNi4/NMlSHnw5RiTTMs4UbEf98V3RJRB8exqJA==}
     engines: {node: '>=8', npm: '>=5'}
 
-  /@verdaccio/ui-theme/6.0.0-6-next.18:
-    resolution: {integrity: sha512-ofh4yke0950ry+ilWCdFIjHPadKK9xvjC/nzKEaKEFAxJxTt90guZNp++l1rz/LAQ7BMAX905G/2N//6M85+tw==}
+  /@verdaccio/ui-theme/6.0.0-6-next.20:
+    resolution: {integrity: sha512-Mr3sNJ577lMartUC3Dbu1nTZP+wXISFI20SwjI9JmQLBw6CRZtwyUbQCrrLYiT34BMVMxC4kC9j0akxLCCcDTw==}
 
   /@yarnpkg/core/3.2.0:
     resolution: {integrity: sha512-Yu6+PILWXLp/HFVWulcDdvDT/MD/32/6oQUaUAXu7kx9JF4gb3SaKtW9yUoqLzq6rwL0B5caYoUHzFX8r/Lgqw==}
@@ -14522,8 +14522,8 @@ packages:
       http-errors: 1.8.1
       unix-crypt-td-js: 1.1.4
 
-  /verdaccio/5.6.2:
-    resolution: {integrity: sha512-r0BI31Dt5RnXxpCdWPTGXSthIg4XRB6onYRXziEi1stHd1TmwzAV35Jiv7FXu25Rwvh8dHGSozTxKi0t3kbjGg==}
+  /verdaccio/5.7.0:
+    resolution: {integrity: sha512-I4EKZ27bU9XnKkubqjPKxNo9unZ5PzgXBnC+79MEjiKKUKCt5N5lZZb4qq9fBbENyfEV51xf7Z274JxbeOXfzQ==}
     engines: {node: '>=12', npm: '>=6'}
     hasBin: true
     dependencies:
@@ -14531,7 +14531,7 @@ packages:
       '@verdaccio/local-storage': 10.2.0
       '@verdaccio/readme': 10.3.2
       '@verdaccio/streams': 10.2.0
-      '@verdaccio/ui-theme': 6.0.0-6-next.18
+      '@verdaccio/ui-theme': 6.0.0-6-next.20
       async: 3.2.3
       body-parser: 1.19.1
       clipanion: 3.2.0-rc.6
@@ -14788,7 +14788,7 @@ packages:
   /wide-align/1.1.5:
     resolution: {integrity: sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==}
     dependencies:
-      string-width: 4.2.3
+      string-width: 1.0.2
 
   /widest-line/3.1.0:
     resolution: {integrity: sha512-NsmoXalsWVDMGupxZ5R08ka9flZjjiLvHVAWYOKtiKM8ujtZWr9cRffak+uSE48+Ob8ObalXpwyeUiyDD6QFgg==}

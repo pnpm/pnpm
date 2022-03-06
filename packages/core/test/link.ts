@@ -9,6 +9,7 @@ import {
 } from '@pnpm/core'
 import fixtures from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { RootLog } from '@pnpm/core-loggers'
 import { isExecutable } from '@pnpm/assert-project'
 import exists from 'path-exists'
@@ -108,6 +109,7 @@ test('relative link is not rewritten by argumentless install', async () => {
 })
 
 test('relative link is rewritten by named installation to regular dependency', async () => {
+  await addDistTag({ package: 'hello-world-js-bin', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const linkedPkgName = 'hello-world-js-bin'

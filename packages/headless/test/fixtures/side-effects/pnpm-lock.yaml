@@ -9,7 +9,7 @@ dependencies:
 packages:
 
   /hello-world-js-bin/1.0.0:
-    resolution: {integrity: sha512-g9DaVvwKClJZUDrsYc7DRhvwMuGLzWlKOJlrHWZz5qiT/RdE1jdT+7Fh1T5XNKW7Oa/pbyxHNz7fK1+vLXe/3w==}
+    resolution: {integrity: sha512-0wmzOwltlD4Vy3XHbJlASP2OOZOOk39jbxWVQdohHQPiSPq7UDKUMkykrl+09FjPhanu2c3DuCmRA0Jy9Hf8rQ==}
     hasBin: true
     dev: false
 

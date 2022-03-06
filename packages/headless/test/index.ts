@@ -409,13 +409,13 @@ test('available packages are used when node_modules is not clean', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.2`,
     requester: projectDir,
     status: 'resolved',
   })).toBeFalsy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.6.2`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.7.1`,
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -446,13 +446,13 @@ test('available packages are relinked during forced install', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.2`,
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.6.2`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.7.1`,
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
