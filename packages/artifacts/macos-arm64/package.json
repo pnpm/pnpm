@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/macos-arm64",
-  "version": "7.0.0-alpha.3",
+  "version": "7.0.0-alpha.4",
   "license": "MIT",
   "publishConfig": {
     "bin": {
@@ -23,6 +23,6 @@
     "pnpm7"
   ],
   "devDependencies": {
-    "@pnpm/macos-arm64": "workspace:7.0.0-alpha.3"
+    "@pnpm/macos-arm64": "workspace:7.0.0-alpha.4"
   }
 }
