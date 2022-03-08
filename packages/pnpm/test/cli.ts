@@ -61,7 +61,7 @@ test('pass through to npm with all the args', async () => {
   prepare()
   await rimraf('package.json')
 
-  const result = execPnpmSync(['init', '-y'])
+  const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 
   expect(result.status).toBe(0)
 })
