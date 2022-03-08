@@ -91,6 +91,9 @@ export interface BaseManifest {
   types?: string
   publishConfig?: PublishConfig
   readme?: string
+  keywords?: string[]
+  author?: string
+  license?: string
 }
 
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>

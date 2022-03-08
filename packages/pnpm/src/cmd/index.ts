@@ -18,6 +18,7 @@ import {
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
+import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
 import { PnpmOptions } from '../types'
 import * as bin from './bin'
@@ -99,6 +100,7 @@ const commands: CommandDefinition[] = [
   exec,
   fetch,
   importCommand,
+  init,
   install,
   installTest,
   link,
