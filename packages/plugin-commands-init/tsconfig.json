@@ -1,0 +1,28 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../cli-utils"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../write-project-manifest"
+    }
+  ]
+}
