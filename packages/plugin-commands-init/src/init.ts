@@ -12,7 +12,7 @@ export function cliOptionsTypes () {
   return {}
 }
 
-export const commandNames = ['init', 'create', 'innit']
+export const commandNames = ['init']
 
 export function help () {
   return renderHelp({
@@ -32,7 +32,7 @@ export async function handler (
   }
   const manifest = {
     name: path.basename(opts.dir),
-    version: '0.0.0',
+    version: '1.0.0',
     description: '',
     main: 'index.js',
     scripts: {
@@ -40,7 +40,7 @@ export async function handler (
     },
     keywords: [],
     author: '',
-    license: 'MIT',
+    license: 'ISC',
   }
   await writeProjectManifest(manifestPath, manifest, {
     indent: 2,
