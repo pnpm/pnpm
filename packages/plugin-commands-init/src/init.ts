@@ -5,6 +5,7 @@ import { UniversalOptions } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import writeProjectManifest from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
+import { parseLocalConfig } from './utils'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -42,10 +43,12 @@ export async function handler (
     author: '',
     license: 'ISC',
   }
-  await writeProjectManifest(manifestPath, manifest, {
+  const config = await parseLocalConfig(opts.dir)
+  const packageJson = { ...manifest, ...config }
+  await writeProjectManifest(manifestPath, packageJson, {
     indent: 2,
   })
   return `Wrote to ${path.join(opts.dir, 'package.json')}
 
-${JSON.stringify(manifest, null, 2)}`
+${JSON.stringify(packageJson, null, 2)}`
 }

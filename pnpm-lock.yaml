@@ -2100,13 +2100,17 @@ importers:
       '@pnpm/plugin-commands-init': workspace:0.0.0
       '@pnpm/prepare': workspace:*
       '@pnpm/write-project-manifest': workspace:2.0.11
+      camelcase-keys: ^6.2.2
       load-json-file: ^6.2.0
+      read-ini-file: ^3.1.0
       render-help: ^1.0.1
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/config': link:../config
       '@pnpm/error': link:../error
       '@pnpm/write-project-manifest': link:../write-project-manifest
+      camelcase-keys: 6.2.2
+      read-ini-file: 3.1.0
       render-help: 1.0.2
     devDependencies:
       '@pnpm/plugin-commands-init': 'link:'
