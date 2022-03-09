@@ -119,10 +119,10 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   const project = prepareEmpty()
 
   // dependends on react-onclickoutside@5.9.0
-  const manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ fastUnpack: false, save: true }))
+  const manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ fastUnpack: false, save: true, strictPeerDependencies: false }))
 
   // dependends on react-onclickoutside@0.3.4
-  await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true, strictPeerDependencies: false }))
 
   expect(
     project.requireModule('.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json').version

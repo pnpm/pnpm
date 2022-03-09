@@ -1150,7 +1150,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: Infinity, workspacePackages }))
+  await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: Infinity, strictPeerDependencies: false, workspacePackages }))
 
   const project = assertProject(process.cwd())
 
