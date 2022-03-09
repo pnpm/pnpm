@@ -65,6 +65,7 @@ export function rcOptionsTypes () {
     'shared-workspace-lockfile',
     'store',
     'store-dir',
+    'strict-peer-dependencies',
     'virtual-store-dir',
   ], allTypes)
 }
