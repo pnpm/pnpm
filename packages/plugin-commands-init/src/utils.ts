@@ -1,25 +1,7 @@
-import readIniFile from 'read-ini-file'
 import path from 'path'
-import camelcaseKeys from 'camelcase-keys'
 import { spawnSync } from 'child_process'
-
-export async function readLocalConfig (prefix: string) {
-  try {
-    const ini = await readIniFile(path.join(prefix, '.npmrc')) as Record<string, string>
-    const config = camelcaseKeys(ini) as (Record<string, string> & { hoist?: boolean })
-    if (config.shamefullyFlatten) {
-      config.hoistPattern = '*'
-      // TODO: print a warning
-    }
-    if (config.hoist === false) {
-      config.hoistPattern = ''
-    }
-    return config
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
-    return {}
-  }
-}
+import getConfigs from '@pnpm/config'
+import camelcaseKeys from 'camelcase-keys'
 
 interface Person {
   name?: string
@@ -42,7 +24,7 @@ export function unParsePerson (person: string | Person): string {
 }
 
 function workWithInitModule (localConfig: Record<string, string>) {
-  if ('initModule' in localConfig) {
+  if ('initModule' in localConfig && localConfig.initModule) {
     const filePath = path.resolve(localConfig.initModule)
     spawnSync('node', [filePath], {
       stdio: 'inherit',
@@ -76,16 +58,22 @@ function workWithInitConfig (localConfig: Record<string, string>) {
       }
     }
   }
+
   const author = unParsePerson(camelcaseKeys(authorInfo))
   if (author) packageJson.author = author
   return camelcaseKeys(packageJson)
 }
 
 export async function parseLocalConfig (prefix: string): Promise<Record<string, string>> {
-  const localConfig = await readLocalConfig(prefix)
+  const { config: { rawConfig } } = await getConfigs({
+    cliOptions: {
+      dir: prefix,
+    },
+    packageManager: { name: 'pnpm', version: '*' },
+  })
   return workWithInitConfig(
     workWithIncludeWorkspaceRoot(
-      workWithInitModule(localConfig)
+      workWithInitModule(camelcaseKeys(rawConfig))
     )
   )
 }
