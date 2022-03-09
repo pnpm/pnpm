@@ -154,7 +154,7 @@ const defaults = async (opts: InstallOptions) => {
     symlink: true,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
-    strictPeerDependencies: false,
+    strictPeerDependencies: true,
     tag: 'latest',
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
