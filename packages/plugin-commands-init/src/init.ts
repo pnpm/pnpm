@@ -5,7 +5,7 @@ import { UniversalOptions } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import writeProjectManifest from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
-import { parseLocalConfig } from './utils'
+import { parseRawConfig } from './utils'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -25,7 +25,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'>
+  opts: Pick<UniversalOptions, 'dir' | 'rawConfig'>
 ) {
   const manifestPath = path.join(opts.dir, 'package.json')
   if (fs.existsSync(manifestPath)) {
@@ -43,7 +43,7 @@ export async function handler (
     author: '',
     license: 'ISC',
   }
-  const config = await parseLocalConfig(opts.dir)
+  const config = await parseRawConfig(opts.rawConfig)
   const packageJson = { ...manifest, ...config }
   await writeProjectManifest(manifestPath, packageJson, {
     indent: 2,

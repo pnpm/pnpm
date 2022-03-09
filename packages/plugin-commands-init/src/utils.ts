@@ -1,6 +1,5 @@
 import path from 'path'
 import { spawnSync } from 'child_process'
-import getConfigs from '@pnpm/config'
 import camelcaseKeys from 'camelcase-keys'
 
 interface Person {
@@ -64,13 +63,7 @@ function workWithInitConfig (localConfig: Record<string, string>) {
   return camelcaseKeys(packageJson)
 }
 
-export async function parseLocalConfig (prefix: string): Promise<Record<string, string>> {
-  const { config: { rawConfig } } = await getConfigs({
-    cliOptions: {
-      dir: prefix,
-    },
-    packageManager: { name: 'pnpm', version: '*' },
-  })
+export async function parseRawConfig (rawConfig: Record<string, string>): Promise<Record<string, string>> {
   return workWithInitConfig(
     workWithIncludeWorkspaceRoot(
       workWithInitModule(camelcaseKeys(rawConfig))
