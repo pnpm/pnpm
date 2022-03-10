@@ -1,8 +1,9 @@
 import path from 'path'
 import { spawnSync } from 'child_process'
 import camelcaseKeys from 'camelcase-keys'
+import fs from 'fs'
 
-interface Person {
+export interface Person {
   name?: string
   email?: string
   url?: string
@@ -22,18 +23,21 @@ export function unParsePerson (person: string | Person): string {
   return name + email + url
 }
 
-function workWithInitModule (localConfig: Record<string, string>) {
+export function workWithInitModule (localConfig: Record<string, string>) {
   const { initModule, ...restConfig } = localConfig
   if ('initModule' in localConfig) {
     const filePath = path.resolve(localConfig.initModule)
-    spawnSync('node', [filePath], {
-      stdio: 'inherit',
-    })
+    const isFileExist = fs.existsSync(filePath)
+    if (isFileExist) {
+      spawnSync('node', [filePath], {
+        stdio: 'inherit',
+      })
+    }
   }
   return restConfig
 }
 
-function workWithInitConfig (localConfig: Record<string, string>) {
+export function workWithInitConfig (localConfig: Record<string, string>) {
   const packageJson: Record<string, string> = {}
   const authorInfo: Record<string, string> = {}
   for (const localConfigKey in localConfig) {
