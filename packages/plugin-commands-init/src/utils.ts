@@ -11,15 +11,15 @@ export interface Person {
   mail?: string
 }
 
-export function unParsePerson (person: string | Person): string {
+export function personToString (person: string | Person): string {
   if (typeof person === 'string') {
     return person
   }
   const name = person.name ?? ''
   const u = person.url ?? person.web
-  const url = u ? (' (' + u + ')') : ''
+  const url = u ? ` (${u})` : ''
   const e = person.email ?? person.mail
-  const email = e ? (' <' + e + '>') : ''
+  const email = e ? ` <${e}>` : ''
   return name + email + url
 }
 
@@ -28,7 +28,7 @@ export function workWithInitModule (localConfig: Record<string, string>) {
   if ('initModule' in localConfig) {
     const filePath = path.resolve(localConfig.initModule)
     const isFileExist = fs.existsSync(filePath)
-    if (isFileExist) {
+    if (['.js', '.cjs'].includes(path.extname(filePath)) && isFileExist) {
       spawnSync('node', [filePath], {
         stdio: 'inherit',
       })
@@ -54,7 +54,7 @@ export function workWithInitConfig (localConfig: Record<string, string>) {
     }
   }
 
-  const author = unParsePerson(camelcaseKeys(authorInfo))
+  const author = personToString(camelcaseKeys(authorInfo))
   if (author) packageJson.author = author
   return camelcaseKeys(packageJson)
 }

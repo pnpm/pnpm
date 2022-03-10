@@ -1,4 +1,4 @@
-import { workWithInitModule, unParsePerson, Person } from '@pnpm/plugin-commands-init/lib/utils'
+import { workWithInitModule, personToString } from '@pnpm/plugin-commands-init/lib/utils'
 
 test('run the workWithInitModule function', () => {
   const rawConfig = {
@@ -10,12 +10,12 @@ test('run the workWithInitModule function', () => {
   })
 })
 
-test('run the unParsePerson function', () => {
-  const person: Person = {
+test('run the personToString function', () => {
+  const expectAuthor = 'pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)'
+  expect(personToString({
     email: 'xxxxxx@pnpm.com',
     name: 'pnpm',
     url: 'https://www.github.com/pnpm',
-  }
-  const expectAuthor = 'pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)'
-  expect(unParsePerson(person)).toBe(expectAuthor)
+  })).toBe(expectAuthor)
+  expect(personToString(expectAuthor)).toBe(expectAuthor)
 })
