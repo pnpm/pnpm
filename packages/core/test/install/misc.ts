@@ -1177,7 +1177,7 @@ test('memory consumption is under control on huge package with many peer depende
       version: '0.0.0',
     },
     ['@teambit/bit@0.0.30'],
-    await testDefaults({ fastUnpack: true, lockfileOnly: true })
+    await testDefaults({ fastUnpack: true, lockfileOnly: true, strictPeerDependencies: false })
   )
 
   expect(await exists('pnpm-lock.yaml')).toBeTruthy()
@@ -1193,7 +1193,7 @@ test('memory consumption is under control on huge package with many peer depende
       version: '0.0.0',
     },
     ['@teambit/react@0.0.30'],
-    await testDefaults({ fastUnpack: true, lockfileOnly: true })
+    await testDefaults({ fastUnpack: true, lockfileOnly: true, strictPeerDependencies: false })
   )
 
   expect(await exists('pnpm-lock.yaml')).toBeTruthy()

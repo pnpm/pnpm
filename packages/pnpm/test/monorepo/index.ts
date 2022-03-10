@@ -1189,7 +1189,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     })
   }
 
-  await execPnpm(['uninstall', 'ajv'])
+  await execPnpm(['uninstall', 'ajv', '--no-strict-peer-dependencies'])
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))

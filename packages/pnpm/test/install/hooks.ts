@@ -607,8 +607,8 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   `, 'utf8')
 
   process.chdir('project')
-  await execPnpm(['install'])
-  await execPnpm(['uninstall', 'is-positive'])
+  await execPnpm(['install', '--no-strict-peer-dependencies'])
+  await execPnpm(['uninstall', 'is-positive', '--no-strict-peer-dependencies'])
 
   process.chdir('..')
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')

@@ -233,7 +233,10 @@ when running add/update with the --workspace option')
       rootDir: opts.dir,
       targetDependenciesField: getSaveType(opts),
     }
-    let [updatedImporter] = await mutateModules([mutatedProject], installOpts)
+    let [updatedImporter] = await mutateModules([mutatedProject], {
+      ...installOpts,
+      strictPeerDependencies: opts.autoInstallPeers ? false : installOpts.strictPeerDependencies,
+    })
     if (opts.save !== false) {
       if (opts.autoInstallPeers && !isEmpty(updatedImporter.peerDependencyIssues?.intersections ?? {})) {
         logger.info({

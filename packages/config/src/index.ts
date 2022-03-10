@@ -208,7 +208,7 @@ export default async (
     shrinkwrap: npmDefaults.shrinkwrap,
     reverse: false,
     sort: true,
-    'strict-peer-dependencies': false,
+    'strict-peer-dependencies': true,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
     userconfig: npmDefaults.userconfig,
