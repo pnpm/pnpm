@@ -13,6 +13,9 @@
       "path": "../../privatePackages/prepare"
     },
     {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
       "path": "../cli-utils"
     },
     {
