@@ -20,16 +20,18 @@ test('throws an error if a package.json exists in the current directory', async 
 
 test('init a new package.json with npmrc', async () => {
   const rawConfig = {
-    'init-author-email': 'xxxxxx@gmail.com',
-    'init-author-name': 'baby',
-    'init-author-url': 'https://www.github.com/baby',
+    'init-author-email': 'xxxxxx@pnpm.com',
+    'init-author-name': 'pnpm',
+    'init-author-url': 'https://www.github.com/pnpm',
     'init-license': 'MIT',
     'init-version': '2.0.0',
+    'init-module:': '~/.pnpm-init.js',
   }
   prepareEmpty()
   await init.handler({ dir: process.cwd(), rawConfig })
   const manifest: Record<string, string> = loadJsonFile(path.resolve('package.json'))
+  const expectAuthor = `${rawConfig['init-author-name']} <${rawConfig['init-author-email']}> (${rawConfig['init-author-url']})`
   expect(manifest.version).toBe(rawConfig['init-version'])
-  expect(manifest.author).toBe(`${rawConfig['init-author-name']} <${rawConfig['init-author-email']}> (${rawConfig['init-author-url']})`)
+  expect(manifest.author).toBe(expectAuthor)
   expect(manifest.license).toBe(rawConfig['init-license'])
 })
