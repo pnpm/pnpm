@@ -23,22 +23,14 @@ export function unParsePerson (person: string | Person): string {
 }
 
 function workWithInitModule (localConfig: Record<string, string>) {
-  if ('initModule' in localConfig && localConfig.initModule) {
+  const { initModule, ...restConfig } = localConfig
+  if ('initModule' in localConfig) {
     const filePath = path.resolve(localConfig.initModule)
     spawnSync('node', [filePath], {
       stdio: 'inherit',
     })
-    delete localConfig.initModule
   }
-  return localConfig
-}
-
-function workWithIncludeWorkspaceRoot (localConfig: Record<string, string>) {
-  if ('includeWorkspaceRoot' in localConfig) {
-    // TODO
-    delete localConfig.includeWorkspaceRoot
-  }
-  return localConfig
+  return restConfig
 }
 
 function workWithInitConfig (localConfig: Record<string, string>) {
@@ -65,8 +57,6 @@ function workWithInitConfig (localConfig: Record<string, string>) {
 
 export async function parseRawConfig (rawConfig: Record<string, string>): Promise<Record<string, string>> {
   return workWithInitConfig(
-    workWithIncludeWorkspaceRoot(
-      workWithInitModule(camelcaseKeys(rawConfig))
-    )
+    workWithInitModule(camelcaseKeys(rawConfig))
   )
 }
