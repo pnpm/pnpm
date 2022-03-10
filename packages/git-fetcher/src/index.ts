@@ -1,6 +1,6 @@
 import path from 'path'
 import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
-import preparePackage from '@pnpm/prepare-package'
+import { runPrepareHook, filterFilesIndex } from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 
@@ -20,10 +20,10 @@ export default () => {
       const tempLocation = await cafs.tempDir()
       await execGit(['clone', resolution.repo, tempLocation])
       await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-      await preparePackage(tempLocation)
       // removing /.git to make directory integrity calculation faster
       await rimraf(path.join(tempLocation, '.git'))
-      const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)
+      await runPrepareHook(tempLocation)
+      const filesIndex = await filterFilesIndex(tempLocation, await cafs.addFilesFromDir(tempLocation, opts.manifest))
       // Important! We cannot remove the temp location at this stage.
       // Even though we have the index of the package,
       // the linking of files to the store is in progress.
