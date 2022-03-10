@@ -2099,6 +2099,7 @@ importers:
       '@pnpm/error': workspace:2.1.0
       '@pnpm/plugin-commands-init': workspace:0.0.0
       '@pnpm/prepare': workspace:*
+      '@pnpm/test-fixtures': workspace:*
       '@pnpm/write-project-manifest': workspace:2.0.11
       camelcase-keys: ^6.2.2
       load-json-file: ^6.2.0
@@ -2113,6 +2114,7 @@ importers:
     devDependencies:
       '@pnpm/plugin-commands-init': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
+      '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       load-json-file: 6.2.0
 
   packages/plugin-commands-installation:

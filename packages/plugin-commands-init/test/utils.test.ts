@@ -1,19 +1,20 @@
 import { workWithInitModule, personToString } from '@pnpm/plugin-commands-init/lib/utils'
-import { tempDir } from '@pnpm/prepare'
-import * as fs from 'fs'
-import * as path from 'path'
+import fixtures from '@pnpm/test-fixtures'
+import fs from 'fs'
+import path from 'path'
 
-test('run the workWithInitModule function', () => {
-  const tmpDir = tempDir()
+const f = fixtures(path.join(__dirname, '../fixtures'))
+
+test('run the workWithInitModule function', async () => {
+  const dir = f.prepare('init-module')
   const rawConfig = {
     initVersion: '2.0.0',
-    initModule: path.join(tmpDir, 'init-module.js'),
+    initModule: '.pnpm-init.js',
   }
-  fs.writeFileSync(rawConfig.initModule, `const fs = require('fs'); fs.writeFileSync('${path.join(tmpDir, 'test.txt')}', 'test');`)
   expect(workWithInitModule(rawConfig)).toEqual({
     initVersion: '2.0.0',
   })
-  expect(fs.existsSync(path.join(tmpDir, 'test.txt'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve(dir, 'test.txt'))).toBeTruthy()
 })
 
 test('run the personToString function', () => {

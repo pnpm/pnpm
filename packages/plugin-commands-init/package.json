@@ -33,6 +33,7 @@
   "devDependencies": {
     "@pnpm/plugin-commands-init": "workspace:0.0.0",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
     "load-json-file": "^6.2.0"
   },
   "dependencies": {
