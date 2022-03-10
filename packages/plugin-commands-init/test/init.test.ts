@@ -25,7 +25,6 @@ test('init a new package.json with npmrc', async () => {
     'init-author-url': 'https://www.github.com/pnpm',
     'init-license': 'MIT',
     'init-version': '2.0.0',
-    'init-module:': '~/.pnpm-init.js',
   }
   prepareEmpty()
   await init.handler({ dir: process.cwd(), rawConfig })
