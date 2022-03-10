@@ -11,10 +11,7 @@ export interface Person {
   mail?: string
 }
 
-export function personToString (person: string | Person): string {
-  if (typeof person === 'string') {
-    return person
-  }
+export function personToString (person: Person): string {
   const name = person.name ?? ''
   const u = person.url ?? person.web
   const url = u ? ` (${u})` : ''
@@ -25,7 +22,7 @@ export function personToString (person: string | Person): string {
 
 export function workWithInitModule (localConfig: Record<string, string>) {
   const { initModule, ...restConfig } = localConfig
-  if ('initModule' in localConfig) {
+  if (initModule) {
     const filePath = path.resolve(localConfig.initModule)
     const isFileExist = fs.existsSync(filePath)
     if (['.js', '.cjs'].includes(path.extname(filePath)) && isFileExist) {
@@ -41,21 +38,21 @@ export function workWithInitConfig (localConfig: Record<string, string>) {
   const packageJson: Record<string, string> = {}
   const authorInfo: Record<string, string> = {}
   for (const localConfigKey in localConfig) {
-    const value = localConfig[localConfigKey]
-    const isInitKey = localConfigKey.startsWith('init')
-    if (isInitKey) {
-      const key = localConfigKey.replace('init', '')
-      const isAuthorKey = key.startsWith('Author')
-      if (isAuthorKey) {
-        authorInfo[key.replace('Author', '')] = value
+    if (localConfigKey.startsWith('init')) {
+      const pureKey = localConfigKey.replace('init', '')
+      const value = localConfig[localConfigKey]
+      if (pureKey.startsWith('Author')) {
+        authorInfo[pureKey.replace('Author', '')] = value
       } else {
-        packageJson[key] = value
+        packageJson[pureKey] = value
       }
     }
   }
 
   const author = personToString(camelcaseKeys(authorInfo))
-  if (author) packageJson.author = author
+  if (author) {
+    packageJson.author = author
+  }
   return camelcaseKeys(packageJson)
 }
 

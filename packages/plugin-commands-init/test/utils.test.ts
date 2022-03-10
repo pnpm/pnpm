@@ -17,5 +17,4 @@ test('run the personToString function', () => {
     name: 'pnpm',
     url: 'https://www.github.com/pnpm',
   })).toBe(expectAuthor)
-  expect(personToString(expectAuthor)).toBe(expectAuthor)
 })
