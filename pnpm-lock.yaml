@@ -41,7 +41,7 @@ importers:
       '@commitlint/prompt-cli': ^16.0.0
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^27.4.0
       '@types/node': ^14.17.32
@@ -72,7 +72,7 @@ importers:
       '@commitlint/prompt-cli': 16.2.1
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 27.4.1
       '@types/node': 14.18.12
@@ -421,7 +421,7 @@ importers:
       '@pnpm/read-modules-dir': workspace:3.0.1
       '@pnpm/read-package-json': workspace:5.0.12
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/remove-bins': workspace:2.0.14
       '@pnpm/resolve-dependencies': workspace:25.0.2
       '@pnpm/resolver-base': workspace:8.1.6
@@ -526,7 +526,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/store-path': 5.0.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/fs-extra': 9.0.13
@@ -1066,7 +1066,7 @@ importers:
       '@pnpm/read-project-manifest': workspace:2.0.13
       '@pnpm/read-projects-context': workspace:5.0.19
       '@pnpm/real-hoist': workspace:0.1.8
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/store-path': ^5.0.0
       '@pnpm/symlink-dependency': workspace:4.0.13
@@ -1127,7 +1127,7 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/read-projects-context': link:../read-projects-context
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/store-path': 5.0.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/fs-extra': 9.0.13
@@ -1812,7 +1812,7 @@ importers:
       '@pnpm/package-requester': workspace:17.0.0
       '@pnpm/package-store': workspace:12.1.12
       '@pnpm/read-package-json': workspace:5.0.12
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/test-fixtures': workspace:*
@@ -1862,7 +1862,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/package-requester': 'link:'
       '@pnpm/package-store': link:../package-store
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
@@ -2145,7 +2145,7 @@ importers:
       '@pnpm/pnpmfile': workspace:1.2.6
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/sort-packages': workspace:2.1.8
@@ -2242,7 +2242,7 @@ importers:
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/is-ci': 3.0.0
       '@types/proxyquire': 1.3.28
@@ -2273,7 +2273,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:8.4.4
       '@pnpm/plugin-commands-listing': workspace:4.1.11
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/types': workspace:7.10.0
       '@types/ramda': 0.27.39
       execa: npm:safe-execa@^0.1.1
@@ -2297,7 +2297,7 @@ importers:
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@types/ramda': 0.27.39
       execa: /safe-execa/0.1.1
       strip-ansi: 6.0.1
@@ -2321,7 +2321,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:8.4.4
       '@pnpm/plugin-commands-outdated': workspace:5.1.10
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.10.0
@@ -2364,7 +2364,7 @@ importers:
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@types/lru-cache': 5.1.1
       '@types/ramda': 0.27.39
       '@types/wrap-ansi': 3.0.0
@@ -2384,7 +2384,7 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.11
       '@pnpm/plugin-commands-publishing': workspace:4.5.2
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/run-npm': workspace:3.1.0
       '@pnpm/sort-packages': workspace:2.1.8
@@ -2443,7 +2443,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@types/cross-spawn': 6.0.2
       '@types/npm-packlist': 1.1.2
       '@types/proxyquire': 1.3.28
@@ -2478,7 +2478,7 @@ importers:
       '@pnpm/normalize-registries': workspace:2.0.13
       '@pnpm/plugin-commands-rebuild': workspace:5.4.14
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/sort-packages': workspace:2.1.8
       '@pnpm/store-connection-manager': workspace:3.2.10
       '@pnpm/store-controller-types': workspace:12.0.0
@@ -2538,7 +2538,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
@@ -2561,7 +2561,7 @@ importers:
       '@pnpm/plugin-commands-script-runners': workspace:4.6.2
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/sort-packages': workspace:2.1.8
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.10.0
@@ -2600,7 +2600,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@types/ramda': 0.27.39
       is-windows: 1.0.2
       write-yaml-file: 4.2.0
@@ -2687,7 +2687,7 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.11
       '@pnpm/plugin-commands-store': workspace:4.1.13
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/store-connection-manager': workspace:3.2.10
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/store-path': ^5.0.0
@@ -2734,7 +2734,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@types/archy': 0.0.31
       '@types/ramda': 0.27.39
       '@types/ssri': 7.1.1
@@ -2782,7 +2782,7 @@ importers:
       '@pnpm/prepare': workspace:*
       '@pnpm/read-package-json': workspace:5.0.12
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/run-npm': workspace:3.1.0
       '@pnpm/tabtab': ^0.1.2
       '@pnpm/ts-execution-runtime': workspace:*
@@ -2871,7 +2871,7 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/run-npm': link:../run-npm
       '@pnpm/tabtab': 0.1.2
       '@pnpm/ts-execution-runtime': link:../../utils/ts-execution-runtime
@@ -3429,7 +3429,7 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/lockfile-types': workspace:3.2.0
       '@pnpm/modules-yaml': workspace:9.1.1
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/types': workspace:7.10.0
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
@@ -3444,7 +3444,7 @@ importers:
       '@pnpm/constants': link:../../packages/constants
       '@pnpm/lockfile-types': link:../../packages/lockfile-types
       '@pnpm/modules-yaml': link:../../packages/modules-yaml
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       '@pnpm/types': link:../../packages/types
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -3461,11 +3461,11 @@ importers:
     specifiers:
       '@pnpm/assert-store': workspace:*
       '@pnpm/cafs': workspace:3.0.15
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       path-exists: ^4.0.0
     dependencies:
       '@pnpm/cafs': link:../../packages/cafs
-      '@pnpm/registry-mock': 2.14.0
+      '@pnpm/registry-mock': 2.15.0
       path-exists: 4.0.0
     devDependencies:
       '@pnpm/assert-store': 'link:'
@@ -5048,8 +5048,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.14.0:
-    resolution: {integrity: sha512-I4P2IKxg7MDC4/Z09Ees3fhhPtdtOLdGT5xFfXvSdbcO+Q6ovTnJkpg+78rfY3hhaxHlwuQ9C2olt6rqBhokZg==}
+  /@pnpm/registry-mock/2.15.0:
+    resolution: {integrity: sha512-s0lLvNfTi/LGO7ZbmAh66MmXZ6j3ZBQP/gWWWq8rzOlF9PfmznRbIA+5k7xznImPFBL/cpgTSzXH0ndDmbF6Cw==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -5059,7 +5059,7 @@ packages:
       read-yaml-file: 2.1.0
       rimraf: 3.0.2
       tempy: 1.0.1
-      verdaccio: 5.7.0
+      verdaccio: 5.8.0
       write-yaml-file: 4.2.0
     transitivePeerDependencies:
       - bufferutil
@@ -5791,6 +5791,10 @@ packages:
 
   /@verdaccio/ui-theme/6.0.0-6-next.20:
     resolution: {integrity: sha512-Mr3sNJ577lMartUC3Dbu1nTZP+wXISFI20SwjI9JmQLBw6CRZtwyUbQCrrLYiT34BMVMxC4kC9j0akxLCCcDTw==}
+    dev: true
+
+  /@verdaccio/ui-theme/6.0.0-6-next.22:
+    resolution: {integrity: sha512-MuuIcNLSjm8ZzibIXyzLae8Omsq7btha9JuRf1oBOA/oHRt+ZsUlVsHlJgA5w49FWa4WU74724USWD0ZpT7Y5w==}
 
   /@yarnpkg/core/3.2.0:
     resolution: {integrity: sha512-Yu6+PILWXLp/HFVWulcDdvDT/MD/32/6oQUaUAXu7kx9JF4gb3SaKtW9yUoqLzq6rwL0B5caYoUHzFX8r/Lgqw==}
@@ -6569,6 +6573,21 @@ packages:
       raw-body: 2.4.2
       type-is: 1.6.18
 
+  /body-parser/1.19.2:
+    resolution: {integrity: sha512-SAAwOxgoCKMGs9uUAUFHygfLAyaniaoun6I8mFY9pRAJL9+Kec34aU+oIjDhTycub1jozEfEwx1W1IuOYxVSFw==}
+    engines: {node: '>= 0.8'}
+    dependencies:
+      bytes: 3.1.2
+      content-type: 1.0.4
+      debug: 2.6.9
+      depd: 1.1.2
+      http-errors: 1.8.1
+      iconv-lite: 0.4.24
+      on-finished: 2.3.0
+      qs: 6.9.7
+      raw-body: 2.4.3
+      type-is: 1.6.18
+
   /bole/4.0.0:
     resolution: {integrity: sha512-Bk/2qoyOSlwU1dnDFk/oPM2FCNKAlYlBHfpAgwGX+K9HUtxSvmIAQCmMWMOvE6BlHHRCwsH1MxJe/r1ieodxqQ==}
     dependencies:
@@ -6593,6 +6612,11 @@ packages:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
+
+  /brace-expansion/2.0.1:
+    resolution: {integrity: sha512-XnAIvQ8eM+kC6aULx6wuQiwVsnzsi9d3WxzV3FpWTGA19F621kwdbsAcFKXgKUHZWsy+mY6iL1sHTxWEFCytDA==}
+    dependencies:
+      balanced-match: 1.0.2
 
   /braces/2.3.2:
     resolution: {integrity: sha512-aNdbnj9P8PjdXU4ybaWLK2IF3jc/EoDYbC7AazW6to3TRsfXxscC9UXOB5iDiEQrkyIbWp2SLQda4+QAa7nc3w==}
@@ -6682,6 +6706,10 @@ packages:
 
   /bytes/3.1.1:
     resolution: {integrity: sha512-dWe4nWO/ruEOY7HkUJ5gFt1DCFV9zPRoJr8pV0/ASQermOZjtq8jMjOprC0Kd10GLN+l7xaUPvxzJFWtxGu8Fg==}
+    engines: {node: '>= 0.8'}
+
+  /bytes/3.1.2:
+    resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
 
   /bzip2-maybe/1.0.0:
@@ -7221,6 +7249,10 @@ packages:
     resolution: {integrity: sha512-ZwrFkGJxUR3EIoXtO+yVE69Eb7KlixbaeAWfBQB9vVsNn/o+Yw69gBWSSDK825hQNdN+wF8zELf3dFNl/kxkUA==}
     engines: {node: '>= 0.6'}
 
+  /cookie/0.4.2:
+    resolution: {integrity: sha512-aSWTXFzaKWkvHO1Ny/s+ePFpvKsPnjc551iI41v3ny/ow6tBG5Vd+FuqGNhh1LxOmVzOlGUriIlOaokOvhaStA==}
+    engines: {node: '>= 0.6'}
+
   /cookies/0.8.0:
     resolution: {integrity: sha512-8aPsApQfebXnuI+537McwYsDtjVxGm8gTIzQI3FDW6t5t/DAhERxtnbEPN/8RX+uZthoz4eCOgloXaE5cYyNow==}
     engines: {node: '>= 0.8'}
@@ -7458,6 +7490,10 @@ packages:
 
   /dayjs/1.10.7:
     resolution: {integrity: sha512-P6twpd70BcPK34K26uJ1KT3wlhpuOAPoMwJzpsIWUxHZ7wpmbdZL/hQqBDfz7hGurYSa5PhzdhDHtt319hL3ig==}
+    dev: true
+
+  /dayjs/1.10.8:
+    resolution: {integrity: sha512-wbNwDfBHHur9UOzNUjeKUOJ0fCb0a52Wx0xInmQ7Y8FstyajiV1NmK1e00cxsr9YrE9r7yAChE0VvpuY5Rnlow==}
 
   /debug/2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -8507,6 +8543,41 @@ packages:
       utils-merge: 1.0.1
       vary: 1.1.2
 
+  /express/4.17.3:
+    resolution: {integrity: sha512-yuSQpz5I+Ch7gFrPCk4/c+dIBKlQUxtgwqzph132bsT6qhuzss6I8cLJQz7B3rFblzd6wtcI0ZbGltH/C4LjUg==}
+    engines: {node: '>= 0.10.0'}
+    dependencies:
+      accepts: 1.3.8
+      array-flatten: 1.1.1
+      body-parser: 1.19.2
+      content-disposition: 0.5.4
+      content-type: 1.0.4
+      cookie: 0.4.2
+      cookie-signature: 1.0.6
+      debug: 2.6.9
+      depd: 1.1.2
+      encodeurl: 1.0.2
+      escape-html: 1.0.3
+      etag: 1.8.1
+      finalhandler: 1.1.2
+      fresh: 0.5.2
+      merge-descriptors: 1.0.1
+      methods: 1.1.2
+      on-finished: 2.3.0
+      parseurl: 1.3.3
+      path-to-regexp: 0.1.7
+      proxy-addr: 2.0.7
+      qs: 6.9.7
+      range-parser: 1.2.1
+      safe-buffer: 5.2.1
+      send: 0.17.2
+      serve-static: 1.14.2
+      setprototypeof: 1.2.0
+      statuses: 1.5.0
+      type-is: 1.6.18
+      utils-merge: 1.0.1
+      vary: 1.1.2
+
   /ext/1.6.0:
     resolution: {integrity: sha512-sdBImtzkq2HpkdRLtlLWDa6w4DX22ijZLKx8BMPUuKe1c5lbN6xwQDQCxSfxBQnHZ13ls/FH0MQZx/q/gr6FQg==}
     dependencies:
@@ -9236,7 +9307,7 @@ packages:
       source-map: 0.6.1
       wordwrap: 1.0.0
     optionalDependencies:
-      uglify-js: 3.15.2
+      uglify-js: 3.15.3
 
   /har-schema/2.0.0:
     resolution: {integrity: sha1-qUwiJOvKwEeCoNkDVSHyRzW37JI=}
@@ -11261,6 +11332,12 @@ packages:
     dependencies:
       mime-db: 1.51.0
 
+  /mime-types/2.1.35:
+    resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
+    engines: {node: '>= 0.6'}
+    dependencies:
+      mime-db: 1.52.0
+
   /mime/1.6.0:
     resolution: {integrity: sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg==}
     engines: {node: '>=4'}
@@ -11313,11 +11390,18 @@ packages:
     resolution: {integrity: sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==}
     dependencies:
       brace-expansion: 1.1.11
+    dev: true
 
   /minimatch/3.1.2:
     resolution: {integrity: sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==}
     dependencies:
       brace-expansion: 1.1.11
+
+  /minimatch/5.0.1:
+    resolution: {integrity: sha512-nLDxIFRyhDblz3qMuq+SoRZED4+miJ/G+tdDrjkkkRnjAsBexeGpgjLEQ0blJy7rHhR2b93rhQY4SvyWu9v03g==}
+    engines: {node: '>=10'}
+    dependencies:
+      brace-expansion: 2.0.1
 
   /minimist-options/4.1.0:
     resolution: {integrity: sha512-Q4r8ghd80yhO/0j1O3B2BjweX3fiHg9cdOwjJd2J76Q135c+NDxGCqdYKQ1SKBuFfgWbAUzBfvYjPUEeNgqN1A==}
@@ -11604,6 +11688,7 @@ packages:
     resolution: {integrity: sha512-olTJRgUtAb/hOXG0E93wZDs5YiJlgbXxTwQAFHyNlRsXQnYzUaF2aGgujZbw+hR8aF4ZG/rST57bWMWD16jr9w==}
     engines: {node: '>= 10.12.0'}
     hasBin: true
+    requiresBuild: true
     dependencies:
       env-paths: 2.2.1
       glob: 7.2.0
@@ -12601,6 +12686,10 @@ packages:
     resolution: {integrity: sha512-TIRk4aqYLNoJUbd+g2lEdz5kLWIuTMRagAXxl78Q0RiVjAOugHmeKNGdd3cwo/ktpf9aL9epCfFqWDEKysUlLQ==}
     engines: {node: '>=0.6'}
 
+  /qs/6.9.7:
+    resolution: {integrity: sha512-IhMFgUmuNpyRfxA90umL7ByLlgRXu6tIfKPpF5TmcfRLlLCckfP/g3IQmju6jjpu+Hh8rA+2p6A27ZSPOOHdKw==}
+    engines: {node: '>=0.6'}
+
   /queue-microtask/1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
 
@@ -12627,6 +12716,15 @@ packages:
     engines: {node: '>= 0.8'}
     dependencies:
       bytes: 3.1.1
+      http-errors: 1.8.1
+      iconv-lite: 0.4.24
+      unpipe: 1.0.0
+
+  /raw-body/2.4.3:
+    resolution: {integrity: sha512-UlTNLIcu0uzb4D2f4WltY6cVjLi+/jEN4lgEUj3E04tpMDpUlkBo/eSn6zou9hum2VMNpCCUone0O0WeJim07g==}
+    engines: {node: '>= 0.8'}
+    dependencies:
+      bytes: 3.1.2
       http-errors: 1.8.1
       iconv-lite: 0.4.24
       unpipe: 1.0.0
@@ -12947,7 +13045,7 @@ packages:
       is-typedarray: 1.0.0
       isstream: 0.1.2
       json-stringify-safe: 5.0.1
-      mime-types: 2.1.34
+      mime-types: 2.1.35
       oauth-sign: 0.9.0
       performance-now: 2.1.0
       qs: 6.5.3
@@ -14317,8 +14415,8 @@ packages:
     hasBin: true
     dev: true
 
-  /uglify-js/3.15.2:
-    resolution: {integrity: sha512-peeoTk3hSwYdoc9nrdiEJk+gx1ALCtTjdYuKSXMTDqq7n1W7dHPqWDdSi+BPL0ni2YMeHD7hKUSdbj3TZauY2A==}
+  /uglify-js/3.15.3:
+    resolution: {integrity: sha512-6iCVm2omGJbsu3JWac+p6kUiOpg3wFO2f8lIXjfEb8RrmLjzog1wTPMmwKB7swfzzqxj9YM+sGUM++u1qN4qJg==}
     engines: {node: '>=0.8.0'}
     hasBin: true
     requiresBuild: true
@@ -14558,6 +14656,17 @@ packages:
       bcryptjs: 2.4.3
       http-errors: 1.8.1
       unix-crypt-td-js: 1.1.4
+    dev: true
+
+  /verdaccio-htpasswd/10.3.0:
+    resolution: {integrity: sha512-UbMF9kbqo2tvOrdbC3MryE6/iXy54XlqDKpFWUKS5MTjFhP9BdQNgyTjBCM/mubO3JJug2TcVdmu/si8G4891Q==}
+    engines: {node: '>=8'}
+    dependencies:
+      '@verdaccio/file-locking': 10.2.0
+      apache-md5: 1.1.7
+      bcryptjs: 2.4.3
+      http-errors: 1.8.1
+      unix-crypt-td-js: 1.1.4
 
   /verdaccio/5.7.0:
     resolution: {integrity: sha512-I4EKZ27bU9XnKkubqjPKxNo9unZ5PzgXBnC+79MEjiKKUKCt5N5lZZb4qq9fBbENyfEV51xf7Z274JxbeOXfzQ==}
@@ -14606,6 +14715,61 @@ packages:
       validator: 13.7.0
       verdaccio-audit: 10.2.0
       verdaccio-htpasswd: 10.2.0
+    transitivePeerDependencies:
+      - bufferutil
+      - canvas
+      - encoding
+      - supports-color
+      - utf-8-validate
+    dev: true
+
+  /verdaccio/5.8.0:
+    resolution: {integrity: sha512-g8CWr57F8pn2Vio8MCO7kJuUNTp9cl6/exr7HR6fYmnhr+jv1Fcl5I7iR49UkD6YfDoYtZcWdFgdCBVy/hpDbg==}
+    engines: {node: '>=12', npm: '>=6'}
+    hasBin: true
+    dependencies:
+      '@verdaccio/commons-api': 10.2.0
+      '@verdaccio/local-storage': 10.2.0
+      '@verdaccio/readme': 10.3.2
+      '@verdaccio/streams': 10.2.0
+      '@verdaccio/ui-theme': 6.0.0-6-next.22
+      async: 3.2.3
+      body-parser: 1.19.1
+      clipanion: 3.2.0-rc.6
+      compression: 1.7.4
+      cookies: 0.8.0
+      cors: 2.8.5
+      dayjs: 1.10.8
+      debug: 4.3.3
+      envinfo: 7.8.1
+      eslint-import-resolver-node: 0.3.6
+      express: 4.17.3
+      express-rate-limit: 5.5.1
+      fast-safe-stringify: 2.1.1
+      handlebars: 4.7.7
+      http-errors: 1.8.1
+      js-yaml: /@zkochan/js-yaml/0.0.5
+      JSONStream: 1.3.5
+      jsonwebtoken: 8.5.1
+      kleur: 4.1.4
+      lodash: 4.17.21
+      lru-cache: 6.0.0
+      lunr-mutable-indexes: 2.3.2
+      marked: 4.0.12
+      memoizee: 0.4.15
+      mime: 3.0.0
+      minimatch: 5.0.1
+      mkdirp: 1.0.4
+      mv: 2.1.1
+      pino: 6.14.0
+      pkginfo: 0.4.1
+      prettier-bytes: 1.0.4
+      pretty-ms: 7.0.1
+      request: 2.88.0
+      semver: 7.3.5
+      validator: 13.7.0
+      verdaccio-audit: 10.2.0
+      verdaccio-htpasswd: 10.3.0
     transitivePeerDependencies:
       - bufferutil
       - canvas
@@ -14825,7 +14989,7 @@ packages:
   /wide-align/1.1.5:
     resolution: {integrity: sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==}
     dependencies:
-      string-width: 4.2.3
+      string-width: 1.0.2
 
   /widest-line/3.1.0:
     resolution: {integrity: sha512-NsmoXalsWVDMGupxZ5R08ka9flZjjiLvHVAWYOKtiKM8ujtZWr9cRffak+uSE48+Ob8ObalXpwyeUiyDD6QFgg==}

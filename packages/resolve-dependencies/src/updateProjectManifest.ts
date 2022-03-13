@@ -6,6 +6,7 @@ import {
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
 import versionSelectorType from 'version-selector-type'
+import semver from 'semver'
 import { ResolvedDirectDependency } from './resolveDependencyTree'
 import { ImporterToResolve } from '.'
 
@@ -133,6 +134,10 @@ function getPrefPreferSpecifiedSpec (
         return opts.specRaw.substr(opts.alias.length + 1)
       }
     }
+  }
+  // A prerelease version is always added as an exact version
+  if (semver.parse(opts.version)?.prerelease.length) {
+    return `${prefix}${opts.version}`
   }
   return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`
 }
