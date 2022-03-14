@@ -6,7 +6,7 @@
   "bin": "bin/mount-modules.js",
   "types": "lib/index.d.ts",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.19"
   },
   "files": [
     "lib",

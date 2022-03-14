@@ -13,7 +13,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.19"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

@@ -8,7 +8,7 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - '12.17'
+          - '14.19'
           - '16'
           - '17'
         platform:

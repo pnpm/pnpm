@@ -16,7 +16,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.19"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/dependencies-hierarchy",
   "keywords": [
