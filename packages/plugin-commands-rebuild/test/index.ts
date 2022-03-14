@@ -24,12 +24,14 @@ test('rebuilds dependencies', async () => {
     'add',
     '--save-dev',
     'pre-and-postinstall-scripts-example',
-    'pnpm/test-git-fetch#main',
+    'pnpm/test-git-fetch#299c6d89507571462b992b92407a8a07663e32ee',
     '--registry',
     REGISTRY,
     '--store-dir',
     storeDir,
     '--ignore-scripts',
+    '--cache-dir',
+    cacheDir,
   ])
 
   let modules = await project.readModulesManifest()

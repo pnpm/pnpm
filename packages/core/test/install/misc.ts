@@ -264,6 +264,13 @@ test('multiple scoped modules (@rstacruz/...)', async () => {
   expect(typeof project.requireModule('@rstacruz/travis-encrypt')).toBe('function')
 })
 
+test('installing a beta version of a package', async () => {
+  prepareEmpty()
+  const manifest = await addDependenciesToPackage({}, ['beta-version'], await testDefaults())
+
+  expect(manifest.dependencies?.['beta-version']).toBe('1.0.0-beta.0')
+})
+
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['test-pnpm-issue219@1.0.2'], await testDefaults({ fastUnpack: false }))

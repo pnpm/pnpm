@@ -39,7 +39,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-publishing": "workspace:4.5.2",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "2.14.0",
+    "@pnpm/registry-mock": "2.15.1",
     "@types/cross-spawn": "^6.0.2",
     "@types/npm-packlist": "^1.1.2",
     "@types/proxyquire": "^1.3.28",
