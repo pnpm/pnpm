@@ -10,7 +10,7 @@ module.exports = {
   collectCoverage: true,
   coveragePathIgnorePatterns: ["/node_modules/"],
   testPathIgnorePatterns: ["/fixtures/", "<rootDir>/test/utils/.+"],
-  testTimeout: 4 * 60 * 1000, // 4 minutes
+  testTimeout: 25 * 1000, // 4 minutes
   setupFilesAfterEnv: [path.join(__dirname, "jest.setup.js")],
   cacheDirectory: path.join(__dirname, ".jest-cache", packageName),
 };
