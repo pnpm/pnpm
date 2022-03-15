@@ -44,5 +44,8 @@
     "@pnpm/fetch": "workspace:4.2.5",
     "@pnpm/logger": "^4.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

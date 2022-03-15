@@ -36,5 +36,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/store-controller-types": "workspace:12.0.0"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

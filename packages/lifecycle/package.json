@@ -52,5 +52,8 @@
     "json-append": "1.1.1",
     "load-json-file": "^6.2.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

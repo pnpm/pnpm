@@ -42,5 +42,8 @@
     "dependency-path": "workspace:8.0.11",
     "ramda": "^0.27.1"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

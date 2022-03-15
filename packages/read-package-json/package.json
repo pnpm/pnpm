@@ -38,5 +38,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/read-package-json": "workspace:5.0.12"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

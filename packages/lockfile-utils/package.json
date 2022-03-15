@@ -46,5 +46,8 @@
     "get-npm-tarball-url": "^2.0.3",
     "ramda": "^0.27.1"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

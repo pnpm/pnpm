@@ -37,5 +37,8 @@
     "exists-file": "^3.0.2",
     "ndjson": "^2.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

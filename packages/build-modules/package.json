@@ -49,5 +49,8 @@
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

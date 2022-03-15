@@ -33,5 +33,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/pick-registry-for-package": "workspace:2.0.11"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

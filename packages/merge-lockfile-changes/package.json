@@ -41,5 +41,8 @@
     "@pnpm/merge-lockfile-changes": "workspace:2.0.8",
     "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

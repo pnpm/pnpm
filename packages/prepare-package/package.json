@@ -37,5 +37,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/prepare-package": "workspace:1.0.13"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

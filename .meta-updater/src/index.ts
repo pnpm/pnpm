@@ -233,5 +233,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     license: 'MIT',
     repository,
     scripts,
+    exports: {
+      '.': manifest.name === 'pnpm' ? './package.json' : './lib/index.js',
+    },
   }
 }

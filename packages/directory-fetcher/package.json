@@ -40,5 +40,8 @@
   "devDependencies": {
     "@pnpm/directory-fetcher": "workspace:1.0.7",
     "@pnpm/test-fixtures": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

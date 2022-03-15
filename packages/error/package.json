@@ -34,5 +34,8 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:5.0.0"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

@@ -20,6 +20,7 @@ import {
   Registries,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
+import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
 import depPathToRef from './depPathToRef'
 import resolveDependencyTree, {
   Importer,
@@ -41,8 +42,11 @@ export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
 
 export {
+  getWantedDependencies,
   LinkedDependency,
   ResolvedPackage,
+  PinnedVersion,
+  WantedDependency,
 }
 
 interface ProjectToLink {

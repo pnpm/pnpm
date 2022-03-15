@@ -49,5 +49,8 @@
     "@pnpm/make-dedicated-lockfile": "workspace:0.2.25",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.27.39"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

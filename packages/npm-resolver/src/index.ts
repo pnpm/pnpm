@@ -43,8 +43,10 @@ export class NoMatchingVersionError extends PnpmError {
 }
 
 export {
+  parsePref,
   PackageMeta,
   PackageMetaCache,
+  RegistryPackageSpec,
   RegistryResponseError,
 }
 

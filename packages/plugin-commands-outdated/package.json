@@ -67,5 +67,8 @@
     "strip-ansi": "^6.0.0",
     "wrap-ansi": "^7.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

@@ -42,5 +42,8 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-setup": "workspace:1.1.35",
     "@pnpm/prepare": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

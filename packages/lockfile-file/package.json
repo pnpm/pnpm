@@ -60,5 +60,8 @@
     "strip-bom": "^4.0.0",
     "write-file-atomic": "^3.0.3"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

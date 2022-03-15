@@ -34,5 +34,8 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

@@ -45,5 +45,8 @@
     "@types/semver": "^7.3.4",
     "is-windows": "^1.0.2"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

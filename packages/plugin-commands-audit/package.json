@@ -54,5 +54,8 @@
     "ramda": "^0.27.1",
     "render-help": "^1.0.1"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

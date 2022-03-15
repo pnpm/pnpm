@@ -50,5 +50,8 @@
     "@types/normalize-path": "^3.0.0",
     "dependencies-hierarchy": "workspace:10.0.25"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }
