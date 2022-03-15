@@ -1,8 +1,10 @@
 # pnpm
 
-## 7.0.0-alpha.4
+## 7.0.0-beta.0
 
 ### Major Changes
+
+- Node.js 12 is not supported.
 
 - The root package is excluded by default, when running `pnpm -r exec|run|add` [#2769](https://github.com/pnpm/pnpm/issues/2769).
 - Filtering by path is done by globs.
@@ -33,6 +35,20 @@
 - Allow to execute a lifecycle script in a directory that doesn't match the package's name. Previously this was only allowed with the `--unsafe-perm` CLI option [#3709](https://github.com/pnpm/pnpm/issues/3709).
 
 - Local dependencies referenced through the `file:` protocol are hard linked (not symlinked) [#4408](https://github.com/pnpm/pnpm/pull/4408). If you need to symlink a dependency, use the `link:` protocol instead.
+
+- `strict-peer-dependencies` is `true` by default [#4427](https://github.com/pnpm/pnpm/pull/4427).
+
+- A prerelease version is always added as an exact version to `package.json`. If the `next` version of `foo` is `1.0.0-beta.1` then running `pnpm add foo@next` will add this to `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "foo": "1.0.0-beta.1"
+    }
+  }
+  ```
+
+  PR: [#4435](https://github.com/pnpm/pnpm/pull/4435)
 
 ## 6.32.3
 
