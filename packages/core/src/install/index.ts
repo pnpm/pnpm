@@ -35,13 +35,12 @@ import readModulesDirs from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
+  getWantedDependencies,
   DependenciesGraph,
   DependenciesGraphNode,
-} from '@pnpm/resolve-dependencies'
-import getWantedDependencies, {
   PinnedVersion,
   WantedDependency,
-} from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
+} from '@pnpm/resolve-dependencies'
 import {
   PreferredVersions,
 } from '@pnpm/resolver-base'

@@ -76,7 +76,7 @@ type PackageSelector = string | {
   range: string
 }
 
-export async function rebuildPkgs (
+export async function rebuildSelectedPkgs (
   projects: Array<{ manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
@@ -122,7 +122,7 @@ export async function rebuildPkgs (
   )
 }
 
-export async function rebuild (
+export async function rebuildProjects (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   maybeOpts: RebuildOptions
 ) {
