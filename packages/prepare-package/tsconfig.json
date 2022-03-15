@@ -10,7 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../cafs"
+    },
+    {
       "path": "../error"
+    },
+    {
+      "path": "../fetcher-base"
     },
     {
       "path": "../read-package-json"

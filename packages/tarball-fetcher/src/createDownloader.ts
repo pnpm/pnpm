@@ -10,7 +10,7 @@ import {
   PackageFileInfo,
 } from '@pnpm/fetcher-base'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
-import preparePackage from '@pnpm/prepare-package'
+import { runPrepareHook, filterFilesIndex } from '@pnpm/prepare-package'
 import * as retry from '@zkochan/retry'
 import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
@@ -245,8 +245,8 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
     },
     force: true,
   })
-  await preparePackage(tempLocation)
-  const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
+  await runPrepareHook(tempLocation)
+  const newFilesIndex = await filterFilesIndex(tempLocation, await cafs.addFilesFromDir(tempLocation))
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.

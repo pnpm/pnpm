@@ -2944,20 +2944,28 @@ importers:
 
   packages/prepare-package:
     specifiers:
+      '@pnpm/cafs': workspace:3.0.15
       '@pnpm/error': workspace:2.1.0
+      '@pnpm/fetcher-base': workspace:11.1.6
       '@pnpm/prepare-package': workspace:1.0.13
       '@pnpm/read-package-json': workspace:5.0.12
+      '@pnpm/test-fixtures': workspace:*
       '@zkochan/rimraf': ^2.1.2
       execa: npm:safe-execa@^0.1.1
+      npm-packlist: ^3.0.0
       preferred-pm: ^3.0.3
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/read-package-json': link:../read-package-json
       '@zkochan/rimraf': 2.1.2
       execa: /safe-execa/0.1.1
+      npm-packlist: 3.0.0
       preferred-pm: 3.0.3
     devDependencies:
+      '@pnpm/cafs': link:../cafs
+      '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/prepare-package': 'link:'
+      '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
 
   packages/prune-lockfile:
     specifiers:
