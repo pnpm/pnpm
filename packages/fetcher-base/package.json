@@ -37,5 +37,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/fetcher-base": "workspace:11.1.6"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

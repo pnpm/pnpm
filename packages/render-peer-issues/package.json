@@ -38,5 +38,8 @@
     "@pnpm/render-peer-issues": "workspace:1.1.2",
     "@types/archy": "0.0.31",
     "strip-ansi": "^6.0.0"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

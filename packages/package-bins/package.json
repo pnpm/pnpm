@@ -39,5 +39,8 @@
     "@pnpm/package-bins": "workspace:5.0.12",
     "@types/node": "^14.17.32"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

@@ -34,5 +34,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/sort-packages": "workspace:2.1.8"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

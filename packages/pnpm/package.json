@@ -168,5 +168,8 @@
       "./dist/node_modules/node-gyp/bin/node-gyp.js"
     ]
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./package.json"
+  }
 }

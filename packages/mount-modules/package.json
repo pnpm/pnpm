@@ -55,5 +55,8 @@
   "funding": "https://opencollective.com/pnpm",
   "optionalDependencies": {
     "fuse-native": "^2.2.6"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

@@ -35,5 +35,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/resolver-base": "workspace:8.1.6"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

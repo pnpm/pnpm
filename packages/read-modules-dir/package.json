@@ -33,5 +33,8 @@
   },
   "devDependencies": {
     "@pnpm/read-modules-dir": "workspace:3.0.1"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

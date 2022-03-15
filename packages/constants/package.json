@@ -31,5 +31,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

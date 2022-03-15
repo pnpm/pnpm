@@ -34,5 +34,8 @@
   },
   "devDependencies": {
     "@pnpm/parse-overrides": "workspace:1.0.1"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

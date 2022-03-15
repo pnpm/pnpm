@@ -34,5 +34,8 @@
   ],
   "devDependencies": {
     "@pnpm/tarball-resolver": "workspace:5.0.11"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

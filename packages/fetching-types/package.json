@@ -35,5 +35,8 @@
   },
   "devDependencies": {
     "@pnpm/fetching-types": "workspace:2.2.1"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

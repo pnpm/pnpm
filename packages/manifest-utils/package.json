@@ -36,5 +36,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/manifest-utils": "workspace:2.1.9"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

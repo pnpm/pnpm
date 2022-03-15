@@ -54,5 +54,8 @@
     "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

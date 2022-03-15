@@ -40,5 +40,8 @@
     "@pnpm/lockfile-file": "workspace:4.3.1",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/real-hoist": "workspace:0.1.8"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }
