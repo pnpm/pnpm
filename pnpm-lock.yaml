@@ -731,7 +731,7 @@ importers:
       '@pnpm/macos-arm64': workspace:7.0.0-beta.0
       '@pnpm/macos-x64': workspace:7.0.0-beta.0
       '@pnpm/win-x64': workspace:7.0.0-beta.0
-      '@zkochan/pkg': 0.0.0-2
+      '@zkochan/pkg': 0.0.0-3
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
       '@pnpm/linux-arm64': link:../artifacts/linux-arm64
@@ -741,7 +741,7 @@ importers:
       '@pnpm/win-x64': link:../artifacts/win-x64
     devDependencies:
       '@pnpm/exe': 'link:'
-      '@zkochan/pkg': 0.0.0-2
+      '@zkochan/pkg': 0.0.0-3
       execa: /safe-execa/0.1.1
 
   packages/exportable-manifest:
@@ -3801,14 +3801,14 @@ packages:
       chalk: 2.4.2
       js-tokens: 4.0.0
 
-  /@babel/parser/7.13.13_@babel+types@7.13.12:
-    resolution: {integrity: sha512-OhsyMrqygfk5v8HmWwOzlYjJrtLaFhF34MrfG/Z73DgYCI6ojNUTUp2TYbtnjo8PegeJp12eamsNettCQjKjVw==}
+  /@babel/parser/7.16.2_@babel+types@7.16.0:
+    resolution: {integrity: sha512-RUVpT0G2h6rOZwqLDTrKk7ksNv7YpAilTnYe1/Q+eDjxEceRMKVWbCsX7t8h6C1qCFi/1Y8WZjcEPBAFG27GPw==}
     engines: {node: '>=6.0.0'}
     hasBin: true
     peerDependencies:
       '@babel/types': '*'
     dependencies:
-      '@babel/types': 7.13.12
+      '@babel/types': 7.16.0
     dev: true
 
   /@babel/parser/7.17.7_@babel+types@7.17.0:
@@ -4050,11 +4050,11 @@ packages:
       - supports-color
     dev: true
 
-  /@babel/types/7.13.12:
-    resolution: {integrity: sha512-K4nY2xFN4QMvQwkQ+zmBDp6ANMbVNw6BbxWmYA4qNjhR9W+Lj/8ky5MEY2Me5r+B2c6/v6F53oMndG+f9s3IiA==}
+  /@babel/types/7.16.0:
+    resolution: {integrity: sha512-PJgg/k3SdLsGb3hhisFvtLOw5ts113klrpLuIPtCJIU+BB24fqq6lf8RWqKJEjzqXR9AEH1rIb5XTqwBHB+kQg==}
+    engines: {node: '>=6.9.0'}
     dependencies:
       '@babel/helper-validator-identifier': 7.16.7
-      lodash: 4.17.21
       to-fast-properties: 2.0.0
     dev: true
 
@@ -5973,8 +5973,8 @@ packages:
       validate-npm-package-name: 3.0.0
     dev: false
 
-  /@zkochan/pkg/0.0.0-2:
-    resolution: {integrity: sha512-ryvBDQsbH2/H0hwy9owJ/+E9p8W3ip0X1yJrkTt2ncMaScEjZb/y8YO7AYqnwOmGO6i31B/42Nx0znAca+febg==}
+  /@zkochan/pkg/0.0.0-3:
+    resolution: {integrity: sha512-Gg9GE05aVxbrZaDSAZ22gfkqFEH6I6oQCu/ESdVosH9ANgHD2ghPuuTa4kq6TT/ZF23FegIghK1kkqLeDy7yRQ==}
     hasBin: true
     peerDependencies:
       node-notifier: '>=9.0.1'
@@ -5982,8 +5982,8 @@ packages:
       node-notifier:
         optional: true
     dependencies:
-      '@babel/parser': 7.13.13_@babel+types@7.13.12
-      '@babel/types': 7.13.12
+      '@babel/parser': 7.16.2_@babel+types@7.16.0
+      '@babel/types': 7.16.0
       chalk: 4.1.2
       escodegen: 2.0.0
       fs-extra: 9.1.0
@@ -5992,11 +5992,11 @@ packages:
       minimist: 1.2.5
       multistream: 4.1.0
       pkg-fetch: 3.1.1
-      prebuild-install: 6.0.1
+      prebuild-install: 6.1.4
       progress: 2.0.3
       resolve: 1.22.0
       stream-meter: 1.0.4
-      tslib: 2.1.0
+      tslib: 2.3.1
     transitivePeerDependencies:
       - encoding
       - supports-color
@@ -8185,7 +8185,7 @@ packages:
   /eslint-config-standard-with-typescript/21.0.1_339a91162da6409f17cd3c4d5702a7d8:
     resolution: {integrity: sha512-FeiMHljEJ346Y0I/HpAymNKdrgKEpHpcg/D93FvPHWfCzbT4QyUJba/0FwntZeGLXfUiWDSeKmdJD597d9wwiw==}
     peerDependencies:
-      '@typescript-eslint/eslint-plugin': ^4.0.1 || ^5.6.0 || ^5.6.0
+      '@typescript-eslint/eslint-plugin': ^4.0.1 || ^5.6.0
       eslint: '*'
       eslint-plugin-import: ^2.22.1
       eslint-plugin-node: ^11.1.0
@@ -11699,10 +11699,6 @@ packages:
       is: 3.3.0
     dev: false
 
-  /noop-logger/0.1.1:
-    resolution: {integrity: sha1-lKKxYzxPExdVMAfYlm/Q6EG2pMI=}
-    dev: true
-
   /nopt/1.0.10:
     resolution: {integrity: sha1-bd0hvSoxQXuScn3Vhfim83YI6+4=}
     hasBin: true
@@ -12410,8 +12406,8 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
-  /prebuild-install/6.0.1:
-    resolution: {integrity: sha512-7GOJrLuow8yeiyv75rmvZyeMGzl8mdEX5gY69d6a6bHWmiPevwqFw+tQavhK0EYMaSg3/KD24cWqeQv1EWsqDQ==}
+  /prebuild-install/6.1.4:
+    resolution: {integrity: sha512-Z4vpywnK1lBg+zdPCVCsKq0xO66eEV9rWo2zrROGGiRS4JtueBOdlB1FnY8lcy7JsUud/Q3ijUxyWN26Ika0vQ==}
     engines: {node: '>=6'}
     hasBin: true
     dependencies:
@@ -12422,14 +12418,12 @@ packages:
       mkdirp-classic: 0.5.3
       napi-build-utils: 1.0.2
       node-abi: 2.30.1
-      noop-logger: 0.1.1
       npmlog: 4.1.2
       pump: 3.0.0
       rc: 1.2.8
       simple-get: 3.1.1
       tar-fs: 2.1.1
       tunnel-agent: 0.6.0
-      which-pm-runs: 1.1.0
     dev: true
 
   /preferred-pm/3.0.3:
@@ -14258,10 +14252,6 @@ packages:
   /tslib/1.14.1:
     resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
 
-  /tslib/2.1.0:
-    resolution: {integrity: sha512-hcVC3wYEziELGGmEEXue7D75zbwIIVUMWAVbHItGPx0ziyXxrOMQx4rQEVEV45Ut/1IotuEvwqPopzIOkDMf0A==}
-    dev: true
-
   /tslib/2.3.1:
     resolution: {integrity: sha512-77EbyPPpMz+FRFRuAFlWMtmgUWGe9UOG2Z25NqCwiIjRhOf5iKGuzSe5P2w1laq+FkRy4p+PCuVkJSGkzTEKVw==}
 
@@ -14871,11 +14861,6 @@ packages:
 
   /which-module/2.0.0:
     resolution: {integrity: sha1-2e8H3Od7mQK4o6j6SzHD4/fm6Ho=}
-    dev: true
-
-  /which-pm-runs/1.1.0:
-    resolution: {integrity: sha512-n1brCuqClxfFfq/Rb0ICg9giSZqCS+pLtccdag6C2HyufBrh3fBOiy9nb6ggRMvWOVH5GrdJskj5iGTZNxd7SA==}
-    engines: {node: '>=4'}
     dev: true
 
   /which-pm/2.0.0:
