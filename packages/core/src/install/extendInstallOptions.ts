@@ -141,7 +141,7 @@ const defaults = async (opts: InstallOptions) => {
     preferFrozenLockfile: true,
     preferWorkspacePackages: false,
     preserveWorkspaceProtocol: true,
-    pruneLockfileImporters: false,
+    pruneLockfileImporters: true,
     pruneStore: false,
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,

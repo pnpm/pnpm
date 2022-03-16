@@ -317,6 +317,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   ], await testDefaults({
     lockfileDir: process.cwd(),
     store,
+    pruneLockfileImporters: false,
   }))
 
   await projects['project-1'].hasNot('is-positive')

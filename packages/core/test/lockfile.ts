@@ -842,7 +842,12 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('project-2')
 
-  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir }))
+  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({
+    save: true,
+    lockfileDir: path.resolve('..'),
+    storeDir,
+    pruneLockfileImporters: false,
+  }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))

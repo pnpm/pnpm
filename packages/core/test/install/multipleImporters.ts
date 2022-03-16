@@ -249,6 +249,7 @@ test('dependencies of other importers are not pruned when installing for a subse
     dir: path.resolve('project-1'),
     lockfileDir: process.cwd(),
     modulesCacheMaxAge: 0,
+    pruneLockfileImporters: false,
   }))
 
   await projects['project-1'].has('is-positive')
@@ -313,10 +314,12 @@ test('dependencies of other importers are not pruned when (headless) installing 
     dir: path.resolve('project-1'),
     lockfileDir: process.cwd(),
     lockfileOnly: true,
+    pruneLockfileImporters: false,
   }))
   await mutateModules(importers.slice(0, 1), await testDefaults({
     frozenLockfile: true,
     modulesCacheMaxAge: 0,
+    pruneLockfileImporters: false,
   }))
 
   await projects['project-1'].has('is-positive')
