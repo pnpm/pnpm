@@ -136,6 +136,7 @@ export default async (
       pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
     }
   } catch (err: any) { // eslint-disable-line
+    err.spec = spec
     const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
     if (meta == null) throw err
     logger.error(err, err)
