@@ -19,7 +19,7 @@ export default function (
       version = meta['dist-tags'][spec.fetchSpec]
       break
     case 'range':
-      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
+      version = pickVersionByVersionRange(meta, spec, preferredVersionSelectors)
       break
     }
     const manifest = meta.versions[version]
@@ -42,11 +42,12 @@ export default function (
 
 function pickVersionByVersionRange (
   meta: PackageMeta,
-  versionRange: string,
+  spec: RegistryPackageSpec,
   preferredVerSels?: VersionSelectors
 ) {
   let versions: string[] | undefined
   const latest = meta['dist-tags'].latest
+  const versionRange = spec.fetchSpec
 
   const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
   if (preferredVerSelsArr.length > 0) {
@@ -73,6 +74,17 @@ function pickVersionByVersionRange (
       case 'version': {
         if (meta.versions[preferredSelector]) {
           preferredVersions.push(preferredSelector)
+        }
+        break
+      }
+      // This is a special type of "preference". `versionPref` is the version
+      // range written by yarn into the lockfile. `originalPref` is what pnpm
+      // found in the requesting package.json. If they match, we should exit
+      // early and use the version resolved in the lockfile.
+      case 'lockfile': {
+        const [versionPref, resolvedVersion] = preferredSelector.split('@')
+        if (spec.originalPref != null && spec.originalPref === versionPref) {
+          return resolvedVersion
         }
         break
       }

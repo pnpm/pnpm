@@ -5,6 +5,7 @@ export interface RegistryPackageSpec {
   type: 'tag' | 'version' | 'range'
   name: string
   fetchSpec: string
+  originalPref?: string
   normalizedPref?: string
 }
 
@@ -33,6 +34,7 @@ export default function parsePref (
         fetchSpec: selector.normalized,
         name,
         type: selector.type,
+        originalPref: pref,
       }
     }
   }
@@ -44,6 +46,7 @@ export default function parsePref (
         name: pkg.name,
         normalizedPref: pref,
         type: 'version',
+        originalPref: pref,
       }
     }
   }

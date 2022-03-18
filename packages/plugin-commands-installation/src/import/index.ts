@@ -95,8 +95,10 @@ export async function handler (
   // Removing existing pnpm lockfile
   // it should not influence the new one
   await rimraf(path.join(opts.dir, WANTED_LOCKFILE))
+
+  // This is mutated by one of the lockfile consuming functions
   const versionsByPackageNames = {}
-  let preferredVersions = {}
+
   if (await exists(path.join(opts.dir, 'yarn.lock'))) {
     const yarnPackgeLockFile = await readYarnLockFile(opts.dir)
     getAllVersionsFromYarnLockFile(yarnPackgeLockFile, versionsByPackageNames)
@@ -109,7 +111,8 @@ export async function handler (
   } else {
     throw new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   }
-  preferredVersions = getPreferredVersions(versionsByPackageNames)
+
+  const preferredVersions = getPreferredVersions(versionsByPackageNames)
 
   // For a workspace with shared lockfile
   if (opts.workspaceDir) {
@@ -230,7 +233,7 @@ function getPreferredVersions (
   const preferredVersions = {}
   for (const packageName of Object.keys(versionsByPackageNames)) {
     preferredVersions[packageName] = Array.from(versionsByPackageNames[packageName]).reduce((acc, version) => {
-      acc[version] = 'version'
+      acc[version] = 'lockfile'
       return acc
     }, {})
   }
@@ -263,10 +266,16 @@ function getAllVersionsFromYarnLockFile (
 ) {
   for (const packageName of Object.keys(yarnPackageLock)) {
     const pkgName = packageName.substring(0, packageName.lastIndexOf('@'))
+    const versionPref = packageName.substring(packageName.lastIndexOf('@') + 1) // e.g. '^1.0.0'
+    const resolvedVersion = yarnPackageLock[packageName].version
+
     if (!versionsByPackageNames[pkgName]) {
       versionsByPackageNames[pkgName] = new Set()
     }
-    versionsByPackageNames[pkgName].add(yarnPackageLock[packageName].version)
+
+    // Here we encode both the preferred version and the actual resolved
+    // version so we can use them in `pickPackageFromMeta.ts`.
+    versionsByPackageNames[pkgName].add(`${versionPref}@${resolvedVersion}`)
   }
 }
 

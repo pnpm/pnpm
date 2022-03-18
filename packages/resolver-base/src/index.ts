@@ -44,8 +44,24 @@ export interface WorkspacePackages {
   }
 }
 
+// The `lockfile` version selector is unique and perhaps unintuitive. When
+// we're importing from lockfiles we need both the resolved version of a
+// package _and_ the originally requested version range. That would normally
+// necessitate a different data structure. But in order to avoid potential
+// performance issues we jam them together like so:
+//
+// Given:
+//   package.json              -> "eslint": "^1.0.0"
+//   lockfile resolved version -> 1.2.3
+//
+// We'd get a preferredVersions object:
+//   {
+//     eslint: {
+//       '^1.0.0@1.2.3': 'lockfile'
+//     }
+//   }
 export interface VersionSelectors {
-  [selector: string]: 'version' | 'range' | 'tag'
+  [selector: string]: 'version' | 'range' | 'tag' | 'lockfile'
 }
 
 export interface PreferredVersions {
