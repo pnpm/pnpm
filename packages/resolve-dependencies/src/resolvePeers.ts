@@ -259,7 +259,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
         .map(({ name, version }) => ({ name, version })))
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
-  const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.lockfileDir))
+  const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
   const modules = path.join(localLocation, 'node_modules')
   const isPure = isEmpty(allResolvedPeers) && allMissingPeers.length === 0
   if (isPure) {

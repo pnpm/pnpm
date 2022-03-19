@@ -128,16 +128,16 @@ test('resolve()', () => {
 })
 
 test('depPathToFilename()', () => {
-  expect(depPathToFilename('/foo/1.0.0', process.cwd())).toBe('foo@1.0.0')
-  expect(depPathToFilename('/@foo/bar/1.0.0', process.cwd())).toBe('@foo+bar@1.0.0')
-  expect(depPathToFilename('github.com/something/foo/0000', process.cwd())).toBe('github.com+something+foo@0000')
+  expect(depPathToFilename('/foo/1.0.0')).toBe('foo@1.0.0')
+  expect(depPathToFilename('/@foo/bar/1.0.0')).toBe('@foo+bar@1.0.0')
+  expect(depPathToFilename('github.com/something/foo/0000')).toBe('github.com+something+foo@0000')
 
-  const filename = depPathToFilename('file:./test/foo-1.0.0.tgz_foo@2.0.0', process.cwd())
-  expect(filename).toMatch(/^local\+.*\+foo-1\.0\.0\.tgz_foo@2\.0\.0$/)
+  const filename = depPathToFilename('file:test/foo-1.0.0.tgz_foo@2.0.0')
+  expect(filename).toBe('file+test+foo-1.0.0.tgz_foo@2.0.0')
   expect(filename).not.toContain(':')
 
-  expect(depPathToFilename('abcd/'.repeat(200), process.cwd())).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+_27524303f1ddd808db67f175ff83606e')
-  expect(depPathToFilename('/JSONSteam/1.0.0', process.cwd())).toBe('JSONSteam@1.0.0_4b2567ab922fbdf01171f59fab8f6fef')
+  expect(depPathToFilename('abcd/'.repeat(200))).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+_27524303f1ddd808db67f175ff83606e')
+  expect(depPathToFilename('/JSONSteam/1.0.0')).toBe('JSONSteam@1.0.0_4b2567ab922fbdf01171f59fab8f6fef')
 })
 
 test('tryGetPackageId', () => {

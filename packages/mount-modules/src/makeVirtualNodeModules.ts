@@ -16,18 +16,18 @@ type DirEntry = {
   entries: Record<string, DirEntry>
 }
 
-export default function (lockfile: Lockfile, lockfileDir: string): DirEntry {
+export default function (lockfile: Lockfile): DirEntry {
   const entries: Record<string, DirEntry> = {
     '.pnpm': {
       entryType: 'directory',
-      entries: createVirtualStoreDir(lockfile, lockfileDir),
+      entries: createVirtualStoreDir(lockfile),
     },
   }
   for (const depType of DEPENDENCIES_FIELDS) {
     for (const [depName, ref] of Object.entries(lockfile.importers['.'][depType] ?? {})) {
       const symlink: DirEntry = {
         entryType: 'symlink',
-        target: `./.pnpm/${dp.depPathToFilename(dp.refToRelative(ref, depName)!, lockfileDir)}/node_modules/${depName}`,
+        target: `./.pnpm/${dp.depPathToFilename(dp.refToRelative(ref, depName)!)}/node_modules/${depName}`,
       }
       addDirEntry(entries, depName, symlink)
     }
@@ -38,12 +38,12 @@ export default function (lockfile: Lockfile, lockfileDir: string): DirEntry {
   }
 }
 
-function createVirtualStoreDir (lockfile: Lockfile, lockfileDir: string) {
+function createVirtualStoreDir (lockfile: Lockfile) {
   const rootDir = {} as Record<string, DirEntry>
   for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const pkgNodeModules = {} as Record<string, DirEntry>
-    const currentPath = dp.depPathToFilename(depPath, lockfileDir)
+    const currentPath = dp.depPathToFilename(depPath)
     const pkgDir: DirEntry = {
       entryType: 'index',
       depPath,
@@ -52,7 +52,7 @@ function createVirtualStoreDir (lockfile: Lockfile, lockfileDir: string) {
     for (const [depName, ref] of Object.entries({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })) {
       const symlink: DirEntry = {
         entryType: 'symlink',
-        target: normalize(path.relative(`${currentPath}/node_modules/`, `${dp.depPathToFilename(dp.refToRelative(ref, depName)!, lockfileDir)}/node_modules/${depName}`)),
+        target: normalize(path.relative(`${currentPath}/node_modules/`, `${dp.depPathToFilename(dp.refToRelative(ref, depName)!)}/node_modules/${depName}`)),
       }
       addDirEntry(pkgNodeModules, depName, symlink)
     }

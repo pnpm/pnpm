@@ -343,7 +343,6 @@ export default async (opts: HeadlessOptions) => {
       newHoistedDependencies = await hoist({
         lockfile: hoistLockfile,
         importerIds,
-        lockfileDir,
         privateHoistedModulesDir: hoistedModulesDir,
         privateHoistPattern: opts.hoistPattern ?? [],
         publicHoistedModulesDir,
@@ -429,7 +428,6 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(opts.projects, wantedLockfile, {
-    lockfileDir: opts.lockfileDir,
     pkgLocationByDepPath,
     virtualStoreDir,
   })

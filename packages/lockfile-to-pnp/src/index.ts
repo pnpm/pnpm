@@ -114,7 +114,7 @@ export function lockfileToPackageRegistry (
     // Seems like this field should always contain a relative path
     let packageLocation = normalizePath(path.relative(opts.lockfileDir, path.join(
       opts.virtualStoreDir,
-      depPathToFilename(relDepPath, opts.lockfileDir),
+      depPathToFilename(relDepPath),
       'node_modules',
       name
     )))

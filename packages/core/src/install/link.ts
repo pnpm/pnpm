@@ -250,7 +250,6 @@ export default async function linkPackages (
     newHoistedDependencies = await hoist({
       lockfile: hoistLockfile,
       importerIds: projectIds,
-      lockfileDir: opts.lockfileDir,
       privateHoistedModulesDir: opts.hoistedModulesDir,
       privateHoistPattern: opts.hoistPattern ?? [],
       publicHoistedModulesDir: opts.rootModulesDir,

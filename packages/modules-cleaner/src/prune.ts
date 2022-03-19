@@ -152,13 +152,13 @@ export default async function prune (
       const _tryRemovePkg = tryRemovePkg.bind(null, opts.lockfileDir, opts.virtualStoreDir)
       await Promise.all(
         orphanDepPaths
-          .map((orphanDepPath) => depPathToFilename(orphanDepPath, opts.lockfileDir))
+          .map((orphanDepPath) => depPathToFilename(orphanDepPath))
           .map(async (orphanDepPath) => _tryRemovePkg(orphanDepPath))
       )
       const neededPkgs: Set<string> = new Set()
       for (const depPath of Object.keys(opts.wantedLockfile.packages ?? {})) {
         if (opts.skipped.has(depPath)) continue
-        neededPkgs.add(depPathToFilename(depPath, opts.lockfileDir))
+        neededPkgs.add(depPathToFilename(depPath))
       }
       const availablePkgs = await readVirtualStoreDir(opts.virtualStoreDir, opts.lockfileDir)
       await Promise.all(
