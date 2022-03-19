@@ -684,12 +684,10 @@ importers:
       '@types/semver': ^7.3.4
       dependency-path: workspace:8.0.11
       encode-registry: ^3.0.0
-      normalize-path: ^3.0.0
       semver: ^7.3.4
     dependencies:
       '@pnpm/types': link:../types
       encode-registry: 3.0.0
-      normalize-path: 3.0.0
       semver: 7.3.5
     devDependencies:
       '@types/semver': 7.3.9

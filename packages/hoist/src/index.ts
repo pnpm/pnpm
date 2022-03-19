@@ -17,7 +17,6 @@ const hoistLogger = logger('hoist')
 export default async function hoistByLockfile (
   opts: {
     lockfile: Lockfile
-    lockfileDir: string
     importerIds?: string[]
     privateHoistPattern: string[]
     privateHoistedModulesDir: string
@@ -55,7 +54,6 @@ export default async function hoistByLockfile (
 
   await symlinkHoistedDependencies(hoistedDependencies, {
     lockfile: opts.lockfile,
-    lockfileDir: opts.lockfileDir,
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
@@ -185,7 +183,6 @@ async function symlinkHoistedDependencies (
   hoistedDependencies: HoistedDependencies,
   opts: {
     lockfile: Lockfile
-    lockfileDir: string
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
@@ -201,7 +198,7 @@ async function symlinkHoistedDependencies (
           return
         }
         const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
         const depLocation = path.join(modules, pkgName)
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'

@@ -33,7 +33,6 @@
   "dependencies": {
     "@pnpm/types": "workspace:7.10.0",
     "encode-registry": "^3.0.0",
-    "normalize-path": "^3.0.0",
     "semver": "^7.3.4"
   },
   "devDependencies": {

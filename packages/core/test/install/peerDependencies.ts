@@ -1149,7 +1149,7 @@ test('local tarball dependency with peer dependency', async () => {
   ], await testDefaults({ reporter }))
 
   const integrityLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
-    .filter((dir) => dir.startsWith('local+'))
+    .filter((dir) => dir.startsWith('file+'))
 
   expect(integrityLocalPkgDirs.length).toBe(1)
 
@@ -1166,7 +1166,7 @@ test('local tarball dependency with peer dependency', async () => {
 
   {
     const updatedLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
-      .filter((dir) => dir.startsWith('local+'))
+      .filter((dir) => dir.startsWith('file+'))
     expect(updatedLocalPkgDirs).toStrictEqual(integrityLocalPkgDirs)
   }
 })

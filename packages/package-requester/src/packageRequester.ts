@@ -311,7 +311,7 @@ function fetchToStore (
   if (!opts.pkg.name) {
     opts.fetchRawManifest = true
   }
-  const targetRelative = depPathToFilename(opts.pkg.id, opts.lockfileDir)
+  const targetRelative = depPathToFilename(opts.pkg.id)
   const target = path.join(ctx.storeDir, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {

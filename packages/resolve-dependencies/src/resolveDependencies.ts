@@ -585,7 +585,7 @@ async function resolveDependency (
     await exists(
       path.join(
         ctx.virtualStoreDir,
-        dp.depPathToFilename(currentPkg.depPath, ctx.prefix),
+        dp.depPathToFilename(currentPkg.depPath),
         'node_modules',
         currentPkg.name!,
         'package.json'
