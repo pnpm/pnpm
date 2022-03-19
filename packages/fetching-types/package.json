@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching-types",
-  "version": "2.2.1",
+  "version": "3.0.0",
   "description": "Types for fetching",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "node-fetch": "3.0.0-beta.9"
   },
   "devDependencies": {
-    "@pnpm/fetching-types": "workspace:2.2.1"
+    "@pnpm/fetching-types": "workspace:3.0.0"
   },
   "exports": {
     ".": "./lib/index.js"

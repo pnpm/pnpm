@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/parse-cli-args",
-  "version": "4.4.1",
+  "version": "5.0.0",
   "description": "Parses the CLI args passed to pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,12 +30,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/parse-cli-args#readme",
   "devDependencies": {
-    "@pnpm/parse-cli-args": "workspace:4.4.1",
+    "@pnpm/parse-cli-args": "workspace:5.0.0",
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/find-workspace-dir": "workspace:3.0.2",
+    "@pnpm/error": "workspace:3.0.0",
+    "@pnpm/find-workspace-dir": "workspace:4.0.0",
     "@pnpm/nopt": "^0.2.1",
     "didyoumean2": "^5.0.0"
   },

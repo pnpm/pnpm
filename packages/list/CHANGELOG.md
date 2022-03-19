@@ -1,5 +1,21 @@
 # @pnpm/list
 
+## 7.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependencies-hierarchy@11.0.0
+  - @pnpm/matcher@3.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
 ## 6.3.3
 
 ### Patch Changes

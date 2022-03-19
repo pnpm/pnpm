@@ -1,5 +1,18 @@
 # @pnpm/directory-fetcher
 
+## 2.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/read-project-manifest@3.0.0
+  - @pnpm/resolver-base@9.0.0
+
 ## 1.0.7
 
 ### Patch Changes

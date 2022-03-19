@@ -1,5 +1,40 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+- Updated dependencies [d999a0801]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/link-bins@7.0.0
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/find-workspace-packages@4.0.0
+  - @pnpm/get-context@6.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/lockfile-walker@5.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/normalize-registries@3.0.0
+  - @pnpm/sort-packages@3.0.0
+  - @pnpm/store-connection-manager@4.0.0
+  - @pnpm/store-controller-types@13.0.0
+  - @pnpm/cli-utils@0.7.0
+  - @pnpm/common-cli-options-help@0.9.0
+
 ## 5.4.14
 
 ### Patch Changes

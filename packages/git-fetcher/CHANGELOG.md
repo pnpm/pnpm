@@ -1,5 +1,17 @@
 # @pnpm/git-fetcher
 
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/prepare-package@2.0.0
+
 ## 4.1.16
 
 ### Patch Changes

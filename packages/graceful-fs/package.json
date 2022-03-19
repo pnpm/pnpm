@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/graceful-fs",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Promisified graceful-fs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/graceful-fs": "workspace:1.0.0"
+    "@pnpm/graceful-fs": "workspace:2.0.0"
   },
   "exports": {
     ".": "./lib/index.js"

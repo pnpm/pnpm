@@ -1,5 +1,59 @@
 # @pnpm/core
 
+## 3.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- a36b6026b: pruneLockfileImporters is true by default.
+- 73d71a2d5: `strict-peer-dependencies` is `true` by default.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [9c22c063e]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [9b9b13c3a]
+- Updated dependencies [542014839]
+- Updated dependencies [0845a8704]
+- Updated dependencies [d999a0801]
+  - @pnpm/build-modules@9.0.0
+  - @pnpm/headless@18.0.0
+  - @pnpm/hoist@6.0.0
+  - @pnpm/link-bins@7.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/package-requester@18.0.0
+  - dependency-path@9.0.0
+  - @pnpm/resolve-dependencies@26.0.0
+  - @pnpm/calc-dep-state@2.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/filter-lockfile@6.0.0
+  - @pnpm/get-context@6.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/lockfile-walker@5.0.0
+  - @pnpm/manifest-utils@3.0.0
+  - @pnpm/modules-cleaner@12.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/normalize-registries@3.0.0
+  - @pnpm/parse-overrides@2.0.0
+  - @pnpm/parse-wanted-dependency@3.0.0
+  - @pnpm/prune-lockfile@4.0.0
+  - @pnpm/read-modules-dir@4.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/read-project-manifest@3.0.0
+  - @pnpm/remove-bins@3.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/store-controller-types@13.0.0
+  - @pnpm/symlink-dependency@5.0.0
+  - @pnpm/which-version-is-pinned@2.0.0
+  - @pnpm/lockfile-to-pnp@0.5.0
+
 ## 2.7.3
 
 ### Patch Changes

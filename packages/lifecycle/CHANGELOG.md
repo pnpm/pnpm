@@ -1,5 +1,22 @@
 # @pnpm/lifecycle
 
+## 13.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+- d999a0801: Allow to execute a lifecycle script in a directory that doesn't match the package's name. Previously this was only allowed with the `--unsafe-perm` CLI option [#3709](https://github.com/pnpm/pnpm/issues/3709).
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/directory-fetcher@2.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/store-controller-types@13.0.0
+
 ## 12.1.7
 
 ### Patch Changes

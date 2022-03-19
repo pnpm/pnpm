@@ -1,5 +1,20 @@
 # @pnpm/find-workspace-packages
 
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/constants@6.0.0
+  - find-packages@9.0.0
+  - @pnpm/cli-utils@0.7.0
+
 ## 3.1.42
 
 ### Patch Changes

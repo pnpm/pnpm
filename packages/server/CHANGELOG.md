@@ -1,5 +1,19 @@
 # @pnpm/server
 
+## 12.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/fetch@5.0.0
+  - @pnpm/store-controller-types@13.0.0
+
 ## 11.0.19
 
 ### Patch Changes

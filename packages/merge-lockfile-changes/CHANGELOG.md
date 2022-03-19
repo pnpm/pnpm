@@ -1,5 +1,16 @@
 # @pnpm/merge-lockfile-changes
 
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/lockfile-types@4.0.0
+
 ## 2.0.8
 
 ### Patch Changes

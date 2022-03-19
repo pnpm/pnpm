@@ -1,5 +1,15 @@
 # @pnpm/types
 
+## 8.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Minor Changes
+
+- d504dc380: New fields add to package.json type.
+
 ## 7.10.0
 
 ### Minor Changes

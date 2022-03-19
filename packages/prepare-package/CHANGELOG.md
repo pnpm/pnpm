@@ -1,5 +1,17 @@
 # @pnpm/prepare-package
 
+## 2.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/error@3.0.0
+  - @pnpm/read-package-json@6.0.0
+
 ## 1.0.13
 
 ### Patch Changes

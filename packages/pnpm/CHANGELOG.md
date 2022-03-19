@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-beta.0
+## 7.0.0-beta.1
 
 ### Major Changes
 

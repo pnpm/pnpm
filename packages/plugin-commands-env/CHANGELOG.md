@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-env
 
+## 2.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetch@5.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/package-store@13.0.0
+  - @pnpm/tarball-fetcher@10.0.0
+  - @pnpm/cli-utils@0.7.0
+
 ## 1.4.14
 
 ### Patch Changes

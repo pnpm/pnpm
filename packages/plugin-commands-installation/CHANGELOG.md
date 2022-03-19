@@ -1,5 +1,45 @@
 # @pnpm/plugin-commands-installation
 
+## 9.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- 9b9b13c3a: Update Yarn dependencies.
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [a36b6026b]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/core@3.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/command@3.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/filter-workspace-packages@5.0.0
+  - @pnpm/find-workspace-dir@4.0.0
+  - @pnpm/find-workspace-packages@4.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/manifest-utils@3.0.0
+  - @pnpm/matcher@3.0.0
+  - @pnpm/outdated@10.0.0
+  - @pnpm/package-store@13.0.0
+  - @pnpm/parse-wanted-dependency@3.0.0
+  - @pnpm/plugin-commands-rebuild@6.0.0
+  - @pnpm/pnpmfile@2.0.0
+  - @pnpm/read-project-manifest@3.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/sort-packages@3.0.0
+  - @pnpm/store-connection-manager@4.0.0
+  - @pnpm/cli-utils@0.7.0
+  - @pnpm/common-cli-options-help@0.9.0
+
 ## 8.4.4
 
 ### Patch Changes

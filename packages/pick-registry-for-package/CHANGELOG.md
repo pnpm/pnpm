@@ -1,5 +1,17 @@
 # @pnpm/pick-registry-for-package
 
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+
 ## 2.0.11
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-project-manifest",
-  "version": "2.0.13",
+  "version": "3.0.0",
   "description": "Read a project manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,10 +29,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/read-project-manifest#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/graceful-fs": "workspace:1.0.0",
-    "@pnpm/types": "workspace:7.10.0",
-    "@pnpm/write-project-manifest": "workspace:2.0.11",
+    "@pnpm/error": "workspace:3.0.0",
+    "@pnpm/graceful-fs": "workspace:2.0.0",
+    "@pnpm/types": "workspace:8.0.0",
+    "@pnpm/write-project-manifest": "workspace:3.0.0",
     "detect-indent": "^6.0.0",
     "fast-deep-equal": "^3.1.3",
     "is-windows": "^1.0.2",
@@ -43,7 +43,7 @@
     "strip-bom": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/read-project-manifest": "workspace:2.0.13",
+    "@pnpm/read-project-manifest": "workspace:3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/json5": "^2.2.0",
     "@types/parse-json": "^4.0.0",

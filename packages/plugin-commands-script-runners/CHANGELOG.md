@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.0
+
+### Major Changes
+
+- c35ac786b: When using `pnpm run <script>`, all command line arguments after the script name are now passed to the script's argv, even `--`. For example, `pnpm run echo --hello -- world` will now pass `--hello -- world` to the `echo` script's argv. Previously flagged arguments (e.g. `--silent`) were intepreted as pnpm arguments unless `--` came before it.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [d999a0801]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/command@3.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/read-project-manifest@3.0.0
+  - @pnpm/sort-packages@3.0.0
+  - @pnpm/cli-utils@0.7.0
+  - @pnpm/common-cli-options-help@0.9.0
+
 ## 4.6.2
 
 ### Patch Changes

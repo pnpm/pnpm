@@ -1,5 +1,19 @@
 # @pnpm/filter-workspace-packages
 
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/error@3.0.0
+  - @pnpm/find-workspace-packages@4.0.0
+  - @pnpm/matcher@3.0.0
+  - pkgs-graph@7.0.0
+
 ## 4.4.22
 
 ### Patch Changes

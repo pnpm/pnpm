@@ -1,5 +1,25 @@
 # @pnpm/config
 
+## 14.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- 73d71a2d5: `strict-peer-dependencies` is `true` by default.
+- fa656992c: The `embed-readme` setting is `false` by default.
+- 542014839: Node.js 12 is not supported.
+- 585e9ca9e: `pnpm install -g pkg` will add the global command only to a predefined location. pnpm will not try to add a bin to the global Node.js or npm folder. To set the global bin directory, either set the `PNPM_HOME` env variable or the [`global-bin-dir`](https://pnpm.io/npmrc#global-bin-dir) setting.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/pnpmfile@2.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
 ## 13.13.2
 
 ### Patch Changes

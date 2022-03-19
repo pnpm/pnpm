@@ -1,5 +1,26 @@
 # @pnpm/modules-cleaner
 
+## 12.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/filter-lockfile@6.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/read-modules-dir@4.0.0
+  - @pnpm/remove-bins@3.0.0
+  - @pnpm/store-controller-types@13.0.0
+
 ## 11.0.23
 
 ### Patch Changes

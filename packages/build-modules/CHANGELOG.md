@@ -1,5 +1,26 @@
 # @pnpm/build-modules
 
+## 9.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+- Updated dependencies [d999a0801]
+  - @pnpm/link-bins@7.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/calc-dep-state@2.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/store-controller-types@13.0.0
+
 ## 8.0.3
 
 ### Patch Changes

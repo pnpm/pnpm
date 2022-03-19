@@ -1,5 +1,16 @@
 # @pnpm/error
 
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/constants@6.0.0
+
 ## 2.1.0
 
 ### Minor Changes

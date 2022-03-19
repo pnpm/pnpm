@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "2.0.14",
+  "version": "3.0.0",
   "description": "Remove bins from .bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -28,17 +28,17 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:6.1.4",
-    "@pnpm/package-bins": "workspace:5.0.12",
-    "@pnpm/read-package-json": "workspace:5.0.12",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/core-loggers": "workspace:7.0.0",
+    "@pnpm/package-bins": "workspace:6.0.0",
+    "@pnpm/read-package-json": "workspace:6.0.0",
+    "@pnpm/types": "workspace:8.0.0",
     "@zkochan/rimraf": "^2.1.2",
     "cmd-extension": "^1.0.2",
     "is-windows": "^1.0.2"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/remove-bins": "workspace:2.0.14",
+    "@pnpm/remove-bins": "workspace:3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.27.39"
   },

@@ -1,5 +1,42 @@
 # @pnpm/resolve-dependencies
 
+## 26.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+- 0845a8704: A prerelease version is always added as an exact version to `package.json`. If the `next` version of `foo` is `1.0.0-beta.1` then running `pnpm add foo@next` will add this to `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "foo": "1.0.0-beta.1"
+    }
+  }
+  ```
+
+### Patch Changes
+
+- 9b9b13c3a: Update Yarn dependencies.
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/manifest-utils@3.0.0
+  - @pnpm/npm-resolver@13.0.0
+  - @pnpm/pick-registry-for-package@3.0.0
+  - @pnpm/prune-lockfile@4.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/store-controller-types@13.0.0
+  - @pnpm/which-version-is-pinned@2.0.0
+
 ## 25.0.2
 
 ### Patch Changes

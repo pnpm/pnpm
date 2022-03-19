@@ -1,5 +1,29 @@
 # @pnpm/package-requester
 
+## 18.0.0
+
+### Major Changes
+
+- 9c22c063e: Local dependencies referenced through the `file:` protocol are hard linked (not symlinked) [#4408](https://github.com/pnpm/pnpm/pull/4408). If you need to symlink a dependency, use the `link:` protocol instead.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/cafs@4.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/package-is-installable@6.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/store-controller-types@13.0.0
+
 ## 17.0.0
 
 ### Major Changes

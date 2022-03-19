@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "12.1.8",
+  "version": "13.0.0",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,13 +34,13 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:6.1.4",
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/fetching-types": "workspace:2.2.1",
-    "@pnpm/graceful-fs": "workspace:1.0.0",
-    "@pnpm/resolve-workspace-range": "workspace:2.1.0",
-    "@pnpm/resolver-base": "workspace:8.1.6",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/core-loggers": "workspace:7.0.0",
+    "@pnpm/error": "workspace:3.0.0",
+    "@pnpm/fetching-types": "workspace:3.0.0",
+    "@pnpm/graceful-fs": "workspace:2.0.0",
+    "@pnpm/resolve-workspace-range": "workspace:3.0.0",
+    "@pnpm/resolver-base": "workspace:9.0.0",
+    "@pnpm/types": "workspace:8.0.0",
     "@zkochan/retry": "^0.2.0",
     "encode-registry": "^3.0.0",
     "load-json-file": "^6.2.0",
@@ -56,9 +56,9 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:4.2.5",
+    "@pnpm/fetch": "workspace:5.0.0",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/npm-resolver": "workspace:12.1.8",
+    "@pnpm/npm-resolver": "workspace:13.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/lru-cache": "^5.1.0",
     "@types/normalize-path": "^3.0.0",

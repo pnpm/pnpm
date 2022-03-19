@@ -1,5 +1,18 @@
 # @pnpm/cafs
 
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/store-controller-types@13.0.0
+
 ## 3.0.15
 
 ### Patch Changes

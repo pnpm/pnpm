@@ -1,5 +1,20 @@
 # @pnpm/real-hoist
 
+## 0.2.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- 9b9b13c3a: Update Yarn dependencies.
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - dependency-path@9.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-utils@4.0.0
+
 ## 0.1.8
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/fetcher-base
 
+## 12.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/resolver-base@9.0.0
+
 ## 11.1.6
 
 ### Patch Changes

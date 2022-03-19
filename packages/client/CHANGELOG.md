@@ -1,5 +1,22 @@
 # @pnpm/client
 
+## 7.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/default-resolver@15.0.0
+  - @pnpm/directory-fetcher@2.0.0
+  - @pnpm/fetch@5.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/git-fetcher@5.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/tarball-fetcher@10.0.0
+
 ## 6.1.3
 
 ### Patch Changes

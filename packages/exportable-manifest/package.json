@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exportable-manifest",
-  "version": "2.3.2",
+  "version": "3.0.0",
   "description": "Creates an exportable manifest",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,13 +29,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/exportable-manifest#readme",
   "devDependencies": {
-    "@pnpm/exportable-manifest": "workspace:2.3.2",
+    "@pnpm/exportable-manifest": "workspace:3.0.0",
     "@types/ramda": "0.27.39"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/read-project-manifest": "workspace:2.0.13",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/error": "workspace:3.0.0",
+    "@pnpm/read-project-manifest": "workspace:3.0.0",
+    "@pnpm/types": "workspace:8.0.0",
     "ramda": "^0.27.1"
   },
   "funding": "https://opencollective.com/pnpm",

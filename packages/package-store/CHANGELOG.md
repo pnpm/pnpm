@@ -1,5 +1,24 @@
 # @pnpm/package-store
 
+## 13.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [9c22c063e]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/package-requester@18.0.0
+  - @pnpm/cafs@4.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/store-controller-types@13.0.0
+
 ## 12.1.12
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/git-resolver
 
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetch@5.0.0
+  - @pnpm/resolver-base@9.0.0
+
 ## 5.1.17
 
 ### Patch Changes

@@ -1,5 +1,28 @@
 # @pnpm/cli-utils
 
+## 0.7.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/cli-meta@3.0.0
+  - @pnpm/default-reporter@9.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/manifest-utils@3.0.0
+  - @pnpm/package-is-installable@6.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
 ## 0.6.50
 
 ### Patch Changes

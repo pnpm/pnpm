@@ -1,5 +1,18 @@
 # @pnpm-private/updater
 
+## 0.3.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/lockfile-file@5.0.0
+
 ## 0.2.9
 
 ### Patch Changes

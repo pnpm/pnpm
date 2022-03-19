@@ -1,5 +1,11 @@
 # @pnpm/fetching-types
 
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
 ## 2.2.1
 
 ### Patch Changes

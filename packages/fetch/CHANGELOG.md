@@ -1,5 +1,18 @@
 # @pnpm/fetch
 
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/npm-registry-agent@6.0.0
+
 ## 4.2.5
 
 ### Patch Changes

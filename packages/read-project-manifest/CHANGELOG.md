@@ -1,5 +1,20 @@
 # @pnpm/read-project-manifest
 
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/write-project-manifest@3.0.0
+
 ## 2.0.13
 
 ### Patch Changes

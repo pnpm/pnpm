@@ -1,5 +1,25 @@
 # @pnpm/store-connection-manager
 
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/cli-meta@3.0.0
+  - @pnpm/client@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/package-store@13.0.0
+  - @pnpm/server@12.0.0
+
 ## 3.2.10
 
 ### Patch Changes

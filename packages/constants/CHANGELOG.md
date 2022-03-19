@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
 ## 5.0.0
 
 ### Major Changes

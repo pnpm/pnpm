@@ -1,5 +1,21 @@
 # @pnpm/tarball-fetcher
 
+## 10.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/prepare-package@2.0.0
+
 ## 9.3.17
 
 ### Patch Changes

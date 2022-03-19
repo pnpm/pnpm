@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/sort-packages",
-  "version": "2.1.8",
+  "version": "3.0.0",
   "description": "Sort packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -28,12 +28,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/sort-packages#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/types": "workspace:8.0.0",
     "graph-sequencer": "2.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/sort-packages": "workspace:2.1.8"
+    "@pnpm/sort-packages": "workspace:3.0.0"
   },
   "exports": {
     ".": "./lib/index.js"

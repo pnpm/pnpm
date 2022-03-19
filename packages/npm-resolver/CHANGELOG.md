@@ -1,5 +1,23 @@
 # @pnpm/npm-resolver
 
+## 13.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/resolve-workspace-range@3.0.0
+  - @pnpm/resolver-base@9.0.0
+
 ## 12.1.8
 
 ### Patch Changes

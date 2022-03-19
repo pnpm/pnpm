@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+- 5fa29295b: `pnpm pack` should only pack a file as an executable if it's a bin or listed in the `publishConfig.executableFiles` array.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [d999a0801]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/client@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/exportable-manifest@3.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/package-bins@6.0.0
+  - @pnpm/pick-registry-for-package@3.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/run-npm@4.0.0
+  - @pnpm/sort-packages@3.0.0
+  - @pnpm/cli-utils@0.7.0
+
 ## 4.5.2
 
 ### Patch Changes

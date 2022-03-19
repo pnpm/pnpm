@@ -1,5 +1,24 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.3.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- e5cc47617: Do not re-resolve dependency versions
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/exportable-manifest@3.0.0
+  - @pnpm/find-workspace-dir@4.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/prune-lockfile@4.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
 ## 0.2.25
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/parse-wanted-dependency",
   "description": "Parse dependency specifier",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "devDependencies": {
-    "@pnpm/parse-wanted-dependency": "workspace:2.0.0",
+    "@pnpm/parse-wanted-dependency": "workspace:3.0.0",
     "@types/validate-npm-package-name": "^3.0.2"
   },
   "keywords": [

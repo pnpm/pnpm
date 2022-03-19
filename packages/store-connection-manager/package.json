@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-connection-manager",
-  "version": "3.2.10",
+  "version": "4.0.0",
   "description": "Create a direct pnpm store controller or connect to a running store server",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,15 +30,15 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/store-connection-manager#readme",
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/store-connection-manager": "workspace:3.2.10"
+    "@pnpm/store-connection-manager": "workspace:4.0.0"
   },
   "dependencies": {
-    "@pnpm/cli-meta": "workspace:2.0.2",
-    "@pnpm/client": "workspace:6.1.3",
-    "@pnpm/config": "workspace:13.13.2",
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/package-store": "workspace:12.1.12",
-    "@pnpm/server": "workspace:11.0.19",
+    "@pnpm/cli-meta": "workspace:3.0.0",
+    "@pnpm/client": "workspace:7.0.0",
+    "@pnpm/config": "workspace:14.0.0",
+    "@pnpm/error": "workspace:3.0.0",
+    "@pnpm/package-store": "workspace:13.0.0",
+    "@pnpm/server": "workspace:12.0.0",
     "@pnpm/store-path": "^5.0.0",
     "@zkochan/diable": "^1.0.2",
     "delay": "^5.0.0",

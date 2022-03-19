@@ -1,5 +1,16 @@
 # @pnpm/find-workspace-dir
 
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/error@3.0.0
+
 ## 3.0.2
 
 ### Patch Changes

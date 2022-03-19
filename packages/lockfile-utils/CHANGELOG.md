@@ -1,5 +1,21 @@
 # @pnpm/lockfile-utils
 
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/resolver-base@9.0.0
+
 ## 3.2.1
 
 ### Patch Changes

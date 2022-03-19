@@ -1,5 +1,18 @@
 # dependency-path
 
+## 9.0.0
+
+### Major Changes
+
+- faf830b8f: Use a nicer path for saving local dependencies in the virtual store.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+
 ## 8.0.11
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/command",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Types and utils for pnpm commands",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/command#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/command": "workspace:2.0.0"
+    "@pnpm/command": "workspace:3.0.0"
   },
   "exports": {
     ".": "./lib/index.js"

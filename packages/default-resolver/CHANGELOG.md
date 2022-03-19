@@ -1,5 +1,23 @@
 # @pnpm/default-resolver
 
+## 15.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [9c22c063e]
+- Updated dependencies [542014839]
+  - @pnpm/local-resolver@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/git-resolver@6.0.0
+  - @pnpm/npm-resolver@13.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/tarball-resolver@6.0.0
+
 ## 14.0.12
 
 ### Patch Changes

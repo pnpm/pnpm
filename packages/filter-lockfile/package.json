@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-lockfile",
-  "version": "5.0.19",
+  "version": "6.0.0",
   "description": "Filters a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/filter-lockfile": "workspace:5.0.19",
+    "@pnpm/filter-lockfile": "workspace:6.0.0",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39",
     "tempy": "^1.0.0",
@@ -42,14 +42,14 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/lockfile-types": "workspace:3.2.0",
-    "@pnpm/lockfile-utils": "workspace:3.2.1",
-    "@pnpm/lockfile-walker": "workspace:4.0.15",
-    "@pnpm/package-is-installable": "workspace:5.0.13",
-    "@pnpm/types": "workspace:7.10.0",
-    "dependency-path": "workspace:8.0.11",
+    "@pnpm/constants": "workspace:6.0.0",
+    "@pnpm/error": "workspace:3.0.0",
+    "@pnpm/lockfile-types": "workspace:4.0.0",
+    "@pnpm/lockfile-utils": "workspace:4.0.0",
+    "@pnpm/lockfile-walker": "workspace:5.0.0",
+    "@pnpm/package-is-installable": "workspace:6.0.0",
+    "@pnpm/types": "workspace:8.0.0",
+    "dependency-path": "workspace:9.0.0",
     "ramda": "^0.27.1"
   },
   "funding": "https://opencollective.com/pnpm",

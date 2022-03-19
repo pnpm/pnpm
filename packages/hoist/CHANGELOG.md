@@ -1,5 +1,28 @@
 # @pnpm/hoist
 
+## 6.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/link-bins@7.0.0
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/lockfile-walker@5.0.0
+  - @pnpm/matcher@3.0.0
+  - @pnpm/symlink-dependency@5.0.0
+
 ## 5.2.15
 
 ### Patch Changes
