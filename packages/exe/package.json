@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@pnpm/exe": "workspace:7.0.0-beta.1",
-    "@zkochan/pkg": "0.0.0-3",
+    "@zkochan/pkg": "0.0.0-2",
     "execa": "npm:safe-execa@^0.1.1"
   },
   "funding": "https://opencollective.com/pnpm",
