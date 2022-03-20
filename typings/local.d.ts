@@ -88,7 +88,7 @@ declare module 'graceful-git' {
   export = anything;
 }
 
-declare module 'graph-sequencer' {
+declare module '@pnpm/graph-sequencer' {
   namespace graphSequencer {
     type Graph<T> = Map<T, T[]>;
     type Groups<T> = Array<T[]>;

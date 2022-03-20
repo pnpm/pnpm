@@ -175,6 +175,7 @@ importers:
       '@pnpm/build-modules': workspace:9.0.0
       '@pnpm/calc-dep-state': workspace:2.0.0
       '@pnpm/core-loggers': workspace:7.0.0
+      '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/lifecycle': workspace:13.0.0
       '@pnpm/link-bins': workspace:7.0.0
       '@pnpm/logger': ^4.0.0
@@ -182,18 +183,17 @@ importers:
       '@pnpm/store-controller-types': workspace:13.0.0
       '@pnpm/types': workspace:8.0.0
       '@types/ramda': 0.27.39
-      graph-sequencer: 2.0.0
       ramda: ^0.27.1
       run-groups: ^3.0.1
     dependencies:
       '@pnpm/calc-dep-state': link:../calc-dep-state
       '@pnpm/core-loggers': link:../core-loggers
+      '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/lifecycle': link:../lifecycle
       '@pnpm/link-bins': link:../link-bins
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
-      graph-sequencer: 2.0.0
       ramda: 0.27.2
       run-groups: 3.0.1
     devDependencies:
@@ -399,6 +399,7 @@ importers:
       '@pnpm/error': workspace:3.0.0
       '@pnpm/filter-lockfile': workspace:6.0.0
       '@pnpm/get-context': workspace:6.0.0
+      '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/headless': workspace:18.0.0
       '@pnpm/hoist': workspace:6.0.0
       '@pnpm/lifecycle': workspace:13.0.0
@@ -444,7 +445,6 @@ importers:
       dependency-path: workspace:9.0.0
       execa: npm:safe-execa@^0.1.1
       exists-link: 2.0.0
-      graph-sequencer: 2.0.0
       is-ci: ^3.0.0
       is-inner-link: ^4.0.0
       is-windows: ^1.0.2
@@ -475,6 +475,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/filter-lockfile': link:../filter-lockfile
       '@pnpm/get-context': link:../get-context
+      '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/headless': link:../headless
       '@pnpm/hoist': link:../hoist
       '@pnpm/lifecycle': link:../lifecycle
@@ -504,7 +505,6 @@ importers:
       '@zkochan/npm-package-arg': 2.0.1
       '@zkochan/rimraf': 2.1.2
       dependency-path: link:../dependency-path
-      graph-sequencer: 2.0.0
       is-inner-link: 4.0.0
       load-json-file: 6.2.0
       normalize-path: 3.0.0
@@ -2467,6 +2467,7 @@ importers:
       '@pnpm/filter-workspace-packages': workspace:5.0.0
       '@pnpm/find-workspace-packages': workspace:4.0.0
       '@pnpm/get-context': workspace:6.0.0
+      '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/lifecycle': workspace:13.0.0
       '@pnpm/link-bins': workspace:7.0.0
       '@pnpm/lockfile-utils': workspace:4.0.0
@@ -2489,7 +2490,6 @@ importers:
       camelcase-keys: ^6.2.2
       dependency-path: workspace:9.0.0
       execa: npm:safe-execa@^0.1.1
-      graph-sequencer: 2.0.0
       load-json-file: ^6.2.0
       mem: ^8.0.0
       p-limit: ^3.1.0
@@ -2509,6 +2509,7 @@ importers:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/find-workspace-packages': link:../find-workspace-packages
       '@pnpm/get-context': link:../get-context
+      '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/lifecycle': link:../lifecycle
       '@pnpm/link-bins': link:../link-bins
       '@pnpm/lockfile-utils': link:../lockfile-utils
@@ -2522,7 +2523,6 @@ importers:
       '@zkochan/npm-package-arg': 2.0.1
       camelcase-keys: 6.2.2
       dependency-path: link:../dependency-path
-      graph-sequencer: 2.0.0
       load-json-file: 6.2.0
       mem: 8.1.1
       p-limit: 3.1.0
@@ -3268,12 +3268,12 @@ importers:
 
   packages/sort-packages:
     specifiers:
+      '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/sort-packages': workspace:3.0.0
       '@pnpm/types': workspace:8.0.0
-      graph-sequencer: 2.0.0
     dependencies:
+      '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/types': link:../types
-      graph-sequencer: 2.0.0
     devDependencies:
       '@pnpm/sort-packages': 'link:'
 
@@ -4934,6 +4934,10 @@ packages:
       graceful-fs: 4.2.9
     dev: true
 
+  /@pnpm/graph-sequencer/1.0.0:
+    resolution: {integrity: sha512-iIJhmi7QjmafhijaEkh34Yxhjq3S/eiZnxww9K/SRXuDB5/30QnCyihR4R7vep8ONsGIR29hNPAtaNGd1rC/VA==}
+    dev: false
+
   /@pnpm/lockfile-types/3.2.0:
     resolution: {integrity: sha512-2OXP7rpb+jcKlZVa/Mw2NvFqoUuXSmMFWVurtYbwlMdUHxEyhJvPEAEKdV/QnmU//osvHg26G6JVyujQQAmcJQ==}
     engines: {node: '>=12.17'}
@@ -6297,10 +6301,6 @@ packages:
 
   /array-flatten/1.1.1:
     resolution: {integrity: sha1-ml9pkFGx5wczKPKgCJaLZOopVdI=}
-
-  /array-flatten/2.1.2:
-    resolution: {integrity: sha512-hNfzcOV8W4NdualtqBFPyVO+54DSJuZGY9qT4pRroB6S9e3iiido2ISIC5h9R2sPJ8H3FHCIiEnsv1lPXO3KtQ==}
-    dev: false
 
   /array-ify/1.0.0:
     resolution: {integrity: sha1-nlKHYrSpBmrRY6aWKjZEGOlibs4=}
@@ -9276,13 +9276,6 @@ packages:
   /graceful-readlink/1.0.1:
     resolution: {integrity: sha1-TK+tdrxi8C+gObL5Tpo906ORpyU=}
     dev: true
-
-  /graph-sequencer/2.0.0:
-    resolution: {integrity: sha1-v7gJuK9YT29Sh83OUHow1K6m7nA=}
-    dependencies:
-      array-flatten: 2.1.2
-      array-includes: 3.1.4
-    dev: false
 
   /grapheme-splitter/1.0.4:
     resolution: {integrity: sha512-bzh50DW9kTPM00T8y4o8vQg89Di9oLJVLW/KaOGIXJWP/iqCN6WKYkbNOF04vFLJhwcpYUh9ydh/+5vpOqV4YQ==}

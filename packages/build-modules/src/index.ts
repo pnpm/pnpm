@@ -8,7 +8,7 @@ import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest, PackageManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
-import graphSequencer from 'graph-sequencer'
+import graphSequencer from '@pnpm/graph-sequencer'
 import filter from 'ramda/src/filter'
 
 export { DepsStateCache }

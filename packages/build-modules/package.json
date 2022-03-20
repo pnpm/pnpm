@@ -40,7 +40,7 @@
     "@pnpm/read-package-json": "workspace:6.0.0",
     "@pnpm/store-controller-types": "workspace:13.0.0",
     "@pnpm/types": "workspace:8.0.0",
-    "graph-sequencer": "2.0.0",
+    "@pnpm/graph-sequencer": "1.0.0",
     "ramda": "^0.27.1",
     "run-groups": "^3.0.1"
   },

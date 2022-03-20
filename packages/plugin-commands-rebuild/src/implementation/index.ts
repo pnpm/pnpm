@@ -24,7 +24,7 @@ import { ProjectManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import runGroups from 'run-groups'
 import npa from '@zkochan/npm-package-arg'
-import graphSequencer from 'graph-sequencer'
+import graphSequencer from '@pnpm/graph-sequencer'
 import pLimit from 'p-limit'
 import semver from 'semver'
 import extendOptions, {
