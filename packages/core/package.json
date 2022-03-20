@@ -51,7 +51,7 @@
     "@zkochan/npm-package-arg": "^2.0.1",
     "@zkochan/rimraf": "^2.1.2",
     "dependency-path": "workspace:9.0.0",
-    "graph-sequencer": "2.0.0",
+    "@pnpm/graph-sequencer": "1.0.0",
     "is-inner-link": "^4.0.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",

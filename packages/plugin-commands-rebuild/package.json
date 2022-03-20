@@ -68,7 +68,7 @@
     "@zkochan/npm-package-arg": "^2.0.1",
     "camelcase-keys": "^6.2.2",
     "dependency-path": "workspace:9.0.0",
-    "graph-sequencer": "2.0.0",
+    "@pnpm/graph-sequencer": "1.0.0",
     "load-json-file": "^6.2.0",
     "mem": "^8.0.0",
     "p-limit": "^3.1.0",
