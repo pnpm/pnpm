@@ -233,7 +233,11 @@ function getPreferredVersions (
   const preferredVersions = {}
   for (const packageName of Object.keys(versionsByPackageNames)) {
     preferredVersions[packageName] = Array.from(versionsByPackageNames[packageName]).reduce((acc, version) => {
-      acc[version] = 'lockfile'
+      if (version.includes('@')) {
+        acc[version] = 'lockfile'
+      } else {
+        acc[version] = 'version'
+      }
       return acc
     }, {})
   }
