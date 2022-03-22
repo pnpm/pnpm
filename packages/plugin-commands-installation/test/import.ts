@@ -61,6 +61,8 @@ test('import from package-lock.json', async () => {
 })
 
 test('import from yarn.lock', async () => {
+  // This 'latest' version should be ignored since the lockfile resolves to
+  // something else
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   f.prepare('has-yarn-lock')
@@ -72,8 +74,9 @@ test('import from yarn.lock', async () => {
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/101.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
 
   // node_modules is not created
   await project.hasNot('dep-of-pkg-with-1-dep')
