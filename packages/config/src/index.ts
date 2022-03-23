@@ -188,9 +188,6 @@ export default async (
     pending: false,
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [
-      // Packages like @types/node, @babel/types
-      // should be publicly hoisted because TypeScript only searches in the root of node_modules
-      '*types*',
       '*eslint*',
       '@prettier/plugin-*',
       '*prettier-plugin-*',
