@@ -83,6 +83,28 @@ test('import from yarn.lock', async () => {
   await project.hasNot('pkg-with-1-dep')
 })
 
+test.only('import from nested yarn.lock with an existing root pnpm-lock', async () => {
+  const rootDir = f.prepare('workspace-has-partial-pnpm-lock-with-yarn-lock')
+  const nestedDir = path.join(rootDir, 'nested')
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir: nestedDir,
+    workspaceDir: rootDir,
+    lockfileDir: rootDir, // triggers the behavior where the recursive handler writes to the root pnpm-lock
+  }, [])
+
+  const project = assertProject(rootDir)
+  const lockfile = await project.readLockfile()
+  console.log(rootDir, lockfile)
+
+  // "nested" should properly resolve to 1.1.0 (not 1.3.0) because of its `yarn.lock`
+  expect(lockfile).toHaveProperty(['importers', 'nested', 'dependencies', 'pnpm-foo'], '1.1.0')
+
+  expect(lockfile.packages).toHaveProperty(['/pnpm-foo/1.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/pnpm-foo/1.3.0'])
+})
+
 test('import from yarn2 lock file', async () => {
   f.prepare('has-yarn2-lock')
 

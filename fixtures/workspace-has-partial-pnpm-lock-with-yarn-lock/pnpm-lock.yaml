@@ -1,0 +1,13 @@
+lockfileVersion: 5.3
+
+specifiers:
+  pnpm-foo: ^1.3.0
+
+dependencies:
+  pnpm-foo: 1.3.0
+
+packages:
+
+  /pnpm-foo/1.3.0:
+    resolution: {integrity: sha512-LgA56qN3sCFJJWuWBfMzRZ/atyX6ebWTYcVoTbawElDRDSK1V6RhhVk+SWTu74+W9omYMFlatjEPixxqWBSrmw==}
+    dev: false

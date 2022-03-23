@@ -1,0 +1,7 @@
+{
+  "name": "nested",
+  "version": "0.0.0",
+  "dependencies": {
+    "pnpm-foo": "^1.1.0"
+  }
+}
