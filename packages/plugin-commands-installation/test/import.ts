@@ -83,7 +83,7 @@ test('import from yarn.lock', async () => {
   await project.hasNot('pkg-with-1-dep')
 })
 
-test.only('import from nested yarn.lock with an existing root pnpm-lock', async () => {
+test('import from nested yarn.lock with an existing root pnpm-lock', async () => {
   const rootDir = f.prepare('workspace-has-partial-pnpm-lock-with-yarn-lock')
   const nestedDir = path.join(rootDir, 'nested')
 
