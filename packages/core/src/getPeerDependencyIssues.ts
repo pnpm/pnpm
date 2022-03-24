@@ -16,6 +16,7 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 | 'preferWorkspacePackages'
 | 'saveWorkspaceProtocol'
 | 'storeController'
+| 'useGitBranchLockfile'
 | 'workspacePackages'
 >
 & Pick<GetContextOptions, 'storeDir'>

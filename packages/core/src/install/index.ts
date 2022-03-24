@@ -769,7 +769,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   const depsStateCache: DepsStateCache = {}
-  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
+  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile, useGitBranchLockfile: opts.useGitBranchLockfile }
   if (!opts.lockfileOnly && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,

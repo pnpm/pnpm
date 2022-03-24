@@ -137,6 +137,7 @@ export interface HeadlessOptions {
   skipped: Set<string>
   enableModulesDir?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
+  useGitBranchLockfile?: boolean
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -146,7 +147,10 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const lockfileDir = opts.lockfileDir
-  const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
+  const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+  })
 
   if (wantedLockfile == null) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)

@@ -51,6 +51,7 @@ export const types = Object.assign({
   'global-dir': String,
   'global-path': String,
   'global-pnpmfile': String,
+  'git-branch-lockfile': Boolean,
   hoist: Boolean,
   'hoist-pattern': Array,
   'ignore-pnpmfile': Boolean,
@@ -173,6 +174,7 @@ export default async (
     'fetch-retry-mintimeout': 10000,
     'fetch-timeout': 60000,
     globalconfig: npmDefaults.globalconfig,
+    'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
@@ -249,6 +251,10 @@ export default async (
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
     return false
   })()
+  pnpmConfig.useGitBranchLockfile = (() => {
+    if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
+    return false
+  })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions['global']) {
@@ -302,6 +308,7 @@ export default async (
       }
       delete pnpmConfig.lockfileDir
     }
+    pnpmConfig.useGitBranchLockfile = false
     if (opts.cliOptions['virtual-store-dir']) {
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')

@@ -1,9 +1,16 @@
 import fs from 'fs'
 import path from 'path'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { getWantedLockfileName } from './lockfileName'
 
-export default async (pkgPath: string) => new Promise((resolve, reject) => {
-  fs.access(path.join(pkgPath, WANTED_LOCKFILE), (err) => {
+interface ExistsWantedLockfileOptions {
+  useGitBranchLockfile?: boolean
+}
+
+export default async (pkgPath: string, opts: ExistsWantedLockfileOptions = {
+  useGitBranchLockfile: false,
+}) => new Promise((resolve, reject) => {
+  const wantedLockfile: string = getWantedLockfileName(opts)
+  fs.access(path.join(pkgPath, wantedLockfile), (err) => {
     if (err == null) {
       resolve(true)
       return

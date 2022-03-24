@@ -15,6 +15,7 @@ import { LockfileBreakingChangeError } from './errors'
 import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import logger from './logger'
 import { LockfileFile } from './write'
+import { getWantedLockfileName } from './lockfileName'
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,
@@ -32,13 +33,24 @@ export async function readWantedLockfileAndAutofixConflicts (
   opts: {
     wantedVersion?: number
     ignoreIncompatible: boolean
+    useGitBranchLockfile?: boolean
   }
 ): Promise<{
     lockfile: Lockfile | null
     hadConflicts: boolean
   }> {
-  const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  return _read(lockfilePath, pkgPath, { ...opts, autofixMergeConflicts: true })
+  let result: { lockfile: Lockfile | null, hadConflicts: boolean} = {
+    lockfile: null,
+    hadConflicts: false,
+  }
+  if (opts.useGitBranchLockfile) {
+    const lockfilePath = path.join(pkgPath, getWantedLockfileName(opts))
+    result = await _read(lockfilePath, pkgPath, { ...opts, autofixMergeConflicts: true })
+  }
+  if (!result.lockfile) {
+    result = await _read(WANTED_LOCKFILE, pkgPath, { ...opts, autofixMergeConflicts: true })
+  }
+  return result
 }
 
 export async function readWantedLockfile (
@@ -46,10 +58,18 @@ export async function readWantedLockfile (
   opts: {
     wantedVersion?: number
     ignoreIncompatible: boolean
+    useGitBranchLockfile?: boolean
   }
 ): Promise<Lockfile | null> {
-  const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  return (await _read(lockfilePath, pkgPath, opts)).lockfile
+  let lockfile: Lockfile | null = null
+  if (opts.useGitBranchLockfile) {
+    const lockfilePath = path.join(pkgPath, getWantedLockfileName(opts))
+    lockfile = (await _read(lockfilePath, pkgPath, opts)).lockfile
+  }
+  if (!lockfile) {
+    lockfile = (await _read(WANTED_LOCKFILE, pkgPath, opts)).lockfile
+  }
+  return lockfile
 }
 
 async function _read (
@@ -59,6 +79,7 @@ async function _read (
     autofixMergeConflicts?: boolean
     wantedVersion?: number
     ignoreIncompatible: boolean
+    useGitBranchLockfile?: boolean
   }
 ): Promise<{
     lockfile: Lockfile | null

@@ -130,6 +130,7 @@ export interface Config {
   modulesDir?: string
   sharedWorkspaceLockfile?: boolean
   useLockfile: boolean
+  useGitBranchLockfile: boolean
   globalPnpmfile?: string
   npmPath?: string
   gitChecks?: boolean
