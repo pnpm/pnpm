@@ -15,6 +15,7 @@ export interface Config {
   allowNew: boolean
   autoInstallPeers?: boolean
   bail: boolean
+  cleanGitBranchLockfiles?: boolean
   color: 'always' | 'auto' | 'never'
   cliOptions: Record<string, any>, // eslint-disable-line
   useBetaCli: boolean

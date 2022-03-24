@@ -35,6 +35,7 @@ export const types = Object.assign({
   bail: Boolean,
   'cache-dir': String,
   'child-concurrency': Number,
+  'clean-git-branch-lockfiles': Boolean,
   color: ['always', 'auto', 'never'],
   'config-dir': String,
   dev: [null, true],
@@ -252,7 +253,7 @@ export default async (
     return false
   })()
   pnpmConfig.useGitBranchLockfile = (() => {
-    if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
+    if (!pnpmConfig.cleanGitBranchLockfiles && typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
     return false
   })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)

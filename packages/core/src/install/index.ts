@@ -25,6 +25,7 @@ import {
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
+  cleanGitBranchLockfiles,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
@@ -193,6 +194,10 @@ export async function mutateModules (
 
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
+  }
+
+  if (opts.cleanGitBranchLockfiles) {
+    await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
   return result

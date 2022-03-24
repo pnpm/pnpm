@@ -24,6 +24,7 @@ export interface StrictInstallOptions {
   hoistingLimits?: HoistingLimits
   useLockfile: boolean
   useGitBranchLockfile: boolean
+  cleanGitBranchLockfiles: boolean
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
   fixLockfile: boolean
@@ -164,6 +165,7 @@ const defaults = async (opts: InstallOptions) => {
     update: false,
     useLockfile: true,
     useGitBranchLockfile: false,
+    cleanGitBranchLockfiles: false,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
     workspacePackages: {},
