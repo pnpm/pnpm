@@ -48,7 +48,7 @@ export async function readWantedLockfileAndAutofixConflicts (
     result = await _read(lockfilePath, pkgPath, { ...opts, autofixMergeConflicts: true })
   }
   if (!result.lockfile) {
-    result = await _read(WANTED_LOCKFILE, pkgPath, { ...opts, autofixMergeConflicts: true })
+    result = await _read(path.join(pkgPath, WANTED_LOCKFILE), pkgPath, { ...opts, autofixMergeConflicts: true })
   }
   return result
 }
@@ -67,7 +67,7 @@ export async function readWantedLockfile (
     lockfile = (await _read(lockfilePath, pkgPath, opts)).lockfile
   }
   if (!lockfile) {
-    lockfile = (await _read(WANTED_LOCKFILE, pkgPath, opts)).lockfile
+    lockfile = (await _read(path.join(pkgPath, WANTED_LOCKFILE), pkgPath, opts)).lockfile
   }
   return lockfile
 }
@@ -79,7 +79,6 @@ async function _read (
     autofixMergeConflicts?: boolean
     wantedVersion?: number
     ignoreIncompatible: boolean
-    useGitBranchLockfile?: boolean
   }
 ): Promise<{
     lockfile: Lockfile | null
