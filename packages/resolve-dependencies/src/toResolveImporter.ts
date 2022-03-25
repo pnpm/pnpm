@@ -120,12 +120,12 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
   return Object.keys(deps)
     .reduce((acc, depName) => {
       if (deps[depName].startsWith('npm:')) {
-        const pref = deps[depName].substr(4)
+        const pref = deps[depName].slice(4)
         const index = pref.lastIndexOf('@')
-        const spec = pref.substr(index + 1)
+        const spec = pref.slice(index + 1)
         const selector = getVerSelType(spec)
         if (selector != null) {
-          const pkgName = pref.substr(0, index)
+          const pkgName = pref.substring(0, index)
           acc[pkgName] = acc[pkgName] || {}
           acc[pkgName][selector.normalized] = selector.type
         }

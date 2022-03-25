@@ -124,7 +124,7 @@ function pickLinkedDirectDeps (
   const directDeps = {}
   for (const [alias, ref] of Object.entries(rootDeps)) {
     if (ref.startsWith('link:')) {
-      directDeps[alias] = path.resolve(importerDir, ref.substr(5))
+      directDeps[alias] = path.resolve(importerDir, ref.slice(5))
     }
   }
   return directDeps

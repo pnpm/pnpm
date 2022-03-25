@@ -20,10 +20,10 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
   let excludeSelf = false
   const includeDependencies = rawSelector.endsWith('...')
   if (includeDependencies) {
-    rawSelector = rawSelector.substring(0, rawSelector.length - 3)
+    rawSelector = rawSelector.slice(0, -3)
     if (rawSelector.endsWith('^')) {
       excludeSelf = true
-      rawSelector = rawSelector.substr(0, rawSelector.length - 1)
+      rawSelector = rawSelector.slice(0, -1)
     }
   }
   const includeDependents = rawSelector.startsWith('...')
@@ -31,7 +31,7 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
     rawSelector = rawSelector.substring(3)
     if (rawSelector.startsWith('^')) {
       excludeSelf = true
-      rawSelector = rawSelector.substr(1)
+      rawSelector = rawSelector.slice(1)
     }
   }
   const matches = rawSelector.match(/^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/)
@@ -50,13 +50,13 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
   }
 
   return {
-    diff: matches[3]?.substr(1, matches[3].length - 2),
+    diff: matches[3]?.slice(1, -1),
     exclude,
     excludeSelf,
     includeDependencies,
     includeDependents,
     namePattern: matches[1],
-    parentDir: matches[2] && path.join(prefix, matches[2].substr(1, matches[2].length - 2)),
+    parentDir: matches[2] && path.join(prefix, matches[2].slice(1, -1)),
   }
 }
 

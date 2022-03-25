@@ -60,7 +60,7 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
           if (isWorkspaceSpec) {
-            rawSpec = rawSpec.substr(10)
+            rawSpec = rawSpec.slice(10)
             if (rawSpec === '^' || rawSpec === '~') {
               rawSpec = '*'
             };

@@ -143,7 +143,7 @@ function toPackageDependenciesMap (
 ): Array<[string, string | [string, string]]> {
   return Object.entries(deps).map(([depAlias, ref]) => {
     if (importerId && ref.startsWith('link:')) {
-      return [depAlias, path.join(importerId, ref.substr(5))]
+      return [depAlias, path.join(importerId, ref.slice(5))]
     }
     const relDepPath = refToRelative(ref, depAlias)
     if (!relDepPath) return [depAlias, ref]

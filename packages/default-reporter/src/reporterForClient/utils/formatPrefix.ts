@@ -9,7 +9,7 @@ export default function formatPrefix (cwd: string, prefix: string) {
     return prefix
   }
 
-  const shortPrefix = prefix.substr(-PREFIX_MAX_LENGTH + 3)
+  const shortPrefix = prefix.slice(-PREFIX_MAX_LENGTH + 3)
 
   const separatorLocation = shortPrefix.indexOf('/')
 
@@ -17,7 +17,7 @@ export default function formatPrefix (cwd: string, prefix: string) {
     return `...${shortPrefix}`
   }
 
-  return `...${shortPrefix.substr(separatorLocation)}`
+  return `...${shortPrefix.slice(separatorLocation)}`
 }
 
 export function formatPrefixNoTrim (cwd: string, prefix: string) {

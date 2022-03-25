@@ -508,8 +508,8 @@ export function createMatcher (params: string[]) {
       pattern = param
       spec = ''
     } else {
-      pattern = param.substr(0, atIndex)
-      spec = param.substr(atIndex + 1)
+      pattern = param.slice(0, atIndex)
+      spec = param.slice(atIndex + 1)
     }
     return {
       match: matcher(pattern),

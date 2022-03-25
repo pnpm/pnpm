@@ -457,7 +457,7 @@ async function linkAllModules (
           Object.entries(childrenToLink)
             .map(async ([childAlias, childDepPath]) => {
               if (childDepPath.startsWith('link:')) {
-                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.substr(5)), modules, childAlias))
+                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.slice(5)), modules, childAlias))
                 return
               }
               const pkg = depGraph[childDepPath]

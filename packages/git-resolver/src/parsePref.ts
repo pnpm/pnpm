@@ -36,7 +36,7 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
   }
   const colonsPos = pref.indexOf(':')
   if (colonsPos === -1) return null
-  const protocol = pref.substr(0, colonsPos)
+  const protocol = pref.slice(0, colonsPos)
   if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
     const urlparse = new URL(escapeColon(pref))
     if (!urlparse || !urlparse.protocol) return null
@@ -69,7 +69,7 @@ function urlToFetchSpec (urlparse: URL) {
   urlparse.hash = ''
   const fetchSpec = url.format(urlparse)
   if (fetchSpec.startsWith('git+')) {
-    return fetchSpec.substr(4)
+    return fetchSpec.slice(4)
   }
   return fetchSpec
 }
@@ -107,7 +107,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetch(httpsUrl.substr(0, httpsUrl.length - 4), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+          const response = await fetch(httpsUrl.slice(0, -4), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
           if (response.ok) {
             fetchSpec = httpsUrl
           }

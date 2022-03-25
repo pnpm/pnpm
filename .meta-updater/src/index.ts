@@ -83,7 +83,7 @@ async function updateTSConfig (
   const references = [] as Array<{ path: string }>
   for (const [depName, spec] of Object.entries(deps)) {
     if (!spec.startsWith('link:') || spec.length === 5) continue
-    const relativePath = spec.substr(5)
+    const relativePath = spec.slice(5)
     if (!await exists(path.join(dir, relativePath, 'tsconfig.json'))) continue
     if (
       depName === '@pnpm/package-store' && (

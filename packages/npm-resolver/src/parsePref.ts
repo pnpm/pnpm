@@ -16,14 +16,14 @@ export default function parsePref (
 ): RegistryPackageSpec | null {
   let name = alias
   if (pref.startsWith('npm:')) {
-    pref = pref.substr(4)
+    pref = pref.slice(4)
     const index = pref.lastIndexOf('@')
     if (index < 1) {
       name = pref
       pref = defaultTag
     } else {
-      name = pref.substr(0, index)
-      pref = pref.substr(index + 1)
+      name = pref.slice(0, index)
+      pref = pref.slice(index + 1)
     }
   }
   if (name) {

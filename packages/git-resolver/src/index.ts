@@ -121,6 +121,6 @@ function resolveRefFromRefs (refs: {[ref: string]: string}, repo: string, ref: s
 }
 
 function isSsh (gitSpec: string): boolean {
-  return gitSpec.substr(0, 10) === 'git+ssh://' ||
-    gitSpec.substr(0, 4) === 'git@'
+  return gitSpec.slice(0, 10) === 'git+ssh://' ||
+    gitSpec.slice(0, 4) === 'git@'
 }

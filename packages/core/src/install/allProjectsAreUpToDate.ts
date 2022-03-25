@@ -90,7 +90,7 @@ async function linkedPackagesAreUpToDate (
         continue
       }
       const linkedDir = isLinked
-        ? path.join(project.dir, lockfileRef.substr(5))
+        ? path.join(project.dir, lockfileRef.slice(5))
         : workspacePackages?.[depName]?.[lockfileRef]?.dir
       if (!linkedDir) continue
       if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
@@ -110,12 +110,12 @@ async function linkedPackagesAreUpToDate (
 }
 
 function getVersionRange (spec: string) {
-  if (spec.startsWith('workspace:')) return spec.substr(10)
+  if (spec.startsWith('workspace:')) return spec.slice(10)
   if (spec.startsWith('npm:')) {
-    spec = spec.substr(4)
+    spec = spec.slice(4)
     const index = spec.indexOf('@', 1)
     if (index === -1) return '*'
-    return spec.substr(index + 1) || '*'
+    return spec.slice(index + 1) || '*'
   }
   return spec
 }

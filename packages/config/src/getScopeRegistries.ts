@@ -4,7 +4,7 @@ export default function getScopeRegistries (rawConfig: Object) {
   const registries = {}
   for (const configKey of Object.keys(rawConfig)) {
     if (configKey[0] === '@' && configKey.endsWith(':registry')) {
-      registries[configKey.substr(0, configKey.indexOf(':'))] = normalizeRegistryUrl(rawConfig[configKey])
+      registries[configKey.slice(0, configKey.indexOf(':'))] = normalizeRegistryUrl(rawConfig[configKey])
     }
   }
   return registries
