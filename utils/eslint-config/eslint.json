@@ -76,6 +76,13 @@
     "max-len": "off",
     "no-multiple-empty-lines": "error",
     "no-redeclare": "error",
+    "no-restricted-properties": [
+      "error",
+      {
+        "property": "substr",
+        "message": "Use .slice instead of .substr."
+      }
+    ],
     "no-trailing-spaces": "error",
     "no-var": "error",
     "space-before-function-paren": [
