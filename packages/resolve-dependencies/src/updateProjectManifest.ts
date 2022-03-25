@@ -127,11 +127,11 @@ function getPrefPreferSpecifiedSpec (
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
-    const range = opts.specRaw.substr(`${opts.alias}@${prefix}`.length)
+    const range = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
     if (range) {
       const selector = versionSelectorType(range)
       if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
-        return opts.specRaw.substr(opts.alias.length + 1)
+        return opts.specRaw.slice(opts.alias.length + 1)
       }
     }
   }
@@ -153,10 +153,10 @@ function getPrefPreferSpecifiedExoticSpec (
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`) && opts.specRaw !== `${opts.alias}@workspace:*`) {
-    const specWithoutName = opts.specRaw.substr(`${opts.alias}@${prefix}`.length)
+    const specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
     const selector = versionSelectorType(specWithoutName)
     if (!((selector != null) && (selector.type === 'version' || selector.type === 'range'))) {
-      return opts.specRaw.substr(opts.alias.length + 1)
+      return opts.specRaw.slice(opts.alias.length + 1)
     }
   }
   return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`

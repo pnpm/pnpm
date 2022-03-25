@@ -234,7 +234,7 @@ async function getChildrenPaths (
   for (const alias of Object.keys(allDeps)) {
     const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.lockfileDir, importerId, allDeps[alias].substr(5))
+      children[alias] = path.resolve(ctx.lockfileDir, importerId, allDeps[alias].slice(5))
       continue
     }
     const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
@@ -246,7 +246,7 @@ async function getChildrenPaths (
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath), 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
-      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
+      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].slice(5))
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }

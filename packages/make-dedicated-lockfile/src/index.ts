@@ -23,7 +23,7 @@ export default async function (lockfileDir: string, projectDir: string) {
   const baseImporterId = getLockfileImporterId(lockfileDir, projectDir)
   for (const [importerId, importer] of Object.entries(allImporters)) {
     if (importerId.startsWith(`${baseImporterId}/`)) {
-      const newImporterId = importerId.substr(baseImporterId.length + 1)
+      const newImporterId = importerId.slice(baseImporterId.length + 1)
       lockfile.importers[newImporterId] = projectSnapshotWithoutLinkedDeps(importer)
       continue
     }

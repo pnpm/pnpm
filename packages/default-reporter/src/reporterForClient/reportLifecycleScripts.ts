@@ -206,7 +206,7 @@ function formatIndentedStatus (status: string) {
 
 function highlightLastFolder (p: string) {
   const lastSlash = p.lastIndexOf('/') + 1
-  return `${chalk.gray(p.substr(0, lastSlash))}${p.substr(lastSlash)}`
+  return `${chalk.gray(p.slice(0, lastSlash))}${p.slice(lastSlash)}`
 }
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
@@ -268,7 +268,7 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
 }
 
 function cutLine (line: string, maxLength: number) {
-  return stripAnsi(line).substr(0, maxLength)
+  return stripAnsi(line).slice(0, maxLength)
 }
 
 function aggregateOutput (source: Rx.Observable<LifecycleLog>) {

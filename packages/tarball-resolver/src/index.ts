@@ -27,7 +27,7 @@ const GIT_HOSTERS = new Set([
 
 function isRepository (pref: string) {
   if (pref.endsWith('/')) {
-    pref = pref.substr(0, pref.length - 1)
+    pref = pref.slice(0, -1)
   }
   const parts = pref.split('/')
   return (parts.length === 5 && GIT_HOSTERS.has(parts[2]))

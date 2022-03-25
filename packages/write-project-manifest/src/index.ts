@@ -18,7 +18,7 @@ export default async function writeProjectManifest (
     insertFinalNewline?: boolean
   }
 ): Promise<void> {
-  const fileType = filePath.substr(filePath.lastIndexOf('.') + 1).toLowerCase()
+  const fileType = filePath.slice(filePath.lastIndexOf('.') + 1).toLowerCase()
   if (fileType === 'yaml') {
     return writeYamlFile(filePath, manifest, YAML_FORMAT)
   }

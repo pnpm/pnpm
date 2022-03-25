@@ -100,7 +100,7 @@ function toUri (pkgName: string, registry: string) {
   let encodedName: string
 
   if (pkgName[0] === '@') {
-    encodedName = `@${encodeURIComponent(pkgName.substr(1))}`
+    encodedName = `@${encodeURIComponent(pkgName.slice(1))}`
   } else {
     encodedName = encodeURIComponent(pkgName)
   }

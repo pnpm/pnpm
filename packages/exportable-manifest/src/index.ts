@@ -108,7 +108,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
     return `${semverRangeToken}${manifest.version}`
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
-    const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.substr(10)))
+    const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.slice(10)))
     if ((manifest == null) || !manifest.name || !manifest.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
@@ -119,7 +119,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
     if (manifest.name === depName) return `${manifest.version}`
     return `npm:${manifest.name}@${manifest.version}`
   }
-  depSpec = depSpec.substr(10)
+  depSpec = depSpec.slice(10)
   if (depSpec.includes('@')) {
     return `npm:${depSpec}`
   }

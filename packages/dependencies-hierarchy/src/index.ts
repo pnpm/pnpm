@@ -395,7 +395,7 @@ function getPkgInfo (
     isPeer: Boolean(opts.peers?.has(opts.alias)),
     isSkipped,
     name,
-    path: depPath ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath)) : path.join(opts.modulesDir, '..', opts.ref.substr(5)),
+    path: depPath ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath)) : path.join(opts.modulesDir, '..', opts.ref.slice(5)),
     version,
   }
   if (resolved) {

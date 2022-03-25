@@ -255,10 +255,10 @@ export function relativeTarball (tarball: string, registry: string) {
   // So we add @mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz
   // not /@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz
   // Related issue: https://github.com/pnpm/pnpm/issues/1827
-  if (tarball.substr(0, registry.length) !== registry) {
+  if (tarball.slice(0, registry.length) !== registry) {
     return tarball
   }
-  const relative = tarball.substr(registry.length)
+  const relative = tarball.slice(registry.length)
   if (relative[0] === '/') return relative.substring(1)
   return relative
 }

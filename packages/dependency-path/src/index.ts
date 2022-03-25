@@ -14,7 +14,8 @@ export function resolve (
   if (!isAbsolute(resolutionLocation)) {
     let registryUrl!: string
     if (resolutionLocation[1] === '@') {
-      const scope = resolutionLocation.substr(1, resolutionLocation.indexOf('/', 1) - 1)
+      const slashIndex = resolutionLocation.indexOf('/', 1)
+      const scope = resolutionLocation.slice(1, slashIndex !== -1 ? slashIndex : 0)
       registryUrl = registries[scope] || registries.default
     } else {
       registryUrl = registries.default
@@ -31,7 +32,7 @@ export function tryGetPackageId (registries: Registries, relDepPath: string) {
   }
   const underscoreIndex = relDepPath.indexOf('_', relDepPath.lastIndexOf('/'))
   if (underscoreIndex !== -1) {
-    return resolve(registries, relDepPath.substr(0, underscoreIndex))
+    return resolve(registries, relDepPath.slice(0, underscoreIndex))
   }
   return resolve(registries, relDepPath)
 }
@@ -55,7 +56,7 @@ export function refToAbsolute (
 
 export function getRegistryByPackageName (registries: Registries, packageName: string) {
   if (packageName[0] !== '@') return registries.default
-  const scope = packageName.substr(0, packageName.indexOf('/'))
+  const scope = packageName.substring(0, packageName.indexOf('/'))
   return registries[scope] || registries.default
 }
 
@@ -67,7 +68,7 @@ export function relative (
   const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
 
   if (absoluteResolutionLoc.startsWith(`${registryName}/`)) {
-    return absoluteResolutionLoc.substr(absoluteResolutionLoc.indexOf('/'))
+    return absoluteResolutionLoc.slice(absoluteResolutionLoc.indexOf('/'))
   }
   return absoluteResolutionLoc
 }
@@ -142,7 +143,7 @@ function depPathToFilenameUnescaped (depPath: string) {
       depPath = depPath.substring(1)
     }
     const index = depPath.lastIndexOf('/')
-    return `${depPath.substring(0, index)}@${depPath.substr(index + 1)}`
+    return `${depPath.substring(0, index)}@${depPath.slice(index + 1)}`
   }
   return depPath.replace(':', '+')
 }
