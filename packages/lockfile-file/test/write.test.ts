@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { getCurrentBranchName } from './utils/mockGitChecks'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   readCurrentLockfile,
@@ -190,4 +191,40 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
     wantedLockfile,
     wantedLockfileDir: projectPath,
   })
+})
+
+test('writeLockfiles() when useGitBranchLockfile', async () => {
+  const branchName: string = 'branch'
+  getCurrentBranchName.mockReturnValue(branchName)
+  const projectPath = tempy.directory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/foo/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+    useGitBranchLockfile: true,
+  })
+  expect(fs.existsSync(path.join(projectPath, WANTED_LOCKFILE))).toBeFalsy()
+  expect(fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))).toBeTruthy()
 })

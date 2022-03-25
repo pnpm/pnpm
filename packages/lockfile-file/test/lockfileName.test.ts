@@ -1,13 +1,4 @@
-/* eslint-disable import/first */
-const getCurrentBranchName = jest.fn()
-jest.mock('@pnpm/lockfile-file/lib/gitChecks', () => {
-  const original = jest.requireActual('@pnpm/lockfile-file/lib/gitChecks')
-  return {
-    ...original,
-    getCurrentBranchName,
-  }
-})
-
+import { getCurrentBranchName } from './utils/mockGitChecks'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getWantedLockfileName } from '@pnpm/lockfile-file/lib/lockfileName'
 

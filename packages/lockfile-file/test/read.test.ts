@@ -1,4 +1,5 @@
 import path from 'path'
+import { getCurrentBranchName } from './utils/mockGitChecks'
 import {
   existsWantedLockfile,
   readCurrentLockfile,
@@ -189,4 +190,30 @@ test('existsWantedLockfile()', async () => {
     },
   })
   expect(await existsWantedLockfile(projectPath)).toBe(true)
+})
+
+test('readWantedLockfile() when useGitBranchLockfile', async () => {
+  getCurrentBranchName.mockReturnValue('branch')
+  const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+  })
+  expect(lockfile?.importers).toEqual({
+    '.': {
+      specifiers: {
+        foo: '1',
+      },
+    },
+  })
+
+  const gitBranchLockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+  })
+  expect(gitBranchLockfile?.importers).toEqual({
+    '.': {
+      specifiers: {
+        foo: '2',
+      },
+    },
+  })
 })
