@@ -46,11 +46,11 @@ export async function readWantedLockfileAndAutofixConflicts (
   if (opts.useGitBranchLockfile) {
     const lockfilePath = path.join(pkgPath, getWantedLockfileName(opts))
     result = await _read(lockfilePath, pkgPath, { ...opts, autofixMergeConflicts: true })
+    if (result.lockfile) {
+      return result
+    }
   }
-  if (!result.lockfile) {
-    result = await _read(path.join(pkgPath, WANTED_LOCKFILE), pkgPath, { ...opts, autofixMergeConflicts: true })
-  }
-  return result
+  return await _read(path.join(pkgPath, WANTED_LOCKFILE), pkgPath, { ...opts, autofixMergeConflicts: true })
 }
 
 export async function readWantedLockfile (
@@ -65,11 +65,11 @@ export async function readWantedLockfile (
   if (opts.useGitBranchLockfile) {
     const lockfilePath = path.join(pkgPath, getWantedLockfileName(opts))
     lockfile = (await _read(lockfilePath, pkgPath, opts)).lockfile
+    if (lockfile) {
+      return lockfile
+    }
   }
-  if (!lockfile) {
-    lockfile = (await _read(path.join(pkgPath, WANTED_LOCKFILE), pkgPath, opts)).lockfile
-  }
-  return lockfile
+  return (await _read(path.join(pkgPath, WANTED_LOCKFILE), pkgPath, opts)).lockfile
 }
 
 async function _read (
