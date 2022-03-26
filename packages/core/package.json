@@ -22,6 +22,7 @@
     "@pnpm/error": "workspace:3.0.0",
     "@pnpm/filter-lockfile": "workspace:6.0.0",
     "@pnpm/get-context": "workspace:6.0.0",
+    "@pnpm/git-utils": "workspace:0.0.0",
     "@pnpm/headless": "workspace:18.0.0",
     "@pnpm/hoist": "workspace:6.0.0",
     "@pnpm/lifecycle": "workspace:13.0.0",

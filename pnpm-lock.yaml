@@ -399,6 +399,7 @@ importers:
       '@pnpm/error': workspace:3.0.0
       '@pnpm/filter-lockfile': workspace:6.0.0
       '@pnpm/get-context': workspace:6.0.0
+      '@pnpm/git-utils': workspace:0.0.0
       '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/headless': workspace:18.0.0
       '@pnpm/hoist': workspace:6.0.0
@@ -475,6 +476,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/filter-lockfile': link:../filter-lockfile
       '@pnpm/get-context': link:../get-context
+      '@pnpm/git-utils': link:../git-utils
       '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/headless': link:../headless
       '@pnpm/hoist': link:../hoist

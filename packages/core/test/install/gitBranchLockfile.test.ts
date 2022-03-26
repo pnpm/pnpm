@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { getCurrentBranch } from '@pnpm/git-utils/test/index'
+import { getCurrentBranch } from '@pnpm/git-utils/test/utils/mock'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, mutateModules } from '@pnpm/core'
 import { testDefaults } from '../utils'
