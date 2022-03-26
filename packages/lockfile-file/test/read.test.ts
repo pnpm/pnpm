@@ -1,5 +1,5 @@
 import path from 'path'
-import { getCurrentBranchName } from './utils/mockGitChecks'
+import { getCurrentBranch } from '@pnpm/git-utils/test/utils/mock'
 import {
   existsWantedLockfile,
   readCurrentLockfile,
@@ -193,7 +193,7 @@ test('existsWantedLockfile()', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile', async () => {
-  getCurrentBranchName.mockReturnValue('branch')
+  getCurrentBranch.mockReturnValue('branch')
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
   })

@@ -32,7 +32,7 @@ export async function writeWantedLockfile (
     useGitBranchLockfile?: boolean
   }
 ) {
-  const wantedLockfileName: string = getWantedLockfileName(opts)
+  const wantedLockfileName: string = await getWantedLockfileName(opts)
   return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile, opts)
 }
 
@@ -148,7 +148,7 @@ export default async function writeLockfiles (
     useGitBranchLockfile?: boolean
   }
 ) {
-  const wantedLockfileName: string = getWantedLockfileName(opts)
+  const wantedLockfileName: string = await getWantedLockfileName(opts)
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 

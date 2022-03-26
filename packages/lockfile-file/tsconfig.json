@@ -16,6 +16,9 @@
       "path": "../error"
     },
     {
+      "path": "../git-utils"
+    },
+    {
       "path": "../lockfile-types"
     },
     {

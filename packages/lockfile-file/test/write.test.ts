@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { getCurrentBranchName } from './utils/mockGitChecks'
+import { getCurrentBranch } from '@pnpm/git-utils/test/utils/mock'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   readCurrentLockfile,
@@ -195,7 +195,7 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
 
 test('writeLockfiles() when useGitBranchLockfile', async () => {
   const branchName: string = 'branch'
-  getCurrentBranchName.mockReturnValue(branchName)
+  getCurrentBranch.mockReturnValue(branchName)
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {

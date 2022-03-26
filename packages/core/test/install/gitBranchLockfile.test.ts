@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { getCurrentBranchName } from '@pnpm/lockfile-file/test/utils/mockGitChecks'
+import { getCurrentBranch } from '@pnpm/git-utils/test/index'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, mutateModules } from '@pnpm/core'
 import { testDefaults } from '../utils'
@@ -12,7 +12,7 @@ test('install with git-branch-lockfile = true', async () => {
   const project = prepareEmpty()
 
   const branchName: string = 'main-branch'
-  getCurrentBranchName.mockReturnValue(branchName)
+  getCurrentBranch.mockReturnValue(branchName)
 
   const opts = await testDefaults({
     useGitBranchLockfile: true,
@@ -57,7 +57,7 @@ test('install a workspace with git-branch-lockfile = true', async () => {
   ])
 
   const branchName: string = 'main-branch'
-  getCurrentBranchName.mockReturnValue(branchName)
+  getCurrentBranch.mockReturnValue(branchName)
 
   const opts = await testDefaults({
     useGitBranchLockfile: true,
@@ -93,7 +93,7 @@ test('install with --clean-git-branch-lockfiles', async () => {
   prepareEmpty()
 
   const branchName: string = 'main-branch'
-  getCurrentBranchName.mockReturnValue(branchName)
+  getCurrentBranch.mockReturnValue(branchName)
 
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
   const mainLockfilePath: string = path.resolve(WANTED_LOCKFILE)
