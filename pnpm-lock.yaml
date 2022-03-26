@@ -1037,10 +1037,12 @@ importers:
     specifiers:
       '@pnpm/git-utils': workspace:0.0.0
       execa: npm:safe-execa@^0.1.1
+      tempy: ^1.0.0
     dependencies:
       execa: /safe-execa/0.1.1
     devDependencies:
       '@pnpm/git-utils': 'link:'
+      tempy: 1.0.1
 
   packages/graceful-fs:
     specifiers:
@@ -6376,7 +6378,7 @@ packages:
     dev: true
 
   /array-union/2.1.0:
-    resolution: {integrity: sha512-HGyxoOTYUyCM6stUe6EJgnd4EoewAI7zMdfqO+kGjnlZmBDz/cR5pf8r/cR4Wq60sL/p0IkcjUEEPwS3GFrIyw==}
+    resolution: {integrity: sha1-t5hCCtvrHego2ErNii4j0+/oXo0=}
     engines: {node: '>=8'}
 
   /array-uniq/1.0.3:
@@ -6653,7 +6655,7 @@ packages:
       wrap-ansi: 7.0.0
 
   /brace-expansion/1.1.11:
-    resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
+    resolution: {integrity: sha1-PH/L9SnYcibz0vUrlm/1Jx60Qd0=}
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
@@ -9915,7 +9917,7 @@ packages:
     dev: true
 
   /is-path-cwd/2.2.0:
-    resolution: {integrity: sha512-w942bTcih8fdJPJmQHFzkS76NEP8Kzzvmw92cXsazb8intwLqPibPPdXf4ANdKV3rYMuuQYGIWtvz9JilB3NFQ==}
+    resolution: {integrity: sha1-Z9Q7gmZKe1GR/ZEZEn6zAASKn9s=}
     engines: {node: '>=6'}
 
   /is-path-inside/3.0.3:
@@ -11314,7 +11316,7 @@ packages:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
 
   /merge2/1.4.1:
-    resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
+    resolution: {integrity: sha1-Q2iJL4hekHRVpv19xVwMnUBJkK4=}
     engines: {node: '>= 8'}
 
   /methods/1.1.2:
@@ -12309,7 +12311,7 @@ packages:
     dev: true
 
   /path-type/4.0.0:
-    resolution: {integrity: sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==}
+    resolution: {integrity: sha1-hO0BwKe6OAr+CdkKjBgNzZ0DBDs=}
     engines: {node: '>=8'}
 
   /peek-stream/1.1.3:
