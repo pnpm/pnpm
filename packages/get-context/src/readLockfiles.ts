@@ -35,6 +35,7 @@ export default async function (
     registry: string
     useLockfile: boolean
     useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
     virtualStoreDir: string
   }
 ): Promise<{
@@ -51,6 +52,7 @@ export default async function (
     ignoreIncompatible: opts.force || isCI,
     wantedVersion: LOCKFILE_VERSION,
     useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   const fileReads = [] as Array<Promise<Lockfile | undefined | null>>
   let lockfileHadConflicts: boolean = false

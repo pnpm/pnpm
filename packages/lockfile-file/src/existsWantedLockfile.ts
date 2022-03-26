@@ -4,10 +4,12 @@ import { getWantedLockfileName } from './lockfileName'
 
 interface ExistsWantedLockfileOptions {
   useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
 }
 
 export default async (pkgPath: string, opts: ExistsWantedLockfileOptions = {
   useGitBranchLockfile: false,
+  mergeGitBranchLockfiles: false,
 }) => {
   const wantedLockfile: string = await getWantedLockfileName(opts)
   return new Promise((resolve, reject) => {

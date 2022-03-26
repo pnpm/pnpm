@@ -89,7 +89,7 @@ test('install a workspace with git-branch-lockfile = true', async () => {
   expect(fs.existsSync(path.join(lockfileDir, WANTED_LOCKFILE))).toBe(false)
 })
 
-test('install with --clean-git-branch-lockfiles', async () => {
+test('install with --merge-git-branch-lockfiles', async () => {
   prepareEmpty()
 
   const branchName: string = 'main-branch'
@@ -105,7 +105,8 @@ test('install with --clean-git-branch-lockfiles', async () => {
   expect(fs.existsSync(mainLockfilePath)).toBe(false)
 
   const opts = await testDefaults({
-    cleanGitBranchLockfiles: true,
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
   })
   await install({
     dependencies: {

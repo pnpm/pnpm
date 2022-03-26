@@ -11,6 +11,7 @@ import writeFileAtomicCB from 'write-file-atomic'
 import logger from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
 import { getWantedLockfileName } from './lockfileName'
+import { cleanGitBranchLockfiles } from './gitBranchLockfile'
 
 async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => (err != null) ? reject(err) : resolve()))
@@ -30,10 +31,15 @@ export async function writeWantedLockfile (
   opts?: {
     forceSharedFormat?: boolean
     useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
   }
 ) {
   const wantedLockfileName: string = await getWantedLockfileName(opts)
-  return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile, opts)
+  const writeResult = await writeLockfile(wantedLockfileName, pkgPath, wantedLockfile, opts)
+  if (opts?.mergeGitBranchLockfiles) {
+    await cleanGitBranchLockfiles(pkgPath)
+  }
+  return writeResult
 }
 
 export async function writeCurrentLockfile (
@@ -146,6 +152,7 @@ export default async function writeLockfiles (
     currentLockfile: Lockfile
     currentLockfileDir: string
     useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
   }
 ) {
   const wantedLockfileName: string = await getWantedLockfileName(opts)
@@ -175,6 +182,11 @@ export default async function writeLockfiles (
         await writeFileAtomic(currentLockfilePath, yamlDoc)
       })(),
     ])
+
+    if (opts.mergeGitBranchLockfiles) {
+      await cleanGitBranchLockfiles(opts.wantedLockfileDir)
+    }
+
     return
   }
 
@@ -192,4 +204,8 @@ export default async function writeLockfiles (
       await writeFileAtomic(currentLockfilePath, currentYamlDoc)
     })(),
   ])
+
+  if (opts.mergeGitBranchLockfiles) {
+    await cleanGitBranchLockfiles(opts.wantedLockfileDir)
+  }
 }

@@ -31,6 +31,7 @@ interface StrictLinkOptions {
   forcePublicHoistPattern: boolean
 
   useGitBranchLockfile: boolean
+  mergeGitBranchLockfiles: boolean
 }
 
 export type LinkOptions =

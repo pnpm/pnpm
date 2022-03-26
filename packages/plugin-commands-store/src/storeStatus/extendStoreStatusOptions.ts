@@ -11,7 +11,6 @@ export interface StrictStoreStatusOptions {
   forceSharedLockfile: boolean
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   useLockfile: boolean
-  useGitBranchLockfile: boolean
   registries: Registries
   shamefullyHoist: boolean
 
@@ -39,7 +38,6 @@ const defaults = async (opts: StoreStatusOptions) => {
     shamefullyHoist: false,
     storeDir: opts.storeDir,
     useLockfile: true,
-    useGitBranchLockfile: false,
   } as StrictStoreStatusOptions
 }
 

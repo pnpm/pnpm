@@ -12,7 +12,7 @@ export function rcOptionsTypes () {
   return pick([
     'cache-dir',
     'child-concurrency',
-    'clean-git-branch-lockfiles',
+    'merge-git-branch-lockfiles',
     'dev',
     'engine-strict',
     'fetch-retries',
@@ -141,8 +141,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--fix-lockfile',
           },
           {
-            description: 'Clean lockfiles were generated on git branch',
-            name: '--clean-git-branch-lockfiles',
+            description: 'Merge lockfiles were generated on git branch',
+            name: '--merge-git-branch-lockfiles',
           },
           {
             description: 'The directory in which dependencies will be installed (instead of node_modules)',

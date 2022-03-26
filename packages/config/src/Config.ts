@@ -15,7 +15,6 @@ export interface Config {
   allowNew: boolean
   autoInstallPeers?: boolean
   bail: boolean
-  cleanGitBranchLockfiles?: boolean
   color: 'always' | 'auto' | 'never'
   cliOptions: Record<string, any>, // eslint-disable-line
   useBetaCli: boolean
@@ -132,6 +131,7 @@ export interface Config {
   sharedWorkspaceLockfile?: boolean
   useLockfile: boolean
   useGitBranchLockfile: boolean
+  mergeGitBranchLockfiles?: boolean
   globalPnpmfile?: string
   npmPath?: string
   gitChecks?: boolean

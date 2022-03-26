@@ -200,7 +200,14 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
   expect(lockfile?.importers).toEqual({
     '.': {
       specifiers: {
-        foo: '1',
+        'is-positive': '1.0.0',
+      },
+    },
+  })
+  expect(lockfile?.packages).toStrictEqual({
+    '/is-positive/1.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
     },
   })
@@ -212,7 +219,42 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
   expect(gitBranchLockfile?.importers).toEqual({
     '.': {
       specifiers: {
-        foo: '2',
+        'is-positive': '2.0.0',
+      },
+    },
+  })
+  expect(gitBranchLockfile?.packages).toStrictEqual({
+    '/is-positive/2.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+  })
+})
+
+test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles', async () => {
+  getCurrentBranch.mockReturnValue('branch')
+  const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+  })
+  expect(lockfile?.importers).toEqual({
+    '.': {
+      specifiers: {
+        'is-positive': '1.0.0',
+      },
+    },
+  })
+  expect(lockfile?.packages).toStrictEqual({
+    '/is-positive/1.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+    '/is-positive/2.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
     },
   })

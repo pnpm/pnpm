@@ -3,10 +3,11 @@ import { getCurrentBranch } from '@pnpm/git-utils'
 
 export interface GetWantedLockfileNameOptions {
   useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
 }
 
-export async function getWantedLockfileName (opts: GetWantedLockfileNameOptions = { useGitBranchLockfile: false }) {
-  if (opts.useGitBranchLockfile) {
+export async function getWantedLockfileName (opts: GetWantedLockfileNameOptions = { useGitBranchLockfile: false, mergeGitBranchLockfiles: false }) {
+  if (opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles) {
     const currentBranchName = await getCurrentBranch()
     if (currentBranchName) {
       return WANTED_LOCKFILE.replace('.yaml', `.${stringifyBranchName(currentBranchName)}.yaml`)

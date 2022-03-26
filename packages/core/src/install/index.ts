@@ -25,7 +25,6 @@ import {
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
-  cleanGitBranchLockfiles,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
@@ -194,10 +193,6 @@ export async function mutateModules (
 
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
-  }
-
-  if (opts.cleanGitBranchLockfiles) {
-    await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
   return result
@@ -774,7 +769,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   const depsStateCache: DepsStateCache = {}
-  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile, useGitBranchLockfile: opts.useGitBranchLockfile }
+  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile, useGitBranchLockfile: opts.useGitBranchLockfile, mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles }
   if (!opts.lockfileOnly && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
