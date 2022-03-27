@@ -138,7 +138,6 @@ export interface HeadlessOptions {
   enableModulesDir?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
-  mergeGitBranchLockfiles?: boolean
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -151,7 +150,8 @@ export default async (opts: HeadlessOptions) => {
   const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, {
     ignoreIncompatible: false,
     useGitBranchLockfile: opts.useGitBranchLockfile,
-    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    // mergeGitBranchLockfiles is intentionally not supported in headless
+    mergeGitBranchLockfiles: false,
   })
 
   if (wantedLockfile == null) {
