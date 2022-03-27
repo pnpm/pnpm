@@ -135,3 +135,28 @@ test('publish: fails git check if branch is not up-to-date', async () => {
     new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.')
   )
 })
+
+test('publish: fails git check if HEAD is detached', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  await execa('git', ['init'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
+  await execa('git', ['add', '*'])
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
+  await execa('git', ['checkout', 'HEAD~1'])
+
+  await expect(
+    publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      dir: process.cwd(),
+    }, [])
+  ).rejects.toThrow(
+    new PnpmError('GIT_UNKNOWN_BRANCH', 'The Git HEAD may not attached to any branch, but your "publish-branch" is set to "master|main".')
+  )
+})
