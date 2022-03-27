@@ -116,6 +116,15 @@ export async function handler (
     }
     const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
     const currentBranch = await getCurrentBranch()
+    if (currentBranch === null) {
+      throw new PnpmError(
+        'GIT_UNKNOWN_BRANCH',
+        `The Git HEAD may not attached to any branch, but your "publish-branch" is set to "${branches.join('|')}".`,
+        {
+          hint: GIT_CHECKS_HINT,
+        }
+      )
+    }
     if (!branches.includes(currentBranch)) {
       const { confirm } = await prompt({
         message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
