@@ -41,24 +41,10 @@ export async function readWantedLockfileAndAutofixConflicts (
     lockfile: Lockfile | null
     hadConflicts: boolean
   }> {
-  const lockfileNames: string[] = [WANTED_LOCKFILE]
-  if (opts.useGitBranchLockfile) {
-    const gitBranchLockfileName: string = await getWantedLockfileName(opts)
-    if (gitBranchLockfileName !== WANTED_LOCKFILE) {
-      lockfileNames.unshift(gitBranchLockfileName)
-    }
-  }
-  let result: { lockfile: Lockfile | null, hadConflicts: boolean } = { lockfile: null, hadConflicts: false }
-  for (const lockfileName of lockfileNames) {
-    result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
-    if (result.lockfile) {
-      if (opts.mergeGitBranchLockfiles) {
-        result.lockfile = await _mergeGitBranchLockfiles(result.lockfile, pkgPath, pkgPath, opts)
-      }
-      break
-    }
-  }
-  return result
+  return _readWantedLockfile(pkgPath, {
+    ...opts,
+    autofixMergeConflicts: true,
+  })
 }
 
 export async function readWantedLockfile (
@@ -70,24 +56,7 @@ export async function readWantedLockfile (
     mergeGitBranchLockfiles?: boolean
   }
 ): Promise<Lockfile | null> {
-  const lockfileNames: string[] = [WANTED_LOCKFILE]
-  if (opts.useGitBranchLockfile) {
-    const gitBranchLockfileName: string = await getWantedLockfileName(opts)
-    if (gitBranchLockfileName !== WANTED_LOCKFILE) {
-      lockfileNames.unshift(gitBranchLockfileName)
-    }
-  }
-  let lockfile: Lockfile | null = null
-  for (const lockfileName of lockfileNames) {
-    lockfile = (await _read(path.join(pkgPath, lockfileName), pkgPath, opts)).lockfile
-    if (lockfile) {
-      if (opts.mergeGitBranchLockfiles) {
-        lockfile = await _mergeGitBranchLockfiles(lockfile, pkgPath, pkgPath, opts)
-      }
-      break
-    }
-  }
-  return lockfile
+  return (await _readWantedLockfile(pkgPath, opts)).lockfile
 }
 
 async function _read (
@@ -187,6 +156,39 @@ export function createLockfileObject (
     importers,
     lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION,
   }
+}
+
+async function _readWantedLockfile (
+  pkgPath: string,
+  opts: {
+    wantedVersion?: number
+    ignoreIncompatible: boolean
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
+    autofixMergeConflicts?: boolean
+  }
+): Promise<{
+    lockfile: Lockfile | null
+    hadConflicts: boolean
+  }> {
+  const lockfileNames: string[] = [WANTED_LOCKFILE]
+  if (opts.useGitBranchLockfile) {
+    const gitBranchLockfileName: string = await getWantedLockfileName(opts)
+    if (gitBranchLockfileName !== WANTED_LOCKFILE) {
+      lockfileNames.unshift(gitBranchLockfileName)
+    }
+  }
+  let result: { lockfile: Lockfile | null, hadConflicts: boolean } = { lockfile: null, hadConflicts: false }
+  for (const lockfileName of lockfileNames) {
+    result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
+    if (result.lockfile) {
+      if (opts.mergeGitBranchLockfiles) {
+        result.lockfile = await _mergeGitBranchLockfiles(result.lockfile, pkgPath, pkgPath, opts)
+      }
+      break
+    }
+  }
+  return result
 }
 
 async function _mergeGitBranchLockfiles (
