@@ -12,8 +12,13 @@ export async function isGitRepo () {
 }
 
 export async function getCurrentBranch () {
-  const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'])
-  return stdout
+  try {
+    const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'])
+    return stdout
+  } catch (_: any) {  // eslint-disable-line
+    // Command will fail with code 1 if the HEAD is detached.
+    return null
+  }
 }
 
 export async function isWorkingTreeClean () {
