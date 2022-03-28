@@ -2,7 +2,7 @@
 # yarn lockfile v1
 
 
-pnpm-foo@^1.1.0:
-  version "1.1.0"
-  resolved "http://localhost:4873/pnpm-foo/-/pnpm-foo-1.1.0.tgz#808ab933994269d6d5848dd724c3fc79324e9a6d"
-  integrity sha512-Y02IzL+/JalqSzvQbuMy7Z1NDvOpe34fLlHMTKv8uqPh/+KREyuPHDNDONF3rrykZBl5iSXRrW7UcDf1CXjcIA==
+is-negative@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/is-negative/-/is-negative-1.0.0.tgz#7259877a83c800ac3191dd7b9d9fbcd0f752d4fe"
+  integrity sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=

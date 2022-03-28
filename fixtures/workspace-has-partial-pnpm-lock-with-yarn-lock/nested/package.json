@@ -2,6 +2,6 @@
   "name": "nested",
   "version": "0.0.0",
   "dependencies": {
-    "pnpm-foo": "^1.1.0"
+    "is-negative": "^1.0.0"
   }
 }

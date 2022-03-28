@@ -1,13 +1,14 @@
 lockfileVersion: 5.3
 
 specifiers:
-  pnpm-foo: ^1.3.0
+  is-negative: ^1.0.1
 
 dependencies:
-  pnpm-foo: 1.3.0
+  is-negative: 1.0.1
 
 packages:
 
-  /pnpm-foo/1.3.0:
-    resolution: {integrity: sha512-LgA56qN3sCFJJWuWBfMzRZ/atyX6ebWTYcVoTbawElDRDSK1V6RhhVk+SWTu74+W9omYMFlatjEPixxqWBSrmw==}
+  /is-negative/1.0.1:
+    resolution: {integrity: sha1-3GuHKO69A8db+HYIftzVDpy1aZQ=}
+    engines: {node: '>=0.10.0'}
     dev: false

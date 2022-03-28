@@ -96,13 +96,12 @@ test('import from nested yarn.lock with an existing root pnpm-lock', async () =>
 
   const project = assertProject(rootDir)
   const lockfile = await project.readLockfile()
-  console.log(rootDir, lockfile)
 
-  // "nested" should properly resolve to 1.1.0 (not 1.3.0) because of its `yarn.lock`
-  expect(lockfile).toHaveProperty(['importers', 'nested', 'dependencies', 'pnpm-foo'], '1.1.0')
+  // "nested" should properly resolve to 1.0.0 (not 1.0.1) because of its `yarn.lock`
+  expect(lockfile).toHaveProperty(['importers', 'nested', 'dependencies', 'is-negative'], '1.0.0')
 
-  expect(lockfile.packages).toHaveProperty(['/pnpm-foo/1.1.0'])
-  expect(lockfile.packages).toHaveProperty(['/pnpm-foo/1.3.0'])
+  expect(lockfile.packages).toHaveProperty(['/is-negative/1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/is-negative/1.0.1'])
 })
 
 test('import from yarn2 lock file', async () => {
