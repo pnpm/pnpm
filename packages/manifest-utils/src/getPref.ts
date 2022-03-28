@@ -7,7 +7,7 @@ export const getPrefix = (alias: string, name: string) => alias !== name ? `npm:
 export function getPref (
   alias: string,
   name: string,
-  version: string,
+  version: string | undefined,
   opts: {
     pinnedVersion?: PinnedVersion
   }
@@ -16,7 +16,8 @@ export function getPref (
   return `${prefix}${createVersionSpec(version, opts.pinnedVersion)}`
 }
 
-export function createVersionSpec (version: string, pinnedVersion?: PinnedVersion) {
+export function createVersionSpec (version: string | undefined, pinnedVersion?: PinnedVersion) {
+  if (!version) return '*'
   switch (pinnedVersion ?? 'major') {
   case 'none':
     return '*'
