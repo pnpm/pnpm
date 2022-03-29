@@ -24,7 +24,7 @@ export async function readCurrentLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
-  return (await _read(lockfilePath, virtualStoreDir, opts)).lockfile
+  return (await read(lockfilePath, virtualStoreDir, opts)).lockfile
 }
 
 export async function readWantedLockfileAndAutofixConflicts (
@@ -38,7 +38,7 @@ export async function readWantedLockfileAndAutofixConflicts (
     hadConflicts: boolean
   }> {
   const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  return _read(lockfilePath, pkgPath, { ...opts, autofixMergeConflicts: true })
+  return read(lockfilePath, pkgPath, { ...opts, autofixMergeConflicts: true })
 }
 
 export async function readWantedLockfile (
@@ -49,10 +49,10 @@ export async function readWantedLockfile (
   }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  return (await _read(lockfilePath, pkgPath, opts)).lockfile
+  return (await read(lockfilePath, pkgPath, opts)).lockfile
 }
 
-async function _read (
+export async function read (
   lockfilePath: string,
   prefix: string,
   opts: {
