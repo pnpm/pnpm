@@ -54,7 +54,7 @@ export async function readWantedLockfile (
 
 async function _read (
   lockfilePath: string,
-  prefix: string,
+  prefix: string, // only for logging
   opts: {
     autofixMergeConflicts?: boolean
     wantedVersion?: number
@@ -89,7 +89,7 @@ async function _read (
     lockfile = autofixMergeConflicts(lockfileRawContent)
     logger.info({
       message: `Merge conflict detected in ${WANTED_LOCKFILE} and successfully merged`,
-      prefix: path.dirname(lockfilePath),
+      prefix,
     })
   }
   /* eslint-disable @typescript-eslint/dot-notation */
