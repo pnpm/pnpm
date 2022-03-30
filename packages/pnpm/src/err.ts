@@ -19,6 +19,6 @@ export default function err (error: Error) {
   // any additional info
   logger.error(error, error)
 
-  // Differing exit. Otherwise, the reporter wouldn't show the error
+  // Deferring exit. Otherwise, the reporter wouldn't show the error
   setTimeout(() => process.exit(1), 0)
 }
