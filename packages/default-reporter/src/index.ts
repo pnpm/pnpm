@@ -104,6 +104,11 @@ export function toOutput$ (
   const progressPushStream = new Rx.Subject<logs.ProgressLog>()
   const stagePushStream = new Rx.Subject<logs.StageLog>()
   const deprecationPushStream = new Rx.Subject<logs.DeprecationLog>()
+  if (opts.reportingOptions?.logLevel === 'error') {
+    // disable logging
+    // calls to deprecationPushStream.next() will have no effect
+    deprecationPushStream.complete()
+  }
   const summaryPushStream = new Rx.Subject<logs.SummaryLog>()
   const lifecyclePushStream = new Rx.Subject<logs.LifecycleLog>()
   const statsPushStream = new Rx.Subject<logs.StatsLog>()
