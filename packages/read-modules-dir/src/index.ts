@@ -30,7 +30,7 @@ async function _readModulesDir (
       continue
     }
 
-    const pkgName = scope ? `${scope}/${dir.name}` : dir.name
+    const pkgName = scope ? `${scope}/${dir.name as string}` : dir.name
     pkgNames.push(pkgName)
   }
   return pkgNames
