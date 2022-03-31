@@ -69,6 +69,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
+    "@types/semver": "^7.3.4",
     "@types/ssri": "^7.1.0",
     "delay": "^5.0.0",
     "nock": "12.0.3",

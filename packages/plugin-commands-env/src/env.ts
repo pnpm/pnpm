@@ -91,7 +91,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     } catch (err: any) { // eslint-disable-line
       // ignore
     }
-    return `Node.js ${nodeVersion} is activated
+    return `Node.js ${nodeVersion as string} is activated
   ${dest} -> ${src}`
   }
   default: {

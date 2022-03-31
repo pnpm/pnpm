@@ -91,7 +91,7 @@
       },
       "@yarnpkg/core": {
         "dependencies": {
-          "@types/lodash": "^4.14.136"
+          "@types/lodash": "4.14.181"
         }
       },
       "jest-circus": {
