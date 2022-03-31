@@ -58,7 +58,8 @@ export async function handler (
   const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir)
   return `${updateOutput}
 
-Setup complete. Open a new terminal to start using pnpm.`
+Setup complete. Open a new terminal to start using pnpm.
+Or, run \`source ~/.bashrc\` in this terminal.`
 }
 
 async function updateShell (currentShell: string | null, pnpmHomeDir: string): Promise<string> {
