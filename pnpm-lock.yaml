@@ -117,31 +117,31 @@ importers:
 
   packages/artifacts/linux-arm64:
     specifiers:
-      '@pnpm/linux-arm64': workspace:7.0.0-beta.2
+      '@pnpm/linux-arm64': workspace:7.0.0-rc.0
     devDependencies:
       '@pnpm/linux-arm64': 'link:'
 
   packages/artifacts/linux-x64:
     specifiers:
-      '@pnpm/linux-x64': workspace:7.0.0-beta.2
+      '@pnpm/linux-x64': workspace:7.0.0-rc.0
     devDependencies:
       '@pnpm/linux-x64': 'link:'
 
   packages/artifacts/macos-arm64:
     specifiers:
-      '@pnpm/macos-arm64': workspace:7.0.0-beta.2
+      '@pnpm/macos-arm64': workspace:7.0.0-rc.0
     devDependencies:
       '@pnpm/macos-arm64': 'link:'
 
   packages/artifacts/macos-x64:
     specifiers:
-      '@pnpm/macos-x64': workspace:7.0.0-beta.2
+      '@pnpm/macos-x64': workspace:7.0.0-rc.0
     devDependencies:
       '@pnpm/macos-x64': 'link:'
 
   packages/artifacts/win-x64:
     specifiers:
-      '@pnpm/win-x64': workspace:7.0.0-beta.2
+      '@pnpm/win-x64': workspace:7.0.0-rc.0
     devDependencies:
       '@pnpm/win-x64': 'link:'
 
@@ -723,12 +723,12 @@ importers:
 
   packages/exe:
     specifiers:
-      '@pnpm/exe': workspace:7.0.0-beta.2
-      '@pnpm/linux-arm64': workspace:7.0.0-beta.2
-      '@pnpm/linux-x64': workspace:7.0.0-beta.2
-      '@pnpm/macos-arm64': workspace:7.0.0-beta.2
-      '@pnpm/macos-x64': workspace:7.0.0-beta.2
-      '@pnpm/win-x64': workspace:7.0.0-beta.2
+      '@pnpm/exe': workspace:7.0.0-rc.0
+      '@pnpm/linux-arm64': workspace:7.0.0-rc.0
+      '@pnpm/linux-x64': workspace:7.0.0-rc.0
+      '@pnpm/macos-arm64': workspace:7.0.0-rc.0
+      '@pnpm/macos-x64': workspace:7.0.0-rc.0
+      '@pnpm/win-x64': workspace:7.0.0-rc.0
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
@@ -8199,7 +8199,7 @@ packages:
   /eslint-config-standard-with-typescript/21.0.1_c4410e16b0dea44c20d74fec3323ee30:
     resolution: {integrity: sha512-FeiMHljEJ346Y0I/HpAymNKdrgKEpHpcg/D93FvPHWfCzbT4QyUJba/0FwntZeGLXfUiWDSeKmdJD597d9wwiw==}
     peerDependencies:
-      '@typescript-eslint/eslint-plugin': ^4.0.1 || ^5.6.0 || ^5.6.0
+      '@typescript-eslint/eslint-plugin': ^4.0.1 || ^5.6.0
       eslint: '*'
       eslint-plugin-import: ^2.22.1
       eslint-plugin-node: ^11.1.0
