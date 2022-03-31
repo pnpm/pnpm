@@ -75,7 +75,6 @@ export default function (
       cwd,
       width,
     }),
-    reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }),
     reportMisc(
       log$,
       {
@@ -101,6 +100,9 @@ export default function (
     reportUpdateCheck(log$.updateCheck),
   ]
 
+  if (opts.logLevel !== 'error') {
+    outputs.push(reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }))
+  }
   if (!opts.appendOnly) {
     outputs.push(reportBigTarballsProgress(log$))
   }
