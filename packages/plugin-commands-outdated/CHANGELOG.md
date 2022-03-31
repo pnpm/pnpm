@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-outdated
 
+## 5.1.11
+
+### Patch Changes
+
+- @pnpm/outdated@9.0.33
+- @pnpm/cli-utils@0.6.51
+
 ## 5.1.10
 
 ### Patch Changes

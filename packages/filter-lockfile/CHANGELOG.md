@@ -1,5 +1,12 @@
 # @pnpm/filter-lockfile
 
+## 5.0.20
+
+### Patch Changes
+
+- Updated dependencies [d6f4c593d]
+  - @pnpm/lockfile-utils@3.2.2
+
 ## 5.0.19
 
 ### Patch Changes

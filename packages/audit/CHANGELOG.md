@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 2.2.8
+
+### Patch Changes
+
+- Updated dependencies [d6f4c593d]
+  - @pnpm/lockfile-utils@3.2.2
+
 ## 2.2.7
 
 ### Patch Changes

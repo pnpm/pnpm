@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 6.2.13
+
+### Patch Changes
+
+- Updated dependencies [a39c83830]
+  - @pnpm/manifest-utils@2.1.10
+
 ## 6.2.12
 
 ### Patch Changes

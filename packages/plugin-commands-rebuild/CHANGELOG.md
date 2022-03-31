@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.4.15
+
+### Patch Changes
+
+- Updated dependencies [d6f4c593d]
+  - @pnpm/lockfile-utils@3.2.2
+  - @pnpm/cli-utils@0.6.51
+  - @pnpm/link-bins@6.2.13
+  - @pnpm/find-workspace-packages@3.1.43
+
 ## 5.4.14
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 2.7.4
+
+### Patch Changes
+
+- Updated dependencies [d6f4c593d]
+- Updated dependencies [a39c83830]
+  - @pnpm/lockfile-utils@3.2.2
+  - @pnpm/manifest-utils@2.1.10
+  - @pnpm/filter-lockfile@5.0.20
+  - @pnpm/headless@17.3.3
+  - @pnpm/hoist@5.2.16
+  - @pnpm/lockfile-to-pnp@0.4.48
+  - @pnpm/modules-cleaner@11.0.24
+  - @pnpm/resolve-dependencies@25.0.3
+  - @pnpm/link-bins@6.2.13
+  - @pnpm/build-modules@8.0.4
+
 ## 2.7.3
 
 ### Patch Changes

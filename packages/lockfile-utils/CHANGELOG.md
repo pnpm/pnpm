@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 3.2.2
+
+### Patch Changes
+
+- d6f4c593d: When checking if the lockfile is up-to-date, an empty `dependenciesMeta` field in the manifest should be satisfied by a not set field in the lockfile [#4463](https://github.com/pnpm/pnpm/pull/4463).
+
 ## 3.2.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/link-bins@6.2.13
+
 ## 8.0.3
 
 ### Patch Changes

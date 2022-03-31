@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 2.1.10
+
+### Patch Changes
+
+- a39c83830: It should be possible to reference a workspace project that has no version specified in its `package.json` [#4487](https://github.com/pnpm/pnpm/pull/4487).
+
 ## 2.1.9
 
 ### Patch Changes

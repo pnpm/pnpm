@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.5.3
+
+### Patch Changes
+
+- 7e594e421: Show a friendly error message when it is impossible to get the current Git branch name during publish [#4488](https://github.com/pnpm/pnpm/pull/4488).
+  - @pnpm/cli-utils@0.6.51
+
 ## 4.5.2
 
 ### Patch Changes

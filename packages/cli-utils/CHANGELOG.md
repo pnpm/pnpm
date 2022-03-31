@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 0.6.51
+
+### Patch Changes
+
+- Updated dependencies [a39c83830]
+  - @pnpm/manifest-utils@2.1.10
+
 ## 0.6.50
 
 ### Patch Changes
