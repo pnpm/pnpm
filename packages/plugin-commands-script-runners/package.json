@@ -39,6 +39,7 @@
     "@pnpm/plugin-commands-script-runners": "workspace:5.0.0",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.15.1",
+    "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.27.39",
     "is-windows": "^1.0.2",
     "write-yaml-file": "^4.2.0"

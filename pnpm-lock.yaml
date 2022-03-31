@@ -2585,6 +2585,7 @@ importers:
       '@pnpm/sort-packages': workspace:3.0.0
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:8.0.0
+      '@types/is-windows': ^1.0.0
       '@types/ramda': 0.27.39
       '@zkochan/rimraf': ^2.1.2
       execa: npm:safe-execa@^0.1.1
@@ -2621,6 +2622,7 @@ importers:
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/registry-mock': 2.15.1
+      '@types/is-windows': 1.0.0
       '@types/ramda': 0.27.39
       is-windows: 1.0.2
       write-yaml-file: 4.2.0
