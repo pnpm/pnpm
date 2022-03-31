@@ -36,6 +36,7 @@
     "fs-extra": "^10.0.0"
   },
   "devDependencies": {
-    "@pnpm/test-fixtures": "workspace:*"
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/fs-extra": "^9.0.5"
   }
 }

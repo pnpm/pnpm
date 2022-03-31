@@ -53,6 +53,7 @@
     "@pnpm/plugin-commands-env": "workspace:2.0.0",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
+    "@types/semver": "^7.3.4",
     "execa": "npm:safe-execa@^0.1.1",
     "nock": "12.0.3",
     "node-fetch": "3.0.0-beta.9",

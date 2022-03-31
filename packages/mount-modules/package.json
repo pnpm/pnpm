@@ -39,6 +39,7 @@
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
     "@pnpm/mount-modules": "workspace:0.2.0",
+    "@types/normalize-path": "^3.0.0",
     "rimraf": "^3.0.2"
   },
   "dependencies": {

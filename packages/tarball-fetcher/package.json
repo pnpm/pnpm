@@ -50,6 +50,7 @@
     "@pnpm/package-store": "workspace:13.0.0",
     "@pnpm/tarball-fetcher": "workspace:10.0.0",
     "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "0.27.39",
     "@types/retry": "^0.12.0",
     "@types/ssri": "^7.1.0",
     "nock": "12.0.3",

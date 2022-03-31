@@ -32,7 +32,8 @@
     "graceful-fs": "^4.2.6"
   },
   "devDependencies": {
-    "@pnpm/read-modules-dir": "workspace:4.0.0"
+    "@pnpm/read-modules-dir": "workspace:4.0.0",
+    "@types/graceful-fs": "^4.1.5"
   },
   "exports": {
     ".": "./lib/index.js"

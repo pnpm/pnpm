@@ -24,7 +24,7 @@ overrides:
   validator@<13.7.0: '>=13.7.0'
   json-schema@<0.4.0: '>=0.4.0'
 
-packageExtensionsChecksum: fd79935cba6ca59898c8df8f80eb1058
+packageExtensionsChecksum: 1373aa954ee01713eb42037cfa3725eb
 
 importers:
 
@@ -700,6 +700,8 @@ importers:
       '@pnpm/read-project-manifest': workspace:3.0.0
       '@pnpm/resolver-base': workspace:9.0.0
       '@pnpm/test-fixtures': workspace:*
+      '@types/npm-packlist': ^1.1.2
+      '@types/ramda': 0.27.39
       npm-packlist: ^3.0.0
       ramda: ^0.27.1
     dependencies:
@@ -711,6 +713,8 @@ importers:
     devDependencies:
       '@pnpm/directory-fetcher': 'link:'
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
+      '@types/npm-packlist': 1.1.2
+      '@types/ramda': 0.27.39
 
   packages/error:
     specifiers:
@@ -809,6 +813,7 @@ importers:
   packages/file-reporter:
     specifiers:
       '@pnpm/file-reporter': workspace:3.0.0
+      '@types/graceful-fs': ^4.1.5
       exists-file: ^3.0.2
       graceful-fs: ^4.2.6
       ndjson: ^2.0.0
@@ -818,6 +823,7 @@ importers:
       path-exists: 4.0.0
     devDependencies:
       '@pnpm/file-reporter': 'link:'
+      '@types/graceful-fs': 4.1.5
       exists-file: 3.0.2
       ndjson: 2.0.0
 
@@ -1030,11 +1036,13 @@ importers:
   packages/graceful-fs:
     specifiers:
       '@pnpm/graceful-fs': workspace:2.0.0
+      '@types/graceful-fs': ^4.1.5
       graceful-fs: ^4.2.6
     dependencies:
       graceful-fs: 4.2.9
     devDependencies:
       '@pnpm/graceful-fs': 'link:'
+      '@types/graceful-fs': 4.1.5
 
   packages/headless:
     specifiers:
@@ -1332,6 +1340,7 @@ importers:
       '@types/js-yaml': ^4.0.0
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
+      '@types/semver': ^7.3.4
       '@types/write-file-atomic': ^3.0.1
       '@zkochan/rimraf': ^2.1.2
       comver-to-semver: ^1.0.0
@@ -1366,6 +1375,7 @@ importers:
       '@types/js-yaml': 4.0.5
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
+      '@types/semver': 7.3.9
       '@types/write-file-atomic': 3.0.3
       tempy: 1.0.1
       write-yaml-file: 4.2.0
@@ -1596,6 +1606,7 @@ importers:
       '@pnpm/mount-modules': workspace:0.2.0
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:8.0.0
+      '@types/normalize-path': ^3.0.0
       dependency-path: workspace:9.0.0
       fuse-native: ^2.2.6
       hyperdrive-schemas: ^2.0.0
@@ -1617,6 +1628,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 4.0.0
       '@pnpm/mount-modules': 'link:'
+      '@types/normalize-path': 3.0.0
       rimraf: 3.0.2
 
   packages/normalize-registries:
@@ -1817,6 +1829,7 @@ importers:
       '@pnpm/types': workspace:8.0.0
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
+      '@types/semver': ^7.3.4
       '@types/ssri': ^7.1.0
       delay: ^5.0.0
       dependency-path: workspace:9.0.0
@@ -1864,6 +1877,7 @@ importers:
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
+      '@types/semver': 7.3.9
       '@types/ssri': 7.1.1
       delay: 5.0.0
       nock: 12.0.3
@@ -2050,6 +2064,7 @@ importers:
       '@pnpm/store-path': ^5.0.0
       '@pnpm/tarball-fetcher': workspace:10.0.0
       '@types/adm-zip': ^0.4.34
+      '@types/semver': ^7.3.4
       '@zkochan/cmd-shim': ^5.2.1
       adm-zip: ^0.5.5
       execa: npm:safe-execa@^0.1.1
@@ -2085,6 +2100,7 @@ importers:
       '@pnpm/plugin-commands-env': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/adm-zip': 0.4.34
+      '@types/semver': 7.3.9
       execa: /safe-execa/0.1.1
       nock: 12.0.3
       node-fetch: 3.0.0-beta.9
@@ -2393,6 +2409,7 @@ importers:
       '@types/ramda': 0.27.39
       '@types/sinon': ^10.0.6
       '@types/tar': ^4.0.5
+      '@types/tar-stream': ^2.1.0
       '@zkochan/rimraf': ^2.1.2
       cross-spawn: ^7.0.3
       enquirer: ^2.3.6
@@ -2448,6 +2465,7 @@ importers:
       '@types/ramda': 0.27.39
       '@types/sinon': 10.0.11
       '@types/tar': 4.0.5
+      '@types/tar-stream': 2.2.2
       cross-spawn: 7.0.3
       is-ci: 3.0.1
       is-windows: 1.0.2
@@ -2981,17 +2999,20 @@ importers:
   packages/read-modules-dir:
     specifiers:
       '@pnpm/read-modules-dir': workspace:4.0.0
+      '@types/graceful-fs': ^4.1.5
       graceful-fs: ^4.2.6
     dependencies:
       graceful-fs: 4.2.9
     devDependencies:
       '@pnpm/read-modules-dir': 'link:'
+      '@types/graceful-fs': 4.1.5
 
   packages/read-package-json:
     specifiers:
       '@pnpm/error': workspace:3.0.0
       '@pnpm/read-package-json': workspace:6.0.0
       '@pnpm/types': workspace:8.0.0
+      '@types/normalize-package-data': ^2.4.1
       load-json-file: ^6.2.0
       normalize-package-data: ^3.0.2
     dependencies:
@@ -3001,6 +3022,7 @@ importers:
       normalize-package-data: 3.0.3
     devDependencies:
       '@pnpm/read-package-json': 'link:'
+      '@types/normalize-package-data': 2.4.1
 
   packages/read-project-manifest:
     specifiers:
@@ -3347,6 +3369,7 @@ importers:
       '@pnpm/prepare-package': workspace:2.0.0
       '@pnpm/tarball-fetcher': workspace:10.0.0
       '@pnpm/test-fixtures': workspace:*
+      '@types/ramda': 0.27.39
       '@types/retry': ^0.12.0
       '@types/ssri': ^7.1.0
       '@zkochan/retry': ^0.2.0
@@ -3370,6 +3393,7 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/tarball-fetcher': 'link:'
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
+      '@types/ramda': 0.27.39
       '@types/retry': 0.12.1
       '@types/ssri': 7.1.1
       nock: 12.0.3
@@ -3493,12 +3517,14 @@ importers:
     specifiers:
       '@pnpm/prepare': workspace:*
       '@pnpm/test-fixtures': workspace:*
+      '@types/fs-extra': ^9.0.5
       fs-extra: ^10.0.0
     dependencies:
       '@pnpm/prepare': link:../prepare
       fs-extra: 10.0.1
     devDependencies:
       '@pnpm/test-fixtures': 'link:'
+      '@types/fs-extra': 9.0.13
 
   typings:
     specifiers:
@@ -5293,7 +5319,7 @@ packages:
   /@types/graceful-fs/4.1.5:
     resolution: {integrity: sha512-anKkLmZZ+xm4p8JWBf4hElkM4XR+EZeA2M9BAkkTldmcyDY4mbdIJnRghDJH3Ov5ooY7/UAoENtmdMSkaAd7Cw==}
     dependencies:
-      '@types/node': 14.18.12
+      '@types/node': 17.0.23
     dev: true
 
   /@types/hosted-git-info/3.0.2:
@@ -5375,6 +5401,10 @@ packages:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
       '@types/node': 17.0.23
+    dev: false
+
+  /@types/lodash/4.14.181:
+    resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
     dev: false
 
   /@types/lru-cache/5.1.1:
@@ -5504,7 +5534,7 @@ packages:
   /@types/tar-stream/2.2.2:
     resolution: {integrity: sha512-1AX+Yt3icFuU6kxwmPakaiGrJUwG44MpuiqPg4dSolRFk6jmvs4b3IbUol9wKDLIgU76gevn3EwE8y/DkSJCZQ==}
     dependencies:
-      '@types/node': 14.18.12
+      '@types/node': 17.0.23
     dev: true
 
   /@types/tar/4.0.5:
@@ -5803,6 +5833,7 @@ packages:
     engines: {node: '>=12 <14 || 14.2 - 14.9 || >14.10.0'}
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
+      '@types/lodash': 4.14.181
       '@types/semver': 7.3.9
       '@types/treeify': 1.0.0
       '@yarnpkg/fslib': 2.6.1
