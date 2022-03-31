@@ -2,4 +2,4 @@
 "@pnpm/manifest-utils": patch
 ---
 
-Handle undefined version spec.
+It should be possible to reference a workspace project that has no version specified in its `package.json` [#4487](https://github.com/pnpm/pnpm/pull/4487).
