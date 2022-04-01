@@ -154,5 +154,4 @@ export interface Config {
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
-  lockfileDirectory?: string
 }

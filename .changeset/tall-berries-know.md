@@ -9,5 +9,6 @@ The next deprecated settings were removed:
 * prefer-frozen-shrinkwrap
 * shared-workspace-shrinkwrap
 * shrinkwrap-directory
+* lockfile-directory
 * shrinkwrap-only
 * store
