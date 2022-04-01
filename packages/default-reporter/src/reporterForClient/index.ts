@@ -64,10 +64,6 @@ export default function (
     : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
-    reportProgress(log$, {
-      cwd,
-      throttle,
-    }),
     reportPeerDependencyIssues(log$),
     reportLifecycleScripts(log$, {
       appendOnly: opts.appendOnly === true || opts.streamLifecycleOutput,
@@ -85,12 +81,6 @@ export default function (
         zoomOutCurrent: opts.isRecursive,
       }
     ),
-    ...reportStats(log$, {
-      cmd: opts.cmd,
-      cwd,
-      isRecursive: opts.isRecursive,
-      width,
-    }),
     reportInstallChecks(log$.installCheck, { cwd }),
     reportRequestRetry(log$.requestRetry),
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
@@ -105,6 +95,21 @@ export default function (
 
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
     outputs.push(reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }))
+  }
+
+  if (logLevelNumber >= LOG_LEVEL_NUMBER.info) {
+    outputs.push(
+      reportProgress(log$, {
+        cwd,
+        throttle,
+      }),
+      ...reportStats(log$, {
+        cmd: opts.cmd,
+        cwd,
+        isRecursive: opts.isRecursive,
+        width,
+      })
+    )
   }
 
   if (!opts.appendOnly) {
