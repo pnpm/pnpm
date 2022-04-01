@@ -1227,7 +1227,7 @@ importers:
       '@types/node': ^14.17.32
       '@types/normalize-path': ^3.0.0
       '@types/ramda': 0.27.39
-      '@zkochan/cmd-shim': ^5.2.1
+      '@zkochan/cmd-shim': ^5.2.2
       bin-links: ^2.3.0
       cmd-extension: ^1.0.2
       is-subdir: ^1.1.1
@@ -1245,7 +1245,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
-      '@zkochan/cmd-shim': 5.2.1
+      '@zkochan/cmd-shim': 5.2.2
       bin-links: 2.3.0
       is-subdir: 1.2.0
       is-windows: 1.0.2
@@ -2065,7 +2065,7 @@ importers:
       '@pnpm/tarball-fetcher': workspace:10.0.0
       '@types/adm-zip': ^0.4.34
       '@types/semver': ^7.3.4
-      '@zkochan/cmd-shim': ^5.2.1
+      '@zkochan/cmd-shim': ^5.2.2
       adm-zip: ^0.5.5
       execa: npm:safe-execa@^0.1.1
       load-json-file: ^6.2.0
@@ -2087,7 +2087,7 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/store-path': 5.0.0
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
-      '@zkochan/cmd-shim': 5.2.1
+      '@zkochan/cmd-shim': 5.2.2
       adm-zip: 0.5.9
       load-json-file: 6.2.0
       rename-overwrite: 4.0.2
@@ -5966,8 +5966,8 @@ packages:
       tslib: 1.14.1
     dev: false
 
-  /@zkochan/cmd-shim/5.2.1:
-    resolution: {integrity: sha512-oBPLTj/T1t488X1hVv99HbX7AATpApeue/OWWtD37PYxcJN4YBEpFyf86KlYb/51JrqyPe9Rv7z3/3T3p9AERg==}
+  /@zkochan/cmd-shim/5.2.2:
+    resolution: {integrity: sha512-uNWpBESHNlerKPs34liL43S14y1j3G39dpSf/wzkyP+axOzqvQTr4i+Nz/4shyS5FIL4fTi/ejHCDMT0ZneNWQ==}
     engines: {node: '>=10.13'}
     dependencies:
       cmd-extension: 1.0.2
