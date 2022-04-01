@@ -184,6 +184,7 @@ export default async (
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
+    'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
     'prefer-workspace-packages': false,

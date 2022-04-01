@@ -778,6 +778,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         currentLockfile: ctx.currentLockfile,
         dependenciesByProjectId,
         depsStateCache,
+        extraNodePaths: ctx.extraNodePaths,
         force: opts.force,
         hoistedDependencies: ctx.hoistedDependencies,
         hoistedModulesDir: ctx.hoistedModulesDir,
@@ -838,6 +839,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         depsStateCache,
         depsToBuild: new Set(result.newDepPaths),
         extraBinPaths: ctx.extraBinPaths,
+        extraNodePaths: ctx.extraNodePaths,
         extraEnv,
         lockfileDir: ctx.lockfileDir,
         optional: opts.include.optionalDependencies,
@@ -857,6 +859,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (result.newDepPaths?.length) {
       const newPkgs = props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
+        extraNodePaths: ctx.extraNodePaths,
         optional: opts.include.optionalDependencies,
         warn: binWarn.bind(null, opts.lockfileDir),
       })
@@ -876,6 +879,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           allowExoticManifests: true,
           projectManifest: project.manifest,
           nodeExecPathByAlias,
+          extraNodePaths: ctx.extraNodePaths,
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
@@ -907,7 +911,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             )
           )
             .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
-          project.binsDir
+          project.binsDir,
+          {
+            extraNodePaths: ctx.extraNodePaths,
+          }
         )
       }
       const projectToInstall = projects[index]
@@ -1067,6 +1074,7 @@ async function linkAllBins (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
+    extraNodePaths?: string[]
     optional: boolean
     warn: (message: string) => void
   }

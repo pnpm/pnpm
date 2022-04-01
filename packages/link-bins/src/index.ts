@@ -34,6 +34,7 @@ export default async (
   binsDir: string,
   opts: {
     allowExoticManifests?: boolean
+    extraNodePaths?: string[]
     nodeExecPathByAlias?: Record<string, string>
     projectManifest?: ProjectManifest
     warn: WarnFunction
@@ -68,7 +69,7 @@ export default async (
   )
 
   const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
-  return linkBins(cmdsToLink, binsDir)
+  return linkBins(cmdsToLink, binsDir, opts)
 }
 
 function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
@@ -86,7 +87,8 @@ export async function linkBinsOfPackages (
     nodeExecPath?: string
     location: string
   }>,
-  binsTarget: string
+  binsTarget: string,
+  opts: { extraNodePaths?: string[] }
 ): Promise<string[]> {
   if (pkgs.length === 0) return []
 
@@ -98,7 +100,7 @@ export async function linkBinsOfPackages (
       .filter((cmds: Command[]) => cmds.length)
   )
 
-  return linkBins(allCmds, binsTarget)
+  return linkBins(allCmds, binsTarget, opts)
 }
 
 type CommandInfo = Command & {
@@ -110,7 +112,8 @@ type CommandInfo = Command & {
 
 async function linkBins (
   allCmds: CommandInfo[],
-  binsDir: string
+  binsDir: string,
+  opts: { extraNodePaths?: string[] }
 ): Promise<string[]> {
   if (allCmds.length === 0) return [] as string[]
 
@@ -118,7 +121,7 @@ async function linkBins (
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = partition(({ ownName }) => ownName, allCmds)
 
-  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir)))
+  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir, opts)))
 
   const usedNames = fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
@@ -132,7 +135,7 @@ async function linkBins (
       return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
-    return linkBin(cmd, binsDir)
+    return linkBin(cmd, binsDir, opts)
   }))
 
   // We want to create all commands that we can create before throwing an exception
@@ -190,12 +193,13 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }))
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string) {
+async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extraNodePaths?: string[] }) {
   const externalBinPath = path.join(binsDir, cmd.name)
 
   try {
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: cmd.makePowerShellShim,
+      nodePath: opts?.extraNodePaths,
       nodeExecPath: cmd.nodeExecPath,
     })
   } catch (err: any) { // eslint-disable-line

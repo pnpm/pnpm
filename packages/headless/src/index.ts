@@ -98,6 +98,7 @@ export interface HeadlessOptions {
   enablePnp?: boolean
   engineStrict: boolean
   extraBinPaths?: string[]
+  extraNodePaths?: string[]
   hoistingLimits?: HoistingLimits
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
@@ -341,6 +342,7 @@ export default async (opts: HeadlessOptions) => {
         packages: omit(Array.from(skipped), filteredLockfile.packages),
       }
       newHoistedDependencies = await hoist({
+        extraNodePath: opts.extraNodePaths,
         lockfile: hoistLockfile,
         importerIds,
         privateHoistedModulesDir: hoistedModulesDir,
@@ -353,7 +355,11 @@ export default async (opts: HeadlessOptions) => {
       newHoistedDependencies = {}
     }
 
-    await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
+    await linkAllBins(graph, {
+      extraNodePaths: opts.extraNodePaths,
+      optional: opts.include.optionalDependencies,
+      warn,
+    })
 
     if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
       Object.assign(filteredLockfile.packages, currentLockfile.packages)
@@ -437,7 +443,7 @@ export default async (opts: HeadlessOptions) => {
     if (!opts.ignorePackageManifest) {
       await Promise.all(opts.projects.map(async (project) => {
         if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
-          await linkBinsOfImporter(project)
+          await linkBinsOfImporter(project, { extraNodePaths: opts.extraNodePaths })
         } else {
           const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
           await linkBinsOfPackages(
@@ -450,7 +456,10 @@ export default async (opts: HeadlessOptions) => {
               )
             )
               .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
-            project.binsDir
+            project.binsDir,
+            {
+              extraNodePaths: opts.extraNodePaths,
+            }
           )
         }
       }))
@@ -546,10 +555,12 @@ async function linkBinsOfImporter (
     manifest: ProjectManifest
     modulesDir: string
     rootDir: string
-  }
+  },
+  { extraNodePaths }: { extraNodePaths?: string[] } = {}
 ) {
   const warn = (message: string) => logger.info({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, {
+    extraNodePaths,
     allowExoticManifests: true,
     projectManifest: manifest,
     warn,
@@ -695,6 +706,7 @@ async function linkAllPkgs (
 async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
+    extraNodePaths?: string[]
     optional: boolean
     warn: (message: string) => void
   }
@@ -716,7 +728,7 @@ async function linkAllBins (
         const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
-          await linkBins(depNode.modules, binPath, { warn: opts.warn })
+          await linkBins(depNode.modules, binPath, { extraNodePaths: opts.extraNodePaths, warn: opts.warn })
         } else {
           const pkgs = await Promise.all(
             pkgSnapshots
@@ -727,13 +739,13 @@ async function linkAllBins (
               }))
           )
 
-          await linkBinsOfPackages(pkgs, binPath)
+          await linkBinsOfPackages(pkgs, binPath, { extraNodePaths: opts.extraNodePaths })
         }
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
           const bundledModules = path.join(depNode.dir, 'node_modules')
-          await linkBins(bundledModules, binPath, { warn: opts.warn })
+          await linkBins(bundledModules, binPath, { extraNodePaths: opts.extraNodePaths, warn: opts.warn })
         }
       }))
   )

@@ -228,6 +228,7 @@ async function _rebuild (
     currentLockfile: Lockfile
     projects: Array<{ id: string, rootDir: string }>
     extraBinPaths: string[]
+    extraNodePaths: string[]
   },
   opts: StrictRebuildOptions
 ) {
@@ -273,7 +274,7 @@ async function _rebuild (
       try {
         const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-        await linkBins(modules, binPath, { warn })
+        await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
         await runPostinstallHooks({
           depPath,
           extraBinPaths: ctx.extraBinPaths,

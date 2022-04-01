@@ -51,7 +51,7 @@ export interface StrictInstallOptions {
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   nodeExecPath?: string
-  nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion: string
   packageExtensions: Record<string, PackageExtension>
   packageManager: {

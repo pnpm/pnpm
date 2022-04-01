@@ -33,6 +33,7 @@ export interface PnpmContext<T> {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   extraBinPaths: string[]
+  extraNodePaths: string[]
   lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
   include: IncludedDependencies
@@ -73,6 +74,7 @@ export interface GetContextOptions {
   extraBinPaths: string[]
   lockfileDir: string
   modulesDir?: string
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   hooks?: {
     readPackage?: ReadPackageHook
   }
@@ -145,11 +147,13 @@ export default async function getContext<T> (
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
+  const hoistPattern = importersContext.currentHoistPattern ?? opts.hoistPattern
   const ctx: PnpmContext<T> = {
     extraBinPaths,
+    extraNodePaths: getExtraNodePaths({ nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
-    hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
+    hoistPattern,
     include: opts.include ?? importersContext.include,
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
@@ -332,6 +336,7 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   extraBinPaths: string[]
+  extraNodePaths: string[]
   lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
   hoistedModulesDir: string
@@ -361,6 +366,7 @@ export async function getContextForSingleImporter (
     forceSharedLockfile: boolean
     extraBinPaths: string[]
     lockfileDir: string
+    nodeLinker: 'isolated' | 'hoisted' | 'pnp'
     modulesDir?: string
     hooks?: {
       readPackage?: ReadPackageHook
@@ -441,11 +447,13 @@ export async function getContextForSingleImporter (
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
+  const hoistPattern = currentHoistPattern ?? opts.hoistPattern
   const ctx: PnpmSingleContext = {
     extraBinPaths,
+    extraNodePaths: getExtraNodePaths({ nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
     hoistedDependencies,
     hoistedModulesDir,
-    hoistPattern: currentHoistPattern ?? opts.hoistPattern,
+    hoistPattern,
     importerId,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
@@ -485,4 +493,17 @@ export async function getContextForSingleImporter (
   })
 
   return ctx
+}
+
+function getExtraNodePaths (
+  { hoistPattern, nodeLinker, virtualStoreDir }: {
+    hoistPattern?: string[]
+    nodeLinker: 'isolated' | 'hoisted' | 'pnp'
+    virtualStoreDir: string
+  }
+) {
+  if (nodeLinker === 'isolated' && hoistPattern?.length) {
+    return [path.join(virtualStoreDir, 'node_modules')]
+  }
+  return []
 }
