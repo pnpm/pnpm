@@ -26,6 +26,9 @@
     },
     {
       "path": "../server"
+    },
+    {
+      "path": "../store-path"
     }
   ]
 }

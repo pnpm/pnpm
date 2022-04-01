@@ -53,7 +53,7 @@
     "@pnpm/lifecycle": "workspace:13.0.0",
     "@pnpm/read-project-manifest": "workspace:3.0.0",
     "@pnpm/sort-packages": "workspace:3.0.0",
-    "@pnpm/store-path": "^5.0.0",
+    "@pnpm/store-path": "workspace:5.0.0",
     "@pnpm/types": "workspace:8.0.0",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.1",

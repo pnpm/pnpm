@@ -23,7 +23,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:6.0.0",
     "@pnpm/registry-mock": "2.15.1",
-    "@pnpm/store-path": "^5.0.0",
+    "@pnpm/store-path": "workspace:5.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.5",
     "@types/ramda": "0.27.39",

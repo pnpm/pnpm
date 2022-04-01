@@ -52,6 +52,9 @@
       "path": "../plugin-commands-installation"
     },
     {
+      "path": "../store-path"
+    },
+    {
       "path": "../types"
     }
   ]
