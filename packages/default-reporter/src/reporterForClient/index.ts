@@ -9,7 +9,7 @@ import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
 import reportInstallChecks from './reportInstallChecks'
 import reportLifecycleScripts from './reportLifecycleScripts'
-import reportMisc from './reportMisc'
+import reportMisc, { LOG_LEVEL_NUMBER } from './reportMisc'
 import reportPeerDependencyIssues from './reportPeerDependencyIssues'
 import reportProgress from './reportProgress'
 import reportRequestRetry from './reportRequestRetry'
@@ -100,9 +100,13 @@ export default function (
     reportUpdateCheck(log$.updateCheck),
   ]
 
-  if (opts.logLevel !== 'error') {
+  // logLevelNumber: 0123 = error warn info debug
+  const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
+
+  if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
     outputs.push(reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }))
   }
+
   if (!opts.appendOnly) {
     outputs.push(reportBigTarballsProgress(log$))
   }
