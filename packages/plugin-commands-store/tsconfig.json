@@ -55,6 +55,9 @@
       "path": "../store-controller-types"
     },
     {
+      "path": "../store-path"
+    },
+    {
       "path": "../types"
     }
   ]

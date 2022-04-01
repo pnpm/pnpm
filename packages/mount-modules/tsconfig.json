@@ -22,6 +22,9 @@
       "path": "../lockfile-utils"
     },
     {
+      "path": "../store-path"
+    },
+    {
       "path": "../types"
     }
   ]

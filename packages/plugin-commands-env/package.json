@@ -36,7 +36,7 @@
     "@pnpm/fetch": "workspace:5.0.0",
     "@pnpm/fetcher-base": "workspace:12.0.0",
     "@pnpm/package-store": "workspace:13.0.0",
-    "@pnpm/store-path": "^5.0.0",
+    "@pnpm/store-path": "workspace:5.0.0",
     "@pnpm/tarball-fetcher": "workspace:10.0.0",
     "@zkochan/cmd-shim": "^5.2.2",
     "adm-zip": "^0.5.5",

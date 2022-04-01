@@ -57,7 +57,7 @@
     "@pnpm/modules-yaml": "workspace:10.0.0",
     "@pnpm/outdated": "workspace:10.0.0",
     "@pnpm/semver-diff": "^1.0.2",
-    "@pnpm/store-path": "^5.0.0",
+    "@pnpm/store-path": "workspace:5.0.0",
     "@pnpm/types": "workspace:8.0.0",
     "@zkochan/table": "^1.0.0",
     "chalk": "^4.1.0",

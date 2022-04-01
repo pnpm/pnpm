@@ -40,6 +40,9 @@
       "path": "../sort-packages"
     },
     {
+      "path": "../store-path"
+    },
+    {
       "path": "../types"
     }
   ]

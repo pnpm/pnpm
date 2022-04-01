@@ -46,7 +46,7 @@
     "@pnpm/cafs": "workspace:4.0.0",
     "@pnpm/lockfile-file": "workspace:5.0.0",
     "@pnpm/lockfile-utils": "workspace:4.0.0",
-    "@pnpm/store-path": "^5.0.0",
+    "@pnpm/store-path": "workspace:5.0.0",
     "@pnpm/types": "workspace:8.0.0",
     "dependency-path": "workspace:9.0.0",
     "hyperdrive-schemas": "^2.0.0",
