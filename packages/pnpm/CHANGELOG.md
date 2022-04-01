@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-beta.2
+## 7.0.0-rc.1
 
 ### Major Changes
 
@@ -53,6 +53,8 @@
 - Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
 
 - Don't hoist types by default to the root of `node_modules` [#4459](https://github.com/pnpm/pnpm/pull/4459).
+
+## 6.32.4
 
 ### Patch Changes
 
