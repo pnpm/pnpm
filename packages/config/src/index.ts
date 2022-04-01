@@ -190,8 +190,7 @@ export default async (
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [
       '*eslint*',
-      '@prettier/plugin-*',
-      '*prettier-plugin-*',
+      '*prettier*',
     ],
     'recursive-install': true,
     registry: npmDefaults.registry,
