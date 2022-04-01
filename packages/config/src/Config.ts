@@ -152,12 +152,6 @@ export interface Config {
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
-  frozenShrinkwrap?: boolean
   globalPrefix?: string
   proxy?: string
-  lockfileDirectory?: string
-  preferFrozenShrinkwrap?: boolean
-  sharedWorkspaceShrinkwrap?: boolean
-  shrinkwrapDirectory?: string
-  shrinkwrapOnly?: boolean
 }

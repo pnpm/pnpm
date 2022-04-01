@@ -46,7 +46,6 @@ export const types = Object.assign({
   filter: [String, Array],
   'filter-prod': [String, Array],
   'frozen-lockfile': Boolean,
-  'frozen-shrinkwrap': Boolean,
   'git-checks': Boolean,
   'global-bin-dir': String,
   'global-dir': String,
@@ -74,7 +73,6 @@ export const types = Object.assign({
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   pnpmfile: String,
   'prefer-frozen-lockfile': Boolean,
-  'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
   'prefer-workspace-packages': Boolean,
   production: [null, true],
@@ -89,16 +87,12 @@ export const types = Object.assign({
   'shamefully-flatten': Boolean,
   'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,
-  'shared-workspace-shrinkwrap': Boolean,
   'shell-emulator': Boolean,
-  'shrinkwrap-directory': String,
-  'shrinkwrap-only': Boolean,
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
   symlink: Boolean,
   sort: Boolean,
   'state-dir': String,
-  store: String, // TODO: deprecate
   'store-dir': String,
   stream: Boolean,
   'strict-peer-dependencies': Boolean,
@@ -200,9 +194,7 @@ export default async (
     'side-effects-cache': true,
     symlink: true,
     'shared-workspace-lockfile': true,
-    'shared-workspace-shrinkwrap': true,
     'shell-emulator': false,
-    shrinkwrap: npmDefaults.shrinkwrap,
     reverse: false,
     sort: true,
     'strict-peer-dependencies': true,
@@ -252,25 +244,11 @@ export default async (
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
-  pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
-    if (typeof pnpmConfig['shrinkwrap'] === 'boolean') return pnpmConfig['shrinkwrap']
     return false
   })()
-  pnpmConfig.lockfileOnly = typeof pnpmConfig['lockfileOnly'] === 'undefined'
-    ? pnpmConfig.shrinkwrapOnly
-    : pnpmConfig['lockfileOnly']
-  pnpmConfig.frozenLockfile = typeof pnpmConfig['frozenLockfile'] === 'undefined'
-    ? pnpmConfig.frozenShrinkwrap
-    : pnpmConfig['frozenLockfile']
-  pnpmConfig.preferFrozenLockfile = typeof pnpmConfig['preferFrozenLockfile'] === 'undefined'
-    ? pnpmConfig.preferFrozenShrinkwrap
-    : pnpmConfig['preferFrozenLockfile']
-  pnpmConfig.sharedWorkspaceLockfile = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
-    ? pnpmConfig.sharedWorkspaceShrinkwrap
-    : pnpmConfig['sharedWorkspaceLockfile']
   pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions['global']) {
@@ -376,10 +354,6 @@ export default async (
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true
-  }
-  if (!pnpmConfig.storeDir && pnpmConfig['store']) {
-    warnings.push('The "store" setting has been renamed to "store-dir". Please use the new name.')
-    pnpmConfig.storeDir = pnpmConfig['store']
   }
   if (!pnpmConfig.cacheDir) {
     pnpmConfig.cacheDir = getCacheDir(process)

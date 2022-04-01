@@ -148,13 +148,13 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
   }
 })
 
-test('when using --global, link-workspace-packages, shared-workspace-shrinwrap and lockfile-directory are false even if it is set to true in a .npmrc file', async () => {
+test('when using --global, link-workspace-packages, shared-workspace-lockfile and lockfile-dir are false even if it is set to true in a .npmrc file', async () => {
   prepareEmpty()
 
   const npmrc = [
     'link-workspace-packages=true',
     'shared-workspace-lockfile=true',
-    'lockfile-directory=/home/src',
+    'lockfile-dir=/home/src',
   ].join('\n')
   await fs.writeFile('.npmrc', npmrc, 'utf8')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
