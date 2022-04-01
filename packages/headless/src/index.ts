@@ -342,6 +342,7 @@ export default async (opts: HeadlessOptions) => {
         packages: omit(Array.from(skipped), filteredLockfile.packages),
       }
       newHoistedDependencies = await hoist({
+        extraNodePath: opts.extraNodePaths,
         lockfile: hoistLockfile,
         importerIds,
         privateHoistedModulesDir: hoistedModulesDir,

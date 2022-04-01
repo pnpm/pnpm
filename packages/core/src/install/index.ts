@@ -778,6 +778,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         currentLockfile: ctx.currentLockfile,
         dependenciesByProjectId,
         depsStateCache,
+        extraNodePaths: ctx.extraNodePaths,
         force: opts.force,
         hoistedDependencies: ctx.hoistedDependencies,
         hoistedModulesDir: ctx.hoistedModulesDir,
