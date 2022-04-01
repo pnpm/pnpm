@@ -9,7 +9,7 @@ import { ProjectManifest } from '@pnpm/types'
 import writeYamlFile from 'write-yaml-file'
 
 test('install with git-branch-lockfile = true', async () => {
-  const project = prepareEmpty()
+  prepareEmpty()
 
   const branchName: string = 'main-branch'
   getCurrentBranch.mockReturnValue(branchName)
@@ -24,9 +24,36 @@ test('install with git-branch-lockfile = true', async () => {
     },
   }, opts)
 
-  const lockfileDir: string = project.dir()
-  expect(fs.existsSync(path.join(lockfileDir, `pnpm-lock.${branchName}.yaml`))).toBe(true)
-  expect(fs.existsSync(path.join(lockfileDir, WANTED_LOCKFILE))).toBe(false)
+  expect(fs.existsSync(`pnpm-lock.${branchName}.yaml`)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+})
+
+test('install with git-branch-lockfile = true and no lockfile changes', async () => {
+  prepareEmpty()
+
+  const branchName: string = 'main-branch'
+  getCurrentBranch.mockReturnValue(branchName)
+
+  const manifest: ProjectManifest = {
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }
+
+  const opts1 = await testDefaults({
+    useGitBranchLockfile: false,
+  })
+  await install(manifest, opts1)
+
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+
+  const opts2 = await testDefaults({
+    useGitBranchLockfile: true,
+  })
+  await install(manifest, opts2)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+  // Git branch lockfile is created only if there are changes in the lockfile
+  expect(fs.existsSync(`pnpm-lock.${branchName}.yaml`)).toBe(false)
 })
 
 test('install a workspace with git-branch-lockfile = true', async () => {
@@ -41,7 +68,7 @@ test('install a workspace with git-branch-lockfile = true', async () => {
     name: 'project-2',
     dependencies: { 'is-positive': '1.0.0' },
   }
-  const { root } = preparePackages([
+  preparePackages([
     {
       location: '.',
       package: rootManifest,
@@ -84,9 +111,8 @@ test('install a workspace with git-branch-lockfile = true', async () => {
     },
   ], opts)
 
-  const lockfileDir: string = root.dir()
-  expect(fs.existsSync(path.join(lockfileDir, `pnpm-lock.${branchName}.yaml`))).toBe(true)
-  expect(fs.existsSync(path.join(lockfileDir, WANTED_LOCKFILE))).toBe(false)
+  expect(fs.existsSync(`pnpm-lock.${branchName}.yaml`)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
 })
 
 test('install with --merge-git-branch-lockfiles', async () => {
@@ -96,13 +122,12 @@ test('install with --merge-git-branch-lockfiles', async () => {
   getCurrentBranch.mockReturnValue(branchName)
 
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
-  const mainLockfilePath: string = path.resolve(WANTED_LOCKFILE)
   await writeYamlFile(otherLockfilePath, {
     whatever: 'whatever',
   })
 
   expect(fs.existsSync(otherLockfilePath)).toBe(true)
-  expect(fs.existsSync(mainLockfilePath)).toBe(false)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
 
   const opts = await testDefaults({
     useGitBranchLockfile: true,
@@ -115,5 +140,5 @@ test('install with --merge-git-branch-lockfiles', async () => {
   }, opts)
 
   expect(fs.existsSync(otherLockfilePath)).toBe(false)
-  expect(fs.existsSync(mainLockfilePath)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
 })
