@@ -33,6 +33,7 @@ export interface PnpmContext<T> {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   extraBinPaths: string[]
+  extraNodePaths: string[]
   lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
   include: IncludedDependencies
@@ -73,6 +74,7 @@ export interface GetContextOptions {
   extraBinPaths: string[]
   lockfileDir: string
   modulesDir?: string
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   hooks?: {
     readPackage?: ReadPackageHook
   }
@@ -147,6 +149,7 @@ export default async function getContext<T> (
   }
   const ctx: PnpmContext<T> = {
     extraBinPaths,
+    extraNodePaths: opts.nodeLinker === 'hoisted' ? [] : [path.join(virtualStoreDir, 'node_modules')],
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
@@ -332,6 +335,7 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   extraBinPaths: string[]
+  extraNodePaths: string[]
   lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
   hoistedModulesDir: string
@@ -361,6 +365,7 @@ export async function getContextForSingleImporter (
     forceSharedLockfile: boolean
     extraBinPaths: string[]
     lockfileDir: string
+    nodeLinker: 'isolated' | 'hoisted' | 'pnp'
     modulesDir?: string
     hooks?: {
       readPackage?: ReadPackageHook
@@ -443,6 +448,7 @@ export async function getContextForSingleImporter (
   }
   const ctx: PnpmSingleContext = {
     extraBinPaths,
+    extraNodePaths: opts.nodeLinker === 'hoisted' ? [] : [path.join(virtualStoreDir, 'node_modules')],
     hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: currentHoistPattern ?? opts.hoistPattern,

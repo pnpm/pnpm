@@ -10,6 +10,7 @@ export interface StrictRebuildOptions {
   childConcurrency: number
   extraBinPaths: string[]
   lockfileDir: string
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   scriptShell?: string
   sideEffectsCacheRead: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
@@ -53,6 +54,7 @@ const defaults = async (opts: RebuildOptions) => {
     force: false,
     forceSharedLockfile: false,
     lockfileDir,
+    nodeLinker: 'isolated',
     optional: true,
     packageManager,
     pending: false,

@@ -9,6 +9,7 @@ export interface StrictStoreStatusOptions {
   storeDir: string
   force: boolean
   forceSharedLockfile: boolean
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   useLockfile: boolean
   registries: Registries
   shamefullyHoist: boolean
@@ -32,6 +33,7 @@ const defaults = async (opts: StoreStatusOptions) => {
     force: false,
     forceSharedLockfile: false,
     lockfileDir,
+    nodeLinker: 'isolated',
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
     storeDir: opts.storeDir,

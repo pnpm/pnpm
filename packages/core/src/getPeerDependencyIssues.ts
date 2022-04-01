@@ -10,6 +10,7 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
 | 'linkWorkspacePackagesDepth'
 | 'nodeVersion'
+| 'nodeLinker'
 | 'overrides'
 | 'packageExtensions'
 | 'preferWorkspacePackages'
@@ -29,6 +30,7 @@ export async function getPeerDependencyIssues (
     forceSharedLockfile: false,
     extraBinPaths: [],
     lockfileDir,
+    nodeLinker: opts.nodeLinker ?? 'isolated',
     registries: DEFAULT_REGISTRIES,
     useLockfile: true,
     ...opts,
