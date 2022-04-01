@@ -132,6 +132,7 @@ export interface Config {
   useLockfile: boolean
   useGitBranchLockfile: boolean
   mergeGitBranchLockfiles?: boolean
+  mergeGitBranchLockfilesBranchPattern?: string[]
   globalPnpmfile?: string
   npmPath?: string
   gitChecks?: boolean

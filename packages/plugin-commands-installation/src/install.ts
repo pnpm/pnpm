@@ -12,7 +12,6 @@ export function rcOptionsTypes () {
   return pick([
     'cache-dir',
     'child-concurrency',
-    'merge-git-branch-lockfiles',
     'dev',
     'engine-strict',
     'fetch-retries',
@@ -34,6 +33,8 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'merge-git-branch-lockfiles',
+    'merge-git-branch-lockfiles-branch-pattern',
     'modules-dir',
     'network-concurrency',
     'node-linker',

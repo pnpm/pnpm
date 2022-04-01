@@ -4,6 +4,8 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { getCurrentBranch } from '@pnpm/git-utils'
+import matcher from '@pnpm/matcher'
 import camelcase from 'camelcase'
 import loadNpmConf from '@zkochan/npm-conf'
 import npmTypes from '@zkochan/npm-conf/lib/types'
@@ -36,6 +38,7 @@ export const types = Object.assign({
   'cache-dir': String,
   'child-concurrency': Number,
   'merge-git-branch-lockfiles': Boolean,
+  'merge-git-branch-lockfiles-branch-pattern': Array,
   color: ['always', 'auto', 'never'],
   'config-dir': String,
   dev: [null, true],
@@ -256,6 +259,17 @@ export default async (
     if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
     return false
   })()
+  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+    if (typeof pnpmConfig['mergeGitBranchLockfiles'] === 'boolean') return pnpmConfig['mergeGitBranchLockfiles']
+    if (pnpmConfig['mergeGitBranchLockfilesBranchPattern'] != null && pnpmConfig['mergeGitBranchLockfilesBranchPattern'].length > 0) {
+      const branch = await getCurrentBranch()
+      if (branch) {
+        const branchMatcher = matcher(pnpmConfig['mergeGitBranchLockfilesBranchPattern'])
+        return branchMatcher(branch)
+      }
+    }
+    return undefined
+  })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions['global']) {
@@ -309,7 +323,6 @@ export default async (
       }
       delete pnpmConfig.lockfileDir
     }
-    pnpmConfig.useGitBranchLockfile = false
     if (opts.cliOptions['virtual-store-dir']) {
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')
