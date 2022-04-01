@@ -147,12 +147,13 @@ export default async function getContext<T> (
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
+  const hoistPattern = importersContext.currentHoistPattern ?? opts.hoistPattern
   const ctx: PnpmContext<T> = {
     extraBinPaths,
-    extraNodePaths: opts.nodeLinker === 'hoisted' ? [] : [path.join(virtualStoreDir, 'node_modules')],
+    extraNodePaths: getExtraNodePaths({ nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
-    hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
+    hoistPattern,
     include: opts.include ?? importersContext.include,
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
@@ -446,12 +447,13 @@ export async function getContextForSingleImporter (
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
+  const hoistPattern = currentHoistPattern ?? opts.hoistPattern
   const ctx: PnpmSingleContext = {
     extraBinPaths,
-    extraNodePaths: opts.nodeLinker === 'hoisted' ? [] : [path.join(virtualStoreDir, 'node_modules')],
+    extraNodePaths: getExtraNodePaths({ nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
     hoistedDependencies,
     hoistedModulesDir,
-    hoistPattern: currentHoistPattern ?? opts.hoistPattern,
+    hoistPattern,
     importerId,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
@@ -491,4 +493,17 @@ export async function getContextForSingleImporter (
   })
 
   return ctx
+}
+
+function getExtraNodePaths (
+  { hoistPattern, nodeLinker, virtualStoreDir }: {
+    hoistPattern?: string[]
+    nodeLinker: 'isolated' | 'hoisted' | 'pnp'
+    virtualStoreDir: string
+  }
+) {
+  if (nodeLinker === 'isolated' && hoistPattern?.length) {
+    return [path.join(virtualStoreDir, 'node_modules')]
+  }
+  return []
 }
