@@ -35,7 +35,11 @@ export default async function testDefaults (
     ],
     { lockfileDir }
   )
-  storeDir = await storePath(lockfileDir, storeDir)
+  storeDir = await storePath({
+    pkgRoot: lockfileDir,
+    storePath: storeDir,
+    pnpmHomeDir: '',
+  })
   const authConfig = { registry }
   const { resolve, fetchers } = createClient({
     authConfig,
