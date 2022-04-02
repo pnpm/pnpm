@@ -1,5 +1,7 @@
 import { DependenciesMeta } from '@pnpm/types'
 
+export const lockfileVersion = 4.0;
+
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
   lockfileVersion: number

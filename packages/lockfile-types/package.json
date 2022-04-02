@@ -35,6 +35,9 @@
     "@pnpm/lockfile-types": "workspace:4.0.0"
   },
   "exports": {
+    "./lib/index.d.ts": "./lib/index.d.ts",
+    "./tsconfig.json": "./tsconfig.json",
+    "./package.json": "./package.json",
     ".": "./lib/index.js"
   }
 }
