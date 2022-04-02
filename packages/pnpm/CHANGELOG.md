@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-rc.1
+## 7.0.0-rc.2
 
 ### Major Changes
 
@@ -53,6 +53,26 @@
 - Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
 
 - Don't hoist types by default to the root of `node_modules` [#4459](https://github.com/pnpm/pnpm/pull/4459).
+
+- Any package with "prettier" in its name is hoisted.
+
+- Changed the location of the global store from `~/.pnpm-store` to `<pnpm home directory>/store`
+
+  On Linux, by default it will be `~/.local/share/pnpm/store`
+  On Windows: `%LOCALAPPDATA%/pnpm/store`
+  On macOS: `~/Library/pnpm/store`
+
+  Related issue: [#2574](https://github.com/pnpm/pnpm/issues/2574)
+
+- 4bed585e2: The next deprecated settings were removed:
+
+  - frozen-shrinkwrap
+  - prefer-frozen-shrinkwrap
+  - shared-workspace-shrinkwrap
+  - shrinkwrap-directory
+  - lockfile-directory
+  - shrinkwrap-only
+  - store
 
 ## 6.32.4
 
