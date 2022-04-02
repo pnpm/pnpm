@@ -77,7 +77,11 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
   case 'status':
     return statusCmd(opts)
   case 'path':
-    return storePath(opts.dir, opts.storeDir)
+    return storePath({
+      pkgRoot: opts.dir,
+      storePath: opts.storeDir,
+      pnpmHomeDir: opts.pnpmHomeDir,
+    })
   case 'prune': {
     store = await createOrConnectStoreController(opts)
     const storePruneOptions = Object.assign(opts, {
@@ -102,7 +106,11 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
 
 async function statusCmd (opts: StoreCommandOptions) {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
-    storeDir: await storePath(opts.dir, opts.storeDir),
+    storeDir: await storePath({
+      pkgRoot: opts.dir,
+      storePath: opts.storeDir,
+      pnpmHomeDir: opts.pnpmHomeDir,
+    }),
   }))
   if (!modifiedPkgs || (modifiedPkgs.length === 0)) {
     logger.info({

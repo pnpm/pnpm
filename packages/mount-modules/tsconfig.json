@@ -13,6 +13,9 @@
       "path": "../cafs"
     },
     {
+      "path": "../config"
+    },
+    {
       "path": "../dependency-path"
     },
     {

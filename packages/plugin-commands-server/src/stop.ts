@@ -14,9 +14,14 @@ export default async (
   opts: {
     storeDir?: string
     dir: string
+    pnpmHomeDir: string
   }
 ) => {
-  const storeDir = await storePath(opts.dir, opts.storeDir)
+  const storeDir = await storePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJson = await tryLoadServerJson({
     serverJsonPath: path.join(connectionInfoDir, 'server.json'),

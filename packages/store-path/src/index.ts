@@ -11,12 +11,23 @@ import touch from 'touch'
 const STORE_VERSION = 'v3'
 
 export default function (
-  pkgRoot: string,
-  storePath?: string
+  {
+    pkgRoot,
+    storePath,
+    pnpmHomeDir,
+  }: {
+    pkgRoot: string
+    storePath?: string
+    pnpmHomeDir: string
+  }
 ) {
-  if (!storePath || isHomepath(storePath)) {
-    const relStorePath = storePath ? storePath.substring(2) : '.pnpm-store'
-    return storePathRelativeToHome(pkgRoot, relStorePath)
+  if (!storePath) {
+    return storePathRelativeToHome(pkgRoot, 'store', pnpmHomeDir)
+  }
+
+  if (isHomepath(storePath)) {
+    const homedir = getHomedir()
+    return storePathRelativeToHome(pkgRoot, storePath.substring(2), homedir)
   }
 
   const storeBasePath = pathAbsolute(storePath, pkgRoot)
@@ -27,16 +38,16 @@ export default function (
   return path.join(storeBasePath, STORE_VERSION)
 }
 
-async function storePathRelativeToHome (pkgRoot: string, relStore: string) {
+async function storePathRelativeToHome (pkgRoot: string, relStore: string, homedir: string) {
   const tempFile = pathTemp(pkgRoot)
   await fs.mkdir(path.dirname(tempFile), { recursive: true })
   await touch(tempFile)
-  const homedir = getHomedir()
+  const storeInHomeDir = path.join(homedir, relStore, STORE_VERSION)
   if (await canLinkToSubdir(tempFile, homedir)) {
     await fs.unlink(tempFile)
     // If the project is on the drive on which the OS home directory
     // then the store is placed in the home directory
-    return path.join(homedir, relStore, STORE_VERSION)
+    return storeInHomeDir
   }
   try {
     let mountpoint = await rootLinkTarget(tempFile)
@@ -50,13 +61,13 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string) {
     // If linking works only in the project folder
     // then prefer to place the store inside the homedir
     if (dirsAreEqual(pkgRoot, mountpoint)) {
-      return path.join(homedir, relStore, STORE_VERSION)
+      return storeInHomeDir
     }
-    return path.join(mountpoint, relStore, STORE_VERSION)
+    return path.join(mountpoint, '.pnpm-store', STORE_VERSION)
   } catch (err) {
     // this is an unlikely situation but if there is no way to find
     // a linkable place on the disk, create the store in homedir
-    return path.join(homedir, relStore, STORE_VERSION)
+    return storeInHomeDir
   } finally {
     await fs.unlink(tempFile)
   }
