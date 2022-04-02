@@ -1600,6 +1600,7 @@ importers:
   packages/mount-modules:
     specifiers:
       '@pnpm/cafs': workspace:4.0.0
+      '@pnpm/config': workspace:14.0.0
       '@pnpm/lockfile-file': workspace:5.0.0
       '@pnpm/lockfile-utils': workspace:4.0.0
       '@pnpm/logger': ^4.0.0
@@ -1615,6 +1616,7 @@ importers:
       rimraf: ^3.0.2
     dependencies:
       '@pnpm/cafs': link:../cafs
+      '@pnpm/config': link:../config
       '@pnpm/lockfile-file': link:../lockfile-file
       '@pnpm/lockfile-utils': link:../lockfile-utils
       '@pnpm/store-path': link:../store-path

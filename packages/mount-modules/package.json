@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:4.0.0",
+    "@pnpm/config": "workspace:14.0.0",
     "@pnpm/lockfile-file": "workspace:5.0.0",
     "@pnpm/lockfile-utils": "workspace:4.0.0",
     "@pnpm/store-path": "workspace:5.0.0",

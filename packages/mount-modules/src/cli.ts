@@ -1,3 +1,4 @@
+import getConfig from '@pnpm/config'
 import { promises as fs } from 'fs'
 import path from 'path'
 
@@ -7,7 +8,15 @@ import createFuseHandlers from './createFuseHandlers'
 (async () => { /* eslint-disable-line */
   const mnt = path.join(process.cwd(), 'node_modules')
   await fs.mkdir(mnt, { recursive: true })
-  const cafsDir = path.join(await getStorePath(process.cwd()), 'files')
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: '', version: '' },
+  })
+  const cafsDir = path.join(await getStorePath({
+    pkgRoot: process.cwd(),
+    storePath: config.storeDir,
+    pnpmHomeDir: config.pnpmHomeDir,
+  }), 'files')
   const fuse = new Fuse(mnt, await createFuseHandlers(process.cwd(), cafsDir), { debug: true })
   fuse.mount(function (err?: Error) {
     if (err != null) console.error(err)

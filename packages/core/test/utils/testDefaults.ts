@@ -45,7 +45,11 @@ export default async function testDefaults<T> (
     ...fetchOpts,
   })
   let storeDir = opts?.storeDir ?? path.resolve('.store')
-  storeDir = await storePath(opts?.prefix ?? process.cwd(), storeDir)
+  storeDir = await storePath({
+    pkgRoot: opts?.prefix ?? process.cwd(),
+    storePath: storeDir,
+    pnpmHomeDir: '',
+  })
   const storeController = await createStore(
     resolve,
     fetchers,

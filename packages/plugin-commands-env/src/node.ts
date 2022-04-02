@@ -83,7 +83,11 @@ async function installNode (fetch: FetchFromRegistry, wantedNodeVersion: string,
     },
     timeout: opts.fetchTimeout,
   })
-  const storeDir = await storePath(process.cwd(), opts.storeDir)
+  const storeDir = await storePath({
+    pkgRoot: process.cwd(),
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
   const cafsDir = path.join(storeDir, 'files')
   const cafs = createCafsStore(cafsDir)
   const { filesIndex } = await fetchTarball(cafs, { tarball }, {
