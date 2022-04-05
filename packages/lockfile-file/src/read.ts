@@ -5,6 +5,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
+import mergeLockfileChanges from '@pnpm/merge-lockfile-changes'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
@@ -206,16 +207,16 @@ async function _mergeGitBranchLockfiles (
   }
   const gitBranchLockfiles: Array<(Lockfile | null)> = (await _readGitBranchLockfiles(lockfileDir, prefix, opts)).map(({ lockfile }) => lockfile)
 
+  let mergedLockfile: Lockfile = lockfile
+
   for (const gitBranchLockfile of gitBranchLockfiles) {
-    if (gitBranchLockfile?.packages) {
-      lockfile.packages = {
-        ...lockfile.packages,
-        ...gitBranchLockfile.packages,
-      }
+    if (!gitBranchLockfile) {
+      continue
     }
+    mergedLockfile = mergeLockfileChanges(mergedLockfile, gitBranchLockfile)
   }
 
-  return lockfile
+  return mergedLockfile
 }
 
 async function _readGitBranchLockfiles (
