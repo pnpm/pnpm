@@ -68,17 +68,20 @@ async function _fetchAllFilesFromDir (
 ): Promise<Record<string, string>> {
   const filesIndex: Record<string, string> = {}
   const files = await fs.readdir(dir)
-  await Promise.all(files.map(async (file) => {
-    const filePath = path.join(dir, file)
-    const stat = await fs.stat(filePath)
-    const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
-    if (stat.isDirectory()) {
-      const subFilesIndex = await _fetchAllFilesFromDir(filePath, relativeSubdir)
-      Object.assign(filesIndex, subFilesIndex)
-    } else {
-      filesIndex[relativeSubdir] = filePath
-    }
-  }))
+  await Promise.all(files
+    .filter((file) => file !== 'node_modules')
+    .map(async (file) => {
+      const filePath = path.join(dir, file)
+      const stat = await fs.stat(filePath)
+      const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
+      if (stat.isDirectory()) {
+        const subFilesIndex = await _fetchAllFilesFromDir(filePath, relativeSubdir)
+        Object.assign(filesIndex, subFilesIndex)
+      } else {
+        filesIndex[relativeSubdir] = filePath
+      }
+    })
+  )
   return filesIndex
 }
 
