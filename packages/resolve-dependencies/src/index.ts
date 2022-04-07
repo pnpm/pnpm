@@ -150,7 +150,7 @@ export default async function (
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest,
+      manifest: project.manifest,
       modulesDir: project.modulesDir,
       rootDir: project.rootDir,
       topParents,

@@ -1030,3 +1030,175 @@ test('inject local packages when node-linker is hoisted', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(path.join('project-3', 'node_modules', 'project-1'))
   }
 })
+
+test('inject local packages when node-linker is hoisted and dependenciesMeta is set via a hook', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-negative': '1.0.0',
+      'dep-of-pkg-with-1-dep': '100.0.0',
+    },
+    peerDependencies: {
+      'is-positive': '>=1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+      'dep-of-pkg-with-1-dep': '101.0.0',
+    },
+    devDependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const project3Manifest = {
+    name: 'project-3',
+    version: '1.0.0',
+    dependencies: {
+      'project-2': 'workspace:1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '2.0.0',
+    },
+  }
+  const projects = preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+    {
+      location: 'project-3',
+      package: project3Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project3Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: project1Manifest,
+      },
+    },
+    'project-2': {
+      '1.0.0': {
+        dir: path.resolve('project-2'),
+        manifest: project2Manifest,
+      },
+    },
+    'project-3': {
+      '1.0.0': {
+        dir: path.resolve('project-3'),
+        manifest: project2Manifest,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({
+    nodeLinker: 'hoisted',
+    workspacePackages,
+    hooks: {
+      readPackage: (manifest: any) => { // eslint-disable-line
+        if (manifest.name === 'project-2') {
+          manifest.dependenciesMeta = {
+            'project-1': {
+              injected: true,
+            },
+          }
+        }
+        if (manifest.name === 'project-3') {
+          manifest.dependenciesMeta = {
+            'project-2': {
+              injected: true,
+            },
+          }
+        }
+        return manifest
+      },
+    },
+  } as any)) // eslint-disable-line
+
+  const rootModules = assertProject(process.cwd())
+  await rootModules.has('is-negative')
+  await rootModules.has('dep-of-pkg-with-1-dep')
+  await rootModules.has('is-positive')
+
+  await projects['project-2'].has('project-1')
+  await projects['project-2'].has('project-1/node_modules/dep-of-pkg-with-1-dep')
+
+  await projects['project-3'].has('project-1')
+  await projects['project-3'].has('project-2')
+  await projects['project-3'].has('is-positive')
+
+  {
+    const lockfile = await rootModules.readLockfile()
+    expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
+      'project-1': {
+        injected: true,
+      },
+    })
+    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+      resolution: {
+        directory: 'project-1',
+        type: 'directory',
+      },
+      id: 'file:project-1',
+      name: 'project-1',
+      version: '1.0.0',
+      peerDependencies: {
+        'is-positive': '>=1.0.0',
+      },
+      dependencies: {
+        'dep-of-pkg-with-1-dep': '100.0.0',
+        'is-negative': '1.0.0',
+        'is-positive': '1.0.0',
+      },
+      dev: false,
+    })
+    expect(lockfile.packages['file:project-2_is-positive@2.0.0']).toEqual({
+      resolution: {
+        directory: 'project-2',
+        type: 'directory',
+      },
+      id: 'file:project-2',
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'dep-of-pkg-with-1-dep': '101.0.0',
+        'project-1': 'file:project-1_is-positive@2.0.0',
+      },
+      transitivePeerDependencies: ['is-positive'],
+      dev: false,
+    })
+
+    const modulesState = await rootModules.readModulesManifest()
+    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toEqual(path.join('project-2', 'node_modules', 'project-1'))
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(path.join('project-3', 'node_modules', 'project-1'))
+  }
+})
