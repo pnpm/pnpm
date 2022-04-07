@@ -25,6 +25,7 @@ test('CLI fails when store status finds modified packages', async () => {
     await store.handler({
       cacheDir,
       dir: process.cwd(),
+      pnpmHomeDir: '',
       rawConfig: {
         registry: REGISTRY,
       },
@@ -66,6 +67,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },
