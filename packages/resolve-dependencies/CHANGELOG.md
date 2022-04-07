@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 25.0.4
+
+### Patch Changes
+
+- fa8d66acd: `dependenciesMeta` should be saved into the lockfile, when it is added to the package manifest by a hook.
+
 ## 25.0.3
 
 ### Patch Changes

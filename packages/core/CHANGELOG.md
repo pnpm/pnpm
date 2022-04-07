@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 2.7.5
+
+### Patch Changes
+
+- Updated dependencies [fa8d66acd]
+  - @pnpm/resolve-dependencies@25.0.4
+
 ## 2.7.4
 
 ### Patch Changes
