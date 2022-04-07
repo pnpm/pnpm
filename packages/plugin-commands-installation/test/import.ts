@@ -30,6 +30,7 @@ const DEFAULT_OPTS = {
   networkConcurrency: 16,
   offline: false,
   proxy: undefined,
+  pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY },
   registries: { default: REGISTRY },
   registry: REGISTRY,
