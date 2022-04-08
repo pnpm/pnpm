@@ -399,7 +399,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
   const resolvedPeers: {[alias: string]: string} = {}
   const missingPeers = []
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
-    const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName]
+    const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
 
     const resolved = ctx.parentPkgs[peerName]
     const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
