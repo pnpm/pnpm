@@ -117,16 +117,17 @@ function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
     directNodeIdsByAlias: {[alias: string]: string}
-    topParents: Array<{name: string, version: string}>
+    topParents: Array<{name: string, version: string, linkedDir?: string}>
   }
 ) {
   return Object.assign(
     fromPairs(
-      topParents.map(({ name, version }): KeyValuePair<string, ParentRef> => [
+      topParents.map(({ name, version, linkedDir }): KeyValuePair<string, ParentRef> => [
         name,
         {
           depth: 0,
           version,
+          nodeId: linkedDir,
         },
       ])
     ),
@@ -249,8 +250,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     depPath = resolvedPackage.depPath
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
-      Object.keys(allResolvedPeers)
-        .map((alias) => ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage)
+      Object.entries(allResolvedPeers)
+        .filter(([,nodeId]) => !nodeId.startsWith('link:'))
+        .map(([,nodeId]) => ctx.dependenciesTree[nodeId].resolvedPackage)
         .map(({ name, version }) => ({ name, version })))
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
