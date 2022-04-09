@@ -1,7 +1,9 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct.svg)](https://stand-with-ukraine.pp.ua)
+
 [中文](https://pnpm.io/zh/) |
 [日本語](https://pnpm.io/ja/) |
+[한국어](https://pnpm.io/ko/) |
 [Italiano](https://pnpm.io/it/) |
-[Русский](https://pnpm.io/ru/) |
 [Français](https://pnpm.io/fr/)
 
 ![](https://i.imgur.com/qlW1eEG.png)
@@ -16,7 +18,7 @@ Fast, disk space efficient package manager:
 * **Works as a Node.js version manager.** See [pnpm env use](https://pnpm.io/cli/env).
 * **Works everywhere.** Supports Windows, Linux, and macOS.
 * **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/users) since 2016.
-  
+
 To quote the [Rush](https://rushjs.io/) team:
 
 > Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
