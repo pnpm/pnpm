@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-rc.2
+## 7.0.0-rc.3
 
 ### Major Changes
 
@@ -73,6 +73,11 @@
   - lockfile-directory
   - shrinkwrap-only
   - store
+
+### Patch Changes
+
+- Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+- Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
 
 ## 6.32.5
 
