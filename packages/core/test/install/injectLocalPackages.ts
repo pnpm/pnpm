@@ -1202,3 +1202,97 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
     expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(path.join('project-3', 'node_modules', 'project-1'))
   }
 })
+
+test('peer dependency of injected project should be resolved correctly', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {},
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    devDependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    peerDependencies: {
+      'project-1': 'workspace:^1.0.0',
+    },
+  }
+  const project3Manifest = {
+    name: 'project-3',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+      'project-2': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-2': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+    {
+      location: 'project-3',
+      package: project3Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project3Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: project1Manifest,
+      },
+    },
+    'project-2': {
+      '1.0.0': {
+        dir: path.resolve('project-2'),
+        manifest: project2Manifest,
+      },
+    },
+    'project-3': {
+      '1.0.0': {
+        dir: path.resolve('project-3'),
+        manifest: project2Manifest,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({
+    nodeLinker: 'hoisted',
+    workspacePackages,
+  }))
+
+  const rootModules = assertProject(process.cwd())
+  const lockfile = await rootModules.readLockfile()
+  expect(lockfile.packages?.['file:project-2_project-1@project-1'].dependencies?.['project-1']).toEqual('link:project-1')
+})
