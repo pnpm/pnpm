@@ -1127,3 +1127,46 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   await project.has('@typegoose/typegoose')
   await project.hasNot('@types/mongoose')
 })
+
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'ajv-keywords': '1.5.0',
+      ajv: 'link:../ajv',
+    },
+  }
+  const project2Manifest = {
+    name: 'ajv',
+    version: '4.10.4',
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'ajv',
+      package: project2Manifest,
+    },
+  ])
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('ajv'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({}))
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+  expect(lockfile.packages?.['/ajv-keywords/1.5.0_ajv@ajv'].dependencies?.['ajv']).toBe('link:ajv')
+})

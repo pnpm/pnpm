@@ -1163,8 +1163,8 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
       '/abc-grand-parent-with-c/1.0.0',
       '/abc-parent-with-ab/1.0.0',
       '/abc-parent-with-ab/1.0.0_peer-c@1.0.1',
-      '/abc/1.0.0_20890f3ae006d9839e924c7177030952',
-      '/abc/1.0.0_peer-a@1.0.1+peer-b@1.0.0',
+      '/abc/1.0.0_2ff3f699e79762943311edf90e6e1302',
+      '/abc/1.0.0_peer-a@peer-a+peer-b@1.0.0',
       '/dep-of-pkg-with-1-dep/100.0.0',
       '/is-positive/1.0.0',
       '/peer-b/1.0.0',
@@ -1172,7 +1172,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
     ]
   )
   expect(wantedLockfile.packages['/abc-parent-with-ab/1.0.0'].dependencies?.['peer-a']).toBe('link:peer-a')
-  expect(wantedLockfile.packages['/abc/1.0.0_peer-a@1.0.1+peer-b@1.0.0'].dependencies?.['peer-a']).toBe('link:peer-a')
+  expect(wantedLockfile.packages['/abc/1.0.0_peer-a@peer-a+peer-b@1.0.0'].dependencies?.['peer-a']).toBe('link:peer-a')
 })
 
 test('resolve a subdependency from the workspace, when it uses the workspace protocol', async () => {

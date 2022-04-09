@@ -3178,6 +3178,7 @@ importers:
       '@yarnpkg/core': 3.2.0
       dependency-path: workspace:9.0.0
       encode-registry: ^3.0.0
+      filenamify: ^4.3.0
       get-npm-tarball-url: ^2.0.3
       is-inner-link: ^4.0.0
       is-subdir: ^1.1.1
@@ -3205,6 +3206,7 @@ importers:
       '@yarnpkg/core': 3.2.0
       dependency-path: link:../dependency-path
       encode-registry: 3.0.0
+      filenamify: 4.3.0
       get-npm-tarball-url: 2.0.3
       is-inner-link: 4.0.0
       is-subdir: 1.2.0
@@ -8257,7 +8259,7 @@ packages:
   /eslint-config-standard-with-typescript/21.0.1_716c3012ce9c6cb0db5ff56082353a72:
     resolution: {integrity: sha512-FeiMHljEJ346Y0I/HpAymNKdrgKEpHpcg/D93FvPHWfCzbT4QyUJba/0FwntZeGLXfUiWDSeKmdJD597d9wwiw==}
     peerDependencies:
-      '@typescript-eslint/eslint-plugin': ^4.0.1 || ^5.6.0 || ^5.6.0
+      '@typescript-eslint/eslint-plugin': ^4.0.1 || ^5.6.0
       eslint: '*'
       eslint-plugin-import: ^2.22.1
       eslint-plugin-node: ^11.1.0
@@ -8768,6 +8770,20 @@ packages:
     engines: {node: ^10.12.0 || >=12.0.0}
     dependencies:
       flat-cache: 3.0.4
+
+  /filename-reserved-regex/2.0.0:
+    resolution: {integrity: sha1-q/c9+rc10EVECr/qLZHzieu/oik=}
+    engines: {node: '>=4'}
+    dev: false
+
+  /filenamify/4.3.0:
+    resolution: {integrity: sha512-hcFKyUG57yWGAzu1CMt/dPzYZuv+jAJUT85bL8mrXvNe6hWj6yEHEc4EdcgiA6Z3oi1/9wXJdZPXF2dZNgwgOg==}
+    engines: {node: '>=8'}
+    dependencies:
+      filename-reserved-regex: 2.0.0
+      strip-outer: 1.0.1
+      trim-repeated: 1.0.0
+    dev: false
 
   /fill-keys/1.0.2:
     resolution: {integrity: sha1-mo+jb06K1jTjv2tPPIiCVRRS6yA=}
@@ -13883,6 +13899,13 @@ packages:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
 
+  /strip-outer/1.0.1:
+    resolution: {integrity: sha512-k55yxKHwaXnpYGsOzg4Vl8+tDrWylxDEpknGjhTiZB8dFRU5rTo9CAzeycivxV3s+zlTKwrs6WxMxR95n26kwg==}
+    engines: {node: '>=0.10.0'}
+    dependencies:
+      escape-string-regexp: 1.0.5
+    dev: false
+
   /supports-color/5.5.0:
     resolution: {integrity: sha512-QjVjwdXIt408MIiAqCX4oUKsgU2EqAGzs2Ppkm4aQYbjm+ZEWEcW4SfFNTr4uMNZma0ey4f5lgLrkB0aX0QMow==}
     engines: {node: '>=4'}
@@ -14215,6 +14238,13 @@ packages:
     resolution: {integrity: sha512-GJtWyq9InR/2HRiLZgpIKv+ufIKrVrvjQWEj7PxAXNc5dwbNJkqhAUoAGgzRmULAnoOM5EIpveYd3J2VeSAIew==}
     engines: {node: '>=12'}
     dev: true
+
+  /trim-repeated/1.0.0:
+    resolution: {integrity: sha1-42RqLqTokTEr9+rObPsFOAvAHCE=}
+    engines: {node: '>=0.10.0'}
+    dependencies:
+      escape-string-regexp: 1.0.5
+    dev: false
 
   /trim-trailing-lines/1.1.4:
     resolution: {integrity: sha512-rjUWSqnfTNrjbB9NQWfPMH/xRK1deHeGsHoVfpxJ++XeYXE0d6B1En37AHfw3jtfTU7dzMzZL2jjpe8Qb5gLIQ==}

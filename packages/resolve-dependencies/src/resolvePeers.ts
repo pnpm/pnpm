@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import filenamify from 'filenamify'
 import path from 'path'
 import { satisfiesWithPrereleases } from '@yarnpkg/core/lib/semverUtils'
 import {
@@ -117,16 +118,17 @@ function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
     directNodeIdsByAlias: {[alias: string]: string}
-    topParents: Array<{name: string, version: string}>
+    topParents: Array<{name: string, version: string, linkedDir?: string}>
   }
 ) {
   return Object.assign(
     fromPairs(
-      topParents.map(({ name, version }): KeyValuePair<string, ParentRef> => [
+      topParents.map(({ name, version, linkedDir }): KeyValuePair<string, ParentRef> => [
         name,
         {
           depth: 0,
           version,
+          nodeId: linkedDir,
         },
       ])
     ),
@@ -249,9 +251,19 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     depPath = resolvedPackage.depPath
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
-      Object.keys(allResolvedPeers)
-        .map((alias) => ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage)
-        .map(({ name, version }) => ({ name, version })))
+      Object.entries(allResolvedPeers)
+        .map(([alias, nodeId]) => {
+          if (nodeId.startsWith('link:')) {
+            const linkedDir = nodeId.slice(5)
+            return {
+              name: alias,
+              version: filenamify(linkedDir, { replacement: '+' }),
+            }
+          }
+          const { name, version } = ctx.dependenciesTree[nodeId].resolvedPackage
+          return { name, version }
+        })
+    )
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
