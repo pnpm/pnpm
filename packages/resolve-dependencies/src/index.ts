@@ -142,7 +142,6 @@ export default async function (
         project.modulesDir
       )
       : []
-
     resolvedImporter.linkedDependencies.forEach((linkedDependency) => {
       topParents.push({
         name: linkedDependency.alias,
@@ -150,6 +149,7 @@ export default async function (
         linkedDir: `link:${path.relative(opts.lockfileDir, linkedDependency.resolution.directory)}`,
       })
     })
+
     const manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
     importers[index].manifest = manifest
     return {
