@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import filenamify from 'filenamify'
 import path from 'path'
 import { satisfiesWithPrereleases } from '@yarnpkg/core/lib/semverUtils'
 import {
@@ -251,9 +252,18 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
       Object.entries(allResolvedPeers)
-        .filter(([,nodeId]) => !nodeId.startsWith('link:'))
-        .map(([,nodeId]) => ctx.dependenciesTree[nodeId].resolvedPackage)
-        .map(({ name, version }) => ({ name, version })))
+        .map(([alias, nodeId]) => {
+          if (nodeId.startsWith('link:')) {
+            const linkedDir = nodeId.slice(5)
+            return {
+              name: alias,
+              version: filenamify(linkedDir, { replacement: '+' }),
+            }
+          }
+          const { name, version } = ctx.dependenciesTree[nodeId].resolvedPackage
+          return { name, version }
+        })
+    )
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))

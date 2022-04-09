@@ -46,6 +46,7 @@
     "@yarnpkg/core": "3.2.0",
     "dependency-path": "workspace:9.0.0",
     "encode-registry": "^3.0.0",
+    "filenamify": "^4.3.0",
     "get-npm-tarball-url": "^2.0.3",
     "is-inner-link": "^4.0.0",
     "is-subdir": "^1.1.1",

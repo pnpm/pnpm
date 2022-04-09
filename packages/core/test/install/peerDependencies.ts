@@ -1166,4 +1166,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
     },
   ]
   await mutateModules(importers, await testDefaults({}))
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+  expect(lockfile.packages?.['/ajv-keywords/1.5.0_ajv@ajv'].dependencies?.['ajv']).toBe('link:ajv')
 })
