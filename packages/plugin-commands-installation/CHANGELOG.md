@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.7
+
+### Patch Changes
+
+- Updated dependencies [f7c04733a]
+- Updated dependencies [ea16d3fd0]
+  - @pnpm/core@2.7.6
+
 ## 8.4.6
 
 ### Patch Changes

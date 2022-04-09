@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 25.0.5
+
+### Patch Changes
+
+- f7c04733a: Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- ea16d3fd0: Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+
 ## 25.0.4
 
 ### Patch Changes
