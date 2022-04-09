@@ -1291,4 +1291,8 @@ test('peer dependency of injected project should be resolved correctly', async (
     nodeLinker: 'hoisted',
     workspacePackages,
   }))
+
+  const rootModules = assertProject(process.cwd())
+  const lockfile = await rootModules.readLockfile()
+  expect(lockfile.packages?.['file:project-2_project-1@project-1'].dependencies?.['project-1']).toEqual('link:project-1')
 })
