@@ -18,6 +18,7 @@ export type ClientOptions = {
   timeout?: number
   userAgent?: string
   userConfig?: Record<string, string>
+  gitShallowHosts?: string[]
 } & ResolverFactoryOptions & AgentOptions
 
 export default function (opts: ClientOptions) {
@@ -40,6 +41,7 @@ function createFetchers (
   getCredentials: GetCredentials,
   opts: {
     retry?: RetryTimeoutOptions
+    gitShallowHosts?: string[]
   }
 ) {
   return {

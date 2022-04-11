@@ -48,6 +48,7 @@ export const types = Object.assign({
   'filter-prod': [String, Array],
   'frozen-lockfile': Boolean,
   'git-checks': Boolean,
+  'git-shallow-hosts': Array,
   'global-bin-dir': String,
   'global-dir': String,
   'global-path': String,
@@ -174,6 +175,14 @@ export default async (
     'fetch-retry-maxtimeout': 60000,
     'fetch-retry-mintimeout': 10000,
     'fetch-timeout': 60000,
+    'git-shallow-hosts': [
+      // Follow https://github.com/npm/git/blob/1e1dbd26bd5b87ca055defecc3679777cb480e2a/lib/clone.js#L13-L19
+      'github.com',
+      'gist.github.com',
+      'gitlab.com',
+      'bitbucket.com',
+      'bitbucket.org',
+    ],
     globalconfig: npmDefaults.globalconfig,
     hoist: true,
     'hoist-pattern': ['*'],

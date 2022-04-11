@@ -3,6 +3,7 @@ import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
 import preparePackage from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
+import { URL } from 'url'
 
 export default () => {
   return {
@@ -15,10 +16,17 @@ export default () => {
       },
       opts: {
         manifest?: DeferredManifestPromise
+        gitShallowHosts?: string[]
       }
     ) {
       const tempLocation = await cafs.tempDir()
-      await execGit(['clone', resolution.repo, tempLocation])
+      if (shouldUseShallow(resolution.repo, opts.gitShallowHosts)) {
+        await execGit(['init'], { cwd: tempLocation })
+        await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
+        await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
+      } else {
+        await execGit(['clone', resolution.repo, tempLocation])
+      }
       await execGit(['checkout', resolution.commit], { cwd: tempLocation })
       await preparePackage(tempLocation)
       // removing /.git to make directory integrity calculation faster
@@ -30,6 +38,21 @@ export default () => {
       return { filesIndex }
     },
   }
+}
+
+function shouldUseShallow (repoUrl: string, allowedHosts: string[] = []): boolean {
+  if (!allowedHosts) {
+    return false
+  }
+  try {
+    const { host } = new URL(repoUrl)
+    if (allowedHosts.includes(host)) {
+      return true
+    }
+  } catch (e) {
+    // URL might be malformed
+  }
+  return false
 }
 
 function prefixGitArgs (): string[] {
