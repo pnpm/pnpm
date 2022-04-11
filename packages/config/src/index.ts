@@ -32,6 +32,7 @@ async function which (cmd: string) {
 }
 
 export const types = Object.assign({
+  'auto-install-peers': Boolean,
   bail: Boolean,
   'cache-dir': String,
   'child-concurrency': Number,
@@ -164,6 +165,7 @@ export default async (
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const npmConfig = loadNpmConf(cliOptions, rcOptionsTypes, {
+    'auto-install-peers': false,
     bail: true,
     color: 'auto',
     'enable-modules-dir': true,
