@@ -684,10 +684,12 @@ importers:
       '@types/semver': ^7.3.4
       dependency-path: workspace:9.0.0
       encode-registry: ^3.0.0
+      rfc4648: ^1.5.1
       semver: ^7.3.4
     dependencies:
       '@pnpm/types': link:../types
       encode-registry: 3.0.0
+      rfc4648: 1.5.1
       semver: 7.3.6
     devDependencies:
       '@types/semver': 7.3.9
@@ -13202,6 +13204,10 @@ packages:
   /reusify/1.0.4:
     resolution: {integrity: sha512-U9nH88a3fc/ekCF1l0/UP1IosiuIjyTh7hBvXVMHYgVcfGvt897Xguj2UOLDeI5BG2m7/uwyaLVT6fbtCwTyzw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
+
+  /rfc4648/1.5.1:
+    resolution: {integrity: sha512-60e/YWs2/D3MV1ErdjhJHcmlgnyLUiG4X/14dgsfm9/zmCWLN16xI6YqJYSCd/OANM7bUNzJqPY5B8/02S9Ibw==}
+    dev: false
 
   /right-pad/1.0.1:
     resolution: {integrity: sha1-jKCMLLtbVedNr6lr9/0aJ9VoyNA=}

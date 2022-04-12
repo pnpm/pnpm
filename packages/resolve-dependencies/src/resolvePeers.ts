@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import filenamify from 'filenamify'
 import path from 'path'
 import { satisfiesWithPrereleases } from '@yarnpkg/core/lib/semverUtils'
@@ -7,7 +6,7 @@ import {
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
-import { depPathToFilename } from 'dependency-path'
+import { depPathToFilename, createPeersFolderSuffix } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
@@ -510,19 +509,4 @@ function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{alias: str
     }
   }
   return pkgsByName
-}
-
-function createPeersFolderSuffix (peers: Array<{name: string, version: string}>) {
-  const folderName = peers.map(({ name, version }) => `${name.replace('/', '+')}@${version}`).sort().join('+')
-
-  // We don't want the folder name to get too long.
-  // Otherwise, an ENAMETOOLONG error might happen.
-  // see: https://github.com/pnpm/pnpm/issues/977
-  //
-  // A bigger limit might be fine but the md5 hash will be 32 symbols,
-  // so for consistency's sake, we go with 32.
-  if (folderName.length > 32) {
-    return `_${crypto.createHash('md5').update(folderName).digest('hex')}`
-  }
-  return `_${folderName}`
 }
