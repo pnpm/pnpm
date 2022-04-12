@@ -1,4 +1,4 @@
-import cliTruncate from 'cli-truncate';
+import cliTruncate from 'cli-truncate'
 import path from 'path'
 import { type LifecycleLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
