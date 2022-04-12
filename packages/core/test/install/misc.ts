@@ -12,7 +12,7 @@ import {
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import fixtures from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   install,
@@ -29,10 +29,7 @@ import semver from 'semver'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
 import writeYamlFile from 'write-yaml-file'
-import {
-  addDistTag,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
 const IS_WINDOWS = isWindows()
@@ -68,7 +65,7 @@ test('no dependencies (lodash)', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  await addDistTag('lodash', '4.1.0', 'latest')
+  await addDistTag({ package: 'lodash', version: '4.1.0', distTag: 'latest' })
 
   await addDependenciesToPackage(
     {
@@ -176,8 +173,8 @@ test('modules without version spec, with custom tag config', async () => {
 
   const tag = 'beta'
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', tag)
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: tag })
 
   await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
 
@@ -203,8 +200,8 @@ test('aliased modules without version spec but with a trailing @', async () => {
 test('installing a package by specifying a specific dist-tag', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'beta')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'beta' })
 
   await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep@beta'], await testDefaults())
 
@@ -214,8 +211,8 @@ test('installing a package by specifying a specific dist-tag', async () => {
 test('update a package when installing with a dist-tag', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'beta')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'beta' })
 
   const manifest = await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
@@ -366,7 +363,7 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
 test('keeping existing specs untouched when adding new dependency', async () => {
   prepareEmpty()
 
-  await addDistTag('bar', '100.1.0', 'latest')
+  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({ dependencies: { bar: '^100.0.0' } }, ['foo@100.1.0'], await testDefaults())
 
@@ -467,8 +464,8 @@ test('circular deps', async () => {
 test('concurrent circular deps', async () => {
   // es5-ext is an external package from the registry
   // the latest dist-tag is overriden to have a stable test
-  await addDistTag('es5-ext', '0.10.31', 'latest')
-  await addDistTag('es6-iterator', '2.0.1', 'latest')
+  await addDistTag({ package: 'es5-ext', version: '0.10.31', distTag: 'latest' })
+  await addDistTag({ package: 'es6-iterator', version: '2.0.1', distTag: 'latest' })
 
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['es6-iterator@2.0.0'], await testDefaults({ fastUnpack: false }))
@@ -579,7 +576,7 @@ testOnNonWindows('building native addons', async () => {
 test('should update subdep on second install', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true }))
 
@@ -589,7 +586,7 @@ test('should update subdep on second install', async () => {
 
   expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const reporter = sinon.spy()
 
@@ -615,7 +612,7 @@ test('should update subdep on second install', async () => {
 test('should not update subdep when depth is smaller than depth of package', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true }))
 
@@ -625,7 +622,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await install(manifest, await testDefaults({ depth: 0, update: true }))
 
@@ -705,7 +702,7 @@ test('lockfile locks npm dependencies', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true, reporter }))
 
@@ -725,7 +722,7 @@ test('lockfile locks npm dependencies', async () => {
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await rimraf('node_modules')
 
@@ -892,14 +889,14 @@ test('reinstalls missing packages to node_modules during headless install', asyn
 })
 
 test('do not update deps when lockfile is present', async () => {
-  await addDistTag('peer-a', '1.0.0', 'latest')
+  await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['peer-a'], await testDefaults({ lockfileOnly: true }))
 
   const initialLockfile = await project.readLockfile()
 
-  await addDistTag('peer-a', '1.0.1', 'latest')
+  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
 
   await mutateModules([
     {
@@ -1001,7 +998,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
 })
 
 test('subdep symlinks are updated if the lockfile has new subdep versions specified', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   await mutateModules([

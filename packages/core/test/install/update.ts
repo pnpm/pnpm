@@ -2,33 +2,31 @@ import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import {
-  addDistTag,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 test('preserve subdeps on update', async () => {
   const project = prepareEmpty()
 
   await Promise.all([
-    addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
-    addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
-    addDistTag('bar', '100.0.0', 'latest'),
-    addDistTag('foo', '100.0.0', 'latest'),
-    addDistTag('foobarqar', '1.0.0', 'latest'),
-    addDistTag('peer-c', '1.0.0', 'latest'),
+    addDistTag({ package: 'abc-grand-parent-with-c', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'foobarqar', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' }),
   ])
 
   const manifest = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
 
   await Promise.all([
-    addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
-    addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
-    addDistTag('bar', '100.1.0', 'latest'),
-    addDistTag('foo', '100.1.0', 'latest'),
-    addDistTag('foobarqar', '1.0.1', 'latest'),
+    addDistTag({ package: 'abc-grand-parent-with-c', version: '1.0.1', distTag: 'latest' }),
+    addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' }),
+    addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'foobarqar', version: '1.0.1', distTag: 'latest' }),
   ])
 
   await install(manifest, await testDefaults({ update: true, depth: 0 }))
@@ -49,22 +47,22 @@ test('preserve subdeps on update when no node_modules is present', async () => {
   const project = prepareEmpty()
 
   await Promise.all([
-    addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
-    addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
-    addDistTag('bar', '100.0.0', 'latest'),
-    addDistTag('foo', '100.0.0', 'latest'),
-    addDistTag('foobarqar', '1.0.0', 'latest'),
-    addDistTag('peer-c', '1.0.0', 'latest'),
+    addDistTag({ package: 'abc-grand-parent-with-c', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'foobarqar', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' }),
   ])
 
   const manifest = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults({ lockfileOnly: true }))
 
   await Promise.all([
-    addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
-    addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
-    addDistTag('bar', '100.1.0', 'latest'),
-    addDistTag('foo', '100.1.0', 'latest'),
-    addDistTag('foobarqar', '1.0.1', 'latest'),
+    addDistTag({ package: 'abc-grand-parent-with-c', version: '1.0.1', distTag: 'latest' }),
+    addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' }),
+    addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'foobarqar', version: '1.0.1', distTag: 'latest' }),
   ])
 
   await install(manifest, await testDefaults({ update: true, depth: 0 }))
@@ -103,12 +101,12 @@ test('update does not install the package if it is not present in package.json',
 test('update dependency when external lockfile directory is used', async () => {
   prepareEmpty()
 
-  await addDistTag('foo', '100.0.0', 'latest')
+  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
 
   const lockfileDir = path.resolve('..')
   const manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ lockfileDir }))
 
-  await addDistTag('foo', '100.1.0', 'latest')
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
   await install(manifest, await testDefaults({ update: true, depth: 0, lockfileDir }))
 
@@ -122,12 +120,12 @@ test('preserve subdeps when installing on a package that has one dependency spec
   const project = prepareEmpty()
 
   await Promise.all([
-    addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
-    addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
-    addDistTag('bar', '100.0.0', 'latest'),
-    addDistTag('foo', '100.0.0', 'latest'),
-    addDistTag('foobarqar', '1.0.0', 'latest'),
-    addDistTag('peer-c', '1.0.0', 'latest'),
+    addDistTag({ package: 'abc-grand-parent-with-c', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'foobarqar', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' }),
   ])
 
   const manifest = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
@@ -135,10 +133,10 @@ test('preserve subdeps when installing on a package that has one dependency spec
   manifest.dependencies!['foobarqar'] = '^1.0.1'
 
   await Promise.all([
-    addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
-    addDistTag('bar', '100.1.0', 'latest'),
-    addDistTag('foo', '100.1.0', 'latest'),
-    addDistTag('foobarqar', '1.0.1', 'latest'),
+    addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' }),
+    addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'foobarqar', version: '1.0.1', distTag: 'latest' }),
   ])
 
   await install(manifest, await testDefaults())
@@ -158,13 +156,13 @@ test('preserve subdeps when installing on a package that has one dependency spec
 test('update only the packages that were requested to be updated when hoisting is on', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('bar', '100.0.0', 'latest')
-  await addDistTag('foo', '100.0.0', 'latest')
+  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
 
   let manifest = await addDependenciesToPackage({}, ['bar', 'foo'], await testDefaults({ hoistPattern: ['*'] }))
 
-  await addDistTag('bar', '100.1.0', 'latest')
-  await addDistTag('foo', '100.1.0', 'latest')
+  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
   manifest = await addDependenciesToPackage(manifest, ['foo'], await testDefaults({ allowNew: false, update: true, hoistPattern: ['*'] }))
 
@@ -178,22 +176,22 @@ test('update only the specified package', async () => {
   const project = prepareEmpty()
 
   await Promise.all([
-    addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
-    addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
-    addDistTag('bar', '100.0.0', 'latest'),
-    addDistTag('foo', '100.0.0', 'latest'),
-    addDistTag('foobarqar', '1.0.0', 'latest'),
-    addDistTag('peer-c', '1.0.0', 'latest'),
+    addDistTag({ package: 'abc-grand-parent-with-c', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'foobarqar', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' }),
   ])
 
   const manifest = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
 
   await Promise.all([
-    addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
-    addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
-    addDistTag('bar', '100.1.0', 'latest'),
-    addDistTag('foo', '100.1.0', 'latest'),
-    addDistTag('foobarqar', '1.0.1', 'latest'),
+    addDistTag({ package: 'abc-grand-parent-with-c', version: '1.0.1', distTag: 'latest' }),
+    addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' }),
+    addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'foobarqar', version: '1.0.1', distTag: 'latest' }),
   ])
 
   await install(manifest, await testDefaults({

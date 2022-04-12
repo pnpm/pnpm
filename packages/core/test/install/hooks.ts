@@ -1,20 +1,18 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   PackageManifest,
 } from '@pnpm/core'
-import {
-  addDistTag,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 test('readPackage, afterAllResolved hooks', async () => {
   const project = prepareEmpty()
 
   // w/o the hook, 100.1.0 would be installed
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   function readPackageHook (manifest: PackageManifest) {
     switch (manifest.name) {
@@ -52,7 +50,7 @@ test('readPackage, afterAllResolved async hooks', async () => {
   const project = prepareEmpty()
 
   // w/o the hook, 100.1.0 would be installed
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   async function readPackageHook (manifest: PackageManifest) {
     switch (manifest.name) {
