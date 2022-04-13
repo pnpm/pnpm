@@ -43,7 +43,7 @@
     "ansi-diff": "^1.1.1",
     "boxen": "^5.1.2",
     "chalk": "^4.1.2",
-    "cli-truncate": "^3.1.0",
+    "cli-truncate": "^2.1.0",
     "normalize-path": "^3.0.0",
     "pretty-bytes": "^5.6.0",
     "pretty-ms": "^7.0.1",
