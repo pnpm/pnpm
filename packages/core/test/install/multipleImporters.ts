@@ -1164,7 +1164,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
       '/abc-grand-parent-with-c/1.0.0',
       '/abc-parent-with-ab/1.0.0',
       '/abc-parent-with-ab/1.0.0_peer-c@1.0.1',
-      '/abc/1.0.0_2ff3f699e79762943311edf90e6e1302',
+      '/abc/1.0.0_f7z7ngphs5rjimyr5x4q43qtai',
       '/abc/1.0.0_peer-a@peer-a+peer-b@1.0.0',
       '/dep-of-pkg-with-1-dep/100.0.0',
       '/is-positive/1.0.0',

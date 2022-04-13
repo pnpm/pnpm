@@ -438,14 +438,14 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation1 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation1, 'abc'))
   await okFile(path.join(pkgVariation1, 'peer-a'))
   await okFile(path.join(pkgVariation1, 'peer-b'))
   await okFile(path.join(pkgVariation1, 'peer-c'))
   await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir + '_f101cfec1621b915239e5c82246da43c/node_modules')
+  const pkgVariation2 = path.join(pkgVariationsDir + '_czpb4cfd67t7o7o3k4vnbzkwma/node_modules')
   await okFile(path.join(pkgVariation2, 'abc'))
   await okFile(path.join(pkgVariation2, 'peer-a'))
   await okFile(path.join(pkgVariation2, 'peer-b'))
@@ -461,6 +461,7 @@ test('peer dependencies are linked when running one named installation', async (
 })
 
 test('peer dependencies are linked when running two separate named installations', async () => {
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
@@ -470,14 +471,14 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation1 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation1, 'abc'))
   await okFile(path.join(pkgVariation1, 'peer-a'))
   await okFile(path.join(pkgVariation1, 'peer-b'))
   await okFile(path.join(pkgVariation1, 'peer-c'))
   await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation2 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation2, 'abc'))
   await okFile(path.join(pkgVariation2, 'peer-a'))
   await okFile(path.join(pkgVariation2, 'peer-b'))

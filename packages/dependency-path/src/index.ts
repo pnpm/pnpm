@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { Registries } from '@pnpm/types'
 import encodeRegistry from 'encode-registry'
+import { base32 } from 'rfc4648'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string) {
@@ -132,7 +133,7 @@ export function parse (dependencyPath: string) {
 export function depPathToFilename (depPath: string) {
   const filename = depPathToFilenameUnescaped(depPath).replace(/\//g, '+')
   if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
-    return `${filename.substring(0, 50)}_${crypto.createHash('md5').update(filename).digest('hex')}`
+    return `${filename.substring(0, 50)}_${createBase32Hash(filename)}`
   }
   return filename
 }
@@ -146,4 +147,23 @@ function depPathToFilenameUnescaped (depPath: string) {
     return `${depPath.substring(0, index)}@${depPath.slice(index + 1)}`
   }
   return depPath.replace(':', '+')
+}
+
+export function createPeersFolderSuffix (peers: Array<{name: string, version: string}>): string {
+  const folderName = peers.map(({ name, version }) => `${name.replace('/', '+')}@${version}`).sort().join('+')
+
+  // We don't want the folder name to get too long.
+  // Otherwise, an ENAMETOOLONG error might happen.
+  // see: https://github.com/pnpm/pnpm/issues/977
+  //
+  // A bigger limit might be fine but the base32 encoded md5 hash will be 26 symbols,
+  // so for consistency's sake, we go with 26.
+  if (folderName.length > 26) {
+    return `_${createBase32Hash(folderName)}`
+  }
+  return `_${folderName}`
+}
+
+function createBase32Hash (str: string): string {
+  return base32.stringify(crypto.createHash('md5').update(str).digest()).replace(/(=+)$/, '').toLowerCase()
 }
