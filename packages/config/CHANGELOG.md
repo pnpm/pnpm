@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.13.3
+
+### Patch Changes
+
+- 827007700: Setting the `auto-install-peers` to `true` should work.
+
 ## 13.13.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.32.7
+
+### Patch Changes
+
+- Setting the `auto-install-peers` to `true` should work.
+
 ## 6.32.6
 
 ### Patch Changes

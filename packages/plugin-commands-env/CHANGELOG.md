@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-env
 
+## 1.4.16
+
+### Patch Changes
+
+- Updated dependencies [827007700]
+  - @pnpm/config@13.13.3
+  - @pnpm/cli-utils@0.6.52
+
 ## 1.4.15
 
 ### Patch Changes
