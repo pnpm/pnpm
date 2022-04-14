@@ -40,6 +40,7 @@ const spnpmImportsPlugin = {
   await esbuild.build({
     bundle: true,
     platform: 'node',
+    target: 'node14',
     entryPoints: [pathLib.resolve(__dirname, 'lib/pnpm.js')],
     outfile: pathLib.resolve(__dirname, 'dist-spnpm/spnpm.cjs'),
     external: [
