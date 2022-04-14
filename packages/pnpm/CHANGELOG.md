@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-rc.3
+## 7.0.0-rc.4
 
 ### Major Changes
 
@@ -74,10 +74,9 @@
   - shrinkwrap-only
   - store
 
-### Patch Changes
+- Use a base32 hash instead of a hex to encode too long dependency paths inside `node_modules/.pnpm` [#4552](https://github.com/pnpm/pnpm/pull/4552).
 
-- Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
-- Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
 
 ## 6.32.7
 
