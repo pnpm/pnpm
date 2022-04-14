@@ -12,7 +12,7 @@ const pkgName = `@pnpm/${platform}-${arch}`
 const pkgJson = require.resolve(`${pkgName}/package.json`)
 const subpkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'))
 
-if (subpkg.bin != null) {
+if (subpkg.bin !== null) {
   const executable = subpkg.bin.pnpm
   const bin = path.resolve(path.dirname(pkgJson), executable)
 
