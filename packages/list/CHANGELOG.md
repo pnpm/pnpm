@@ -305,7 +305,7 @@
 
 ### Patch Changes
 
-- f1dc3c872: format package name in ls comand
+- f1dc3c872: format package name in ls command
 
 ## 5.0.19
 

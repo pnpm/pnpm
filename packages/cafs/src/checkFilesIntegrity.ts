@@ -12,7 +12,7 @@ const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
-  // the intitial specs of pnpm store v3 did not require these fields.
+  // the initial specs of pnpm store v3 did not require these fields.
   // However, it might be possible that some types of dependencies don't
   // have the name/version fields, like the local tarball dependencies.
   name?: string

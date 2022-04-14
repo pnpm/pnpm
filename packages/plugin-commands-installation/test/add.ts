@@ -152,7 +152,7 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
   expect(err.message.startsWith('This workspace has link-workspace-packages turned off')).toBeTruthy()
 })
 
-test('installing with "workspace=true" with linkWorkpacePackages on and saveWorkspaceProtocol off', async () => {
+test('installing with "workspace=true" with linkWorkspacePackages on and saveWorkspaceProtocol off', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',

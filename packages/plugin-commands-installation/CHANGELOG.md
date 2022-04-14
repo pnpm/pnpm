@@ -963,7 +963,7 @@
 
 ### Patch Changes
 
-- c3d2746ac: Peer depednencies are resolved from the root of the workspace when a new dependency is added to the root of the workspace.
+- c3d2746ac: Peer dependencies are resolved from the root of the workspace when a new dependency is added to the root of the workspace.
   - supi@0.47.12
   - @pnpm/outdated@9.0.2
   - @pnpm/package-store@12.0.12
@@ -2233,7 +2233,7 @@
 
 - 6cc36c85c: `pnpm install -r` should recreate the modules directory
   if the hoisting patterns were updated in a local config file.
-  The hoisting patterns are configure via the `hoist-pattern`
+  The hoisting patterns are configured via the `hoist-pattern`
   and `public-hoist-pattern` settings.
 - 3feae5342: The same code should run when running some command inside a project directory, or when using `--filter` to select a specific workspace project.
 - Updated dependencies [ac0d3e122]

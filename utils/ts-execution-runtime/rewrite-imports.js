@@ -1,5 +1,5 @@
 // This plugin transforms module imports inside `pnpm` codebase, so that they point to
-// TypeScript sources `src/index.ts` and not to declared entrypoints `lib/index.js`.
+// TypeScript sources `src/index.ts` and not to declared entrypoint `lib/index.js`.
 // Also, sometimes the code uses deep imports from `@pnpm/.../lib/...` packages,
 // the plugin rewrites `lib` to `src` for such deep imports to point back to TypeScript code
 
@@ -12,7 +12,7 @@ module.exports = ({ types: t }, opts) => {
     const opts = state.opts
     let result = source
     const sourceParts = source.split('/')
-    const isQualifiedModulePath = sourceParts.length > 2 || (sourceParts.length == 2 && sourceParts[0][0] !== '@')
+    const isQualifiedModulePath = sourceParts.length > 2 || (sourceParts.length === 2 && sourceParts[0][0] !== '@')
     if (!isQualifiedModulePath && !path.isAbsolute(source) && !source.startsWith('.') && !NATIVE_MODULES.has(source)) {
       try {
         const packageRootDir = path.dirname(require.resolve(source + '/package.json', {paths: [file]}))

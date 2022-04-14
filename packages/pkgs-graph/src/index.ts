@@ -63,7 +63,7 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
             rawSpec = rawSpec.slice(10)
             if (rawSpec === '^' || rawSpec === '~') {
               rawSpec = '*'
-            };
+            }
           }
           spec = npa.resolve(depName, rawSpec, pkg.dir)
         } catch (err: any) { // eslint-disable-line

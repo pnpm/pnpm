@@ -172,7 +172,7 @@ Run "pnpm install" to recreate node_modules.`
 
   output += formatRelatedSources(msg)
   return {
-    title: 'The store used for the current node_modules is incomatible with the current version of pnpm',
+    title: 'The store used for the current node_modules is incompatible with the current version of pnpm',
     body: output,
   }
 }

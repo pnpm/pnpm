@@ -66,7 +66,7 @@ test('pnpm run --no-bail never fails', async () => {
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
-test('run: pass the args to the command that is specfied in the build script', async () => {
+test('run: pass the args to the command that is specified in the build script', async () => {
   prepare({
     scripts: {
       foo: 'node recordArgs',
@@ -87,7 +87,7 @@ test('run: pass the args to the command that is specfied in the build script', a
   expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
-test('run: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
+test('run: pass the args to the command that is specified in the build script of a package.yaml manifest', async () => {
   prepare({
     scripts: {
       foo: 'node recordArgs',
@@ -108,7 +108,7 @@ test('run: pass the args to the command that is specfied in the build script of 
   expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
-test('test: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
+test('test: pass the args to the command that is specified in the build script of a package.yaml manifest', async () => {
   prepare({
     scripts: {
       posttest: 'node recordArgs',
@@ -129,7 +129,7 @@ test('test: pass the args to the command that is specfied in the build script of
   expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
-test('run start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
+test('run start: pass the args to the command that is specified in the build script of a package.yaml manifest', async () => {
   prepare({
     scripts: {
       poststart: 'node recordArgs',
@@ -150,7 +150,7 @@ test('run start: pass the args to the command that is specfied in the build scri
   expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
-test('run stop: pass the args to the command that is specfied in the build script of a package.yaml manifest', async () => {
+test('run stop: pass the args to the command that is specified in the build script of a package.yaml manifest', async () => {
   prepare({
     scripts: {
       poststop: 'node recordArgs',

@@ -106,7 +106,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
   ])
 })
 
-test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurence', () => {
+test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurrence', () => {
   const fooPkg = {
     name: 'foo',
     depPath: 'foo/1.0.0',

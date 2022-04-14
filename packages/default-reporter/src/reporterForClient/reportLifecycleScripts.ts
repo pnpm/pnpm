@@ -284,4 +284,4 @@ function aggregateOutput (source: Rx.Observable<LifecycleLog>) {
     map(ar => Rx.from(ar)),
     mergeAll()
   )
-};
+}

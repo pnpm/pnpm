@@ -176,7 +176,7 @@ function toLockfileDependency (
 }
 
 // previous resolutions should not be removed from lockfile
-// as installation might not reanalize the whole dependency graph
+// as installation might not reanalyze the whole dependency graph
 // the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
@@ -225,7 +225,7 @@ function toLockfileResolution (
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
-  // Or in othere weird cases, like https://github.com/pnpm/pnpm/issues/1072
+  // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
   const actualTarball = resolution['tarball'].replace('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {

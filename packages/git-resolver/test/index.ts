@@ -21,7 +21,7 @@ test('resolveFromGit() with commit', async () => {
 test('resolveFromGit() with no commit', async () => {
   // This is repeated twice because there was a bug which caused the normalizedPref
   // to contain the commit hash on second call.
-  // The issue occured because .hosted field (which is class from the 'hosted-git-info' package)
+  // The issue occurred because .hosted field (which is class from the 'hosted-git-info' package)
   // was mutated. A 'committish' field was added to it.
   for (let i = 0; i < 2; i++) {
     const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' })

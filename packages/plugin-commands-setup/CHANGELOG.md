@@ -237,7 +237,7 @@
 
 ### Major Changes
 
-- 71cc21832: Print info message about the requirment to open a new terminal.
+- 71cc21832: Print info message about the requirement to open a new terminal.
 
 ## 0.2.1
 

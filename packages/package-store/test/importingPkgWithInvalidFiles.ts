@@ -15,5 +15,5 @@ test('importing a package with invalid files', async () => {
     force: false,
     fromStore: false,
   })
-  expect(await (await fs.readdir(target)).length).toBe(2)
+  expect((await fs.readdir(target)).length).toBe(2)
 })
