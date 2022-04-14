@@ -2,6 +2,8 @@ import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, RetryTimeoutOptions } from '@zkochan/retry'
 import fetch, { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
 
+export { isRedirect } from 'node-fetch'
+
 export { Response, RetryTimeoutOptions }
 
 interface URLLike {
@@ -14,8 +16,6 @@ export interface RequestInit extends NodeRequestInit {
   retry?: RetryTimeoutOptions
   timeout?: number
 }
-
-export const isRedirect = fetch.isRedirect
 
 export default async function fetchRetry (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
   const retryOpts = opts.retry ?? {}
