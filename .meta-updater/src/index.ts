@@ -92,7 +92,7 @@ async function updateTSConfig (
         manifest.name === '@pnpm/package-requester'
       )
     ) {
-      // This is to avoid a circular graph (which TypeScript references to do not support.
+      // This is to avoid a circular graph (which TypeScript references do not support.
       continue
     }
     references.push({ path: relativePath })
