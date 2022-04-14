@@ -39,7 +39,7 @@ test('resolve directory specified using the file: protocol', async () => {
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
-test('resolve directoty specified using the link: protocol', async () => {
+test('resolve directory specified using the link: protocol', async () => {
   const resolveResult = await resolveFromLocal({ pref: 'link:..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
   expect(resolveResult!.normalizedPref).toEqual('link:..')

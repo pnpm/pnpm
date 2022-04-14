@@ -99,7 +99,7 @@ function readPackage (pkg) {
 
 ### `afterAllResolved(lockfile: Lockfile): Lockfile | Promise<Lockfile>`
 
-This hook is called after all dependencies are resolved. It recieves and returns the resolved lockfile object.
+This hook is called after all dependencies are resolved. It receives and returns the resolved lockfile object.
 An async function is supported.
 
 ## License

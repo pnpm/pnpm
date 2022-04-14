@@ -297,7 +297,7 @@ test('prints meaningful error when there is syntax error in .pnpmfile.cjs', asyn
   expect(proc.status).toBe(1)
 })
 
-test('fails when .pnpmfile.cjs requires a non-existend module', async () => {
+test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
   prepare()
 
   await fs.writeFile('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')

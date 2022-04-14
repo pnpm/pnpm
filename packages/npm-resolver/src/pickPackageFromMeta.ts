@@ -61,7 +61,7 @@ function pickVersionByVersionRange (
       case 'range': {
         // This might be slow if there are many versions
         // and the package is an indirect dependency many times in the project.
-        // If it will create noticable slowdown, then might be a good idea to add some caching
+        // If it will create noticeable slowdown, then might be a good idea to add some caching
         versions = Object.keys(meta.versions)
         for (const version of versions) {
           if (semver.satisfies(version, preferredSelector, true)) {

@@ -343,7 +343,7 @@ function fetchToStore (
     // affecting previous invocations: so we need to replace the cache.
     //
     // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
-    // Otherwise, if a package was not in store when the server started, it will be always
+    // Otherwise, if a package was not in store when the server started, it will always be
     // reported as "downloaded" instead of "reused".
     files.promise.then((cache) => { // eslint-disable-line
       progressLogger.debug({
@@ -490,7 +490,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       // Tarballs are requested first because they are bigger than metadata files.
       // However, when one line is left available, allow it to be picked up by a metadata request.
       // This is done in order to avoid situations when tarballs are downloaded in chunks
-      // As much tarballs should be downloaded simultaneously as possible.
+      // As many tarballs should be downloaded simultaneously as possible.
       const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // eslint-disable-line
 
       const fetchManifest = opts.fetchRawManifest

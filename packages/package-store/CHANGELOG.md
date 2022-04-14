@@ -649,7 +649,7 @@
 
 ### Patch Changes
 
-- 1adacd41e: only scan diretories when doing store prune
+- 1adacd41e: only scan directories when doing store prune
 
 ## 9.0.8
 

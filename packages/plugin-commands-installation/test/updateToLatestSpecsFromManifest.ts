@@ -1,6 +1,6 @@
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '@pnpm/plugin-commands-installation/lib/updateToLatestSpecsFromManifest'
 
-const MAINFEST = {
+const MANIFEST = {
   dependencies: {
     'dep-of-pkg-with-1-dep': 'npm:pkg-with-1-dep@1.0.0',
   },
@@ -13,7 +13,7 @@ const MAINFEST = {
 }
 
 test('updateToLatestSpecsFromManifest()', () => {
-  const updateResult1 = expect(updateToLatestSpecsFromManifest(MAINFEST, {
+  const updateResult1 = expect(updateToLatestSpecsFromManifest(MANIFEST, {
     optionalDependencies: true,
     dependencies: true,
     devDependencies: true,
@@ -22,7 +22,7 @@ test('updateToLatestSpecsFromManifest()', () => {
   updateResult1.toContain('dep-of-pkg-with-1-dep@npm:pkg-with-1-dep@latest')
   updateResult1.toContain('is-positive@latest')
 
-  const updateResult2 = expect(updateToLatestSpecsFromManifest(MAINFEST, {
+  const updateResult2 = expect(updateToLatestSpecsFromManifest(MANIFEST, {
     optionalDependencies: false,
     dependencies: true,
     devDependencies: false,
@@ -33,10 +33,10 @@ test('updateToLatestSpecsFromManifest()', () => {
 
 test('createLatestSpecs()', () => {
   expect(
-    createLatestSpecs(['dep-of-pkg-with-1-dep', 'is-positive@2.0.0', 'foo'], MAINFEST)
+    createLatestSpecs(['dep-of-pkg-with-1-dep', 'is-positive@2.0.0', 'foo'], MANIFEST)
   ).toStrictEqual(['dep-of-pkg-with-1-dep@npm:pkg-with-1-dep@latest', 'is-positive@2.0.0', 'foo'])
 
   expect(
-    createLatestSpecs(['dep-of-pkg-with-1-dep', 'is-positive', 'foo', 'bar'], MAINFEST)
+    createLatestSpecs(['dep-of-pkg-with-1-dep', 'is-positive', 'foo', 'bar'], MANIFEST)
   ).toStrictEqual(['dep-of-pkg-with-1-dep@npm:pkg-with-1-dep@latest', 'is-positive@latest', 'foo'])
 })

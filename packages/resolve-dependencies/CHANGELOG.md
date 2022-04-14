@@ -382,7 +382,7 @@
 
 ### Major Changes
 
-- 07e7b1c0c: Optional dependencies are always marked as `requiresBuild` as they are not always fetched and as a result there is no way to check whethere they need to be built or not.
+- 07e7b1c0c: Optional dependencies are always marked as `requiresBuild` as they are not always fetched and as a result there is no way to check whether they need to be built or not.
 
 ## 20.0.16
 
@@ -765,7 +765,7 @@
 
 ### Minor Changes
 
-- fcdad632f: When some of the dependencies of a package have the package as a peer depenendency, don't make the dependency a peer depenendency of itself.
+- fcdad632f: When some of the dependencies of a package have the package as a peer dependency, don't make the dependency a peer dependency of itself.
 
 ### Patch Changes
 
@@ -892,7 +892,7 @@
 
   So we resolve `foo > bar > qar > foo`.
   But we stop on `foo > bar > qar > foo > qar`.
-  In the second example, there's no reason to walk qar again when qar is included the first time, the dependencies of foo are already resolved and included as parent dependencies of qar. So during peers resolution, qar cannot possibly get any new or different peers resolved, after the first ocurrence.
+  In the second example, there's no reason to walk qar again when qar is included the first time, the dependencies of foo are already resolved and included as parent dependencies of qar. So during peers resolution, qar cannot possibly get any new or different peers resolved, after the first occurrence.
 
   However, in the next example we would analyze the second qar as well, because zoo is a new parent package:
   `foo > bar > qar > zoo > qar`
@@ -1053,7 +1053,7 @@
 
 ### Major Changes
 
-- 0730bb938: Check the existense of a dependency in `node_modules` at the right location.
+- 0730bb938: Check the existence of a dependency in `node_modules` at the right location.
 - 242cf8737: The `alwaysTryWorkspacePackages` option is removed. A new option called `linkWorkspacePackagesDepth` is added.
   When `linkWorkspacePackageDepth` is `0`, workspace packages are linked to direct dependencies even if these direct
   dependencies are not using workspace ranges (so this is similar to the old `alwaysTryWorkspacePackages=true`).
@@ -1164,7 +1164,7 @@
 
 ### Patch Changes
 
-- 0730bb938: Check the existense of a dependency in `node_modules` at the right location.
+- 0730bb938: Check the existence of a dependency in `node_modules` at the right location.
 
 ## 14.4.5-alpha.3
 

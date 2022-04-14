@@ -86,7 +86,7 @@
 
 ### Minor Changes
 
-- 9ad8c27bf: Allow to ignore builds of specified dependencies throught the `pnpm.neverBuiltDependencies` field in `package.json`.
+- 9ad8c27bf: Allow to ignore builds of specified dependencies through the `pnpm.neverBuiltDependencies` field in `package.json`.
 
 ## 6.3.1
 

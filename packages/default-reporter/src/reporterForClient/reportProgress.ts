@@ -71,7 +71,7 @@ function getModulesInstallProgress$ (
   progress$: Rx.Observable<ProgressLog>
 ): Rx.Observable<ModulesInstallProgress> {
   const modulesInstallProgressPushStream = new Rx.Subject<ModulesInstallProgress>()
-  const progessStatsPushStreamByRequirer = getProgessStatsPushStreamByRequirer(progress$)
+  const progessStatsPushStreamByRequirer = getProgressStatsPushStreamByRequirer(progress$)
 
   const stagePushStreamByRequirer: {
     [requirer: string]: Rx.Subject<StageLog>
@@ -110,7 +110,7 @@ function stage$ToImportingDone$ (stage$: Rx.Observable<StageLog>) {
     )
 }
 
-function getProgessStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressLog>) {
+function getProgressStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressLog>) {
   const progessStatsPushStreamByRequirer: {
     [requirer: string]: Rx.Subject<ProgressStats>
   } = {}

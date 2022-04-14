@@ -3,7 +3,7 @@ import which from '@zkochan/which'
 
 export default async function () {
   try {
-    // The system default Node.js executable is prefered
+    // The system default Node.js executable is preferred
     // not the one used to run the pnpm CLI.
     const nodeExecPath = await which('node')
     return fs.realpath(nodeExecPath)

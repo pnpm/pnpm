@@ -1572,7 +1572,7 @@
 
 ### Minor Changes
 
-- 9ad8c27bf: Allow to ignore builds of specified dependencies throught the `pnpm.neverBuiltDependencies` field in `package.json`.
+- 9ad8c27bf: Allow to ignore builds of specified dependencies through the `pnpm.neverBuiltDependencies` field in `package.json`.
 
 ### Patch Changes
 
@@ -2025,7 +2025,7 @@
 
 ### Patch Changes
 
-- 95ad9cafa: Install should fail if there are references to a prunned workspace project.
+- 95ad9cafa: Install should fail if there are references to a pruned workspace project.
 
 ## 0.43.2
 

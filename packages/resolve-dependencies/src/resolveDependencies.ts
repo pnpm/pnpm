@@ -707,7 +707,7 @@ async function resolveDependency (
   // when qar is included the first time, the dependencies of foo
   // are already resolved and included as parent dependencies of qar.
   // So during peers resolution, qar cannot possibly get any new or different
-  // peers resolved, after the first ocurrence.
+  // peers resolved, after the first occurrence.
   //
   // However, in the next example we would analyze the second qar as well,
   // because zoo is a new parent package:

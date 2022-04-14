@@ -29,14 +29,14 @@ export function pruneSharedLockfile (
       warn: opts?.warn ?? ((msg: string) => undefined),
     })
 
-  const prunnedLockfile: Lockfile = {
+  const prunedLockfile: Lockfile = {
     ...lockfile,
     packages: copiedPackages,
   }
-  if (isEmpty(prunnedLockfile.packages)) {
-    delete prunnedLockfile.packages
+  if (isEmpty(prunedLockfile.packages)) {
+    delete prunedLockfile.packages
   }
-  return prunnedLockfile
+  return prunedLockfile
 }
 
 export function pruneLockfile (
