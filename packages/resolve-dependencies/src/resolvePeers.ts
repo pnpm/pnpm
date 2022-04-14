@@ -263,6 +263,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
           return { name, version }
         })
     )
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
