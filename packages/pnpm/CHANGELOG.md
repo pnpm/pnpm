@@ -79,6 +79,19 @@
 - Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
 - Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
 
+## 6.32.7
+
+### Patch Changes
+
+- Setting the `auto-install-peers` to `true` should work.
+
+## 6.32.6
+
+### Patch Changes
+
+- Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+
 ## 6.32.5
 
 ### Patch Changes
