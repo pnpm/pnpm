@@ -102,20 +102,19 @@ test('still able to shallow fetch for allowed hosts', async () => {
     repo: 'https://github.com/kevva/is-positive.git',
     type: 'git' as const,
   }
-  const { filesIndex } = await fetch(
-    createCafsStore(cafsDir),
-    resolution,
-    {
-      manifest,
-    }
-  )
+  const { filesIndex } = await fetch(createCafsStore(cafsDir), resolution, {
+    manifest,
+  })
   const calls = (execa as jest.Mock).mock.calls
   const expectedCalls = [
-    ['git', ['init']],
-    ['git', ['remote', 'add', 'origin', resolution.repo]],
-    ['git', ['fetch', '--depth', '1', 'origin', resolution.commit]],
+    ['git', [...prefixGitArgs(), 'init']],
+    ['git', [...prefixGitArgs(), 'remote', 'add', 'origin', resolution.repo]],
+    [
+      'git',
+      [...prefixGitArgs(), 'fetch', '--depth', '1', 'origin', resolution.commit],
+    ],
   ]
-  for (let i = 0; i < expectedCalls.length; i++) {
+  for (let i = 1; i < expectedCalls.length; i++) {
     // Discard final argument as it passes temporary directory
     expect(calls[i].slice(0, -1)).toEqual(expectedCalls[i])
   }
@@ -124,3 +123,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
   const name = (await manifest.promise).name
   expect(name).toEqual('is-positive')
 })
+
+function prefixGitArgs (): string[] {
+  return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
+}
