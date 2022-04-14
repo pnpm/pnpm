@@ -14,7 +14,7 @@ pnpm install -D @pnpm/assert-store
 import test = require('tape')
 import assertStore from '@pnpm/assert-store'
 
-test('...', t => {
+test('...', async t => {
   // ...
   const store = assertStore(t, pathToStore, encodedRegistryName)
 
