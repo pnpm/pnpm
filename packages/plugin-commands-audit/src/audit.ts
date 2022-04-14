@@ -115,7 +115,6 @@ export async function handler (
   | 'maxSockets'
   | 'noProxy'
   | 'strictSsl'
-  | 'fetchTimeout'
   | 'fetchRetries'
   | 'fetchRetryMaxtimeout'
   | 'fetchRetryMintimeout'

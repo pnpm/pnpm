@@ -9,7 +9,6 @@ type CreateResolverOptions = Pick<Config,
 | 'fetchRetryFactor'
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
-| 'fetchRetryMintimeout'
 | 'offline'
 | 'rawConfig'
 | 'verifyStoreIntegrity'
