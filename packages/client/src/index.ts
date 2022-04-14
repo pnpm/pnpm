@@ -39,14 +39,11 @@ export function createResolver (opts: ClientOptions) {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
-  opts: {
-    retry?: RetryTimeoutOptions
-    gitShallowHosts?: string[]
-  }
+  opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts'>
 ) {
   return {
     ...createTarballFetcher(fetchFromRegistry, getCredentials, opts),
-    ...fetchFromGit(),
+    ...fetchFromGit(opts),
     ...createDirectoryFetcher(),
   }
 }

@@ -5,7 +5,8 @@ import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
 
-export default () => {
+export default (createOpts?: { gitShallowHosts?: string[] }) => {
+  const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   return {
     git: async function fetchFromGit (
       cafs: Cafs,
@@ -16,11 +17,10 @@ export default () => {
       },
       opts: {
         manifest?: DeferredManifestPromise
-        gitShallowHosts?: string[]
       }
     ) {
       const tempLocation = await cafs.tempDir()
-      if (shouldUseShallow(resolution.repo, opts.gitShallowHosts)) {
+      if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
         await execGit(['init'], { cwd: tempLocation })
         await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
         await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
@@ -40,13 +40,10 @@ export default () => {
   }
 }
 
-function shouldUseShallow (repoUrl: string, allowedHosts: string[] = []): boolean {
-  if (!allowedHosts) {
-    return false
-  }
+function shouldUseShallow (repoUrl: string, allowedHosts: Set<string>): boolean {
   try {
     const { host } = new URL(repoUrl)
-    if (allowedHosts.includes(host)) {
+    if (allowedHosts.has(host)) {
       return true
     }
   } catch (e) {

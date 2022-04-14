@@ -95,8 +95,8 @@ test('fetch a big repository', async () => {
 
 test('still able to shallow fetch for allowed hosts', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createFetcher().git
-  const manifest = pDefer<DependencyManifest>() 
+  const fetch = createFetcher({ gitShallowHosts: ['github.com'] }).git
+  const manifest = pDefer<DependencyManifest>()
   const resolution = {
     commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
     repo: 'https://github.com/kevva/is-positive.git',
@@ -107,7 +107,6 @@ test('still able to shallow fetch for allowed hosts', async () => {
     resolution,
     {
       manifest,
-      gitShallowHosts: ['github.com'],
     }
   )
   const calls = (execa as jest.Mock).mock.calls
