@@ -21,10 +21,23 @@ export default function (
         if (peerDependencyRules.allowedVersions[peerName] === '*') {
           pkg.peerDependencies![peerName] = '*'
         } else {
-          pkg.peerDependencies![peerName] += ` || ${peerDependencyRules.allowedVersions[peerName]}`
+          const allowedVersions = parseVersions(peerDependencyRules.allowedVersions[peerName])
+          const currentVersions = parseVersions(pkg.peerDependencies![peerName])
+
+          allowedVersions.forEach(allowedVersion => {
+            if (!currentVersions.includes(allowedVersion)) {
+              currentVersions.push(allowedVersion)
+            }
+          })
+
+          pkg.peerDependencies![peerName] = currentVersions.join(' || ')
         }
       }
     }
     return pkg
   }) as ReadPackageHook
+}
+
+function parseVersions (versions: string) {
+  return versions.split('||').map(v => v.trim())
 }
