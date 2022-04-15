@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-rc.4
+## 7.0.0-rc.5
 
 ### Major Changes
 
@@ -77,6 +77,8 @@
 - Use a base32 hash instead of a hex to encode too long dependency paths inside `node_modules/.pnpm` [#4552](https://github.com/pnpm/pnpm/pull/4552).
 
 - New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
+
+- Lockfile version bumped to v5.4.
 
 ## 6.32.7
 
