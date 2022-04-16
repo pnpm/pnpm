@@ -283,12 +283,12 @@ async function resolveDependenciesOfDependency (
     )
   ) || Boolean(
     (options.workspacePackages != null) &&
+    ctx.linkWorkspacePackagesDepth !== -1 &&
     wantedDepIsLocallyAvailable(
       options.workspacePackages,
       extendedWantedDep.wantedDependency,
       { defaultTag: ctx.defaultTag, registry: ctx.registries.default }
-    ) &&
-    ctx.linkWorkspacePackagesDepth !== -1 // fix for #4565
+    )
   ) || ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name!)
 
   const resolveDependencyOpts: ResolveDependencyOptions = {
