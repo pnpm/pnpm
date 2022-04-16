@@ -137,7 +137,7 @@ export async function handler (
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
             },
             prependPaths: [
-              path.join(opts.dir, 'node_modules/.bin'),
+              path.join(prefix, 'node_modules/.bin'),
               ...opts.extraBinPaths,
             ],
             userAgent: opts.userAgent,
