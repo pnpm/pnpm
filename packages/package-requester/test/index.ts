@@ -973,6 +973,52 @@ test('throw exception if the package data in the store differs from the expected
   }
 })
 
+test("don't throw an error if the package was updated, so the expectedPkg has a different version than the version in the store", async () => {
+  const storeDir = tempy.directory()
+  const cafs = createCafsStore(storeDir)
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+    })
+
+    const projectDir = tempy.directory()
+    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      registry,
+    })
+    await pkgResponse.finishing!()
+  }
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+  })
+  const projectDir = tempy.directory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
+    downloadPriority: 0,
+    lockfileDir: tempy.directory(),
+    preferredVersions: {},
+    projectDir,
+    registry,
+    expectedPkg: {
+      name: 'is-positive',
+      version: '3.0.0',
+    },
+  })
+  await expect(pkgResponse.files!()).resolves.toStrictEqual(expect.anything())
+})
+
 test('the version in the bundled manifest should be normalized', async () => {
   const storeDir = tempy.directory()
   const cafs = createCafsStore(storeDir)
