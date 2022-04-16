@@ -283,6 +283,7 @@ async function resolveDependenciesOfDependency (
     )
   ) || Boolean(
     (options.workspacePackages != null) &&
+    ctx.linkWorkspacePackagesDepth !== -1 &&
     wantedDepIsLocallyAvailable(
       options.workspacePackages,
       extendedWantedDep.wantedDependency,

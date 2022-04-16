@@ -1316,3 +1316,72 @@ test('install the dependency that is already present in the workspace when addin
   expect(currentLockfile.importers['project-1'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.0.0')
   expect(currentLockfile.importers['project-2'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.0.0')
 })
+
+test('do not update dependency that has the same name as a dependency in the workspace', async () => {
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  const manifest1: ProjectManifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '^100.0.0',
+    },
+  }
+  const manifest2: ProjectManifest = { name: 'dep-of-pkg-with-1-dep', version: '100.1.0' }
+
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: manifest1,
+      },
+    },
+    'dep-of-pkg-with-1-dep': {
+      '100.1.0': {
+        dir: path.resolve('project-2'),
+        manifest: manifest2,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: -1, workspacePackages }))
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await mutateModules([
+    {
+      ...importers[0],
+      dependencySelectors: ['is-negative@2.1.0'],
+      mutation: 'installSome',
+    },
+    importers[1],
+  ], await testDefaults({ linkWorkspacePackagesDepth: -1, workspacePackages, preferredVersions: {} }))
+
+  const rootModules = assertProject(process.cwd())
+  const currentLockfile = await rootModules.readCurrentLockfile()
+  expect(Object.keys(currentLockfile.packages)).toStrictEqual([
+    '/dep-of-pkg-with-1-dep/100.0.0',
+    '/is-negative/2.1.0',
+  ])
+})
