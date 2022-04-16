@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 17.0.1
+
+### Patch Changes
+
+- f531e09b5: Don't check the integrity of the store with the package version from the lockfile, when the package was updated [#4580](https://github.com/pnpm/pnpm/pull/4580).
+
 ## 17.0.0
 
 ### Major Changes

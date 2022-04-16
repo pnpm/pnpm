@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.32.8
+
+### Patch Changes
+
+- Don't check the integrity of the store with the package version from the lockfile, when the package was updated [#4580](https://github.com/pnpm/pnpm/pull/4580).
+- Don't update a direct dependency that has the same name as a dependency in the workspace, when adding a new dependency to a workspace project [#4575](https://github.com/pnpm/pnpm/pull/4575).
+
 ## 6.32.7
 
 ### Patch Changes

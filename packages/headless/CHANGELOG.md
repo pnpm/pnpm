@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 17.3.5
+
+### Patch Changes
+
+- Updated dependencies [f531e09b5]
+  - @pnpm/package-requester@17.0.1
+
 ## 17.3.4
 
 ### Patch Changes

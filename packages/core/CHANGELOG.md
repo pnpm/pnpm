@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 2.7.8
+
+### Patch Changes
+
+- 4d6ebfdb9: peerDependencyRules will no longer cause duplicated peer dependency rules in the lockfile when used in workspaces
+- Updated dependencies [f531e09b5]
+- Updated dependencies [0087000a6]
+  - @pnpm/package-requester@17.0.1
+  - @pnpm/resolve-dependencies@25.0.6
+  - @pnpm/headless@17.3.5
+
 ## 2.7.7
 
 ### Patch Changes

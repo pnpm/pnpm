@@ -38,7 +38,7 @@
   "devDependencies": {
     "@pnpm/cafs": "workspace:3.0.15",
     "@pnpm/git-fetcher": "workspace:4.1.16",
-    "@pnpm/package-store": "workspace:12.1.12",
+    "@pnpm/package-store": "workspace:12.1.13",
     "@pnpm/types": "workspace:7.10.0",
     "p-defer": "^3.0.0",
     "tempy": "^1.0.0"
