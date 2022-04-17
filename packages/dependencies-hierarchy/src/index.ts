@@ -154,7 +154,22 @@ async function dependenciesHierarchyForPackage (
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
-      if (packageAbsolutePath === null) {
+      const specifier = currentLockfile.importers[importerId].specifiers[alias]
+      if (specifier?.startsWith('workspace:')) {
+        if ((opts.search != null) && !matchedSearched) break
+        const dhForWorkspacePackage = opts.depth <= 0
+          ? undefined
+          : await dependenciesHierarchyForPackage(packageInfo.path, currentLockfile, { ...opts, depth: opts.depth - 1 })
+        newEntry = {
+          ...packageInfo,
+          dependencies: [
+            ...(dhForWorkspacePackage?.dependencies ?? []),
+            ...(dhForWorkspacePackage?.unsavedDependencies ?? []),
+            ...(dhForWorkspacePackage?.devDependencies ?? []),
+            ...(dhForWorkspacePackage?.optionalDependencies ?? []),
+          ],
+        }
+      } else if (packageAbsolutePath === null) {
         if ((opts.search != null) && !matchedSearched) break
         newEntry = packageInfo
       } else {
