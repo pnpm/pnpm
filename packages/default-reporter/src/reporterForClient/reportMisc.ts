@@ -9,7 +9,7 @@ import formatWarn from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
 
 // eslint-disable:object-literal-sort-keys
-const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
+export const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
   error: 0,
   warn: 1,
   info: 2,

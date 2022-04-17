@@ -9,7 +9,7 @@ import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
 import reportInstallChecks from './reportInstallChecks'
 import reportLifecycleScripts from './reportLifecycleScripts'
-import reportMisc from './reportMisc'
+import reportMisc, { LOG_LEVEL_NUMBER } from './reportMisc'
 import reportPeerDependencyIssues from './reportPeerDependencyIssues'
 import reportProgress from './reportProgress'
 import reportRequestRetry from './reportRequestRetry'
@@ -64,18 +64,12 @@ export default function (
     : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
-    reportProgress(log$, {
-      cwd,
-      throttle,
-    }),
-    reportPeerDependencyIssues(log$),
     reportLifecycleScripts(log$, {
       appendOnly: opts.appendOnly === true || opts.streamLifecycleOutput,
       aggregateOutput: opts.aggregateOutput,
       cwd,
       width,
     }),
-    reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }),
     reportMisc(
       log$,
       {
@@ -86,12 +80,6 @@ export default function (
         zoomOutCurrent: opts.isRecursive,
       }
     ),
-    ...reportStats(log$, {
-      cmd: opts.cmd,
-      cwd,
-      isRecursive: opts.isRecursive,
-      width,
-    }),
     reportInstallChecks(log$.installCheck, { cwd }),
     reportRequestRetry(log$.requestRetry),
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
@@ -100,6 +88,31 @@ export default function (
     reportContext(log$, { cwd }),
     reportUpdateCheck(log$.updateCheck),
   ]
+
+  // logLevelNumber: 0123 = error warn info debug
+  const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
+
+  if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
+    outputs.push(
+      reportPeerDependencyIssues(log$),
+      reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive })
+    )
+  }
+
+  if (logLevelNumber >= LOG_LEVEL_NUMBER.info) {
+    outputs.push(
+      reportProgress(log$, {
+        cwd,
+        throttle,
+      }),
+      ...reportStats(log$, {
+        cmd: opts.cmd,
+        cwd,
+        isRecursive: opts.isRecursive,
+        width,
+      })
+    )
+  }
 
   if (!opts.appendOnly) {
     outputs.push(reportBigTarballsProgress(log$))
