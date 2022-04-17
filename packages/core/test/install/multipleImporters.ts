@@ -9,12 +9,13 @@ import {
   MutatedProject,
   mutateModules,
 } from '@pnpm/core'
+import { addDistTag } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
 import pick from 'ramda/src/pick'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
-import { addDistTag, testDefaults } from '../utils'
+import { testDefaults } from '../utils'
 
 test('install only the dependencies of the specified importer', async () => {
   const projects = preparePackages([
@@ -580,7 +581,7 @@ test('current lockfile contains only installed dependencies when adding a new im
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   prepareEmpty()
 
   await mutateModules([
@@ -673,7 +674,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   prepareEmpty()
 
   await mutateModules([
@@ -766,7 +767,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
 })
 
 test('adding a new dependency with the workspace: protocol', async () => {
-  await addDistTag('foo', '1.0.0', 'latest')
+  await addDistTag({ package: 'foo', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
   const [{ manifest }] = await mutateModules([
@@ -983,7 +984,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
 })
 
 test('do not resolve a subdependency from the workspace by default', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   preparePackages([
     {
       location: 'project',
@@ -1102,7 +1103,7 @@ test('resolve a subdependency from the workspace', async () => {
 })
 
 test('resolve a subdependency from the workspace and use it as a peer', async () => {
-  await addDistTag('peer-c', '1.0.1', 'latest')
+  await addDistTag({ package: 'peer-c', version: '1.0.1', distTag: 'latest' })
   preparePackages([
     {
       location: 'project',
@@ -1244,7 +1245,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
 })
 
 test('install the dependency that is already present in the workspace when adding a new direct dependency', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest1: ProjectManifest = {
     name: 'project-1',
@@ -1282,7 +1283,7 @@ test('install the dependency that is already present in the workspace when addin
   ]
   await mutateModules(importers, await testDefaults())
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await mutateModules([
     importers[0],
