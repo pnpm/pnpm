@@ -93,8 +93,10 @@ export default function (
   const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
 
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
-    outputs.push(reportPeerDependencyIssues(log$))
-    outputs.push(reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }))
+    outputs.push(
+      reportPeerDependencyIssues(log$),
+      reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive })
+    )
   }
 
   if (logLevelNumber >= LOG_LEVEL_NUMBER.info) {
