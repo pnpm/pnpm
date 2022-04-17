@@ -5,6 +5,7 @@ import {
   deprecationLogger,
   hookLogger,
   packageManifestLogger,
+  peerDependencyIssuesLogger,
   rootLogger,
   skippedOptionalDependencyLogger,
   statsLogger,
@@ -223,6 +224,31 @@ test('does not print deprecation message when log level is set to error', (done)
     streamParser: createStreamParser(),
   })
 
+  peerDependencyIssuesLogger.debug({
+    issuesByProjects: {
+      '.': {
+        missing: {},
+        bad: {
+          a: [
+            {
+              parents: [
+                {
+                  name: 'b',
+                  version: '1.0.0',
+                },
+              ],
+              foundVersion: '2',
+              resolvedFrom: [],
+              optional: false,
+              wantedRange: '3',
+            },
+          ],
+        },
+        conflicts: [],
+        intersections: {},
+      },
+    },
+  })
   deprecationLogger.debug({
     deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,

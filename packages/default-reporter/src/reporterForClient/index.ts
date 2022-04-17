@@ -64,7 +64,6 @@ export default function (
     : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
-    reportPeerDependencyIssues(log$),
     reportLifecycleScripts(log$, {
       appendOnly: opts.appendOnly === true || opts.streamLifecycleOutput,
       aggregateOutput: opts.aggregateOutput,
@@ -94,6 +93,7 @@ export default function (
   const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
 
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
+    outputs.push(reportPeerDependencyIssues(log$))
     outputs.push(reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }))
   }
 
