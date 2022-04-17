@@ -210,6 +210,41 @@ ${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)
   })
 })
 
+test('does not print deprecation message when log level is set to error', (done) => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    reportingOptions: {
+      logLevel: 'error',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  deprecationLogger.debug({
+    deprecated: 'This package was deprecated because bla bla bla',
+    depth: 0,
+    pkgId: 'registry.npmjs.org/bar/2.0.0',
+    pkgName: 'bar',
+    pkgVersion: '2.0.0',
+    prefix,
+  })
+  const err = new PnpmError('SOME_CODE', 'some error')
+  logger.error(err, err)
+
+  expect.assertions(1)
+
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
+    },
+  })
+})
+
 test('prints summary for global installation', (done) => {
   const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
   const output$ = toOutput$({

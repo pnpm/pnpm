@@ -474,18 +474,3 @@ test('logLevel=error hides "WARN deprecated" messages', async () => {
   expect(result.status).toBe(0)
   expect(result.stdout.toString()).not.toContain('\u2009WARN\u2009 deprecated ')
 })
-
-// integration test for packages/default-reporter/src/index.ts -> deprecationPushStream
-// TODO: use a smaller package for testing deprecation
-test('logLevel=warn shows "WARN deprecated" messages', async () => {
-  prepare({
-    dependencies: {
-      express: '0.14.1',
-    },
-  })
-
-  const result = execPnpmSync(['install', '--loglevel', 'warn', '--lockfile-only'])
-
-  expect(result.status).toBe(0)
-  expect(result.stdout.toString()).toContain('\u2009WARN\u2009 deprecated ')
-})
