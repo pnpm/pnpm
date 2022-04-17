@@ -459,18 +459,3 @@ test('installation fails with a timeout error', async () => {
     execPnpm(['add', 'typescript@2.4.2', '--fetch-timeout=1', '--fetch-retries=0'])
   ).rejects.toThrow()
 })
-
-// integration test for packages/default-reporter/src/index.ts -> deprecationPushStream
-// TODO: use a smaller package for testing deprecation
-test('logLevel=error hides "WARN deprecated" messages', async () => {
-  prepare({
-    dependencies: {
-      express: '0.14.1',
-    },
-  })
-
-  const result = execPnpmSync(['install', '--loglevel', 'error', '--lockfile-only'])
-
-  expect(result.status).toBe(0)
-  expect(result.stdout.toString()).not.toContain('\u2009WARN\u2009 deprecated ')
-})
