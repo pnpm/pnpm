@@ -141,7 +141,7 @@ async function dependenciesHierarchyForPackage (
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => opts.include[dependenciedField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
-    Object.keys(topDeps).forEach((alias) => {
+    for (const alias of Object.keys(topDeps)) {
       const { packageInfo, packageAbsolutePath } = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
@@ -155,7 +155,7 @@ async function dependenciesHierarchyForPackage (
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
       if (packageAbsolutePath === null) {
-        if ((opts.search != null) && !matchedSearched) return
+        if ((opts.search != null) && !matchedSearched) break
         newEntry = packageInfo
       } else {
         const relativeId = refToRelative(topDeps[alias], alias)
@@ -177,7 +177,7 @@ async function dependenciesHierarchyForPackage (
         }
         result[dependenciesField]!.push(newEntry)
       }
-    })
+    }
   }
 
   await Promise.all(
