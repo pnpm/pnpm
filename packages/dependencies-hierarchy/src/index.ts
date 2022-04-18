@@ -77,6 +77,8 @@ export default async function dependenciesHierarchy (
     return result
   }
 
+  const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
+
   const opts = {
     depth: maybeOpts.depth || 0,
     include: maybeOpts.include ?? {
@@ -93,7 +95,7 @@ export default async function dependenciesHierarchy (
     await Promise.all(projectPaths.map(async (projectPath) => {
       return [
         projectPath,
-        await dependenciesHierarchyForPackage(projectPath, currentLockfile, opts),
+        await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
       ] as [string, DependenciesHierarchy]
     }))
   ).forEach(([projectPath, dependenciesHierarchy]) => {
@@ -105,6 +107,7 @@ export default async function dependenciesHierarchy (
 async function dependenciesHierarchyForPackage (
   projectPath: string,
   currentLockfile: Lockfile,
+  wantedLockfile: Lockfile | null,
   opts: {
     depth: number
     include: { [dependenciesField in DependenciesField]: boolean }
@@ -123,7 +126,6 @@ async function dependenciesHierarchyForPackage (
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) ?? []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
-  const wantedLockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false }) ?? { packages: {} }
 
   const getChildrenTree = getTree.bind(null, {
     currentDepth: 1,
@@ -135,7 +137,7 @@ async function dependenciesHierarchyForPackage (
     registries: opts.registries,
     search: opts.search,
     skipped: opts.skipped,
-    wantedPackages: wantedLockfile.packages ?? {},
+    wantedPackages: wantedLockfile?.packages ?? {},
   })
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => opts.include[dependenciedField])) {
@@ -150,7 +152,7 @@ async function dependenciesHierarchyForPackage (
         ref: topDeps[alias],
         registries: opts.registries,
         skipped: opts.skipped,
-        wantedPackages: wantedLockfile.packages ?? {},
+        wantedPackages: wantedLockfile?.packages ?? {},
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
@@ -159,7 +161,7 @@ async function dependenciesHierarchyForPackage (
         if ((opts.search != null) && !matchedSearched) break
         const dhForWorkspacePackage = opts.depth <= 0
           ? undefined
-          : await dependenciesHierarchyForPackage(packageInfo.path, currentLockfile, { ...opts, depth: opts.depth - 1 })
+          : await dependenciesHierarchyForPackage(packageInfo.path, currentLockfile, wantedLockfile, { ...opts, depth: opts.depth - 1 })
         newEntry = {
           ...packageInfo,
           dependencies: [
