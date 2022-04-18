@@ -334,17 +334,17 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId
 
   if (!ownId || !parentIds.includes(ownId)) return allChildren
 
-  const nodeIdChunks = parentIds.join('>').split(ownId)
+  const nodeIdChunks = parentIds.join('>').split(`>${ownId}>`)
   nodeIdChunks.pop()
   nodeIdChunks.reduce((accNodeId, part) => {
-    accNodeId += `${part}${ownId}`
+    accNodeId += `>${part}>${ownId}`
     const parentNode = dependenciesTree[`${accNodeId}>`]
     Object.assign(
       allChildren,
       typeof parentNode.children === 'function' ? parentNode.children() : parentNode.children
     )
     return accNodeId
-  }, '>')
+  }, '')
   return allChildren
 }
 
