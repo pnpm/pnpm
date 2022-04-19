@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.32.9
+
+### Patch Changes
+
+- Fix an error with peer resolutions, which was happening when there was a circular dependency and another dependency that had the name of the circular dependency as a substring.
+- When `pnpm exec` is running a command in a workspace project, the commands that are in the dependencies of that workspace project should be in the PATH [#4481](https://github.com/pnpm/pnpm/issues/4481).
+- Hide "WARN deprecated" messages on loglevel error [#4507](https://github.com/pnpm/pnpm/pull/4507)
+
+  Don't show the progress bar when loglevel is set to warn or error.
+
 ## 6.32.8
 
 ### Patch Changes
