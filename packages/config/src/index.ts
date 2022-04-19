@@ -317,7 +317,7 @@ export default async (
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')
     }
-    delete pnpmConfig.virtualStoreDir
+    pnpmConfig.virtualStoreDir = '.pnpm'
   } else {
     pnpmConfig.dir = cwd
     pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
