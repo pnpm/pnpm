@@ -267,7 +267,7 @@ export default async (
     if (pnpmConfig['globalDir']) {
       globalDirRoot = pnpmConfig['globalDir']
     } else {
-      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global-packages')
+      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
     }
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
