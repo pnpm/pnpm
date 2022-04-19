@@ -1,5 +1,15 @@
 # @pnpm/git-fetcher
 
+## 5.1.0
+
+### Minor Changes
+
+- c6463b9fd: feat(git-fetcher): shallow clone when fetching git resource
+
+### Patch Changes
+
+- @pnpm/prepare-package@2.0.1
+
 ## 5.0.0
 
 ### Major Changes

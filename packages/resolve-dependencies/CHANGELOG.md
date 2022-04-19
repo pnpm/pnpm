@@ -1,5 +1,32 @@
 # @pnpm/resolve-dependencies
 
+## 27.0.0
+
+### Major Changes
+
+- 0a70aedb1: Use a base32 hash instead of a hex to encode too long dependency paths inside `node_modules/.pnpm` [#4552](https://github.com/pnpm/pnpm/pull/4552).
+- e7bdc2cc2: Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
+
+### Patch Changes
+
+- 948a8151e: Fix an error with peer resolutions, which was happening when there was a circular dependency and another dependency that had the name of the circular dependency as a substring.
+- e531325c3: `dependenciesMeta` should be saved into the lockfile, when it is added to the package manifest by a hook.
+- aecd4acdd: Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- dbe366990: Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+- b716d2d06: Don't update a direct dependency that has the same name as a dependency in the workspace, when adding a new dependency to a workspace project [#4575](https://github.com/pnpm/pnpm/pull/4575).
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [618842b0d]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/prune-lockfile@4.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/npm-resolver@13.0.1
+  - @pnpm/read-package-json@6.0.1
+
 ## 26.0.0
 
 ### Major Changes

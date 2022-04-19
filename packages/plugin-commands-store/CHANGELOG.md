@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.0
+
+### Minor Changes
+
+- 8fa95fd86: Path `extraNodePaths` to the bins linker.
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - dependency-path@9.1.0
+  - @pnpm/store-path@6.0.0
+  - @pnpm/get-context@6.1.0
+  - @pnpm/config@15.0.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/store-connection-manager@4.1.0
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+
 ## 5.0.0
 
 ### Major Changes

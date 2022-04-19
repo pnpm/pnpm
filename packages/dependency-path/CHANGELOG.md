@@ -1,5 +1,11 @@
 # dependency-path
 
+## 9.1.0
+
+### Minor Changes
+
+- 0a70aedb1: Export new function: createPeersFolderSuffix().
+
 ## 9.0.0
 
 ### Major Changes

@@ -1,5 +1,20 @@
 # @pnpm/client
 
+## 7.1.0
+
+### Minor Changes
+
+- c6463b9fd: New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
+
+### Patch Changes
+
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [41cae6450]
+  - @pnpm/git-fetcher@5.1.0
+  - @pnpm/directory-fetcher@3.0.0
+  - @pnpm/tarball-fetcher@10.0.1
+  - @pnpm/default-resolver@15.0.1
+
 ## 7.0.0
 
 ### Major Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/sort-packages",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Sort packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/sort-packages": "workspace:3.0.0"
+    "@pnpm/sort-packages": "workspace:3.0.1"
   },
   "exports": {
     ".": "./lib/index.js"

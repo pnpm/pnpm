@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 13.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
 ## 13.0.0
 
 ### Major Changes

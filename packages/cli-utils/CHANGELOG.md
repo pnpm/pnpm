@@ -1,5 +1,24 @@
 # @pnpm/cli-utils
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [e94149987]
+- Updated dependencies [618842b0d]
+  - @pnpm/config@15.0.0
+  - @pnpm/default-reporter@9.0.1
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/package-is-installable@6.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
 ## 0.7.0
 
 ### Minor Changes

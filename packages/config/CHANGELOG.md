@@ -1,5 +1,35 @@
 # @pnpm/config
 
+## 15.0.0
+
+### Major Changes
+
+- 546e644e9: Don't hoist types by default to the root of `node_modules` [#4459](https://github.com/pnpm/pnpm/pull/4459).
+- 4bed585e2: The next deprecated settings were removed:
+
+  - frozen-shrinkwrap
+  - prefer-frozen-shrinkwrap
+  - shared-workspace-shrinkwrap
+  - shrinkwrap-directory
+  - lockfile-directory
+  - shrinkwrap-only
+  - store
+
+### Minor Changes
+
+- 8dac029ef: Any package with "prettier" in its name is hoisted.
+- c6463b9fd: New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
+- 8fa95fd86: The default value of `nodeLinker` is set to `isolated`.
+
+### Patch Changes
+
+- 72b79f55a: Setting the `auto-install-peers` to `true` should work.
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+  - @pnpm/error@3.0.1
+  - @pnpm/pnpmfile@2.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
 ## 14.0.0
 
 ### Major Changes

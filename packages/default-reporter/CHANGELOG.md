@@ -1,5 +1,22 @@
 # @pnpm/default-reporter
 
+## 9.0.1
+
+### Patch Changes
+
+- e94149987: Hide "WARN deprecated" messages on loglevel error [#4507](https://github.com/pnpm/pnpm/pull/4507)
+
+  Don't show the progress bar when loglevel is set to warn or error.
+
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/config@15.0.0
+  - @pnpm/error@3.0.1
+
 ## 9.0.0
 
 ### Major Changes

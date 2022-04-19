@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-outdated
 
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/outdated@10.0.1
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/default-resolver@15.0.1
+
 ## 6.0.0
 
 ### Major Changes

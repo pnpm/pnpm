@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "description": "Gets context information about a project",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/get-context#readme",
   "devDependencies": {
-    "@pnpm/get-context": "workspace:6.0.0",
+    "@pnpm/get-context": "workspace:6.1.0",
     "@pnpm/logger": "^4.0.0",
     "@types/is-ci": "^3.0.0",
     "@types/ramda": "0.27.39"
@@ -38,12 +38,12 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:6.0.0",
+    "@pnpm/constants": "workspace:6.1.0",
     "@pnpm/core-loggers": "workspace:7.0.0",
-    "@pnpm/error": "workspace:3.0.0",
-    "@pnpm/lockfile-file": "workspace:5.0.0",
+    "@pnpm/error": "workspace:3.0.1",
+    "@pnpm/lockfile-file": "workspace:5.0.1",
     "@pnpm/modules-yaml": "workspace:10.0.0",
-    "@pnpm/read-projects-context": "workspace:6.0.0",
+    "@pnpm/read-projects-context": "workspace:6.0.1",
     "@pnpm/types": "workspace:8.0.0",
     "@zkochan/rimraf": "^2.1.2",
     "is-ci": "^3.0.0",

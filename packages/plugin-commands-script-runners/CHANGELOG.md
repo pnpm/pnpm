@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.1
+
+### Patch Changes
+
+- 275c40523: When `pnpm exec` is running a command in a workspace project, the commands that are in the dependencies of that workspace project should be in the PATH [#4481](https://github.com/pnpm/pnpm/issues/4481).
+- Updated dependencies [2109f2e8e]
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/sort-packages@3.0.1
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
 ## 5.0.0
 
 ### Major Changes

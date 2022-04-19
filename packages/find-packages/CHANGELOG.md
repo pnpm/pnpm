@@ -1,5 +1,11 @@
 # find-packages
 
+## 9.0.1
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@3.0.1
+
 ## 9.0.0
 
 ### Major Changes

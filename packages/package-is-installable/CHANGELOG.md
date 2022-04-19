@@ -1,5 +1,11 @@
 # @pnpm/package-is-installable
 
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
 ## 6.0.0
 
 ### Major Changes

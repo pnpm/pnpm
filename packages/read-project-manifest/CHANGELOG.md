@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
 ## 3.0.0
 
 ### Major Changes

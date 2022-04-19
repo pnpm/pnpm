@@ -1,5 +1,38 @@
 # @pnpm/headless
 
+## 18.1.0
+
+### Minor Changes
+
+- 8fa95fd86: New option added: `extraNodePaths`.
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [2109f2e8e]
+- Updated dependencies [7cdca5ef2]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/build-modules@9.1.0
+  - @pnpm/hoist@6.1.0
+  - @pnpm/link-bins@7.1.0
+  - @pnpm/package-requester@18.0.1
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/filter-lockfile@6.0.1
+  - @pnpm/lockfile-to-pnp@0.5.1
+  - @pnpm/modules-cleaner@12.0.1
+  - @pnpm/real-hoist@0.2.1
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/calc-dep-state@2.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/package-is-installable@6.0.1
+  - @pnpm/read-package-json@6.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
 ## 18.0.0
 
 ### Major Changes

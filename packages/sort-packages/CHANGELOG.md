@@ -1,5 +1,11 @@
 # @pnpm/sort-packages
 
+## 3.0.1
+
+### Patch Changes
+
+- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+
 ## 3.0.0
 
 ### Major Changes

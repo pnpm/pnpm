@@ -1,5 +1,16 @@
 # @pnpm/modules-cleaner
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/filter-lockfile@6.0.1
+  - @pnpm/remove-bins@3.0.1
+
 ## 12.0.0
 
 ### Major Changes

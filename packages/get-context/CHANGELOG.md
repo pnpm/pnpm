@@ -1,5 +1,19 @@
 # @pnpm/get-context
 
+## 6.1.0
+
+### Minor Changes
+
+- 8fa95fd86: `extraNodePaths` added to the context.
+
+### Patch Changes
+
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/read-projects-context@6.0.1
+
 ## 6.0.0
 
 ### Major Changes

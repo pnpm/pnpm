@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:7.0.0",
-    "@pnpm/error": "workspace:3.0.0",
+    "@pnpm/error": "workspace:3.0.1",
     "@pnpm/types": "workspace:8.0.0",
     "execa": "npm:safe-execa@^0.1.1",
     "mem": "^8.0.0",
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-is-installable": "workspace:6.0.0",
+    "@pnpm/package-is-installable": "workspace:6.0.1",
     "@types/semver": "^7.3.4"
   },
   "bugs": {

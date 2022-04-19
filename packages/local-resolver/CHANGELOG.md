@@ -1,5 +1,12 @@
 # @pnpm/local-resolver
 
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+- @pnpm/read-project-manifest@3.0.1
+
 ## 8.0.0
 
 ### Major Changes

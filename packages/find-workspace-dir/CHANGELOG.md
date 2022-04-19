@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-dir
 
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
 ## 4.0.0
 
 ### Major Changes

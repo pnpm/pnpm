@@ -1,5 +1,15 @@
 # @pnpm/directory-fetcher
 
+## 3.0.0
+
+### Major Changes
+
+- 41cae6450: Fetch all files from the directory by default.
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@3.0.1
+
 ## 2.0.0
 
 ### Major Changes
