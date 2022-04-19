@@ -191,10 +191,10 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     : {
       ...parentParentPkgs,
       ...toPkgByName(
-        Object.keys(children).map((alias) => ({
+        Object.entries(children).map(([alias, nodeId]) => ({
           alias,
-          node: ctx.dependenciesTree[children[alias]],
-          nodeId: children[alias],
+          node: ctx.dependenciesTree[nodeId],
+          nodeId,
         }))
       ),
     }
@@ -339,9 +339,12 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId
   nodeIdChunks.reduce((accNodeId, part) => {
     accNodeId += `>${part}>${ownId}`
     const parentNode = dependenciesTree[`${accNodeId}>`]
+    if (typeof parentNode.children === 'function') {
+      parentNode.children = parentNode.children()
+    }
     Object.assign(
       allChildren,
-      typeof parentNode.children === 'function' ? parentNode.children() : parentNode.children
+      parentNode.children
     )
     return accNodeId
   }, '')
