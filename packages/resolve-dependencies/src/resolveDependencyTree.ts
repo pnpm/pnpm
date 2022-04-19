@@ -230,7 +230,7 @@ function buildTree (
       childrenNodeIds[child.alias] = child.depPath
       continue
     }
-    if (nodeIdContainsSequence(parentNodeId, parentId, child.depPath)) {
+    if (nodeIdContainsSequence(parentNodeId, parentId, child.depPath) || parentId === child.depPath) {
       continue
     }
     const childNodeId = createNodeId(parentNodeId, child.depPath)
