@@ -64,6 +64,8 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
   }
 
   const allChangedFiles = diff.split('\n')
+    // The prefix and suffix '"' are appended to the Korean path
+    .map(line => line.replace(/^"/, '').replace(/"$/, ''))
   const patterns = changedFilesIgnorePattern.filter(
     (pattern) => pattern.length
   )
