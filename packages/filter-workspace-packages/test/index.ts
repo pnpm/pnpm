@@ -366,6 +366,11 @@ test('select changed packages', async () => {
 
   await mkdir(pkg3Dir)
 
+  const pkgKorDir = path.join(workspaceDir, 'package-kor')
+
+  await mkdir(pkgKorDir)
+  await touch(path.join(pkgKorDir, 'fileKor한글.js'))
+
   await execa('git', ['add', '.'], { cwd: workspaceDir })
   await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
 
@@ -412,6 +417,16 @@ test('select changed packages', async () => {
         },
       },
     },
+    [pkgKorDir]: {
+      dependencies: [],
+      package: {
+        dir: pkgKorDir,
+        manifest: {
+          name: 'package-kor',
+          version: '0.0.0',
+        },
+      },
+    },
     [pkg20Dir]: {
       dependencies: [],
       package: {
@@ -429,7 +444,7 @@ test('select changed packages', async () => {
       diff: 'HEAD~1',
     }], { workspaceDir })
 
-    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir])
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir, pkgKorDir])
   }
   {
     const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
@@ -453,7 +468,7 @@ test('select changed packages', async () => {
       includeDependents: true,
     }], { workspaceDir, testPattern: ['*/file2.js'] })
 
-    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir])
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkgKorDir, pkg2Dir])
   }
 })
 
