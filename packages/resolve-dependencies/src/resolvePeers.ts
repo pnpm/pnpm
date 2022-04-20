@@ -210,7 +210,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
         ) return true
         const parentDepPath = (ctx.dependenciesTree[parentPkgNodeId].resolvedPackage as T).depPath
         if (!ctx.purePkgs.has(parentDepPath)) return false
-        const cachedDepPath = (ctx.dependenciesTree[cachedNodeId].resolvedPackage as T).depPath
+        const cachedDepPath = ctx.pathsByNodeId[cachedNodeId]
         return parentDepPath === cachedDepPath
       }) && cache.missingPeers.every((missingPeer) => !parentPkgs[missingPeer])
   )
@@ -375,6 +375,11 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     const { resolvedPeers, missingPeers } = resolvePeersOfNode(childNodeId, parentPkgs, ctx)
     Object.assign(allResolvedPeers, resolvedPeers)
     missingPeers.forEach((missingPeer) => allMissingPeers.add(missingPeer))
+  }
+  for (const childNodeId of Object.values(children)) {
+    if (childNodeId.includes('>')) {
+      delete ctx.dependenciesTree[childNodeId]
+    }
   }
 
   const unknownResolvedPeersOfChildren = Object.keys(allResolvedPeers)
