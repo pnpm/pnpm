@@ -164,6 +164,7 @@ export async function mutateModules (
   }
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
+  if (!installsOnly) opts.strictPeerDependencies = false
   opts['forceNewModules'] = installsOnly
   const rootProjectManifest = projects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
