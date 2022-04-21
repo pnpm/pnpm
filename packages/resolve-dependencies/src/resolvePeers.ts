@@ -16,6 +16,8 @@ import scan from 'ramda/src/scan'
 import {
   DependenciesTree,
   DependenciesTreeNode,
+  NodeNumber,
+  nodeHex,
   ResolvedPackage,
 } from './resolveDependencies'
 import { mergePeers } from './mergePeers'
@@ -133,7 +135,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
         {
           depth: 0,
           version,
-          nodeId: linkedDir,
+          nodeNumber: linkedDir,
         },
       ])
     ),
@@ -143,7 +145,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
         .map((alias) => ({
           alias,
           node: dependenciesTree[directNodeIdsByAlias[alias]],
-          nodeId: directNodeIdsByAlias[alias],
+          nodeNumber: directNodeIdsByAlias[alias],
         }))
     )
   )
@@ -151,7 +153,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
 
 interface PeersCacheItem {
   depPath: string
-  resolvedPeers: Array<[string, string]>
+  resolvedPeers: Array<[string, NodeNumber]>
   missingPeers: string[]
 }
 
@@ -163,11 +165,11 @@ interface PeersResolution {
 }
 
 function resolvePeersOfNode<T extends PartialResolvedPackage> (
-  nodeId: string,
+  nodeNumber: NodeNumber,
   parentParentPkgs: ParentRefs,
   ctx: {
     dependenciesTree: DependenciesTree<T>
-    pathsByNodeId: {[nodeId: string]: string}
+    pathsByNodeId: {[nodeId: NodeNumber]: string}
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
@@ -177,7 +179,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     lockfileDir: string
   }
 ): PeersResolution {
-  const node = ctx.dependenciesTree[nodeId]
+  const node = ctx.dependenciesTree[nodeNumber]
   if (node.depth === -1) return { resolvedPeers: {}, missingPeers: [] }
   const resolvedPackage = node.resolvedPackage as T
   if (
@@ -185,7 +187,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     ctx.depGraph[resolvedPackage.depPath].depth <= node.depth &&
     isEmpty(resolvedPackage.peerDependencies)
   ) {
-    ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
+    ctx.pathsByNodeId[nodeNumber] = resolvedPackage.depPath
     return { resolvedPeers: {}, missingPeers: [] }
   }
   if (typeof node.children === 'function') {
@@ -197,22 +199,22 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     : {
       ...parentParentPkgs,
       ...toPkgByName(
-        Object.entries(children).map(([alias, nodeId]) => ({
+        Object.entries(children).map(([alias, nodeNumber]) => ({
           alias,
-          node: ctx.dependenciesTree[nodeId],
-          nodeId,
+          node: ctx.dependenciesTree[nodeNumber],
+          nodeNumber,
         }))
       ),
     }
   const hit = ctx.peersCache.get(resolvedPackage.depPath)?.find((cache) =>
     cache.resolvedPeers
       .every(([name, cachedNodeId]) => {
-        const parentPkgNodeId = parentPkgs[name]?.nodeId
+        const parentPkgNodeId = parentPkgs[name]?.nodeNumber
         if (!parentPkgNodeId || !cachedNodeId) return false
-        if (parentPkgs[name].nodeId === cachedNodeId) return true
+        if (parentPkgs[name].nodeNumber === cachedNodeId) return true
         if (
           ctx.pathsByNodeId[cachedNodeId] &&
-          ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgs[name].nodeId!]
+          ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgs[name].nodeNumber!]
         ) return true
         const parentDepPath = (ctx.dependenciesTree[parentPkgNodeId].resolvedPackage as T).depPath
         if (!ctx.purePkgs.has(parentDepPath)) return false
@@ -221,7 +223,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }) && cache.missingPeers.every((missingPeer) => !parentPkgs[missingPeer])
   )
   if (hit != null) {
-    ctx.pathsByNodeId[nodeId] = hit.depPath
+    ctx.pathsByNodeId[nodeNumber] = hit.depPath
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
     return {
       missingPeers: hit.missingPeers,
@@ -240,7 +242,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
       lockfileDir: ctx.lockfileDir,
-      nodeId,
+      nodeId: node.nodeId,
       parentPkgs,
       peerDependencyIssues: ctx.peerDependencyIssues,
       resolvedPackage,
@@ -257,15 +259,15 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
       Object.entries(allResolvedPeers)
-        .map(([alias, nodeId]) => {
-          if (nodeId.startsWith('link:')) {
-            const linkedDir = nodeId.slice(5)
+        .map(([alias, nodeNumber]) => {
+          if (nodeNumber.startsWith('link:')) {
+            const linkedDir = nodeNumber.slice(5)
             return {
               name: alias,
               version: filenamify(linkedDir, { replacement: '+' }),
             }
           }
-          const { name, version } = ctx.dependenciesTree[nodeId].resolvedPackage
+          const { name, version } = ctx.dependenciesTree[nodeNumber].resolvedPackage
           return { name, version }
         })
     )
@@ -290,7 +292,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
   }
 
-  ctx.pathsByNodeId[nodeId] = depPath
+  ctx.pathsByNodeId[nodeNumber] = depPath
   const peerDependencies = { ...resolvedPackage.peerDependencies }
   if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
     const dir = path.join(modules, resolvedPackage.name)
@@ -310,7 +312,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     ctx.depGraph[depPath] = {
       ...(node.resolvedPackage as T),
       children: Object.assign(
-        getPreviouslyResolvedChildren(nodeId, ctx.dependenciesTree),
+        getPreviouslyResolvedChildren(node.nodeId, ctx.dependenciesTree),
         children,
         resolvedPeers
       ),
@@ -344,7 +346,7 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId
   nodeIdChunks.pop()
   nodeIdChunks.reduce((accNodeId, part) => {
     accNodeId += `>${part}>${ownId}`
-    const parentNode = dependenciesTree[`${accNodeId}>`]
+    const parentNode = dependenciesTree[nodeHex(`${accNodeId}>`)]
     if (typeof parentNode.children === 'function') {
       parentNode.children = parentNode.children()
     }
@@ -455,7 +457,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
       })
     }
 
-    if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
+    if (resolved?.nodeNumber) resolvedPeers[peerName] = resolved.nodeNumber
   }
   return { resolvedPeers, missingPeers }
 }
@@ -491,7 +493,7 @@ function getLocationFromNodeId<T> (
   const parts = splitNodeId(nodeId).slice(0, -1)
   const parents = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
     .slice(2)
-    .map((nid) => pick(['name', 'version'], dependenciesTree[nid].resolvedPackage as ResolvedPackage))
+    .map((nid) => pick(['name', 'version'], dependenciesTree[nodeHex(nid)].resolvedPackage as ResolvedPackage))
   return {
     projectId: parts[0],
     parents,
@@ -506,16 +508,18 @@ interface ParentRef {
   version: string
   depth: number
   // this is null only for already installed top dependencies
+  nodeNumber?: NodeNumber
   nodeId?: string
 }
 
-function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{alias: string, nodeId: string, node: DependenciesTreeNode<T>}>): ParentRefs {
+function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{alias: string, nodeNumber: NodeNumber, node: DependenciesTreeNode<T>}>): ParentRefs {
   const pkgsByName: ParentRefs = {}
-  for (const { alias, node, nodeId } of nodes) {
+  for (const { alias, node, nodeNumber } of nodes) {
     pkgsByName[alias] = {
       depth: node.depth,
-      nodeId,
+      nodeNumber,
       version: node.resolvedPackage.version,
+      nodeId: node.nodeId,
     }
   }
   return pkgsByName

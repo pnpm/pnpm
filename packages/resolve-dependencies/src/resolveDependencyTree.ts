@@ -16,6 +16,8 @@ import resolveDependencies, {
   ChildrenByParentDepPath,
   DependenciesTree,
   LinkedDependency,
+  NodeNumber,
+  nodeHex,
   PendingNode,
   PkgAddress,
   ResolvedPackage,
@@ -152,7 +154,8 @@ export default async function<T> (
   }))
 
   ctx.pendingNodes.forEach((pendingNode) => {
-    ctx.dependenciesTree[pendingNode.nodeId] = {
+    ctx.dependenciesTree[pendingNode.nodeNumber] = {
+      nodeId: pendingNode.nodeId,
       children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
         ctx.childrenByParentDepPath[pendingNode.resolvedPackage.depPath], pendingNode.depth + 1, pendingNode.installable),
       depth: pendingNode.depth,
@@ -165,7 +168,7 @@ export default async function<T> (
     [id: string]: {
       directDependencies: ResolvedDirectDependency[]
       directNodeIdsByAlias: {
-        [alias: string]: string
+        [alias: string]: NodeNumber
       }
       linkedDependencies: LinkedDependency[]
     }
@@ -181,7 +184,7 @@ export default async function<T> (
           if (dep.isLinkedDependency === true) {
             return dep
           }
-          const resolvedPackage = ctx.dependenciesTree[dep.nodeId].resolvedPackage as ResolvedPackage
+          const resolvedPackage = ctx.dependenciesTree[dep.nodeNumber].resolvedPackage as ResolvedPackage
           return {
             alias: dep.alias,
             dev: resolvedPackage.dev,
@@ -195,7 +198,7 @@ export default async function<T> (
         }),
       directNodeIdsByAlias: directNonLinkedDeps
         .reduce((acc, dependency) => {
-          acc[dependency.alias] = dependency.nodeId
+          acc[dependency.alias] = dependency.nodeNumber
           return acc
         }, {}),
       linkedDependencies,
@@ -234,9 +237,11 @@ function buildTree (
       continue
     }
     const childNodeId = createNodeId(parentNodeId, child.depPath)
-    childrenNodeIds[child.alias] = childNodeId
+    const nodeNumber = nodeHex(childNodeId)
+    childrenNodeIds[child.alias] = nodeNumber
     installable = installable && !ctx.skipped.has(child.depPath)
-    ctx.dependenciesTree[childNodeId] = {
+    ctx.dependenciesTree[nodeNumber] = {
+      nodeId: childNodeId,
       children: () => buildTree(ctx,
         childNodeId,
         child.depPath,

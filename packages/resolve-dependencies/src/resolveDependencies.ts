@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import path from 'path'
 import {
   deprecationLogger,
@@ -62,12 +63,18 @@ export function nodeIdToParents (
     })
 }
 
+export type NodeNumber = string
+
 // child nodeId by child alias name in case of non-linked deps
 export interface ChildrenMap {
-  [alias: string]: string
+  [alias: string]: NodeNumber
 }
 
 export type DependenciesTreeNode<T> = {
+  // a node ID is the join of the package's keypath with a colon
+  // E.g., a subdeps node ID which parent is `foo` will be
+  // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
+  nodeId: string
   children: (() => ChildrenMap) | ChildrenMap
   installable: boolean
 } & ({
@@ -79,10 +86,7 @@ export type DependenciesTreeNode<T> = {
 })
 
 export interface DependenciesTree<T> {
-  // a node ID is the join of the package's keypath with a colon
-  // E.g., a subdeps node ID which parent is `foo` will be
-  // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-  [nodeId: string]: DependenciesTreeNode<T>
+  [nodeNumber: NodeNumber]: DependenciesTreeNode<T>
 }
 
 export type ResolvedPackagesByDepPath = Record<string, ResolvedPackage>
@@ -102,6 +106,7 @@ export interface LinkedDependency {
 
 export interface PendingNode {
   alias: string
+  nodeNumber: NodeNumber
   nodeId: string
   resolvedPackage: ResolvedPackage
   depth: number
@@ -153,6 +158,7 @@ export type PkgAddress = {
   isNew: boolean
   isLinkedDependency?: false
   nodeId: string
+  nodeNumber: NodeNumber
   pkgId: string
   normalizedPref?: string // is returned only for root dependencies
   installable: boolean
@@ -305,7 +311,8 @@ async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return null
   if (resolveDependencyResult.isLinkedDependency) {
-    ctx.dependenciesTree[resolveDependencyResult.pkgId] = {
+    ctx.dependenciesTree[resolveDependencyResult.pkgId as NodeNumber] = {
+      nodeId: resolveDependencyResult.pkgId,
       children: {},
       depth: -1,
       installable: true,
@@ -376,9 +383,10 @@ async function resolveChildren (
     alias: child.alias,
     depPath: child.depPath,
   }))
-  ctx.dependenciesTree[parentPkg.nodeId] = {
+  ctx.dependenciesTree[parentPkg.nodeNumber] = {
+    nodeId: parentPkg.nodeId,
     children: children.reduce((chn, child) => {
-      chn[child.alias] = child['nodeId'] ?? child.pkgId
+      chn[child.alias] = child['nodeNumber'] ?? child.pkgId
       return chn
     }, {}),
     depth: parentDepth,
@@ -770,9 +778,13 @@ async function resolveDependency (
 
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
-  const nodeId = pkgIsLeaf(pkg)
+  const isLeaf = pkgIsLeaf(pkg)
+  const nodeId = isLeaf
     ? pkgResponse.body.id
     : createNodeId(options.parentPkg.nodeId, depPath)
+  const nodeNumber: NodeNumber = isLeaf
+    ? pkgResponse.body.id
+    : nodeHex(nodeId)
 
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
@@ -810,13 +822,14 @@ async function resolveDependency (
       ctx.resolvedPackagesByDepPath[depPath].fetchingBundledManifest = pkgResponse.bundledManifest!
     }
 
-    if (ctx.dependenciesTree[nodeId]) {
-      ctx.dependenciesTree[nodeId].depth = Math.min(ctx.dependenciesTree[nodeId].depth, options.currentDepth)
+    if (ctx.dependenciesTree[nodeNumber]) {
+      ctx.dependenciesTree[nodeNumber].depth = Math.min(ctx.dependenciesTree[nodeNumber].depth, options.currentDepth)
     } else {
       ctx.pendingNodes.push({
         alias: wantedDependency.alias || pkg.name,
         depth: options.currentDepth,
         installable,
+        nodeNumber,
         nodeId,
         resolvedPackage: ctx.resolvedPackagesByDepPath[depPath],
       })
@@ -824,6 +837,7 @@ async function resolveDependency (
   }
 
   return {
+    nodeNumber,
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
     depPath,
@@ -917,4 +931,8 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest) {
   }
   if (isEmpty(result)) return undefined
   return result
+}
+
+export function nodeHex (nodeId: string) {
+  return crypto.createHash('md5').update(nodeId).digest('hex')
 }
