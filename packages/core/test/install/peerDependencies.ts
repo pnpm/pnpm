@@ -198,7 +198,11 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
 
   let err!: PeerDependencyIssuesError
   try {
-    await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ strictPeerDependencies: true }))
+    await install({
+      dependencies: {
+        'ajv-keywords': '1.5.0',
+      },
+    }, await testDefaults({ strictPeerDependencies: true }))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -322,7 +326,12 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
 
   let err!: PeerDependencyIssuesError
   try {
-    await addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ strictPeerDependencies: true }))
+    await install({
+      dependencies: {
+        'abc-grand-parent-without-c': '1.0.0',
+        'peer-c': '2',
+      },
+    }, await testDefaults({ strictPeerDependencies: true }))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
