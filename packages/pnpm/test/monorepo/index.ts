@@ -1498,3 +1498,64 @@ test('pnpm run should include the workspace root when --workspace-root option is
   expect(await exists('test')).toBeTruthy()
   expect(await exists('project/test')).toBeTruthy()
 })
+
+test('legacy directory filtering', async () => {
+  preparePackages([
+    {
+      location: 'packages/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+    },
+    {
+      location: 'packages/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  process.chdir('..')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await fs.writeFile('.npmrc', 'legacy-dir-filtering=true', 'utf8')
+
+  const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
+  const output = stdout.toString()
+  expect(output).toContain('project-1')
+  expect(output).toContain('project-2')
+})
+
+test('directory filtering', async () => {
+  preparePackages([
+    {
+      location: 'packages/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+    },
+    {
+      location: 'packages/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  process.chdir('..')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  {
+    const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
+    expect(stdout.toString()).toEqual('')
+  }
+  {
+    const { stdout } = execPnpmSync(['list', '--filter=./packages/**', '--parseable', '--depth=-1'])
+    const output = stdout.toString()
+    expect(output).toContain('project-1')
+    expect(output).toContain('project-2')
+  }
+})

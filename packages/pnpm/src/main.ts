@@ -200,7 +200,7 @@ export default async function run (inputArgv: string[]) {
       workspaceDir: wsDir,
       testPattern: config.testPattern,
       changedFilesIgnorePattern: config.changedFilesIgnorePattern,
-      useGlobDirFiltering: true,
+      useGlobDirFiltering: !config.legacyDirFiltering,
     })
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (isEmpty(config.selectedProjectsGraph)) {
