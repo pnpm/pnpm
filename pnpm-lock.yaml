@@ -1655,13 +1655,13 @@ importers:
       http-proxy-agent: ^5.0.0
       https-proxy-agent: ^5.0.0
       lru-cache: ^6.0.0
-      socks-proxy-agent: ^6.1.0
+      socks-proxy-agent: 6.1.1
     dependencies:
       agentkeepalive: 4.2.1
       http-proxy-agent: 5.0.0
       https-proxy-agent: 5.0.1
       lru-cache: 6.0.0
-      socks-proxy-agent: 6.2.0
+      socks-proxy-agent: 6.1.1
     devDependencies:
       '@pnpm/npm-registry-agent': 'link:'
       '@types/http-proxy-agent': 4.0.1
@@ -13564,6 +13564,17 @@ packages:
       source-map-resolve: 0.5.3
       use: 3.1.1
     dev: true
+
+  /socks-proxy-agent/6.1.1:
+    resolution: {integrity: sha512-t8J0kG3csjA4g6FTbsMOWws+7R7vuRC8aQ/wy3/1OWmsgwA68zs/+cExQ0koSitUDXqhufF/YJr9wtNMZHw5Ew==}
+    engines: {node: '>= 10'}
+    dependencies:
+      agent-base: 6.0.2
+      debug: 4.3.4
+      socks: 2.6.2
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
 
   /socks-proxy-agent/6.2.0:
     resolution: {integrity: sha512-wWqJhjb32Q6GsrUqzuFkukxb/zzide5quXYcMVpIjxalDBBYy2nqKCFQ/9+Ie4dvOYSQdOk3hUlZSdzZOd3zMQ==}
