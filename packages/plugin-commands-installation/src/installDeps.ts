@@ -168,8 +168,8 @@ when running add/update with the --workspace option')
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest === null) {
-    if (opts.update) {
-      throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
+    if (opts.update === true || params.length === 0) {
+      throw new PnpmError('NO_PKG_MANIFEST', `No package.json found in ${opts.dir}`)
     }
     manifest = {}
   }
