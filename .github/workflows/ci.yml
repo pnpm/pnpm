@@ -10,7 +10,7 @@ jobs:
         node:
           - '14.19'
           - '16'
-          - '18'
+          - '17'
         platform:
           - ubuntu-latest
           - windows-latest
