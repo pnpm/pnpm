@@ -13,6 +13,8 @@
 
   In pnpm v7, a glob should be used: `--filter=./apps/**`
 
+  For easier upgrade, we have also added a setting to turn back filtering as it was in v6. Just set `legacy-dir-filtering=true` in `.npmrc`.
+
 - The `NODE_PATH` env variable is not set in the command shims (the files in `node_modules/.bin`). This env variable was really long and frequently caused errors on Windows.
 
   Also, the `extend-node-path` setting is removed.

@@ -58,6 +58,7 @@ export const types = Object.assign({
   'ignore-pnpmfile': Boolean,
   'ignore-workspace': Boolean,
   'ignore-workspace-root-check': Boolean,
+  'legacy-dir-filtering': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
   lockfile: Boolean,
   'lockfile-dir': String,

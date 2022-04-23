@@ -141,6 +141,7 @@ export interface Config {
   modulesCacheMaxAge: number
   embedReadme?: boolean
   gitShallowHosts?: string[]
+  legacyDirFiltering?: boolean
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean
