@@ -836,7 +836,7 @@ async function resolveDependency (
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
     prefix: pkgResponse.body.resolution.type === 'directory'
-      ? path.resolve(ctx.prefix, pkgResponse.body.resolution['directory'])
+      ? path.resolve(ctx.lockfileDir, pkgResponse.body.resolution['directory'])
       : ctx.prefix,
 
     // Next fields are actually only needed when isNew = true
