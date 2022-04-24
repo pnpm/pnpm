@@ -1,5 +1,12 @@
 # @pnpm/filter-workspace-packages
 
+## 5.0.2
+
+### Patch Changes
+
+- 9f0616282: 'filter-workspace-packages' will filter the package well even if Korean is included in the path. fix #4594
+  - @pnpm/find-workspace-packages@4.0.2
+
 ## 5.0.1
 
 ### Patch Changes

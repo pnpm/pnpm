@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 10.0.1
+
+### Patch Changes
+
+- 84c7e15ba: Exit with an error when running `pnpm install` in a directory that has no `package.json` file in it (and in parent directories) [#4609](https://github.com/pnpm/pnpm/issues/4609).
+- c5caf8334: Allow to pass `global-bin-dir` through CLI options to the `add` command.
+- Updated dependencies [9f0616282]
+- Updated dependencies [c38feff08]
+- Updated dependencies [e05dcc48a]
+  - @pnpm/filter-workspace-packages@5.0.2
+  - @pnpm/core@4.0.1
+  - @pnpm/config@15.1.0
+  - @pnpm/plugin-commands-rebuild@6.1.1
+  - @pnpm/cli-utils@0.7.2
+  - @pnpm/store-connection-manager@4.1.1
+  - @pnpm/find-workspace-packages@4.0.2
+
 ## 10.0.0
 
 ### Major Changes

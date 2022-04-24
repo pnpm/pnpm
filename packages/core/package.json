@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -23,12 +23,12 @@
     "@pnpm/filter-lockfile": "workspace:6.0.1",
     "@pnpm/get-context": "workspace:6.1.0",
     "@pnpm/graph-sequencer": "1.0.0",
-    "@pnpm/headless": "workspace:18.1.0",
+    "@pnpm/headless": "workspace:18.1.1",
     "@pnpm/hoist": "workspace:6.1.0",
     "@pnpm/lifecycle": "workspace:13.0.1",
     "@pnpm/link-bins": "workspace:7.1.0",
     "@pnpm/lockfile-file": "workspace:5.0.1",
-    "@pnpm/lockfile-to-pnp": "workspace:0.5.1",
+    "@pnpm/lockfile-to-pnp": "workspace:0.5.2",
     "@pnpm/lockfile-utils": "workspace:4.0.1",
     "@pnpm/lockfile-walker": "workspace:5.0.1",
     "@pnpm/manifest-utils": "workspace:3.0.1",
@@ -70,7 +70,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:4.0.0",
     "@pnpm/client": "workspace:7.1.0",
-    "@pnpm/core": "workspace:4.0.0",
+    "@pnpm/core": "workspace:4.0.1",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:13.0.1",
     "@pnpm/prepare": "workspace:*",

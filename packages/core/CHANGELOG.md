@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 4.0.1
+
+### Patch Changes
+
+- c38feff08: Only `pnpm install` should fail on peer dependency issues.
+  - @pnpm/lockfile-to-pnp@0.5.2
+  - @pnpm/headless@18.1.1
+
 ## 4.0.0
 
 ### Major Changes

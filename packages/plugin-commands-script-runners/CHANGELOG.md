@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.2
+
+### Patch Changes
+
+- c5caf8334: `pnpm dlx` should work without a configure global directory.
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+
 ## 5.0.1
 
 ### Patch Changes

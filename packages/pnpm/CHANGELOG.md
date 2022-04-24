@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-rc.7
+## 7.0.0-rc.8
 
 ### Major Changes
 
@@ -81,6 +81,8 @@
 - New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
 
 - Lockfile version bumped to v5.4.
+
+- Exit with an error when running `pnpm install` in a directory that has no `package.json` file in it (and in parent directories) [#4609](https://github.com/pnpm/pnpm/issues/4609).
 
 ## 6.32.8
 

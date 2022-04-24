@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.1.0
+
+### Minor Changes
+
+- e05dcc48a: New setting added to turn back v6 directory filtering that doesn't require globs: `legacy-dir-filtering`.
+
 ## 15.0.0
 
 ### Major Changes

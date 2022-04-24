@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-init
 
+## 1.0.2
+
+### Patch Changes
+
+- 17fa76e2b: `pnpm init` should not fail if one of the parent directories contains a `package.json` file [#4589](https://github.com/pnpm/pnpm/issues/4589).
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+
 ## 1.0.1
 
 ### Patch Changes
