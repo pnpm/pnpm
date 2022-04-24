@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
 import {
@@ -238,4 +238,39 @@ test('frozen-lockfile: installation fails if the integrity of a tarball dependen
   await expect(
     install(manifest, await testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow(/Got unexpected checksum/)
+})
+
+test('deep local', async () => {
+  const manifest1 = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'project-2': 'file:../project-2',
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'project-3': 'file:./project-3',
+        },
+      },
+    },
+    {
+      location: 'project-2/project-3',
+      package: {
+        name: 'project-3',
+        version: '1.0.0',
+      },
+    },
+  ])
+  process.chdir('../project-1')
+  await install(manifest1, await testDefaults())
 })

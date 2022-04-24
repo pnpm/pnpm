@@ -159,6 +159,7 @@ export type PkgAddress = {
   pkg: PackageManifest
   version?: string
   updated: boolean
+  prefix: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -320,7 +321,10 @@ async function resolveDependenciesOfDependency (
 
   postponedResolutionsQueue.push(async (preferredVersions) =>
     resolveChildren(
-      ctx,
+      {
+        ...ctx,
+        prefix: resolveDependencyResult.prefix,
+      },
       resolveDependencyResult,
       extendedWantedDep.infoFromLockfile?.dependencyLockfile,
       options.workspacePackages,
@@ -831,6 +835,9 @@ async function resolveDependency (
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
+    prefix: pkgResponse.body.resolution.type === 'directory'
+      ? path.resolve(ctx.prefix, pkgResponse.body.resolution['directory'])
+      : ctx.prefix,
 
     // Next fields are actually only needed when isNew = true
     installable,
