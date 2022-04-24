@@ -133,6 +133,7 @@ export default async function<T> (
         nodeId: `>${importer.id}>`,
         optional: false,
         depPath: importer.id,
+        rootDir: importer.rootDir,
       },
       proceed,
       resolvedDependencies: {

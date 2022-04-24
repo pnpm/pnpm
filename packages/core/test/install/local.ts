@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
@@ -11,6 +12,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
+import readYamlFile from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import { testDefaults } from '../utils'
 
@@ -273,4 +275,7 @@ test('deep local', async () => {
   ])
   process.chdir('../project-1')
   await install(manifest1, await testDefaults())
+
+  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['file:../project-2', 'file:../project-2/project-3'])
 })
