@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-workspace-packages",
-  "version": "4.4.25",
+  "version": "4.4.26",
   "description": "Filters packages in a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -40,7 +40,7 @@
     "ramda": "^0.27.1"
   },
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:4.4.25",
+    "@pnpm/filter-workspace-packages": "workspace:4.4.26",
     "@types/is-ci": "^3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/micromatch": "^4.0.1",

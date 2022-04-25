@@ -33,9 +33,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-listing#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/filter-workspace-packages": "workspace:4.4.25",
+    "@pnpm/filter-workspace-packages": "workspace:4.4.26",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-installation": "workspace:8.4.10",
+    "@pnpm/plugin-commands-installation": "workspace:8.4.11",
     "@pnpm/plugin-commands-listing": "workspace:4.1.14",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.12.1",

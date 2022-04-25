@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.32.10
+
+### Patch Changes
+
+- It should be possible to use a chain of local file dependencies [#4611](https://github.com/pnpm/pnpm/issues/4611).
+- Filtering by directory should work with directories that have unicode chars in the name [#4595](https://github.com/pnpm/pnpm/pull/4595).
+
 ## 6.32.9
 
 ### Patch Changes

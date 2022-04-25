@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 25.0.8
+
+### Patch Changes
+
+- 8344c7190: It should be possible to use a chain of local file dependencies [#4611](https://github.com/pnpm/pnpm/issues/4611).
+
 ## 25.0.7
 
 ### Patch Changes

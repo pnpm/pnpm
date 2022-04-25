@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.11
+
+### Patch Changes
+
+- Updated dependencies [f9a82f628]
+  - @pnpm/filter-workspace-packages@4.4.26
+  - @pnpm/core@2.7.10
+  - @pnpm/plugin-commands-rebuild@5.4.18
+
 ## 8.4.10
 
 ### Patch Changes

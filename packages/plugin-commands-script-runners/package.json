@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-script-runners#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:4.4.25",
+    "@pnpm/filter-workspace-packages": "workspace:4.4.26",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-script-runners": "workspace:4.6.5",
     "@pnpm/prepare": "workspace:*",

@@ -34,8 +34,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-outdated#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/filter-workspace-packages": "workspace:4.4.25",
-    "@pnpm/plugin-commands-installation": "workspace:8.4.10",
+    "@pnpm/filter-workspace-packages": "workspace:4.4.26",
+    "@pnpm/plugin-commands-installation": "workspace:8.4.11",
     "@pnpm/plugin-commands-outdated": "workspace:5.1.13",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.12.1",
