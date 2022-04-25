@@ -79,6 +79,11 @@ export default async function dependenciesHierarchy (
 
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
 
+  const lockfiles = {
+    currentLockfile,
+    wantedLockfile,
+  }
+
   const opts = {
     depth: maybeOpts.depth || 0,
     include: maybeOpts.include ?? {
@@ -95,7 +100,7 @@ export default async function dependenciesHierarchy (
     await Promise.all(projectPaths.map(async (projectPath) => {
       return [
         projectPath,
-        await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
+        await dependenciesHierarchyForPackage(projectPath, lockfiles, opts),
       ] as [string, DependenciesHierarchy]
     }))
   ).forEach(([projectPath, dependenciesHierarchy]) => {
@@ -104,10 +109,14 @@ export default async function dependenciesHierarchy (
   return result
 }
 
+interface LockfilesParam {
+  readonly currentLockfile: Lockfile
+  readonly wantedLockfile: Lockfile | null
+}
+
 async function dependenciesHierarchyForPackage (
   projectPath: string,
-  currentLockfile: Lockfile,
-  wantedLockfile: Lockfile | null,
+  lockfiles: LockfilesParam,
   opts: {
     depth: number
     include: { [dependenciesField in DependenciesField]: boolean }
@@ -117,6 +126,7 @@ async function dependenciesHierarchyForPackage (
     lockfileDir: string
   }
 ) {
+  const { currentLockfile, wantedLockfile } = lockfiles
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
   if (!currentLockfile.importers[importerId]) return {}
@@ -161,7 +171,7 @@ async function dependenciesHierarchyForPackage (
         if ((opts.search != null) && !matchedSearched) break
         const dhForWorkspacePackage = opts.depth <= 0
           ? undefined
-          : await dependenciesHierarchyForPackage(packageInfo.path, currentLockfile, wantedLockfile, { ...opts, depth: opts.depth - 1 })
+          : await dependenciesHierarchyForPackage(packageInfo.path, lockfiles, { ...opts, depth: opts.depth - 1 })
         newEntry = {
           ...packageInfo,
           dependencies: [
