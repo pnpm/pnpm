@@ -11,6 +11,7 @@ import rimraf from '@zkochan/rimraf'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
+import tempy from 'tempy'
 import * as pack from './pack'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
@@ -186,11 +187,17 @@ Do you want to continue?`,
     }
   }
 
+  // We have to publish the tarball from another location.
+  // Otherwise, npm would publish the package with the package.json file
+  // from the current working directory, ignoring the package.json file
+  // that was generated and packed to the tarball.
+  const packDestination = tempy.directory()
   const tarballName = await pack.handler({
     ...opts,
     dir,
+    packDestination,
   })
-  const tarballDir = path.dirname(path.join(dir, tarballName))
+  const tarballDir = path.dirname(path.join(packDestination, tarballName))
   const localNpmrc = path.join(tarballDir, '.npmrc')
   const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
   if (copyNpmrc && opts.workspaceDir) {
@@ -199,7 +206,7 @@ Do you want to continue?`,
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: tarballDir,
   })
-  await rimraf(path.join(dir, tarballName))
+  await rimraf(packDestination)
   if (copyNpmrc) {
     await rimraf(localNpmrc)
   }
