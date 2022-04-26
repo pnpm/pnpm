@@ -3186,6 +3186,7 @@ importers:
       is-subdir: ^1.1.1
       path-exists: ^4.0.0
       ramda: ^0.27.1
+      rename-overwrite: ^4.0.2
       replace-string: ^3.1.0
       semver: ^7.3.4
       semver-range-intersect: ^0.3.1
@@ -3214,6 +3215,7 @@ importers:
       is-subdir: 1.2.0
       path-exists: 4.0.0
       ramda: 0.27.2
+      rename-overwrite: 4.0.2
       replace-string: 3.1.0
       semver: 7.3.7
       semver-range-intersect: 0.3.1
