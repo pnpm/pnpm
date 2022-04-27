@@ -1,5 +1,11 @@
 # @pnpm/run-npm
 
+## 3.1.1
+
+### Patch Changes
+
+- 104663a69: If running npm errors, throw an error.
+
 ## 3.1.0
 
 ### Minor Changes

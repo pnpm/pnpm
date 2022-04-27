@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.32.11
+
+### Patch Changes
+
+- `pnpm publish` should work correctly in a workspace, when the latest npm CLI is installed [#4348](https://github.com/pnpm/pnpm/issues/4348).
+- Installation shouldn't fail when a package from node_modules is moved to the `node_modules/.ignored` subfolder and a package with that name is already present in `node_modules/.ignored' [#4626](https://github.com/pnpm/pnpm/pull/4626).
+
 ## 6.32.10
 
 ### Patch Changes

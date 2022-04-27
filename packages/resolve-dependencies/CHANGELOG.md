@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 25.0.9
+
+### Patch Changes
+
+- 7dcabeb83: Installation shouldn't fail when a package from node_modules is moved to the `node_modules/.ignored` subfolder and a package with that name is already present in `node_modules/.ignored'.
+
 ## 25.0.8
 
 ### Patch Changes
