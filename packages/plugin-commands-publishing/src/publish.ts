@@ -197,8 +197,8 @@ Do you want to continue?`,
     dir,
     packDestination,
   })
-  const tarballDir = path.dirname(path.join(packDestination, tarballName))
-  const localNpmrc = path.join(tarballDir, '.npmrc')
+  const tarballDir = path.dirname(packDestination)
+  const localNpmrc = path.join(dir, '.npmrc')
   const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
   if (copyNpmrc && opts.workspaceDir) {
     await fs.copyFile(path.join(opts.workspaceDir, '.npmrc'), localNpmrc)
