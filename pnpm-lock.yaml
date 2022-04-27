@@ -2458,6 +2458,7 @@ importers:
       realpath-missing: 1.1.0
       render-help: 1.0.2
       tar-stream: 2.2.0
+      tempy: 1.0.1
       write-json-file: 4.3.0
     devDependencies:
       '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
@@ -2480,7 +2481,6 @@ importers:
       load-json-file: 6.2.0
       path-exists: 4.0.0
       tar: 6.1.11
-      tempy: 1.0.1
       write-yaml-file: 4.2.0
 
   packages/plugin-commands-rebuild:

@@ -107,6 +107,9 @@ export async function handler (
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
   }
+  if (opts.dir !== dir) {
+    return path.join(dir, tarballName)
+  }
   return path.relative(opts.dir, path.join(dir, tarballName))
 }
 

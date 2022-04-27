@@ -26,9 +26,11 @@ export function runScriptSync (
   }
 ) {
   opts = Object.assign({}, opts)
-  return spawn.sync(command, args, Object.assign({}, opts, {
+  const result = spawn.sync(command, args, Object.assign({}, opts, {
     env: createEnv(opts),
   }))
+  if (result.error) throw result.error
+  return result
 }
 
 function createEnv (
