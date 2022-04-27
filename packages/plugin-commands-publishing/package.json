@@ -55,7 +55,6 @@
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
     "tar": "^6.1.4",
-    "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
@@ -81,6 +80,7 @@
     "realpath-missing": "^1.1.0",
     "render-help": "^1.0.1",
     "tar-stream": "^2.2.0",
+    "tempy": "^1.0.0",
     "write-json-file": "^4.3.0"
   },
   "peerDependencies": {
