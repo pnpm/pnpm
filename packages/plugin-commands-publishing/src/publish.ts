@@ -198,17 +198,18 @@ Do you want to continue?`,
     packDestination,
   })
   const localNpmrc = path.join(dir, '.npmrc')
-  const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
-  if (copyNpmrc && opts.workspaceDir) {
-    await fs.copyFile(path.join(opts.workspaceDir, '.npmrc'), localNpmrc)
+  if (existsSync(localNpmrc)) {
+    await fs.copyFile(localNpmrc, path.join(packDestination, '.npmrc'))
+  } else if (opts.workspaceDir) {
+    const workspaceNpmrc = path.join(opts.workspaceDir, '.npmrc')
+    if (existsSync(workspaceNpmrc)) {
+      await fs.copyFile(workspaceNpmrc, path.join(packDestination, '.npmrc'))
+    }
   }
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: packDestination,
   })
   await rimraf(packDestination)
-  if (copyNpmrc) {
-    await rimraf(localNpmrc)
-  }
 
   if (status != null && status !== 0) {
     return { exitCode: status }
