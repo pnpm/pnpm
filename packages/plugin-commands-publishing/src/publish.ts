@@ -197,15 +197,7 @@ Do you want to continue?`,
     dir,
     packDestination,
   })
-  const localNpmrc = path.join(dir, '.npmrc')
-  if (existsSync(localNpmrc)) {
-    await fs.copyFile(localNpmrc, path.join(packDestination, '.npmrc'))
-  } else if (opts.workspaceDir) {
-    const workspaceNpmrc = path.join(opts.workspaceDir, '.npmrc')
-    if (existsSync(workspaceNpmrc)) {
-      await fs.copyFile(workspaceNpmrc, path.join(packDestination, '.npmrc'))
-    }
-  }
+  await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: packDestination,
   })
@@ -221,6 +213,25 @@ Do you want to continue?`,
     ], manifest)
   }
   return { manifest }
+}
+
+async function copyNpmrc (
+  { dir, workspaceDir, packDestination }: {
+    dir: string
+    workspaceDir?: string
+    packDestination: string
+  }
+) {
+  const localNpmrc = path.join(dir, '.npmrc')
+  if (existsSync(localNpmrc)) {
+    await fs.copyFile(localNpmrc, path.join(packDestination, '.npmrc'))
+    return
+  }
+  if (!workspaceDir) return
+  const workspaceNpmrc = path.join(workspaceDir, '.npmrc')
+  if (existsSync(workspaceNpmrc)) {
+    await fs.copyFile(workspaceNpmrc, path.join(packDestination, '.npmrc'))
+  }
 }
 
 export async function runScriptsIfPresent (
