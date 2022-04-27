@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "7.0.0-rc.8",
+  "version": "7.0.0-rc.9",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -43,10 +43,10 @@
     "@pnpm/plugin-commands-audit": "workspace:6.0.2",
     "@pnpm/plugin-commands-env": "workspace:2.1.1",
     "@pnpm/plugin-commands-init": "workspace:1.0.2",
-    "@pnpm/plugin-commands-installation": "workspace:10.0.1",
+    "@pnpm/plugin-commands-installation": "workspace:10.0.2",
     "@pnpm/plugin-commands-listing": "workspace:5.0.2",
     "@pnpm/plugin-commands-outdated": "workspace:6.0.2",
-    "@pnpm/plugin-commands-publishing": "workspace:5.0.2",
+    "@pnpm/plugin-commands-publishing": "workspace:5.0.3",
     "@pnpm/plugin-commands-rebuild": "workspace:6.1.1",
     "@pnpm/plugin-commands-script-runners": "workspace:5.0.2",
     "@pnpm/plugin-commands-server": "workspace:4.0.2",
@@ -56,7 +56,7 @@
     "@pnpm/read-package-json": "workspace:6.0.1",
     "@pnpm/read-project-manifest": "workspace:3.0.1",
     "@pnpm/registry-mock": "2.15.1",
-    "@pnpm/run-npm": "workspace:4.0.0",
+    "@pnpm/run-npm": "workspace:4.0.1",
     "@pnpm/tabtab": "^0.1.2",
     "@pnpm/ts-execution-runtime": "workspace:*",
     "@pnpm/types": "workspace:8.0.0",

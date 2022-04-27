@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.0.3
+
+### Patch Changes
+
+- 9177ddbc9: `pnpm publish` should work correctly in a workspace, when the latest npm CLI is installed [#4348](https://github.com/pnpm/pnpm/issues/4348).
+- Updated dependencies [9177ddbc9]
+  - @pnpm/run-npm@4.0.1
+
 ## 5.0.2
 
 ### Patch Changes

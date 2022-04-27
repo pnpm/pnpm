@@ -1,5 +1,11 @@
 # @pnpm/run-npm
 
+## 4.0.1
+
+### Patch Changes
+
+- 9177ddbc9: If running npm errors, throw an error.
+
 ## 4.0.0
 
 ### Major Changes

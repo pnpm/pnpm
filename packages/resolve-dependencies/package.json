@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "27.0.0",
+  "version": "27.0.1",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/resolve-dependencies": "workspace:27.0.0",
+    "@pnpm/resolve-dependencies": "workspace:27.0.1",
     "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.4"
   },

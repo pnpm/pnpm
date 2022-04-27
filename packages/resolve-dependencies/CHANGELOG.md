@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 27.0.1
+
+### Patch Changes
+
+- 3345c2cce: It should be possible to use a chain of local file dependencies [#4611](https://github.com/pnpm/pnpm/issues/4611).
+- 7478cbd05: Installation shouldn't fail when a package from node_modules is moved to the `node_modules/.ignored` subfolder and a package with that name is already present in `node_modules/.ignored'.
+
 ## 27.0.0
 
 ### Major Changes

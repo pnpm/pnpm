@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [3345c2cce]
+- Updated dependencies [7478cbd05]
+  - @pnpm/resolve-dependencies@27.0.1
+
 ## 4.0.1
 
 ### Patch Changes
