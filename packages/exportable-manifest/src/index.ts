@@ -26,6 +26,8 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   // These are useful to hide in order to avoid warnings during local development
   'os',
   'cpu',
+  // https://www.typescriptlang.org/docs/handbook/declaration-files/publishing.html#version-selection-with-typesversions
+  'typesVersions',
 ])
 
 const PREPUBLISH_SCRIPTS = [
@@ -49,19 +51,7 @@ export default async function makePublishManifest (dir: string, originalManifest
     }
   }
 
-  const { publishConfig } = publishManifest
-  if (publishConfig != null) {
-    Object.keys(publishConfig)
-      .filter(key => PUBLISH_CONFIG_WHITELIST.has(key))
-      .forEach(key => {
-        publishManifest[key] = publishConfig[key]
-        delete publishConfig[key]
-      })
-
-    if (isEmpty(publishConfig)) {
-      delete publishManifest.publishConfig
-    }
-  }
+  overridePublishConfig(publishManifest)
 
   if (opts?.readmeFile) {
     publishManifest.readme ??= opts.readmeFile
@@ -124,4 +114,22 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
     return `npm:${depSpec}`
   }
   return depSpec
+}
+
+export function overridePublishConfig (publishManifest: ProjectManifest): void {
+  const { publishConfig } = publishManifest
+  if (!publishConfig) {
+    return
+  }
+
+  Object.keys(publishConfig)
+    .filter(key => PUBLISH_CONFIG_WHITELIST.has(key))
+    .forEach(key => {
+      publishManifest[key] = publishConfig[key]
+      delete publishConfig[key]
+    })
+
+  if (isEmpty(publishConfig)) {
+    delete publishManifest.publishConfig
+  }
 }
