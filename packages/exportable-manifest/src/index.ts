@@ -3,32 +3,8 @@ import PnpmError from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import fromPairs from 'ramda/src/fromPairs'
-import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
-
-// property keys that are copied from publishConfig into the manifest
-const PUBLISH_CONFIG_WHITELIST = new Set([
-  // manifest fields that may make sense to overwrite
-  'bin',
-  'type',
-  'imports',
-  // https://github.com/stereobooster/package.json#package-bundlers
-  'main',
-  'module',
-  'typings',
-  'types',
-  'exports',
-  'browser',
-  'esnext',
-  'es2015',
-  'unpkg',
-  'umd:main',
-  // These are useful to hide in order to avoid warnings during local development
-  'os',
-  'cpu',
-  // https://www.typescriptlang.org/docs/handbook/declaration-files/publishing.html#version-selection-with-typesversions
-  'typesVersions',
-])
+import { overridePublishConfig } from './overridePublishConfig'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -114,22 +90,4 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
     return `npm:${depSpec}`
   }
   return depSpec
-}
-
-export function overridePublishConfig (publishManifest: ProjectManifest): void {
-  const { publishConfig } = publishManifest
-  if (!publishConfig) {
-    return
-  }
-
-  Object.keys(publishConfig)
-    .filter(key => PUBLISH_CONFIG_WHITELIST.has(key))
-    .forEach(key => {
-      publishManifest[key] = publishConfig[key]
-      delete publishConfig[key]
-    })
-
-  if (isEmpty(publishConfig)) {
-    delete publishManifest.publishConfig
-  }
 }
