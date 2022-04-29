@@ -29,7 +29,6 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import normalize from 'normalize-path'
-import pathAbsolute from 'path-absolute'
 import {
   extendOptions,
   LinkOptions,
@@ -181,52 +180,4 @@ function addLinkToLockfile (
   } else {
     delete projectSnapshot.specifiers[opts.linkedPkgName]
   }
-}
-
-export async function linkFromGlobal (
-  pkgNames: string[],
-  linkTo: string,
-  maybeOpts: LinkOptions & {globalDir: string}
-) {
-  const reporter = maybeOpts?.reporter
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.on('data', reporter)
-  }
-  const opts = await extendOptions(maybeOpts)
-  const globalPkgPath = pathAbsolute(maybeOpts.globalDir)
-  const linkFromPkgs = pkgNames.map((pkgName) => path.join(globalPkgPath, 'node_modules', pkgName))
-  const newManifest = await link(linkFromPkgs, path.join(linkTo, 'node_modules'), opts)
-
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
-  }
-
-  return newManifest
-}
-
-export async function linkToGlobal (
-  linkFrom: string,
-  maybeOpts: LinkOptions & {
-    globalBin: string
-    globalDir: string
-  }
-) {
-  const reporter = maybeOpts?.reporter
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.on('data', reporter)
-  }
-  maybeOpts.lockfileDir = maybeOpts.lockfileDir ?? maybeOpts.globalDir
-  const opts = await extendOptions(maybeOpts)
-  const globalPkgPath = pathAbsolute(maybeOpts.globalDir)
-  const newManifest = await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {
-    ...opts,
-    dir: maybeOpts.globalDir,
-    linkToBin: maybeOpts.globalBin,
-  })
-
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
-  }
-
-  return newManifest
 }
