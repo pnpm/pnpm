@@ -35,19 +35,19 @@ To quote the [Rush](https://rushjs.io/) team:
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bit.dev" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
+        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://prisma.io" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://leniolabs.com" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
+        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vercel.com" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180"></a>
+        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://www.takeshape.io" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280"></a>
+        <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280"></a>
       </td>
     </tr>
   </tbody>
