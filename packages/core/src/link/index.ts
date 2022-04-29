@@ -19,7 +19,6 @@ import {
   PackageSpecObject,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
-import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
@@ -30,8 +29,6 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import normalize from 'normalize-path'
-import pathAbsolute from 'path-absolute'
-import clone from 'ramda/src/clone'
 import {
   extendOptions,
   LinkOptions,
@@ -60,7 +57,6 @@ export default async function link (
   }, true)
 
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
-  const currentLockfile = clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
   const specsToUpsert = [] as PackageSpecObject[]
 
@@ -106,30 +102,6 @@ export default async function link (
 
   const warn = (message: string) => logger.warn({ message, prefix: opts.dir })
   const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, { warn })
-
-  await prune(
-    [
-      {
-        binsDir: opts.binsDir,
-        id: importerId,
-        modulesDir: ctx.modulesDir,
-        rootDir: opts.dir,
-      },
-    ],
-    {
-      currentLockfile,
-      hoistedDependencies: ctx.hoistedDependencies,
-      hoistedModulesDir: (opts.hoistPattern != null) ? ctx.hoistedModulesDir : undefined,
-      include: ctx.include,
-      lockfileDir: opts.lockfileDir,
-      publicHoistedModulesDir: (opts.publicHoistPattern != null) ? ctx.rootModulesDir : undefined,
-      registries: ctx.registries,
-      skipped: ctx.skipped,
-      storeController: opts.storeController,
-      virtualStoreDir: ctx.virtualStoreDir,
-      wantedLockfile: updatedCurrentLockfile,
-    }
-  )
 
   // Linking should happen after removing orphans
   // Otherwise would've been removed
@@ -208,52 +180,4 @@ function addLinkToLockfile (
   } else {
     delete projectSnapshot.specifiers[opts.linkedPkgName]
   }
-}
-
-export async function linkFromGlobal (
-  pkgNames: string[],
-  linkTo: string,
-  maybeOpts: LinkOptions & {globalDir: string}
-) {
-  const reporter = maybeOpts?.reporter
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.on('data', reporter)
-  }
-  const opts = await extendOptions(maybeOpts)
-  const globalPkgPath = pathAbsolute(maybeOpts.globalDir)
-  const linkFromPkgs = pkgNames.map((pkgName) => path.join(globalPkgPath, 'node_modules', pkgName))
-  const newManifest = await link(linkFromPkgs, path.join(linkTo, 'node_modules'), opts)
-
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
-  }
-
-  return newManifest
-}
-
-export async function linkToGlobal (
-  linkFrom: string,
-  maybeOpts: LinkOptions & {
-    globalBin: string
-    globalDir: string
-  }
-) {
-  const reporter = maybeOpts?.reporter
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.on('data', reporter)
-  }
-  maybeOpts.lockfileDir = maybeOpts.lockfileDir ?? maybeOpts.globalDir
-  const opts = await extendOptions(maybeOpts)
-  const globalPkgPath = pathAbsolute(maybeOpts.globalDir)
-  const newManifest = await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {
-    ...opts,
-    dir: maybeOpts.globalDir,
-    linkToBin: maybeOpts.globalBin,
-  })
-
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
-  }
-
-  return newManifest
 }

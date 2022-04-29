@@ -4,15 +4,11 @@ import {
   addDependenciesToPackage,
   install,
   link,
-  linkFromGlobal,
-  linkToGlobal,
 } from '@pnpm/core'
 import fixtures from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { RootLog } from '@pnpm/core-loggers'
-import { isExecutable } from '@pnpm/assert-project'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import symlink from 'symlink-dir'
@@ -154,62 +150,6 @@ test('relative link is rewritten by named installation to regular dependency', a
 
   const currentLockfile = await project.readCurrentLockfile()
   expect(currentLockfile.dependencies['hello-world-js-bin']).toBe('1.0.0')
-})
-
-test('global link', async () => {
-  const project = prepareEmpty()
-  const projectPath = process.cwd()
-
-  const linkedPkgName = 'hello-world-js-bin'
-  const linkedPkgPath = path.resolve('..', linkedPkgName)
-
-  f.copy(linkedPkgName, linkedPkgPath)
-
-  const opts = await testDefaults()
-
-  process.chdir(linkedPkgPath)
-  const globalDir = path.resolve('..', 'global')
-  const globalBin = path.resolve('..', 'global', 'bin')
-  await linkToGlobal(process.cwd(), { ...opts, globalDir, globalBin, manifest: {} }) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-  await isExecutable((value, comment) => expect(value).toBeTruthy(), path.join(globalBin, 'hello-world-js-bin'))
-
-  // bins of dependencies should not be linked, see issue https://github.com/pnpm/pnpm/issues/905
-  expect(await exists(path.join(globalBin, 'cowsay'))).toBeFalsy() // cowsay not linked
-  expect(await exists(path.join(globalBin, 'cowthink'))).toBeFalsy() // cowthink not linked
-
-  process.chdir(projectPath)
-
-  await linkFromGlobal([linkedPkgName], process.cwd(), { ...opts, globalDir, manifest: {} }) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-  await project.isExecutable('.bin/hello-world-js-bin')
-})
-
-test('failed linking should not create empty folder', async () => {
-  prepareEmpty()
-
-  const globalDir = path.resolve('..', 'global')
-
-  try {
-    await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({ globalDir, manifest: {} }))
-    throw new Error('should have failed')
-  } catch (err: any) { // eslint-disable-line
-    expect(await exists(path.join(globalDir, 'node_modules', 'does-not-exist'))).toBeFalsy()
-  }
-})
-
-test('node_modules is pruned after linking', async () => {
-  prepareEmpty()
-
-  await writeJsonFile('../is-positive/package.json', { name: 'is-positive', version: '1.0.0' })
-
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
-
-  expect(await exists('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json')).toBeTruthy()
-
-  await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, dir: process.cwd() }))
-
-  expect(await exists('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json')).toBeFalsy()
 })
 
 test('relative link uses realpath when contained in a symlinked dir', async () => {
