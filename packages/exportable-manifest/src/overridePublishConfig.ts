@@ -27,14 +27,12 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
 
 export function overridePublishConfig (publishManifest: ProjectManifest): void {
   const { publishConfig } = publishManifest
-  if (!publishConfig) {
-    return
-  }
+  if (!publishConfig) return
 
-  Object.keys(publishConfig)
-    .filter(key => PUBLISH_CONFIG_WHITELIST.has(key))
-    .forEach(key => {
-      publishManifest[key] = publishConfig[key]
+  Object.entries(publishConfig)
+    .filter(([key]) => PUBLISH_CONFIG_WHITELIST.has(key))
+    .forEach(([key, value]) => {
+      publishManifest[key] = value
       delete publishConfig[key]
     })
 
