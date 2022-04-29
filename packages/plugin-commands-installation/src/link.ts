@@ -14,11 +14,11 @@ import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find
 import { StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
+  addDependenciesToPackage,
   install,
   InstallOptions,
   link,
   LinkFunctionOptions,
-  linkToGlobal,
   WorkspacePackages,
 } from '@pnpm/core'
 import pLimit from 'p-limit'
@@ -114,13 +114,11 @@ export async function handler (
       throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
     }
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
-    const newManifest = await linkToGlobal(cwd, {
-      ...linkOpts,
-      dir: cwd,
-      globalBin: linkOpts.bin,
-      globalDir: linkOpts.dir,
-      manifest: manifest ?? {},
-    })
+    const newManifest = await addDependenciesToPackage(
+      manifest ?? {},
+      [`link:${cwd}`],
+      linkOpts
+    )
     await writeProjectManifest(newManifest)
     return
   }

@@ -576,6 +576,7 @@ export async function addDependenciesToPackage (
   manifest: ProjectManifest,
   dependencySelectors: string[],
   opts: InstallOptions & {
+    bin?: string
     allowNew?: boolean
     peer?: boolean
     pinnedVersion?: 'major' | 'minor' | 'patch'
@@ -585,6 +586,7 @@ export async function addDependenciesToPackage (
   const projects = await mutateModules(
     [
       {
+        binsDir: opts.bin,
         allowNew: opts.allowNew,
         dependencySelectors,
         manifest,

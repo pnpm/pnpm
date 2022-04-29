@@ -198,20 +198,6 @@ test('failed linking should not create empty folder', async () => {
   }
 })
 
-test('node_modules is pruned after linking', async () => {
-  prepareEmpty()
-
-  await writeJsonFile('../is-positive/package.json', { name: 'is-positive', version: '1.0.0' })
-
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
-
-  expect(await exists('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json')).toBeTruthy()
-
-  await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, dir: process.cwd() }))
-
-  expect(await exists('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json')).toBeFalsy()
-})
-
 test('relative link uses realpath when contained in a symlinked dir', async () => {
   prepareEmpty()
 
