@@ -58,6 +58,14 @@ export interface PublishConfig extends Record<string, unknown> {
   executableFiles?: string[]
 }
 
+type Version = string
+type Pattern = string
+export interface TypesVersions {
+  [version: Version]: {
+    [pattern: Pattern]: string[]
+  }
+}
+
 export interface BaseManifest {
   name?: string
   version?: string
@@ -90,6 +98,7 @@ export interface BaseManifest {
   typings?: string
   types?: string
   publishConfig?: PublishConfig
+  typesVersions?: TypesVersions
   readme?: string
   keywords?: string[]
   author?: string
