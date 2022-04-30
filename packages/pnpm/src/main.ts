@@ -144,12 +144,16 @@ export default async function run (inputArgv: string[]) {
 
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (config.cliOptions['global-dir'] == null) {
-      try {
-        config.bin = path.dirname(which.sync('pnpm'))
-      } catch (err) {
-        // if pnpm not found, then ignore
+    try {
+      const currentPnpmDir = path.dirname(which.sync('pnpm'))
+      if (path.relative(currentPnpmDir, config.bin) !== '') {
+        console.log(`The location of the currently running pnpm differs from the location where pnpm will be installed
+ Current pnpm location: ${currentPnpmDir}
+ Target location: ${config.bin}
+`)
       }
+    } catch (err) {
+      // if pnpm not found, then ignore
     }
   }
 
