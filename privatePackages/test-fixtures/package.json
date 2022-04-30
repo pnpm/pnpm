@@ -29,7 +29,7 @@
   "scripts": {
     "lint": "tslint -c ../../tslint.json --project .",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "test": "pnpm run tsc"
+    "test": "pnpm run compile"
   },
   "dependencies": {
     "@pnpm/prepare": "workspace:*",

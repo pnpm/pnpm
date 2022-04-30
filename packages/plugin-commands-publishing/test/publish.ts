@@ -693,8 +693,7 @@ test('publish: with specified publish branch name', async () => {
   })
 
   const branch = 'some-random-publish-branch'
-  await execa('git', ['init'])
-  await execa('git', ['checkout', '-b', branch])
+  await execa('git', ['init', '--initial-branch=branch'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['add', '*'])

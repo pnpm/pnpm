@@ -326,14 +326,14 @@ test('test-pattern is respected by the test script', async () => {
     },
   ])
 
-  await execa('git', ['init'])
+  await execa('git', ['init', '--initial-branch=main'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['init', '--bare'], { cwd: remote })
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
   await execa('git', ['remote', 'add', 'origin', remote])
-  await execa('git', ['push', '-u', 'origin', 'master'])
+  await execa('git', ['push', '-u', 'origin', 'main'])
 
   await fs.writeFile('project-2/file.js', '')
   await fs.writeFile('project-4/different-pattern.js', '')
@@ -347,7 +347,7 @@ test('test-pattern is respected by the test script', async () => {
 
   await execPnpm(['install'])
 
-  await execPnpm(['recursive', 'test', '--filter', '...[origin/master]'])
+  await execPnpm(['recursive', 'test', '--filter', '...[origin/main]'])
 
   const { default: output } = await import(path.resolve('..', 'output.json'))
   expect(output.sort()).toStrictEqual(['project-2', 'project-4'])
@@ -379,14 +379,14 @@ test('changed-files-ignore-pattern is respected', async () => {
     },
   ])
 
-  await execa('git', ['init'])
+  await execa('git', ['init', '--initial-branch=main'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['init', '--bare'], { cwd: remote })
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
   await execa('git', ['remote', 'add', 'origin', remote])
-  await execa('git', ['push', '-u', 'origin', 'master'])
+  await execa('git', ['push', '-u', 'origin', 'main'])
 
   const npmrcLines = []
   await fs.writeFile('project-2-change-is-never-ignored/index.js', '')
@@ -427,7 +427,7 @@ test('changed-files-ignore-pattern is respected', async () => {
     const result = await execPnpmSync(
       [
         '--filter',
-        '[origin/master]',
+        '[origin/main]',
         opts?.overrideChangedFilesIgnorePatternWithNoPattern
           ? '--changed-files-ignore-pattern='
           : '',
