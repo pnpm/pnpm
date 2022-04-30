@@ -100,7 +100,7 @@ async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
 }
 
-test(`fail on non-compatible ${WANTED_LOCKFILE}`, async () => {
+test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installation is used`, async () => {
   if (isCI) {
     console.log('this test will always fail on CI servers')
     return
@@ -110,9 +110,10 @@ test(`fail on non-compatible ${WANTED_LOCKFILE}`, async () => {
   await fs.writeFile(WANTED_LOCKFILE, '')
 
   try {
-    await addDependenciesToPackage({}, ['is-negative'], await testDefaults())
+    await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ frozenLockfile: true }))
     throw new Error('should have failed')
   } catch (err: any) { // eslint-disable-line
+    if (err.message === 'should have failed') throw err
     expect(err.code).toBe('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
   }
 })
