@@ -1,5 +1,42 @@
 # @pnpm/core
 
+## 5.0.0
+
+### Major Changes
+
+- af6ac00e4: Remove linkFromGlobal and linkToGlobal.
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/package-requester@18.0.2
+  - @pnpm/build-modules@9.1.1
+  - @pnpm/core-loggers@7.0.1
+  - dependency-path@9.1.1
+  - @pnpm/filter-lockfile@6.0.2
+  - @pnpm/get-context@6.1.1
+  - @pnpm/headless@18.1.2
+  - @pnpm/hoist@6.1.1
+  - @pnpm/lifecycle@13.0.2
+  - @pnpm/link-bins@7.1.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/lockfile-to-pnp@0.5.3
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/lockfile-walker@5.0.2
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/modules-cleaner@12.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/normalize-registries@3.0.1
+  - @pnpm/prune-lockfile@4.0.2
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/read-project-manifest@3.0.2
+  - @pnpm/remove-bins@3.0.2
+  - @pnpm/resolve-dependencies@27.0.2
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/store-controller-types@13.0.1
+  - @pnpm/symlink-dependency@5.0.1
+
 ## 4.0.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 8.0.1
+
+### Patch Changes
+
+- 18ba5e2c0: Add typesVersions to PUBLISH_CONFIG_WHITELIST
+
 ## 8.0.0
 
 ### Major Changes

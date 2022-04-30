@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-installation
 
+## 10.0.3
+
+### Patch Changes
+
+- af6ac00e4: Improve global linking.
+- Updated dependencies [af6ac00e4]
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/core@5.0.0
+  - @pnpm/types@8.0.1
+  - @pnpm/package-store@13.0.2
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/find-workspace-packages@4.0.3
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/outdated@10.0.2
+  - @pnpm/plugin-commands-rebuild@6.1.2
+  - @pnpm/pnpmfile@2.0.2
+  - @pnpm/read-project-manifest@3.0.2
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/sort-packages@3.0.2
+  - @pnpm/store-connection-manager@4.1.2
+  - @pnpm/filter-workspace-packages@5.0.3
+
 ## 10.0.2
 
 ### Patch Changes

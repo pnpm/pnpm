@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/create-cafs-store",
   "description": "Create a CAFS store controller",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -15,10 +15,10 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:4.0.0",
-    "@pnpm/core-loggers": "workspace:7.0.0",
-    "@pnpm/fetcher-base": "workspace:12.0.0",
-    "@pnpm/store-controller-types": "workspace:13.0.0",
+    "@pnpm/cafs": "workspace:4.0.1",
+    "@pnpm/core-loggers": "workspace:7.0.1",
+    "@pnpm/fetcher-base": "workspace:12.0.1",
+    "@pnpm/store-controller-types": "workspace:13.0.1",
     "@zkochan/rimraf": "^2.1.2",
     "make-empty-dir": "^2.0.0",
     "mem": "^8.0.0",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/create-cafs-store": "workspace:0.0.0",
+    "@pnpm/create-cafs-store": "workspace:1.0.0",
     "@pnpm/prepare": "workspace:*"
   },
   "directories": {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-bins",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "Returns bins of a package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,12 +31,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/package-bins#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:8.0.0",
+    "@pnpm/types": "workspace:8.0.1",
     "fast-glob": "^3.2.4",
     "is-subdir": "^1.1.1"
   },
   "devDependencies": {
-    "@pnpm/package-bins": "workspace:6.0.0",
+    "@pnpm/package-bins": "workspace:6.0.1",
     "@types/node": "^14.17.32"
   },
   "funding": "https://opencollective.com/pnpm",

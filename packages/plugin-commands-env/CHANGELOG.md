@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-env
 
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [1ceb632b1]
+  - @pnpm/create-cafs-store@1.0.0
+  - @pnpm/tarball-fetcher@10.0.2
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/fetcher-base@12.0.1
+  - @pnpm/fetch@5.0.1
+
 ## 2.1.1
 
 ### Patch Changes

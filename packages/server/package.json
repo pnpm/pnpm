@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "12.0.0",
+  "version": "12.0.1",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,11 +33,11 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.0",
+    "@pnpm/client": "workspace:7.1.1",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-requester": "workspace:18.0.1",
-    "@pnpm/package-store": "workspace:13.0.1",
-    "@pnpm/server": "workspace:12.0.0",
+    "@pnpm/package-requester": "workspace:18.0.2",
+    "@pnpm/package-store": "workspace:13.0.2",
+    "@pnpm/server": "workspace:12.0.1",
     "@types/mz": "^2.7.3",
     "@types/uuid": "^8.3.0",
     "@zkochan/rimraf": "^2.1.2",
@@ -48,9 +48,9 @@
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/fetch": "workspace:5.0.0",
-    "@pnpm/store-controller-types": "workspace:13.0.0",
-    "@pnpm/types": "workspace:8.0.0",
+    "@pnpm/fetch": "workspace:5.0.1",
+    "@pnpm/store-controller-types": "workspace:13.0.1",
+    "@pnpm/types": "workspace:8.0.1",
     "p-limit": "^3.1.0",
     "promise-share": "^1.0.0",
     "uuid": "^3.4.0"

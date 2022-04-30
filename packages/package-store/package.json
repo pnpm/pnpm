@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "13.0.1",
+  "version": "13.0.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -15,13 +15,13 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:4.0.0",
-    "@pnpm/create-cafs-store": "workspace:0.0.0",
-    "@pnpm/fetcher-base": "workspace:12.0.0",
-    "@pnpm/package-requester": "workspace:18.0.1",
-    "@pnpm/resolver-base": "workspace:9.0.0",
-    "@pnpm/store-controller-types": "workspace:13.0.0",
-    "@pnpm/types": "workspace:8.0.0",
+    "@pnpm/cafs": "workspace:4.0.1",
+    "@pnpm/create-cafs-store": "workspace:1.0.0",
+    "@pnpm/fetcher-base": "workspace:12.0.1",
+    "@pnpm/package-requester": "workspace:18.0.2",
+    "@pnpm/resolver-base": "workspace:9.0.1",
+    "@pnpm/store-controller-types": "workspace:13.0.1",
+    "@pnpm/types": "workspace:8.0.1",
     "@zkochan/rimraf": "^2.1.2",
     "load-json-file": "^6.2.0",
     "ramda": "^0.27.1",
@@ -29,9 +29,9 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.0",
+    "@pnpm/client": "workspace:7.1.1",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:13.0.1",
+    "@pnpm/package-store": "workspace:13.0.2",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.27.39",
     "@types/ssri": "^7.1.0",

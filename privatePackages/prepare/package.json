@@ -1,12 +1,12 @@
 {
   "name": "@pnpm/prepare",
-  "version": "0.0.38",
+  "version": "0.0.39",
   "private": true,
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/types": "workspace:8.0.0",
+    "@pnpm/types": "workspace:8.0.1",
     "unique-string": "^2.0.0",
     "write-json5-file": "^3.1.0",
     "write-pkg": "4.0.0",

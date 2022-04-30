@@ -1,5 +1,12 @@
 # dependency-path
 
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+
 ## 9.1.0
 
 ### Minor Changes

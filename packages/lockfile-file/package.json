@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-file",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "Read/write pnpm-lock.yaml files",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/lockfile-file": "workspace:5.0.1",
+    "@pnpm/lockfile-file": "workspace:5.0.2",
     "@pnpm/logger": "^4.0.0",
     "@types/js-yaml": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
@@ -48,9 +48,9 @@
   "dependencies": {
     "@pnpm/constants": "workspace:6.1.0",
     "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/lockfile-types": "workspace:4.0.0",
-    "@pnpm/merge-lockfile-changes": "workspace:3.0.0",
-    "@pnpm/types": "workspace:8.0.0",
+    "@pnpm/lockfile-types": "workspace:4.0.1",
+    "@pnpm/merge-lockfile-changes": "workspace:3.0.1",
+    "@pnpm/types": "workspace:8.0.1",
     "@zkochan/rimraf": "^2.1.2",
     "comver-to-semver": "^1.0.0",
     "js-yaml": "npm:@zkochan/js-yaml@0.0.5",

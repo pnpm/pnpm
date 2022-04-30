@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "9.1.0",
+  "version": "9.1.1",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,18 +34,18 @@
   },
   "dependencies": {
     "@pnpm/calc-dep-state": "workspace:2.0.1",
-    "@pnpm/core-loggers": "workspace:7.0.0",
-    "@pnpm/lifecycle": "workspace:13.0.1",
-    "@pnpm/link-bins": "workspace:7.1.0",
-    "@pnpm/read-package-json": "workspace:6.0.1",
-    "@pnpm/store-controller-types": "workspace:13.0.0",
-    "@pnpm/types": "workspace:8.0.0",
+    "@pnpm/core-loggers": "workspace:7.0.1",
+    "@pnpm/lifecycle": "workspace:13.0.2",
+    "@pnpm/link-bins": "workspace:7.1.1",
+    "@pnpm/read-package-json": "workspace:6.0.2",
+    "@pnpm/store-controller-types": "workspace:13.0.1",
+    "@pnpm/types": "workspace:8.0.1",
     "@pnpm/graph-sequencer": "1.0.0",
     "ramda": "^0.27.1",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
-    "@pnpm/build-modules": "workspace:9.1.0",
+    "@pnpm/build-modules": "workspace:9.1.1",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39"
   },

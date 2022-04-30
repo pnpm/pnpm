@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-rc.9
+## 7.0.0
 
 ### Major Changes
 
