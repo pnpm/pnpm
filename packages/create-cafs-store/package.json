@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/package-store",
-  "description": "A storage for packages",
-  "version": "13.0.1",
+  "name": "@pnpm/create-cafs-store",
+  "description": "Create a CAFS store controller",
+  "version": "0.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -16,31 +16,27 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:4.0.0",
-    "@pnpm/create-cafs-store": "workspace:0.0.0",
+    "@pnpm/core-loggers": "workspace:7.0.0",
     "@pnpm/fetcher-base": "workspace:12.0.0",
-    "@pnpm/package-requester": "workspace:18.0.1",
-    "@pnpm/resolver-base": "workspace:9.0.0",
     "@pnpm/store-controller-types": "workspace:13.0.0",
-    "@pnpm/types": "workspace:8.0.0",
     "@zkochan/rimraf": "^2.1.2",
-    "load-json-file": "^6.2.0",
-    "ramda": "^0.27.1",
-    "ssri": "^8.0.1",
-    "write-json-file": "^4.3.0"
+    "make-empty-dir": "^2.0.0",
+    "mem": "^8.0.0",
+    "p-limit": "^3.1.0",
+    "path-exists": "^4.0.0",
+    "path-temp": "^2.0.0",
+    "rename-overwrite": "^4.0.2",
+    "sanitize-filename": "^1.6.3"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.0",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:13.0.1",
-    "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "0.27.39",
-    "@types/ssri": "^7.1.0",
-    "tempy": "^1.0.0"
+    "@pnpm/create-cafs-store": "workspace:0.0.0",
+    "@pnpm/prepare": "workspace:*"
   },
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/package-store#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/create-cafs-store#readme",
   "keywords": [
     "pnpm7",
     "store",
@@ -55,7 +51,7 @@
   "engines": {
     "node": ">=14.19"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/package-store",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/create-cafs-store",
   "scripts": {
     "start": "tsc --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",

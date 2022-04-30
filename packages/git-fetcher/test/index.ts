@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import { createCafsStore } from '@pnpm/package-store'
+import createCafsStore from '@pnpm/create-cafs-store'
 import createFetcher from '@pnpm/git-fetcher'
 import { DependencyManifest } from '@pnpm/types'
 import pDefer from 'p-defer'

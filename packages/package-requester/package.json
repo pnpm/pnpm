@@ -64,7 +64,7 @@
     "@pnpm/client": "workspace:7.1.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-requester": "workspace:18.0.1",
-    "@pnpm/package-store": "workspace:13.0.1",
+    "@pnpm/create-cafs-store": "workspace:0.0.0",
     "@pnpm/registry-mock": "2.15.1",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",

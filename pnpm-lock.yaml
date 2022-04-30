@@ -559,6 +559,41 @@ importers:
       '@pnpm/core-loggers': 'link:'
       '@pnpm/logger': 4.0.0
 
+  packages/create-cafs-store:
+    specifiers:
+      '@pnpm/cafs': workspace:4.0.0
+      '@pnpm/core-loggers': workspace:7.0.0
+      '@pnpm/create-cafs-store': workspace:0.0.0
+      '@pnpm/fetcher-base': workspace:12.0.0
+      '@pnpm/logger': ^4.0.0
+      '@pnpm/prepare': workspace:*
+      '@pnpm/store-controller-types': workspace:13.0.0
+      '@zkochan/rimraf': ^2.1.2
+      make-empty-dir: ^2.0.0
+      mem: ^8.0.0
+      p-limit: ^3.1.0
+      path-exists: ^4.0.0
+      path-temp: ^2.0.0
+      rename-overwrite: ^4.0.2
+      sanitize-filename: ^1.6.3
+    dependencies:
+      '@pnpm/cafs': link:../cafs
+      '@pnpm/core-loggers': link:../core-loggers
+      '@pnpm/fetcher-base': link:../fetcher-base
+      '@pnpm/store-controller-types': link:../store-controller-types
+      '@zkochan/rimraf': 2.1.2
+      make-empty-dir: 2.0.0
+      mem: 8.1.1
+      p-limit: 3.1.0
+      path-exists: 4.0.0
+      path-temp: 2.0.0
+      rename-overwrite: 4.0.2
+      sanitize-filename: 1.6.3
+    devDependencies:
+      '@pnpm/create-cafs-store': 'link:'
+      '@pnpm/logger': 4.0.0
+      '@pnpm/prepare': link:../../privatePackages/prepare
+
   packages/default-reporter:
     specifiers:
       '@pnpm/config': workspace:15.1.0
@@ -986,9 +1021,9 @@ importers:
   packages/git-fetcher:
     specifiers:
       '@pnpm/cafs': workspace:4.0.0
+      '@pnpm/create-cafs-store': workspace:0.0.0
       '@pnpm/fetcher-base': workspace:12.0.0
       '@pnpm/git-fetcher': workspace:5.1.0
-      '@pnpm/package-store': workspace:13.0.1
       '@pnpm/prepare-package': workspace:2.0.1
       '@pnpm/types': workspace:8.0.0
       '@zkochan/rimraf': ^2.1.2
@@ -1002,8 +1037,8 @@ importers:
       execa: /safe-execa/0.1.1
     devDependencies:
       '@pnpm/cafs': link:../cafs
+      '@pnpm/create-cafs-store': link:../create-cafs-store
       '@pnpm/git-fetcher': 'link:'
-      '@pnpm/package-store': link:../package-store
       '@pnpm/types': link:../types
       p-defer: 3.0.0
       tempy: 1.0.1
@@ -1816,13 +1851,13 @@ importers:
       '@pnpm/cafs': workspace:4.0.0
       '@pnpm/client': workspace:7.1.0
       '@pnpm/core-loggers': workspace:7.0.0
+      '@pnpm/create-cafs-store': workspace:0.0.0
       '@pnpm/error': workspace:3.0.1
       '@pnpm/fetcher-base': workspace:12.0.0
       '@pnpm/graceful-fs': workspace:2.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/package-is-installable': workspace:6.0.1
       '@pnpm/package-requester': workspace:18.0.1
-      '@pnpm/package-store': workspace:13.0.1
       '@pnpm/read-package-json': workspace:6.0.1
       '@pnpm/registry-mock': 2.15.1
       '@pnpm/resolver-base': workspace:9.0.0
@@ -1872,9 +1907,9 @@ importers:
       ssri: 8.0.1
     devDependencies:
       '@pnpm/client': link:../client
+      '@pnpm/create-cafs-store': link:../create-cafs-store
       '@pnpm/logger': 4.0.0
       '@pnpm/package-requester': 'link:'
-      '@pnpm/package-store': link:../package-store
       '@pnpm/registry-mock': 2.15.1
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/normalize-path': 3.0.0
@@ -1890,7 +1925,7 @@ importers:
     specifiers:
       '@pnpm/cafs': workspace:4.0.0
       '@pnpm/client': workspace:7.1.0
-      '@pnpm/core-loggers': workspace:7.0.0
+      '@pnpm/create-cafs-store': workspace:0.0.0
       '@pnpm/fetcher-base': workspace:12.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/package-requester': workspace:18.0.1
@@ -1903,20 +1938,13 @@ importers:
       '@types/ssri': ^7.1.0
       '@zkochan/rimraf': ^2.1.2
       load-json-file: ^6.2.0
-      make-empty-dir: ^2.0.0
-      mem: ^8.0.0
-      p-limit: ^3.1.0
-      path-exists: ^4.0.0
-      path-temp: ^2.0.0
       ramda: ^0.27.1
-      rename-overwrite: ^4.0.2
-      sanitize-filename: ^1.6.3
       ssri: ^8.0.1
       tempy: ^1.0.0
       write-json-file: ^4.3.0
     dependencies:
       '@pnpm/cafs': link:../cafs
-      '@pnpm/core-loggers': link:../core-loggers
+      '@pnpm/create-cafs-store': link:../create-cafs-store
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/package-requester': link:../package-requester
       '@pnpm/resolver-base': link:../resolver-base
@@ -1924,14 +1952,7 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.2
       load-json-file: 6.2.0
-      make-empty-dir: 2.0.0
-      mem: 8.1.1
-      p-limit: 3.1.0
-      path-exists: 4.0.0
-      path-temp: 2.0.0
       ramda: 0.27.2
-      rename-overwrite: 4.0.2
-      sanitize-filename: 1.6.3
       ssri: 8.0.1
       write-json-file: 4.3.0
     devDependencies:
@@ -2057,10 +2078,10 @@ importers:
     specifiers:
       '@pnpm/cli-utils': workspace:0.7.2
       '@pnpm/config': workspace:15.1.0
+      '@pnpm/create-cafs-store': workspace:0.0.0
       '@pnpm/error': workspace:3.0.1
       '@pnpm/fetch': workspace:5.0.0
       '@pnpm/fetcher-base': workspace:12.0.0
-      '@pnpm/package-store': workspace:13.0.1
       '@pnpm/plugin-commands-env': workspace:2.1.1
       '@pnpm/prepare': workspace:*
       '@pnpm/store-path': workspace:6.0.0
@@ -2083,10 +2104,10 @@ importers:
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/config': link:../config
+      '@pnpm/create-cafs-store': link:../create-cafs-store
       '@pnpm/error': link:../error
       '@pnpm/fetch': link:../fetch
       '@pnpm/fetcher-base': link:../fetcher-base
-      '@pnpm/package-store': link:../package-store
       '@pnpm/store-path': link:../store-path
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
       '@zkochan/cmd-shim': 5.2.2
@@ -3402,13 +3423,13 @@ importers:
   packages/tarball-fetcher:
     specifiers:
       '@pnpm/core-loggers': workspace:7.0.0
+      '@pnpm/create-cafs-store': workspace:0.0.0
       '@pnpm/error': workspace:3.0.1
       '@pnpm/fetch': workspace:5.0.0
       '@pnpm/fetcher-base': workspace:12.0.0
       '@pnpm/fetching-types': workspace:3.0.0
       '@pnpm/graceful-fs': workspace:2.0.0
       '@pnpm/logger': ^4.0.0
-      '@pnpm/package-store': workspace:13.0.1
       '@pnpm/prepare-package': workspace:2.0.1
       '@pnpm/tarball-fetcher': workspace:10.0.1
       '@pnpm/test-fixtures': workspace:*
@@ -3431,9 +3452,9 @@ importers:
       ramda: 0.27.2
       ssri: 8.0.1
     devDependencies:
+      '@pnpm/create-cafs-store': link:../create-cafs-store
       '@pnpm/fetch': link:../fetch
       '@pnpm/logger': 4.0.0
-      '@pnpm/package-store': link:../package-store
       '@pnpm/tarball-fetcher': 'link:'
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/ramda': 0.27.39

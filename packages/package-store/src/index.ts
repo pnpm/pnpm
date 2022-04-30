@@ -1,6 +1,5 @@
-import createStore, { createCafsStore } from './storeController'
+import createStore from './storeController'
 
 export default createStore
-export { createCafsStore }
 
 export * from '@pnpm/store-controller-types'

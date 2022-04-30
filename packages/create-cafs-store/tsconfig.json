@@ -16,25 +16,13 @@
       "path": "../cafs"
     },
     {
-      "path": "../client"
-    },
-    {
-      "path": "../create-cafs-store"
+      "path": "../core-loggers"
     },
     {
       "path": "../fetcher-base"
     },
     {
-      "path": "../package-requester"
-    },
-    {
-      "path": "../resolver-base"
-    },
-    {
       "path": "../store-controller-types"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

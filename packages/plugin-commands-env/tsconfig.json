@@ -19,6 +19,9 @@
       "path": "../config"
     },
     {
+      "path": "../create-cafs-store"
+    },
+    {
       "path": "../error"
     },
     {
@@ -26,9 +29,6 @@
     },
     {
       "path": "../fetcher-base"
-    },
-    {
-      "path": "../package-store"
     },
     {
       "path": "../store-path"
