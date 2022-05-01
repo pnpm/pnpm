@@ -1,5 +1,57 @@
 # @pnpm/resolve-dependencies
 
+## 27.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/npm-resolver@13.0.2
+  - @pnpm/pick-registry-for-package@3.0.1
+  - @pnpm/prune-lockfile@4.0.2
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/store-controller-types@13.0.1
+
+## 27.0.1
+
+### Patch Changes
+
+- 3345c2cce: It should be possible to use a chain of local file dependencies [#4611](https://github.com/pnpm/pnpm/issues/4611).
+- 7478cbd05: Installation shouldn't fail when a package from node_modules is moved to the `node_modules/.ignored` subfolder and a package with that name is already present in `node_modules/.ignored'.
+
+## 27.0.0
+
+### Major Changes
+
+- 0a70aedb1: Use a base32 hash instead of a hex to encode too long dependency paths inside `node_modules/.pnpm` [#4552](https://github.com/pnpm/pnpm/pull/4552).
+- e7bdc2cc2: Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
+
+### Patch Changes
+
+- 948a8151e: Fix an error with peer resolutions, which was happening when there was a circular dependency and another dependency that had the name of the circular dependency as a substring.
+- e531325c3: `dependenciesMeta` should be saved into the lockfile, when it is added to the package manifest by a hook.
+- aecd4acdd: Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- dbe366990: Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+- b716d2d06: Don't update a direct dependency that has the same name as a dependency in the workspace, when adding a new dependency to a workspace project [#4575](https://github.com/pnpm/pnpm/pull/4575).
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [618842b0d]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/prune-lockfile@4.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/npm-resolver@13.0.1
+  - @pnpm/read-package-json@6.0.1
+
 ## 26.0.0
 
 ### Major Changes
@@ -382,7 +434,7 @@
 
 ### Major Changes
 
-- 07e7b1c0c: Optional dependencies are always marked as `requiresBuild` as they are not always fetched and as a result there is no way to check whethere they need to be built or not.
+- 07e7b1c0c: Optional dependencies are always marked as `requiresBuild` as they are not always fetched and as a result there is no way to check whether they need to be built or not.
 
 ## 20.0.16
 
@@ -765,7 +817,7 @@
 
 ### Minor Changes
 
-- fcdad632f: When some of the dependencies of a package have the package as a peer depenendency, don't make the dependency a peer depenendency of itself.
+- fcdad632f: When some of the dependencies of a package have the package as a peer dependency, don't make the dependency a peer dependency of itself.
 
 ### Patch Changes
 
@@ -892,7 +944,7 @@
 
   So we resolve `foo > bar > qar > foo`.
   But we stop on `foo > bar > qar > foo > qar`.
-  In the second example, there's no reason to walk qar again when qar is included the first time, the dependencies of foo are already resolved and included as parent dependencies of qar. So during peers resolution, qar cannot possibly get any new or different peers resolved, after the first ocurrence.
+  In the second example, there's no reason to walk qar again when qar is included the first time, the dependencies of foo are already resolved and included as parent dependencies of qar. So during peers resolution, qar cannot possibly get any new or different peers resolved, after the first occurrence.
 
   However, in the next example we would analyze the second qar as well, because zoo is a new parent package:
   `foo > bar > qar > zoo > qar`
@@ -1053,7 +1105,7 @@
 
 ### Major Changes
 
-- 0730bb938: Check the existense of a dependency in `node_modules` at the right location.
+- 0730bb938: Check the existence of a dependency in `node_modules` at the right location.
 - 242cf8737: The `alwaysTryWorkspacePackages` option is removed. A new option called `linkWorkspacePackagesDepth` is added.
   When `linkWorkspacePackageDepth` is `0`, workspace packages are linked to direct dependencies even if these direct
   dependencies are not using workspace ranges (so this is similar to the old `alwaysTryWorkspacePackages=true`).
@@ -1164,7 +1216,7 @@
 
 ### Patch Changes
 
-- 0730bb938: Check the existense of a dependency in `node_modules` at the right location.
+- 0730bb938: Check the existence of a dependency in `node_modules` at the right location.
 
 ## 14.4.5-alpha.3
 

@@ -131,7 +131,7 @@ export default async function (
       )
     }
 
-    const topParents = project.manifest
+    const topParents: Array<{ name: string, version: string, linkedDir?: string }> = project.manifest
       ? await getTopParents(
         difference(
           Object.keys(getAllDependenciesFromManifest(project.manifest)),
@@ -142,6 +142,13 @@ export default async function (
         project.modulesDir
       )
       : []
+    resolvedImporter.linkedDependencies.forEach((linkedDependency) => {
+      topParents.push({
+        name: linkedDependency.alias,
+        version: linkedDependency.version,
+        linkedDir: `link:${path.relative(opts.lockfileDir, linkedDependency.resolution.directory)}`,
+      })
+    })
 
     const manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
     importers[index].manifest = manifest
@@ -150,7 +157,7 @@ export default async function (
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest,
+      manifest: project.manifest,
       modulesDir: project.modulesDir,
       rootDir: project.rootDir,
       topParents,

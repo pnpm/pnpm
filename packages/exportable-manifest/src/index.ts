@@ -3,30 +3,8 @@ import PnpmError from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import fromPairs from 'ramda/src/fromPairs'
-import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
-
-// property keys that are copied from publishConfig into the manifest
-const PUBLISH_CONFIG_WHITELIST = new Set([
-  // manifest fields that may make sense to overwrite
-  'bin',
-  'type',
-  'imports',
-  // https://github.com/stereobooster/package.json#package-bundlers
-  'main',
-  'module',
-  'typings',
-  'types',
-  'exports',
-  'browser',
-  'esnext',
-  'es2015',
-  'unpkg',
-  'umd:main',
-  // These are useful to hide in order to avoid warnings during local development
-  'os',
-  'cpu',
-])
+import { overridePublishConfig } from './overridePublishConfig'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -49,19 +27,7 @@ export default async function makePublishManifest (dir: string, originalManifest
     }
   }
 
-  const { publishConfig } = publishManifest
-  if (publishConfig != null) {
-    Object.keys(publishConfig)
-      .filter(key => PUBLISH_CONFIG_WHITELIST.has(key))
-      .forEach(key => {
-        publishManifest[key] = publishConfig[key]
-        delete publishConfig[key]
-      })
-
-    if (isEmpty(publishConfig)) {
-      delete publishManifest.publishConfig
-    }
-  }
+  overridePublishConfig(publishManifest)
 
   if (opts?.readmeFile) {
     publishManifest.readme ??= opts.readmeFile

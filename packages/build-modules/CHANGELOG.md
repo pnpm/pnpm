@@ -1,5 +1,32 @@
 # @pnpm/build-modules
 
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/lifecycle@13.0.2
+  - @pnpm/link-bins@7.1.1
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/store-controller-types@13.0.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 8fa95fd86: New option added: `extraNodePaths`.
+
+### Patch Changes
+
+- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+- Updated dependencies [8fa95fd86]
+  - @pnpm/link-bins@7.1.0
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/calc-dep-state@2.0.1
+  - @pnpm/read-package-json@6.0.1
+
 ## 9.0.0
 
 ### Major Changes

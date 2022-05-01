@@ -31,6 +31,7 @@ export const DEFAULT_OPTS = {
   offline: false,
   pending: false,
   pnpmfile: './.pnpmfile.cjs',
+  pnpmHomeDir: '',
   proxy: undefined,
   rawConfig: { registry: REGISTRY },
   rawLocalConfig: {},

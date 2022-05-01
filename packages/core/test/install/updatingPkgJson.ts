@@ -4,10 +4,8 @@ import {
   install,
   mutateModules,
 } from '@pnpm/core'
-import {
-  addDistTag,
-  testDefaults,
-} from '../utils'
+import { addDistTag } from '@pnpm/registry-mock'
+import { testDefaults } from '../utils'
 
 test('save to package.json (is-positive@^1.0.0)', async () => {
   const project = prepareEmpty()
@@ -52,8 +50,8 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async () => {
 })
 
 test('dependency should not be added to package.json if it is already there', async () => {
-  await addDistTag('foo', '100.0.0', 'latest')
-  await addDistTag('bar', '100.0.0', 'latest')
+  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
 
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({
@@ -84,8 +82,8 @@ test('dependency should not be added to package.json if it is already there', as
 })
 
 test('dependencies should be updated in the fields where they already are', async () => {
-  await addDistTag('foo', '100.1.0', 'latest')
-  await addDistTag('bar', '100.1.0', 'latest')
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
 
   prepareEmpty()
   const manifest = await addDependenciesToPackage({
@@ -108,9 +106,9 @@ test('dependencies should be updated in the fields where they already are', asyn
 })
 
 test('dependency should be removed from the old field when installing it as a different type of dependency', async () => {
-  await addDistTag('foo', '100.0.0', 'latest')
-  await addDistTag('bar', '100.0.0', 'latest')
-  await addDistTag('qar', '100.0.0', 'latest')
+  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
 
   const project = prepareEmpty()
   let manifest = await addDependenciesToPackage({
@@ -193,9 +191,9 @@ test('save to package.json with save prefix ~', async () => {
 })
 
 test('an update bumps the versions in the manifest', async () => {
-  await addDistTag('peer-a', '1.0.1', 'latest')
-  await addDistTag('foo', '100.1.0', 'latest')
-  await addDistTag('peer-c', '2.0.0', 'latest')
+  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
 
   prepareEmpty()
 

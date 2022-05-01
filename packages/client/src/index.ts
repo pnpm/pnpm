@@ -18,6 +18,7 @@ export type ClientOptions = {
   timeout?: number
   userAgent?: string
   userConfig?: Record<string, string>
+  gitShallowHosts?: string[]
 } & ResolverFactoryOptions & AgentOptions
 
 export default function (opts: ClientOptions) {
@@ -38,13 +39,11 @@ export function createResolver (opts: ClientOptions) {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
-  opts: {
-    retry?: RetryTimeoutOptions
-  }
+  opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts'>
 ) {
   return {
     ...createTarballFetcher(fetchFromRegistry, getCredentials, opts),
-    ...fetchFromGit(),
+    ...fetchFromGit(opts),
     ...createDirectoryFetcher(),
   }
 }

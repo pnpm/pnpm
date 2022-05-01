@@ -297,7 +297,7 @@ test('prints meaningful error when there is syntax error in .pnpmfile.cjs', asyn
   expect(proc.status).toBe(1)
 })
 
-test('fails when .pnpmfile.cjs requires a non-existend module', async () => {
+test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
   prepare()
 
   await fs.writeFile('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
@@ -612,5 +612,5 @@ test('readPackage hook is used during removal inside a workspace', async () => {
 
   process.chdir('..')
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  expect(lockfile.packages!['/abc/1.0.0_is-negative@1.0.0+peer-a@1.0.0'].peerDependencies!['is-negative']).toBe('1.0.0')
+  expect(lockfile.packages!['/abc/1.0.0_vt2fli7reel7pfbmpdhs3d7fya'].peerDependencies!['is-negative']).toBe('1.0.0')
 })

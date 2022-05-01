@@ -1,4 +1,3 @@
-import { promises as fs } from 'fs'
 import path from 'path'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import prepare from '@pnpm/prepare'
@@ -28,18 +27,15 @@ test('uninstall package and remove from appropriate property', async () => {
 
 test('uninstall global package with its bin files', async () => {
   prepare()
-  process.chdir('..')
 
-  const global = path.resolve('global')
-  const globalBin = path.join(global, 'nodejs')
-  await fs.mkdir(globalBin, { recursive: true })
+  const global = process.cwd()
+  const globalBin = path.resolve(global, 'bin')
 
   const env = {
-    NPM_CONFIG_PREFIX: global,
     PNPM_HOME: globalBin,
     [PATH]: `${globalBin}${path.delimiter}${process.env[PATH] ?? ''}`,
+    XDG_DATA_HOME: global,
   }
-  if (process.env.APPDATA) env['APPDATA'] = global
 
   await execPnpm(['add', '-g', 'sh-hello-world@1.0.1'], { env })
 

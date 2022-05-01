@@ -6,7 +6,7 @@ import PnpmError from '@pnpm/error'
 import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import {
@@ -20,10 +20,7 @@ import nock from 'nock'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
-import {
-  addDistTag,
-  testDefaults,
-} from './utils'
+import { testDefaults } from './utils'
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -287,7 +284,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   // })
 
   const pkgs = ['foo', 'bar', 'qar']
-  await Promise.all(pkgs.map(async (pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
+  await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.0.0', distTag: 'latest' })))
 
   let manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ save: true, reporter }))
   // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
@@ -301,7 +298,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/foo'))).version).toBe('100.0.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/bar'))).version).toBe('100.0.0')
 
-  await Promise.all(pkgs.map(async (pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
+  await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.1.0', distTag: 'latest' })))
 
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
@@ -331,7 +328,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
@@ -408,7 +405,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 test('package is not marked dev if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
@@ -426,7 +423,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 test('package is not marked optional if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
   await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
@@ -521,7 +518,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 test('packages are placed in devDependencies even if they are present as non-dev as well', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const reporter = sinon.spy()
   await install({
@@ -983,14 +980,14 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 test('existing dependencies are preserved when updating a lockfile to a newer format', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
   const initialLockfile = await project.readLockfile()
   await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 }, { lineWidth: 1000 })
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await mutateModules([
     {
@@ -1038,7 +1035,7 @@ test('lockfile is not getting broken if the used registry changes', async () => 
 
 test('broken lockfile is fixed even if it seems like up-to-date at first. Unless frozenLockfile option is set to true', async () => {
   const project = prepareEmpty()
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ lockfileOnly: true }))
   {
@@ -1322,7 +1319,7 @@ packages:
 
 // Covers https://github.com/pnpm/pnpm/issues/2928
 test('build metadata is always ignored in versions and the lockfile is not flickering because of them', async () => {
-  await addDistTag('@monorepolint/core', '0.5.0-alpha.51', 'latest')
+  await addDistTag({ package: '@monorepolint/core', version: '0.5.0-alpha.51', distTag: 'latest' })
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({},

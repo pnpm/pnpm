@@ -22,6 +22,12 @@
 3. Alternatively, for compiling all the projects with typechecking, run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
 4. In order to run all the tests in the repository, run `pnpm run test-main`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
 
+Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:
+
+```
+sudo dnf install make automake gcc gcc-c++ kernel-devel
+```
+
 ## Submitting a Pull Request (PR)
 
 Before you submit your Pull Request (PR) consider the following guidelines:

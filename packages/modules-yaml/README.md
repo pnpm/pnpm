@@ -18,7 +18,7 @@ pnpm add @pnpm/modules-yaml
 import {write, read} from '@pnpm/modules-yaml'
 
 await write('node_modules', {
-  hoistedAliases: {}
+  hoistedAliases: {},
   layoutVersion: 1,
   packageManager: 'pnpm@1.0.0',
   pendingBuilds: [],

@@ -1,9 +1,9 @@
-[![SWUbanner](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct.svg)](https://github.com/vshymanskyy/StandWithUkraine/blob/main/docs/README.md)
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct.svg)](https://stand-with-ukraine.pp.ua)
 
 [中文](https://pnpm.io/zh/) |
 [日本語](https://pnpm.io/ja/) |
+[한국어](https://pnpm.io/ko/) |
 [Italiano](https://pnpm.io/it/) |
-[Русский](https://pnpm.io/ru/) |
 [Français](https://pnpm.io/fr/)
 
 ![](https://i.imgur.com/qlW1eEG.png)
@@ -35,16 +35,19 @@ To quote the [Rush](https://rushjs.io/) team:
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bit.dev" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
+        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://prisma.io" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://leniolabs.com" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
+        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vercel.com" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180"></a>
+        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180"></a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280"></a>
       </td>
     </tr>
   </tbody>

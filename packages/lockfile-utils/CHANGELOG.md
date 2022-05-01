@@ -1,5 +1,23 @@
 # @pnpm/lockfile-utils
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/resolver-base@9.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- 688b0eaff: When checking if the lockfile is up-to-date, an empty `dependenciesMeta` field in the manifest should be satisfied by a not set field in the lockfile [#4463](https://github.com/pnpm/pnpm/pull/4463).
+- Updated dependencies [0a70aedb1]
+  - dependency-path@9.1.0
+
 ## 4.0.0
 
 ### Major Changes
@@ -76,7 +94,7 @@
 
 ### Patch Changes
 
-- 3cf543fc1: Non-standard tarball URL should be correctly calculated when the registry has no traling slash in the configuration file [#4052](https://github.com/pnpm/pnpm/issues/4052). This is a regression caused introduced in v6.23.2 caused by [#4032](https://github.com/pnpm/pnpm/pull/4032).
+- 3cf543fc1: Non-standard tarball URL should be correctly calculated when the registry has no trailing slash in the configuration file [#4052](https://github.com/pnpm/pnpm/issues/4052). This is a regression caused introduced in v6.23.2 caused by [#4032](https://github.com/pnpm/pnpm/pull/4032).
 
 ## 3.1.1
 

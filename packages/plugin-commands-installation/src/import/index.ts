@@ -49,7 +49,7 @@ interface YarnLockPackage {
     [depName: string]: string
   }
 }
-interface YarnPackgeLock {
+interface YarnPackageLock {
   [name: string]: YarnLockPackage
 }
 
@@ -61,7 +61,7 @@ enum YarnLockType {
 // copy from yarn v1
 interface YarnLock2Struct {
   type: YarnLockType.yarn2
-  object: YarnPackgeLock
+  object: YarnPackageLock
 }
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -162,7 +162,7 @@ async function readYarnLockFile (dir: string) {
     let lockJsonFile
     const yarnLockFileType = getYarnLockfileType(yarnLockFile)
     if (yarnLockFileType === YarnLockType.yarn) {
-      lockJsonFile = await parseYarnLock(yarnLockFile)
+      lockJsonFile = parseYarnLock(yarnLockFile)
       if (lockJsonFile.type === 'success') {
         return lockJsonFile.object
       } else {
@@ -185,7 +185,7 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
   const parseYarnLock: any = parseSyml(lockFileContents)
 
   delete parseYarnLock.__metadata
-  const dependencies: YarnPackgeLock = {}
+  const dependencies: YarnPackageLock = {}
 
   const { structUtils } = yarnCore
   const { parseDescriptor, parseRange } = structUtils
@@ -256,7 +256,7 @@ function getAllVersionsByPackageNames (
 }
 
 function getAllVersionsFromYarnLockFile (
-  yarnPackageLock: YarnPackgeLock,
+  yarnPackageLock: YarnPackageLock,
   versionsByPackageNames: {
     [packageName: string]: Set<string>
   }

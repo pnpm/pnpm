@@ -22,6 +22,7 @@ export interface StrictRebuildOptions {
   useLockfile: boolean
   registries: Registries
   dir: string
+  pnpmHomeDir: string
 
   reporter: (logObj: LogBase) => void
   production: boolean

@@ -168,8 +168,8 @@ when running add/update with the --workspace option')
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest === null) {
-    if (opts.update) {
-      throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
+    if (opts.update === true || params.length === 0) {
+      throw new PnpmError('NO_PKG_MANIFEST', `No package.json found in ${opts.dir}`)
     }
     manifest = {}
   }
@@ -280,7 +280,7 @@ when running add/update with the --workspace option')
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
       selectedProjectsGraph,
-      workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understant that is is not undefined
+      workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
     }, 'install')
 
     if (opts.ignoreScripts) return

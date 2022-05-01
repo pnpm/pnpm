@@ -1,10 +1,52 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/lifecycle@13.0.2
+  - @pnpm/read-project-manifest@3.0.2
+  - @pnpm/sort-packages@3.0.2
+
+## 5.0.2
+
+### Patch Changes
+
+- c5caf8334: `pnpm dlx` should work without a configure global directory.
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+
+## 5.0.1
+
+### Patch Changes
+
+- 275c40523: When `pnpm exec` is running a command in a workspace project, the commands that are in the dependencies of that workspace project should be in the PATH [#4481](https://github.com/pnpm/pnpm/issues/4481).
+- Updated dependencies [2109f2e8e]
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/sort-packages@3.0.1
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
 ## 5.0.0
 
 ### Major Changes
 
-- c35ac786b: When using `pnpm run <script>`, all command line arguments after the script name are now passed to the script's argv, even `--`. For example, `pnpm run echo --hello -- world` will now pass `--hello -- world` to the `echo` script's argv. Previously flagged arguments (e.g. `--silent`) were intepreted as pnpm arguments unless `--` came before it.
+- c35ac786b: When using `pnpm run <script>`, all command line arguments after the script name are now passed to the script's argv, even `--`. For example, `pnpm run echo --hello -- world` will now pass `--hello -- world` to the `echo` script's argv. Previously flagged arguments (e.g. `--silent`) were interpreted as pnpm arguments unless `--` came before it.
 - 542014839: Node.js 12 is not supported.
 
 ### Patch Changes
@@ -444,7 +486,7 @@
 
 ### Minor Changes
 
-- 376c30485: New command added for running packages in a tempory environment: `pnpm dlx <command> ...`
+- 376c30485: New command added for running packages in a temporary environment: `pnpm dlx <command> ...`
 
 ### Patch Changes
 

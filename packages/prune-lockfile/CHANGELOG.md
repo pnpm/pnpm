@@ -1,5 +1,23 @@
 # @pnpm/prune-lockfile
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-types@4.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/constants@6.1.0
+
 ## 4.0.0
 
 ### Major Changes

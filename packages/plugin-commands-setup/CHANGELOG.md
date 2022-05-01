@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-setup
 
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.3
+
+## 2.0.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.2
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.1
+
 ## 2.0.0
 
 ### Major Changes
@@ -237,7 +255,7 @@
 
 ### Major Changes
 
-- 71cc21832: Print info message about the requirment to open a new terminal.
+- 71cc21832: Print info message about the requirement to open a new terminal.
 
 ## 0.2.1
 

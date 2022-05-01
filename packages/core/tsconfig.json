@@ -52,9 +52,6 @@
       "path": "../get-context"
     },
     {
-      "path": "../git-utils"
-    },
-    {
       "path": "../headless"
     },
     {
@@ -125,6 +122,9 @@
     },
     {
       "path": "../store-controller-types"
+    },
+    {
+      "path": "../store-path"
     },
     {
       "path": "../symlink-dependency"

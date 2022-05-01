@@ -1,5 +1,47 @@
 # @pnpm/plugin-commands-env
 
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [1ceb632b1]
+  - @pnpm/create-cafs-store@1.0.0
+  - @pnpm/tarball-fetcher@10.0.2
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/fetcher-base@12.0.1
+  - @pnpm/fetch@5.0.1
+
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+
+## 2.1.0
+
+### Minor Changes
+
+- 8fa95fd86: Path `extraNodePaths` to the bins linker.
+
+### Patch Changes
+
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/package-store@13.0.1
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+  - @pnpm/tarball-fetcher@10.0.1
+
 ## 2.0.0
 
 ### Major Changes
@@ -149,7 +191,7 @@
 
 ### Minor Changes
 
-- d16620cf9: If pnpm previously failed to install node when the `use-node-version` option is set, that download and install will now be re-attempted when pnpm is ran again.
+- d16620cf9: If pnpm previously failed to install node when the `use-node-version` option is set, that download and install will now be re-attempted when pnpm is run again.
 
 ### Patch Changes
 

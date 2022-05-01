@@ -1,5 +1,42 @@
 # @pnpm/plugin-commands-server
 
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/cli-meta@3.0.1
+- @pnpm/cli-utils@0.7.3
+- @pnpm/config@15.1.1
+- @pnpm/server@12.0.1
+- @pnpm/store-connection-manager@4.1.2
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+  - @pnpm/store-connection-manager@4.1.1
+
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/store-connection-manager@4.1.0
+  - @pnpm/server@12.0.0
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+
 ## 4.0.0
 
 ### Major Changes
@@ -1158,7 +1195,7 @@
 
 ### Patch Changes
 
-- d9310c034: Replace diable with a fork that has less dependencies.
+- d9310c034: Replace diable with a fork that has fewer dependencies.
 - Updated dependencies [d9310c034]
   - @pnpm/store-connection-manager@0.3.17
   - @pnpm/server@8.0.5

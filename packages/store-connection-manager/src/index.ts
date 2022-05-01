@@ -17,6 +17,7 @@ export { createNewStoreController, serverConnectionInfoDir }
 export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions, 'storeDir'> & Pick<Config,
 | 'storeDir'
 | 'dir'
+| 'pnpmHomeDir'
 | 'useRunningStoreServer'
 | 'useStoreServer'
 | 'workspaceDir'
@@ -26,7 +27,11 @@ export async function createOrConnectStoreControllerCached (
   storeControllerCache: Map<string, Promise<{ctrl: StoreController, dir: string}>>,
   opts: CreateStoreControllerOptions
 ) {
-  const storeDir = await storePath(opts.dir, opts.storeDir)
+  const storeDir = await storePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
   if (!storeControllerCache.has(storeDir)) {
     storeControllerCache.set(storeDir, createOrConnectStoreController(opts))
   }
@@ -39,7 +44,11 @@ export async function createOrConnectStoreController (
     ctrl: StoreController
     dir: string
   }> {
-  const storeDir = await storePath(opts.workspaceDir ?? opts.dir, opts.storeDir)
+  const storeDir = await storePath({
+    pkgRoot: opts.workspaceDir ?? opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   let serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: false })

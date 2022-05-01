@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-controller-types",
-  "version": "13.0.0",
+  "version": "13.0.1",
   "description": "Types for the store controller",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,13 +29,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/store-controller-types#readme",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:12.0.0",
-    "@pnpm/resolver-base": "workspace:9.0.0",
-    "@pnpm/types": "workspace:8.0.0"
+    "@pnpm/fetcher-base": "workspace:12.0.1",
+    "@pnpm/resolver-base": "workspace:9.0.1",
+    "@pnpm/types": "workspace:8.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/store-controller-types": "workspace:13.0.0"
+    "@pnpm/store-controller-types": "workspace:13.0.1"
   },
   "exports": {
     ".": "./lib/index.js"

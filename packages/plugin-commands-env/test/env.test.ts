@@ -73,7 +73,7 @@ test('resolveNodeVersion uses node-mirror:release option', async () => {
   expect(nockScope.isDone()).toBeTruthy()
 })
 
-test('fail if a non-existend Node.js version is tried to be installed', async () => {
+test('fail if a non-existed Node.js version is tried to be installed', async () => {
   tempDir()
 
   await expect(
@@ -86,7 +86,7 @@ test('fail if a non-existend Node.js version is tried to be installed', async ()
   ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching 6.999'))
 })
 
-test('fail if a non-existend Node.js LTS is tried to be installed', async () => {
+test('fail if a non-existed Node.js LTS is tried to be installed', async () => {
   tempDir()
 
   await expect(

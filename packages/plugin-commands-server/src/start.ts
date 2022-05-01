@@ -43,7 +43,11 @@ export default async (
   if (opts.background && !Diable.isDaemon()) {
     Diable()
   }
-  const storeDir = await storePath(opts.dir, opts.storeDir)
+  const storeDir = await storePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   await fs.mkdir(connectionInfoDir, { recursive: true })

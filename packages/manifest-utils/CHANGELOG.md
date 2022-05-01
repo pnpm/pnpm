@@ -1,5 +1,20 @@
 # @pnpm/manifest-utils
 
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+
+## 3.0.1
+
+### Patch Changes
+
+- 618842b0d: It should be possible to reference a workspace project that has no version specified in its `package.json` [#4487](https://github.com/pnpm/pnpm/pull/4487).
+  - @pnpm/error@3.0.1
+
 ## 3.0.0
 
 ### Major Changes

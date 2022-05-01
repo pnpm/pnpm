@@ -25,13 +25,10 @@ test('rebuilds dependencies', async () => {
     '--save-dev',
     'pre-and-postinstall-scripts-example',
     'pnpm/test-git-fetch#299c6d89507571462b992b92407a8a07663e32ee',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    storeDir,
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
     '--ignore-scripts',
-    '--cache-dir',
-    cacheDir,
+    `--cache-dir=${cacheDir}`,
   ])
 
   let modules = await project.readModulesManifest()
@@ -40,11 +37,13 @@ test('rebuilds dependencies', async () => {
     'github.com/pnpm/test-git-fetch/299c6d89507571462b992b92407a8a07663e32ee',
   ])
 
+  const modulesManifest = await project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: false,
+    registries: modulesManifest!.registries!,
     storeDir,
   }, [])
 
@@ -73,7 +72,7 @@ test('rebuilds dependencies', async () => {
 })
 
 test('rebuild does not fail when a linked package is present', async () => {
-  prepareEmpty()
+  const project = prepareEmpty()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   f.copy('local-pkg', path.resolve('..', 'local-pkg'))
@@ -83,18 +82,19 @@ test('rebuild does not fail when a linked package is present', async () => {
     'add',
     'link:../local-pkg',
     'is-positive',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    storeDir,
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
   ])
 
+  const modulesManifest = await project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: false,
+    registries: modulesManifest!.registries!,
     storeDir,
   }, [])
 
@@ -111,18 +111,19 @@ test('rebuilds specific dependencies', async () => {
     '--save-dev',
     'pre-and-postinstall-scripts-example',
     'zkochan/install-scripts-example',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    storeDir,
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
   ])
 
+  const modulesManifest = await project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: false,
+    registries: modulesManifest!.registries!,
     storeDir,
   }, ['install-scripts-example-for-pnpm'])
 
@@ -144,20 +145,18 @@ test('rebuild with pending option', async () => {
     pnpmBin,
     'add',
     'pre-and-postinstall-scripts-example',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    storeDir,
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
   ])
   await execa('node', [
     pnpmBin,
     'add',
     'zkochan/install-scripts-example',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    storeDir,
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
   ])
 
@@ -178,6 +177,7 @@ test('rebuild with pending option', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: true,
+    registries: modules!.registries!,
     storeDir,
   }, [])
 
@@ -211,10 +211,9 @@ test('rebuild dependencies in correct order', async () => {
     pnpmBin,
     'add',
     'with-postinstall-a',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    storeDir,
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
   ])
 
@@ -230,6 +229,7 @@ test('rebuild dependencies in correct order', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: false,
+    registries: modules!.registries!,
     storeDir,
   }, [])
 
@@ -250,10 +250,9 @@ test('rebuild links bins', async () => {
     'add',
     'has-generated-bins-as-dep',
     'generated-bins',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    storeDir,
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
   ])
 
@@ -264,11 +263,13 @@ test('rebuild links bins', async () => {
   expect(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd1'))).toBeFalsy()
   expect(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd2'))).toBeFalsy()
 
+  const modules = await project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: true,
+    registries: modules!.registries!,
     storeDir,
   }, [])
 
@@ -279,7 +280,7 @@ test('rebuild links bins', async () => {
 })
 
 test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
-  prepare({
+  const project = prepare({
     dependencies: {
       'pre-and-postinstall-scripts-example': '1.0.0',
     },
@@ -293,20 +294,21 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
   await execa('node', [
     pnpmBin,
     'install',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    storeDir,
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
   ])
 
   const reporter = sinon.spy()
 
+  const modules = await project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: true,
+    registries: modules!.registries!,
     reporter,
     storeDir,
   }, [])

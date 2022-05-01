@@ -19,7 +19,7 @@ baseLogger['globalWarn'] = globalWarn
 jest.mock('@pnpm/logger', () => baseLogger)
 
 // eslint-disable-next-line
-import createImportPackage from '@pnpm/package-store/lib/storeController/createImportPackage'
+import createImportPackage from '@pnpm/create-cafs-store/lib/createImportPackage'
 
 test('packageImportMethod=auto: clone files by default', async () => {
   const importPackage = createImportPackage('auto')

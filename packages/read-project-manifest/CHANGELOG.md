@@ -1,5 +1,19 @@
 # @pnpm/read-project-manifest
 
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/write-project-manifest@3.0.1
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
 ## 3.0.0
 
 ### Major Changes

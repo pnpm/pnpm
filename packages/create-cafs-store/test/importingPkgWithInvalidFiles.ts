@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import createImportPackage from '@pnpm/package-store/lib/storeController/createImportPackage'
+import createImportPackage from '@pnpm/create-cafs-store/lib/createImportPackage'
 import { prepareEmpty } from '@pnpm/prepare'
 
 test('importing a package with invalid files', async () => {
@@ -15,5 +15,5 @@ test('importing a package with invalid files', async () => {
     force: false,
     fromStore: false,
   })
-  expect(await (await fs.readdir(target)).length).toBe(2)
+  expect((await fs.readdir(target)).length).toBe(2)
 })

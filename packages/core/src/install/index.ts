@@ -165,6 +165,7 @@ export async function mutateModules (
   }
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
+  if (!installsOnly) opts.strictPeerDependencies = false
   opts['forceNewModules'] = installsOnly
   const rootProjectManifest = projects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
@@ -580,6 +581,7 @@ export async function addDependenciesToPackage (
   manifest: ProjectManifest,
   dependencySelectors: string[],
   opts: InstallOptions & {
+    bin?: string
     allowNew?: boolean
     peer?: boolean
     pinnedVersion?: 'major' | 'minor' | 'patch'
@@ -589,6 +591,7 @@ export async function addDependenciesToPackage (
   const projects = await mutateModules(
     [
       {
+        binsDir: opts.bin,
         allowNew: opts.allowNew,
         dependencySelectors,
         manifest,

@@ -28,6 +28,7 @@ test('remove unreferenced packages', async () => {
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },
@@ -50,6 +51,7 @@ test('remove unreferenced packages', async () => {
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },
@@ -83,6 +85,7 @@ test.skip('remove packages that are used by project that no longer exist', async
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },
@@ -127,6 +130,7 @@ test('keep dependencies used by others', async () => {
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },
@@ -150,6 +154,7 @@ test('keep dependency used by package', async () => {
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },
@@ -171,6 +176,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },
@@ -195,6 +201,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },

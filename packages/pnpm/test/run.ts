@@ -6,7 +6,7 @@ import { execPnpm, execPnpmSync } from './utils'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 
-test('run -r: pass the args to the command that is specfied in the build script', async () => {
+test('run -r: pass the args to the command that is specified in the build script', async () => {
   preparePackages([{
     name: 'project',
     scripts: {
@@ -28,7 +28,7 @@ test('run -r: pass the args to the command that is specfied in the build script'
   ])
 })
 
-test('run: pass the args to the command that is specfied in the build script', async () => {
+test('run: pass the args to the command that is specified in the build script', async () => {
   prepare({
     name: 'project',
     scripts: {
@@ -71,7 +71,7 @@ test('run: pass all arguments after script name to the build script, even --', a
   ])
 })
 
-test('test -r: pass the args to the command that is specfied in the build script of a package.json manifest', async () => {
+test('test -r: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
   preparePackages([{
     name: 'project',
     scripts: {

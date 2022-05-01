@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import filenamify from 'filenamify'
 import path from 'path'
 import { satisfiesWithPrereleases } from '@yarnpkg/core/lib/semverUtils'
 import {
@@ -6,7 +6,7 @@ import {
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
-import { depPathToFilename } from 'dependency-path'
+import { depPathToFilename, createPeersFolderSuffix } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
@@ -117,16 +117,17 @@ function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
     directNodeIdsByAlias: {[alias: string]: string}
-    topParents: Array<{name: string, version: string}>
+    topParents: Array<{name: string, version: string, linkedDir?: string}>
   }
 ) {
   return Object.assign(
     fromPairs(
-      topParents.map(({ name, version }): KeyValuePair<string, ParentRef> => [
+      topParents.map(({ name, version, linkedDir }): KeyValuePair<string, ParentRef> => [
         name,
         {
           depth: 0,
           version,
+          nodeId: linkedDir,
         },
       ])
     ),
@@ -190,10 +191,10 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     : {
       ...parentParentPkgs,
       ...toPkgByName(
-        Object.keys(children).map((alias) => ({
+        Object.entries(children).map(([alias, nodeId]) => ({
           alias,
-          node: ctx.dependenciesTree[children[alias]],
-          nodeId: children[alias],
+          node: ctx.dependenciesTree[nodeId],
+          nodeId,
         }))
       ),
     }
@@ -249,9 +250,20 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     depPath = resolvedPackage.depPath
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
-      Object.keys(allResolvedPeers)
-        .map((alias) => ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage)
-        .map(({ name, version }) => ({ name, version })))
+      Object.entries(allResolvedPeers)
+        .map(([alias, nodeId]) => {
+          if (nodeId.startsWith('link:')) {
+            const linkedDir = nodeId.slice(5)
+            return {
+              name: alias,
+              version: filenamify(linkedDir, { replacement: '+' }),
+            }
+          }
+          const { name, version } = ctx.dependenciesTree[nodeId].resolvedPackage
+          return { name, version }
+        })
+    )
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
@@ -322,17 +334,20 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId
 
   if (!ownId || !parentIds.includes(ownId)) return allChildren
 
-  const nodeIdChunks = parentIds.join('>').split(ownId)
+  const nodeIdChunks = parentIds.join('>').split(`>${ownId}>`)
   nodeIdChunks.pop()
   nodeIdChunks.reduce((accNodeId, part) => {
-    accNodeId += `${part}${ownId}`
+    accNodeId += `>${part}>${ownId}`
     const parentNode = dependenciesTree[`${accNodeId}>`]
+    if (typeof parentNode.children === 'function') {
+      parentNode.children = parentNode.children()
+    }
     Object.assign(
       allChildren,
-      typeof parentNode.children === 'function' ? parentNode.children() : parentNode.children
+      parentNode.children
     )
     return accNodeId
-  }, '>')
+  }, '')
   return allChildren
 }
 
@@ -387,7 +402,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
   const resolvedPeers: {[alias: string]: string} = {}
   const missingPeers = []
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
-    const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName]
+    const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
 
     const resolved = ctx.parentPkgs[peerName]
     const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
@@ -498,19 +513,4 @@ function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{alias: str
     }
   }
   return pkgsByName
-}
-
-function createPeersFolderSuffix (peers: Array<{name: string, version: string}>) {
-  const folderName = peers.map(({ name, version }) => `${name.replace('/', '+')}@${version}`).sort().join('+')
-
-  // We don't want the folder name to get too long.
-  // Otherwise, an ENAMETOOLONG error might happen.
-  // see: https://github.com/pnpm/pnpm/issues/977
-  //
-  // A bigger limit might be fine but the md5 hash will be 32 symbols,
-  // so for consistency's sake, we go with 32.
-  if (folderName.length > 32) {
-    return `_${crypto.createHash('md5').update(folderName).digest('hex')}`
-  }
-  return `_${folderName}`
 }

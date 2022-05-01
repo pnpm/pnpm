@@ -88,7 +88,7 @@ export async function linkBinsOfPackages (
     location: string
   }>,
   binsTarget: string,
-  opts: { extraNodePaths?: string[] }
+  opts: { extraNodePaths?: string[] } = {}
 ): Promise<string[]> {
   if (pkgs.length === 0) return []
 

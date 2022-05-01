@@ -133,6 +133,7 @@ export default async function<T> (
         nodeId: `>${importer.id}>`,
         optional: false,
         depPath: importer.id,
+        rootDir: importer.rootDir,
       },
       proceed,
       resolvedDependencies: {
@@ -230,7 +231,7 @@ function buildTree (
       childrenNodeIds[child.alias] = child.depPath
       continue
     }
-    if (nodeIdContainsSequence(parentNodeId, parentId, child.depPath)) {
+    if (nodeIdContainsSequence(parentNodeId, parentId, child.depPath) || parentId === child.depPath) {
       continue
     }
     const childNodeId = createNodeId(parentNodeId, child.depPath)

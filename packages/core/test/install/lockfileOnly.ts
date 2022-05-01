@@ -2,17 +2,17 @@ import path from 'path'
 import assertStore from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
 import exists from 'path-exists'
 import sinon from 'sinon'
-import { addDistTag, testDefaults } from '../utils'
+import { testDefaults } from '../utils'
 
 test('install with lockfileOnly = true', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,14 +33,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/fetch#readme",
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:7.0.0",
+    "@pnpm/core-loggers": "workspace:7.0.1",
     "@pnpm/fetching-types": "workspace:3.0.0",
     "@pnpm/npm-registry-agent": "workspace:6.0.0",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "3.0.0-beta.9"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:5.0.0",
+    "@pnpm/fetch": "workspace:5.0.1",
     "@pnpm/logger": "^4.0.0",
     "cpy-cli": "^3.1.1",
     "nock": "12.0.3"

@@ -25,14 +25,16 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir' | 'rawConfig'>
+  opts: Pick<UniversalOptions, 'rawConfig'>
 ) {
-  const manifestPath = path.join(opts.dir, 'package.json')
+  // Using cwd instead of the dir option because the dir option
+  // is set to the first parent directory that has a package.json file.
+  const manifestPath = path.join(process.cwd(), 'package.json')
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
   const manifest = {
-    name: path.basename(opts.dir),
+    name: path.basename(process.cwd()),
     version: '1.0.0',
     description: '',
     main: 'index.js',
@@ -48,7 +50,7 @@ export async function handler (
   await writeProjectManifest(manifestPath, packageJson, {
     indent: 2,
   })
-  return `Wrote to ${path.join(opts.dir, 'package.json')}
+  return `Wrote to ${manifestPath}
 
 ${JSON.stringify(packageJson, null, 2)}`
 }

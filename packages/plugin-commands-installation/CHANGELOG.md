@@ -1,5 +1,92 @@
 # @pnpm/plugin-commands-installation
 
+## 10.0.3
+
+### Patch Changes
+
+- af6ac00e4: Improve global linking.
+- Updated dependencies [af6ac00e4]
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/core@5.0.0
+  - @pnpm/types@8.0.1
+  - @pnpm/package-store@13.0.2
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/find-workspace-packages@4.0.3
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/outdated@10.0.2
+  - @pnpm/plugin-commands-rebuild@6.1.2
+  - @pnpm/pnpmfile@2.0.2
+  - @pnpm/read-project-manifest@3.0.2
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/sort-packages@3.0.2
+  - @pnpm/store-connection-manager@4.1.2
+  - @pnpm/filter-workspace-packages@5.0.3
+
+## 10.0.2
+
+### Patch Changes
+
+- @pnpm/core@4.0.2
+
+## 10.0.1
+
+### Patch Changes
+
+- 84c7e15ba: Exit with an error when running `pnpm install` in a directory that has no `package.json` file in it (and in parent directories) [#4609](https://github.com/pnpm/pnpm/issues/4609).
+- c5caf8334: Allow to pass `global-bin-dir` through CLI options to the `add` command.
+- Updated dependencies [9f0616282]
+- Updated dependencies [c38feff08]
+- Updated dependencies [e05dcc48a]
+  - @pnpm/filter-workspace-packages@5.0.2
+  - @pnpm/core@4.0.1
+  - @pnpm/config@15.1.0
+  - @pnpm/plugin-commands-rebuild@6.1.1
+  - @pnpm/cli-utils@0.7.2
+  - @pnpm/store-connection-manager@4.1.1
+  - @pnpm/find-workspace-packages@4.0.2
+
+## 10.0.0
+
+### Major Changes
+
+- e7bdc2cc2: Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
+
+### Patch Changes
+
+- 01f4e9c91: `pnpm fetch` should allow the same CLI options as `pnpm install` [#4453](https://github.com/pnpm/pnpm/issues/4453).
+- Updated dependencies [2109f2e8e]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [88289a42c]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [e7bdc2cc2]
+- Updated dependencies [aecd4acdd]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [dbe366990]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [618842b0d]
+- Updated dependencies [1267e4eff]
+  - @pnpm/core@4.0.0
+  - @pnpm/plugin-commands-rebuild@6.1.0
+  - @pnpm/sort-packages@3.0.1
+  - @pnpm/config@15.0.0
+  - @pnpm/store-connection-manager@4.1.0
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/outdated@10.0.1
+  - @pnpm/package-store@13.0.1
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+  - @pnpm/find-workspace-packages@4.0.1
+  - @pnpm/filter-workspace-packages@5.0.1
+  - @pnpm/find-workspace-dir@4.0.1
+  - @pnpm/pnpmfile@2.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
 ## 9.0.0
 
 ### Major Changes
@@ -963,7 +1050,7 @@
 
 ### Patch Changes
 
-- c3d2746ac: Peer depednencies are resolved from the root of the workspace when a new dependency is added to the root of the workspace.
+- c3d2746ac: Peer dependencies are resolved from the root of the workspace when a new dependency is added to the root of the workspace.
   - supi@0.47.12
   - @pnpm/outdated@9.0.2
   - @pnpm/package-store@12.0.12
@@ -2233,7 +2320,7 @@
 
 - 6cc36c85c: `pnpm install -r` should recreate the modules directory
   if the hoisting patterns were updated in a local config file.
-  The hoisting patterns are configure via the `hoist-pattern`
+  The hoisting patterns are configured via the `hoist-pattern`
   and `public-hoist-pattern` settings.
 - 3feae5342: The same code should run when running some command inside a project directory, or when using `--filter` to select a specific workspace project.
 - Updated dependencies [ac0d3e122]

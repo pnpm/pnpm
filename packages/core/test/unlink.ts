@@ -8,14 +8,12 @@ import {
 } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { addDistTag } from '@pnpm/registry-mock'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import isInnerLink from 'is-inner-link'
-import {
-  addDistTag,
-  testDefaults,
-} from './utils'
+import { testDefaults } from './utils'
 
 test('unlink 1 package that exists in package.json', async () => {
   const project = prepareEmpty()
@@ -75,7 +73,7 @@ test('unlink 1 package that exists in package.json', async () => {
 test("don't update package when unlinking", async () => {
   const project = prepareEmpty()
 
-  await addDistTag('foo', '100.0.0', 'latest')
+  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   const opts = await testDefaults({ dir: process.cwd() })
   let manifest = await addDependenciesToPackage({}, ['foo'], opts)
 
@@ -87,7 +85,7 @@ test("don't update package when unlinking", async () => {
   })
 
   manifest = await link(['foo'], path.join('project', 'node_modules'), { ...opts, manifest })
-  await addDistTag('foo', '100.1.0', 'latest')
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
   process.chdir('project')
   await mutateModules(
@@ -124,7 +122,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
       },
     },
   })
-  await addDistTag('foo', '100.1.0', 'latest')
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
   process.chdir('project')
   const unlinkResult = await mutateModules(

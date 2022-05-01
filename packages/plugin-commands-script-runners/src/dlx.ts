@@ -61,15 +61,24 @@ export async function handler (
   })
   await rimraf(bins)
   const pkgs = opts.package ?? params.slice(0, 1)
-  const pnpmArgs = ['add', ...pkgs, '--global', '--global-dir', prefix, '--dir', prefix]
+  const pnpmArgs = [
+    'add',
+    ...pkgs,
+    '--global',
+    `--global-dir=${prefix}`,
+    `--dir=${prefix}`,
+    `--config.global-bin-dir=${bins}`,
+  ]
   if (opts.reporter) {
     pnpmArgs.push(`--reporter=${opts.reporter}`)
   }
+  const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [bins] })
   await execa('pnpm', pnpmArgs, {
+    env,
     stdio: 'inherit',
   })
   await execa(versionless(scopeless(params[0])), params.slice(1), {
-    env: makeEnv({ userAgent: opts.userAgent, prependPaths: [bins] }),
+    env,
     stdio: 'inherit',
   })
 }

@@ -1,5 +1,30 @@
 # @pnpm/link-bins
 
+## 7.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/package-bins@6.0.1
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/read-project-manifest@3.0.2
+
+## 7.1.0
+
+### Minor Changes
+
+- 8fa95fd86: New option added: `extraNodePaths`.
+
+### Patch Changes
+
+- Updated dependencies [618842b0d]
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/read-package-json@6.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
 ## 7.0.0
 
 ### Major Changes

@@ -11,24 +11,33 @@ const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
 test('CLI fails when store status finds modified packages', async () => {
-  prepare()
+  const project = prepare()
   const tmp = tempy.directory()
   const cacheDir = path.join(tmp, 'cache')
   const storeDir = path.join(tmp, 'store')
 
-  await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
+  await execa('node', [
+    pnpmBin,
+    'add',
+    'is-positive@3.1.0',
+    `--store-dir=${storeDir}`,
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ])
 
   await rimraf('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
 
   let err!: PnpmError
+  const modulesState = await project.readModulesManifest()
   try {
     await store.handler({
       cacheDir,
       dir: process.cwd(),
+      pnpmHomeDir: '',
       rawConfig: {
         registry: REGISTRY,
       },
-      registries: { default: REGISTRY },
+      registries: modulesState!.registries!,
       storeDir,
       userConfig: {},
     }, ['status'])
@@ -41,7 +50,7 @@ test('CLI fails when store status finds modified packages', async () => {
 })
 
 test('CLI does not fail when store status does not find modified packages', async () => {
-  prepare()
+  const project = prepare()
   const tmp = tempy.directory()
   const cacheDir = path.join(tmp, 'cache')
   const storeDir = path.join(tmp, 'store')
@@ -63,13 +72,15 @@ test('CLI does not fail when store status does not find modified packages', asyn
   // store status does not fail on not installed optional dependencies
   await execa('node', [pnpmBin, 'add', 'not-compatible-with-any-os', '--save-optional', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
+  const modulesState = await project.readModulesManifest()
   await store.handler({
     cacheDir,
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },
-    registries: { default: REGISTRY },
+    registries: modulesState!.registries!,
     storeDir,
     userConfig: {},
   }, ['status'])

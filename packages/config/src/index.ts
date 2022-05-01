@@ -34,6 +34,7 @@ async function which (cmd: string) {
 }
 
 export const types = Object.assign({
+  'auto-install-peers': Boolean,
   bail: Boolean,
   'cache-dir': String,
   'child-concurrency': Number,
@@ -51,6 +52,7 @@ export const types = Object.assign({
   'filter-prod': [String, Array],
   'frozen-lockfile': Boolean,
   'git-checks': Boolean,
+  'git-shallow-hosts': Array,
   'global-bin-dir': String,
   'global-dir': String,
   'global-path': String,
@@ -61,6 +63,7 @@ export const types = Object.assign({
   'ignore-pnpmfile': Boolean,
   'ignore-workspace': Boolean,
   'ignore-workspace-root-check': Boolean,
+  'legacy-dir-filtering': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
   lockfile: Boolean,
   'lockfile-dir': String,
@@ -169,6 +172,7 @@ export default async (
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const npmConfig = loadNpmConf(cliOptions, rcOptionsTypes, {
+    'auto-install-peers': false,
     bail: true,
     color: 'auto',
     'enable-modules-dir': true,
@@ -177,6 +181,14 @@ export default async (
     'fetch-retry-maxtimeout': 60000,
     'fetch-retry-mintimeout': 10000,
     'fetch-timeout': 60000,
+    'git-shallow-hosts': [
+      // Follow https://github.com/npm/git/blob/1e1dbd26bd5b87ca055defecc3679777cb480e2a/lib/clone.js#L13-L19
+      'github.com',
+      'gist.github.com',
+      'gitlab.com',
+      'bitbucket.com',
+      'bitbucket.org',
+    ],
     globalconfig: npmDefaults.globalconfig,
     'git-branch-lockfile': false,
     hoist: true,
@@ -277,7 +289,7 @@ export default async (
     if (pnpmConfig['globalDir']) {
       globalDirRoot = pnpmConfig['globalDir']
     } else {
-      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global-packages')
+      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
     }
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
@@ -327,7 +339,7 @@ export default async (
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')
     }
-    delete pnpmConfig.virtualStoreDir
+    pnpmConfig.virtualStoreDir = '.pnpm'
   } else {
     pnpmConfig.dir = cwd
     pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')

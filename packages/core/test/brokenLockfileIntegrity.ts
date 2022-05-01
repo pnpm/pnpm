@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
 import clone from 'ramda/src/clone'
 import {
@@ -7,13 +8,10 @@ import {
   mutateModules,
 } from '@pnpm/core'
 import writeYamlFile from 'write-yaml-file'
-import {
-  addDistTag,
-  testDefaults,
-} from './utils'
+import { testDefaults } from './utils'
 
 test('installation breaks if the lockfile contains the wrong checksum', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({},
@@ -67,7 +65,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
 })
 
 test('installation breaks if the lockfile contains the wrong checksum and the store is clean', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({},

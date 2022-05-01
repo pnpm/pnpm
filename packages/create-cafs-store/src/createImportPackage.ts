@@ -4,7 +4,7 @@ import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import pLimit from 'p-limit'
 import exists from 'path-exists'
-import importIndexedDir, { ImportFile } from '../fs/importIndexedDir'
+import importIndexedDir, { ImportFile } from './importIndexedDir'
 
 const limitLinking = pLimit(16)
 

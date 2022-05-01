@@ -1,5 +1,25 @@
 # @pnpm/audit
 
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/lockfile-walker@5.0.2
+  - @pnpm/fetch@5.0.1
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [688b0eaff]
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/lockfile-walker@5.0.1
+  - @pnpm/error@3.0.1
+
 ## 3.0.0
 
 ### Major Changes
@@ -220,7 +240,7 @@
 
 ### Patch Changes
 
-- 40b75fbb9: Escape the dependency names to avoud 502 errors from the registry.
+- 40b75fbb9: Escape the dependency names to avoid 502 errors from the registry.
 
 ## 2.1.0
 

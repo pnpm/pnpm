@@ -1,7 +1,8 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
+import { Lockfile } from '@pnpm/lockfile-file'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
 import {
@@ -11,6 +12,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
+import readYamlFile from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import { testDefaults } from '../utils'
 
@@ -238,4 +240,42 @@ test('frozen-lockfile: installation fails if the integrity of a tarball dependen
   await expect(
     install(manifest, await testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow(/Got unexpected checksum/)
+})
+
+test('deep local', async () => {
+  const manifest1 = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'project-2': 'file:../project-2',
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'project-3': 'file:./project-3',
+        },
+      },
+    },
+    {
+      location: 'project-2/project-3',
+      package: {
+        name: 'project-3',
+        version: '1.0.0',
+      },
+    },
+  ])
+  process.chdir('../project-1')
+  await install(manifest1, await testDefaults())
+
+  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['file:../project-2', 'file:../project-2/project-3'])
 })

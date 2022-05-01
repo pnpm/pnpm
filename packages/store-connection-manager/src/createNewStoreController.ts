@@ -9,7 +9,6 @@ type CreateResolverOptions = Pick<Config,
 | 'fetchRetryFactor'
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
-| 'fetchRetryMintimeout'
 | 'offline'
 | 'rawConfig'
 | 'verifyStoreIntegrity'
@@ -22,6 +21,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'force'
 | 'nodeVersion'
 | 'fetchTimeout'
+| 'gitShallowHosts'
 | 'httpProxy'
 | 'httpsProxy'
 | 'key'
@@ -71,6 +71,7 @@ export default async (
         ? (opts.networkConcurrency * 3)
         : undefined
     ),
+    gitShallowHosts: opts.gitShallowHosts,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {

@@ -198,7 +198,11 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
 
   let err!: PeerDependencyIssuesError
   try {
-    await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ strictPeerDependencies: true }))
+    await install({
+      dependencies: {
+        'ajv-keywords': '1.5.0',
+      },
+    }, await testDefaults({ strictPeerDependencies: true }))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -322,7 +326,12 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
 
   let err!: PeerDependencyIssuesError
   try {
-    await addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ strictPeerDependencies: true }))
+    await install({
+      dependencies: {
+        'abc-grand-parent-without-c': '1.0.0',
+        'peer-c': '2',
+      },
+    }, await testDefaults({ strictPeerDependencies: true }))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -438,14 +447,14 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation1 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation1, 'abc'))
   await okFile(path.join(pkgVariation1, 'peer-a'))
   await okFile(path.join(pkgVariation1, 'peer-b'))
   await okFile(path.join(pkgVariation1, 'peer-c'))
   await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir + '_f101cfec1621b915239e5c82246da43c/node_modules')
+  const pkgVariation2 = path.join(pkgVariationsDir + '_czpb4cfd67t7o7o3k4vnbzkwma/node_modules')
   await okFile(path.join(pkgVariation2, 'abc'))
   await okFile(path.join(pkgVariation2, 'peer-a'))
   await okFile(path.join(pkgVariation2, 'peer-b'))
@@ -461,6 +470,7 @@ test('peer dependencies are linked when running one named installation', async (
 })
 
 test('peer dependencies are linked when running two separate named installations', async () => {
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
@@ -470,14 +480,14 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation1 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation1, 'abc'))
   await okFile(path.join(pkgVariation1, 'peer-a'))
   await okFile(path.join(pkgVariation1, 'peer-b'))
   await okFile(path.join(pkgVariation1, 'peer-c'))
   await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation2 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation2, 'abc'))
   await okFile(path.join(pkgVariation2, 'peer-a'))
   await okFile(path.join(pkgVariation2, 'peer-b'))
@@ -1126,4 +1136,47 @@ test('peer dependency that is resolved by a dev dependency', async () => {
 
   await project.has('@typegoose/typegoose')
   await project.hasNot('@types/mongoose')
+})
+
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'ajv-keywords': '1.5.0',
+      ajv: 'link:../ajv',
+    },
+  }
+  const project2Manifest = {
+    name: 'ajv',
+    version: '4.10.4',
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'ajv',
+      package: project2Manifest,
+    },
+  ])
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('ajv'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({}))
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+  expect(lockfile.packages?.['/ajv-keywords/1.5.0_ajv@ajv'].dependencies?.['ajv']).toBe('link:ajv')
 })

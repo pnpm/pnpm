@@ -1,5 +1,111 @@
 # @pnpm/core
 
+## 5.0.0
+
+### Major Changes
+
+- af6ac00e4: Remove linkFromGlobal and linkToGlobal.
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/package-requester@18.0.2
+  - @pnpm/build-modules@9.1.1
+  - @pnpm/core-loggers@7.0.1
+  - dependency-path@9.1.1
+  - @pnpm/filter-lockfile@6.0.2
+  - @pnpm/get-context@6.1.1
+  - @pnpm/headless@18.1.2
+  - @pnpm/hoist@6.1.1
+  - @pnpm/lifecycle@13.0.2
+  - @pnpm/link-bins@7.1.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/lockfile-to-pnp@0.5.3
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/lockfile-walker@5.0.2
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/modules-cleaner@12.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/normalize-registries@3.0.1
+  - @pnpm/prune-lockfile@4.0.2
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/read-project-manifest@3.0.2
+  - @pnpm/remove-bins@3.0.2
+  - @pnpm/resolve-dependencies@27.0.2
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/store-controller-types@13.0.1
+  - @pnpm/symlink-dependency@5.0.1
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [3345c2cce]
+- Updated dependencies [7478cbd05]
+  - @pnpm/resolve-dependencies@27.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- c38feff08: Only `pnpm install` should fail on peer dependency issues.
+  - @pnpm/lockfile-to-pnp@0.5.2
+  - @pnpm/headless@18.1.1
+
+## 4.0.0
+
+### Major Changes
+
+- 0a70aedb1: Use a base32 hash instead of a hex to encode too long dependency paths inside `node_modules/.pnpm` [#4552](https://github.com/pnpm/pnpm/pull/4552).
+- e7bdc2cc2: Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
+
+### Patch Changes
+
+- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+- 88289a42c: peerDependencyRules will no longer cause duplicated peer dependency rules in the lockfile when used in workspaces
+- aecd4acdd: Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- dbe366990: Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+- Updated dependencies [948a8151e]
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [2109f2e8e]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [e531325c3]
+- Updated dependencies [7cdca5ef2]
+- Updated dependencies [e7bdc2cc2]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [aecd4acdd]
+- Updated dependencies [dbe366990]
+- Updated dependencies [b716d2d06]
+- Updated dependencies [618842b0d]
+- Updated dependencies [1267e4eff]
+  - @pnpm/resolve-dependencies@27.0.0
+  - dependency-path@9.1.0
+  - @pnpm/build-modules@9.1.0
+  - @pnpm/headless@18.1.0
+  - @pnpm/hoist@6.1.0
+  - @pnpm/link-bins@7.1.0
+  - @pnpm/get-context@6.1.0
+  - @pnpm/package-requester@18.0.1
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/filter-lockfile@6.0.1
+  - @pnpm/lockfile-to-pnp@0.5.1
+  - @pnpm/lockfile-walker@5.0.1
+  - @pnpm/modules-cleaner@12.0.1
+  - @pnpm/prune-lockfile@4.0.1
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/calc-dep-state@2.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/parse-overrides@2.0.1
+  - @pnpm/read-package-json@6.0.1
+  - @pnpm/read-project-manifest@3.0.1
+  - @pnpm/remove-bins@3.0.1
+
 ## 3.0.0
 
 ### Major Changes
@@ -1572,7 +1678,7 @@
 
 ### Minor Changes
 
-- 9ad8c27bf: Allow to ignore builds of specified dependencies throught the `pnpm.neverBuiltDependencies` field in `package.json`.
+- 9ad8c27bf: Allow to ignore builds of specified dependencies through the `pnpm.neverBuiltDependencies` field in `package.json`.
 
 ### Patch Changes
 
@@ -2025,7 +2131,7 @@
 
 ### Patch Changes
 
-- 95ad9cafa: Install should fail if there are references to a prunned workspace project.
+- 95ad9cafa: Install should fail if there are references to a pruned workspace project.
 
 ## 0.43.2
 

@@ -23,7 +23,7 @@ import {
   WantedDependency,
 } from '@pnpm/resolver-base'
 
-export async function (
+export async function testResolver (
   wantedDependency: WantedDependency,
   opts: ResolveOptions,
 ): Promise<ResolveResult> {

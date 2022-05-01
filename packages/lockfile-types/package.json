@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-types",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Types for the pnpm-lock.yaml lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,10 +29,10 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/types": "workspace:8.0.0"
+    "@pnpm/types": "workspace:8.0.1"
   },
   "devDependencies": {
-    "@pnpm/lockfile-types": "workspace:4.0.0"
+    "@pnpm/lockfile-types": "workspace:4.0.1"
   },
   "exports": {
     ".": "./lib/index.js"

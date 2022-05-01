@@ -3,6 +3,7 @@ import assertProject from '@pnpm/assert-project'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
 import {
   addDependenciesToPackage,
@@ -14,7 +15,7 @@ import exists from 'path-exists'
 import pick from 'ramda/src/pick'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
-import { addDistTag, testDefaults } from '../utils'
+import { testDefaults } from '../utils'
 
 test('install only the dependencies of the specified importer', async () => {
   const projects = preparePackages([
@@ -583,7 +584,7 @@ test('current lockfile contains only installed dependencies when adding a new im
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   prepareEmpty()
 
   await mutateModules([
@@ -676,7 +677,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   prepareEmpty()
 
   await mutateModules([
@@ -769,7 +770,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
 })
 
 test('adding a new dependency with the workspace: protocol', async () => {
-  await addDistTag('foo', '1.0.0', 'latest')
+  await addDistTag({ package: 'foo', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
   const [{ manifest }] = await mutateModules([
@@ -986,7 +987,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
 })
 
 test('do not resolve a subdependency from the workspace by default', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   preparePackages([
     {
       location: 'project',
@@ -1105,7 +1106,7 @@ test('resolve a subdependency from the workspace', async () => {
 })
 
 test('resolve a subdependency from the workspace and use it as a peer', async () => {
-  await addDistTag('peer-c', '1.0.1', 'latest')
+  await addDistTag({ package: 'peer-c', version: '1.0.1', distTag: 'latest' })
   preparePackages([
     {
       location: 'project',
@@ -1163,8 +1164,8 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
       '/abc-grand-parent-with-c/1.0.0',
       '/abc-parent-with-ab/1.0.0',
       '/abc-parent-with-ab/1.0.0_peer-c@1.0.1',
-      '/abc/1.0.0_20890f3ae006d9839e924c7177030952',
-      '/abc/1.0.0_peer-a@1.0.1+peer-b@1.0.0',
+      '/abc/1.0.0_f7z7ngphs5rjimyr5x4q43qtai',
+      '/abc/1.0.0_peer-a@peer-a+peer-b@1.0.0',
       '/dep-of-pkg-with-1-dep/100.0.0',
       '/is-positive/1.0.0',
       '/peer-b/1.0.0',
@@ -1172,7 +1173,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
     ]
   )
   expect(wantedLockfile.packages['/abc-parent-with-ab/1.0.0'].dependencies?.['peer-a']).toBe('link:peer-a')
-  expect(wantedLockfile.packages['/abc/1.0.0_peer-a@1.0.1+peer-b@1.0.0'].dependencies?.['peer-a']).toBe('link:peer-a')
+  expect(wantedLockfile.packages['/abc/1.0.0_peer-a@peer-a+peer-b@1.0.0'].dependencies?.['peer-a']).toBe('link:peer-a')
 })
 
 test('resolve a subdependency from the workspace, when it uses the workspace protocol', async () => {
@@ -1247,7 +1248,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
 })
 
 test('install the dependency that is already present in the workspace when adding a new direct dependency', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest1: ProjectManifest = {
     name: 'project-1',
@@ -1285,7 +1286,7 @@ test('install the dependency that is already present in the workspace when addin
   ]
   await mutateModules(importers, await testDefaults())
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await mutateModules([
     importers[0],
@@ -1314,4 +1315,73 @@ test('install the dependency that is already present in the workspace when addin
 
   expect(currentLockfile.importers['project-1'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.0.0')
   expect(currentLockfile.importers['project-2'].dependencies?.['dep-of-pkg-with-1-dep']).toBe('100.0.0')
+})
+
+test('do not update dependency that has the same name as a dependency in the workspace', async () => {
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  const manifest1: ProjectManifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '^100.0.0',
+    },
+  }
+  const manifest2: ProjectManifest = { name: 'dep-of-pkg-with-1-dep', version: '100.1.0' }
+
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: manifest1,
+      },
+    },
+    'dep-of-pkg-with-1-dep': {
+      '100.1.0': {
+        dir: path.resolve('project-2'),
+        manifest: manifest2,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: -1, workspacePackages }))
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await mutateModules([
+    {
+      ...importers[0],
+      dependencySelectors: ['is-negative@2.1.0'],
+      mutation: 'installSome',
+    },
+    importers[1],
+  ], await testDefaults({ linkWorkspacePackagesDepth: -1, workspacePackages, preferredVersions: {} }))
+
+  const rootModules = assertProject(process.cwd())
+  const currentLockfile = await rootModules.readCurrentLockfile()
+  expect(Object.keys(currentLockfile.packages)).toStrictEqual([
+    '/dep-of-pkg-with-1-dep/100.0.0',
+    '/is-negative/2.1.0',
+  ])
 })

@@ -1,11 +1,8 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/registry-mock'
+import { addDistTag, getIntegrity } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from '@pnpm/core'
-import {
-  addDistTag,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 test('installing aliased dependency', async () => {
   const project = prepareEmpty()
@@ -53,8 +50,8 @@ test('aliased dependency w/o version spec, with custom tag config', async () => 
 
   const tag = 'beta'
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', tag)
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: tag })
 
   await addDependenciesToPackage({}, ['foo@npm:dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
 
@@ -62,7 +59,7 @@ test('aliased dependency w/o version spec, with custom tag config', async () => 
 })
 
 test('a dependency has an aliased subdependency', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const project = prepareEmpty()
 

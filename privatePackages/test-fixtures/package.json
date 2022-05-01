@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/test-fixtures",
   "description": "Test fixtures",
-  "version": "0.0.6",
+  "version": "0.0.8",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -29,7 +29,7 @@
   "scripts": {
     "lint": "tslint -c ../../tslint.json --project .",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "test": "pnpm run tsc"
+    "test": "pnpm run compile"
   },
   "dependencies": {
     "@pnpm/prepare": "workspace:*",

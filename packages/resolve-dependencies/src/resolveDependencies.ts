@@ -159,6 +159,7 @@ export type PkgAddress = {
   pkg: PackageManifest
   version?: string
   updated: boolean
+  rootDir: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -199,7 +200,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir'>
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
@@ -283,6 +284,7 @@ async function resolveDependenciesOfDependency (
     )
   ) || Boolean(
     (options.workspacePackages != null) &&
+    ctx.linkWorkspacePackagesDepth !== -1 &&
     wantedDepIsLocallyAvailable(
       options.workspacePackages,
       extendedWantedDep.wantedDependency,
@@ -624,7 +626,7 @@ async function resolveDependency (
         !wantedDependency.pref.startsWith('file:')
       )
         ? ctx.lockfileDir
-        : ctx.prefix,
+        : options.parentPkg.rootDir,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
@@ -707,7 +709,7 @@ async function resolveDependency (
   // when qar is included the first time, the dependencies of foo
   // are already resolved and included as parent dependencies of qar.
   // So during peers resolution, qar cannot possibly get any new or different
-  // peers resolved, after the first ocurrence.
+  // peers resolved, after the first occurrence.
   //
   // However, in the next example we would analyze the second qar as well,
   // because zoo is a new parent package:
@@ -822,6 +824,9 @@ async function resolveDependency (
     }
   }
 
+  const rootDir = pkgResponse.body.resolution.type === 'directory'
+    ? path.resolve(ctx.lockfileDir, pkgResponse.body.resolution['directory'])
+    : ctx.prefix
   return {
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
@@ -830,6 +835,7 @@ async function resolveDependency (
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
+    rootDir,
 
     // Next fields are actually only needed when isNew = true
     installable,

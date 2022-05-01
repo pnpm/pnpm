@@ -24,7 +24,7 @@ test('global installation', async () => {
   // https://github.com/pnpm/pnpm/issues/808
   await execPnpm(['install', '--global', 'is-negative'], { env })
 
-  const globalPrefix = path.join(global, `pnpm/global-packages/${LAYOUT_VERSION}`)
+  const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
 
   const { default: isPositive } = await import(path.join(globalPrefix, 'node_modules', 'is-positive'))
   expect(typeof isPositive).toBe('function')
@@ -58,7 +58,7 @@ test('always install latest when doing global installation without spec', async 
   await execPnpm(['install', '-g', 'peer-c@1'], { env })
   await execPnpm(['install', '-g', 'peer-c'], { env })
 
-  const globalPrefix = path.join(global, `pnpm/global-packages/${LAYOUT_VERSION}`)
+  const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
 
   process.chdir(globalPrefix)
 
@@ -85,5 +85,5 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   await execPnpm(['install', '-g', 'postinstall-calls-pnpm@1.0.0'], { env })
 
-  expect(await exists(path.join(global, `pnpm/global-packages/${LAYOUT_VERSION}/node_modules/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
+  expect(await exists(path.join(global, `pnpm/global/${LAYOUT_VERSION}/node_modules/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
 })

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/parse-overrides",
   "description": "Parse overrides",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -29,11 +29,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/parse-overrides#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/error": "workspace:3.0.0",
+    "@pnpm/error": "workspace:3.0.1",
     "@pnpm/parse-wanted-dependency": "workspace:3.0.0"
   },
   "devDependencies": {
-    "@pnpm/parse-overrides": "workspace:2.0.0"
+    "@pnpm/parse-overrides": "workspace:2.0.1"
   },
   "exports": {
     ".": "./lib/index.js"

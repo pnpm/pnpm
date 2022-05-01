@@ -136,8 +136,8 @@ test('depPathToFilename()', () => {
   expect(filename).toBe('file+test+foo-1.0.0.tgz_foo@2.0.0')
   expect(filename).not.toContain(':')
 
-  expect(depPathToFilename('abcd/'.repeat(200))).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+_27524303f1ddd808db67f175ff83606e')
-  expect(depPathToFilename('/JSONSteam/1.0.0')).toBe('JSONSteam@1.0.0_4b2567ab922fbdf01171f59fab8f6fef')
+  expect(depPathToFilename('abcd/'.repeat(200))).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+_e5jega7r3xmarw3h6f277a3any')
+  expect(depPathToFilename('/JSONSteam/1.0.0')).toBe('JSONSteam@1.0.0_jmswpk4sf667aelr6wp2xd3p54')
 })
 
 test('tryGetPackageId', () => {

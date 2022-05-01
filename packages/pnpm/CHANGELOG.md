@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.0.0-beta.2
+## 7.0.0
 
 ### Major Changes
 
@@ -13,6 +13,8 @@
 
   In pnpm v7, a glob should be used: `--filter=./apps/**`
 
+  For easier upgrade, we have also added a setting to turn back filtering as it was in v6. Just set `legacy-dir-filtering=true` in `.npmrc`.
+
 - The `NODE_PATH` env variable is not set in the command shims (the files in `node_modules/.bin`). This env variable was really long and frequently caused errors on Windows.
 
   Also, the `extend-node-path` setting is removed.
@@ -20,7 +22,7 @@
   Related PR: [#4253](https://github.com/pnpm/pnpm/pull/4253)
 
 - The `embed-readme` setting is `false` by default.
-- When using `pnpm run <script>`, all command line arguments after the script name are now passed to the script's argv, even `--`. For example, `pnpm run echo --hello -- world` will now pass `--hello -- world` to the `echo` script's argv. Previously flagged arguments (e.g. `--silent`) were intepreted as pnpm arguments unless `--` came before it.
+- When using `pnpm run <script>`, all command line arguments after the script name are now passed to the script's argv, even `--`. For example, `pnpm run echo --hello -- world` will now pass `--hello -- world` to the `echo` script's argv. Previously flagged arguments (e.g. `--silent`) were interpreted as pnpm arguments unless `--` came before it.
 - Side effects cache is turned on by default. To turn it off, use `side-effects-cache=false`.
 - The `npm_config_argv` env variable is not set for scripts [#4153](https://github.com/pnpm/pnpm/discussions/4153).
 - `pnpx` is now just an alias of `pnpm dlx`.
@@ -53,6 +55,86 @@
 - Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
 
 - Don't hoist types by default to the root of `node_modules` [#4459](https://github.com/pnpm/pnpm/pull/4459).
+
+- Any package with "prettier" in its name is hoisted.
+
+- Changed the location of the global store from `~/.pnpm-store` to `<pnpm home directory>/store`
+
+  On Linux, by default it will be `~/.local/share/pnpm/store`
+  On Windows: `%LOCALAPPDATA%/pnpm/store`
+  On macOS: `~/Library/pnpm/store`
+
+  Related issue: [#2574](https://github.com/pnpm/pnpm/issues/2574)
+
+- 4bed585e2: The next deprecated settings were removed:
+
+  - frozen-shrinkwrap
+  - prefer-frozen-shrinkwrap
+  - shared-workspace-shrinkwrap
+  - shrinkwrap-directory
+  - lockfile-directory
+  - shrinkwrap-only
+  - store
+
+- Use a base32 hash instead of a hex to encode too long dependency paths inside `node_modules/.pnpm` [#4552](https://github.com/pnpm/pnpm/pull/4552).
+
+- New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
+
+- Lockfile version bumped to v5.4.
+
+- Exit with an error when running `pnpm install` in a directory that has no `package.json` file in it (and in parent directories) [#4609](https://github.com/pnpm/pnpm/issues/4609).
+
+## 6.32.11
+
+### Patch Changes
+
+- `pnpm publish` should work correctly in a workspace, when the latest npm CLI is installed [#4348](https://github.com/pnpm/pnpm/issues/4348).
+- Installation shouldn't fail when a package from node_modules is moved to the `node_modules/.ignored` subfolder and a package with that name is already present in `node_modules/.ignored' [#4626](https://github.com/pnpm/pnpm/pull/4626).
+
+## 6.32.10
+
+### Patch Changes
+
+- It should be possible to use a chain of local file dependencies [#4611](https://github.com/pnpm/pnpm/issues/4611).
+- Filtering by directory should work with directories that have unicode chars in the name [#4595](https://github.com/pnpm/pnpm/pull/4595).
+
+## 6.32.9
+
+### Patch Changes
+
+- Fix an error with peer resolutions, which was happening when there was a circular dependency and another dependency that had the name of the circular dependency as a substring.
+- When `pnpm exec` is running a command in a workspace project, the commands that are in the dependencies of that workspace project should be in the PATH [#4481](https://github.com/pnpm/pnpm/issues/4481).
+- Hide "WARN deprecated" messages on loglevel error [#4507](https://github.com/pnpm/pnpm/pull/4507)
+
+  Don't show the progress bar when loglevel is set to warn or error.
+
+## 6.32.8
+
+### Patch Changes
+
+- Don't check the integrity of the store with the package version from the lockfile, when the package was updated [#4580](https://github.com/pnpm/pnpm/pull/4580).
+- Don't update a direct dependency that has the same name as a dependency in the workspace, when adding a new dependency to a workspace project [#4575](https://github.com/pnpm/pnpm/pull/4575).
+
+## 6.32.7
+
+### Patch Changes
+
+- Setting the `auto-install-peers` to `true` should work.
+
+## 6.32.6
+
+### Patch Changes
+
+- Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+
+## 6.32.5
+
+### Patch Changes
+
+- `dependenciesMeta` should be saved into the lockfile, when it is added to the package manifest by a hook.
+
+## 6.32.4
 
 ### Patch Changes
 
@@ -258,7 +340,7 @@
 
 ### Patch Changes
 
-- Update command should work when there is a dependency with emty version in `devDependencies` [#4196](https://github.com/pnpm/pnpm/issues/4196).
+- Update command should work when there is a dependency with empty version in `devDependencies` [#4196](https://github.com/pnpm/pnpm/issues/4196).
 - Side effects cache should work in a workspace.
 
 ## 6.26.1
@@ -435,7 +517,7 @@
 
 ### Patch Changes
 
-- Non-standard tarball URL should be correctly calculated when the registry has no traling slash in the configuration file [#4052](https://github.com/pnpm/pnpm/issues/4052). This is a regression caused introduced in v6.23.2 caused by [#4032](https://github.com/pnpm/pnpm/pull/4032).
+- Non-standard tarball URL should be correctly calculated when the registry has no trailing slash in the configuration file [#4052](https://github.com/pnpm/pnpm/issues/4052). This is a regression caused introduced in v6.23.2 caused by [#4032](https://github.com/pnpm/pnpm/pull/4032).
 
 ## 6.23.3
 
@@ -747,7 +829,7 @@
 
 ### Patch Changes
 
-- A security vulnerabity fixed. When commands are executed on Windows, they should not be searched for in the current working directory.
+- A security vulnerability fixed. When commands are executed on Windows, they should not be searched for in the current working directory.
 - `pnpm import` should never run scripts [#3750](https://github.com/pnpm/pnpm/issues/3750).
 
 ## 6.15.0
@@ -784,7 +866,7 @@
 
 - A broken `package.json` should not make pnpm exit without any message [#3705](https://github.com/pnpm/pnpm/issues/3705).
 - `pnpm dlx` should allow to pass multiple packages for installation [#3710](https://github.com/pnpm/pnpm/pull/3710).
-- The pnpm home directory should be always prefered when searching for a global bin directory [#3723](https://github.com/pnpm/pnpm/pull/3723).
+- The pnpm home directory should be always preferred when searching for a global bin directory [#3723](https://github.com/pnpm/pnpm/pull/3723).
 - `pnpm setup` should not remove the pnpm CLI executable, just copy it to the pnpm home directory [#3724](https://github.com/pnpm/pnpm/pull/3724).
 - It should be possible to set `cache-dir` and `state-dir` through config files [#3727](https://github.com/pnpm/pnpm/pull/3727).
 
@@ -823,7 +905,7 @@
 
 ### Minor Changes
 
-- New command added for running packages in a tempory environment: `pnpm dlx <command> ...` [#3652](https://github.com/pnpm/pnpm/pull/3652).
+- New command added for running packages in a temporary environment: `pnpm dlx <command> ...` [#3652](https://github.com/pnpm/pnpm/pull/3652).
 
 ### Patch Changes
 
@@ -1144,7 +1226,7 @@
 ### Patch Changes
 
 - `pnpm audit` should not receive a 502 error from the registry [#2848](https://github.com/pnpm/pnpm/issues/2848).
-- When installing Git-hosted dependencies that have a `prepare` script, pnpm should install their `devDependencies` for a successfull build [#855](https://github.com/pnpm/pnpm/issues/855).
+- When installing Git-hosted dependencies that have a `prepare` script, pnpm should install their `devDependencies` for a successfully build [#855](https://github.com/pnpm/pnpm/issues/855).
 - `preinstall` scripts should run after installing the dependencies [#3395](https://github.com/pnpm/pnpm/pull/3395).
 - Sorting workspace projects should work correctly when the workspace dependencies use `workspace:~` or `workspace:^` [#3400](https://github.com/pnpm/pnpm/issues/3400)
 
@@ -1284,7 +1366,7 @@
 
 ### Patch Changes
 
-- Escape invalid charachters in file names, when linking packages from the store ([#3232](https://github.com/pnpm/pnpm/pull/3232)).
+- Escape invalid characters in file names, when linking packages from the store ([#3232](https://github.com/pnpm/pnpm/pull/3232)).
 - Link to the compatibility page fixed.
 
 ## 5.18.5
@@ -1596,7 +1678,7 @@
 
 - A new setting added for specifying the shell to use, when running scripts: script-shell [#2942](https://github.com/pnpm/pnpm/issues/2942)
 
-- When some of the dependencies of a package have the package as a peer depenendency, don't make the dependency a peer depenendency of itself.
+- When some of the dependencies of a package have the package as a peer dependency, don't make the dependency a peer dependency of itself.
 
 - Lockfile version bumped to 5.2
 
@@ -1652,7 +1734,7 @@
 
   pnpm uses the shell emulator that was developed for Yarn v2: [@yarnpkg/shell](https://www.npmjs.com/package/@yarnpkg/shell).
 
-- Exluding projects using `--filter=!<selector>` [#2804](https://github.com/pnpm/pnpm/issues/2804)
+- Excluding projects using `--filter=!<selector>` [#2804](https://github.com/pnpm/pnpm/issues/2804)
 
   Packages may be excluded from a command's scope, using "!" at the beginning of the selector.
 
@@ -1704,7 +1786,7 @@
 
   PR #2866
 
-- The progress indicator also shows the number of dependencies that are being added to the modules direcotory (#2832).
+- The progress indicator also shows the number of dependencies that are being added to the modules directory (#2832).
 
 - Don't report scope, when only one workspace package is selected (#2855).
 
@@ -2129,7 +2211,7 @@
 
 - 2f9c7ca85: Fix a regression introduced in pnpm v5.0.0.
   Create correct lockfile when the package tarball is hosted not under the registry domain.
-- 160975d62: This fixes a regression introduced in pnpm v5.0.0. Direct local tarball dependencies should always be reanalized on install.
+- 160975d62: This fixes a regression introduced in pnpm v5.0.0. Direct local tarball dependencies should always be reanalyzed on install.
 
 ## 5.0.1
 
