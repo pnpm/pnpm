@@ -198,6 +198,23 @@ async function resolveNpm (
         }),
         latest: meta['dist-tags'].latest,
       }
+    } else if (opts.preferWorkspacePackages) {
+      const localPackages = Object.values(workspacePackages[pickedPackage.name])
+
+      if (localPackages.length === 1) {
+        const localPackage = localPackages.pop()
+
+        if (localPackage) {
+          return {
+            ...resolveFromLocalPackage(localPackage, spec.normalizedPref, {
+              projectDir: opts.projectDir,
+              lockfileDir: opts.lockfileDir,
+              hardLinkLocalPackages: wantedDependency.injected,
+            }),
+            latest: meta['dist-tags'].latest,
+          }
+        }
+      }
     }
   }
 
