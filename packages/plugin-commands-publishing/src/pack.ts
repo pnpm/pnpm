@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createGzip } from 'zlib'
+import PnpmError from '@pnpm/error'
 import { types as allTypes, UniversalOptions, Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import exportableManifest from '@pnpm/exportable-manifest'
@@ -64,7 +65,7 @@ export async function handler (
     workspaceDir?: string
   }
 ) {
-  const { manifest: entryManifest } = await readProjectManifest(opts.dir, opts)
+  const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
@@ -86,7 +87,13 @@ export async function handler (
     ? path.join(opts.dir, entryManifest.publishConfig.directory)
     : opts.dir
   const manifest = (opts.dir !== dir) ? (await readProjectManifest(dir, opts)).manifest : entryManifest
-  const tarballName = `${manifest.name!.replace('@', '').replace('/', '-')}-${manifest.version!}.tgz`
+  if (!manifest.name) {
+    throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
+  }
+  if (!manifest.version) {
+    throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
+  }
+  const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
   const files = await packlist({ path: dir })
   const filesMap: Record<string, string> = fromPairs(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
