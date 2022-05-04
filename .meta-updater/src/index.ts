@@ -9,6 +9,7 @@ import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
 const NEXT_TAG = 'next-7'
+const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
   const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'packages/pnpm/package.json'))
@@ -34,7 +35,7 @@ export default async (workspaceDir: string) => {
         }
         return manifest
       }
-      if (manifest.name && manifest.name !== 'pnpm') {
+      if (manifest.name && manifest.name !== CLI_PKG_NAME) {
         manifest.devDependencies = {
           ...manifest.devDependencies,
           [manifest.name]: `workspace:${manifest.version}`,
@@ -135,7 +136,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-rebuild':
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
-  case 'pnpm':
+  case CLI_PKG_NAME:
   case '@pnpm/core': {
     // @pnpm/core tests currently works only with port 4873 due to the usage of
     // the next package: pkg-with-tarball-dep-from-registry
@@ -166,7 +167,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     break
   }
-  if (manifest.name === 'pnpm') {
+  if (manifest.name === CLI_PKG_NAME) {
     manifest.publishConfig!.tag = NEXT_TAG
   }
   if (scripts._test) {
@@ -184,7 +185,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   delete scripts.tsc
   let homepage: string
   let repository: string | { type: 'git', url: string }
-  if (manifest.name === 'pnpm') {
+  if (manifest.name === CLI_PKG_NAME) {
     homepage = 'https://pnpm.io'
     repository = {
       type: 'git',
@@ -208,7 +209,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
   }
   const files: string[] = []
-  if (manifest.name === 'pnpm' || manifest.name?.endsWith('/pnpm')) {
+  if (manifest.name === CLI_PKG_NAME || manifest.name?.endsWith('/pnpm')) {
     files.push('dist')
     files.push('bin')
   } else {
