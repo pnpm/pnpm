@@ -25,8 +25,14 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'rawConfig'>
+  opts: Pick<UniversalOptions, 'rawConfig'>,
+  params?: string[]
 ) {
+  if (params?.length) {
+    throw new PnpmError('INIT_ARG', 'init command does not accept any arguments', {
+      hint: `Maybe you wanted to run "pnpm create ${params.join(' ')}"`,
+    })
+  }
   // Using cwd instead of the dir option because the dir option
   // is set to the first parent directory that has a package.json file.
   const manifestPath = path.join(process.cwd(), 'package.json')
