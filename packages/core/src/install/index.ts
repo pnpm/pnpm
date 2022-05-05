@@ -53,6 +53,7 @@ import {
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
+import { packageExtensions as compatPackageExtensions } from '@yarnpkg/plugin-compat/lib/extensions'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
@@ -515,6 +516,7 @@ export function createReadPackageHook (
   if (!isEmpty(overrides ?? {})) {
     hooks.push(createVersionsOverrider(overrides!, lockfileDir))
   }
+  hooks.push(createPackageExtender(fromPairs(compatPackageExtensions)))
   if (!isEmpty(packageExtensions ?? {})) {
     hooks.push(createPackageExtender(packageExtensions!))
   }
