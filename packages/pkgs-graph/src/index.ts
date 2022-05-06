@@ -35,11 +35,11 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
   } {
   const pkgMap = createPkgMap(pkgs)
   const unmatched: Array<{ pkgName: string, range: string }> = []
-  const graph = Object.keys(pkgMap)
-    .reduce((acc, pkgSpec) => {
+  const graph = Object.entries(pkgMap)
+    .reduce((acc, [pkgSpec, pkg]) => {
       acc[pkgSpec] = {
-        dependencies: createNode(pkgMap[pkgSpec]),
-        package: pkgMap[pkgSpec],
+        dependencies: createNode(pkg),
+        package: pkg,
       }
       return acc
     }, {})
@@ -53,10 +53,9 @@ export default function <T> (pkgs: Array<Package & T>, opts?: {
       ...pkg.manifest.dependencies,
     }
 
-    return Object.keys(dependencies)
-      .map(depName => {
+    return Object.entries(dependencies)
+      .map(([depName, rawSpec]) => {
         let spec!: { fetchSpec: string, type: string }
-        let rawSpec = dependencies[depName]
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
           if (isWorkspaceSpec) {
