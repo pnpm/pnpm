@@ -1,4 +1,9 @@
-export const REGISTRY = 'https://registry.npmjs.org/'
+import path from 'path'
+import { tempDir } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+
+export const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const tmp = tempDir()
 
 export const DEFAULT_OPTS = {
   alwaysAuth: false,
@@ -33,10 +38,10 @@ export const DEFAULT_OPTS = {
   pnpmfile: './.pnpmfile.cjs',
   pnpmHomeDir: '',
   proxy: undefined,
-  rawConfig: { registry: REGISTRY },
+  rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: {},
-  registries: { default: REGISTRY },
-  registry: REGISTRY,
+  registries: { default: REGISTRY_URL },
+  registry: REGISTRY_URL,
   sort: true,
   storeDir: '../store',
   strictSsl: false,
@@ -44,4 +49,32 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+}
+
+export const DLX_DEFAULT_OPTS = {
+  argv: {
+    original: [],
+  },
+  bail: false,
+  bin: 'node_modules/.bin',
+  cacheDir: path.join(tmp, 'cache'),
+  cliOptions: {},
+  include: {
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
+  },
+  linkWorkspacePackages: true,
+  lock: true,
+  pnpmfile: '.pnpmfile.cjs',
+  pnpmHomeDir: '',
+  rawConfig: { registry: REGISTRY_URL },
+  rawLocalConfig: { registry: REGISTRY_URL },
+  registries: {
+    default: REGISTRY_URL,
+  },
+  sort: true,
+  storeDir: path.join(tmp, 'store'),
+  userConfig: {},
+  workspaceConcurrency: 1,
 }

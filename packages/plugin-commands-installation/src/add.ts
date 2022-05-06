@@ -161,15 +161,17 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
+export type AddCommandOptions = InstallCommandOptions & {
+  allowNew?: boolean
+  ignoreWorkspaceRootCheck?: boolean
+  save?: boolean
+  update?: boolean
+  useBetaCli?: boolean
+  workspaceRoot?: boolean
+}
+
 export async function handler (
-  opts: InstallCommandOptions & {
-    allowNew?: boolean
-    ignoreWorkspaceRootCheck?: boolean
-    save?: boolean
-    update?: boolean
-    useBetaCli?: boolean
-    workspaceRoot?: boolean
-  },
+  opts: AddCommandOptions,
   params: string[]
 ) {
   if (opts.cliOptions['save'] === false) {

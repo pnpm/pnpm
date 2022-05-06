@@ -6,7 +6,7 @@ import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import { DEFAULT_OPTS, REGISTRY } from './utils'
+import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
@@ -56,7 +56,7 @@ test('pnpm recursive exec', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -99,7 +99,7 @@ test('pnpm recursive exec finds bin files of workspace projects', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -158,7 +158,7 @@ test('exec inside a workspace package', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -239,7 +239,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -315,7 +315,7 @@ test('pnpm recursive exec --no-sort', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -377,7 +377,7 @@ test('pnpm recursive exec --reverse', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -528,7 +528,7 @@ test('pnpm recursive exec works with PnP', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ], {

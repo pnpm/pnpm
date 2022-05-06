@@ -3,7 +3,7 @@ import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspac
 import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import execa from 'execa'
-import { DEFAULT_OPTS, REGISTRY } from './utils'
+import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 test('pnpm recursive test', async () => {
   preparePackages([
@@ -55,7 +55,7 @@ test('pnpm recursive test', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -110,7 +110,7 @@ test('`pnpm recursive test` does not fail if none of the packages has a test com
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -162,7 +162,7 @@ test('pnpm recursive test with filtering', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])

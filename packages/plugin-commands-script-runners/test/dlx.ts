@@ -1,6 +1,7 @@
 import execa from 'execa'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
+import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
 jest.mock('execa')
 
@@ -10,9 +11,13 @@ test('dlx should work with scoped packages', async () => {
   prepareEmpty()
   const userAgent = 'pnpm/0.0.0'
 
-  await dlx.handler({ userAgent }, ['@foo/bar'])
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    userAgent,
+  }, ['@foo/touch-file-one-bin'])
 
-  expect(execa).toBeCalledWith('bar', [], expect.objectContaining({
+  expect(execa).toBeCalledWith('touch-file-one-bin', [], expect.objectContaining({
     env: expect.objectContaining({
       npm_config_user_agent: userAgent,
     }),
@@ -22,12 +27,10 @@ test('dlx should work with scoped packages', async () => {
 test('dlx should work with versioned packages', async () => {
   prepareEmpty()
 
-  await dlx.handler({}, ['@foo/bar@next'])
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['@foo/touch-file-one-bin@latest'])
 
-  expect(execa).toBeCalledWith(
-    'pnpm',
-    expect.arrayContaining(['add', '@foo/bar@next']),
-    expect.anything()
-  )
-  expect(execa).toBeCalledWith('bar', [], expect.anything())
+  expect(execa).toBeCalledWith('touch-file-one-bin', [], expect.anything())
 })
