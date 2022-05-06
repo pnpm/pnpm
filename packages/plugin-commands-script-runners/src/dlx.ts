@@ -1,5 +1,4 @@
 import fs from 'fs'
-import os from 'os'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
@@ -8,6 +7,7 @@ import PnpmError from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import packageBins from '@pnpm/package-bins'
+import storePath from '@pnpm/store-path'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import renderHelp from 'render-help'
@@ -52,7 +52,12 @@ export async function handler (
   opts: DlxCommandOptions,
   params: string[]
 ) {
-  const prefix = path.join(fs.realpathSync(os.tmpdir()), `dlx-${process.pid.toString()}`)
+  const dlxDir = await getDlxDir({
+    dir: opts.dir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+    storeDir: opts.storeDir,
+  })
+  const prefix = path.join(dlxDir, `dlx-${process.pid.toString()}`)
   const bins = process.platform === 'win32'
     ? prefix
     : path.join(prefix, 'bin')
@@ -109,4 +114,19 @@ function versionless (pkgName: string) {
   const index = pkgName.indexOf('@', 1)
   if (index === -1) return pkgName
   return pkgName.substring(0, index)
+}
+
+async function getDlxDir (
+  opts: {
+    dir: string
+    storeDir?: string
+    pnpmHomeDir: string
+  }
+): Promise<string> {
+  const storeDir = await storePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
+  return path.join(storeDir, 'tmp')
 }
