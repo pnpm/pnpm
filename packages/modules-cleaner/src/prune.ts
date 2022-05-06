@@ -74,10 +74,11 @@ export default async function prune (
       ...difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
     ])
     if (pruneDirectDependencies) {
+      const publiclyHoistedDeps = getPubliclyHoistedDependencies(opts.hoistedDependencies)
       if (allCurrentPackages.size > 0) {
         const newPkgsSet = new Set<string>(wantedPkgs.map(([depName]) => depName))
         for (const currentPackage of Array.from(allCurrentPackages)) {
-          if (!newPkgsSet.has(currentPackage)) {
+          if (!newPkgsSet.has(currentPackage) && !publiclyHoistedDeps.has(currentPackage)) {
             depsToRemove.add(currentPackage)
           }
         }
@@ -244,4 +245,16 @@ function getPkgsDepPathsOwnedOnlyByImporters (
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   const packagesOfSelectedOnly = pickAll(difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
   return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
+}
+
+function getPubliclyHoistedDependencies (hoistedDependencies: HoistedDependencies): Set<string> {
+  const publiclyHoistedDeps = new Set<string>()
+  for (const hoistedAliases of Object.values(hoistedDependencies)) {
+    for (const [alias, hoistType] of Object.entries(hoistedAliases)) {
+      if (hoistType === 'public') {
+        publiclyHoistedDeps.add(alias)
+      }
+    }
+  }
+  return publiclyHoistedDeps
 }
