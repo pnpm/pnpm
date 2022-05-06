@@ -8,7 +8,6 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import packageBins from '@pnpm/package-bins'
 import storePath from '@pnpm/store-path'
-import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import renderHelp from 'render-help'
 import { makeEnv } from './makeEnv'
@@ -50,7 +49,7 @@ export type DlxCommandOptions = {
 
 export async function handler (
   opts: DlxCommandOptions,
-  params: string[]
+  [command, ...args]: string[]
 ) {
   const dlxDir = await getDlxDir({
     dir: opts.dir,
@@ -58,9 +57,8 @@ export async function handler (
     storeDir: opts.storeDir,
   })
   const prefix = path.join(dlxDir, `dlx-${process.pid.toString()}`)
-  const bins = process.platform === 'win32'
-    ? prefix
-    : path.join(prefix, 'bin')
+  const modulesDir = path.join(prefix, 'node_modules')
+  const binsDir = path.join(modulesDir, '.bin')
   fs.mkdirSync(prefix, { recursive: true })
   process.on('exit', () => {
     try {
@@ -70,18 +68,17 @@ export async function handler (
       })
     } catch (err) {}
   })
-  await rimraf(bins)
-  const pkgs = opts.package ?? params.slice(0, 1)
-  const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [bins] })
+  const pkgs = opts.package ?? [command]
+  const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   await add.handler({
     ...opts,
     dir: prefix,
-    bin: bins,
+    bin: binsDir,
   }, pkgs)
   const binName = opts.package
-    ? params[0]
-    : await getBinName(path.join(prefix, 'node_modules'), versionless(params[0]))
-  await execa(binName, params.slice(1), {
+    ? command
+    : await getBinName(modulesDir, versionless(command))
+  await execa(binName, args, {
     env,
     stdio: 'inherit',
   })
