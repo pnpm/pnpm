@@ -73,18 +73,21 @@ export async function handler (
     dir: prefix,
     bin: bins,
   }, pkgs)
-  const binName = opts.package ? params[0] : await getBinName(path.join(prefix, 'node_modules', versionless(params[0])))
+  const binName = opts.package
+    ? params[0]
+    : await getBinName(path.join(prefix, 'node_modules'), versionless(params[0]))
   await execa(binName, params.slice(1), {
     env,
     stdio: 'inherit',
   })
 }
 
-async function getBinName (pkgDir: string): Promise<string> {
+async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
+  const pkgDir = path.join(modulesDir, pkgName)
   const manifest = await readPkgFromDir(pkgDir)
   const bins = await packageBins(manifest, pkgDir)
   if (bins.length === 0) {
-    throw new PnpmError('DLX_NO_BIN', `No binaries found in ${pkgDir}`)
+    throw new PnpmError('DLX_NO_BIN', `No binaries found in ${pkgName}`)
   }
   if (bins.length === 1) {
     return bins[0].name
@@ -92,7 +95,7 @@ async function getBinName (pkgDir: string): Promise<string> {
   const scopelessPkgName = scopeless(manifest.name)
   const defaultBin = bins.find(({ name }) => name === scopelessPkgName)
   if (defaultBin) return defaultBin.name
-  throw new PnpmError('DLX_MULTIPLE_BINS', `Multiple binaries found in ${pkgDir}`)
+  throw new PnpmError('DLX_MULTIPLE_BINS', `Multiple binaries found in ${pkgName}`)
 }
 
 function scopeless (pkgName: string) {
