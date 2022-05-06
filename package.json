@@ -117,7 +117,8 @@
       "allowedVersions": {
         "eslint": "*",
         "@typescript-eslint/eslint-plugin": "^5.6.0"
-      }
+      },
+      "ignoreMissing": ["@yarnpkg/plugin-patch"]
     }
   }
 }
