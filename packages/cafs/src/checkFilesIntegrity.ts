@@ -10,6 +10,12 @@ import { parseJsonBuffer } from './parseJson'
 const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
+// We track how many files were checked during installation.
+// It should be rare that a files content should be checked.
+// If it happens too frequently, something is wrong.
+// Checking a file's integrity is an expensive operation!
+global['verifiedFileIntegrity'] = 0
+
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
   // the initial specs of pnpm store v3 did not require these fields.
@@ -26,13 +32,12 @@ export default async function (
   cafsDir: string,
   pkgIndex: Record<string, PackageFileInfo>,
   manifest?: DeferredManifestPromise
-) {
+): Promise<boolean> {
   let verified = true
   await Promise.all(
-    Object.keys(pkgIndex)
-      .map(async (f) =>
+    Object.entries(pkgIndex)
+      .map(async ([f, fstat]) =>
         limit(async () => {
-          const fstat = pkgIndex[f]
           if (!fstat.integrity) {
             throw new Error(`Integrity checksum is missing for ${f}`)
           }
@@ -59,7 +64,7 @@ async function verifyFile (
   filename: string,
   fstat: FileInfo,
   deferredManifest?: DeferredManifestPromise
-) {
+): Promise<boolean> {
   const currentFile = await checkFile(filename, fstat.checkedAt)
   if (currentFile == null) return false
   if (currentFile.isModified) {
@@ -82,6 +87,7 @@ export async function verifyFileIntegrity (
   expectedFile: FileInfo,
   deferredManifest?: DeferredManifestPromise
 ) {
+  global['verifiedFileIntegrity']++
   try {
     if (expectedFile.size > MAX_BULK_SIZE && (deferredManifest == null)) {
       const ok = Boolean(await ssri.checkStream(gfs.createReadStream(filename), expectedFile.integrity))
