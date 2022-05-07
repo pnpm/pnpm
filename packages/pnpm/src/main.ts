@@ -98,6 +98,9 @@ export default async function run (inputArgv: string[]) {
       workspaceDir,
       checkUnknownSetting: false,
     }) as typeof config
+    if (cmd === 'dlx') {
+      config.useStderr = true
+    }
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
     config.fallbackCommandUsed = fallbackCommandUsed
