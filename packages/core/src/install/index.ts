@@ -120,6 +120,7 @@ export async function install (
   manifest: ProjectManifest,
   opts: InstallOptions & {
     preferredVersions?: PreferredVersions
+    pruneDirectDependencies?: boolean
   }
 ) {
   const projects = await mutateModules(
@@ -128,6 +129,7 @@ export async function install (
         buildIndex: 0,
         manifest,
         mutation: 'install',
+        pruneDirectDependencies: opts.pruneDirectDependencies,
         rootDir: opts.dir ?? process.cwd(),
       },
     ],
