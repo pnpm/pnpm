@@ -1,11 +1,9 @@
-import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
+import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { Config, types as allTypes } from '@pnpm/config'
-import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { InstallOptions, mutateModules } from '@pnpm/core'
+import { types as allTypes } from '@pnpm/config'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import getOptionsFromRootManifest from './getOptionsFromRootManifest'
+import * as install from './install'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -45,29 +43,12 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<Config, 'dev' | 'engineStrict' | 'optional' | 'production' | 'rootProjectManifest'> & CreateStoreControllerOptions
+  opts: install.InstallCommandOptions
 ) {
-  const store = await createOrConnectStoreController(opts)
-  const manifest = await readProjectManifestOnly(process.cwd(), opts)
-  return mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      pruneDirectDependencies: true,
-      rootDir: process.cwd(),
-    },
-  ], {
+  return install.handler({
     ...opts,
-    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
-    include: {
-      dependencies: opts.production !== false,
-      devDependencies: opts.dev !== false,
-      optionalDependencies: opts.optional !== false,
-    },
     modulesCacheMaxAge: 0,
+    pruneDirectDependencies: true,
     pruneStore: true,
-    storeController: store.ctrl,
-    storeDir: store.dir,
-  } as InstallOptions)
+  })
 }

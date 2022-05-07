@@ -274,9 +274,11 @@ export type InstallCommandOptions = Pick<Config,
   }
   fixLockfile?: boolean
   useBetaCli?: boolean
+  pruneDirectDependencies?: boolean
+  pruneStore?: boolean
   recursive?: boolean
   workspace?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir' | 'preferWorkspacePackages'>>
+} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 
 export async function handler (
   opts: InstallCommandOptions
