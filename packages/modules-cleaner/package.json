@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "11.0.24",
+  "version": "11.0.25",
   "description": "Exports util functions to clean up node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/modules-cleaner": "workspace:11.0.24",
+    "@pnpm/modules-cleaner": "workspace:11.0.25",
     "@types/ramda": "0.27.39"
   },
   "bugs": {

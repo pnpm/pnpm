@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 17.3.6
+
+### Patch Changes
+
+- Updated dependencies [201268497]
+  - @pnpm/modules-cleaner@11.0.25
+  - @pnpm/package-requester@17.0.2
+  - @pnpm/link-bins@6.2.13
+
 ## 17.3.5
 
 ### Patch Changes

@@ -47,7 +47,7 @@
   "devDependencies": {
     "@pnpm/fetch": "workspace:4.2.5",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:12.1.13",
+    "@pnpm/package-store": "workspace:12.1.14",
     "@pnpm/tarball-fetcher": "workspace:9.3.17",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.27.39",

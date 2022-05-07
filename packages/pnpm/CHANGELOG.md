@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.32.12
+
+### Patch Changes
+
+- Use Yarn's compatibility database to patch broken packages in the ecosystem with package extensions.
+- `pnpm dlx` should work when the bin name of the executed package isn't the same as the package name [#4672](https://github.com/pnpm/pnpm/issues/4672).
+- `pnpm prune` works in a workspace [#4647](https://github.com/pnpm/pnpm/pull/4691).
+- `pnpm prune` does not remove hoisted dependencies.
+- `pnpm dlx` should print messages about installation to stderr [#1698](https://github.com/pnpm/pnpm/issues/1698).
+
 ## 6.32.11
 
 ### Patch Changes

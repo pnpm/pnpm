@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 4.5.7
+
+### Patch Changes
+
+- d7c7f04d5: refactor: display more informative error for packing when package name or version is missing
+  - @pnpm/config@13.13.3
+
 ## 4.5.6
 
 ### Patch Changes

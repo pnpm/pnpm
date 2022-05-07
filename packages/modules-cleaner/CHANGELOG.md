@@ -1,5 +1,11 @@
 # @pnpm/modules-cleaner
 
+## 11.0.25
+
+### Patch Changes
+
+- 201268497: Do not remove hoisted dependencies, when pruneDirectDependencies is set to `true`.
+
 ## 11.0.24
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.13
+
+### Patch Changes
+
+- 201268497: `pnpm prune` works in a workspace [#4647](https://github.com/pnpm/pnpm/pull/4691).
+- 201268497: `pnpm prune` does not remove hoisted dependencies.
+- 00c567a30: Export AddCommandOptions.
+- Updated dependencies [bccce7b56]
+- Updated dependencies [224d45a90]
+- Updated dependencies [201268497]
+  - @pnpm/core@2.8.0
+  - @pnpm/package-store@12.1.14
+  - @pnpm/store-connection-manager@3.2.13
+  - @pnpm/plugin-commands-rebuild@5.4.19
+  - @pnpm/config@13.13.3
+
 ## 8.4.12
 
 ### Patch Changes

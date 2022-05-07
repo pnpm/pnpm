@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 3.0.16
+
+### Patch Changes
+
+- bccce7b56: Track the number of integrity checks.
+
 ## 3.0.15
 
 ### Patch Changes
