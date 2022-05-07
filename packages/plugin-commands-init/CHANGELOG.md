@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-init
 
+## 1.0.4
+
+### Patch Changes
+
+- 0eefba9be: Throw an error if arguments are passed to the `pnpm init` command.
+  - @pnpm/cli-utils@0.7.4
+  - @pnpm/config@15.1.1
+
 ## 1.0.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/package-store
 
+## 13.0.3
+
+### Patch Changes
+
+- Updated dependencies [cadefe5b6]
+  - @pnpm/cafs@4.0.2
+  - @pnpm/create-cafs-store@1.0.1
+  - @pnpm/package-requester@18.0.3
+
 ## 13.0.2
 
 ### Patch Changes

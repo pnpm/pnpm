@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 18.1.3
+
+### Patch Changes
+
+- Updated dependencies [0075fcd23]
+  - @pnpm/modules-cleaner@12.0.3
+  - @pnpm/package-requester@18.0.3
+  - @pnpm/link-bins@7.1.1
+
 ## 18.1.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 4.0.2
+
+### Patch Changes
+
+- cadefe5b6: Track the number of integrity checks.
+
 ## 4.0.1
 
 ### Patch Changes

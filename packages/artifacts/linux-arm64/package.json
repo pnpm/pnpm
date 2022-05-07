@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/linux-arm64",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "license": "MIT",
   "publishConfig": {
     "bin": {
@@ -23,6 +23,6 @@
     "pnpm7"
   ],
   "devDependencies": {
-    "@pnpm/linux-arm64": "workspace:7.0.0"
+    "@pnpm/linux-arm64": "workspace:7.0.1"
   }
 }

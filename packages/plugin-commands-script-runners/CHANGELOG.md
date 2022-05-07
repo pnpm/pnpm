@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.4
+
+### Patch Changes
+
+- 8ef4db94c: `pnpm dlx` should work when the bin name of the executed package isn't the same as the package name [#4672](https://github.com/pnpm/pnpm/issues/4672).
+- Updated dependencies [0075fcd23]
+- Updated dependencies [0075fcd23]
+- Updated dependencies [8ef4db94c]
+  - @pnpm/plugin-commands-installation@10.0.4
+  - @pnpm/cli-utils@0.7.4
+  - @pnpm/config@15.1.1
+
 ## 5.0.3
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 5.1.0
+
+### Minor Changes
+
+- 0075fcd23: The `install()` function accepts the `pruneDirectDependencies` option.
+
+### Patch Changes
+
+- cadefe5b6: Print a warning when the integrity of more than 1K files is checked in the CAFS.
+- 315871260: Use Yarn's compatibility database to patch broken packages in the ecosystem with package extensions.
+- Updated dependencies [0075fcd23]
+  - @pnpm/modules-cleaner@12.0.3
+  - @pnpm/package-requester@18.0.3
+  - @pnpm/headless@18.1.3
+  - @pnpm/link-bins@7.1.1
+
 ## 5.0.0
 
 ### Major Changes
