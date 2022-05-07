@@ -33,7 +33,7 @@ test('dlx should fail when the installed package has many commands and none equa
       ...DEFAULT_OPTS,
       dir: process.cwd(),
     }, ['touch-file-many-bins'])
-  ).rejects.toThrow(/Multiple binaries found in touch-file-many-bins/)
+  ).rejects.toThrow('Could not determine executable to run. touch-file-many-bins has multiple binaries: t, tt')
 })
 
 test('dlx should not fail when the installed package has many commands and one equals the package name', async () => {

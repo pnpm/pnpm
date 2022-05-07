@@ -97,7 +97,12 @@ async function getBinName (modulesDir: string, pkgName: string): Promise<string>
   const scopelessPkgName = scopeless(manifest.name)
   const defaultBin = bins.find(({ name }) => name === scopelessPkgName)
   if (defaultBin) return defaultBin.name
-  throw new PnpmError('DLX_MULTIPLE_BINS', `Multiple binaries found in ${pkgName}`)
+  const binNames = bins.map(({ name }) => name)
+  throw new PnpmError('DLX_MULTIPLE_BINS', `Could not determine executable to run. ${pkgName} has multiple binaries: ${binNames.join(', ')}`, {
+    hint: `Try one of the following:
+${binNames.map(name => `pnpm --package=${pkgName} dlx ${name}`).join('\n')}
+`,
+  })
 }
 
 function scopeless (pkgName: string) {
