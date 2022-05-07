@@ -9,6 +9,7 @@ import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
 const NEXT_TAG = 'next-6'
+const LATEST_TAG = 'latest-6'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
@@ -23,7 +24,10 @@ export default async (workspaceDir: string) => {
   return {
     'package.json': (manifest: ProjectManifest & { keywords?: string[] }, dir: string) => {
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
+        manifest.scripts!['release'] = `\
+pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && \
+pnpm publish --filter=!pnpm --filter=!@pnpm/exe --tag=${LATEST_TAG} --access=public && \
+pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
         return manifest
       }
       if (!isSubdir(pkgsDir, dir)) {

@@ -23,7 +23,7 @@
     "lint:meta": "pnpm run meta-updater --test",
     "copy-artifacts": "ts-node utils/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
-    "release": "pnpm --filter=@pnpm/exe publish --tag=next-6 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-6 --access=public"
+    "release": "pnpm --filter=@pnpm/exe publish --tag=next-6 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --tag=latest-6 --access=public && pnpm publish --filter=pnpm --tag=next-6 --access=public"
   },
   "devDependencies": {
     "@babel/core": "^7.16.7",
