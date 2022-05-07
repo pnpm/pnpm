@@ -1,4 +1,4 @@
-lockfileVersion: 5.3
+lockfileVersion: 5.4
 
 specifiers:
   is-positive: 1.0.0
@@ -19,6 +19,7 @@ packages:
   /is-positive/1.0.0:
     resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
     engines: {node: '>=0.10.0'}
+    requiresBuild: true
     dev: false
     optional: true
 

@@ -809,7 +809,7 @@ test('installing with no symlinks but with PnP', async () => {
   expect(await exists(path.join(prefix, '.pnp.cjs'))).toBeTruthy()
 })
 
-test('installing with no modules directory', async () => {
+test.skip('installing with no modules directory', async () => {
   const prefix = f.prepare('simple')
 
   await headless(await testDefaults({

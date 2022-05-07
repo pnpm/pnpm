@@ -1,4 +1,4 @@
-lockfileVersion: 5.3
+lockfileVersion: 5.4
 
 specifiers:
   colors: 1.2.0
@@ -34,6 +34,7 @@ packages:
   /colors/1.2.0:
     resolution: {integrity: sha512-lweugcX5nailCqZBttArTojZZpHGWhmFJX78KJHlxwhM8tLAy5QCgRgRxrubrksdvA+2Y3inWG5TToyyjL82BQ==}
     engines: {node: '>=0.1.90'}
+    requiresBuild: true
     dev: false
     optional: true
 
