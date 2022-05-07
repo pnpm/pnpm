@@ -116,7 +116,8 @@
     "peerDependencyRules": {
       "allowedVersions": {
         "eslint": "*",
-        "@typescript-eslint/eslint-plugin": "^5.6.0"
+        "@typescript-eslint/eslint-plugin": "^5.6.0",
+        "@yarnpkg/core": "*"
       },
       "ignoreMissing": ["@yarnpkg/plugin-patch"]
     }
