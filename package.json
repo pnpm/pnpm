@@ -58,7 +58,7 @@
     "verdaccio": "^5.7.0"
   },
   "engines": {
-    "pnpm": ">=7"
+    "pnpm": ">=7.0.1"
   },
   "packageManager": "pnpm@7.0.0-alpha.1",
   "pnpm": {
