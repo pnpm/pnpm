@@ -18,9 +18,10 @@
 ## Setting Up the Environment
 
 1. Run `pnpm install` in the root of the repository to install all dependencies.
-2. Change any source code file and run `node <repo_directory>/packages/pnpm/spnpm [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
-3. Alternatively, for compiling all the projects with typechecking, run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
-4. In order to run all the tests in the repository, run `pnpm run test-main`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
+1. Run `pnpm dev-setup` to make pnpm from the repository available in the command line via the `pd` command.
+1. Change any source code file and run `pd [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
+1. Alternatively, for compiling all the projects with typechecking, run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
+1. In order to run all the tests in the repository, run `pnpm run test-main`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
 
 Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:
 
