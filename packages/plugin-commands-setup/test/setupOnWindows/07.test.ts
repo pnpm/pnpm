@@ -49,7 +49,7 @@ HKEY_CURRENT_USER\\Environment
     pnpmHomeDir: __dirname,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, 'reg', ['query', regKey])
+  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
   expect(execa).toHaveBeenNthCalledWith(2, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', __dirname, '/f'])
   expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${__dirname};${currentPathInRegistry}`, '/f'])
   expect(output).toContain(`Setting 'PNPM_HOME' to value '${__dirname}`)

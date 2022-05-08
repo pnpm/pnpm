@@ -37,6 +37,6 @@ test('Environment PATH is not configured correctly', async () => {
     pnpmHomeDir: __dirname,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, 'reg', ['query', regKey])
+  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
   expect(output).toContain('Current PATH is not set. No changes to this environment variable are applied')
 })
