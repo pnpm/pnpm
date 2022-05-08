@@ -8,7 +8,9 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string): Promise
   const pnpmHomeRegex = /^ {4}(?<name>PNPM_HOME) {4}(?<type>\w+) {4}(?<data>.*)$/gim
   const regKey = 'HKEY_CURRENT_USER\\Environment'
 
-  const queryResult = await execa('reg', ['query', regKey])
+  // Use `chcp` to make `reg` use utf8 encoding for output.
+  // Otherwise, the non-ascii characters in the environment variables will become garbled characters.
+  const queryResult = await execa(`chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
 
   if (queryResult.failed) {
     return 'Win32 registry environment values could not be retrieved'

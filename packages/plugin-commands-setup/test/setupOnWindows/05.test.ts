@@ -46,7 +46,7 @@ HKEY_CURRENT_USER\\Environment
     pnpmHomeDir: __dirname,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, 'reg', ['query', regKey])
+  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
   expect(execa).toHaveBeenNthCalledWith(2, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${'.pnpm\\home'};${currentPathInRegistry}`, '/f'])
   expect(execa).toHaveBeenNthCalledWith(3, 'setx', ['PNPM_HOME', '.pnpm\\home'])
   expect(output).toContain(`Currently 'PNPM_HOME' is set to '${'.pnpm\\home'}'`)

@@ -34,6 +34,6 @@ test('Win32 registry environment values could not be retrieved', async () => {
     pnpmHomeDir: __dirname,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, 'reg', ['query', regKey])
+  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
   expect(output).toContain('Win32 registry environment values could not be retrieved')
 })
