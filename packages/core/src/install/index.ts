@@ -53,7 +53,7 @@ import {
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
-import { packageExtensions as compatPackageExtensions } from '@yarnpkg/plugin-compat/lib/extensions'
+import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
