@@ -32,6 +32,7 @@
     "@pnpm/core-loggers": "workspace:7.0.1",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/types": "workspace:8.0.1",
+    "detect-libc": "^2.0.1",
     "execa": "npm:safe-execa@^0.1.1",
     "mem": "^8.0.0",
     "semver": "^7.3.4"

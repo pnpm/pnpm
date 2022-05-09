@@ -879,6 +879,7 @@ importers:
       '@pnpm/types': workspace:8.0.1
       '@types/ramda': 0.27.39
       dependency-path: workspace:9.1.1
+      detect-libc: ^2.0.1
       ramda: ^0.27.1
       tempy: ^1.0.0
       write-yaml-file: ^4.2.0
@@ -897,6 +898,7 @@ importers:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 4.0.0
       '@types/ramda': 0.27.39
+      detect-libc: 2.0.1
       tempy: 1.0.1
       write-yaml-file: 4.2.0
       yaml-tag: 1.1.0
@@ -1835,6 +1837,7 @@ importers:
       '@pnpm/package-is-installable': workspace:6.0.2
       '@pnpm/types': workspace:8.0.1
       '@types/semver': ^7.3.4
+      detect-libc: ^2.0.1
       execa: npm:safe-execa@^0.1.1
       mem: ^8.0.0
       semver: ^7.3.4
@@ -1842,6 +1845,7 @@ importers:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/error': link:../error
       '@pnpm/types': link:../types
+      detect-libc: 2.0.1
       execa: /safe-execa/0.1.1
       mem: 8.1.1
       semver: 7.3.7
@@ -7754,6 +7758,10 @@ packages:
     engines: {node: '>=0.10'}
     hasBin: true
     dev: true
+
+  /detect-libc/2.0.1:
+    resolution: {integrity: sha512-463v3ZeIrcWtdgIg6vI6XUncguvr2TnGl4SzDXinkt9mSLpBJKXT3mW6xT3VQdDN11+WVs29pgvivTc4Lp8v+w==}
+    engines: {node: '>=8'}
 
   /detect-newline/3.1.0:
     resolution: {integrity: sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA==}

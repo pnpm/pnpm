@@ -197,6 +197,7 @@ export interface ResolvedPackage {
     }
     cpu?: string[]
     os?: string[]
+    libc?: string[]
   }
 }
 
@@ -878,6 +879,7 @@ function getResolvedPackage (
       deprecated: options.pkg.deprecated,
       engines: options.pkg.engines,
       os: options.pkg.os,
+      libc: options.pkg.libc,
     },
     depPath: options.depPath,
     dev: options.wantedDependency.dev,

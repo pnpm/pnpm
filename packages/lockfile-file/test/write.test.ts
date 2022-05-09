@@ -7,7 +7,7 @@ import {
   writeLockfiles,
 } from '@pnpm/lockfile-file'
 import tempy from 'tempy'
-import yaml from 'yaml-tag'
+// import yaml from 'yaml-tag'
 
 test('writeLockfiles()', async () => {
   const projectPath = tempy.directory()
@@ -32,6 +32,7 @@ test('writeLockfiles()', async () => {
           'is-positive': '2.0.0',
         },
         cpu: ['x86'],
+        libc: ['glibc'],
         engines: {
           node: '>=10',
           npm: '\nfoo\n',

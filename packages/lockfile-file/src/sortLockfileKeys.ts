@@ -11,22 +11,23 @@ const ORDERED_KEYS = {
   engines: 5,
   cpu: 6,
   os: 7,
+  libc: 8,
 
-  deprecated: 8,
-  hasBin: 9,
-  prepare: 10,
-  requiresBuild: 11,
+  deprecated: 9,
+  hasBin: 10,
+  prepare: 11,
+  requiresBuild: 12,
 
-  bundleDependencies: 12,
-  peerDependencies: 13,
-  peerDependenciesMeta: 14,
+  bundleDependencies: 13,
+  peerDependencies: 14,
+  peerDependenciesMeta: 15,
 
-  dependencies: 15,
-  optionalDependencies: 16,
+  dependencies: 16,
+  optionalDependencies: 17,
 
-  transitivePeerDependencies: 17,
-  dev: 18,
-  optional: 19,
+  transitivePeerDependencies: 18,
+  dev: 19,
+  optional: 20,
 }
 
 const ROOT_KEYS_ORDER = {

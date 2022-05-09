@@ -108,6 +108,7 @@ export default async function lockfileToDepGraph (
           engines: pkgSnapshot.engines,
           cpu: pkgSnapshot.cpu,
           os: pkgSnapshot.os,
+          libc: pkgSnapshot.libc,
         }
         if (!opts.force &&
           packageIsInstallable(packageId, pkg, {

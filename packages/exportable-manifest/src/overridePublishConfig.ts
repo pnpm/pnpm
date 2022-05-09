@@ -21,6 +21,7 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   // These are useful to hide in order to avoid warnings during local development
   'os',
   'cpu',
+  'libc',
   // https://www.typescriptlang.org/docs/handbook/declaration-files/publishing.html#version-selection-with-typesversions
   'typesVersions',
 ])

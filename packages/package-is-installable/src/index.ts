@@ -23,6 +23,7 @@ export default function packageIsInstallable (
     engines?: WantedEngine
     cpu?: string[]
     os?: string[]
+    libc?: string[]
   },
   options: {
     engineStrict?: boolean
@@ -67,6 +68,7 @@ export function checkPackage (
     engines?: WantedEngine
     cpu?: string[]
     os?: string[]
+    libc?: string[]
   },
   options: {
     nodeVersion?: string
@@ -76,6 +78,7 @@ export function checkPackage (
   return checkPlatform(pkgId, {
     cpu: manifest.cpu ?? ['any'],
     os: manifest.os ?? ['any'],
+    libc: manifest.libc ?? ['any'],
   }) ?? (
     (manifest.engines == null)
       ? null
