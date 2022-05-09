@@ -2,6 +2,14 @@ import checkPlatform from '../lib/checkPlatform'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 
+jest.mock('detect-libc', () => {
+  const orginal = jest.requireActual('detect-libc')
+  return {
+    ...orginal,
+    familySync: () => 'musl',
+  }
+})
+
 test('target cpu wrong', () => {
   const target = {
     cpu: 'enten-cpu',
