@@ -1559,3 +1559,84 @@ test('directory filtering', async () => {
     expect(output).toContain('project-2')
   }
 })
+
+test('run --stream should prefix with dir name', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/alfa',
+      package: {
+        name: 'alfa',
+        version: '1.0.0',
+        scripts: {
+          test: "node -e \"console.log('OK')\"",
+        },
+      },
+    },
+    {
+      location: 'packages/beta',
+      package: {
+        name: 'beta',
+        version: '1.0.0',
+        scripts: {
+          test: "node -e \"console.log('OK')\"",
+        },
+      },
+    },
+  ])
+
+  process.chdir('..')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const result = execPnpmSync([
+    '--stream',
+    '--filter',
+    'alfa',
+    '--filter',
+    'beta',
+    'run',
+    'test',
+  ])
+  expect(
+    result.stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .sort()
+      .join('\n')
+  ).toBe(
+    `Scope: 2 of 3 workspace projects
+packages/alfa test$ node -e "console.log('OK')"
+packages/alfa test: Done
+packages/alfa test: OK
+packages/beta test$ node -e "console.log('OK')"
+packages/beta test: Done
+packages/beta test: OK`
+  )
+  const singleResult = execPnpmSync([
+    '--stream',
+    '--filter',
+    'alfa',
+    'run',
+    'test',
+  ])
+  expect(
+    singleResult.stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .sort()
+      .join('\n')
+  ).toBe(
+    `packages/alfa test$ node -e "console.log('OK')"
+packages/alfa test: Done
+packages/alfa test: OK`
+  )
+})
