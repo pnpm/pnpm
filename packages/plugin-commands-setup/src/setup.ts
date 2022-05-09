@@ -50,7 +50,7 @@ export async function handler (
     pnpmHomeDir: string
   }
 ) {
-  const currentShell = typeof process.env.SHELL === 'string' ? path.basename(process.env.SHELL) : null
+  const currentShell = detectCurrentShell()
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
@@ -59,6 +59,13 @@ export async function handler (
   return `${updateOutput}
 
 Setup complete. Open a new terminal to start using pnpm.`
+}
+
+function detectCurrentShell () {
+  if (process.env.ZSH_VERSION) return 'zsh'
+  if (process.env.BASH_VERSION) return 'bash'
+  if (process.env.FISH_VERSION) return 'fish'
+  return typeof process.env.SHELL === 'string' ? path.basename(process.env.SHELL) : null
 }
 
 async function updateShell (currentShell: string | null, pnpmHomeDir: string): Promise<string> {
