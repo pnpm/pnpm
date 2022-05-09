@@ -25,7 +25,7 @@ afterAll(() => {
 
 const regKey = 'HKEY_CURRENT_USER\\Environment'
 
-test('Existing installation', async () => {
+test('setup throws an error if PNPM_HOME is already set to a different directory', async () => {
   execa['mockResolvedValueOnce']({
     failed: false,
     stdout: `
@@ -38,11 +38,32 @@ HKEY_CURRENT_USER\\Environment
     stderr: 'UNEXPECTED',
   })
 
+  await expect(
+    setup.handler({
+      pnpmHomeDir: __dirname,
+    })
+  ).rejects.toThrowError(/Currently 'PNPM_HOME' is set to '.pnpm\\home'/)
+})
+
+test('setup overrides PNPM_HOME, when setup is forced', async () => {
+  execa['mockResolvedValueOnce']({
+    failed: false,
+    stdout: `
+HKEY_CURRENT_USER\\Environment
+    PNPM_HOME    REG_EXPAND_SZ    .pnpm\\home
+    Path    REG_EXPAND_SZ    %USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;.pnpm\\home;C:\\Windows;
+`,
+  }).mockResolvedValue({
+    failed: true,
+    stderr: 'UNEXPECTED',
+  })
+
+  const pnpmHomeDir = '.pnpm\\home'
   const output = await setup.handler({
-    pnpmHomeDir: __dirname,
+    force: true,
+    pnpmHomeDir,
   })
 
   expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
-  expect(output).toContain(`Currently 'PNPM_HOME' is set to '${'.pnpm\\home'}'`)
-  expect(output).toContain('PATH already contains PNPM_HOME')
+  expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
 })

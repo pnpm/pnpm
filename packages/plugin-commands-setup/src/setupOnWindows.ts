@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { win32 as path } from 'path'
 import execa from 'execa'
 
@@ -25,7 +26,7 @@ function pathIncludesDir (pathValue: string, dir: string): boolean {
     .includes(`${dirPath.dir}${path.sep}${dirPath.base}`.toUpperCase())
 }
 
-export async function setupWindowsEnvironmentPath (pnpmHomeDir: string): Promise<string> {
+export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
   // Use `chcp` to make `reg` use utf8 encoding for output.
   // Otherwise, the non-ascii characters in the environment variables will become garbled characters.
   const queryResult = await execa(`chcp 65001>nul && reg query ${REG_KEY}`, undefined, { shell: true })
@@ -39,15 +40,18 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string): Promise
   const homeValueMatch = findEnvValuesInRegistry(queryOutput, 'PNPM_HOME')
 
   let commitNeeded = false
-  let homeDir = pnpmHomeDir
   const logger = []
 
-  if (homeValueMatch.length === 1) {
-    homeDir = homeValueMatch[0].groups.data
-    logger.push(`Currently 'PNPM_HOME' is set to '${homeDir}'`)
+  if (homeValueMatch.length === 1 && !opts.force) {
+    const currentHomeDir = homeValueMatch[0].groups.data
+    if (currentHomeDir !== pnpmHomeDir) {
+      throw new PnpmError('DIFFERENT_HOME_DIR_IS_SET', `Currently 'PNPM_HOME' is set to '${currentHomeDir}'`, {
+        hint: 'If you want to override the existing PNPM_HOME env variable, use the --force option',
+      })
+    }
   } else {
-    logger.push(`Setting 'PNPM_HOME' to value '${homeDir}'`)
-    const addResult = await setEnvVarInRegistry('PNPM_HOME', homeDir)
+    logger.push(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
+    const addResult = await setEnvVarInRegistry('PNPM_HOME', pnpmHomeDir)
     if (addResult.failed) {
       logger.push(`\t${addResult.stderr}`)
     } else {
@@ -61,11 +65,12 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string): Promise
     if (pathData == null || pathData.trim() === '') {
       logger.push('Current PATH is empty. No changes to this environment variable are applied')
     } else {
-      if (pathIncludesDir(pathData, homeDir)) {
+      if (pathIncludesDir(pathData, pnpmHomeDir)) {
         logger.push('PATH already contains PNPM_HOME')
       } else {
         logger.push('Updating PATH')
-        const addResult = await setEnvVarInRegistry(pathValueMatch[0].groups.name, `${homeDir}${path.delimiter}${pathData}`)
+        const newPathValue = `${pnpmHomeDir}${path.delimiter}${pathData}`
+        const addResult = await setEnvVarInRegistry(pathValueMatch[0].groups.name, newPathValue)
         if (addResult.failed) {
           logger.push(`\t${addResult.stderr}`)
         } else {
@@ -79,7 +84,7 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string): Promise
   }
 
   if (commitNeeded) {
-    await execa('setx', ['PNPM_HOME', homeDir])
+    await execa('setx', ['PNPM_HOME', pnpmHomeDir])
   }
 
   return logger.join('\n')
