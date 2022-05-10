@@ -440,7 +440,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/sinon': ^10.0.6
       '@yarnpkg/core': 3.2.0
-      '@yarnpkg/plugin-compat': 4.0.0-rc.4
+      '@yarnpkg/extensions': 1.1.0-rc.1
       '@zkochan/npm-package-arg': ^2.0.1
       '@zkochan/rimraf': ^2.1.2
       deep-require-cwd: 1.0.0
@@ -503,7 +503,7 @@ importers:
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
       '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
-      '@yarnpkg/plugin-compat': 4.0.0-rc.4_@yarnpkg+core@3.2.0
+      '@yarnpkg/extensions': 1.1.0-rc.1_@yarnpkg+core@3.2.0
       '@zkochan/npm-package-arg': 2.0.1
       '@zkochan/rimraf': 2.1.2
       dependency-path: link:../dependency-path
@@ -5892,6 +5892,15 @@ packages:
       tslib: 1.14.1
       tunnel: 0.0.6
 
+  /@yarnpkg/extensions/1.1.0-rc.1_@yarnpkg+core@3.2.0:
+    resolution: {integrity: sha512-qQF7VrEteDam8AbDSXibLRzjIHfrvfuLxDyscmW9z8HrQfJHrVythuz4ihv5KoOKEq0bChNgwMle0kJXt2BTaw==}
+    engines: {node: '>=14.15.0'}
+    peerDependencies:
+      '@yarnpkg/core': '*'
+    dependencies:
+      '@yarnpkg/core': 3.2.0
+    dev: false
+
   /@yarnpkg/fslib/2.6.1:
     resolution: {integrity: sha512-OtxwAUeBUt0ba/YnakcEw90YtYwQH+kT8wwHTP46HR8KuvVFawFLT6kwS18l5PARTIwKbqC1QaFyOrLn9xYfKg==}
     engines: {node: '>=12 <14 || 14.2 - 14.9 || >14.10.0'}
@@ -5931,19 +5940,6 @@ packages:
     dependencies:
       js-yaml: 3.14.1
       tslib: 1.14.1
-
-  /@yarnpkg/plugin-compat/4.0.0-rc.4_@yarnpkg+core@3.2.0:
-    resolution: {integrity: sha512-yle1mg4xJttDOnsuKzuFbXmhEE0rg4HM+PoXNNkr9fMy5LmI5xLo/nzzmzkBgg6gQ3VsvnYEvjG2V09tHp/YEg==}
-    engines: {node: '>=14.15.0'}
-    peerDependencies:
-      '@yarnpkg/core': '*'
-      '@yarnpkg/plugin-patch': ^4.0.0-rc.4
-    peerDependenciesMeta:
-      '@yarnpkg/plugin-patch':
-        optional: true
-    dependencies:
-      '@yarnpkg/core': 3.2.0
-    dev: false
 
   /@yarnpkg/pnp/2.3.2:
     resolution: {integrity: sha512-JdwHu1WBCISqJEhIwx6Hbpe8MYsYbkGMxoxolkDiAeJ9IGEe08mQcbX1YmUDV1ozSWlm9JZE90nMylcDsXRFpA==}
