@@ -19,6 +19,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'scriptsPrependNodePath'
 | 'scriptShell'
 | 'shellEmulator'
+| 'stream'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -46,12 +47,12 @@ export default async (
   } as RecursiveSummary
 
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
-  const stdio = (
-    opts.workspaceConcurrency === 1 ||
-    packageChunks.length === 1 && packageChunks[0].length === 1
-  )
-    ? 'inherit'
-    : 'pipe'
+  const stdio =
+    !opts.stream &&
+    (opts.workspaceConcurrency === 1 ||
+      (packageChunks.length === 1 && packageChunks[0].length === 1))
+      ? 'inherit'
+      : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
