@@ -1,6 +1,8 @@
 import PnpmError from '@pnpm/error'
 import { familySync as getLibcFamilySync } from 'detect-libc'
 
+const currentLibc = getLibcFamilySync() ?? 'unknown'
+
 export class UnsupportedPlatformError extends PnpmError {
   public wanted: WantedPlatform
   public current: Platform
@@ -17,7 +19,6 @@ export default function checkPlatform (
   wantedPlatform: WantedPlatform
 ) {
   const { platform, arch } = process
-  const currentLibc = getLibcFamilySync() ?? 'unknown'
   let osOk = true; let cpuOk = true; let libcOk = true
 
   if (wantedPlatform.os) {
