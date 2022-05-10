@@ -30,6 +30,12 @@ test('PNPM_HOME is already set, but path is updated', async () => {
   const pnpmHomeDir = '.pnpm\\home'
   execa['mockResolvedValueOnce']({
     failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    ${pnpmHomeDir}
@@ -45,9 +51,9 @@ HKEY_CURRENT_USER\\Environment
 
   const output = await setup.handler({ pnpmHomeDir })
 
-  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
-  expect(execa).toHaveBeenNthCalledWith(2, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${'.pnpm\\home'};${currentPathInRegistry}`, '/f'])
-  expect(execa).toHaveBeenNthCalledWith(3, 'setx', ['PNPM_HOME', '.pnpm\\home'])
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${'.pnpm\\home'};${currentPathInRegistry}`, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(5, 'setx', ['PNPM_HOME', '.pnpm\\home'])
   expect(output).toContain('Updating PATH')
   expect(output).toContain('PATH UPDATED')
 })

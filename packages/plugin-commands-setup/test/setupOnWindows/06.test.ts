@@ -28,6 +28,12 @@ const regKey = 'HKEY_CURRENT_USER\\Environment'
 test('setup throws an error if PNPM_HOME is already set to a different directory', async () => {
   execa['mockResolvedValueOnce']({
     failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    .pnpm\\home
@@ -48,6 +54,12 @@ HKEY_CURRENT_USER\\Environment
 test('setup overrides PNPM_HOME, when setup is forced', async () => {
   execa['mockResolvedValueOnce']({
     failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    .pnpm\\home
@@ -64,6 +76,6 @@ HKEY_CURRENT_USER\\Environment
     pnpmHomeDir,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
 })

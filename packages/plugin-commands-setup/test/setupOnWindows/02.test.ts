@@ -28,6 +28,12 @@ const regKey = 'HKEY_CURRENT_USER\\Environment'
 test('Environment PATH is not configured correctly', async () => {
   execa['mockResolvedValueOnce']({
     failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
     stdout: 'SOME KIND OF ERROR OR UNSUPPORTED RESPONSE FORMAT',
   }).mockResolvedValue({
     failed: true,
@@ -37,6 +43,6 @@ test('Environment PATH is not configured correctly', async () => {
     pnpmHomeDir: __dirname,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(output).toContain('Current PATH is not set. No changes to this environment variable are applied')
 })
