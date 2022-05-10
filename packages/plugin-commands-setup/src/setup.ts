@@ -8,7 +8,9 @@ import { setupWindowsEnvironmentPath } from './setupOnWindows'
 
 export const rcOptionsTypes = () => ({})
 
-export const cliOptionsTypes = () => ({})
+export const cliOptionsTypes = () => ({
+  force: Boolean,
+})
 
 export const shorthands = {}
 
@@ -18,6 +20,17 @@ export function help () {
   return renderHelp({
     description: 'Sets up pnpm',
     descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Override the PNPM_HOME env variable in case it already exists',
+            name: '--force',
+            shortAlias: '-f',
+          },
+        ],
+      },
     ],
     url: docsUrl('setup'),
     usages: ['pnpm setup'],
@@ -47,6 +60,7 @@ function copyCli (currentLocation: string, targetDir: string) {
 
 export async function handler (
   opts: {
+    force?: boolean
     pnpmHomeDir: string
   }
 ) {
@@ -55,7 +69,7 @@ export async function handler (
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
   }
-  const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir)
+  const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir, { force: opts.force ?? false })
   return `${updateOutput}
 
 Setup complete. Open a new terminal to start using pnpm.`
@@ -68,7 +82,11 @@ function detectCurrentShell () {
   return typeof process.env.SHELL === 'string' ? path.basename(process.env.SHELL) : null
 }
 
-async function updateShell (currentShell: string | null, pnpmHomeDir: string): Promise<string> {
+async function updateShell (
+  currentShell: string | null,
+  pnpmHomeDir: string,
+  opts: { force: boolean }
+): Promise<string> {
   switch (currentShell) {
   case 'bash': {
     const configFile = path.join(os.homedir(), '.bashrc')
@@ -84,7 +102,7 @@ async function updateShell (currentShell: string | null, pnpmHomeDir: string): P
   }
 
   if (process.platform === 'win32') {
-    return setupWindowsEnvironmentPath(pnpmHomeDir)
+    return setupWindowsEnvironmentPath(pnpmHomeDir, opts)
   }
 
   return 'Could not infer shell type.'

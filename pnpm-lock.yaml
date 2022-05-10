@@ -2712,6 +2712,7 @@ importers:
   packages/plugin-commands-setup:
     specifiers:
       '@pnpm/cli-utils': workspace:0.7.4
+      '@pnpm/error': workspace:3.0.1
       '@pnpm/logger': ^4.0.0
       '@pnpm/plugin-commands-setup': workspace:2.0.4
       '@pnpm/prepare': workspace:*
@@ -2719,6 +2720,7 @@ importers:
       render-help: ^1.0.1
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
+      '@pnpm/error': link:../error
       execa: /safe-execa/0.1.1
       render-help: 1.0.2
     devDependencies:
