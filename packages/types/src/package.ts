@@ -93,6 +93,7 @@ export interface BaseManifest {
   }
   cpu?: string[]
   os?: string[]
+  libc?: string[]
   main?: string
   module?: string
   typings?: string

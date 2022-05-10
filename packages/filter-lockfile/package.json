@@ -39,7 +39,8 @@
     "@types/ramda": "0.27.39",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0",
-    "yaml-tag": "1.1.0"
+    "yaml-tag": "1.1.0",
+    "detect-libc": "^2.0.1"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:6.1.0",

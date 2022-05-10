@@ -1,4 +1,7 @@
 import PnpmError from '@pnpm/error'
+import { familySync as getLibcFamilySync } from 'detect-libc'
+
+const currentLibc = getLibcFamilySync() ?? 'unknown'
 
 export class UnsupportedPlatformError extends PnpmError {
   public wanted: WantedPlatform
@@ -15,10 +18,8 @@ export default function checkPlatform (
   packageId: string,
   wantedPlatform: WantedPlatform
 ) {
-  const platform = process.platform
-  const arch = process.arch
-  let osOk = true
-  let cpuOk = true
+  const { platform, arch } = process
+  let osOk = true; let cpuOk = true; let libcOk = true
 
   if (wantedPlatform.os) {
     osOk = checkList(platform, wantedPlatform.os)
@@ -26,8 +27,12 @@ export default function checkPlatform (
   if (wantedPlatform.cpu) {
     cpuOk = checkList(arch, wantedPlatform.cpu)
   }
-  if (!osOk || !cpuOk) {
-    return new UnsupportedPlatformError(packageId, wantedPlatform, { os: platform, cpu: arch })
+  if (wantedPlatform.libc && currentLibc !== 'unknown') {
+    libcOk = checkList(currentLibc, wantedPlatform.libc)
+  }
+
+  if (!osOk || !cpuOk || !libcOk) {
+    return new UnsupportedPlatformError(packageId, wantedPlatform, { os: platform, cpu: arch, libc: currentLibc })
   }
   return null
 }
@@ -35,14 +40,13 @@ export default function checkPlatform (
 export interface Platform {
   cpu: string | string[]
   os: string | string[]
+  libc: string | string[]
 }
 
 export type WantedPlatform = Partial<Platform>
 
 function checkList (value: string, list: string | string[]) {
-  let tmp
-  let match = false
-  let blc = 0
+  let tmp; let match = false; let blc = 0
   if (typeof list === 'string') {
     list = [list]
   }

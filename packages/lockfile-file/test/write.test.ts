@@ -32,6 +32,7 @@ test('writeLockfiles()', async () => {
           'is-positive': '2.0.0',
         },
         cpu: ['x86'],
+        libc: ['glibc'],
         engines: {
           node: '>=10',
           npm: '\nfoo\n',
