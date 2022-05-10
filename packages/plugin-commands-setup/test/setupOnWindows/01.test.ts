@@ -26,7 +26,13 @@ afterAll(() => {
 const regKey = 'HKEY_CURRENT_USER\\Environment'
 
 test('Win32 registry environment values could not be retrieved', async () => {
-  execa['mockResolvedValue']({
+  execa['mockResolvedValueOnce']({
+    failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValue({
     failed: true,
   })
 
@@ -34,6 +40,6 @@ test('Win32 registry environment values could not be retrieved', async () => {
     pnpmHomeDir: __dirname,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(output).toContain('Win32 registry environment values could not be retrieved')
 })
