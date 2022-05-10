@@ -30,6 +30,12 @@ test('Failure to install', async () => {
 
   execa['mockResolvedValueOnce']({
     failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
     Path    REG_EXPAND_SZ    ${currentPathInRegistry}
@@ -49,9 +55,9 @@ HKEY_CURRENT_USER\\Environment
     pnpmHomeDir: __dirname,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, `chcp 65001>nul && reg query ${regKey}`, undefined, { shell: true })
-  expect(execa).toHaveBeenNthCalledWith(2, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', __dirname, '/f'])
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${__dirname};${currentPathInRegistry}`, '/f'])
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', __dirname, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${__dirname};${currentPathInRegistry}`, '/f'], { windowsHide: false })
   expect(output).toContain(`Setting 'PNPM_HOME' to value '${__dirname}`)
   expect(output).toContain('FAILED TO SET PNPM_HOME')
   expect(output).toContain('Updating PATH')
