@@ -75,27 +75,23 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { 
     }
   }
 
-  if (pathValueMatch.length === 1) {
-    const pathData = pathValueMatch[0].groups.data
-    if (pathData == null || pathData.trim() === '') {
-      logger.push('Current PATH is empty. No changes to this environment variable are applied')
-    } else {
-      if (pathIncludesDir(pathData, pnpmHomeDir)) {
-        logger.push('PATH already contains PNPM_HOME')
-      } else {
-        logger.push('Updating PATH')
-        const newPathValue = `${pnpmHomeDir}${path.delimiter}${pathData}`
-        const addResult = await setEnvVarInRegistry(pathValueMatch[0].groups.name, newPathValue)
-        if (addResult.failed) {
-          logger.push(`\t${addResult.stderr}`)
-        } else {
-          commitNeeded = true
-          logger.push(`\t${addResult.stdout}`)
-        }
-      }
-    }
-  } else {
+  const pathData = pathValueMatch[0]?.groups.data
+  if (pathData === undefined) {
     logger.push('Current PATH is not set. No changes to this environment variable are applied')
+  } else if (pathData == null || pathData.trim() === '') {
+    logger.push('Current PATH is empty. No changes to this environment variable are applied')
+  } else if (pathIncludesDir(pathData, pnpmHomeDir)) {
+    logger.push('PATH already contains PNPM_HOME')
+  } else {
+    logger.push('Updating PATH')
+    const newPathValue = `${pnpmHomeDir}${path.delimiter}${pathData}`
+    const addResult = await setEnvVarInRegistry(pathValueMatch[0].groups.name, newPathValue)
+    if (addResult.failed) {
+      logger.push(`\t${addResult.stderr}`)
+    } else {
+      commitNeeded = true
+      logger.push(`\t${addResult.stdout}`)
+    }
   }
 
   if (commitNeeded) {
