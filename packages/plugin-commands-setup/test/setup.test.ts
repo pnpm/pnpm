@@ -23,8 +23,10 @@ test('PNPM_HOME is added to ~/.bashrc', async () => {
   expect(output).toMatch(/^Updated /)
   const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
   expect(bashRCContent).toEqual(`
+# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
+# pnpm end
 `)
 })
 
@@ -36,8 +38,10 @@ test('PNPM_HOME is added to ~/.bashrc and .bashrc file created', async () => {
   const output = await setup.handler({ pnpmHomeDir })
   expect(output).toMatch(/^Created /)
   const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
-  expect(bashRCContent).toEqual(`export PNPM_HOME="${pnpmHomeDir}"
+  expect(bashRCContent).toEqual(`# pnpm
+export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
+# pnpm end
 `)
 })
 
@@ -69,8 +73,10 @@ test('PNPM_HOME is added to ~/.zshrc', async () => {
   expect(output).toMatch(/^Updated /)
   const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
   expect(bashRCContent).toEqual(`
+# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
+# pnpm end
 `)
 })
 
@@ -103,8 +109,10 @@ test('PNPM_HOME is added to ~/.config/fish/config.fish', async () => {
   expect(output).toMatch(/^Updated /)
   const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
   expect(bashRCContent).toEqual(`
+# pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
+# pnpm end
 `)
 })
 
@@ -117,8 +125,10 @@ test('PNPM_HOME is added to ~/.config/fish/config.fish and config.fish file crea
   const output = await setup.handler({ pnpmHomeDir })
   expect(output).toMatch(/^Created /)
   const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
-  expect(bashRCContent).toEqual(`set -gx PNPM_HOME "${pnpmHomeDir}"
+  expect(bashRCContent).toEqual(`# pnpm
+set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
+# pnpm end
 `)
 })
 

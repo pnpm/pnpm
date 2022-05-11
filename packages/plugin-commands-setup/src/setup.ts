@@ -109,8 +109,10 @@ async function updateShell (
 }
 
 async function setupShell (configFile: string, pnpmHomeDir: string): Promise<string> {
-  const content = `export PNPM_HOME="${pnpmHomeDir}"
+  const content = `# pnpm
+export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
+# pnpm end
 `
   if (!fs.existsSync(configFile)) {
     await fs.promises.writeFile(configFile, content, 'utf8')
@@ -126,8 +128,10 @@ export PATH="$PNPM_HOME:$PATH"
 
 async function setupFishShell (pnpmHomeDir: string): Promise<string> {
   const configFile = path.join(os.homedir(), '.config/fish/config.fish')
-  const content = `set -gx PNPM_HOME "${pnpmHomeDir}"
+  const content = `# pnpm
+set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
+# pnpm end
 `
   if (!fs.existsSync(configFile)) {
     await fs.promises.writeFile(configFile, content, 'utf8')
