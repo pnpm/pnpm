@@ -1,6 +1,6 @@
-import PnpmError from '@pnpm/error'
 import { win32 as path } from 'path'
 import execa from 'execa'
+import { BadHomeDirError } from './BadHomeDirError'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
 
@@ -28,24 +28,26 @@ function pathIncludesDir (pathValue: string, dir: string): boolean {
 }
 
 export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
-  pnpmHomeDir = path.normalize(pnpmHomeDir)
   // Use `chcp` to make `reg` use utf8 encoding for output.
   // Otherwise, the non-ascii characters in the environment variables will become garbled characters.
-
   const chcpResult = await execa('chcp')
   const cpMatch = /\d+/.exec(chcpResult.stdout) ?? []
   const cpBak = parseInt(cpMatch[0])
-  if (chcpResult.failed || cpBak === 0) {
+  if (chcpResult.failed || !(cpBak > 0)) {
     return `exec chcp failed: ${cpBak}, ${chcpResult.stderr}`
   }
-
   await execa('chcp', ['65001'])
+  try {
+    return await _setupWindowsEnvironmentPath(path.normalize(pnpmHomeDir), opts)
+  } finally {
+    await execa('chcp', [cpBak.toString()])
+  }
+}
 
+async function _setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
   const queryResult = await execa('reg', ['query', REG_KEY], { windowsHide: false })
 
   if (queryResult.failed) {
-    await execa('chcp', [cpBak.toString()])
-
     return 'Win32 registry environment values could not be retrieved'
   }
 
@@ -59,11 +61,7 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { 
   if (homeValueMatch.length === 1 && !opts.force) {
     const currentHomeDir = homeValueMatch[0].groups.data
     if (currentHomeDir !== pnpmHomeDir) {
-      await execa('chcp', [cpBak.toString()])
-
-      throw new PnpmError('DIFFERENT_HOME_DIR_IS_SET', `Currently 'PNPM_HOME' is set to '${currentHomeDir}'`, {
-        hint: 'If you want to override the existing PNPM_HOME env variable, use the --force option',
-      })
+      throw new BadHomeDirError({ currentDir: currentHomeDir, wantedDir: pnpmHomeDir })
     }
   } else {
     logger.push(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
@@ -98,8 +96,6 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { 
   if (commitNeeded) {
     await execa('setx', ['PNPM_HOME', pnpmHomeDir])
   }
-
-  await execa('chcp', [cpBak.toString()])
 
   return logger.join('\n')
 }
