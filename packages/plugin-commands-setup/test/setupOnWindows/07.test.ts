@@ -1,5 +1,7 @@
+import { win32 as path } from 'path'
 import execa from 'execa'
 import { setup } from '@pnpm/plugin-commands-setup'
+import { tempDir } from '@pnpm/prepare'
 
 jest.mock('execa')
 
@@ -51,14 +53,14 @@ HKEY_CURRENT_USER\\Environment
     stderr: 'UNEXPECTED',
   })
 
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
+  const pnpmHomeDir = tempDir(false)
+  const pnpmHomeDirNormalized = path.normalize(pnpmHomeDir)
+  const output = await setup.handler({ pnpmHomeDir })
 
   expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', __dirname, '/f'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${__dirname};${currentPathInRegistry}`, '/f'], { windowsHide: false })
-  expect(output).toContain(`Setting 'PNPM_HOME' to value '${__dirname}`)
+  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${pnpmHomeDirNormalized};${currentPathInRegistry}`, '/f'], { windowsHide: false })
+  expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDirNormalized}`)
   expect(output).toContain('FAILED TO SET PNPM_HOME')
   expect(output).toContain('Updating PATH')
   expect(output).toContain('FAILED TO UPDATE PATH')
