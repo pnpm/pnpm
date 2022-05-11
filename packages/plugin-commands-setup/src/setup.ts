@@ -129,7 +129,7 @@ export PATH="$PNPM_HOME:$PATH"
     if (!opts.force) {
       throw new BadHomeDirError({ currentDir: match[1], wantedDir: pnpmHomeDir })
     }
-    const newConfigContent = configContent.replace(/# pnpm[\s\S]*# pnpm end/g, content)
+    const newConfigContent = replaceSection(configContent, content)
     await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
     return `Updated ${configFile}`
   }
@@ -157,9 +157,13 @@ set -gx PATH "$PNPM_HOME" $PATH
     if (!opts.force) {
       throw new BadHomeDirError({ currentDir: match[1], wantedDir: pnpmHomeDir })
     }
-    const newConfigContent = configContent.replace(/# pnpm[\s\S]*# pnpm end/g, content)
+    const newConfigContent = replaceSection(configContent, content)
     await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
     return `Updated ${configFile}`
   }
   return `PNPM_HOME is already in ${configFile}`
+}
+
+function replaceSection (originalContent: string, newSection: string): string {
+  return originalContent.replace(/# pnpm[\s\S]*# pnpm end/g, newSection)
 }
