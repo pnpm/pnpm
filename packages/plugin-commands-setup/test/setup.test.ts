@@ -50,7 +50,7 @@ test('PNPM_HOME is not added to ~/.bashrc if already present', async () => {
   const homeDir = tempDir()
   const pnpmHomeDir = path.join(homeDir, '.pnpm')
   fs.writeFileSync('.bashrc', `
-export PNPM_HOME="pnpm_home"
+export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
 `, 'utf8')
   homedir['mockReturnValue'](homeDir)
@@ -58,8 +58,43 @@ export PATH="$PNPM_HOME:$PATH"
   expect(output).toMatch(/^PNPM_HOME is already in /)
   const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
   expect(bashRCContent).toEqual(`
+export PNPM_HOME="${pnpmHomeDir}"
+export PATH="$PNPM_HOME:$PATH"
+`)
+})
+
+test('an error is thrown if PNPM_HOME is already in ~/.bashrc but set to a different directory', async () => {
+  process.env.SHELL = '/bin/bash'
+  const homeDir = tempDir()
+  const pnpmHomeDir = path.join(homeDir, '.pnpm')
+  fs.writeFileSync('.bashrc', `
 export PNPM_HOME="pnpm_home"
 export PATH="$PNPM_HOME:$PATH"
+`, 'utf8')
+  homedir['mockReturnValue'](homeDir)
+  await expect(
+    setup.handler({ pnpmHomeDir })
+  ).rejects.toThrowError(/Currently 'PNPM_HOME' is set to/)
+})
+
+test('an error is not thrown if PNPM_HOME is already in ~/.bashrc, set to a different directory, but force is used', async () => {
+  process.env.SHELL = '/bin/bash'
+  const homeDir = tempDir()
+  const pnpmHomeDir = path.join(homeDir, '.pnpm')
+  fs.writeFileSync('.bashrc', `
+# pnpm
+export PNPM_HOME="pnpm_home"
+export PATH="$PNPM_HOME:$PATH"
+# pnpm end`, 'utf8')
+  homedir['mockReturnValue'](homeDir)
+  const output = await setup.handler({ force: true, pnpmHomeDir })
+  expect(output).toMatch(/^Updated /)
+  const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
+  expect(bashRCContent).toEqual(`
+# pnpm
+export PNPM_HOME="${pnpmHomeDir}"
+export PATH="$PNPM_HOME:$PATH"
+# pnpm end
 `)
 })
 
@@ -85,7 +120,7 @@ test('PNPM_HOME is not added to ~/.zshrc if already present', async () => {
   const homeDir = tempDir()
   const pnpmHomeDir = path.join(homeDir, '.pnpm')
   fs.writeFileSync('.zshrc', `
-export PNPM_HOME="pnpm_home"
+export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
 `, 'utf8')
   homedir['mockReturnValue'](homeDir)
@@ -93,7 +128,7 @@ export PATH="$PNPM_HOME:$PATH"
   expect(output).toMatch(/^PNPM_HOME is already in /)
   const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
   expect(bashRCContent).toEqual(`
-export PNPM_HOME="pnpm_home"
+export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
 `)
 })
@@ -138,7 +173,7 @@ test('PNPM_HOME is not added to ~/.config/fish/config.fish if already present', 
   const pnpmHomeDir = path.join(homeDir, '.pnpm')
   fs.mkdirSync('.config/fish', { recursive: true })
   fs.writeFileSync('.config/fish/config.fish', `
-set -gx PNPM_HOME "pnpm_home"
+set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
 `, 'utf8')
   homedir['mockReturnValue'](homeDir)
@@ -146,7 +181,44 @@ set -gx PATH "$PNPM_HOME" $PATH
   expect(output).toMatch(/^PNPM_HOME is already in /)
   const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
   expect(bashRCContent).toEqual(`
+set -gx PNPM_HOME "${pnpmHomeDir}"
+set -gx PATH "$PNPM_HOME" $PATH
+`)
+})
+
+test('an error is thrown if PNPM_HOME is already in ~/.config/fish/config.fish but set to a different directory', async () => {
+  process.env.SHELL = '/bin/fish'
+  const homeDir = tempDir()
+  const pnpmHomeDir = path.join(homeDir, '.pnpm')
+  fs.mkdirSync('.config/fish', { recursive: true })
+  fs.writeFileSync('.config/fish/config.fish', `
 set -gx PNPM_HOME "pnpm_home"
 set -gx PATH "$PNPM_HOME" $PATH
+`, 'utf8')
+  homedir['mockReturnValue'](homeDir)
+  await expect(
+    setup.handler({ pnpmHomeDir })
+  ).rejects.toThrowError(/Currently 'PNPM_HOME' is set to/)
+})
+
+test('an error is not thrown if PNPM_HOME is already in ~/.config/fish/config.fish, set to a different directory, but force is used', async () => {
+  process.env.SHELL = '/bin/fish'
+  const homeDir = tempDir()
+  const pnpmHomeDir = path.join(homeDir, '.pnpm')
+  fs.mkdirSync('.config/fish', { recursive: true })
+  fs.writeFileSync('.config/fish/config.fish', `
+# pnpm
+set -gx PNPM_HOME "pnpm_home"
+set -gx PATH "$PNPM_HOME" $PATH
+# pnpm end`, 'utf8')
+  homedir['mockReturnValue'](homeDir)
+  const output = await setup.handler({ force: true, pnpmHomeDir })
+  expect(output).toMatch(/^Updated /)
+  const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
+  expect(bashRCContent).toEqual(`
+# pnpm
+set -gx PNPM_HOME "${pnpmHomeDir}"
+set -gx PATH "$PNPM_HOME" $PATH
+# pnpm end
 `)
 })

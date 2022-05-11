@@ -1,6 +1,6 @@
-import PnpmError from '@pnpm/error'
 import { win32 as path } from 'path'
 import execa from 'execa'
+import { BadHomeDirError } from './BadHomeDirError'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
 
@@ -61,9 +61,7 @@ async function _setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force:
   if (homeValueMatch.length === 1 && !opts.force) {
     const currentHomeDir = homeValueMatch[0].groups.data
     if (currentHomeDir !== pnpmHomeDir) {
-      throw new PnpmError('DIFFERENT_HOME_DIR_IS_SET', `Currently 'PNPM_HOME' is set to '${currentHomeDir}'`, {
-        hint: 'If you want to override the existing PNPM_HOME env variable, use the --force option',
-      })
+      throw new BadHomeDirError({ currentDir: currentHomeDir, wantedDir: pnpmHomeDir })
     }
   } else {
     logger.push(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
