@@ -33,7 +33,7 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { 
   const chcpResult = await execa('chcp')
   const cpMatch = /\d+/.exec(chcpResult.stdout) ?? []
   const cpBak = parseInt(cpMatch[0])
-  if (chcpResult.failed || cpBak === 0) {
+  if (chcpResult.failed || !(cpBak > 0)) {
     return `exec chcp failed: ${cpBak}, ${chcpResult.stderr}`
   }
   await execa('chcp', ['65001'])
