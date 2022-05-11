@@ -28,6 +28,7 @@ function pathIncludesDir (pathValue: string, dir: string): boolean {
 }
 
 export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
+  pnpmHomeDir = path.normalize(pnpmHomeDir)
   // Use `chcp` to make `reg` use utf8 encoding for output.
   // Otherwise, the non-ascii characters in the environment variables will become garbled characters.
 

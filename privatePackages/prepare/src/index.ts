@@ -16,13 +16,13 @@ const tmpPath = path.join(__dirname, `../../../../pnpm_tmp/${uniqueString()}`)
 
 let dirNumber = 0
 
-export function tempDir () {
+export function tempDir (chdir: boolean = true) {
   dirNumber++
   const dirname = dirNumber.toString()
   const tmpDir = path.join(tmpPath, dirname)
   fs.mkdirSync(tmpDir, { recursive: true })
 
-  process.chdir(tmpDir)
+  if (chdir) process.chdir(tmpDir)
 
   return tmpDir
 }

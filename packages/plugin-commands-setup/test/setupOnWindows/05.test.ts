@@ -1,5 +1,7 @@
+import { win32 as path } from 'path'
 import execa from 'execa'
 import { setup } from '@pnpm/plugin-commands-setup'
+import { tempDir } from '@pnpm/prepare'
 
 jest.mock('execa')
 
@@ -27,7 +29,8 @@ const regKey = 'HKEY_CURRENT_USER\\Environment'
 
 test('PNPM_HOME is already set, but path is updated', async () => {
   const currentPathInRegistry = '%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;'
-  const pnpmHomeDir = '.pnpm\\home'
+  const pnpmHomeDir = tempDir(false)
+  const pnpmHomeDirNormalized = path.normalize(pnpmHomeDir)
   execa['mockResolvedValueOnce']({
     failed: false,
     stdout: '活动代码页: 936',
@@ -38,7 +41,7 @@ test('PNPM_HOME is already set, but path is updated', async () => {
     failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
-    PNPM_HOME    REG_EXPAND_SZ    ${pnpmHomeDir}
+    PNPM_HOME    REG_EXPAND_SZ    ${pnpmHomeDirNormalized}
     Path    REG_EXPAND_SZ    ${currentPathInRegistry}
 `,
   }).mockResolvedValueOnce({
@@ -52,8 +55,8 @@ HKEY_CURRENT_USER\\Environment
   const output = await setup.handler({ pnpmHomeDir })
 
   expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${'.pnpm\\home'};${currentPathInRegistry}`, '/f'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(5, 'setx', ['PNPM_HOME', '.pnpm\\home'])
+  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${pnpmHomeDirNormalized};${currentPathInRegistry}`, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(5, 'setx', ['PNPM_HOME', pnpmHomeDirNormalized])
   expect(output).toContain('Updating PATH')
   expect(output).toContain('PATH UPDATED')
 })

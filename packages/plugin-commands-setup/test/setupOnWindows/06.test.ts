@@ -1,5 +1,7 @@
+import { win32 as path } from 'path'
 import execa from 'execa'
 import { setup } from '@pnpm/plugin-commands-setup'
+import { tempDir } from '@pnpm/prepare'
 
 jest.mock('execa')
 
@@ -44,11 +46,10 @@ HKEY_CURRENT_USER\\Environment
     stderr: 'UNEXPECTED',
   })
 
+  const pnpmHomeDir = tempDir(false)
   await expect(
-    setup.handler({
-      pnpmHomeDir: __dirname,
-    })
-  ).rejects.toThrowError(/Currently 'PNPM_HOME' is set to '.pnpm\\home'/)
+    setup.handler({ pnpmHomeDir })
+  ).rejects.toThrowError(/Currently 'PNPM_HOME' is set to/)
 })
 
 test('setup overrides PNPM_HOME, when setup is forced', async () => {
@@ -70,12 +71,13 @@ HKEY_CURRENT_USER\\Environment
     stderr: 'UNEXPECTED',
   })
 
-  const pnpmHomeDir = '.pnpm\\home'
+  const pnpmHomeDir = tempDir(false)
+  const pnpmHomeDirNormalized = path.normalize(pnpmHomeDir)
   const output = await setup.handler({
     force: true,
     pnpmHomeDir,
   })
 
   expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
-  expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
+  expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDirNormalized}'`)
 })
