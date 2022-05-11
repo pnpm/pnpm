@@ -77,11 +77,16 @@ export async function handler (
   }, pkgs)
   const binName = opts.package
     ? command
-    : await getBinName(modulesDir, versionless(command))
+    : await getBinName(modulesDir, await getPkgName(prefix))
   await execa(binName, args, {
     env,
     stdio: 'inherit',
   })
+}
+
+async function getPkgName (pkgDir: string) {
+  const manifest = await readPkgFromDir(pkgDir)
+  return Object.keys(manifest.dependencies ?? {})[0]
 }
 
 async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
@@ -110,12 +115,6 @@ function scopeless (pkgName: string) {
     return pkgName.split('/')[1]
   }
   return pkgName
-}
-
-function versionless (pkgName: string) {
-  const index = pkgName.indexOf('@', 1)
-  if (index === -1) return pkgName
-  return pkgName.substring(0, index)
 }
 
 async function getDlxDir (
