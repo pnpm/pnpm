@@ -1,3 +1,4 @@
+import path from 'path'
 import execa from 'execa'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -13,7 +14,8 @@ test('dlx should work with scoped packages', async () => {
 
   await dlx.handler({
     ...DEFAULT_OPTS,
-    dir: process.cwd(),
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
     userAgent,
   }, ['@foo/touch-file-one-bin'])
 
@@ -29,7 +31,8 @@ test('dlx should work with versioned packages', async () => {
 
   await dlx.handler({
     ...DEFAULT_OPTS,
-    dir: process.cwd(),
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
   }, ['@foo/touch-file-one-bin@latest'])
 
   expect(execa).toBeCalledWith('touch-file-one-bin', [], expect.anything())
