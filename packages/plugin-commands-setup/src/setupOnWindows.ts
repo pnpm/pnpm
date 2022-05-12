@@ -1,5 +1,6 @@
 import { win32 as path } from 'path'
 import execa from 'execa'
+import matchAll from 'string.prototype.matchall'
 import { BadHomeDirError } from './BadHomeDirError'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
@@ -8,7 +9,7 @@ const REG_KEY = 'HKEY_CURRENT_USER\\Environment'
 
 function findEnvValuesInRegistry (regEntries: string, envVarName: string): IEnvironmentValueMatch[] {
   const regexp = new RegExp(`^ {4}(?<name>${envVarName}) {4}(?<type>\\w+) {4}(?<data>.*)$`, 'gim')
-  return Array.from(regEntries.matchAll(regexp)) as IEnvironmentValueMatch[]
+  return Array.from(matchAll(regEntries, regexp)) as IEnvironmentValueMatch[]
 }
 
 function setEnvVarInRegistry (envVarName: string, envVarValue: string) {

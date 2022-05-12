@@ -2688,17 +2688,21 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/plugin-commands-setup': workspace:1.1.38
       '@pnpm/prepare': workspace:*
+      '@types/string.prototype.matchall': ^4.0.1
       execa: npm:safe-execa@^0.1.1
       render-help: ^1.0.1
+      string.prototype.matchall: ^4.0.7
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/error': link:../error
       execa: /safe-execa/0.1.1
       render-help: 1.0.2
+      string.prototype.matchall: 4.0.7
     devDependencies:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-setup': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
+      '@types/string.prototype.matchall': 4.0.1
 
   packages/plugin-commands-store:
     specifiers:
@@ -5530,6 +5534,10 @@ packages:
 
   /@types/stack-utils/2.0.1:
     resolution: {integrity: sha512-Hl219/BT5fLAaz6NDkSuhzasy49dwQS/DSdu4MdggFB8zcXv7vflBI3xp7FEmkmdDkBUI2bPUNeMttp2knYdxw==}
+    dev: true
+
+  /@types/string.prototype.matchall/4.0.1:
+    resolution: {integrity: sha512-jVQQq9YbEcLwWejeHs4CMVZkereuGPgflaOH/BGqHOYT45f3LV0Ah2Cmc0Cby/DZ9qhIp2V3lqPTHnLXlK7VLQ==}
     dev: true
 
   /@types/table/6.0.0:
@@ -13961,6 +13969,19 @@ packages:
       emoji-regex: 8.0.0
       is-fullwidth-code-point: 3.0.0
       strip-ansi: 6.0.1
+
+  /string.prototype.matchall/4.0.7:
+    resolution: {integrity: sha512-f48okCX7JiwVi1NXCVWcFnZgADDC/n2vePlQ/KUCNqCikLLilQvwjMO8+BHVKvgzH0JB0J9LEPgxOGT02RoETg==}
+    dependencies:
+      call-bind: 1.0.2
+      define-properties: 1.1.4
+      es-abstract: 1.20.0
+      get-intrinsic: 1.1.1
+      has-symbols: 1.0.3
+      internal-slot: 1.0.3
+      regexp.prototype.flags: 1.4.3
+      side-channel: 1.0.4
+    dev: false
 
   /string.prototype.padend/3.1.3:
     resolution: {integrity: sha512-jNIIeokznm8SD/TZISQsZKYu7RJyheFNt84DUPrh482GC8RVp2MKqm2O5oBRdGxbDQoXrhhWtPIWQOiy20svUg==}

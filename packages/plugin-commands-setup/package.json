@@ -33,7 +33,8 @@
     "@pnpm/cli-utils": "workspace:0.6.53",
     "@pnpm/error": "workspace:2.1.0",
     "execa": "npm:safe-execa@^0.1.1",
-    "render-help": "^1.0.1"
+    "render-help": "^1.0.1",
+    "string.prototype.matchall": "^4.0.7"
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {
@@ -42,6 +43,7 @@
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-setup": "workspace:1.1.38",
-    "@pnpm/prepare": "workspace:*"
+    "@pnpm/prepare": "workspace:*",
+    "@types/string.prototype.matchall": "^4.0.1"
   }
 }
