@@ -79,7 +79,7 @@ async function _setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force:
     logger.push('Current PATH is not set. No changes to this environment variable are applied')
   } else if (pathData == null || pathData.trim() === '') {
     logger.push('Current PATH is empty. No changes to this environment variable are applied')
-  } else if (pathIncludesDir(pathData, pnpmHomeDir)) {
+  } else if (pathIncludesDir(pathData, pnpmHomeDir) || pathData.split(path.delimiter).includes('%PNPM_HOME%')) {
     logger.push('PATH already contains PNPM_HOME')
   } else {
     logger.push('Updating PATH')
