@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/win-x64",
-  "version": "7.0.1",
+  "version": "7.1.0",
   "license": "MIT",
   "publishConfig": {
     "bin": {
@@ -23,6 +23,6 @@
     "pnpm7"
   ],
   "devDependencies": {
-    "@pnpm/win-x64": "workspace:7.0.1"
+    "@pnpm/win-x64": "workspace:7.1.0"
   }
 }

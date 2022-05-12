@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 5.0.3
+
+### Patch Changes
+
+- 52b0576af: feat: support libc filed
+
 ## 5.0.2
 
 ### Patch Changes

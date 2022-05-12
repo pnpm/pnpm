@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 27.0.3
+
+### Patch Changes
+
+- 52b0576af: feat: support libc filed
+
 ## 27.0.2
 
 ### Patch Changes

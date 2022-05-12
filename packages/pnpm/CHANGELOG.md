@@ -1,5 +1,19 @@
 # pnpm
 
+## 7.1.0
+
+### Minor Changes
+
+- Added support for `libc` field in `package.json` [#4454](https://github.com/pnpm/pnpm/issues/4454).
+
+### Patch Changes
+
+- `pnpm setup` should update the config of the current shell, not the preferred shell.
+- `pnpm setup` should not override the PNPM_HOME env variable, unless `--force` is used.
+- `pnpm dlx` should print messages about installation to stderr [#1698](https://github.com/pnpm/pnpm/issues/1698).
+- `pnpm dlx` should work with git-hosted packages. For example: `pnpm dlx gengjiawen/envinfo` [#4714](https://github.com/pnpm/pnpm/issues/4714).
+- `pnpm run --stream` should prefix the output with directory [#4702](https://github.com/pnpm/pnpm/issues/4702)
+
 ## 7.0.1
 
 ### Patch Changes

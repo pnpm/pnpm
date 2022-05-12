@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 18.0.4
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/package-is-installable@6.0.3
+
 ## 18.0.3
 
 ### Patch Changes
