@@ -83,7 +83,7 @@ async function _setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force:
     logger.push('PATH already contains PNPM_HOME')
   } else {
     logger.push('Updating PATH')
-    const newPathValue = `${pnpmHomeDir}${path.delimiter}${pathData}`
+    const newPathValue = `%PNPM_HOME%${path.delimiter}${pathData}`
     const addResult = await setEnvVarInRegistry(pathValueMatch[0].groups.name, newPathValue)
     if (addResult.failed) {
       logger.push(`\t${addResult.stderr}`)
