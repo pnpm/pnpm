@@ -144,6 +144,9 @@ function toLockfileDependency (
   if (pkg.additionalInfo.os != null) {
     result['os'] = pkg.additionalInfo.os
   }
+  if (pkg.additionalInfo.libc != null) {
+    result['libc'] = pkg.additionalInfo.libc
+  }
   if (Array.isArray(pkg.additionalInfo.bundledDependencies) || Array.isArray(pkg.additionalInfo.bundleDependencies)) {
     result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies ?? pkg.additionalInfo.bundleDependencies
   }

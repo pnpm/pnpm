@@ -1,5 +1,7 @@
+import { win32 as path } from 'path'
 import execa from 'execa'
 import { setup } from '@pnpm/plugin-commands-setup'
+import { tempDir } from '@pnpm/prepare'
 
 jest.mock('execa')
 
@@ -30,6 +32,12 @@ test('Successful first time installation', async () => {
 
   execa['mockResolvedValueOnce']({
     failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
     Path    REG_EXPAND_SZ    ${currentPathInRegistry}
@@ -45,15 +53,15 @@ HKEY_CURRENT_USER\\Environment
     stderr: 'UNEXPECTED',
   })
 
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
+  const pnpmHomeDir = tempDir(false)
+  const pnpmHomeDirNormalized = path.normalize(pnpmHomeDir)
+  const output = await setup.handler({ pnpmHomeDir })
 
-  expect(execa).toHaveBeenNthCalledWith(1, 'reg', ['query', regKey])
-  expect(execa).toHaveBeenNthCalledWith(2, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', __dirname, '/f'])
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `${__dirname};${currentPathInRegistry}`, '/f'])
-  expect(execa).toHaveBeenNthCalledWith(4, 'setx', ['PNPM_HOME', __dirname])
-  expect(output).toContain(`Setting 'PNPM_HOME' to value '${__dirname}`)
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(6, 'setx', ['PNPM_HOME', pnpmHomeDirNormalized])
+  expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDirNormalized}`)
   expect(output).toContain('Updating PATH')
   expect(output).toContain('PNPM_HOME ENV VAR SET')
   expect(output).toContain('PATH UPDATED')

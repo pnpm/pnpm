@@ -6,7 +6,7 @@ import PnpmError from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import writeYamlFile from 'write-yaml-file'
-import { DEFAULT_OPTS, REGISTRY } from './utils'
+import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
@@ -62,7 +62,7 @@ test('pnpm recursive run', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -134,7 +134,7 @@ test('pnpm recursive run with enable-pre-post-scripts', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -207,7 +207,7 @@ test('pnpm recursive run reversed', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -259,7 +259,7 @@ test('pnpm recursive run concurrently', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -311,7 +311,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -429,7 +429,7 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -486,7 +486,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async () =>
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -588,7 +588,7 @@ test('testing the bail config with "pnpm recursive run"', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -669,7 +669,7 @@ test('pnpm recursive run with filtering', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -706,7 +706,7 @@ test('`pnpm recursive run` should always trust the scripts', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -765,7 +765,7 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])

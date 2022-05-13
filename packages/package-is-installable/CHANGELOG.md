@@ -1,5 +1,11 @@
 # @pnpm/package-is-installable
 
+## 6.0.3
+
+### Patch Changes
+
+- 52b0576af: feat: support libc filed
+
 ## 6.0.2
 
 ### Patch Changes

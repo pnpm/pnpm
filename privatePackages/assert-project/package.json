@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "2.2.20",
+  "version": "2.2.21",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -45,7 +45,7 @@
     "@pnpm/constants": "workspace:6.1.0",
     "@pnpm/lockfile-types": "workspace:4.0.1",
     "@pnpm/modules-yaml": "workspace:10.0.1",
-    "@pnpm/registry-mock": "2.15.1",
+    "@pnpm/registry-mock": "2.16.0",
     "@pnpm/types": "workspace:8.0.1",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",

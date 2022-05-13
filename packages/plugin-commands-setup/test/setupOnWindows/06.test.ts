@@ -1,5 +1,7 @@
+import { win32 as path } from 'path'
 import execa from 'execa'
 import { setup } from '@pnpm/plugin-commands-setup'
+import { tempDir } from '@pnpm/prepare'
 
 jest.mock('execa')
 
@@ -25,8 +27,14 @@ afterAll(() => {
 
 const regKey = 'HKEY_CURRENT_USER\\Environment'
 
-test('Existing installation', async () => {
+test('setup throws an error if PNPM_HOME is already set to a different directory', async () => {
   execa['mockResolvedValueOnce']({
+    failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
     failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
@@ -38,11 +46,38 @@ HKEY_CURRENT_USER\\Environment
     stderr: 'UNEXPECTED',
   })
 
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
+  const pnpmHomeDir = tempDir(false)
+  await expect(
+    setup.handler({ pnpmHomeDir })
+  ).rejects.toThrowError(/Currently 'PNPM_HOME' is set to/)
+})
+
+test('setup overrides PNPM_HOME, when setup is forced', async () => {
+  execa['mockResolvedValueOnce']({
+    failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: `
+HKEY_CURRENT_USER\\Environment
+    PNPM_HOME    REG_EXPAND_SZ    .pnpm\\home
+    Path    REG_EXPAND_SZ    %USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;.pnpm\\home;C:\\Windows;
+`,
+  }).mockResolvedValue({
+    failed: true,
+    stderr: 'UNEXPECTED',
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, 'reg', ['query', regKey])
-  expect(output).toContain(`Currently 'PNPM_HOME' is set to '${'.pnpm\\home'}'`)
-  expect(output).toContain('PATH already contains PNPM_HOME')
+  const pnpmHomeDir = tempDir(false)
+  const pnpmHomeDirNormalized = path.normalize(pnpmHomeDir)
+  const output = await setup.handler({
+    force: true,
+    pnpmHomeDir,
+  })
+
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
+  expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDirNormalized}'`)
 })

@@ -5,7 +5,7 @@ import * as dlx from './dlx'
 
 export const commandNames = ['create']
 
-export async function handler (_opts: Record<string, never>, params: string[]) {
+export async function handler (_opts: dlx.DlxCommandOptions, params: string[]) {
   const [packageName, ...packageArgs] = params
   if (packageName === undefined) {
     throw new PnpmError(
@@ -17,7 +17,7 @@ export async function handler (_opts: Record<string, never>, params: string[]) {
   }
 
   const createPackageName = convertToCreateName(packageName)
-  return dlx.handler({}, [createPackageName, ...packageArgs])
+  return dlx.handler(_opts, [createPackageName, ...packageArgs])
 }
 
 export function rcOptionsTypes () {

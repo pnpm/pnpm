@@ -1,5 +1,13 @@
 # @pnpm/filter-lockfile
 
+## 6.0.3
+
+### Patch Changes
+
+- 52b0576af: feat: support libc filed
+- Updated dependencies [52b0576af]
+  - @pnpm/package-is-installable@6.0.3
+
 ## 6.0.2
 
 ### Patch Changes

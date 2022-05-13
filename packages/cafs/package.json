@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cafs",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,7 +31,7 @@
     "tar-stream": "^2.2.0"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:4.0.1",
+    "@pnpm/cafs": "workspace:4.0.2",
     "@types/concat-stream": "^1.6.0",
     "@types/node": "^14.17.32",
     "@types/ssri": "^7.1.0",

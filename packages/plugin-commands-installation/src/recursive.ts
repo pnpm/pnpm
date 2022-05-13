@@ -80,6 +80,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   useBetaCli?: boolean
   selectedProjectsGraph: ProjectsGraph
   preferredVersions?: PreferredVersions
+  pruneDirectDependencies?: boolean
 } & Partial<
 Pick<Config,
 | 'sort'
@@ -258,6 +259,7 @@ export default async function recursive (
           manifest,
           modulesDir,
           mutation,
+          pruneDirectDependencies: opts.pruneDirectDependencies,
           rootDir,
         } as MutatedProject)
       }

@@ -75,6 +75,34 @@ test('pack a package with scoped name', async () => {
   expect(await exists('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
 })
 
+test('pack a package without package name', async () => {
+  prepare({
+    name: undefined,
+    version: '0.0.0',
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toThrow('Package name is not defined in the package.json.')
+})
+
+test('pack a package without package version', async () => {
+  prepare({
+    name: 'test-publish-package-no-version',
+    version: undefined,
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toThrow('Package version is not defined in the package.json.')
+})
+
 test('pack: runs prepack, prepare, and postpack', async () => {
   prepare({
     name: 'test-publish-package.json',

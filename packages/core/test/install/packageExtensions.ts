@@ -101,3 +101,16 @@ test('manifests are extended with fields specified by packageExtensions', async 
     )
   )
 })
+
+test('manifests are patched by extensions from the compatibility database', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['debug@4.0.0'],
+    await testDefaults()
+  )
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.packages['/debug/4.0.0'].peerDependenciesMeta?.['supports-color']?.optional).toBe(true)
+})

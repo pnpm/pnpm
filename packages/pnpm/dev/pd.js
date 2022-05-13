@@ -1,7 +1,8 @@
+#!/usr/bin/env node
 const fs = require('fs')
 const esbuild = require('esbuild')
 const pathLib = require('path')
-const packagesDir = pathLib.resolve(__dirname, '..')
+const packagesDir = pathLib.resolve(__dirname, '../..')
 
 const localPackages = fs.readdirSync(packagesDir)
 
@@ -41,8 +42,8 @@ const spnpmImportsPlugin = {
     bundle: true,
     platform: 'node',
     target: 'node14',
-    entryPoints: [pathLib.resolve(__dirname, 'lib/pnpm.js')],
-    outfile: pathLib.resolve(__dirname, 'dist-spnpm/spnpm.cjs'),
+    entryPoints: [pathLib.resolve(__dirname, '../lib/pnpm.js')],
+    outfile: pathLib.resolve(__dirname, 'dist/pnpm.cjs'),
     external: [
       'node-gyp',
       './get-uid-gid.js', // traces back to: https://github.com/npm/uid-number/blob/6e9bdb302ae4799d05abf12e922ccdb4bd9ea023/uid-number.js#L31
@@ -57,5 +58,5 @@ const spnpmImportsPlugin = {
   })
 
   // Require the file just built by esbuild
-  require('./dist-spnpm/spnpm.cjs')
+  require('./dist/pnpm.cjs')
 })()

@@ -130,7 +130,8 @@ test('resolve()', () => {
 test('depPathToFilename()', () => {
   expect(depPathToFilename('/foo/1.0.0')).toBe('foo@1.0.0')
   expect(depPathToFilename('/@foo/bar/1.0.0')).toBe('@foo+bar@1.0.0')
-  expect(depPathToFilename('github.com/something/foo/0000')).toBe('github.com+something+foo@0000')
+  expect(depPathToFilename('github.com/something/foo/0000?v=1')).toBe('github.com+something+foo@0000+v=1')
+  expect(depPathToFilename('\\//:*?"<>|')).toBe('++@+++++++')
 
   const filename = depPathToFilename('file:test/foo-1.0.0.tgz_foo@2.0.0')
   expect(filename).toBe('file+test+foo-1.0.0.tgz_foo@2.0.0')

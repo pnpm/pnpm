@@ -81,7 +81,6 @@ export default function (
       }
     ),
     reportInstallChecks(log$.installCheck, { cwd }),
-    reportRequestRetry(log$.requestRetry),
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
@@ -95,7 +94,8 @@ export default function (
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
     outputs.push(
       reportPeerDependencyIssues(log$),
-      reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive })
+      reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }),
+      reportRequestRetry(log$.requestRetry)
     )
   }
 

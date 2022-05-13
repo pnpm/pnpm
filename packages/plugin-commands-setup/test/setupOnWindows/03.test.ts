@@ -1,5 +1,6 @@
 import execa from 'execa'
 import { setup } from '@pnpm/plugin-commands-setup'
+import { tempDir } from '@pnpm/prepare'
 
 jest.mock('execa')
 
@@ -28,18 +29,24 @@ const regKey = 'HKEY_CURRENT_USER\\Environment'
 test('Environment PATH is empty', async () => {
   execa['mockResolvedValueOnce']({
     failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
     Path    REG_EXPAND_SZ    
-`,
+    `,
   }).mockResolvedValue({
     failed: false,
   })
 
   const output = await setup.handler({
-    pnpmHomeDir: __dirname,
+    pnpmHomeDir: tempDir(false),
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, 'reg', ['query', regKey])
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(output).toContain('Current PATH is empty. No changes to this environment variable are applied')
 })

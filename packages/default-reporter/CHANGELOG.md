@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 9.0.4
+
+### Patch Changes
+
+- 3b98e43a9: Do not report request retry warnings when loglevel is set to `error` [#4669](https://github.com/pnpm/pnpm/issues/4669).
+  - @pnpm/config@15.1.1
+
 ## 9.0.3
 
 ### Patch Changes

@@ -34,3 +34,11 @@ test('init a new package.json with npmrc', async () => {
   expect(manifest.author).toBe(expectAuthor)
   expect(manifest.license).toBe(rawConfig['init-license'])
 })
+
+test('throw an error if params are passed to the init command', async () => {
+  prepare({})
+
+  await expect(
+    init.handler({ rawConfig: {} }, ['react-app'])
+  ).rejects.toThrow('init command does not accept any arguments')
+})

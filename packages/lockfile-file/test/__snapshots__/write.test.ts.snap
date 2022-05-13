@@ -18,6 +18,7 @@ packages:
     engines: {node: '>=10', npm: \\"\\\\nfoo\\\\n\\"}
     cpu: [x86]
     os: [darwin]
+    libc: [glibc]
     dependencies:
       is-positive: 2.0.0
 

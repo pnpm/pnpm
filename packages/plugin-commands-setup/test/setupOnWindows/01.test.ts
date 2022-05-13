@@ -1,5 +1,6 @@
 import execa from 'execa'
 import { setup } from '@pnpm/plugin-commands-setup'
+import { tempDir } from '@pnpm/prepare'
 
 jest.mock('execa')
 
@@ -26,14 +27,20 @@ afterAll(() => {
 const regKey = 'HKEY_CURRENT_USER\\Environment'
 
 test('Win32 registry environment values could not be retrieved', async () => {
-  execa['mockResolvedValue']({
+  execa['mockResolvedValueOnce']({
+    failed: false,
+    stdout: '活动代码页: 936',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValue({
     failed: true,
   })
 
   const output = await setup.handler({
-    pnpmHomeDir: __dirname,
+    pnpmHomeDir: tempDir(false),
   })
 
-  expect(execa).toHaveBeenNthCalledWith(1, 'reg', ['query', regKey])
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(output).toContain('Win32 registry environment values could not be retrieved')
 })

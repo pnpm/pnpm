@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+
+## 5.0.5
+
+### Patch Changes
+
+- 154e582f4: refactor: display more informative error for packing when package name or version is missing
+  - @pnpm/cli-utils@0.7.4
+  - @pnpm/config@15.1.1
+
 ## 5.0.4
 
 ### Patch Changes

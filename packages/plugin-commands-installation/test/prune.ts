@@ -1,5 +1,5 @@
 import path from 'path'
-import { install, link, prune } from '@pnpm/plugin-commands-installation'
+import { add, install, link, prune } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
@@ -20,6 +20,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
+  linkWorkspacePackages: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY_URL },
@@ -54,6 +55,28 @@ test('prune removes external link that is not in package.json', async () => {
   })
 
   await project.hasNot('local-pkg')
+})
+
+test('prune keeps hoisted dependencies', async () => {
+  const project = prepare(undefined)
+  const storeDir = path.resolve('store')
+  const cacheDir = path.resolve('cache')
+
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: process.cwd(),
+    storeDir,
+  }, ['pkg-with-1-dep@100.0.0'])
+
+  await prune.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: process.cwd(),
+    storeDir,
+  })
+
+  await project.hasNot('dep-of-pkg-with-1-dep')
 })
 
 test('prune removes dev dependencies', async () => {

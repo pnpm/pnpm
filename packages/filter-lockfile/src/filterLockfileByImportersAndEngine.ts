@@ -137,6 +137,7 @@ function pkgAllDeps (
         cpu: pkgSnapshot.cpu,
         engines: pkgSnapshot.engines,
         os: pkgSnapshot.os,
+        libc: pkgSnapshot.libc,
       }
       // TODO: depPath is not the package ID. Should be fixed
       installable = opts.includeIncompatiblePackages || packageIsInstallable(pkgSnapshot.id ?? depPath, pkg, {

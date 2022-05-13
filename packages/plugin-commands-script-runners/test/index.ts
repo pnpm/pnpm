@@ -9,11 +9,10 @@ import {
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import execa from 'execa'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
-import { DEFAULT_OPTS, REGISTRY } from './utils'
+import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
@@ -378,7 +377,7 @@ test('if a script is not found but is present in the root, print an info message
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -436,7 +435,7 @@ test('pnpm run with custom shell', async () => {
 
   await execa(pnpmBin, [
     'install',
-    `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+    `--registry=${REGISTRY_URL}`,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])

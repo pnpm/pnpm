@@ -90,6 +90,7 @@ export interface PackageSnapshot {
   }
   os?: string[]
   cpu?: string[]
+  libc?: string[]
   deprecated?: string
 }
 

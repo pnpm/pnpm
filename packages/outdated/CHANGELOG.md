@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 10.0.3
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+
 ## 10.0.2
 
 ### Patch Changes

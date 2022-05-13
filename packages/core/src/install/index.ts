@@ -29,7 +29,7 @@ import {
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
-import logger, { streamParser } from '@pnpm/logger'
+import logger, { globalWarn, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
@@ -54,6 +54,7 @@ import {
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
+import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
@@ -119,6 +120,7 @@ export async function install (
   manifest: ProjectManifest,
   opts: InstallOptions & {
     preferredVersions?: PreferredVersions
+    pruneDirectDependencies?: boolean
   }
 ) {
   const projects = await mutateModules(
@@ -127,6 +129,7 @@ export async function install (
         buildIndex: 0,
         manifest,
         mutation: 'install',
+        pruneDirectDependencies: opts.pruneDirectDependencies,
         rootDir: opts.dir ?? process.cwd(),
       },
     ],
@@ -193,6 +196,9 @@ export async function mutateModules (
 
   const result = await _install()
 
+  if (global['verifiedFileIntegrity'] > 1000) {
+    globalWarn(`The integrity of ${global['verifiedFileIntegrity']} files was checked. This might have caused installation to take longer.`) // eslint-disable-line
+  }
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
@@ -520,6 +526,7 @@ export function createReadPackageHook (
   if (!isEmpty(overrides ?? {})) {
     hooks.push(createVersionsOverrider(overrides!, lockfileDir))
   }
+  hooks.push(createPackageExtender(fromPairs(compatPackageExtensions)))
   if (!isEmpty(packageExtensions ?? {})) {
     hooks.push(createPackageExtender(packageExtensions!))
   }

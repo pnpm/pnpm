@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-outdated
 
+## 6.0.5
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+  - @pnpm/lockfile-file@5.0.3
+  - @pnpm/outdated@10.0.3
+
+## 6.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.4
+- @pnpm/config@15.1.1
+
 ## 6.0.3
 
 ### Patch Changes

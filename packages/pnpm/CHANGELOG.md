@@ -1,5 +1,30 @@
 # pnpm
 
+## 7.1.0
+
+### Minor Changes
+
+- Added support for `libc` field in `package.json` [#4454](https://github.com/pnpm/pnpm/issues/4454).
+
+### Patch Changes
+
+- `pnpm setup` should update the config of the current shell, not the preferred shell.
+- `pnpm setup` should not override the PNPM_HOME env variable, unless `--force` is used.
+- `pnpm dlx` should print messages about installation to stderr [#1698](https://github.com/pnpm/pnpm/issues/1698).
+- `pnpm dlx` should work with git-hosted packages. For example: `pnpm dlx gengjiawen/envinfo` [#4714](https://github.com/pnpm/pnpm/issues/4714).
+- `pnpm run --stream` should prefix the output with directory [#4702](https://github.com/pnpm/pnpm/issues/4702)
+
+## 7.0.1
+
+### Patch Changes
+
+- Use Yarn's compatibility database to patch broken packages in the ecosystem with package extensions [#4676](https://github.com/pnpm/pnpm/pull/4676).
+- `pnpm dlx` should work when the bin name of the executed package isn't the same as the package name [#4672](https://github.com/pnpm/pnpm/issues/4672).
+- Throw an error if arguments are passed to the `pnpm init` command [#4665](https://github.com/pnpm/pnpm/pull/4665).
+- `pnpm prune` works in a workspace [#4647](https://github.com/pnpm/pnpm/pull/4691).
+- Do not report request retry warnings when loglevel is set to `error` [#4669](https://github.com/pnpm/pnpm/issues/4669).
+- `pnpm prune` does not remove hoisted dependencies [#4647](https://github.com/pnpm/pnpm/pull/4691).
+
 ## 7.0.0
 
 ### Major Changes

@@ -47,7 +47,7 @@
   "devDependencies": {
     "@pnpm/fetch": "workspace:5.0.1",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/create-cafs-store": "workspace:1.0.0",
+    "@pnpm/create-cafs-store": "workspace:1.0.1",
     "@pnpm/tarball-fetcher": "workspace:10.0.2",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.27.39",

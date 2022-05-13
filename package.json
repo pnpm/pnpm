@@ -23,7 +23,8 @@
     "lint:meta": "pnpm run meta-updater --test",
     "copy-artifacts": "ts-node utils/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
-    "release": "pnpm --filter=@pnpm/exe publish --tag=next-7 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-7 --access=public"
+    "release": "pnpm --filter=@pnpm/exe publish --tag=next-7 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-7 --access=public",
+    "dev-setup": "pnpm -C=./packages/pnpm/dev link -g"
   },
   "devDependencies": {
     "@babel/core": "^7.16.7",
@@ -37,7 +38,7 @@
     "@commitlint/prompt-cli": "^16.0.0",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "0.0.6",
-    "@pnpm/registry-mock": "2.15.1",
+    "@pnpm/registry-mock": "2.16.0",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "^27.4.0",
     "@types/node": "^14.17.32",
@@ -52,13 +53,13 @@
     "rimraf": "^3.0.2",
     "shx": "^0.3.4",
     "syncpack": "^6.2.0",
-    "ts-jest": "27.1.3",
+    "ts-jest": "27.1.4",
     "ts-node": "^10.6.0",
-    "typescript": "4.6.2",
+    "typescript": "4.6.4",
     "verdaccio": "^5.7.0"
   },
   "engines": {
-    "pnpm": ">=7"
+    "pnpm": ">=7.0.1"
   },
   "packageManager": "pnpm@7.0.0-alpha.1",
   "pnpm": {
@@ -70,7 +71,7 @@
       "hosted-git-info@4": "npm:@zkochan/hosted-git-info@^4.0.2",
       "http-errors": "^1.7.3",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.5",
+      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.6",
       "lodash@<4.17.19": "^4.17.9",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",
       "pkg-fetch": "3.1.1",
@@ -116,8 +117,10 @@
     "peerDependencyRules": {
       "allowedVersions": {
         "eslint": "*",
-        "@typescript-eslint/eslint-plugin": "^5.6.0"
-      }
+        "@typescript-eslint/eslint-plugin": "^5.6.0",
+        "@yarnpkg/core": "*"
+      },
+      "ignoreMissing": ["@yarnpkg/plugin-patch"]
     }
   }
 }
