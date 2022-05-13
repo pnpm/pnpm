@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.6.7
+
+### Patch Changes
+
+- 6084d4f19: `pnpm dlx` should work with git-hosted packages. For example: `pnpm dlx gengjiawen/envinfo` [#4714](https://github.com/pnpm/pnpm/issues/4714).
+- 5ab95763c: fix(plugin-commands-script-runner): run --stream should prefix with dir name
+
 ## 4.6.6
 
 ### Patch Changes

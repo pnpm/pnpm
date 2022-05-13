@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "4.6.6",
+  "version": "4.6.7",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:4.4.26",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-script-runners": "workspace:4.6.6",
+    "@pnpm/plugin-commands-script-runners": "workspace:4.6.7",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.16.0",
     "@types/is-windows": "^1.0.0",

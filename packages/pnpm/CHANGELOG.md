@@ -1,5 +1,15 @@
 # pnpm
 
+## 6.32.13
+
+### Patch Changes
+
+- `pnpm setup` should update the config of the current shell, not the preferred shell.
+- `pnpm dlx` should work with git-hosted packages. For example: `pnpm dlx gengjiawen/envinfo` [#4714](https://github.com/pnpm/pnpm/issues/4714).
+- `pnpm setup` should not override the PNPM_HOME env variable on Windows, unless `--force` is used.
+- All arguments after `pnpm create <pkg>` should be passed to the executed create app package. So `pnpm create next-app --typescript` should work`.
+- `pnpm run --stream` should prefix the output with directory [#4702](https://github.com/pnpm/pnpm/issues/4702)
+
 ## 6.32.12
 
 ### Patch Changes

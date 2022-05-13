@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-setup
 
+## 1.1.39
+
+### Patch Changes
+
+- dcc1b2a49: `pnpm setup` should update the config of the current shell, not the preferred shell.
+- 753ddabd7: fix: make `pnpm setup` free of garbled characters.
+- 2680646c5: `pnpm setup` should not override the PNPM_HOME env variable on Windows, unless `--force` is used.
+- 3d15a25ad: fix `pnpm setup` breaks %PATH% with non-ascii characters [#4698](https://github.com/pnpm/pnpm/issues/4698)
+
 ## 1.1.38
 
 ### Patch Changes
