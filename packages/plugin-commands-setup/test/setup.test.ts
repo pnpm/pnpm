@@ -29,7 +29,7 @@ describe('Bash', () => {
   it('should append to empty shell script', async () => {
     fs.writeFileSync('.bashrc', '', 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
-    expect(output).toMatch(/^Updated /)
+    expect(output).toMatch(/^Appended new /)
     const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
     expect(bashRCContent).toEqual(`
 # pnpm
@@ -54,7 +54,7 @@ export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
 `, 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
-    expect(output).toMatch(/^PNPM_HOME is already in /)
+    expect(output).toMatch(/^Configuration already up-to-date /)
     const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
     expect(bashRCContent).toEqual(`
 export PNPM_HOME="${pnpmHomeDir}"
@@ -77,7 +77,7 @@ export PNPM_HOME="pnpm_home"
 export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const output = await setup.handler({ force: true, pnpmHomeDir })
-    expect(output).toMatch(/^Updated /)
+    expect(output).toMatch(/^Replaced /)
     const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
     expect(bashRCContent).toEqual(`
 # pnpm
@@ -95,7 +95,7 @@ describe('Zsh', () => {
   it('should append to empty shell script', async () => {
     fs.writeFileSync('.zshrc', '', 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
-    expect(output).toMatch(/^Updated /)
+    expect(output).toMatch(/^Appended new /)
     const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
     expect(bashRCContent).toEqual(`
 # pnpm
@@ -110,7 +110,7 @@ export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
 `, 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
-    expect(output).toMatch(/^PNPM_HOME is already in /)
+    expect(output).toMatch(/^Configuration already up-to-date /)
     const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
     expect(bashRCContent).toEqual(`
 export PNPM_HOME="${pnpmHomeDir}"
@@ -127,7 +127,7 @@ describe('Fish', () => {
     fs.mkdirSync('.config/fish', { recursive: true })
     fs.writeFileSync('.config/fish/config.fish', '', 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
-    expect(output).toMatch(/^Updated /)
+    expect(output).toMatch(/^Appended new /)
     const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
     expect(bashRCContent).toEqual(`
 # pnpm
@@ -154,7 +154,7 @@ set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
 `, 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
-    expect(output).toMatch(/^PNPM_HOME is already in /)
+    expect(output).toMatch(/^Configuration already up-to-date /)
     const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
     expect(bashRCContent).toEqual(`
 set -gx PNPM_HOME "${pnpmHomeDir}"
@@ -179,7 +179,7 @@ set -gx PNPM_HOME "pnpm_home"
 set -gx PATH "$PNPM_HOME" $PATH
 # pnpm end`, 'utf8')
     const output = await setup.handler({ force: true, pnpmHomeDir })
-    expect(output).toMatch(/^Updated /)
+    expect(output).toMatch(/^Replaced /)
     const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
     expect(bashRCContent).toEqual(`
 # pnpm

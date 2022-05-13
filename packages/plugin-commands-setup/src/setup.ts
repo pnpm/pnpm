@@ -65,11 +65,11 @@ export async function handler (
     pnpmHomeDir: string
   }
 ) {
-  const currentShell = detectCurrentShell()
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
   }
+  const currentShell = detectCurrentShell()
   const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir, { force: opts.force ?? false })
   return `${updateOutput}
 
@@ -89,16 +89,12 @@ async function updateShell (
   opts: { force: boolean }
 ): Promise<string> {
   switch (currentShell) {
-  case 'bash': {
-    const configFile = path.join(os.homedir(), '.bashrc')
-    return setupShell(configFile, pnpmHomeDir, opts)
-  }
+  case 'bash':
   case 'zsh': {
-    const configFile = path.join(os.homedir(), '.zshrc')
-    return setupShell(configFile, pnpmHomeDir, opts)
+    return reportShellChange(await setupShell(currentShell, pnpmHomeDir, opts))
   }
   case 'fish': {
-    return setupFishShell(pnpmHomeDir, opts)
+    return reportShellChange(await setupFishShell(pnpmHomeDir, opts))
   }
   }
 
@@ -109,7 +105,22 @@ async function updateShell (
   return 'Could not infer shell type.'
 }
 
-async function setupShell (configFile: string, pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
+function reportShellChange ({ action, configFile }: ShellSetupResult): string {
+  switch (action) {
+  case 'created': return `Created ${configFile}`
+  case 'added': return `Appended new lines to ${configFile}`
+  case 'updated': return `Replaced configuration in ${configFile}`
+  case 'skipped': return `Configuration already up-to-date in ${configFile}`
+  }
+}
+
+interface ShellSetupResult {
+  configFile: string
+  action: 'created' | 'added' | 'updated' | 'skipped'
+}
+
+async function setupShell (shell: 'bash' | 'zsh', pnpmHomeDir: string, opts: { force: boolean }): Promise<ShellSetupResult> {
+  const configFile = path.join(os.homedir(), `.${shell}rc`)
   const content = `# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
@@ -117,12 +128,12 @@ export PATH="$PNPM_HOME:$PATH"
 `
   if (!fs.existsSync(configFile)) {
     await fs.promises.writeFile(configFile, content, 'utf8')
-    return `Created ${configFile}`
+    return { action: 'created', configFile }
   }
   const configContent = await fs.promises.readFile(configFile, 'utf8')
   if (!configContent.includes('PNPM_HOME')) {
     await fs.promises.appendFile(configFile, `\n${content}`, 'utf8')
-    return `Updated ${configFile}`
+    return { action: 'added', configFile }
   }
   const match = configContent.match(/export PNPM_HOME="(.*)"/)
   if (match && match[1] !== pnpmHomeDir) {
@@ -131,12 +142,12 @@ export PATH="$PNPM_HOME:$PATH"
     }
     const newConfigContent = replaceSection(configContent, content)
     await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
-    return `Updated ${configFile}`
+    return { action: 'updated', configFile }
   }
-  return `PNPM_HOME is already in ${configFile}`
+  return { action: 'skipped', configFile }
 }
 
-async function setupFishShell (pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
+async function setupFishShell (pnpmHomeDir: string, opts: { force: boolean }): Promise<ShellSetupResult> {
   const configFile = path.join(os.homedir(), '.config/fish/config.fish')
   const content = `# pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
@@ -145,12 +156,12 @@ set -gx PATH "$PNPM_HOME" $PATH
 `
   if (!fs.existsSync(configFile)) {
     await fs.promises.writeFile(configFile, content, 'utf8')
-    return `Created ${configFile}`
+    return { action: 'created', configFile }
   }
   const configContent = await fs.promises.readFile(configFile, 'utf8')
   if (!configContent.includes('PNPM_HOME')) {
     await fs.promises.appendFile(configFile, `\n${content}`, 'utf8')
-    return `Updated ${configFile}`
+    return { action: 'added', configFile }
   }
   const match = configContent.match(/set -gx PNPM_HOME "(.*)"/)
   if (match && match[1] !== pnpmHomeDir) {
@@ -159,9 +170,9 @@ set -gx PATH "$PNPM_HOME" $PATH
     }
     const newConfigContent = replaceSection(configContent, content)
     await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
-    return `Updated ${configFile}`
+    return { action: 'updated', configFile }
   }
-  return `PNPM_HOME is already in ${configFile}`
+  return { action: 'skipped', configFile }
 }
 
 function replaceSection (originalContent: string, newSection: string): string {
