@@ -131,6 +131,8 @@ test('depPathToFilename()', () => {
   expect(depPathToFilename('/foo/1.0.0', process.cwd())).toBe('foo@1.0.0')
   expect(depPathToFilename('/@foo/bar/1.0.0', process.cwd())).toBe('@foo+bar@1.0.0')
   expect(depPathToFilename('github.com/something/foo/0000', process.cwd())).toBe('github.com+something+foo@0000')
+  expect(depPathToFilename('github.com/something/foo/0000?v=1', process.cwd())).toBe('github.com+something+foo@0000+v=1')
+  expect(depPathToFilename('\\//:*?"<>|', process.cwd())).toBe('++@+++++++')
 
   const filename = depPathToFilename('file:./test/foo-1.0.0.tgz_foo@2.0.0', process.cwd())
   expect(filename).toMatch(/^local\+.*\+foo-1\.0\.0\.tgz_foo@2\.0\.0$/)
