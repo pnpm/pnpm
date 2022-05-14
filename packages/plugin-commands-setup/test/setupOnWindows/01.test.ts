@@ -24,8 +24,6 @@ afterAll(() => {
   })
 })
 
-const regKey = 'HKEY_CURRENT_USER\\Environment'
-
 test('Win32 registry environment values could not be retrieved', async () => {
   execa['mockResolvedValueOnce']({
     failed: false,
@@ -37,10 +35,6 @@ test('Win32 registry environment values could not be retrieved', async () => {
     failed: true,
   })
 
-  const output = await setup.handler({
-    pnpmHomeDir: tempDir(false),
-  })
-
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
-  expect(output).toContain('Win32 registry environment values could not be retrieved')
+  await expect(setup.handler({ pnpmHomeDir: tempDir(false) }))
+    .rejects.toThrow(/Win32 registry environment values could not be retrieved/)
 })

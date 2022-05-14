@@ -65,7 +65,6 @@ test('setup overrides PNPM_HOME, when setup is forced', async () => {
     stdout: `
 HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    .pnpm\\home
-    Path    REG_EXPAND_SZ    %USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;.pnpm\\home;C:\\Windows;
 `,
   }).mockResolvedValueOnce({
     failed: false,
@@ -73,6 +72,12 @@ HKEY_CURRENT_USER\\Environment
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: `
+HKEY_CURRENT_USER\\Environment
+    Path    REG_EXPAND_SZ    %USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;.pnpm\\home;C:\\Windows;
+`,
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -91,7 +96,7 @@ HKEY_CURRENT_USER\\Environment
     pnpmHomeDir,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
   expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
   expect(output).toContain('PNPM_HOME was updated')
 })

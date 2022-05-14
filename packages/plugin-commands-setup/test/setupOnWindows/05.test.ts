@@ -42,6 +42,11 @@ test('PNPM_HOME is already set, but Path is updated', async () => {
     stdout: `
 HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    ${pnpmHomeDirNormalized}
+`,
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: `
+HKEY_CURRENT_USER\\Environment
     Path    REG_EXPAND_SZ    ${currentPathInRegistry}
 `,
   }).mockResolvedValueOnce({
@@ -57,9 +62,10 @@ HKEY_CURRENT_USER\\Environment
 
   const output = await setup.handler({ pnpmHomeDir })
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(5, 'setx', ['Path', `%PNPM_HOME%;${currentPathInRegistry}`])
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['query', regKey, '/v', 'PATH'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(6, 'setx', ['Path', `%PNPM_HOME%;${currentPathInRegistry}`])
   expect(output).toContain('PNPM_HOME was already up-to-date')
   expect(output).toContain('PATH was updated')
 })

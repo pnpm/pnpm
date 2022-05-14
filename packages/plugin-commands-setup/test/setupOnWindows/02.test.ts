@@ -32,12 +32,10 @@ test('environment PATH is not configured correctly', async () => {
     stdout: '活动代码页: 936',
   }).mockResolvedValueOnce({
     failed: false,
-    stdout: '',
-  }).mockResolvedValueOnce({
-    failed: false,
     stdout: 'SOME KIND OF ERROR OR UNSUPPORTED RESPONSE FORMAT',
   }).mockResolvedValue({
     failed: false,
+    stdout: '',
   })
 
   await expect(
@@ -46,5 +44,5 @@ test('environment PATH is not configured correctly', async () => {
     })
   ).rejects.toThrow(/PATH environment variable is not found/)
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
 })

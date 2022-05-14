@@ -37,10 +37,11 @@ test('environment PATH is empty', async () => {
     failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
-    Path    REG_EXPAND_SZ    
+    Path    REG_EXPAND_SZ
     `,
   }).mockResolvedValue({
     failed: false,
+    stdout: '',
   })
 
   await expect(
@@ -49,5 +50,5 @@ HKEY_CURRENT_USER\\Environment
     })
   ).rejects.toThrow(/PATH environment variable is not found/)
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
 })

@@ -7,9 +7,13 @@ type IEnvironmentValueMatch = { groups: { name: string, type: string, data: stri
 
 const REG_KEY = 'HKEY_CURRENT_USER\\Environment'
 
-function findEnvValuesInRegistry (regEntries: string, envVarName: string): IEnvironmentValueMatch[] {
+async function findEnvValuesInRegistry (envVarName: string): Promise<IEnvironmentValueMatch[]> {
+  const queryResult = await execa('reg', ['query', REG_KEY, '/v', envVarName], { windowsHide: false })
+  if (queryResult.failed) {
+    throw new PnpmError('REG_READ', 'Win32 registry environment values could not be retrieved')
+  }
   const regexp = new RegExp(`^ {4}(?<name>${envVarName}) {4}(?<type>\\w+) {4}(?<data>.*)$`, 'gim')
-  return Array.from(regEntries.matchAll(regexp)) as IEnvironmentValueMatch[]
+  return Array.from(queryResult.stdout.matchAll(regexp)) as IEnvironmentValueMatch[]
 }
 
 async function setEnvVarInRegistry (envVarName: string, envVarValue: string) {
@@ -45,16 +49,9 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { 
 }
 
 async function _setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
-  const queryResult = await execa('reg', ['query', REG_KEY], { windowsHide: false })
-
-  if (queryResult.failed) {
-    return 'Win32 registry environment values could not be retrieved'
-  }
-
   const logger: string[] = []
-  const queryOutput = queryResult.stdout
-  logger.push(logEnvUpdate(await updateEnvVariable(queryOutput, 'PNPM_HOME', pnpmHomeDir, opts), 'PNPM_HOME'))
-  logger.push(logEnvUpdate(await prependToPath(queryOutput, '%PNPM_HOME%'), 'PATH'))
+  logger.push(logEnvUpdate(await updateEnvVariable('PNPM_HOME', pnpmHomeDir, opts), 'PNPM_HOME'))
+  logger.push(logEnvUpdate(await prependToPath('%PNPM_HOME%'), 'PATH'))
 
   return logger.join('\n')
 }
@@ -67,8 +64,8 @@ function logEnvUpdate (envUpdateResult: 'skipped' | 'updated', envName: string):
   return ''
 }
 
-async function updateEnvVariable (registryOutput: string, name: string, value: string, opts: { force: boolean }) {
-  const currentValueMatch = findEnvValuesInRegistry(registryOutput, name)
+async function updateEnvVariable (name: string, value: string, opts: { force: boolean }) {
+  const currentValueMatch = await findEnvValuesInRegistry(name)
   if (currentValueMatch.length === 1 && !opts.force) {
     const currentValue = currentValueMatch[0].groups.data
     if (currentValue !== value) {
@@ -81,8 +78,8 @@ async function updateEnvVariable (registryOutput: string, name: string, value: s
   }
 }
 
-async function prependToPath (registryOutput: string, prependDir: string) {
-  const pathValueMatch = findEnvValuesInRegistry(registryOutput, 'PATH')
+async function prependToPath (prependDir: string) {
+  const pathValueMatch = await findEnvValuesInRegistry('PATH')
   const pathData = pathValueMatch[0]?.groups.data
   if (pathData === undefined || pathData == null || pathData.trim() === '') {
     throw new PnpmError('NO_PATH', 'PATH environment variable is not found in the registry')
