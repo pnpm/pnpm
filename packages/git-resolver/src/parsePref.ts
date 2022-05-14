@@ -77,10 +77,7 @@ function urlToFetchSpec (urlparse: URL) {
 async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // eslint-disable-line
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
-
-  // Note only GitHub has gitTemplate (git://...) in hosted-git-info, has to use
-  // sshTemplate (git@...) for bitbucket and gitlab.
-  const gitUrl = hosted.git({ noCommittish: true }) ?? hosted.ssh({ noCommittish: true })
+  const gitUrl = hosted.https({ noCommittish: true }) ?? hosted.ssh({ noCommittish: true })
   if (gitUrl && await accessRepository(gitUrl)) {
     fetchSpec = gitUrl
   }
