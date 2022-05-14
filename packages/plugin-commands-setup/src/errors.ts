@@ -1,9 +1,9 @@
 import PnpmError from '@pnpm/error'
 
-export class BadHomeDirError extends PnpmError {
-  constructor ({ wantedDir, currentDir }: { wantedDir: string, currentDir: string }) {
-    super('DIFFERENT_HOME_DIR_IS_SET', `Currently 'PNPM_HOME' is set to '${currentDir}'`, {
-      hint: 'If you want to override the existing PNPM_HOME env variable, use the --force option',
+export class BadEnvVariableError extends PnpmError {
+  constructor ({ envName, wantedValue, currentValue }: { envName: string, wantedValue: string, currentValue: string }) {
+    super('BAD_ENV_FOUND', `Currently '${envName}' is set to '${wantedValue}'`, {
+      hint: `If you want to override the existing ${envName} env variable, use the --force option`,
     })
   }
 }

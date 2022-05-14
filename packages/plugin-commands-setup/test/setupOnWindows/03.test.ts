@@ -26,7 +26,7 @@ afterAll(() => {
 
 const regKey = 'HKEY_CURRENT_USER\\Environment'
 
-test('Environment PATH is empty', async () => {
+test('environment PATH is empty', async () => {
   execa['mockResolvedValueOnce']({
     failed: false,
     stdout: '活动代码页: 936',
@@ -43,10 +43,11 @@ HKEY_CURRENT_USER\\Environment
     failed: false,
   })
 
-  const output = await setup.handler({
-    pnpmHomeDir: tempDir(false),
-  })
+  await expect(
+    setup.handler({
+      pnpmHomeDir: tempDir(false),
+    })
+  ).rejects.toThrow(/PATH environment variable is not found/)
 
   expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
-  expect(output).toContain('Current PATH is empty. No changes to this environment variable are applied')
 })

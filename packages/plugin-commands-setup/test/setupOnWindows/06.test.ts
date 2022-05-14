@@ -53,6 +53,7 @@ HKEY_CURRENT_USER\\Environment
 })
 
 test('setup overrides PNPM_HOME, when setup is forced', async () => {
+  execa['mockReset']()
   execa['mockResolvedValueOnce']({
     failed: false,
     stdout: '活动代码页: 936',
@@ -66,6 +67,18 @@ HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    .pnpm\\home
     Path    REG_EXPAND_SZ    %USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;.pnpm\\home;C:\\Windows;
 `,
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
   }).mockResolvedValue({
     failed: true,
     stderr: 'UNEXPECTED',
@@ -79,5 +92,6 @@ HKEY_CURRENT_USER\\Environment
   })
 
   expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
-  expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDirNormalized}'`)
+  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
+  expect(output).toContain('PNPM_HOME was updated')
 })

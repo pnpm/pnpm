@@ -27,7 +27,7 @@ afterAll(() => {
 
 const regKey = 'HKEY_CURRENT_USER\\Environment'
 
-test('Successful first time installation', async () => {
+test('successful first time installation', async () => {
   const currentPathInRegistry = '%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;'
 
   execa['mockResolvedValueOnce']({
@@ -47,7 +47,13 @@ HKEY_CURRENT_USER\\Environment
     stdout: 'PNPM_HOME ENV VAR SET',
   }).mockResolvedValueOnce({
     failed: false,
+    stdout: 'setx PNPM_HOME',
+  }).mockResolvedValueOnce({
+    failed: false,
     stdout: 'PATH UPDATED',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: 'setx PNPM_HOME',
   }).mockResolvedValue({
     failed: true,
     stderr: 'UNEXPECTED',
@@ -59,10 +65,9 @@ HKEY_CURRENT_USER\\Environment
 
   expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(6, 'setx', ['PNPM_HOME', pnpmHomeDirNormalized])
-  expect(output).toContain(`Setting 'PNPM_HOME' to value '${pnpmHomeDirNormalized}`)
-  expect(output).toContain('Updating PATH')
-  expect(output).toContain('PNPM_HOME ENV VAR SET')
-  expect(output).toContain('PATH UPDATED')
+  expect(execa).toHaveBeenNthCalledWith(5, 'setx', ['PNPM_HOME', pnpmHomeDirNormalized])
+  expect(execa).toHaveBeenNthCalledWith(6, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(7, 'setx', ['Path', `%PNPM_HOME%;${currentPathInRegistry}`])
+  expect(output).toContain('PATH was updated')
+  expect(output).toContain('PNPM_HOME was updated')
 })
