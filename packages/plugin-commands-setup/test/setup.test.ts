@@ -35,8 +35,7 @@ describe('Bash', () => {
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-# pnpm end
-`)
+# pnpm end`)
   })
   it('should create a shell script', async () => {
     const output = await setup.handler({ pnpmHomeDir })
@@ -45,30 +44,32 @@ export PATH="$PNPM_HOME:$PATH"
     expect(bashRCContent).toEqual(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-# pnpm end
-`)
+# pnpm end`)
   })
   it('should make no changes to a shell script that already has the necessary configurations', async () => {
     fs.writeFileSync('.bashrc', `
+# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-`, 'utf8')
+# pnpm end`, 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
     expect(output).toMatch(/^Configuration already up-to-date /)
     const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
     expect(bashRCContent).toEqual(`
+# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-`)
+# pnpm end`)
   })
   it('should fail if the shell already has PNPM_HOME set to a different directory', async () => {
     fs.writeFileSync('.bashrc', `
+# pnpm
 export PNPM_HOME="pnpm_home"
 export PATH="$PNPM_HOME:$PATH"
-`, 'utf8')
+# pnpm end`, 'utf8')
     await expect(
       setup.handler({ pnpmHomeDir })
-    ).rejects.toThrowError(/Currently 'PNPM_HOME' is set to/)
+    ).rejects.toThrowError(/The config file at/)
   })
   it('should not fail if setup is forced', async () => {
     fs.writeFileSync('.bashrc', `
@@ -83,8 +84,7 @@ export PATH="$PNPM_HOME:$PATH"
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-# pnpm end
-`)
+# pnpm end`)
   })
 })
 
@@ -101,21 +101,22 @@ describe('Zsh', () => {
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-# pnpm end
-`)
+# pnpm end`)
   })
   it('should make no changes to a shell script that already has the necessary configurations', async () => {
     fs.writeFileSync('.zshrc', `
+# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-`, 'utf8')
+# pnpm end`, 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
     expect(output).toMatch(/^Configuration already up-to-date /)
     const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
     expect(bashRCContent).toEqual(`
+# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-`)
+# pnpm end`)
   })
 })
 
@@ -133,8 +134,7 @@ describe('Fish', () => {
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
-# pnpm end
-`)
+# pnpm end`)
   })
   it('should create a shell script', async () => {
     fs.mkdirSync('.config/fish', { recursive: true })
@@ -144,32 +144,34 @@ set -gx PATH "$PNPM_HOME" $PATH
     expect(bashRCContent).toEqual(`# pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
-# pnpm end
-`)
+# pnpm end`)
   })
   it('should make no changes to a shell script that already has the necessary configurations', async () => {
     fs.mkdirSync('.config/fish', { recursive: true })
     fs.writeFileSync('.config/fish/config.fish', `
+# pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
-`, 'utf8')
+# pnpm end`, 'utf8')
     const output = await setup.handler({ pnpmHomeDir })
     expect(output).toMatch(/^Configuration already up-to-date /)
     const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
     expect(bashRCContent).toEqual(`
+# pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
-`)
+# pnpm end`)
   })
   it('should fail if the shell already has PNPM_HOME set to a different directory', async () => {
     fs.mkdirSync('.config/fish', { recursive: true })
     fs.writeFileSync('.config/fish/config.fish', `
+# pnpm
 set -gx PNPM_HOME "pnpm_home"
 set -gx PATH "$PNPM_HOME" $PATH
-`, 'utf8')
+# pnpm end`, 'utf8')
     await expect(
       setup.handler({ pnpmHomeDir })
-    ).rejects.toThrowError(/Currently 'PNPM_HOME' is set to/)
+    ).rejects.toThrowError(/The config file at/)
   })
   it('should not fail if setup is forced', async () => {
     fs.mkdirSync('.config/fish', { recursive: true })
@@ -185,7 +187,6 @@ set -gx PATH "$PNPM_HOME" $PATH
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
-# pnpm end
-`)
+# pnpm end`)
   })
 })

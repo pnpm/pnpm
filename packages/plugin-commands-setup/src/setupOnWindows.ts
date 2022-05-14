@@ -1,6 +1,6 @@
 import { win32 as path } from 'path'
 import execa from 'execa'
-import { BadHomeDirError } from './BadHomeDirError'
+import { BadHomeDirError } from './errors'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
 

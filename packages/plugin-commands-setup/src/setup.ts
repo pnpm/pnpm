@@ -5,7 +5,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import logger from '@pnpm/logger'
 import renderHelp from 'render-help'
 import { setupWindowsEnvironmentPath } from './setupOnWindows'
-import { BadHomeDirError } from './BadHomeDirError'
+import { BadShellSectionError } from './errors'
 
 export const rcOptionsTypes = () => ({})
 
@@ -114,9 +114,11 @@ function reportShellChange ({ action, configFile }: ShellSetupResult): string {
   }
 }
 
+type ShellSetupAction = 'created' | 'added' | 'updated' | 'skipped'
+
 interface ShellSetupResult {
   configFile: string
-  action: 'created' | 'added' | 'updated' | 'skipped'
+  action: ShellSetupAction
 }
 
 async function setupShell (shell: 'bash' | 'zsh', pnpmHomeDir: string, opts: { force: boolean }): Promise<ShellSetupResult> {
@@ -124,27 +126,11 @@ async function setupShell (shell: 'bash' | 'zsh', pnpmHomeDir: string, opts: { f
   const content = `# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 export PATH="$PNPM_HOME:$PATH"
-# pnpm end
-`
-  if (!fs.existsSync(configFile)) {
-    await fs.promises.writeFile(configFile, content, 'utf8')
-    return { action: 'created', configFile }
+# pnpm end`
+  return {
+    action: await updateShellConfig(configFile, content, opts),
+    configFile,
   }
-  const configContent = await fs.promises.readFile(configFile, 'utf8')
-  if (!configContent.includes('PNPM_HOME')) {
-    await fs.promises.appendFile(configFile, `\n${content}`, 'utf8')
-    return { action: 'added', configFile }
-  }
-  const match = configContent.match(/export PNPM_HOME="(.*)"/)
-  if (match && match[1] !== pnpmHomeDir) {
-    if (!opts.force) {
-      throw new BadHomeDirError({ currentDir: match[1], wantedDir: pnpmHomeDir })
-    }
-    const newConfigContent = replaceSection(configContent, content)
-    await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
-    return { action: 'updated', configFile }
-  }
-  return { action: 'skipped', configFile }
 }
 
 async function setupFishShell (pnpmHomeDir: string, opts: { force: boolean }): Promise<ShellSetupResult> {
@@ -152,27 +138,37 @@ async function setupFishShell (pnpmHomeDir: string, opts: { force: boolean }): P
   const content = `# pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
 set -gx PATH "$PNPM_HOME" $PATH
-# pnpm end
-`
+# pnpm end`
+  return {
+    action: await updateShellConfig(configFile, content, opts),
+    configFile,
+  }
+}
+
+async function updateShellConfig (
+  configFile: string,
+  newContent: string,
+  opts: { force: boolean }
+): Promise<ShellSetupAction> {
   if (!fs.existsSync(configFile)) {
-    await fs.promises.writeFile(configFile, content, 'utf8')
-    return { action: 'created', configFile }
+    await fs.promises.writeFile(configFile, newContent, 'utf8')
+    return 'created'
   }
   const configContent = await fs.promises.readFile(configFile, 'utf8')
-  if (!configContent.includes('PNPM_HOME')) {
-    await fs.promises.appendFile(configFile, `\n${content}`, 'utf8')
-    return { action: 'added', configFile }
+  const match = configContent.match(/# pnpm[\s\S]*# pnpm end/)
+  if (!match) {
+    await fs.promises.appendFile(configFile, `\n${newContent}`, 'utf8')
+    return 'added'
   }
-  const match = configContent.match(/set -gx PNPM_HOME "(.*)"/)
-  if (match && match[1] !== pnpmHomeDir) {
+  if (match[0] !== newContent) {
     if (!opts.force) {
-      throw new BadHomeDirError({ currentDir: match[1], wantedDir: pnpmHomeDir })
+      throw new BadShellSectionError({ current: match[1], wanted: newContent, configFile })
     }
-    const newConfigContent = replaceSection(configContent, content)
+    const newConfigContent = replaceSection(configContent, newContent)
     await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
-    return { action: 'updated', configFile }
+    return 'updated'
   }
-  return { action: 'skipped', configFile }
+  return 'skipped'
 }
 
 function replaceSection (originalContent: string, newSection: string): string {
