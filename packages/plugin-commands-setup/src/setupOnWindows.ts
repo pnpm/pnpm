@@ -94,6 +94,9 @@ async function _setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force:
   }
 
   if (commitNeeded) {
+    // When setting environment variables through the registry, they will not be recognized immediately.
+    // There is a workaround though, to set at least one environment variable with `setx`.
+    // Read more at: https://bit.ly/39OlQnF
     await execa('setx', ['PNPM_HOME', pnpmHomeDir])
   }
 
