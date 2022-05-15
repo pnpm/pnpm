@@ -7,13 +7,14 @@ type IEnvironmentValueMatch = { groups: { name: string, type: string, data: stri
 
 const REG_KEY = 'HKEY_CURRENT_USER\\Environment'
 
-async function findEnvValuesInRegistry (envVarName: string): Promise<IEnvironmentValueMatch[]> {
+async function findEnvValuesInRegistry (envVarName: string): Promise<[string | undefined, string | undefined]> {
   const queryResult = await execa('reg', ['query', REG_KEY, '/v', envVarName], { windowsHide: false })
   if (queryResult.failed) {
     throw new PnpmError('REG_READ', 'Win32 registry environment values could not be retrieved')
   }
   const regexp = new RegExp(`^ {4}(?<name>${envVarName}) {4}(?<type>\\w+) {4}(?<data>.*)$`, 'gim')
-  return Array.from(queryResult.stdout.matchAll(regexp)) as IEnvironmentValueMatch[]
+  const match = Array.from(queryResult.stdout.matchAll(regexp))[0] as IEnvironmentValueMatch
+  return [match?.groups.name, match?.groups.data]
 }
 
 async function setEnvVarInRegistry (envVarName: string, envVarValue: string) {
@@ -65,9 +66,8 @@ function logEnvUpdate (envUpdateResult: 'skipped' | 'updated', envName: string):
 }
 
 async function updateEnvVariable (name: string, value: string, opts: { force: boolean }) {
-  const currentValueMatch = await findEnvValuesInRegistry(name)
-  if (currentValueMatch.length === 1 && !opts.force) {
-    const currentValue = currentValueMatch[0].groups.data
+  const [, currentValue] = await findEnvValuesInRegistry(name)
+  if (currentValue && !opts.force) {
     if (currentValue !== value) {
       throw new BadEnvVariableError({ envName: name, currentValue, wantedValue: value })
     }
@@ -79,15 +79,14 @@ async function updateEnvVariable (name: string, value: string, opts: { force: bo
 }
 
 async function prependToPath (prependDir: string) {
-  const pathValueMatch = await findEnvValuesInRegistry('PATH')
-  const pathData = pathValueMatch[0]?.groups.data
+  const [pathNameInRegistry, pathData] = await findEnvValuesInRegistry('PATH')
   if (pathData === undefined || pathData == null || pathData.trim() === '') {
     throw new PnpmError('NO_PATH', 'PATH environment variable is not found in the registry')
   } else if (pathData.split(path.delimiter).includes(prependDir)) {
     return 'skipped'
   } else {
     const newPathValue = `${prependDir}${path.delimiter}${pathData}`
-    await setEnvVarInRegistry(pathValueMatch[0].groups.name, newPathValue)
+    await setEnvVarInRegistry(pathNameInRegistry!, newPathValue)
     return 'updated'
   }
 }
