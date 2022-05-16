@@ -13,6 +13,7 @@ const withLinksOnlyFixture = path.join(fixtures, 'fixtureWithLinks/with-links-on
 const withUnsavedDepsFixture = path.join(fixtures, 'with-unsaved-deps')
 const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
 const withAliasedDepFixture = path.join(fixtures, 'with-aliased-dep')
+const withWorkspaceProtocol = path.join(fixtures, 'workspace-with-workspace-protocol')
 
 test('one package depth 0', async () => {
   const tree = await dh([generalFixture], { depth: 0, lockfileDir: generalFixture })
@@ -482,6 +483,15 @@ test('peer dependencies', async () => {
   const hierarchy = await dh([withPeerFixture], { depth: 1, lockfileDir: withPeerFixture })
   expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name).toEqual('ajv')
   expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer).toEqual(true)
+})
+
+test('workspace protocol dependencies', async () => {
+  // dependency path for this fixture is: a -> b -> c
+  const packageWithinWorkspace = path.join(withWorkspaceProtocol, 'packages/a')
+  const hierarchy = await dh([packageWithinWorkspace], { depth: 3, lockfileDir: withWorkspaceProtocol })
+
+  expect(hierarchy[packageWithinWorkspace].dependencies?.[0].name).toEqual('b')
+  expect(hierarchy[packageWithinWorkspace].dependencies?.[0].dependencies?.[0].name).toEqual('c')
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866

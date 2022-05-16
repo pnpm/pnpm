@@ -1,0 +1,7 @@
+{
+  "name": "b",
+  "private": true,
+  "dependencies": {
+    "c": "workspace:*"
+  }
+}
