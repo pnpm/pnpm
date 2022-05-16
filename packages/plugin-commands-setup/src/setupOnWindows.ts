@@ -1,31 +1,11 @@
+import PnpmError from '@pnpm/error'
 import { win32 as path } from 'path'
 import execa from 'execa'
-import { BadHomeDirError } from './BadHomeDirError'
+import { BadEnvVariableError } from './errors'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
 
 const REG_KEY = 'HKEY_CURRENT_USER\\Environment'
-
-function findEnvValuesInRegistry (regEntries: string, envVarName: string): IEnvironmentValueMatch[] {
-  const regexp = new RegExp(`^ {4}(?<name>${envVarName}) {4}(?<type>\\w+) {4}(?<data>.*)$`, 'gim')
-  return Array.from(regEntries.matchAll(regexp)) as IEnvironmentValueMatch[]
-}
-
-function setEnvVarInRegistry (envVarName: string, envVarValue: string) {
-  // `windowsHide` in `execa` is true by default, which will cause `chcp` to have no effect.
-  return execa('reg', ['add', REG_KEY, '/v', envVarName, '/t', 'REG_EXPAND_SZ', '/d', envVarValue, '/f'], { windowsHide: false })
-}
-
-function pathIncludesDir (pathValue: string, dir: string): boolean {
-  const dirPath = path.parse(path.normalize(dir))
-  return pathValue
-    .split(path.delimiter)
-    .map(p => path.normalize(p))
-    .map(p => path.parse(p))
-    .map(p => `${p.dir}${path.sep}${p.base}`.toUpperCase())
-    .filter(p => p !== '')
-    .includes(`${dirPath.dir}${path.sep}${dirPath.base}`.toUpperCase())
-}
 
 export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
   // Use `chcp` to make `reg` use utf8 encoding for output.
@@ -45,57 +25,68 @@ export async function setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { 
 }
 
 async function _setupWindowsEnvironmentPath (pnpmHomeDir: string, opts: { force: boolean }): Promise<string> {
-  const queryResult = await execa('reg', ['query', REG_KEY], { windowsHide: false })
-
-  if (queryResult.failed) {
-    return 'Win32 registry environment values could not be retrieved'
-  }
-
-  const queryOutput = queryResult.stdout
-  const pathValueMatch = findEnvValuesInRegistry(queryOutput, 'PATH')
-  const homeValueMatch = findEnvValuesInRegistry(queryOutput, 'PNPM_HOME')
-
-  let commitNeeded = false
-  const logger = []
-
-  if (homeValueMatch.length === 1 && !opts.force) {
-    const currentHomeDir = homeValueMatch[0].groups.data
-    if (currentHomeDir !== pnpmHomeDir) {
-      throw new BadHomeDirError({ currentDir: currentHomeDir, wantedDir: pnpmHomeDir })
-    }
-  } else {
-    logger.push(`Setting 'PNPM_HOME' to value '${pnpmHomeDir}'`)
-    const addResult = await setEnvVarInRegistry('PNPM_HOME', pnpmHomeDir)
-    if (addResult.failed) {
-      logger.push(`\t${addResult.stderr}`)
-    } else {
-      commitNeeded = true
-      logger.push(`\t${addResult.stdout}`)
-    }
-  }
-
-  const pathData = pathValueMatch[0]?.groups.data
-  if (pathData === undefined) {
-    logger.push('Current PATH is not set. No changes to this environment variable are applied')
-  } else if (pathData == null || pathData.trim() === '') {
-    logger.push('Current PATH is empty. No changes to this environment variable are applied')
-  } else if (pathIncludesDir(pathData, pnpmHomeDir) || pathData.split(path.delimiter).includes('%PNPM_HOME%')) {
-    logger.push('PATH already contains PNPM_HOME')
-  } else {
-    logger.push('Updating PATH')
-    const newPathValue = `%PNPM_HOME%${path.delimiter}${pathData}`
-    const addResult = await setEnvVarInRegistry(pathValueMatch[0].groups.name, newPathValue)
-    if (addResult.failed) {
-      logger.push(`\t${addResult.stderr}`)
-    } else {
-      commitNeeded = true
-      logger.push(`\t${addResult.stdout}`)
-    }
-  }
-
-  if (commitNeeded) {
-    await execa('setx', ['PNPM_HOME', pnpmHomeDir])
-  }
+  const logger: string[] = []
+  logger.push(logEnvUpdate(await updateEnvVariable('PNPM_HOME', pnpmHomeDir, opts), 'PNPM_HOME'))
+  logger.push(logEnvUpdate(await prependToPath('%PNPM_HOME%'), 'Path'))
 
   return logger.join('\n')
+}
+
+function logEnvUpdate (envUpdateResult: 'skipped' | 'updated', envName: string): string {
+  switch (envUpdateResult) {
+  case 'skipped': return `${envName} was already up-to-date`
+  case 'updated': return `${envName} was updated`
+  }
+  return ''
+}
+
+async function updateEnvVariable (name: string, value: string, opts: { force: boolean }) {
+  const currentValue = await getEnvValueFromRegistry(name)
+  if (currentValue && !opts.force) {
+    if (currentValue !== value) {
+      throw new BadEnvVariableError({ envName: name, currentValue, wantedValue: value })
+    }
+    return 'skipped'
+  } else {
+    await setEnvVarInRegistry(name, value)
+    return 'updated'
+  }
+}
+
+async function prependToPath (prependDir: string) {
+  const pathData = await getEnvValueFromRegistry('Path')
+  if (pathData === undefined || pathData == null || pathData.trim() === '') {
+    throw new PnpmError('NO_PATH', '"Path" environment variable is not found in the registry')
+  } else if (pathData.split(path.delimiter).includes(prependDir)) {
+    return 'skipped'
+  } else {
+    const newPathValue = `${prependDir}${path.delimiter}${pathData}`
+    await setEnvVarInRegistry('Path', newPathValue)
+    return 'updated'
+  }
+}
+
+async function getEnvValueFromRegistry (envVarName: string): Promise<string | undefined> {
+  const queryResult = await execa('reg', ['query', REG_KEY, '/v', envVarName], { windowsHide: false })
+  if (queryResult.failed) {
+    throw new PnpmError('REG_READ', 'Win32 registry environment values could not be retrieved')
+  }
+  const regexp = new RegExp(`^ {4}(?<name>${envVarName}) {4}(?<type>\\w+) {4}(?<data>.*)$`, 'gim')
+  const match = Array.from(queryResult.stdout.matchAll(regexp))[0] as IEnvironmentValueMatch
+  return match?.groups.data
+}
+
+async function setEnvVarInRegistry (envVarName: string, envVarValue: string) {
+  // `windowsHide` in `execa` is true by default, which will cause `chcp` to have no effect.
+  const addResult = await execa('reg', ['add', REG_KEY, '/v', envVarName, '/t', 'REG_EXPAND_SZ', '/d', envVarValue, '/f'], { windowsHide: false })
+  if (addResult.failed) {
+    throw new PnpmError('FAILED_SET_ENV', `Failed to set "${envVarName}" to "${envVarValue}": ${addResult.stderr}`)
+  } else {
+    // When setting environment variables through the registry, they will not be recognized immediately.
+    // There is a workaround though, to set at least one environment variable with `setx`.
+    // We have some redundancy here because we run it for each env var.
+    // It would be enough also to run it only for the last changed env var.
+    // Read more at: https://bit.ly/39OlQnF
+    await execa('setx', [envVarName, envVarValue])
+  }
 }
