@@ -1,5 +1,14 @@
 # pnpm
 
+## 7.1.1
+
+### Patch Changes
+
+- When the global bin directory is set to a symlink, check not only the symlink in the PATH but also the target of the symlink [#4744](https://github.com/pnpm/pnpm/issues/4744).
+- Sanitize the directory names created inside `node_modules/.pnpm` and inside the global store [#4716](https://github.com/pnpm/pnpm/issues/4716)
+- All arguments after `pnpm create <pkg>` should be passed to the executed create app package. So `pnpm create next-app --typescript` should work`.
+- Resolve commits from GitHub via https [#4734](https://github.com/pnpm/pnpm/pull/4734).
+
 ## 7.1.0
 
 ### Minor Changes

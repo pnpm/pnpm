@@ -1,5 +1,11 @@
 # dependency-path
 
+## 9.1.2
+
+### Patch Changes
+
+- c57695550: Sanitize the directory names created inside `node_modules/.pnpm` and inside the global store [#4716](https://github.com/pnpm/pnpm/issues/4716)
+
 ## 9.1.1
 
 ### Patch Changes

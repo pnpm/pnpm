@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.0.3
+- @pnpm/lockfile-walker@5.0.3
+
 ## 3.0.2
 
 ### Patch Changes

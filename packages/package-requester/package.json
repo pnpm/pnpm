@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "18.0.4",
+  "version": "18.0.5",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -48,7 +48,7 @@
     "@pnpm/resolver-base": "workspace:9.0.1",
     "@pnpm/store-controller-types": "workspace:13.0.1",
     "@pnpm/types": "workspace:8.0.1",
-    "dependency-path": "workspace:9.1.1",
+    "dependency-path": "workspace:9.1.2",
     "load-json-file": "^6.2.0",
     "p-defer": "^3.0.0",
     "p-limit": "^3.1.0",
@@ -61,10 +61,10 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.1",
+    "@pnpm/client": "workspace:7.1.2",
     "@pnpm/create-cafs-store": "workspace:1.0.1",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-requester": "workspace:18.0.4",
+    "@pnpm/package-requester": "workspace:18.0.5",
     "@pnpm/registry-mock": "2.16.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
