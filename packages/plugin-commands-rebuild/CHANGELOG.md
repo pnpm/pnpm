@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.4.20
+
+### Patch Changes
+
+- Updated dependencies [c225f1e9d]
+  - dependency-path@8.0.12
+  - @pnpm/lockfile-utils@3.2.3
+  - @pnpm/lockfile-walker@4.0.16
+  - @pnpm/store-connection-manager@3.2.14
+
 ## 5.4.19
 
 ### Patch Changes

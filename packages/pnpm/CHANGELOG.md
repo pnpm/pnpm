@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.32.14
+
+### Patch Changes
+
+- Sanitize the directory names created inside `node_modules/.pnpm` and inside the global store [#4716](https://github.com/pnpm/pnpm/issues/4716)
+- Resolve commits from GitHub via https [#4734](https://github.com/pnpm/pnpm/pull/4734).
+
 ## 6.32.13
 
 ### Patch Changes

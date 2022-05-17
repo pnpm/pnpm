@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 5.1.18
+
+### Patch Changes
+
+- 9c8adb8e2: Resolve commits from GitHub via https.
+
 ## 5.1.17
 
 ### Patch Changes

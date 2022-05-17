@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-to-pnp",
-  "version": "0.4.49",
+  "version": "0.4.50",
   "description": "Creates a Plug'n'Play file from a pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/lockfile-to-pnp": "workspace:0.4.49",
+    "@pnpm/lockfile-to-pnp": "workspace:0.4.50",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
@@ -43,11 +43,11 @@
   "dependencies": {
     "@pnpm/config": "workspace:13.13.3",
     "@pnpm/lockfile-file": "workspace:4.3.1",
-    "@pnpm/lockfile-utils": "workspace:3.2.2",
+    "@pnpm/lockfile-utils": "workspace:3.2.3",
     "@pnpm/read-project-manifest": "workspace:2.0.13",
     "@pnpm/types": "workspace:7.10.0",
     "@yarnpkg/pnp": "^2.3.2",
-    "dependency-path": "workspace:8.0.11",
+    "dependency-path": "workspace:8.0.12",
     "normalize-path": "^3.0.0",
     "ramda": "^0.27.1"
   },

@@ -1,6 +1,6 @@
 {
   "name": "dependency-path",
-  "version": "8.0.11",
+  "version": "8.0.12",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -39,7 +39,7 @@
   "devDependencies": {
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "^7.3.4",
-    "dependency-path": "workspace:8.0.11"
+    "dependency-path": "workspace:8.0.12"
   },
   "funding": "https://opencollective.com/pnpm"
 }

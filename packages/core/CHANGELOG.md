@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 2.8.1
+
+### Patch Changes
+
+- Updated dependencies [c225f1e9d]
+  - dependency-path@8.0.12
+  - @pnpm/filter-lockfile@5.0.21
+  - @pnpm/headless@17.3.7
+  - @pnpm/hoist@5.2.17
+  - @pnpm/lockfile-to-pnp@0.4.50
+  - @pnpm/lockfile-utils@3.2.3
+  - @pnpm/lockfile-walker@4.0.16
+  - @pnpm/modules-cleaner@11.0.26
+  - @pnpm/package-requester@17.0.3
+  - @pnpm/prune-lockfile@3.0.16
+  - @pnpm/resolve-dependencies@25.0.10
+
 ## 2.8.0
 
 ### Minor Changes
