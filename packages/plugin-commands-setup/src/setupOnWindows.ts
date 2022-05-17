@@ -1,6 +1,7 @@
 import PnpmError from '@pnpm/error'
 import { win32 as path } from 'path'
 import execa from 'execa'
+import matchAll from 'string.prototype.matchall'
 import { BadEnvVariableError } from './errors'
 
 type IEnvironmentValueMatch = { groups: { name: string, type: string, data: string } } & RegExpMatchArray
@@ -72,7 +73,7 @@ async function getEnvValueFromRegistry (envVarName: string): Promise<string | un
     throw new PnpmError('REG_READ', 'Win32 registry environment values could not be retrieved')
   }
   const regexp = new RegExp(`^ {4}(?<name>${envVarName}) {4}(?<type>\\w+) {4}(?<data>.*)$`, 'gim')
-  const match = Array.from(queryResult.stdout.matchAll(regexp))[0] as IEnvironmentValueMatch
+  const match = Array.from(matchAll(queryResult.stdout, regexp))[0] as IEnvironmentValueMatch
   return match?.groups.data
 }
 
