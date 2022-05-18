@@ -233,12 +233,18 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extendNodePa
 
 async function getBinNodePaths (target: string): Promise<string[]> {
   const targetDir = path.dirname(target)
-  const targetRealPath = await fs.realpath(targetDir)
-
-  return union(
-    Module['_nodeModulePaths'](targetRealPath),
-    Module['_nodeModulePaths'](targetDir)
-  )
+  try {
+    const targetRealPath = await fs.realpath(targetDir)
+    return union(
+      Module['_nodeModulePaths'](targetRealPath),
+      Module['_nodeModulePaths'](targetDir)
+    )
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') {
+      throw err
+    }
+    return Module['_nodeModulePaths'](targetDir)
+  }
 }
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {
