@@ -31,6 +31,12 @@ afterAll(() => {
 
 const regKey = 'HKEY_CURRENT_USER\\Environment'
 
+function createExecaError ({ stderr }: { stderr: string}) {
+  const err = new Error('Command failed with exit code 1')
+  err['stderr'] = stderr
+  return err
+}
+
 test('win32 registry environment values could not be retrieved', async () => {
   execa['mockResolvedValueOnce']({
     failed: false,
@@ -38,12 +44,10 @@ test('win32 registry environment values could not be retrieved', async () => {
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
-  }).mockResolvedValue({
-    failed: true,
-  })
+  }).mockRejectedValue(createExecaError({ stderr: 'ERROR: Some error' }))
 
   await expect(setup.handler({ pnpmHomeDir: tempDir(false) }))
-    .rejects.toThrow(/Win32 registry environment values could not be retrieved/)
+    .rejects.toThrow()
 })
 
 test('environment Path is not configured correctly', async () => {
@@ -64,7 +68,7 @@ test('environment Path is not configured correctly', async () => {
     })
   ).rejects.toThrow(/"Path" environment variable is not found/)
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
 })
 
 test('environment Path is empty', async () => {
@@ -91,7 +95,7 @@ HKEY_CURRENT_USER\\Environment
     })
   ).rejects.toThrow(/"Path" environment variable is not found/)
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
 })
 
 test('successful first time installation', async () => {
@@ -107,6 +111,7 @@ test('successful first time installation', async () => {
     failed: false,
     stdout: `
 HKEY_CURRENT_USER\\Environment
+    Path    REG_EXPAND_SZ    ${currentPathInRegistry}
 `,
   }).mockResolvedValueOnce({
     failed: false,
@@ -114,12 +119,6 @@ HKEY_CURRENT_USER\\Environment
   }).mockResolvedValueOnce({
     failed: false,
     stdout: 'setx PNPM_HOME',
-  }).mockResolvedValueOnce({
-    failed: false,
-    stdout: `
-HKEY_CURRENT_USER\\Environment
-    Path    REG_EXPAND_SZ    ${currentPathInRegistry}
-`,
   }).mockResolvedValueOnce({
     failed: false,
     stdout: 'setx PNPM_HOME',
@@ -132,12 +131,11 @@ HKEY_CURRENT_USER\\Environment
   const pnpmHomeDirNormalized = path.normalize(pnpmHomeDir)
   const output = await setup.handler({ pnpmHomeDir })
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(5, 'setx', ['PNPM_HOME', pnpmHomeDirNormalized])
-  expect(execa).toHaveBeenNthCalledWith(6, 'reg', ['query', regKey, '/v', 'Path'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(7, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(8, 'setx', ['Path', `%PNPM_HOME%;${currentPathInRegistry}`])
+  expect(execa).toHaveBeenNthCalledWith(5, 'setx', ['PNPM_HOME', pnpmHomeDirNormalized], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(6, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(7, 'setx', ['Path', `%PNPM_HOME%;${currentPathInRegistry}`], { windowsHide: false })
   expect(output).toContain('Path was updated')
   expect(output).toContain('PNPM_HOME was updated')
 })
@@ -157,11 +155,6 @@ test('PNPM_HOME is already set, but Path is updated', async () => {
     stdout: `
 HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    ${pnpmHomeDirNormalized}
-`,
-  }).mockResolvedValueOnce({
-    failed: false,
-    stdout: `
-HKEY_CURRENT_USER\\Environment
     Path    REG_EXPAND_SZ    ${currentPathInRegistry}
 `,
   }).mockResolvedValueOnce({
@@ -177,10 +170,9 @@ HKEY_CURRENT_USER\\Environment
 
   const output = await setup.handler({ pnpmHomeDir })
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['query', regKey, '/v', 'Path'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
-  expect(execa).toHaveBeenNthCalledWith(6, 'setx', ['Path', `%PNPM_HOME%;${currentPathInRegistry}`])
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(5, 'setx', ['Path', `%PNPM_HOME%;${currentPathInRegistry}`], { windowsHide: false })
   expect(output).toContain('PNPM_HOME was already up-to-date')
   expect(output).toContain('Path was updated')
 })
@@ -223,19 +215,15 @@ test('setup overrides PNPM_HOME, when setup is forced', async () => {
     stdout: `
 HKEY_CURRENT_USER\\Environment
     PNPM_HOME    REG_EXPAND_SZ    .pnpm\\home
-`,
-  }).mockResolvedValueOnce({
-    failed: false,
-    stdout: '',
-  }).mockResolvedValueOnce({
-    failed: false,
-    stdout: '',
-  }).mockResolvedValueOnce({
-    failed: false,
-    stdout: `
-HKEY_CURRENT_USER\\Environment
     Path    REG_EXPAND_SZ    %USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;.pnpm\\home;C:\\Windows;
 `,
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
+    failed: false,
+    stdout: '',
+  }).mockResolvedValueOnce({
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -254,7 +242,7 @@ HKEY_CURRENT_USER\\Environment
     pnpmHomeDir,
   })
 
-  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey, '/v', 'PNPM_HOME'], { windowsHide: false })
+  expect(execa).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(execa).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_EXPAND_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
   expect(output).toContain('PNPM_HOME was updated')
 })
@@ -274,19 +262,10 @@ test('failure to install', async () => {
 HKEY_CURRENT_USER\\Environment
     Path    REG_EXPAND_SZ    ${currentPathInRegistry}
 `,
-  }).mockResolvedValueOnce({
-    failed: true,
-    stderr: 'FAILED TO SET PNPM_HOME',
-  }).mockResolvedValueOnce({
-    failed: true,
-    stderr: 'FAILED TO UPDATE PATH',
-  }).mockResolvedValue({
-    failed: true,
-    stderr: 'UNEXPECTED',
-  })
+  }).mockRejectedValue(new Error())
 
   const pnpmHomeDir = tempDir(false)
   await expect(
     setup.handler({ pnpmHomeDir })
-  ).rejects.toThrow(/Failed to set "PNPM_HOME"/)
+  ).rejects.toThrow()
 })
