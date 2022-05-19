@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 6.2.14
+
+### Patch Changes
+
+- f13dda8b5: Don't fail to create the command shim files if the target directory doesn't exist.
+
 ## 6.2.13
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "17.3.7",
+  "version": "17.3.8",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -17,7 +17,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:6.1.4",
-    "@pnpm/headless": "workspace:17.3.7",
+    "@pnpm/headless": "workspace:17.3.8",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.1.15",
     "@pnpm/prepare": "workspace:*",
@@ -67,15 +67,15 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:8.0.4",
+    "@pnpm/build-modules": "workspace:8.0.5",
     "@pnpm/calc-dep-state": "workspace:1.0.0",
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/core-loggers": "workspace:6.1.4",
     "@pnpm/error": "workspace:2.1.0",
     "@pnpm/filter-lockfile": "workspace:5.0.21",
-    "@pnpm/hoist": "workspace:5.2.17",
+    "@pnpm/hoist": "workspace:5.2.18",
     "@pnpm/lifecycle": "workspace:12.1.7",
-    "@pnpm/link-bins": "workspace:6.2.13",
+    "@pnpm/link-bins": "workspace:6.2.14",
     "@pnpm/lockfile-file": "workspace:4.3.1",
     "@pnpm/lockfile-to-pnp": "workspace:0.4.50",
     "@pnpm/lockfile-utils": "workspace:3.2.3",

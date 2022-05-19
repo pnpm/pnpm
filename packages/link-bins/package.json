@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "6.2.13",
+  "version": "6.2.14",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -47,7 +47,7 @@
     "ramda": "^0.27.1"
   },
   "devDependencies": {
-    "@pnpm/link-bins": "workspace:6.2.13",
+    "@pnpm/link-bins": "workspace:6.2.14",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",

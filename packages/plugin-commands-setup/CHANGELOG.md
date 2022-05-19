@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 1.1.40
+
+### Patch Changes
+
+- ff5b53f6f: `pnpm setup` should not fail on Windows if `PNPM_HOME` is not yet in the system registry [#4757](https://github.com/pnpm/pnpm/issues/4757)
+
 ## 1.1.39
 
 ### Patch Changes

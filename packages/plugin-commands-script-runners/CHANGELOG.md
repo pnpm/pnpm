@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.6.9
+
+### Patch Changes
+
+- 50bfd6abf: `pnpm dlx` shouldn't modify the lockfile in the current working directory [#4743](https://github.com/pnpm/pnpm/issues/4743).
+  - @pnpm/plugin-commands-installation@8.4.15
+
 ## 4.6.8
 
 ### Patch Changes

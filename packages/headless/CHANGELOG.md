@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 17.3.8
+
+### Patch Changes
+
+- Updated dependencies [f13dda8b5]
+  - @pnpm/link-bins@6.2.14
+  - @pnpm/build-modules@8.0.5
+  - @pnpm/hoist@5.2.18
+
 ## 17.3.7
 
 ### Patch Changes

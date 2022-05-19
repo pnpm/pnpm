@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.32.15
+
+### Patch Changes
+
+- Don't fail to create the command shim files if the target directory doesn't exist.
+- `pnpm setup` should not fail on Windows if `PNPM_HOME` is not yet in the system registry [#4757](https://github.com/pnpm/pnpm/issues/4757)
+- `pnpm dlx` shouldn't modify the lockfile in the current working directory [#4743](https://github.com/pnpm/pnpm/issues/4743).
+
 ## 6.32.14
 
 ### Patch Changes

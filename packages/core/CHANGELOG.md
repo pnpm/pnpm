@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 2.8.2
+
+### Patch Changes
+
+- Updated dependencies [f13dda8b5]
+  - @pnpm/link-bins@6.2.14
+  - @pnpm/build-modules@8.0.5
+  - @pnpm/headless@17.3.8
+  - @pnpm/hoist@5.2.18
+
 ## 2.8.1
 
 ### Patch Changes
