@@ -9,6 +9,7 @@ import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import packageBins from '@pnpm/package-bins'
 import storePath from '@pnpm/store-path'
 import execa from 'execa'
+import omit from 'ramda/src/omit'
 import renderHelp from 'render-help'
 import { makeEnv } from './makeEnv'
 
@@ -71,9 +72,10 @@ export async function handler (
   const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   await add.handler({
-    ...opts,
-    dir: prefix,
+    ...omit(['workspaceDir'], opts),
     bin: binsDir,
+    dir: prefix,
+    lockfileDir: prefix,
   }, pkgs)
   const binName = opts.package
     ? command
