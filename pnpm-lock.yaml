@@ -117,31 +117,31 @@ importers:
 
   packages/artifacts/linux-arm64:
     specifiers:
-      '@pnpm/linux-arm64': workspace:7.1.1
+      '@pnpm/linux-arm64': workspace:7.1.2
     devDependencies:
       '@pnpm/linux-arm64': 'link:'
 
   packages/artifacts/linux-x64:
     specifiers:
-      '@pnpm/linux-x64': workspace:7.1.1
+      '@pnpm/linux-x64': workspace:7.1.2
     devDependencies:
       '@pnpm/linux-x64': 'link:'
 
   packages/artifacts/macos-arm64:
     specifiers:
-      '@pnpm/macos-arm64': workspace:7.1.1
+      '@pnpm/macos-arm64': workspace:7.1.2
     devDependencies:
       '@pnpm/macos-arm64': 'link:'
 
   packages/artifacts/macos-x64:
     specifiers:
-      '@pnpm/macos-x64': workspace:7.1.1
+      '@pnpm/macos-x64': workspace:7.1.2
     devDependencies:
       '@pnpm/macos-x64': 'link:'
 
   packages/artifacts/win-x64:
     specifiers:
-      '@pnpm/win-x64': workspace:7.1.1
+      '@pnpm/win-x64': workspace:7.1.2
     devDependencies:
       '@pnpm/win-x64': 'link:'
 
@@ -766,12 +766,12 @@ importers:
 
   packages/exe:
     specifiers:
-      '@pnpm/exe': workspace:7.1.1
-      '@pnpm/linux-arm64': workspace:7.1.1
-      '@pnpm/linux-x64': workspace:7.1.1
-      '@pnpm/macos-arm64': workspace:7.1.1
-      '@pnpm/macos-x64': workspace:7.1.1
-      '@pnpm/win-x64': workspace:7.1.1
+      '@pnpm/exe': workspace:7.1.2
+      '@pnpm/linux-arm64': workspace:7.1.2
+      '@pnpm/linux-x64': workspace:7.1.2
+      '@pnpm/macos-arm64': workspace:7.1.2
+      '@pnpm/macos-x64': workspace:7.1.2
+      '@pnpm/win-x64': workspace:7.1.2
       '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
     optionalDependencies:
@@ -2611,7 +2611,7 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/package-bins': workspace:6.0.1
       '@pnpm/plugin-commands-installation': workspace:10.0.6
-      '@pnpm/plugin-commands-script-runners': workspace:5.0.6
+      '@pnpm/plugin-commands-script-runners': workspace:5.0.7
       '@pnpm/prepare': workspace:*
       '@pnpm/read-package-json': workspace:6.0.2
       '@pnpm/read-project-manifest': workspace:3.0.2
@@ -2718,7 +2718,7 @@ importers:
       '@pnpm/cli-utils': workspace:0.7.6
       '@pnpm/error': workspace:3.0.1
       '@pnpm/logger': ^4.0.0
-      '@pnpm/plugin-commands-setup': workspace:2.0.6
+      '@pnpm/plugin-commands-setup': workspace:2.0.7
       '@pnpm/prepare': workspace:*
       execa: npm:safe-execa@^0.1.1
       render-help: ^1.0.1
@@ -2836,9 +2836,9 @@ importers:
       '@pnpm/plugin-commands-outdated': workspace:6.0.6
       '@pnpm/plugin-commands-publishing': workspace:5.0.7
       '@pnpm/plugin-commands-rebuild': workspace:6.1.5
-      '@pnpm/plugin-commands-script-runners': workspace:5.0.6
+      '@pnpm/plugin-commands-script-runners': workspace:5.0.7
       '@pnpm/plugin-commands-server': workspace:4.0.6
-      '@pnpm/plugin-commands-setup': workspace:2.0.6
+      '@pnpm/plugin-commands-setup': workspace:2.0.7
       '@pnpm/plugin-commands-store': workspace:5.1.5
       '@pnpm/prepare': workspace:*
       '@pnpm/read-package-json': workspace:6.0.2

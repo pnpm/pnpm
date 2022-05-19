@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.1.2
+
+### Patch Changes
+
+- `pnpm setup` should not fail on Windows if `PNPM_HOME` is not yet in the system registry [#4757](https://github.com/pnpm/pnpm/issues/4757)
+- `pnpm dlx` shouldn't modify the lockfile in the current working directory [#4743](https://github.com/pnpm/pnpm/issues/4743).
+
 ## 7.1.1
 
 ### Patch Changes
