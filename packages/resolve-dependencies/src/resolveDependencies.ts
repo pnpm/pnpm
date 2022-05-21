@@ -206,10 +206,12 @@ export interface ResolvedPackage {
 
 type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir'>
 
+type ParentPkgAliases = Record<string, true>
+
 interface ResolvedDependenciesOptions {
   currentDepth: number
   parentPkg: ParentPkg
-  parentPkgAliases: string[]
+  parentPkgAliases: ParentPkgAliases
   // If the package has been updated, the dependencies
   // which were used by the previous version are passed
   // via this option
@@ -220,6 +222,8 @@ interface ResolvedDependenciesOptions {
   workspacePackages?: WorkspacePackages
 }
 
+type PostponedResolutionFunction = (preferredVersions: PreferredVersions, parentPkgAliases: ParentPkgAliases) => Promise<void>
+
 export default async function resolveDependencies (
   ctx: ResolutionContext,
   preferredVersions: PreferredVersions,
@@ -227,8 +231,8 @@ export default async function resolveDependencies (
   options: ResolvedDependenciesOptions
 ): Promise<Array<PkgAddress | LinkedDependency>> {
   let extendedWantedDeps = [] as ExtendedWantedDependency[]
-  const postponedResolutionsQueue = [] as Array<(preferredVersions: PreferredVersions, parentPkgAliases: string[]) => Promise<void>>
-  let pkgAddresses = [] as PkgAddress[]
+  const postponedResolutionsQueue: PostponedResolutionFunction[] = []
+  const pkgAddresses = [] as PkgAddress[]
   while (true) {
     extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
       preferredDependencies: options.preferredDependencies,
@@ -249,23 +253,17 @@ export default async function resolveDependencies (
       )
     )
       .filter(Boolean) as PkgAddress[]
-    pkgAddresses = [
-      ...pkgAddresses,
-      ...newPkgAddresses,
-    ]
+    pkgAddresses.push(...newPkgAddresses)
     if (!ctx.autoInstallPeers) break
     const allMissingPeers = mergePkgsDeps(newPkgAddresses.map(({ missingPeers }) => missingPeers))
     if (!Object.keys(allMissingPeers).length) break
-    wantedDependencies = getNonDevWantedDependencies({ name: '', version: '', dependencies: allMissingPeers })
-    wantedDependencies.forEach(({ alias }) => {
-      options.parentPkgAliases.push(alias)
-    })
+    wantedDependencies = getNonDevWantedDependencies({ dependencies: allMissingPeers })
   }
 
   const newPreferredVersions = { ...preferredVersions }
-  const newParentPkgAliases = [...options.parentPkgAliases]
+  const newParentPkgAliases = { ...options.parentPkgAliases }
   for (const pkgAddress of pkgAddresses) {
-    newParentPkgAliases.push(pkgAddress.alias)
+    newParentPkgAliases[pkgAddress.alias] = true
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
@@ -308,7 +306,7 @@ interface ExtendedWantedDependency {
 }
 
 async function resolveDependenciesOfDependency (
-  postponedResolutionsQueue: Array<(preferredVersions: PreferredVersions, parentPkgAliases: string[]) => Promise<void>>,
+  postponedResolutionsQueue: PostponedResolutionFunction[],
   ctx: ResolutionContext,
   preferredVersions: PreferredVersions,
   options: ResolvedDependenciesOptions,
@@ -381,7 +379,7 @@ async function resolveDependenciesOfDependency (
 async function resolveChildren (
   ctx: ResolutionContext,
   parentPkg: PkgAddress,
-  parentPkgAliases: string[],
+  parentPkgAliases: ParentPkgAliases,
   dependencyLockfile: PackageSnapshot | undefined,
   workspacePackages: WorkspacePackages | undefined,
   parentDepth: number,
@@ -607,7 +605,7 @@ interface ResolveDependencyOptions {
     dependencyLockfile?: PackageSnapshot
   }
   parentPkg: ParentPkg
-  parentPkgAliases: string[]
+  parentPkgAliases: ParentPkgAliases
   preferredVersions: PreferredVersions
   proceed: boolean
   update: boolean
@@ -893,10 +891,10 @@ async function resolveDependency (
   }
 }
 
-function getMissingPeers (pkg: PackageManifest, parentPkgAliases: string[]): Record<string, string> {
+function getMissingPeers (pkg: PackageManifest, parentPkgAliases: ParentPkgAliases): Record<string, string> {
   const missingPeers = {} as Record<string, string>
   for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
-    if (!parentPkgAliases.includes(peerName) && !pkg.peerDependenciesMeta?.[peerName]?.optional) {
+    if (!parentPkgAliases[peerName] && !pkg.peerDependenciesMeta?.[peerName]?.optional) {
       missingPeers[peerName] = peerVersion
     }
   }
