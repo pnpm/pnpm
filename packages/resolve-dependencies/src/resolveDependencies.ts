@@ -741,12 +741,6 @@ async function resolveDependency (
   pkg = (ctx.readPackageHook != null)
     ? await ctx.readPackageHook(pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!())
     : pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
-  const missingPeers = {} as Record<string, string>
-  for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
-    if (!options.parentPkgAliases.includes(peerName) && !pkg.peerDependenciesMeta?.[peerName]?.optional) {
-      missingPeers[peerName] = peerVersion
-    }
-  }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
@@ -889,7 +883,7 @@ async function resolveDependency (
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
     rootDir,
-    missingPeers,
+    missingPeers: getMissingPeers(pkg, options.parentPkgAliases),
 
     // Next fields are actually only needed when isNew = true
     installable,
@@ -897,6 +891,16 @@ async function resolveDependency (
     pkg,
     updated: pkgResponse.body.updated,
   }
+}
+
+function getMissingPeers (pkg: PackageManifest, parentPkgAliases: string[]): Record<string, string> {
+  const missingPeers = {} as Record<string, string>
+  for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
+    if (!parentPkgAliases.includes(peerName) && !pkg.peerDependenciesMeta?.[peerName]?.optional) {
+      missingPeers[peerName] = peerVersion
+    }
+  }
+  return missingPeers
 }
 
 function pkgIsLeaf (pkg: PackageManifest) {
