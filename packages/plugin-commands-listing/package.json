@@ -38,7 +38,7 @@
     "@pnpm/plugin-commands-installation": "workspace:10.0.6",
     "@pnpm/plugin-commands-listing": "workspace:5.0.6",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "2.16.0",
+    "@pnpm/registry-mock": "2.17.0",
     "@types/ramda": "0.27.39",
     "execa": "npm:safe-execa@^0.1.1",
     "strip-ansi": "^6.0.0",

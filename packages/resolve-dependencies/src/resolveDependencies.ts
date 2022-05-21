@@ -40,6 +40,7 @@ import * as dp from 'dependency-path'
 import exists from 'path-exists'
 import isEmpty from 'ramda/src/isEmpty'
 import semver from 'semver'
+import { intersect } from 'semver-range-intersect'
 import encodePkgId from './encodePkgId'
 import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
 import {
@@ -253,8 +254,7 @@ export default async function resolveDependencies (
       ...newPkgAddresses,
     ]
     if (!ctx.autoInstallPeers) break
-    // TODO: make an overlap for the version ranges
-    const allMissingPeers = newPkgAddresses.reduce((acc, { missingPeers }) => ({ ...acc, ...missingPeers }), {})
+    const allMissingPeers = mergePkgsDeps(newPkgAddresses.map(({ missingPeers }) => missingPeers))
     if (!Object.keys(allMissingPeers).length) break
     wantedDependencies = getNonDevWantedDependencies({ name: '', version: '', dependencies: allMissingPeers })
     wantedDependencies.forEach(({ alias }) => {
@@ -279,6 +279,26 @@ export default async function resolveDependencies (
   await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)))
 
   return pkgAddresses
+}
+
+function mergePkgsDeps (pkgsDeps: Array<Record<string, string>>): Record<string, string> {
+  const groupedRanges: Record<string, string[]> = {}
+  for (const deps of pkgsDeps) {
+    for (const [name, range] of Object.entries(deps)) {
+      if (!groupedRanges[name]) {
+        groupedRanges[name] = []
+      }
+      groupedRanges[name].push(range)
+    }
+  }
+  const mergedPkgDeps = {} as Record<string, string>
+  for (const [name, ranges] of Object.entries(groupedRanges)) {
+    const intersection = intersect(...ranges)
+    if (intersection) {
+      mergedPkgDeps[name] = intersection
+    }
+  }
+  return mergedPkgDeps
 }
 
 interface ExtendedWantedDependency {
@@ -722,9 +742,8 @@ async function resolveDependency (
     ? await ctx.readPackageHook(pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!())
     : pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
   const missingPeers = {} as Record<string, string>
-  // TODO: except optional
   for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
-    if (!options.parentPkgAliases.includes(peerName)) {
+    if (!options.parentPkgAliases.includes(peerName) && !pkg.peerDependenciesMeta?.[peerName]?.optional) {
       missingPeers[peerName] = peerVersion
     }
   }
