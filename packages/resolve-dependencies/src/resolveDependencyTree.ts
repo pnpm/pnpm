@@ -135,6 +135,7 @@ export default async function<T> (
         depPath: importer.id,
         rootDir: importer.rootDir,
       },
+      parentPkgAliases: [],
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,

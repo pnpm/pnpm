@@ -206,6 +206,7 @@ type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDi
 interface ResolvedDependenciesOptions {
   currentDepth: number
   parentPkg: ParentPkg
+  parentPkgAliases: string[]
   // If the package has been updated, the dependencies
   // which were used by the previous version are passed
   // via this option
@@ -229,7 +230,7 @@ export default async function resolveDependencies (
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
   })
-  const postponedResolutionsQueue = [] as Array<(preferredVersions: PreferredVersions) => Promise<void>>
+  const postponedResolutionsQueue = [] as Array<(preferredVersions: PreferredVersions, parentPkgAliases: string[]) => Promise<void>>
   const pkgAddresses = (
     await Promise.all(
       extendedWantedDeps.map(async (extendedWantedDep) => resolveDependenciesOfDependency(
@@ -244,7 +245,9 @@ export default async function resolveDependencies (
     .filter(Boolean) as PkgAddress[]
 
   const newPreferredVersions = { ...preferredVersions }
+  const newParentPkgAliases = [...options.parentPkgAliases]
   for (const pkgAddress of pkgAddresses) {
+    newParentPkgAliases.push(pkgAddress.alias)
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
@@ -255,7 +258,7 @@ export default async function resolveDependencies (
     }
     newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
   }
-  await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions)))
+  await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)))
 
   return pkgAddresses
 }
@@ -267,7 +270,7 @@ interface ExtendedWantedDependency {
 }
 
 async function resolveDependenciesOfDependency (
-  postponedResolutionsQueue: Array<(preferredVersions: PreferredVersions) => Promise<void>>,
+  postponedResolutionsQueue: Array<(preferredVersions: PreferredVersions, parentPkgAliases: string[]) => Promise<void>>,
   ctx: ResolutionContext,
   preferredVersions: PreferredVersions,
   options: ResolvedDependenciesOptions,
@@ -296,6 +299,7 @@ async function resolveDependenciesOfDependency (
   const resolveDependencyOpts: ResolveDependencyOptions = {
     currentDepth: options.currentDepth,
     parentPkg: options.parentPkg,
+    parentPkgAliases: options.parentPkgAliases,
     preferredVersions,
     workspacePackages: options.workspacePackages,
     currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
@@ -320,10 +324,11 @@ async function resolveDependenciesOfDependency (
   }
   if (!resolveDependencyResult.isNew) return resolveDependencyResult
 
-  postponedResolutionsQueue.push(async (preferredVersions) =>
+  postponedResolutionsQueue.push(async (preferredVersions, parentPkgAliases) =>
     resolveChildren(
       ctx,
       resolveDependencyResult,
+      parentPkgAliases,
       extendedWantedDep.infoFromLockfile?.dependencyLockfile,
       options.workspacePackages,
       options.currentDepth,
@@ -338,6 +343,7 @@ async function resolveDependenciesOfDependency (
 async function resolveChildren (
   ctx: ResolutionContext,
   parentPkg: PkgAddress,
+  parentPkgAliases: string[],
   dependencyLockfile: PackageSnapshot | undefined,
   workspacePackages: WorkspacePackages | undefined,
   parentDepth: number,
@@ -365,6 +371,7 @@ async function resolveChildren (
     {
       currentDepth: parentDepth + 1,
       parentPkg,
+      parentPkgAliases,
       preferredDependencies: currentResolvedDependencies,
       // If the package is not linked, we should also gather information about its dependencies.
       // After linking the package we'll need to symlink its dependencies.
@@ -562,6 +569,7 @@ interface ResolveDependencyOptions {
     dependencyLockfile?: PackageSnapshot
   }
   parentPkg: ParentPkg
+  parentPkgAliases: string[]
   preferredVersions: PreferredVersions
   proceed: boolean
   update: boolean
@@ -695,6 +703,13 @@ async function resolveDependency (
   pkg = (ctx.readPackageHook != null)
     ? await ctx.readPackageHook(pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!())
     : pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
+  // TODO: except optional
+  for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
+    if (!options.parentPkgAliases.includes(peerName)) {
+      pkg.dependencies = pkg.dependencies ?? {}
+      pkg.dependencies[peerName] = peerVersion
+    }
+  }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
