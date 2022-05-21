@@ -40,9 +40,9 @@ import * as dp from 'dependency-path'
 import exists from 'path-exists'
 import isEmpty from 'ramda/src/isEmpty'
 import semver from 'semver'
-import { intersect } from 'semver-range-intersect'
 import encodePkgId from './encodePkgId'
 import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
+import { safeIntersect } from './mergePeers'
 import {
   createNodeId,
   nodeIdContainsSequence,
@@ -290,7 +290,7 @@ function mergePkgsDeps (pkgsDeps: Array<Record<string, string>>): Record<string,
   }
   const mergedPkgDeps = {} as Record<string, string>
   for (const [name, ranges] of Object.entries(groupedRanges)) {
-    const intersection = intersect(...ranges)
+    const intersection = safeIntersect(ranges)
     if (intersection) {
       mergedPkgDeps[name] = intersection
     }

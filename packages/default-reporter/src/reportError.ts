@@ -412,5 +412,6 @@ ${hints.map((hint) => `hint: ${hint}`).join('\n')}
 }
 
 function getHasMissingPeers (issuesByProjects: PeerDependencyIssuesByProjects) {
-  return Object.values(issuesByProjects).some((issues) => Object.keys(issues.missing).length > 0)
+  return Object.values(issuesByProjects)
+    .some((issues) => Object.values(issues.missing).flat().some(({ optional }) => !optional))
 }
