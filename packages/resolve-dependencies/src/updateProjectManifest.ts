@@ -22,7 +22,7 @@ export default async function updateProjectManifest (
     throw new Error('Cannot save because no package.json found')
   }
   const specsToUpsert = opts.directDependencies
-    .filter((rdd, index) => importer.wantedDependencies[index]!.updateSpec)
+    .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
     .map((rdd, index) => {
       const wantedDep = importer.wantedDependencies[index]!
       return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw }, importer, {

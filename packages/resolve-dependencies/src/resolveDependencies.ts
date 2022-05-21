@@ -160,6 +160,7 @@ export type PkgAddress = {
   version?: string
   updated: boolean
   rootDir: string
+  missingPeers: Record<string, string>
 } & ({
   isLinkedDependency: true
   version: string
@@ -223,26 +224,41 @@ export default async function resolveDependencies (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: ResolvedDependenciesOptions
 ): Promise<Array<PkgAddress | LinkedDependency>> {
-  const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
-    preferredDependencies: options.preferredDependencies,
-    prefix: ctx.prefix,
-    proceed: options.proceed || ctx.forceFullResolution,
-    registries: ctx.registries,
-    resolvedDependencies: options.resolvedDependencies,
-  })
+  let extendedWantedDeps = [] as ExtendedWantedDependency[]
   const postponedResolutionsQueue = [] as Array<(preferredVersions: PreferredVersions, parentPkgAliases: string[]) => Promise<void>>
-  const pkgAddresses = (
-    await Promise.all(
-      extendedWantedDeps.map(async (extendedWantedDep) => resolveDependenciesOfDependency(
-        postponedResolutionsQueue,
-        ctx,
-        preferredVersions,
-        options,
-        extendedWantedDep
-      ))
+  let pkgAddresses = [] as PkgAddress[]
+  while (true) {
+    extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+      preferredDependencies: options.preferredDependencies,
+      prefix: ctx.prefix,
+      proceed: options.proceed || ctx.forceFullResolution,
+      registries: ctx.registries,
+      resolvedDependencies: options.resolvedDependencies,
+    })
+    const newPkgAddresses = (
+      await Promise.all(
+        extendedWantedDeps.map(async (extendedWantedDep) => resolveDependenciesOfDependency(
+          postponedResolutionsQueue,
+          ctx,
+          preferredVersions,
+          options,
+          extendedWantedDep
+        ))
+      )
     )
-  )
-    .filter(Boolean) as PkgAddress[]
+      .filter(Boolean) as PkgAddress[]
+    pkgAddresses = [
+      ...pkgAddresses,
+      ...newPkgAddresses,
+    ]
+    // TODO: make an overlap for the version ranges
+    const allMissingPeers = newPkgAddresses.reduce((acc, { missingPeers }) => ({ ...acc, ...missingPeers }), {})
+    if (!Object.keys(allMissingPeers).length) break
+    wantedDependencies = getNonDevWantedDependencies({ name: '', version: '', dependencies: allMissingPeers })
+    wantedDependencies.forEach(({ alias }) => {
+      options.parentPkgAliases.push(alias)
+    })
+  }
 
   const newPreferredVersions = { ...preferredVersions }
   const newParentPkgAliases = [...options.parentPkgAliases]
@@ -703,11 +719,11 @@ async function resolveDependency (
   pkg = (ctx.readPackageHook != null)
     ? await ctx.readPackageHook(pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!())
     : pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
+  const missingPeers = {} as Record<string, string>
   // TODO: except optional
   for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
     if (!options.parentPkgAliases.includes(peerName)) {
-      pkg.dependencies = pkg.dependencies ?? {}
-      pkg.dependencies[peerName] = peerVersion
+      missingPeers[peerName] = peerVersion
     }
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
@@ -852,6 +868,7 @@ async function resolveDependency (
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
     rootDir,
+    missingPeers,
 
     // Next fields are actually only needed when isNew = true
     installable,
