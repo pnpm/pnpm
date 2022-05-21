@@ -230,9 +230,9 @@ export default async function resolveDependencies (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: ResolvedDependenciesOptions
 ): Promise<Array<PkgAddress | LinkedDependency>> {
-  let extendedWantedDeps = [] as ExtendedWantedDependency[]
+  let extendedWantedDeps: ExtendedWantedDependency[] = []
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
-  const pkgAddresses = [] as PkgAddress[]
+  const pkgAddresses: PkgAddress[] = []
   while (true) {
     extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
       preferredDependencies: options.preferredDependencies,
@@ -251,8 +251,7 @@ export default async function resolveDependencies (
           extendedWantedDep
         ))
       )
-    )
-      .filter(Boolean) as PkgAddress[]
+    ).filter(Boolean) as PkgAddress[]
     pkgAddresses.push(...newPkgAddresses)
     if (!ctx.autoInstallPeers) break
     const allMissingPeers = mergePkgsDeps(newPkgAddresses.map(({ missingPeers }) => missingPeers))
