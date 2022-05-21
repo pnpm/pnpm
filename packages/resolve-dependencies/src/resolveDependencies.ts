@@ -116,6 +116,7 @@ export interface ChildrenByParentDepPath {
 }
 
 export interface ResolutionContext {
+  autoInstallPeers: boolean
   allowBuild?: (pkgName: string) => boolean
   updatedSet: Set<string>
   defaultTag: string
@@ -251,6 +252,7 @@ export default async function resolveDependencies (
       ...pkgAddresses,
       ...newPkgAddresses,
     ]
+    if (!ctx.autoInstallPeers) break
     // TODO: make an overlap for the version ranges
     const allMissingPeers = newPkgAddresses.reduce((acc, { missingPeers }) => ({ ...acc, ...missingPeers }), {})
     if (!Object.keys(allMissingPeers).length) break
