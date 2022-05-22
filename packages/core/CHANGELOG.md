@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 2.9.0
+
+### Minor Changes
+
+- 53b92ff2b: New option added for automatically installing missing peer dependencies: `autoInstallPeers`.
+
+### Patch Changes
+
+- Updated dependencies [53b92ff2b]
+- Updated dependencies [53b92ff2b]
+  - @pnpm/resolve-dependencies@25.1.0
+  - @pnpm/prune-lockfile@3.0.17
+
 ## 2.8.2
 
 ### Patch Changes

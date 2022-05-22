@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.32.16
+
+### Patch Changes
+
+- When `auto-install-peers` is set to `true`, automatically install missing peer dependencies without writing them to `package.json` as dependencies. This makes pnpm handle peer dependencies the same way as npm v7 [#4776](https://github.com/pnpm/pnpm/pull/4776).
+
 ## 6.32.15
 
 ### Patch Changes

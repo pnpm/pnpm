@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.16
+
+### Patch Changes
+
+- 53b92ff2b: When `auto-install-peers` is set to `true`, automatically install missing peer dependencies without writing them to `package.json` as dependencies. This makes pnpm handle peer dependencies the same way as npm v7 [#4776](https://github.com/pnpm/pnpm/pull/4776).
+- Updated dependencies [53b92ff2b]
+  - @pnpm/core@2.9.0
+  - @pnpm/cli-utils@0.6.54
+  - @pnpm/find-workspace-packages@3.1.46
+  - @pnpm/plugin-commands-rebuild@5.4.22
+  - @pnpm/filter-workspace-packages@4.4.27
+
 ## 8.4.15
 
 ### Patch Changes

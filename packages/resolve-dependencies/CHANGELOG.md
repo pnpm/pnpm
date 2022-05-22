@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 25.1.0
+
+### Minor Changes
+
+- 53b92ff2b: New option added for automatically installing missing peer dependencies: `autoInstallPeers`.
+
+### Patch Changes
+
+- Updated dependencies [53b92ff2b]
+  - @pnpm/prune-lockfile@3.0.17
+
 ## 25.0.10
 
 ### Patch Changes

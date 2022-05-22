@@ -1,5 +1,11 @@
 # @pnpm/prune-lockfile
 
+## 3.0.17
+
+### Patch Changes
+
+- 53b92ff2b: Don't prune peer deps.
+
 ## 3.0.16
 
 ### Patch Changes

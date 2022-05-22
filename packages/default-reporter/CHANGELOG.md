@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 8.5.16
+
+### Patch Changes
+
+- 53b92ff2b: Add hints to the peer dependencies error.
+
 ## 8.5.15
 
 ### Patch Changes
