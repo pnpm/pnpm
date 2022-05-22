@@ -136,7 +136,7 @@ export default async function (
         difference(
           Object.keys(getAllDependenciesFromManifest(project.manifest)),
           resolvedImporter.directDependencies
-            .filter((dep, index) => project.wantedDependencies[index].isNew === true)
+            .filter((dep, index) => project.wantedDependencies[index]?.isNew === true)
             .map(({ alias }) => alias) || []
         ),
         project.modulesDir

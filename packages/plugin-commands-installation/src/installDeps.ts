@@ -20,7 +20,6 @@ import {
 import logger from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import isSubdir from 'is-subdir'
-import isEmpty from 'ramda/src/isEmpty'
 import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
@@ -233,29 +232,8 @@ when running add/update with the --workspace option')
       rootDir: opts.dir,
       targetDependenciesField: getSaveType(opts),
     }
-    let [updatedImporter] = await mutateModules([mutatedProject], {
-      ...installOpts,
-      strictPeerDependencies: opts.autoInstallPeers ? false : installOpts.strictPeerDependencies,
-    })
+    const [updatedImporter] = await mutateModules([mutatedProject], installOpts)
     if (opts.save !== false) {
-      if (opts.autoInstallPeers && !isEmpty(updatedImporter.peerDependencyIssues?.intersections ?? {})) {
-        logger.info({
-          message: 'Installing missing peer dependencies',
-          prefix: opts.dir,
-        })
-        const dependencySelectors = Object.entries(updatedImporter.peerDependencyIssues!.intersections)
-          .map(([name, version]: [string, string]) => `${name}@${version}`)
-        const result = await mutateModules([
-          {
-            ...mutatedProject,
-            dependencySelectors,
-            manifest: updatedImporter.manifest,
-            peer: false,
-            targetDependenciesField: 'devDependencies',
-          },
-        ], installOpts)
-        updatedImporter = result[0]
-      }
       await writeProjectManifest(updatedImporter.manifest)
     }
     return

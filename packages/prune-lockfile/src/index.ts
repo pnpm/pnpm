@@ -9,7 +9,6 @@ import { PackageManifest } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
-import omit from 'ramda/src/omit'
 import unnest from 'ramda/src/unnest'
 
 export * from '@pnpm/lockfile-types'
@@ -197,7 +196,7 @@ function copyDependencySubGraph (
     } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
       depLockfile.dev = false
     }
-    const newDependencies = resolvedDepsToDepPaths(omit(Object.keys(depLockfile.peerDependencies ?? {}) ?? [], depLockfile.dependencies ?? {}))
+    const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
     copyDependencySubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
     copyDependencySubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })

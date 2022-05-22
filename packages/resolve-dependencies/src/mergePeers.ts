@@ -20,7 +20,7 @@ export function mergePeers (missingPeers: MissingPeerIssuesByPeerName) {
   return { conflicts, intersections }
 }
 
-function safeIntersect (ranges: string[]): null | string {
+export function safeIntersect (ranges: string[]): null | string {
   try {
     return intersect(...ranges)
   } catch {

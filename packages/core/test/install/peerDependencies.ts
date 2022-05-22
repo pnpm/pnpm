@@ -1116,7 +1116,7 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   ], await testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/@types/mongoose/5.7.32'].dev).toBeTruthy()
+  expect(lockfile.packages['/@types/mongoose/5.7.32'].dev).toBeUndefined()
 
   await mutateModules([
     {

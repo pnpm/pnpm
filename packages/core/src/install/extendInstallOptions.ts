@@ -16,6 +16,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface StrictInstallOptions {
+  autoInstallPeers: boolean
   forceSharedLockfile: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
@@ -107,6 +108,7 @@ const defaults = async (opts: InstallOptions) => {
     version: pnpmPkgJson.version,
   }
   return {
+    autoInstallPeers: false,
     childConcurrency: 5,
     depth: 0,
     enablePnp: false,

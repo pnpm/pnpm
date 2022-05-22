@@ -52,6 +52,7 @@ export interface ImporterToResolveGeneric<T> extends Importer<T> {
 }
 
 export interface ResolveDependenciesOptions {
+  autoInstallPeers?: boolean
   allowBuild?: (pkgName: string) => boolean
   currentLockfile: Lockfile
   dryRun: boolean
@@ -84,6 +85,7 @@ export default async function<T> (
 
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
+    autoInstallPeers: opts.autoInstallPeers === true,
     allowBuild: opts.allowBuild,
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
@@ -135,6 +137,7 @@ export default async function<T> (
         depPath: importer.id,
         rootDir: importer.rootDir,
       },
+      parentPkgAliases: {},
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
