@@ -1,5 +1,11 @@
 # @pnpm/prune-lockfile
 
+## 4.0.4
+
+### Patch Changes
+
+- 190f0b331: Don't prune peer deps.
+
 ## 4.0.3
 
 ### Patch Changes

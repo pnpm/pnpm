@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "5.1.2",
+  "version": "5.2.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -38,12 +38,12 @@
     "@pnpm/package-requester": "workspace:18.0.5",
     "@pnpm/parse-overrides": "workspace:2.0.1",
     "@pnpm/parse-wanted-dependency": "workspace:3.0.0",
-    "@pnpm/prune-lockfile": "workspace:4.0.3",
+    "@pnpm/prune-lockfile": "workspace:4.0.4",
     "@pnpm/read-modules-dir": "workspace:4.0.0",
     "@pnpm/read-package-json": "workspace:6.0.2",
     "@pnpm/read-project-manifest": "workspace:3.0.2",
     "@pnpm/remove-bins": "workspace:3.0.2",
-    "@pnpm/resolve-dependencies": "workspace:27.0.4",
+    "@pnpm/resolve-dependencies": "workspace:27.1.0",
     "@pnpm/resolver-base": "workspace:9.0.1",
     "@pnpm/store-controller-types": "workspace:13.0.1",
     "@pnpm/symlink-dependency": "workspace:5.0.1",
@@ -70,7 +70,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:4.0.2",
     "@pnpm/client": "workspace:7.1.2",
-    "@pnpm/core": "workspace:5.1.2",
+    "@pnpm/core": "workspace:5.2.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:13.0.5",
     "@pnpm/prepare": "workspace:*",

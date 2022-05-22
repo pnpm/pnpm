@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prune-lockfile",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "description": "Prune a pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/prune-lockfile#readme",
   "devDependencies": {
-    "@pnpm/prune-lockfile": "workspace:4.0.3",
+    "@pnpm/prune-lockfile": "workspace:4.0.4",
     "@types/ramda": "0.27.39",
     "yaml-tag": "1.1.0"
   },
