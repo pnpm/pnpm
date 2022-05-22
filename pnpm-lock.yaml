@@ -42,7 +42,7 @@ importers:
       '@commitlint/prompt-cli': ^16.0.0
       '@pnpm/eslint-config': workspace:*
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/tsconfig': workspace:*
       '@types/jest': ^27.4.0
       '@types/node': ^14.17.32
@@ -73,7 +73,7 @@ importers:
       '@commitlint/prompt-cli': 16.2.4
       '@pnpm/eslint-config': link:utils/eslint-config
       '@pnpm/meta-updater': 0.0.6
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/tsconfig': link:utils/tsconfig
       '@types/jest': 27.5.0
       '@types/node': 14.18.16
@@ -422,7 +422,7 @@ importers:
       '@pnpm/read-modules-dir': workspace:3.0.1
       '@pnpm/read-package-json': workspace:5.0.12
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/remove-bins': workspace:2.0.14
       '@pnpm/resolve-dependencies': workspace:25.0.10
       '@pnpm/resolver-base': workspace:8.1.6
@@ -530,7 +530,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/store-path': 5.0.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/fs-extra': 9.0.13
@@ -1096,7 +1096,7 @@ importers:
       '@pnpm/read-project-manifest': workspace:2.0.13
       '@pnpm/read-projects-context': workspace:5.0.19
       '@pnpm/real-hoist': workspace:0.1.10
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/store-path': ^5.0.0
       '@pnpm/symlink-dependency': workspace:4.0.13
@@ -1157,7 +1157,7 @@ importers:
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/read-projects-context': link:../read-projects-context
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/store-path': 5.0.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/fs-extra': 9.0.13
@@ -1846,7 +1846,7 @@ importers:
       '@pnpm/package-requester': workspace:17.0.3
       '@pnpm/package-store': workspace:12.1.15
       '@pnpm/read-package-json': workspace:5.0.12
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/test-fixtures': workspace:*
@@ -1897,7 +1897,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/package-requester': 'link:'
       '@pnpm/package-store': link:../package-store
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.39
@@ -2158,7 +2158,7 @@ importers:
       '@pnpm/pnpmfile': workspace:1.2.6
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/sort-packages': workspace:2.1.8
@@ -2255,7 +2255,7 @@ importers:
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/is-ci': 3.0.0
       '@types/proxyquire': 1.3.28
@@ -2286,7 +2286,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:8.4.15
       '@pnpm/plugin-commands-listing': workspace:4.1.15
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/types': workspace:7.10.0
       '@types/ramda': 0.27.39
       execa: npm:safe-execa@^0.1.1
@@ -2310,7 +2310,7 @@ importers:
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@types/ramda': 0.27.39
       execa: /safe-execa/0.1.1
       strip-ansi: 6.0.1
@@ -2334,7 +2334,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:8.4.15
       '@pnpm/plugin-commands-outdated': workspace:5.1.14
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/semver-diff': ^1.0.2
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.10.0
@@ -2377,7 +2377,7 @@ importers:
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@types/lru-cache': 5.1.1
       '@types/ramda': 0.27.39
       '@types/wrap-ansi': 3.0.0
@@ -2397,7 +2397,7 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.11
       '@pnpm/plugin-commands-publishing': workspace:4.5.8
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/run-npm': workspace:3.1.1
       '@pnpm/sort-packages': workspace:2.1.8
@@ -2460,7 +2460,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@types/cross-spawn': 6.0.2
       '@types/is-ci': 3.0.0
       '@types/is-windows': 1.0.0
@@ -2497,7 +2497,7 @@ importers:
       '@pnpm/normalize-registries': workspace:2.0.13
       '@pnpm/plugin-commands-rebuild': workspace:5.4.21
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/sort-packages': workspace:2.1.8
       '@pnpm/store-connection-manager': workspace:3.2.14
       '@pnpm/store-controller-types': workspace:12.0.0
@@ -2557,7 +2557,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/test-fixtures': link:../../privatePackages/test-fixtures
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
@@ -2583,7 +2583,7 @@ importers:
       '@pnpm/prepare': workspace:*
       '@pnpm/read-package-json': workspace:5.0.12
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/sort-packages': workspace:2.1.8
       '@pnpm/store-path': ^5.0.0
       '@pnpm/types': workspace:7.10.0
@@ -2626,7 +2626,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@types/is-windows': 1.0.0
       '@types/ramda': 0.27.39
       is-windows: 1.0.2
@@ -2720,7 +2720,7 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.11
       '@pnpm/plugin-commands-store': workspace:4.1.19
       '@pnpm/prepare': workspace:*
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/store-connection-manager': workspace:3.2.14
       '@pnpm/store-controller-types': workspace:12.0.0
       '@pnpm/store-path': ^5.0.0
@@ -2767,7 +2767,7 @@ importers:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@types/archy': 0.0.31
       '@types/ramda': 0.27.39
       '@types/ssri': 7.1.1
@@ -2814,7 +2814,7 @@ importers:
       '@pnpm/prepare': workspace:*
       '@pnpm/read-package-json': workspace:5.0.12
       '@pnpm/read-project-manifest': workspace:2.0.13
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/run-npm': workspace:3.1.1
       '@pnpm/store-path': ^5.0.0
       '@pnpm/tabtab': ^0.1.2
@@ -2904,7 +2904,7 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/run-npm': link:../run-npm
       '@pnpm/store-path': 5.0.0
       '@pnpm/tabtab': 0.1.2
@@ -3474,7 +3474,7 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/lockfile-types': workspace:3.2.0
       '@pnpm/modules-yaml': workspace:9.1.1
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/types': workspace:7.10.0
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
@@ -3489,7 +3489,7 @@ importers:
       '@pnpm/constants': link:../../packages/constants
       '@pnpm/lockfile-types': link:../../packages/lockfile-types
       '@pnpm/modules-yaml': link:../../packages/modules-yaml
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       '@pnpm/types': link:../../packages/types
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -3506,11 +3506,11 @@ importers:
     specifiers:
       '@pnpm/assert-store': workspace:*
       '@pnpm/cafs': workspace:3.0.16
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       path-exists: ^4.0.0
     dependencies:
       '@pnpm/cafs': link:../../packages/cafs
-      '@pnpm/registry-mock': 2.16.0
+      '@pnpm/registry-mock': 2.17.0
       path-exists: 4.0.0
     devDependencies:
       '@pnpm/assert-store': 'link:'
@@ -4380,10 +4380,10 @@ packages:
       '@commitlint/execute-rule': 16.2.1
       '@commitlint/resolve-extends': 16.2.1
       '@commitlint/types': 16.2.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       chalk: 4.1.2
       cosmiconfig: 7.0.1
-      cosmiconfig-typescript-loader: 1.0.9_l47be6km5p57gglrggidw5gsgm
+      cosmiconfig-typescript-loader: 1.0.9_mocf6w6juzjyi26vrxr4oqpfq4
       lodash: 4.17.21
       resolve-from: 5.0.0
       typescript: 4.6.4
@@ -4552,7 +4552,7 @@ packages:
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     dependencies:
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       chalk: 4.1.2
       jest-message-util: 27.5.1
       jest-util: 27.5.1
@@ -4573,7 +4573,7 @@ packages:
       '@jest/test-result': 27.5.1
       '@jest/transform': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.8.1
@@ -4610,7 +4610,7 @@ packages:
     dependencies:
       '@jest/fake-timers': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       jest-mock: 27.5.1
     dev: true
 
@@ -4620,7 +4620,7 @@ packages:
     dependencies:
       '@jest/types': 27.5.1
       '@sinonjs/fake-timers': 8.1.0
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       jest-message-util: 27.5.1
       jest-mock: 27.5.1
       jest-util: 27.5.1
@@ -4649,7 +4649,7 @@ packages:
       '@jest/test-result': 27.5.1
       '@jest/transform': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       chalk: 4.1.2
       collect-v8-coverage: 1.0.1
       exit: 0.1.2
@@ -4733,7 +4733,7 @@ packages:
     dependencies:
       '@types/istanbul-lib-coverage': 2.0.4
       '@types/istanbul-reports': 3.0.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       '@types/yargs': 16.0.4
       chalk: 4.1.2
     dev: true
@@ -5099,8 +5099,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.16.0:
-    resolution: {integrity: sha512-Ro5tsRBR+qTnYne6B9aQJIzsyIJWhSBfARZMpEBmVVUysivYPWjoIRBNZ3EVbtt67oF6tMXTBGViPvYkwQYeyQ==}
+  /@pnpm/registry-mock/2.17.0:
+    resolution: {integrity: sha512-vZuWSJaixugxz0Y39VIEKeyYm69TG3/8qXkgMXjLjRWtE/4EezKKGfiAEhuJasSdvVoYUQWY2Ng0nEkWihTN9w==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -5288,7 +5288,7 @@ packages:
   /@types/byline/4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 17.0.31
+      '@types/node': 17.0.35
     dev: true
 
   /@types/cacheable-request/6.0.2:
@@ -5296,7 +5296,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.1
       '@types/keyv': 3.1.4
-      '@types/node': 17.0.31
+      '@types/node': 17.0.35
       '@types/responselike': 1.0.0
 
   /@types/concat-stream/1.6.1:
@@ -5413,7 +5413,7 @@ packages:
   /@types/keyv/3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 17.0.31
+      '@types/node': 17.0.35
 
   /@types/lodash/4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
@@ -5462,6 +5462,9 @@ packages:
   /@types/node/17.0.31:
     resolution: {integrity: sha512-AR0x5HbXGqkEx9CadRH3EBYx/VkiUgZIhP4wvPn/+5KIsgpNoyFaRlVe0Zlx9gRtg8fA06a9tskE2MSN7TcG4Q==}
 
+  /@types/node/17.0.35:
+    resolution: {integrity: sha512-vu1SrqBjbbZ3J6vwY17jBs8Sr/BKA+/a/WtjRG+whKg1iuLFOosq872EXS0eXWILdO36DHQQeku/ZcL6hz2fpg==}
+
   /@types/normalize-package-data/2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
     dev: true
@@ -5494,7 +5497,7 @@ packages:
   /@types/responselike/1.0.0:
     resolution: {integrity: sha512-85Y2BjiufFzaMIlvJDvTTB8Fxl2xfLo4HgmHzVBz08w4wDePCTjYw66PdrolO0kzli3yam/YCgRufyo1DdQVTA==}
     dependencies:
-      '@types/node': 17.0.31
+      '@types/node': 17.0.35
 
   /@types/retry/0.12.2:
     resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}
@@ -6441,7 +6444,7 @@ packages:
       printable-characters: 1.0.42
 
   /asap/2.0.6:
-    resolution: {integrity: sha1-5QNHYR1+aQlDIIu9r+vLwvuGbUY=}
+    resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
 
   /asn1/0.2.6:
     resolution: {integrity: sha512-ix/FxPn0MDjeyJ7i/yoHGFt/EX6LyNbxSEhPPXODPL+KB0VPk86UYfL0lMdy+KCnv+fmvIzySwaK5COwqVbWTQ==}
@@ -7357,16 +7360,16 @@ packages:
       object-assign: 4.1.1
       vary: 1.1.2
 
-  /cosmiconfig-typescript-loader/1.0.9_l47be6km5p57gglrggidw5gsgm:
+  /cosmiconfig-typescript-loader/1.0.9_mocf6w6juzjyi26vrxr4oqpfq4:
     resolution: {integrity: sha512-tRuMRhxN4m1Y8hP9SNYfz7jRwt8lZdWxdjg/ohg5esKmsndJIn4yT96oJVcf5x0eA11taXl+sIp+ielu529k6g==}
     engines: {node: '>=12', npm: '>=6'}
     peerDependencies:
       '@types/node': '*'
       typescript: '>=3'
     dependencies:
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       cosmiconfig: 7.0.1
-      ts-node: 10.7.0_l47be6km5p57gglrggidw5gsgm
+      ts-node: 10.7.0_mocf6w6juzjyi26vrxr4oqpfq4
       typescript: 4.6.4
     transitivePeerDependencies:
       - '@swc/core'
@@ -9484,7 +9487,7 @@ packages:
       source-map: 0.6.1
       wordwrap: 1.0.0
     optionalDependencies:
-      uglify-js: 3.15.4
+      uglify-js: 3.15.5
 
   /har-schema/2.0.0:
     resolution: {integrity: sha1-qUwiJOvKwEeCoNkDVSHyRzW37JI=}
@@ -10274,7 +10277,7 @@ packages:
       '@jest/environment': 27.5.1
       '@jest/test-result': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       chalk: 4.1.2
       co: 4.6.0
       dedent: 0.7.0
@@ -10400,7 +10403,7 @@ packages:
       '@jest/environment': 27.5.1
       '@jest/fake-timers': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       jest-mock: 27.5.1
       jest-util: 27.5.1
       jsdom: 16.7.0
@@ -10418,7 +10421,7 @@ packages:
       '@jest/environment': 27.5.1
       '@jest/fake-timers': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       jest-mock: 27.5.1
       jest-util: 27.5.1
     dev: true
@@ -10434,7 +10437,7 @@ packages:
     dependencies:
       '@jest/types': 27.5.1
       '@types/graceful-fs': 4.1.5
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       anymatch: 3.1.2
       fb-watchman: 2.0.1
       graceful-fs: 4.2.10
@@ -10456,7 +10459,7 @@ packages:
       '@jest/source-map': 27.5.1
       '@jest/test-result': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       chalk: 4.1.2
       co: 4.6.0
       expect: 27.5.1
@@ -10511,7 +10514,7 @@ packages:
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     dependencies:
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
     dev: true
 
   /jest-pnp-resolver/1.2.2_jest-resolve@27.5.1:
@@ -10567,7 +10570,7 @@ packages:
       '@jest/test-result': 27.5.1
       '@jest/transform': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       chalk: 4.1.2
       emittery: 0.8.1
       graceful-fs: 4.2.10
@@ -10624,7 +10627,7 @@ packages:
     resolution: {integrity: sha512-jZCyo6iIxO1aqUxpuBlwTDMkzOAJS4a3eYz3YzgxxVQFwLeSA7Jfq5cbqCY+JLvTDrWirgusI/0KwxKMgrdf7w==}
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     dependencies:
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       graceful-fs: 4.2.10
     dev: true
 
@@ -10663,7 +10666,7 @@ packages:
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     dependencies:
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       chalk: 4.1.2
       ci-info: 3.3.0
       graceful-fs: 4.2.10
@@ -10688,7 +10691,7 @@ packages:
     dependencies:
       '@jest/test-result': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       jest-util: 27.5.1
@@ -10699,7 +10702,7 @@ packages:
     resolution: {integrity: sha512-7vuh85V5cdDofPyxn58nrPjBktZo0u9x1g8WtjQol+jZDaE+fhN+cIvTj11GndBnMnyfrUOG1sZQxCdjKh+DKg==}
     engines: {node: '>= 10.13.0'}
     dependencies:
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       merge-stream: 2.0.0
       supports-color: 8.1.1
     dev: true
@@ -14485,7 +14488,7 @@ packages:
       yargs-parser: 20.2.9
     dev: true
 
-  /ts-node/10.7.0_l47be6km5p57gglrggidw5gsgm:
+  /ts-node/10.7.0_mocf6w6juzjyi26vrxr4oqpfq4:
     resolution: {integrity: sha512-TbIGS4xgJoX2i3do417KSaep1uRAW/Lu+WAL2doDHC0D6ummjirVOXU5/7aiZotbQ5p1Zp9tP7U6cYhA0O7M8A==}
     hasBin: true
     peerDependencies:
@@ -14504,7 +14507,7 @@ packages:
       '@tsconfig/node12': 1.0.9
       '@tsconfig/node14': 1.0.1
       '@tsconfig/node16': 1.0.2
-      '@types/node': 17.0.31
+      '@types/node': 14.18.16
       acorn: 8.7.1
       acorn-walk: 8.2.0
       arg: 4.1.3
@@ -14702,8 +14705,8 @@ packages:
     hasBin: true
     dev: true
 
-  /uglify-js/3.15.4:
-    resolution: {integrity: sha512-vMOPGDuvXecPs34V74qDKk4iJ/SN4vL3Ow/23ixafENYvtrNvtbcgUeugTcUGRGsOF/5fU8/NYSL5Hyb3l1OJA==}
+  /uglify-js/3.15.5:
+    resolution: {integrity: sha512-hNM5q5GbBRB5xB+PMqVRcgYe4c8jbyZ1pzZhS6jbq54/4F2gFK869ZheiE5A8/t+W5jtTNpWef/5Q9zk639FNQ==}
     engines: {node: '>=0.8.0'}
     hasBin: true
     requiresBuild: true

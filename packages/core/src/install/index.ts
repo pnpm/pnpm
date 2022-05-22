@@ -738,6 +738,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     projects,
     {
       allowBuild: createAllowBuildFunction(opts),
+      autoInstallPeers: opts.autoInstallPeers,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,
       dryRun: opts.lockfileOnly,
