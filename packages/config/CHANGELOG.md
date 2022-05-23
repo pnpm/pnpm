@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.13.4
+
+### Patch Changes
+
+- c4c942128: Do not return a default value for the node-version setting.
+
 ## 13.13.3
 
 ### Patch Changes
