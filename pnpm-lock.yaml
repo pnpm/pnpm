@@ -343,13 +343,13 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.1.0
       '@pnpm/global-bin-dir': workspace:3.0.1
+      '@pnpm/npm-conf': 1.0.1
       '@pnpm/pnpmfile': workspace:1.2.6
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:2.0.13
       '@pnpm/types': workspace:7.10.0
       '@types/ramda': 0.27.39
       '@types/which': ^2.0.0
-      '@zkochan/npm-conf': 2.0.2
       camelcase: ^6.2.0
       can-write-to-dir: ^1.1.1
       is-subdir: ^1.1.1
@@ -362,10 +362,10 @@ importers:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
       '@pnpm/global-bin-dir': link:../global-bin-dir
+      '@pnpm/npm-conf': 1.0.1
       '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
-      '@zkochan/npm-conf': 2.0.2
       camelcase: 6.3.0
       can-write-to-dir: 1.1.1
       is-subdir: 1.2.0
@@ -5034,6 +5034,13 @@ packages:
     dependencies:
       abbrev: 1.1.1
 
+  /@pnpm/npm-conf/1.0.1:
+    resolution: {integrity: sha512-h5bZlJviHraLs0x12bn7gyewj4QIciNWjg5m9v9oTXw+dXHqeXf3wqpu66R919t2+59Bt268OUWyy/6gvZIstw==}
+    engines: {node: '>=14'}
+    dependencies:
+      config-chain: 1.1.13
+    dev: false
+
   /@pnpm/npm-lifecycle/1.0.4:
     resolution: {integrity: sha512-iEBd+wKi9dyo/vQuhxCPDiw33Liv2OCc5V4DpE01ij07vGshflP7p5GL8xkH16fBXxXAvPZ3wIs6wj4aNMt97A==}
     engines: {node: '>=12.17'}
@@ -6044,6 +6051,7 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       config-chain: 1.1.13
+    dev: true
 
   /@zkochan/npm-package-arg/2.0.1:
     resolution: {integrity: sha512-VvK3/jS9m/quSU970L5sZSvX9wmmhXnEu/GfffCz0/ZcMAUs471FFz2UJu56T/8N8hcKPODYuKHz8wL5xZZY3w==}

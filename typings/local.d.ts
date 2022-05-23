@@ -23,12 +23,12 @@ declare module '@zkochan/libnpx/index' {
   export = anything;
 }
 
-declare module '@zkochan/npm-conf' {
+declare module '@pnpm/npm-conf' {
   const anything: any;
   export = anything;
 }
 
-declare module '@zkochan/npm-conf/lib/types' {
+declare module '@pnpm/npm-conf/lib/types' {
   const anything: any;
   export = anything;
 }
