@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.1.3
+
+### Patch Changes
+
+- 05159665d: Do not return a default value for the node-version setting.
+
 ## 15.1.2
 
 ### Patch Changes
