@@ -10,8 +10,8 @@ import getConfig from '@pnpm/config'
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
 const isWindows = process.platform === 'win32'
 
-jest.mock('@zkochan/npm-conf/lib/conf', () => {
-  const originalModule = jest.requireActual('@zkochan/npm-conf/lib/conf')
+jest.mock('@pnpm/npm-conf/lib/conf', () => {
+  const originalModule = jest.requireActual('@pnpm/npm-conf/lib/conf')
   class MockedConf extends originalModule {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     constructor (base: any, types: any) {

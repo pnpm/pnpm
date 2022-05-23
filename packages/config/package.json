@@ -32,12 +32,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/config#readme",
   "dependencies": {
+    "@pnpm/npm-conf": "1.0.1",
     "@pnpm/constants": "workspace:6.1.0",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/pnpmfile": "workspace:2.0.2",
     "@pnpm/read-project-manifest": "workspace:3.0.2",
     "@pnpm/types": "workspace:8.0.1",
-    "@zkochan/npm-conf": "2.0.2",
     "camelcase": "^6.2.0",
     "can-write-to-dir": "^1.1.1",
     "is-subdir": "^1.1.1",
