@@ -4,8 +4,8 @@ import path from 'path'
 import PATH from 'path-name'
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+import loadNpmConf from '@pnpm/npm-conf'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
-import loadNpmConf from '@zkochan/npm-conf'
 
 import symlinkDir from 'symlink-dir'
 
@@ -36,6 +36,9 @@ test('getConfig()', async () => {
   expect(config.fetchRetryFactor).toEqual(10)
   expect(config.fetchRetryMintimeout).toEqual(10000)
   expect(config.fetchRetryMaxtimeout).toEqual(60000)
+  // nodeVersion should not have a default value.
+  // When not specified, the package-is-installable package detects nodeVersion automatically.
+  expect(config.nodeVersion).toBeUndefined()
 })
 
 test('throw error if --link-workspace-packages is used with --global', async () => {
