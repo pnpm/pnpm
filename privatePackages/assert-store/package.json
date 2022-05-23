@@ -17,7 +17,6 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "private": true,
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
