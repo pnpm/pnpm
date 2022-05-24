@@ -1,4 +1,5 @@
 import validateNpmPackageName from 'validate-npm-package-name'
+import fs from 'fs'
 
 interface ParsedWantedDependency {
   alias: string
@@ -24,6 +25,15 @@ export default function parseWantedDependency (
   if (validateNpmPackageName(rawWantedDependency).validForOldPackages) {
     return {
       alias: rawWantedDependency,
+    }
+  }
+  if (rawWantedDependency.startsWith('link:')) {
+    const linkFilePath = rawWantedDependency.slice(5)
+    const packageJson = fs.readFileSync(`${linkFilePath}/package.json`, 'utf8')
+    const parsedPackageJson = JSON.parse(packageJson)
+    return {
+      pref: rawWantedDependency,
+      alias: parsedPackageJson.name,
     }
   }
   return {
