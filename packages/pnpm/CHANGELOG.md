@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.1.4
+## 7.1.5
 
 ### Patch Changes
 
