@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 2.9.2
+
+### Patch Changes
+
+- 3a99eee1d: All the dependencies should support Node.js 12.
+  - @pnpm/lockfile-to-pnp@0.4.52
+  - @pnpm/headless@17.3.10
+
 ## 2.9.1
 
 ### Patch Changes

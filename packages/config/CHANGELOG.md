@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.13.5
+
+### Patch Changes
+
+- 3a99eee1d: Update `@pnpm/npm-conf`.
+
 ## 13.13.4
 
 ### Patch Changes
