@@ -343,7 +343,7 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.1.0
       '@pnpm/global-bin-dir': workspace:3.0.1
-      '@pnpm/npm-conf': 1.0.1
+      '@pnpm/npm-conf': 1.0.2
       '@pnpm/pnpmfile': workspace:1.2.6
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:2.0.13
@@ -362,7 +362,7 @@ importers:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
       '@pnpm/global-bin-dir': link:../global-bin-dir
-      '@pnpm/npm-conf': 1.0.1
+      '@pnpm/npm-conf': 1.0.2
       '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
@@ -440,7 +440,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/sinon': ^10.0.6
       '@yarnpkg/core': 3.2.0-rc.9
-      '@yarnpkg/extensions': 1.1.0-rc.1
+      '@yarnpkg/extensions': npm:@pnpm/extensions@0.0.0
       '@zkochan/npm-package-arg': ^2.0.1
       '@zkochan/rimraf': ^2.1.2
       deep-require-cwd: 1.0.0
@@ -504,7 +504,7 @@ importers:
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
       '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
-      '@yarnpkg/extensions': 1.1.0-rc.1_@yarnpkg+core@3.2.0-rc.9
+      '@yarnpkg/extensions': /@pnpm/extensions/0.0.0_@yarnpkg+core@3.2.0-rc.9
       '@zkochan/npm-package-arg': 2.0.1
       '@zkochan/rimraf': 2.1.2
       dependency-path: link:../dependency-path
@@ -4949,6 +4949,15 @@ packages:
       cross-spawn: 7.0.3
     dev: false
 
+  /@pnpm/extensions/0.0.0_@yarnpkg+core@3.2.0-rc.9:
+    resolution: {integrity: sha512-reWwjbkAhrcB5quwASQWw5RVHvxXjDUz+7oS5LZGbroR2MJfDvjlBVBmlmf6tjB1Z9CuPAl6sGCBVfvY3ZY4nA==}
+    engines: {node: '>=12.17.0'}
+    peerDependencies:
+      '@yarnpkg/core': '*'
+    dependencies:
+      '@yarnpkg/core': 3.2.0-rc.9
+    dev: false
+
   /@pnpm/find-workspace-dir/3.0.2:
     resolution: {integrity: sha512-40Psxd3Fb7V/kmqOaj2rPv07ycvm81avFwHeKHEXJU0JxVUv49iQjvMb6itm6NEbjyllmjmbU/6bl2tKr5A25Q==}
     engines: {node: '>=12.17'}
@@ -5034,9 +5043,9 @@ packages:
     dependencies:
       abbrev: 1.1.1
 
-  /@pnpm/npm-conf/1.0.1:
-    resolution: {integrity: sha512-h5bZlJviHraLs0x12bn7gyewj4QIciNWjg5m9v9oTXw+dXHqeXf3wqpu66R919t2+59Bt268OUWyy/6gvZIstw==}
-    engines: {node: '>=14'}
+  /@pnpm/npm-conf/1.0.2:
+    resolution: {integrity: sha512-NxJkEZQoSbf+pFWK+OfSdNGot99T1FM/poszx+/hK2U20RsEaBOE/uQWDaiZyxDf+iOSjtn++lVCKhPOHE+Jbg==}
+    engines: {node: '>=12'}
     dependencies:
       config-chain: 1.1.13
     dev: false
@@ -5888,15 +5897,6 @@ packages:
       treeify: 1.1.0
       tslib: 1.14.1
       tunnel: 0.0.6
-
-  /@yarnpkg/extensions/1.1.0-rc.1_@yarnpkg+core@3.2.0-rc.9:
-    resolution: {integrity: sha512-qQF7VrEteDam8AbDSXibLRzjIHfrvfuLxDyscmW9z8HrQfJHrVythuz4ihv5KoOKEq0bChNgwMle0kJXt2BTaw==}
-    engines: {node: '>=14.15.0'}
-    peerDependencies:
-      '@yarnpkg/core': '*'
-    dependencies:
-      '@yarnpkg/core': 3.2.0-rc.9
-    dev: false
 
   /@yarnpkg/fslib/2.6.1:
     resolution: {integrity: sha512-OtxwAUeBUt0ba/YnakcEw90YtYwQH+kT8wwHTP46HR8KuvVFawFLT6kwS18l5PARTIwKbqC1QaFyOrLn9xYfKg==}
