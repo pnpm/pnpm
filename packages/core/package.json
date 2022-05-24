@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "2.9.2",
+  "version": "2.9.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -71,7 +71,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:3.0.16",
     "@pnpm/client": "workspace:6.1.4",
-    "@pnpm/core": "workspace:2.9.2",
+    "@pnpm/core": "workspace:2.9.3",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.1.15",
     "@pnpm/prepare": "workspace:*",

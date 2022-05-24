@@ -395,7 +395,7 @@ importers:
       '@pnpm/calc-dep-state': workspace:1.0.0
       '@pnpm/client': workspace:6.1.4
       '@pnpm/constants': workspace:5.0.0
-      '@pnpm/core': workspace:2.9.2
+      '@pnpm/core': workspace:2.9.3
       '@pnpm/core-loggers': workspace:6.1.4
       '@pnpm/error': workspace:2.1.0
       '@pnpm/filter-lockfile': workspace:5.0.21
@@ -2139,7 +2139,7 @@ importers:
       '@pnpm/common-cli-options-help': workspace:0.8.0
       '@pnpm/config': workspace:13.13.5
       '@pnpm/constants': workspace:5.0.0
-      '@pnpm/core': workspace:2.9.2
+      '@pnpm/core': workspace:2.9.3
       '@pnpm/error': workspace:2.1.0
       '@pnpm/filter-workspace-packages': workspace:4.4.29
       '@pnpm/find-workspace-dir': workspace:3.0.2
