@@ -17,6 +17,7 @@ delete process.env.npm_config_registry
 delete process.env.npm_config_virtual_store_dir
 delete process.env.npm_config_shared_workspace_lockfile
 delete process.env.npm_config_side_effects_cache
+delete process.env.npm_config_node_version
 
 const env = {
   PNPM_HOME: __dirname,
