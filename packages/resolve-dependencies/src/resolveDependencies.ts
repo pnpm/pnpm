@@ -254,7 +254,7 @@ export default async function resolveDependencies (
     ).filter(Boolean) as PkgAddress[]
     pkgAddresses.push(...newPkgAddresses)
     if (!ctx.autoInstallPeers) break
-    const allMissingPeers = mergePkgsDeps(newPkgAddresses.map(({ missingPeers }) => missingPeers))
+    const allMissingPeers = mergePkgsDeps(newPkgAddresses.map(({ missingPeers }) => missingPeers).filter(Boolean))
     if (!Object.keys(allMissingPeers).length) break
     wantedDependencies = getNonDevWantedDependencies({ dependencies: allMissingPeers })
   }
