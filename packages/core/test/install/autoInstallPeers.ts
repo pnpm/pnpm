@@ -1,5 +1,5 @@
 import { addDependenciesToPackage } from '@pnpm/core'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { testDefaults } from '../utils'
 
@@ -34,4 +34,30 @@ test('do not auto install when there is no common peer dependency range intersec
     '/wants-peer-c-1/1.0.0',
     '/wants-peer-c-2/1.0.0',
   ])
+})
+
+test('don\'t fail on linked package, when peers are auto installed', async () => {
+  const pkgManifest = {
+    dependencies: {
+      linked: 'link:../linked',
+    },
+  }
+  preparePackages([
+    {
+      location: 'linked',
+      package: {
+        name: 'linked',
+        peerDependencies: {
+          'peer-c': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'pkg',
+      package: pkgManifest,
+    },
+  ])
+  process.chdir('pkg')
+  const updatedManifest = await addDependenciesToPackage(pkgManifest, ['peer-b'], await testDefaults({ autoInstallPeers: true }))
+  expect(Object.keys(updatedManifest.dependencies ?? {})).toStrictEqual(['linked', 'peer-b'])
 })
