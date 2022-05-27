@@ -1,5 +1,13 @@
 # @pnpm/cli-utils
 
+## 0.7.9
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/default-reporter@9.0.8
+
 ## 0.7.8
 
 ### Patch Changes

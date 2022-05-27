@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 27.1.1
+
+### Patch Changes
+
+- 45238e358: Don't fail on projects with linked dependencies, when `auto-install-peers` is set to `true` [#4796](https://github.com/pnpm/pnpm/issues/4796).
+
 ## 27.1.0
 
 ### Minor Changes

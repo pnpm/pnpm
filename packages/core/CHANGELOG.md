@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 5.2.2
+
+### Patch Changes
+
+- Updated dependencies [45238e358]
+  - @pnpm/resolve-dependencies@27.1.1
+  - @pnpm/lockfile-to-pnp@0.5.7
+  - @pnpm/headless@18.1.7
+
 ## 5.2.1
 
 ### Patch Changes

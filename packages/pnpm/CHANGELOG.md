@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.1.6
+
+### Patch Changes
+
+- Don't fail on projects with linked dependencies, when `auto-install-peers` is set to `true` [#4796](https://github.com/pnpm/pnpm/issues/4796).
+- `NODE_ENV=production pnpm install --dev` should only install dev deps [#4745](https://github.com/pnpm/pnpm/pull/4745).
+
 ## 7.1.5
 
 ### Patch Changes

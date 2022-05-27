@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.1.4
+
+### Patch Changes
+
+- ae2f845c5: `NODE_ENV=production pnpm install --dev` should only install dev deps [#4745](https://github.com/pnpm/pnpm/pull/4745).
+
 ## 15.1.3
 
 ### Patch Changes
