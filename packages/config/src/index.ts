@@ -338,6 +338,15 @@ export default async (
 
   pnpmConfig.packageManager = packageManager
 
+  if (env.NODE_ENV) {
+    if (cliOptions.production) {
+      pnpmConfig.only = 'production'
+    }
+    if (cliOptions.dev) {
+      pnpmConfig.only = 'dev'
+    }
+  }
+
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
     pnpmConfig.production = true
     pnpmConfig.dev = false
