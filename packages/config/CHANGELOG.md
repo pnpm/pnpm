@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.13.6
+
+### Patch Changes
+
+- d920113b2: `NODE_ENV=production pnpm install --dev` should only install dev deps [#4745](https://github.com/pnpm/pnpm/pull/4745).
+
 ## 13.13.5
 
 ### Patch Changes
