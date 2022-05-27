@@ -378,7 +378,7 @@ export default async (
 
   pnpmConfig.packageManager = packageManager
 
-  if (env.NODE_ENV) {
+  if (process.env.NODE_ENV) {
     if (cliOptions.production) {
       pnpmConfig.only = 'production'
     }
