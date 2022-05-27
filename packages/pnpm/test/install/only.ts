@@ -26,6 +26,15 @@ test('production install (with production NODE_ENV)', async () => {
   await project.has('is-positive')
 })
 
+test('dev dependencies install (with production NODE_ENV)', async () => {
+  const project = prepare(basicPackageManifest)
+
+  await execPnpm(['install', '--dev'], { env: { NODE_ENV: 'production' } })
+
+  await project.hasNot(Object.keys(basicPackageManifest.dependencies!)[0])
+  await project.has('@rstacruz/tap-spec')
+})
+
 test('install dev dependencies only', async () => {
   const project = prepare({
     dependencies: {
