@@ -27,7 +27,7 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@v1
     - name: Install pnpm
-      uses: pnpm/action-setup@v2.2.0
+      uses: pnpm/action-setup@v2.2.2
       with:
         version: next-7
     - name: Setup Node
