@@ -3,8 +3,8 @@ export function nodeIdContainsSequence (nodeId: string, pkgId1: string, pkgId2: 
   pkgIds.pop()
   const pkg1Index = pkgIds.indexOf(pkgId1)
   if (pkg1Index === -1) return false
-  const pkg2Index = pkgIds.indexOf(pkgId2)
-  return pkg2Index > -1 && pkg1Index < pkg2Index
+  const pkg2Index = pkgIds.lastIndexOf(pkgId2)
+  return pkg1Index < pkg2Index
 }
 
 export function createNodeId (parentNodeId: string, pkgId: string) {
