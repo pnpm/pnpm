@@ -22,7 +22,7 @@ export interface DependenciesGraph {
 }
 
 export default function buildSequence (
-  depGraph: DependenciesGraph,
+  depGraph: Record<string, Pick<DependenciesGraphNode, 'children' | 'requiresBuild'>>,
   rootDepPaths: string[]
 ) {
   const nodesToBuild = new Set<string>()
@@ -42,7 +42,7 @@ export default function buildSequence (
 }
 
 function getSubgraphToBuild (
-  graph: DependenciesGraph,
+  graph: Record<string, Pick<DependenciesGraphNode, 'children' | 'requiresBuild'>>,
   entryNodes: string[],
   nodesToBuild: Set<string>,
   walked: Set<string>
@@ -50,9 +50,6 @@ function getSubgraphToBuild (
   let currentShouldBeBuilt = false
   for (const depPath of entryNodes) {
     if (!graph[depPath]) continue // packages that are already in node_modules are skipped
-    if (nodesToBuild.has(depPath)) {
-      currentShouldBeBuilt = true
-    }
     if (walked.has(depPath)) continue
     walked.add(depPath)
     const childShouldBeBuilt = getSubgraphToBuild(graph, Object.values(graph[depPath].children), nodesToBuild, walked) ||
