@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 8.0.6
+
+### Patch Changes
+
+- 4bbf90fd7: Improve the performance of the build sequence calculation step.
+
 ## 8.0.5
 
 ### Patch Changes

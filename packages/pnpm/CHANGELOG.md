@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.32.19
+
+### Patch Changes
+
+- Improve the performance of the build sequence calculation step.
+- Correctly detect repeated dependency sequence during resolution.
+
 ## 6.32.18
 
 ### Patch Changes

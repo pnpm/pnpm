@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 25.1.2
+
+### Patch Changes
+
+- 06696f8b3: Correctly detect repeated dependency sequence during resolution.
+
 ## 25.1.1
 
 ### Patch Changes
