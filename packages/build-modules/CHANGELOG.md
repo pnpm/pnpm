@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 9.1.2
+
+### Patch Changes
+
+- 971f2c4a5: Improve the performance of the build sequence calculation step.
+
 ## 9.1.1
 
 ### Patch Changes

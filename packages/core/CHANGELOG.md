@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 5.2.3
+
+### Patch Changes
+
+- Updated dependencies [971f2c4a5]
+- Updated dependencies [2b543c774]
+  - @pnpm/build-modules@9.1.2
+  - @pnpm/resolve-dependencies@27.1.2
+  - @pnpm/headless@18.1.8
+
 ## 5.2.2
 
 ### Patch Changes

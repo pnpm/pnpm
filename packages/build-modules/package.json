@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "9.1.1",
+  "version": "9.1.2",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -46,7 +46,7 @@
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
-    "@pnpm/build-modules": "workspace:9.1.1",
+    "@pnpm/build-modules": "workspace:9.1.2",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39"
   },

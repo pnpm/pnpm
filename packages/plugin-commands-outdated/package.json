@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:6.1.0",
     "@pnpm/filter-workspace-packages": "workspace:5.0.9",
-    "@pnpm/plugin-commands-installation": "workspace:10.0.9",
+    "@pnpm/plugin-commands-installation": "workspace:10.0.10",
     "@pnpm/plugin-commands-outdated": "workspace:6.0.9",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.17.0",

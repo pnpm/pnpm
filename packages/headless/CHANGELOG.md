@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 18.1.8
+
+### Patch Changes
+
+- Updated dependencies [971f2c4a5]
+  - @pnpm/build-modules@9.1.2
+
 ## 18.1.7
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.1.7
+
+### Patch Changes
+
+- Improve the performance of the build sequence calculation step [#4815](https://github.com/pnpm/pnpm/pull/4815).
+- Correctly detect repeated dependency sequence during resolution [#4813](https://github.com/pnpm/pnpm/pull/4813).
+
 ## 7.1.6
 
 ### Patch Changes
