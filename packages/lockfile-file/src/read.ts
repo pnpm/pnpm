@@ -92,24 +92,9 @@ async function _read (
       prefix,
     })
   }
-  /* eslint-disable @typescript-eslint/dot-notation */
-  if (typeof lockfileFile?.['specifiers'] !== 'undefined') {
-    lockfileFile.importers = {
-      '.': {
-        specifiers: lockfileFile['specifiers'],
-        dependenciesMeta: lockfileFile['dependenciesMeta'],
-      },
-    }
-    delete lockfileFile.specifiers
-    for (const depType of DEPENDENCIES_FIELDS) {
-      if (lockfileFile[depType] != null) {
-        lockfileFile.importers['.'][depType] = lockfileFile[depType]
-        delete lockfileFile[depType]
-      }
-    }
-  }
   if (lockfileFile) {
-    const lockfileSemver = comverToSemver((lockfileFile.lockfileVersion ?? 0).toString())
+    const lockfile = convertFromLockfileFileMutable(lockfileFile)
+    const lockfileSemver = comverToSemver((lockfile.lockfileVersion ?? 0).toString())
     /* eslint-enable @typescript-eslint/dot-notation */
     if (typeof opts.wantedVersion !== 'number' || semver.major(lockfileSemver) === semver.major(comverToSemver(opts.wantedVersion.toString()))) {
       if (typeof opts.wantedVersion === 'number' && semver.gt(lockfileSemver, comverToSemver(opts.wantedVersion.toString()))) {
@@ -119,7 +104,7 @@ async function _read (
           prefix,
         })
       }
-      return { lockfile: lockfileFile as Lockfile, hadConflicts }
+      return { lockfile, hadConflicts }
     }
   }
   if (opts.ignoreIncompatible) {
@@ -149,4 +134,26 @@ export function createLockfileObject (
     importers,
     lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION,
   }
+}
+
+/**
+ * Reverts changes from the "forceSharedFormat" write option if necessary.
+ */
+function convertFromLockfileFileMutable (lockfileFile: LockfileFile): Lockfile {
+  if (typeof lockfileFile?.['specifiers'] !== 'undefined') {
+    lockfileFile.importers = {
+      '.': {
+        specifiers: lockfileFile['specifiers'],
+        dependenciesMeta: lockfileFile['dependenciesMeta'],
+      },
+    }
+    delete lockfileFile.specifiers
+    for (const depType of DEPENDENCIES_FIELDS) {
+      if (lockfileFile[depType] != null) {
+        lockfileFile.importers['.'][depType] = lockfileFile[depType]
+        delete lockfileFile[depType]
+      }
+    }
+  }
+  return lockfileFile as Lockfile
 }
