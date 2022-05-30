@@ -15,7 +15,7 @@ overrides:
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.6
   lodash@<4.17.19: ^4.17.9
   nopt@5: npm:@pnpm/nopt@^0.2.1
-  pkg-fetch: 3.1.1
+  pkg-fetch: 3.4.1
   rimraf@<3: '3'
   table@^6.0.3: 6.0.4
   trim-newlines@1: ^3.0.1
@@ -6119,7 +6119,7 @@ packages:
       into-stream: 6.0.0
       minimist: 1.2.6
       multistream: 4.1.0
-      pkg-fetch: 3.1.1
+      pkg-fetch: 3.4.1
       prebuild-install: 6.0.1
       progress: 2.0.3
       resolve: 1.22.0
@@ -12551,8 +12551,8 @@ packages:
     dependencies:
       find-up: 4.1.0
 
-  /pkg-fetch/3.1.1:
-    resolution: {integrity: sha512-3GfpNwbwoTxge2TrVp6Oyz/FZJOoxF1r0+1YikOhnBXa2Di/VOJKtUObFHap76BFnyFo1fwh5vARWFR9TzLKUg==}
+  /pkg-fetch/3.4.1:
+    resolution: {integrity: sha512-fS4cdayCa1r4jHkOKGPJKnS9PEs6OWZst+s+m0+CmhmPZObMnxoRnf9T9yUWl+lzM2b5aJF7cnQIySCT7Hq8Dg==}
     hasBin: true
     dependencies:
       chalk: 4.1.2
@@ -12561,6 +12561,7 @@ packages:
       node-fetch: 2.6.7
       progress: 2.0.3
       semver: 7.3.7
+      tar-fs: 2.1.1
       yargs: 16.2.0
     transitivePeerDependencies:
       - encoding
