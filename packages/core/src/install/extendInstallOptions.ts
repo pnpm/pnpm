@@ -28,6 +28,7 @@ export interface StrictInstallOptions {
   saveLockfile: boolean
   useGitBranchLockfile: boolean
   mergeGitBranchLockfiles: boolean
+  useInlineSpecifiersLockfileFormat: boolean
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
   fixLockfile: boolean
@@ -176,6 +177,7 @@ const defaults = async (opts: InstallOptions) => {
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
+    useInlineSpecifiersLockfileFormat: false,
     mergeGitBranchLockfiles: false,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,

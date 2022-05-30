@@ -157,6 +157,9 @@ export interface Config {
   changedFilesIgnorePattern?: string[]
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
+
+  // feature flags for experimental testing
+  useInlineSpecifiersLockfileFormat?: boolean // For https://github.com/pnpm/pnpm/issues/4725
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
