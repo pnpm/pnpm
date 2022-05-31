@@ -37,7 +37,7 @@ export default function parsePref (
     }
   }
   if (pref.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl(pref)
+    const pkg = parseNpmTarballUrl(pref.replace(registry, ''))
     if (pkg != null) {
       return {
         fetchSpec: pkg.version,
