@@ -25,7 +25,7 @@ test('installing aliased dependency', async () => {
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
       '/is-positive/3.1.0': {
@@ -34,7 +34,7 @@ test('installing aliased dependency', async () => {
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },

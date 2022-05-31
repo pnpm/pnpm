@@ -963,7 +963,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },

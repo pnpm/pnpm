@@ -96,7 +96,7 @@ test('lockfile with scoped package', async () => {
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
     },
@@ -177,7 +177,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
       '/is-negative/2.1.0': {
@@ -187,7 +187,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
       },
       '/is-positive/3.1.0': {
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
@@ -235,7 +235,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
       '/is-negative/2.1.0': {
@@ -245,7 +245,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
       },
       '/is-positive/3.1.0': {
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
@@ -482,7 +482,7 @@ test('scoped module from different registry', async () => {
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
       '/is-positive/3.1.0': {
@@ -491,7 +491,7 @@ test('scoped module from different registry', async () => {
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
@@ -921,7 +921,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
       },
       '/is-positive/3.1.0': {
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },

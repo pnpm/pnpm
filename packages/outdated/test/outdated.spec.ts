@@ -111,7 +111,7 @@ test('outdated()', async () => {
         },
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
         'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
@@ -307,7 +307,7 @@ test('using a matcher', async () => {
         },
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
         'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
@@ -392,7 +392,7 @@ test('outdated() aliased dependency', async () => {
       packages: {
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
       },
