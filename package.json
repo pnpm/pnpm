@@ -5,7 +5,7 @@
     "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
-    "prepare": "pnpm --dir=verdaccio install && husky install",
+    "prepare": "husky install",
     "pretest": "pnpm run compile-only && pnpm --dir=fixtures run prepareFixtures",
     "lint": "pnpm lint:meta && syncpack list-mismatches && eslint **/src/**/*.ts **/test/**/*.ts",
     "test-main": "pnpm pretest && pnpm lint --quiet && run-p -r verdaccio test-pkgs-main",
