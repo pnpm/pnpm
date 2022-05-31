@@ -45,7 +45,7 @@ export interface FetchOptions {
 }
 
 export interface DeferredManifestPromise {
-  resolve: (manifest: DependencyManifest) => void
+  resolve: (manifest: DependencyManifest | undefined) => void
   reject: (err: Error) => void
 }
 

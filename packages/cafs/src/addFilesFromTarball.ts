@@ -47,5 +47,8 @@ export default async function (
       .pipe(decompress() as Duplex)
       .on('error', reject).pipe(extract)
   })
+  if (!filesIndex['package.json'] && manifest != null) {
+    manifest.resolve(undefined)
+  }
   return filesIndex
 }
