@@ -50,6 +50,7 @@ jobs:
           privatePackages/*/lib
           privatePackages/*/tsconfig.tsbuildinfo
           .jest-cache
+          .verdaccio-cache
         key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
         restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
     - name: run tests (main)
