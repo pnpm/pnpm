@@ -1,7 +1,7 @@
-import { workWithInitModule, personToString } from '@pnpm/plugin-commands-init/lib/utils'
 import fixtures from '@pnpm/test-fixtures'
 import fs from 'fs'
 import path from 'path'
+import { workWithInitModule, personToString } from '../lib/utils'
 
 const f = fixtures(path.join(__dirname, '../fixtures'))
 
