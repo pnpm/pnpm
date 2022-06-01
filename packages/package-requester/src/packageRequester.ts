@@ -439,7 +439,7 @@ function fetchToStore (
 
         if ((pkgFilesIndex?.files) != null) {
           const manifest = opts.fetchRawManifest
-            ? safeDeferredPromise<DependencyManifest>()
+            ? safeDeferredPromise<DependencyManifest | undefined>()
             : undefined
           if (
             (
@@ -473,7 +473,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
             })
             if (manifest != null) {
               manifest()
-                .then((manifest) => bundledManifest.resolve(normalizeBundledManifest(manifest)))
+                .then((manifest) => bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest)))
                 .catch(bundledManifest.reject)
             }
             finishing.resolve(undefined)
@@ -496,11 +496,11 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // eslint-disable-line
 
       const fetchManifest = opts.fetchRawManifest
-        ? safeDeferredPromise<DependencyManifest>()
+        ? safeDeferredPromise<DependencyManifest | undefined>()
         : undefined
       if (fetchManifest != null) {
         fetchManifest()
-          .then((manifest) => bundledManifest.resolve(normalizeBundledManifest(manifest)))
+          .then((manifest) => bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest)))
           .catch(bundledManifest.reject)
       }
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
