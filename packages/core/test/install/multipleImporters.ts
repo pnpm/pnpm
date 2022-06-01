@@ -643,7 +643,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
       '/pkg-with-1-dep/100.0.0': {
@@ -736,7 +736,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
       '/pkg-with-1-dep/100.0.0': {

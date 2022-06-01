@@ -935,7 +935,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
     },
@@ -1030,7 +1030,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
       '/is-positive/1.0.0': {
@@ -1039,7 +1039,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
     },
