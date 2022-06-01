@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import createImportPackage from '@pnpm/package-store/lib/storeController/createImportPackage'
 import { prepareEmpty } from '@pnpm/prepare'
+import createImportPackage from '../lib/createImportPackage'
 
 test('importing a package with invalid files', async () => {
   prepareEmpty()
