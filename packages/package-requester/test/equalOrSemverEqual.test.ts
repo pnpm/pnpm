@@ -1,4 +1,4 @@
-import equalOrSemverEqual from '@pnpm/package-requester/lib/equalOrSemverEqual'
+import equalOrSemverEqual from '../lib/equalOrSemverEqual'
 
 test('equalOrSemverEqual()', () => {
   expect(equalOrSemverEqual('a', 'a')).toBeTruthy()

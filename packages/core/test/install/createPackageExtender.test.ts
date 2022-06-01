@@ -1,4 +1,4 @@
-import createPackageExtender from '@pnpm/core/lib/install/createPackageExtender'
+import createPackageExtender from '../../lib/install/createPackageExtender'
 
 const packageExtender = createPackageExtender({
   foo: {

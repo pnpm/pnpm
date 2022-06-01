@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModules } from '@pnpm/core'
-import { createObjectChecksum } from '@pnpm/core/lib/install/index'
+import { createObjectChecksum } from '../../lib/install/index'
 import {
   testDefaults,
 } from '../utils'
