@@ -76,39 +76,24 @@ async function _read (
       hadConflicts: false,
     }
   }
-  let lockfile: LockfileFile
+  let lockfileFile: LockfileFile
   let hadConflicts!: boolean
   try {
-    lockfile = yaml.load(lockfileRawContent) as Lockfile
+    lockfileFile = yaml.load(lockfileRawContent) as Lockfile
     hadConflicts = false
   } catch (err: any) { // eslint-disable-line
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
       throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${err.message as string}`)
     }
     hadConflicts = true
-    lockfile = autofixMergeConflicts(lockfileRawContent)
+    lockfileFile = autofixMergeConflicts(lockfileRawContent)
     logger.info({
       message: `Merge conflict detected in ${WANTED_LOCKFILE} and successfully merged`,
       prefix,
     })
   }
-  /* eslint-disable @typescript-eslint/dot-notation */
-  if (typeof lockfile?.['specifiers'] !== 'undefined') {
-    lockfile.importers = {
-      '.': {
-        specifiers: lockfile['specifiers'],
-        dependenciesMeta: lockfile['dependenciesMeta'],
-      },
-    }
-    delete lockfile.specifiers
-    for (const depType of DEPENDENCIES_FIELDS) {
-      if (lockfile[depType] != null) {
-        lockfile.importers['.'][depType] = lockfile[depType]
-        delete lockfile[depType]
-      }
-    }
-  }
-  if (lockfile) {
+  if (lockfileFile) {
+    const lockfile = convertFromLockfileFileMutable(lockfileFile)
     const lockfileSemver = comverToSemver((lockfile.lockfileVersion ?? 0).toString())
     /* eslint-enable @typescript-eslint/dot-notation */
     if (typeof opts.wantedVersion !== 'number' || semver.major(lockfileSemver) === semver.major(comverToSemver(opts.wantedVersion.toString()))) {
@@ -119,7 +104,7 @@ async function _read (
           prefix,
         })
       }
-      return { lockfile: lockfile as Lockfile, hadConflicts }
+      return { lockfile, hadConflicts }
     }
   }
   if (opts.ignoreIncompatible) {
@@ -149,4 +134,26 @@ export function createLockfileObject (
     importers,
     lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION,
   }
+}
+
+/**
+ * Reverts changes from the "forceSharedFormat" write option if necessary.
+ */
+function convertFromLockfileFileMutable (lockfileFile: LockfileFile): Lockfile {
+  if (typeof lockfileFile?.['specifiers'] !== 'undefined') {
+    lockfileFile.importers = {
+      '.': {
+        specifiers: lockfileFile['specifiers'],
+        dependenciesMeta: lockfileFile['dependenciesMeta'],
+      },
+    }
+    delete lockfileFile.specifiers
+    for (const depType of DEPENDENCIES_FIELDS) {
+      if (lockfileFile[depType] != null) {
+        lockfileFile.importers['.'][depType] = lockfileFile[depType]
+        delete lockfileFile[depType]
+      }
+    }
+  }
+  return lockfileFile as Lockfile
 }
