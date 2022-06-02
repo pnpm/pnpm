@@ -1,9 +1,9 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
 import list, { forPackages as listForPackages } from '@pnpm/list'
-import renderTree from '@pnpm/list/lib/renderTree'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
+import renderTree from '../lib/renderTree'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color
