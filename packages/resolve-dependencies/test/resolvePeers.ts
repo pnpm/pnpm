@@ -1,5 +1,5 @@
 /// <reference path="../../../typings/index.d.ts" />
-import resolvePeers from '@pnpm/resolve-dependencies/lib/resolvePeers'
+import resolvePeers from '../lib/resolvePeers'
 
 test('resolve peer dependencies of cyclic dependencies', () => {
   const fooPkg = {
