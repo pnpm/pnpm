@@ -81,6 +81,10 @@ function getHelpText () {
             name: 'audit',
           },
           {
+            description: 'Checks for license compliance issues with the installed packages and its dependencies',
+            name: 'licenses',
+          },
+          {
             description: 'Print all the versions of packages that are installed, as well as their dependencies, in a tree-structure',
             name: 'list',
             shortAlias: 'ls',

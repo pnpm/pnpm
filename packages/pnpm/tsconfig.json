@@ -82,6 +82,9 @@
       "path": "../plugin-commands-installation"
     },
     {
+      "path": "../plugin-commands-licenses"
+    },
+    {
       "path": "../plugin-commands-listing"
     },
     {

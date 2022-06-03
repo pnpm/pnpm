@@ -4,6 +4,7 @@ import { audit } from '@pnpm/plugin-commands-audit'
 import { env } from '@pnpm/plugin-commands-env'
 import { add, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
+import { licenses } from '@pnpm/plugin-commands-licenses'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
@@ -76,6 +77,7 @@ const commands: Array<{
   installTest,
   link,
   list,
+  licenses,
   ll,
   outdated,
   pack,

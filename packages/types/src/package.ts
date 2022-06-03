@@ -75,6 +75,7 @@ export interface BaseManifest {
   bundleDependencies?: string[]
   bundledDependencies?: string[]
   homepage?: string
+  license?: string
   repository?: string | { url: string }
   scripts?: PackageScripts
   config?: object
