@@ -85,7 +85,7 @@ export default function (
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
     reportContext(log$, { cwd }),
-    reportUpdateCheck(log$.updateCheck),
+    reportUpdateCheck(log$.updateCheck, opts),
   ]
 
   // logLevelNumber: 0123 = error warn info debug
