@@ -162,3 +162,15 @@ test.skip('from a non-github git repo', async () => {
     type: 'git',
   })
 })
+
+test('from a github repo the has no package.json file', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['pnpm/for-testing.no-package-json'], await testDefaults())
+
+  await project.has('for-testing.no-package-json')
+
+  expect(manifest.dependencies).toStrictEqual({
+    'for-testing.no-package-json': 'github:pnpm/for-testing.no-package-json',
+  })
+})

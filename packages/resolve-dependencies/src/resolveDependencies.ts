@@ -738,9 +738,12 @@ async function resolveDependency (
   let pkg: PackageManifest
   let prepare!: boolean
   let hasBin!: boolean
-  const originalPkgManifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
+  let originalPkgManifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
   if (!originalPkgManifest) {
-    throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
+    originalPkgManifest = {
+      name: wantedDependency.pref.split('/').pop()!,
+      version: '',
+    }
   }
   pkg = (ctx.readPackageHook != null)
     ? await ctx.readPackageHook(originalPkgManifest)
