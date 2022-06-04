@@ -561,7 +561,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           /* eslint-disable @typescript-eslint/no-floating-promises */
           bundledManifest.promise
             .then((manifest) => writeFilesIndexFile(filesIndexFile, {
-              pkg: manifest,
+              pkg: manifest ?? {},
               files: integrity,
             }))
             .catch()
