@@ -56,3 +56,31 @@ test('print update notification if the latest version is greater than the curren
     },
   })
 })
+
+test('print update notification for Corepack if the latest version is greater than the current', (done) => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { recursive: true } as Config,
+      env: {
+        COREPACK_ROOT: '/usr/bin/corepack',
+      },
+    },
+    streamParser: createStreamParser(),
+  })
+
+  updateCheckLogger.debug({
+    currentVersion: '10.0.0',
+    latestVersion: '11.0.0',
+  })
+
+  expect.assertions(1)
+
+  output$.pipe(take(1)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(stripAnsi(output)).toMatchSnapshot()
+    },
+  })
+})
