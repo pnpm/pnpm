@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 18.1.9
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/build-modules@9.1.3
+  - @pnpm/package-requester@18.0.6
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/lifecycle@13.0.3
+  - @pnpm/modules-cleaner@12.0.6
+  - @pnpm/link-bins@7.1.1
+
 ## 18.1.8
 
 ### Patch Changes

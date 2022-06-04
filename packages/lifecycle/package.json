@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "13.0.2",
+  "version": "13.0.3",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,16 +36,16 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:7.0.1",
-    "@pnpm/directory-fetcher": "workspace:3.0.1",
+    "@pnpm/directory-fetcher": "workspace:3.0.2",
     "@pnpm/npm-lifecycle": "^2.0.0-1",
     "@pnpm/read-package-json": "workspace:6.0.2",
-    "@pnpm/store-controller-types": "workspace:13.0.1",
+    "@pnpm/store-controller-types": "workspace:13.0.2",
     "@pnpm/types": "workspace:8.0.1",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
-    "@pnpm/lifecycle": "workspace:13.0.2",
+    "@pnpm/lifecycle": "workspace:13.0.3",
     "@pnpm/logger": "^4.0.0",
     "@types/rimraf": "^3.0.0",
     "@zkochan/rimraf": "^2.1.2",

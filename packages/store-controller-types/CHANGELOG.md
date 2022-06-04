@@ -1,5 +1,13 @@
 # @pnpm/store-controller-types
 
+## 13.0.2
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/fetcher-base@12.0.2
+
 ## 13.0.1
 
 ### Patch Changes

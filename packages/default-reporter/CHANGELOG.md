@@ -1,5 +1,15 @@
 # @pnpm/default-reporter
 
+## 9.1.0
+
+### Minor Changes
+
+- 2493b8ef3: Suggest to update using Corepack when pnpm was installed via Corepack.
+
+### Patch Changes
+
+- @pnpm/config@15.1.4
+
 ## 9.0.8
 
 ### Patch Changes

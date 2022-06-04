@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.1.8
+
+### Patch Changes
+
+- Suggest updating using Corepack, when pnpm was installed via Corepack.
+- It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Fix pre-compiled pnpm binaries crashing when NODE_MODULES is set.
+
 ## 7.1.7
 
 ### Patch Changes

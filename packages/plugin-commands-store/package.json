@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "5.1.8",
+  "version": "5.1.9",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,7 +36,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/lockfile-file": "workspace:5.0.3",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-store": "workspace:5.1.8",
+    "@pnpm/plugin-commands-store": "workspace:5.1.9",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.17.0",
     "@types/archy": "0.0.31",
@@ -49,8 +49,8 @@
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:4.0.2",
-    "@pnpm/cli-utils": "workspace:0.7.9",
+    "@pnpm/cafs": "workspace:4.0.3",
+    "@pnpm/cli-utils": "workspace:0.7.10",
     "@pnpm/config": "workspace:15.1.4",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/get-context": "workspace:6.1.2",
@@ -58,8 +58,8 @@
     "@pnpm/normalize-registries": "workspace:3.0.1",
     "@pnpm/parse-wanted-dependency": "workspace:3.0.0",
     "@pnpm/pick-registry-for-package": "workspace:3.0.1",
-    "@pnpm/store-connection-manager": "workspace:4.1.7",
-    "@pnpm/store-controller-types": "workspace:13.0.1",
+    "@pnpm/store-connection-manager": "workspace:4.1.8",
+    "@pnpm/store-controller-types": "workspace:13.0.2",
     "@pnpm/store-path": "workspace:6.0.0",
     "@pnpm/types": "workspace:8.0.1",
     "archy": "^1.0.0",

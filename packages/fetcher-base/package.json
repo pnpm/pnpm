@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetcher-base",
-  "version": "12.0.1",
+  "version": "12.0.2",
   "description": "Types for pnpm-compatible fetchers",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/fetcher-base": "workspace:12.0.1"
+    "@pnpm/fetcher-base": "workspace:12.0.2"
   },
   "exports": {
     ".": "./lib/index.js"

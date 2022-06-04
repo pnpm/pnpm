@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "9.0.8",
+  "version": "9.1.0",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -54,7 +54,7 @@
     "strip-ansi": "^6.0.0"
   },
   "devDependencies": {
-    "@pnpm/default-reporter": "workspace:9.0.8",
+    "@pnpm/default-reporter": "workspace:9.1.0",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
