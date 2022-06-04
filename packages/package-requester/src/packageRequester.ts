@@ -30,6 +30,7 @@ import {
 } from '@pnpm/resolver-base'
 import {
   BundledManifest,
+  BundledManifestFunction,
   FetchPackageToStoreFunction,
   FetchPackageToStoreOptions,
   PackageResponse,
@@ -305,7 +306,7 @@ function fetchToStore (
   },
   opts: FetchPackageToStoreOptions
 ): {
-    bundledManifest?: () => Promise<BundledManifest | undefined>
+    bundledManifest?: BundledManifestFunction
     filesIndexFile: string
     files: () => Promise<PackageFilesResponse>
     finishing: () => Promise<void>

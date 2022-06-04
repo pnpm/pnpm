@@ -719,6 +719,8 @@ async function resolveDependency (
   if (pkgResponse.body.isLocal) {
     const manifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!() // eslint-disable-line @typescript-eslint/dot-notation
     if (!manifest) {
+      // This should actually never happen because the local-resolver returns a manifest
+      // even if no real manifest exists in the filesystem.
       throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
     }
     return {
@@ -735,19 +737,12 @@ async function resolveDependency (
     }
   }
 
-  let pkg: PackageManifest
   let prepare!: boolean
   let hasBin!: boolean
-  let originalPkgManifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
-  if (!originalPkgManifest) {
-    originalPkgManifest = {
-      name: wantedDependency.pref.split('/').pop()!,
-      version: '',
-    }
+  let pkg: PackageManifest = await getManifestFromResponse(pkgResponse, wantedDependency)
+  if (ctx.readPackageHook != null) {
+    pkg = await ctx.readPackageHook(pkg)
   }
-  pkg = (ctx.readPackageHook != null)
-    ? await ctx.readPackageHook(originalPkgManifest)
-    : originalPkgManifest
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
@@ -897,6 +892,18 @@ async function resolveDependency (
     isLinkedDependency: undefined,
     pkg,
     updated: pkgResponse.body.updated,
+  }
+}
+
+async function getManifestFromResponse (
+  pkgResponse: PackageResponse,
+  wantedDependency: WantedDependency
+): Promise<PackageManifest> {
+  const pkg = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
+  if (pkg) return pkg
+  return {
+    name: wantedDependency.pref.split('/').pop()!,
+    version: '0.0.0',
   }
 }
 
