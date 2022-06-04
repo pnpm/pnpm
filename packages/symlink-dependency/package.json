@@ -41,7 +41,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.1.4",
     "@pnpm/types": "workspace:7.10.0",
-    "symlink-dir": "^5.0.0"
+    "symlink-dir": "^5.0.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

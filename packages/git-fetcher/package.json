@@ -41,7 +41,7 @@
     "@pnpm/package-store": "workspace:12.1.15",
     "@pnpm/types": "workspace:7.10.0",
     "p-defer": "^3.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

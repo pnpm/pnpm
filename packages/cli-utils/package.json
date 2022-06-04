@@ -41,7 +41,7 @@
     "@pnpm/package-is-installable": "workspace:5.0.13",
     "@pnpm/read-project-manifest": "workspace:2.0.13",
     "@pnpm/types": "workspace:7.10.0",
-    "chalk": "^4.1.0",
+    "chalk": "^4.1.2",
     "load-json-file": "^6.2.0"
   },
   "peerDependencies": {

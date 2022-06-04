@@ -32,13 +32,13 @@
   "devDependencies": {
     "@pnpm/lockfile-walker": "workspace:4.0.16",
     "@types/ramda": "0.27.39",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "dependencies": {
     "@pnpm/lockfile-types": "workspace:3.2.0",
     "@pnpm/types": "workspace:7.10.0",
     "dependency-path": "workspace:8.0.12",
-    "ramda": "^0.27.1"
+    "ramda": "^0.27.2"
   },
   "funding": "https://opencollective.com/pnpm"
 }

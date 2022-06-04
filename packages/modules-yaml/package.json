@@ -39,7 +39,7 @@
   "devDependencies": {
     "@pnpm/modules-yaml": "workspace:9.1.1",
     "@types/is-windows": "^1.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

@@ -41,7 +41,7 @@
     "@pnpm/graceful-fs": "workspace:1.0.0",
     "@pnpm/prepare-package": "workspace:1.0.13",
     "@zkochan/retry": "^0.2.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.27.2",
     "ssri": "^8.0.1"
   },
   "devDependencies": {
@@ -51,10 +51,10 @@
     "@pnpm/tarball-fetcher": "workspace:9.3.17",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.27.39",
-    "@types/retry": "^0.12.0",
-    "@types/ssri": "^7.1.0",
+    "@types/retry": "^0.12.2",
+    "@types/ssri": "^7.1.1",
     "nock": "12.0.3",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

@@ -5,8 +5,8 @@
   "license": "MIT",
   "main": "index.js",
   "devDependencies": {
-    "@babel/core": "^7.16.7",
-    "@babel/register": "^7.13.16",
+    "@babel/core": "^7.18.2",
+    "@babel/register": "^7.17.7",
     "@pnpm/ts-execution-runtime": "workspace:*"
   }
 }

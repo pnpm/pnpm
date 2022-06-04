@@ -41,7 +41,7 @@
     "@pnpm/prune-lockfile": "workspace:3.0.17",
     "@pnpm/read-project-manifest": "workspace:2.0.13",
     "@pnpm/types": "workspace:7.10.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.27.2",
     "rename-overwrite": "^4.0.2"
   },
   "funding": "https://opencollective.com/pnpm",

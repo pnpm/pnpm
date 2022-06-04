@@ -33,7 +33,7 @@
     "@pnpm/error": "workspace:2.1.0",
     "@pnpm/types": "workspace:7.10.0",
     "load-json-file": "^6.2.0",
-    "normalize-package-data": "^3.0.2"
+    "normalize-package-data": "^3.0.3"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

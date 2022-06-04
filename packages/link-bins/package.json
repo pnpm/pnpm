@@ -38,25 +38,25 @@
     "@pnpm/read-package-json": "workspace:5.0.12",
     "@pnpm/read-project-manifest": "workspace:2.0.13",
     "@pnpm/types": "workspace:7.10.0",
-    "@zkochan/cmd-shim": "^5.2.1",
+    "@zkochan/cmd-shim": "^5.2.2",
     "bin-links": "^2.3.0",
-    "is-subdir": "^1.1.1",
+    "is-subdir": "^1.2.0",
     "is-windows": "^1.0.2",
     "normalize-path": "^3.0.0",
     "p-settle": "^4.1.1",
-    "ramda": "^0.27.1"
+    "ramda": "^0.27.2"
   },
   "devDependencies": {
     "@pnpm/link-bins": "workspace:6.2.14",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/node": "^14.17.32",
+    "@types/node": "^14.18.20",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
     "cmd-extension": "^1.0.2",
     "path-exists": "^4.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {

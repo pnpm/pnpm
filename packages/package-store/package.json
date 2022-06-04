@@ -25,11 +25,11 @@
     "@zkochan/rimraf": "^2.1.2",
     "load-json-file": "^6.2.0",
     "make-empty-dir": "^2.0.0",
-    "mem": "^8.0.0",
+    "mem": "^8.1.1",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-temp": "^2.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.27.2",
     "rename-overwrite": "^4.0.2",
     "sanitize-filename": "^1.6.3",
     "ssri": "^8.0.1",
@@ -41,8 +41,8 @@
     "@pnpm/package-store": "workspace:12.1.15",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.27.39",
-    "@types/ssri": "^7.1.0",
-    "tempy": "^1.0.0"
+    "@types/ssri": "^7.1.1",
+    "tempy": "^1.0.1"
   },
   "directories": {
     "test": "test"

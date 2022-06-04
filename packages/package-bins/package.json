@@ -32,12 +32,12 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/package-bins#readme",
   "dependencies": {
     "@pnpm/types": "workspace:7.10.0",
-    "fast-glob": "^3.2.4",
-    "is-subdir": "^1.1.1"
+    "fast-glob": "^3.2.11",
+    "is-subdir": "^1.2.0"
   },
   "devDependencies": {
     "@pnpm/package-bins": "workspace:5.0.12",
-    "@types/node": "^14.17.32"
+    "@types/node": "^14.18.20"
   },
   "funding": "https://opencollective.com/pnpm"
 }

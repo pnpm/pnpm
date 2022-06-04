@@ -46,9 +46,9 @@
     "@pnpm/read-projects-context": "workspace:5.0.19",
     "@pnpm/types": "workspace:7.10.0",
     "@zkochan/rimraf": "^2.1.2",
-    "is-ci": "^3.0.0",
+    "is-ci": "^3.0.1",
     "path-absolute": "^1.0.1",
-    "ramda": "^0.27.1"
+    "ramda": "^0.27.2"
   },
   "funding": "https://opencollective.com/pnpm"
 }
