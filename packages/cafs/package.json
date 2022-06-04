@@ -32,10 +32,12 @@
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:3.0.16",
+    "@pnpm/types": "workspace:7.10.0",
     "@types/concat-stream": "^1.6.1",
     "@types/node": "^14.18.20",
     "@types/ssri": "^7.1.1",
     "@types/tar-stream": "^2.2.2",
+    "p-defer": "^3.0.0",
     "tempy": "^1.0.1"
   },
   "bugs": {

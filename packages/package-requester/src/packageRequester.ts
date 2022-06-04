@@ -30,6 +30,7 @@ import {
 } from '@pnpm/resolver-base'
 import {
   BundledManifest,
+  BundledManifestFunction,
   FetchPackageToStoreFunction,
   FetchPackageToStoreOptions,
   PackageResponse,
@@ -279,7 +280,7 @@ async function resolveAndFetch (
 }
 
 interface FetchLock {
-  bundledManifest?: Promise<BundledManifest>
+  bundledManifest?: Promise<BundledManifest | undefined>
   files: Promise<PackageFilesResponse>
   filesIndexFile: string
   finishing: Promise<void>
@@ -305,7 +306,7 @@ function fetchToStore (
   },
   opts: FetchPackageToStoreOptions
 ): {
-    bundledManifest?: () => Promise<BundledManifest>
+    bundledManifest?: BundledManifestFunction
     filesIndexFile: string
     files: () => Promise<PackageFilesResponse>
     finishing: () => Promise<void>
@@ -385,6 +386,7 @@ function fetchToStore (
   if (opts.fetchRawManifest && (result.bundledManifest == null)) {
     result.bundledManifest = removeKeyOnFail(
       result.files.then(async (filesResult) => {
+        if (!filesResult.filesIndex['package.json']) return undefined
         if (!filesResult.local) {
           const { integrity, mode } = filesResult.filesIndex['package.json']
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
@@ -439,7 +441,7 @@ function fetchToStore (
 
         if ((pkgFilesIndex?.files) != null) {
           const manifest = opts.fetchRawManifest
-            ? safeDeferredPromise<DependencyManifest>()
+            ? safeDeferredPromise<DependencyManifest | undefined>()
             : undefined
           if (
             (
@@ -473,7 +475,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
             })
             if (manifest != null) {
               manifest()
-                .then((manifest) => bundledManifest.resolve(normalizeBundledManifest(manifest)))
+                .then((manifest) => bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest)))
                 .catch(bundledManifest.reject)
             }
             finishing.resolve(undefined)
@@ -496,11 +498,11 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // eslint-disable-line
 
       const fetchManifest = opts.fetchRawManifest
-        ? safeDeferredPromise<DependencyManifest>()
+        ? safeDeferredPromise<DependencyManifest | undefined>()
         : undefined
       if (fetchManifest != null) {
         fetchManifest()
-          .then((manifest) => bundledManifest.resolve(normalizeBundledManifest(manifest)))
+          .then((manifest) => bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest)))
           .catch(bundledManifest.reject)
       }
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
@@ -561,7 +563,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           /* eslint-disable @typescript-eslint/no-floating-promises */
           bundledManifest.promise
             .then((manifest) => writeFilesIndexFile(filesIndexFile, {
-              pkg: manifest,
+              pkg: manifest ?? {},
               files: integrity,
             }))
             .catch()

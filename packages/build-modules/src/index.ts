@@ -4,7 +4,7 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
-import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { fromDir as readPackageFromDir, safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
@@ -170,7 +170,7 @@ export async function linkBinsOfDependencies (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: await dep.fetchingBundledManifest?.() ?? (await readPackageFromDir(dep.dir) as DependencyManifest),
+      manifest: await dep.fetchingBundledManifest?.() ?? (await safeReadPackageFromDir(dep.dir) as DependencyManifest) ?? {},
     }))
   )
 
