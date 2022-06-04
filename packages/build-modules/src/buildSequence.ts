@@ -6,7 +6,7 @@ export interface DependenciesGraphNode {
   children: {[alias: string]: string}
   depPath: string
   dir: string
-  fetchingBundledManifest?: () => Promise<PackageManifest>
+  fetchingBundledManifest?: () => Promise<PackageManifest | undefined>
   filesIndexFile: string
   hasBin: boolean
   hasBundledDependencies: boolean

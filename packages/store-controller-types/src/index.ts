@@ -47,7 +47,7 @@ export interface StoreController {
 export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions
 ) => {
-  bundledManifest?: () => Promise<BundledManifest>
+  bundledManifest?: () => Promise<BundledManifest | undefined>
   filesIndexFile: string
   files: () => Promise<PackageFilesResponse>
   finishing: () => Promise<void>
@@ -101,7 +101,7 @@ export interface RequestPackageOptions {
 }
 
 export interface PackageResponse {
-  bundledManifest?: () => Promise<BundledManifest>
+  bundledManifest?: () => Promise<BundledManifest | undefined>
   files?: () => Promise<PackageFilesResponse>
   filesIndexFile?: string
   finishing?: () => Promise<void> // a package request is finished once its integrity is generated and saved

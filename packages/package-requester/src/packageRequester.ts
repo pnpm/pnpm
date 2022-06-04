@@ -279,7 +279,7 @@ async function resolveAndFetch (
 }
 
 interface FetchLock {
-  bundledManifest?: Promise<BundledManifest>
+  bundledManifest?: Promise<BundledManifest | undefined>
   files: Promise<PackageFilesResponse>
   filesIndexFile: string
   finishing: Promise<void>
@@ -305,7 +305,7 @@ function fetchToStore (
   },
   opts: FetchPackageToStoreOptions
 ): {
-    bundledManifest?: () => Promise<BundledManifest>
+    bundledManifest?: () => Promise<BundledManifest | undefined>
     filesIndexFile: string
     files: () => Promise<PackageFilesResponse>
     finishing: () => Promise<void>
@@ -385,6 +385,7 @@ function fetchToStore (
   if (opts.fetchRawManifest && (result.bundledManifest == null)) {
     result.bundledManifest = removeKeyOnFail(
       result.files.then(async (filesResult) => {
+        if (!filesResult.filesIndex['package.json']) return undefined
         if (!filesResult.local) {
           const { integrity, mode } = filesResult.filesIndex['package.json']
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)

@@ -177,7 +177,7 @@ export interface ResolvedPackage {
   dev: boolean
   optional: boolean
   fetchingFiles: () => Promise<PackageFilesResponse>
-  fetchingBundledManifest?: () => Promise<DependencyManifest>
+  fetchingBundledManifest?: () => Promise<DependencyManifest | undefined>
   filesIndexFile: string
   finishing: () => Promise<void>
   name: string
@@ -718,6 +718,9 @@ async function resolveDependency (
 
   if (pkgResponse.body.isLocal) {
     const manifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!() // eslint-disable-line @typescript-eslint/dot-notation
+    if (!manifest) {
+      throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
+    }
     return {
       alias: wantedDependency.alias || manifest.name,
       depPath: pkgResponse.body.id,
@@ -735,9 +738,13 @@ async function resolveDependency (
   let pkg: PackageManifest
   let prepare!: boolean
   let hasBin!: boolean
+  const originalPkgManifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
+  if (!originalPkgManifest) {
+    throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
+  }
   pkg = (ctx.readPackageHook != null)
-    ? await ctx.readPackageHook(pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!())
-    : pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
+    ? await ctx.readPackageHook(originalPkgManifest)
+    : originalPkgManifest
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }

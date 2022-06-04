@@ -248,7 +248,7 @@ async function finishLockfileUpdates (
       // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
       const pkgJson = await depNode.fetchingBundledManifest()
       depNode.requiresBuild = Boolean(
-        pkgJson.scripts != null && (
+        pkgJson?.scripts != null && (
           Boolean(pkgJson.scripts.preinstall) ||
           Boolean(pkgJson.scripts.install) ||
           Boolean(pkgJson.scripts.postinstall)

@@ -23,6 +23,9 @@ export default async function (
 ): Promise<FilesIndex> {
   const index: FilesIndex = {}
   await _retrieveFileIntegrities(cafs, dirname, dirname, index, manifest)
+  if (manifest && !index['package.json']) {
+    manifest.resolve(undefined)
+  }
   return index
 }
 
