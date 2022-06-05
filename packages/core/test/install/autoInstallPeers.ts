@@ -1,6 +1,6 @@
 import { addDependenciesToPackage } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { testDefaults } from '../utils'
 
 test('auto install non-optional peer dependencies', async () => {
@@ -85,19 +85,21 @@ test('don\'t hoist a peer dependency when there is a root dependency by that nam
     '@pnpm/xyz-parent-parent-parent-parent',
     '@pnpm/xyz-parent-parent-with-xyz',
     '@pnpm/x@npm:peer-a@1.0.0',
+    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
   ], await testDefaults({ autoInstallPeers: true }))
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm/x/1.0.0',
-    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_dlsfm7gqtoviaae3daicurxwra',
-    '/@pnpm/xyz-parent-parent-parent/1.0.0_dlsfm7gqtoviaae3daicurxwra',
+    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/xyz-parent-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
     '/@pnpm/xyz-parent-parent-with-xyz/1.0.0',
-    '/@pnpm/xyz-parent-parent/1.0.0_dlsfm7gqtoviaae3daicurxwra',
-    '/@pnpm/xyz-parent/1.0.0_dlsfm7gqtoviaae3daicurxwra',
+    '/@pnpm/xyz-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/xyz-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
     '/@pnpm/xyz-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
-    '/@pnpm/xyz/1.0.0_dlsfm7gqtoviaae3daicurxwra',
+    '/@pnpm/xyz/1.0.0_c3hmehglzcfufab5hu6m6d76li',
     '/@pnpm/xyz/1.0.0_e5suan7fvtov6fikg25btc2odi',
     '/@pnpm/y/1.0.0',
+    '/@pnpm/y/2.0.0',
     '/@pnpm/z/1.0.0',
     '/peer-a/1.0.0',
   ])

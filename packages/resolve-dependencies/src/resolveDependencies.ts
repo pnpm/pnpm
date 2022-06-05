@@ -249,11 +249,14 @@ export async function resolveRootDependencies (
     })
     pkgAddresses.push(...result.pkgAddresses)
     if (!ctx.autoInstallPeers) break
+    for (const pkgAddress of result.pkgAddresses) {
+      parentPkgAliases[pkgAddress.alias] = true
+    }
     // all the missing peers should get installed in the root!!!
     // otherwise pending nodes will not work
     // even those peers should be hoisted that are not autoinstalled
     for (const [resolvedPeerName, resolvedPeerAddress] of Object.entries(result.resolvedPeers ?? {})) {
-      if (!result.missingPeers[resolvedPeerName]) {
+      if (!result.missingPeers[resolvedPeerName] && !parentPkgAliases[resolvedPeerName]) {
         pkgAddresses.push(resolvedPeerAddress)
       }
     }
