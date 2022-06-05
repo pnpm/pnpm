@@ -241,7 +241,6 @@ export async function resolveRootDependencies (
       parentPkgAliases[wantedDep.alias] = true
     }
   }
-  console.log(parentPkgAliases)
   while (true) {
     const result = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
       ...options,
