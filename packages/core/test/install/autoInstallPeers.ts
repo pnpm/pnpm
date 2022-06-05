@@ -124,3 +124,17 @@ test('don\'t auto-install a peer dependency, when that dependency is in the root
     '/peer-a/1.0.0',
   ])
 })
+
+test('don\'t install the same missing peer dependency twice', async () => {
+  await addDistTag({ package: '@pnpm/y', version: '2.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    'has-has-y-peer-peer',
+  ], await testDefaults({ autoInstallPeers: true }))
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/@pnpm/y/1.0.0',
+    '/has-has-y-peer-peer/1.0.0_c7ewbmm644hn6ztbh6kbjiyhkq',
+    '/has-y-peer/1.0.0_@pnpm+y@1.0.0',
+  ])
+})
