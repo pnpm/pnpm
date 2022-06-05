@@ -104,3 +104,23 @@ test('don\'t hoist a peer dependency when there is a root dependency by that nam
     '/peer-a/1.0.0',
   ])
 })
+
+test('don\'t auto-install a peer dependency, when that dependency is in the root', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm/xyz-parent-parent-parent-parent',
+    '@pnpm/x@npm:peer-a@1.0.0',
+    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
+  ], await testDefaults({ autoInstallPeers: true }))
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/xyz-parent-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/xyz-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/xyz-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/xyz/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/y/2.0.0',
+    '/@pnpm/z/1.0.0',
+    '/peer-a/1.0.0',
+  ])
+})
