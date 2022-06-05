@@ -163,6 +163,7 @@ export type PkgAddress = {
   updated: boolean
   rootDir: string
   missingPeers: Record<string, string>
+  resolvedPeers: Record<string, PackageManifest>
 } & ({
   isLinkedDependency: true
   version: string
@@ -206,7 +207,7 @@ export interface ResolvedPackage {
 
 type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir'>
 
-type ParentPkgAliases = Record<string, true>
+type ParentPkgAliases = Record<string, PackageManifest>
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
@@ -222,47 +223,76 @@ interface ResolvedDependenciesOptions {
   workspacePackages?: WorkspacePackages
 }
 
-type PostponedResolutionFunction = (preferredVersions: PreferredVersions, parentPkgAliases: ParentPkgAliases) => Promise<void>
+type PostponedResolutionFunction = (preferredVersions: PreferredVersions, parentPkgAliases: ParentPkgAliases) => Promise<{
+  missingPeers: Record<string, string>
+  resolvedPeers: Record<string, PackageManifest>
+}>
 
-export default async function resolveDependencies (
+export async function resolveRootDependencies (
   ctx: ResolutionContext,
   preferredVersions: PreferredVersions,
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: ResolvedDependenciesOptions
 ): Promise<Array<PkgAddress | LinkedDependency>> {
+  const pkgAddresses: Array<PkgAddress | LinkedDependency> = []
+  while (true) {
+    const result = await resolveDependencies(ctx, preferredVersions, wantedDependencies, options)
+    pkgAddresses.push(...result.pkgAddresses)
+    if (!ctx.autoInstallPeers) break
+    // all the missing peers should get installed in the root!!!
+    // otherwise pending nodes will not work
+    // even those peers should be hoisted that are not autoinstalled
+    if (!Object.keys(result.missingPeers).length) break
+    wantedDependencies = getNonDevWantedDependencies({ dependencies: result.missingPeers })
+  }
+  return pkgAddresses
+}
+
+type ResolvedDependenciesResult = {
+  pkgAddresses: Array<PkgAddress | LinkedDependency>
+  missingPeers: Record<string, string>
+  resolvedPeers: Record<string, PackageManifest>
+}
+
+export async function resolveDependencies (
+  ctx: ResolutionContext,
+  preferredVersions: PreferredVersions,
+  wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
+  options: ResolvedDependenciesOptions
+): Promise<ResolvedDependenciesResult> {
   let extendedWantedDeps: ExtendedWantedDependency[] = []
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
   const pkgAddresses: PkgAddress[] = []
-  while (true) {
-    extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
-      preferredDependencies: options.preferredDependencies,
-      prefix: ctx.prefix,
-      proceed: options.proceed || ctx.forceFullResolution,
-      registries: ctx.registries,
-      resolvedDependencies: options.resolvedDependencies,
-    })
-    const newPkgAddresses = (
-      await Promise.all(
-        extendedWantedDeps.map(async (extendedWantedDep) => resolveDependenciesOfDependency(
-          postponedResolutionsQueue,
-          ctx,
-          preferredVersions,
-          options,
-          extendedWantedDep
-        ))
-      )
-    ).filter(Boolean) as PkgAddress[]
-    pkgAddresses.push(...newPkgAddresses)
-    if (!ctx.autoInstallPeers) break
-    const allMissingPeers = mergePkgsDeps(newPkgAddresses.map(({ missingPeers }) => missingPeers).filter(Boolean))
-    if (!Object.keys(allMissingPeers).length) break
-    wantedDependencies = getNonDevWantedDependencies({ dependencies: allMissingPeers })
-  }
+  extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+    preferredDependencies: options.preferredDependencies,
+    prefix: ctx.prefix,
+    proceed: options.proceed || ctx.forceFullResolution,
+    registries: ctx.registries,
+    resolvedDependencies: options.resolvedDependencies,
+  })
+  const newPkgAddresses = (
+    await Promise.all(
+      extendedWantedDeps.map(async (extendedWantedDep) => resolveDependenciesOfDependency(
+        postponedResolutionsQueue,
+        ctx,
+        preferredVersions,
+        options,
+        extendedWantedDep
+      ))
+    )
+  ).filter(Boolean) as PkgAddress[]
+  pkgAddresses.push(...newPkgAddresses)
+  // if (!ctx.autoInstallPeers) break
+  // all the missing peers should get installed in the root!!!
+  // otherwise pending nodes will not work
+  // even those peers should be hoisted that are not autoinstalled
+  // if (!Object.keys(allMissingPeers).length) break
+  // wantedDependencies = getNonDevWantedDependencies({ dependencies: allMissingPeers })
 
   const newPreferredVersions = { ...preferredVersions }
   const newParentPkgAliases = { ...options.parentPkgAliases }
   for (const pkgAddress of pkgAddresses) {
-    newParentPkgAliases[pkgAddress.alias] = true
+    newParentPkgAliases[pkgAddress.alias] = pkgAddress.pkg
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
@@ -273,9 +303,19 @@ export default async function resolveDependencies (
     }
     newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
   }
-  await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)))
+  const results = await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)))
+  const allMissingPeers = mergePkgsDeps(
+    [
+      ...newPkgAddresses.map(({ missingPeers }) => missingPeers).filter(Boolean),
+      ...results.map((r) => r.missingPeers),
+    ]
+  )
 
-  return pkgAddresses
+  return {
+    missingPeers: allMissingPeers,
+    pkgAddresses,
+    resolvedPeers: [...pkgAddresses, ...results].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
+  }
 }
 
 function mergePkgsDeps (pkgsDeps: Array<Record<string, string>>): Record<string, string> {
@@ -402,7 +442,7 @@ async function resolveChildren (
     ).length
   )
   const wantedDependencies = getNonDevWantedDependencies(parentPkg.pkg)
-  const children = await resolveDependencies(ctx, preferredVersions, wantedDependencies,
+  const result = await resolveDependencies(ctx, preferredVersions, wantedDependencies,
     {
       currentDepth: parentDepth + 1,
       parentPkg,
@@ -416,18 +456,22 @@ async function resolveChildren (
       workspacePackages,
     }
   )
-  ctx.childrenByParentDepPath[parentPkg.depPath] = children.map((child) => ({
+  ctx.childrenByParentDepPath[parentPkg.depPath] = result.pkgAddresses.map((child) => ({
     alias: child.alias,
     depPath: child.depPath,
   }))
   ctx.dependenciesTree[parentPkg.nodeId] = {
-    children: children.reduce((chn, child) => {
+    children: result.pkgAddresses.reduce((chn, child) => {
       chn[child.alias] = child['nodeId'] ?? child.pkgId
       return chn
     }, {}),
     depth: parentDepth,
     installable: parentPkg.installable,
     resolvedPackage: ctx.resolvedPackagesByDepPath[parentPkg.depPath],
+  }
+  return {
+    missingPeers: result.missingPeers,
+    resolvedPeers: result.resolvedPeers,
   }
 }
 
@@ -885,7 +929,7 @@ async function resolveDependency (
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
     rootDir,
-    missingPeers: getMissingPeers(pkg, options.parentPkgAliases),
+    ...getMissingPeers(pkg, options.parentPkgAliases),
 
     // Next fields are actually only needed when isNew = true
     installable,
@@ -907,14 +951,17 @@ async function getManifestFromResponse (
   }
 }
 
-function getMissingPeers (pkg: PackageManifest, parentPkgAliases: ParentPkgAliases): Record<string, string> {
+function getMissingPeers (pkg: PackageManifest, parentPkgAliases: ParentPkgAliases) {
   const missingPeers = {} as Record<string, string>
+  const resolvedPeers = {} as Record<string, PackageManifest>
   for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
-    if (!parentPkgAliases[peerName] && !pkg.peerDependenciesMeta?.[peerName]?.optional) {
+    if (parentPkgAliases[peerName]) {
+      resolvedPeers[peerName] = parentPkgAliases[peerName]
+    } else if (!pkg.peerDependenciesMeta?.[peerName]?.optional) {
       missingPeers[peerName] = peerVersion
     }
   }
-  return missingPeers
+  return { missingPeers, resolvedPeers }
 }
 
 function pkgIsLeaf (pkg: PackageManifest) {
