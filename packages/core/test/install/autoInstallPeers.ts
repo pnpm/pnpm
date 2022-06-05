@@ -61,3 +61,20 @@ test('don\'t fail on linked package, when peers are auto installed', async () =>
   const updatedManifest = await addDependenciesToPackage(pkgManifest, ['peer-b'], await testDefaults({ autoInstallPeers: true }))
   expect(Object.keys(updatedManifest.dependencies ?? {})).toStrictEqual(['linked', 'peer-b'])
 })
+
+test('hoist a peer dependency in order to reuse it by other dependencies, when it satisfies them', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm/xyz-parent-parent-parent-parent', '@pnpm/xyz-parent-parent-with-xyz'], await testDefaults({ autoInstallPeers: true }))
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/@pnpm/x/1.0.0',
+    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/xyz-parent-parent-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/xyz-parent-parent-with-xyz/1.0.0',
+    '/@pnpm/xyz-parent-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/xyz-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/xyz/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/y/1.0.0',
+    '/@pnpm/z/1.0.0',
+  ])
+})
