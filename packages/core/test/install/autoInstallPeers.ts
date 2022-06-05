@@ -78,3 +78,27 @@ test('hoist a peer dependency in order to reuse it by other dependencies, when i
     '/@pnpm/z/1.0.0',
   ])
 })
+
+test('don\'t hoist a peer dependency when there is a root dependency by that name', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm/xyz-parent-parent-parent-parent',
+    '@pnpm/xyz-parent-parent-with-xyz',
+    '@pnpm/x@npm:peer-a@1.0.0',
+  ], await testDefaults({ autoInstallPeers: true }))
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/@pnpm/x/1.0.0',
+    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_dlsfm7gqtoviaae3daicurxwra',
+    '/@pnpm/xyz-parent-parent-parent/1.0.0_dlsfm7gqtoviaae3daicurxwra',
+    '/@pnpm/xyz-parent-parent-with-xyz/1.0.0',
+    '/@pnpm/xyz-parent-parent/1.0.0_dlsfm7gqtoviaae3daicurxwra',
+    '/@pnpm/xyz-parent/1.0.0_dlsfm7gqtoviaae3daicurxwra',
+    '/@pnpm/xyz-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/xyz/1.0.0_dlsfm7gqtoviaae3daicurxwra',
+    '/@pnpm/xyz/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/y/1.0.0',
+    '/@pnpm/z/1.0.0',
+    '/peer-a/1.0.0',
+  ])
+})

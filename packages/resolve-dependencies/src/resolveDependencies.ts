@@ -207,7 +207,7 @@ export interface ResolvedPackage {
 
 type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir'>
 
-type ParentPkgAliases = Record<string, PkgAddress>
+type ParentPkgAliases = Record<string, PkgAddress | true>
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
@@ -235,8 +235,18 @@ export async function resolveRootDependencies (
   options: ResolvedDependenciesOptions
 ): Promise<Array<PkgAddress | LinkedDependency>> {
   const pkgAddresses: Array<PkgAddress | LinkedDependency> = []
+  const parentPkgAliases: ParentPkgAliases = {}
+  for (const wantedDep of wantedDependencies) {
+    if (wantedDep.alias) {
+      parentPkgAliases[wantedDep.alias] = true
+    }
+  }
+  console.log(parentPkgAliases)
   while (true) {
-    const result = await resolveDependencies(ctx, preferredVersions, wantedDependencies, options)
+    const result = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
+      ...options,
+      parentPkgAliases,
+    })
     pkgAddresses.push(...result.pkgAddresses)
     if (!ctx.autoInstallPeers) break
     // all the missing peers should get installed in the root!!!
@@ -297,7 +307,9 @@ export async function resolveDependencies (
   const newPreferredVersions = { ...preferredVersions }
   const newParentPkgAliases = { ...options.parentPkgAliases }
   for (const pkgAddress of pkgAddresses) {
-    newParentPkgAliases[pkgAddress.alias] = pkgAddress
+    if (newParentPkgAliases[pkgAddress.alias] !== true) {
+      newParentPkgAliases[pkgAddress.alias] = pkgAddress
+    }
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
@@ -961,7 +973,9 @@ function getMissingPeers (pkg: PackageManifest, parentPkgAliases: ParentPkgAlias
   const resolvedPeers = {} as Record<string, PkgAddress>
   for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
     if (parentPkgAliases[peerName]) {
-      resolvedPeers[peerName] = parentPkgAliases[peerName]
+      if (parentPkgAliases[peerName] !== true) {
+        resolvedPeers[peerName] = parentPkgAliases[peerName] as PkgAddress
+      }
     } else if (!pkg.peerDependenciesMeta?.[peerName]?.optional) {
       missingPeers[peerName] = peerVersion
     }
