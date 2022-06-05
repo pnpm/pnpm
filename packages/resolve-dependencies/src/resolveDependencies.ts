@@ -248,7 +248,7 @@ export async function resolveRootDependencies (
   return pkgAddresses
 }
 
-type ResolvedDependenciesResult = {
+interface ResolvedDependenciesResult {
   pkgAddresses: Array<PkgAddress | LinkedDependency>
   missingPeers: Record<string, string>
   resolvedPeers: Record<string, PackageManifest>
