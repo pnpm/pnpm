@@ -316,18 +316,24 @@ export async function resolveDependencies (
     }
     newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
   }
-  const results = await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)))
+  const childrenResults = await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)))
+  if (!ctx.autoInstallPeers) {
+    return {
+      missingPeers: {},
+      pkgAddresses,
+      resolvedPeers: {},
+    }
+  }
   const allMissingPeers = mergePkgsDeps(
     [
-      ...pkgAddresses.map(({ missingPeers }) => missingPeers).filter(Boolean),
-      ...results.map((r) => r.missingPeers),
-    ]
+      ...pkgAddresses,
+      ...childrenResults,
+    ].map(({ missingPeers }) => missingPeers).filter(Boolean)
   )
-
   return {
     missingPeers: allMissingPeers,
     pkgAddresses,
-    resolvedPeers: [...pkgAddresses, ...results].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
+    resolvedPeers: [...pkgAddresses, ...childrenResults].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
   }
 }
 
@@ -455,7 +461,11 @@ async function resolveChildren (
     ).length
   )
   const wantedDependencies = getNonDevWantedDependencies(parentPkg.pkg)
-  const result = await resolveDependencies(ctx, preferredVersions, wantedDependencies,
+  const {
+    pkgAddresses,
+    missingPeers,
+    resolvedPeers,
+  } = await resolveDependencies(ctx, preferredVersions, wantedDependencies,
     {
       currentDepth: parentDepth + 1,
       parentPkg,
@@ -469,12 +479,12 @@ async function resolveChildren (
       workspacePackages,
     }
   )
-  ctx.childrenByParentDepPath[parentPkg.depPath] = result.pkgAddresses.map((child) => ({
+  ctx.childrenByParentDepPath[parentPkg.depPath] = pkgAddresses.map((child) => ({
     alias: child.alias,
     depPath: child.depPath,
   }))
   ctx.dependenciesTree[parentPkg.nodeId] = {
-    children: result.pkgAddresses.reduce((chn, child) => {
+    children: pkgAddresses.reduce((chn, child) => {
       chn[child.alias] = child['nodeId'] ?? child.pkgId
       return chn
     }, {}),
@@ -483,8 +493,8 @@ async function resolveChildren (
     resolvedPackage: ctx.resolvedPackagesByDepPath[parentPkg.depPath],
   }
   return {
-    missingPeers: result.missingPeers,
-    resolvedPeers: result.resolvedPeers,
+    missingPeers,
+    resolvedPeers,
   }
 }
 
