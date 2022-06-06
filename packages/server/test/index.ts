@@ -53,7 +53,7 @@ test('server', async () => {
     }
   )
 
-  expect((await response.bundledManifest!()).name).toBe('is-positive')
+  expect((await response.bundledManifest!())?.name).toBe('is-positive')
   expect(response.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
 
   expect(response.body.manifest!.name).toBe('is-positive')
