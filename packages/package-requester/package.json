@@ -65,7 +65,7 @@
     "@pnpm/create-cafs-store": "workspace:1.0.2",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-requester": "workspace:18.0.6",
-    "@pnpm/registry-mock": "2.17.0",
+    "@pnpm/registry-mock": "2.19.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",
