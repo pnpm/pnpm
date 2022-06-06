@@ -115,6 +115,8 @@ export interface PeerDependencyRules {
   allowedVersions?: Record<string, string>
 }
 
+export type AllowedDeprecatedVersions = Record<string, string>
+
 export type ProjectManifest = BaseManifest & {
   pnpm?: {
     neverBuiltDependencies?: string[]
@@ -122,6 +124,7 @@ export type ProjectManifest = BaseManifest & {
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
     peerDependencyRules?: PeerDependencyRules
+    allowedDeprecatedVersions?: AllowedDeprecatedVersions
   }
   private?: boolean
   resolutions?: Record<string, string>

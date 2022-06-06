@@ -2,6 +2,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
+  AllowedDeprecatedVersions,
   ProjectManifest,
   ReadPackageHook,
   Registries,
@@ -55,6 +56,7 @@ export interface ImporterToResolveGeneric<T> extends Importer<T> {
 export interface ResolveDependenciesOptions {
   autoInstallPeers?: boolean
   allowBuild?: (pkgName: string) => boolean
+  allowedDeprecatedVersions: AllowedDeprecatedVersions
   currentLockfile: Lockfile
   dryRun: boolean
   engineStrict: boolean
@@ -88,6 +90,7 @@ export default async function<T> (
   const ctx = {
     autoInstallPeers: opts.autoInstallPeers === true,
     allowBuild: opts.allowBuild,
+    allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
