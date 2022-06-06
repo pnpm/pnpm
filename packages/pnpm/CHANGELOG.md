@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.32.20
+
+### Patch Changes
+
+- Suggest to update using Corepack when pnpm was installed via Corepack.
+- It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- When the same package is found several times in the dependency graph, correctly autoinstall its missing peer dependencies at all times [#4820](https://github.com/pnpm/pnpm/issues/4820).
+
 ## 6.32.19
 
 ### Patch Changes

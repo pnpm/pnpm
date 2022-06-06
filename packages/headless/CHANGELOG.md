@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 17.3.13
+
+### Patch Changes
+
+- Updated dependencies [e338f4415]
+  - @pnpm/build-modules@8.0.7
+  - @pnpm/package-requester@17.0.4
+  - @pnpm/store-controller-types@12.0.1
+  - @pnpm/lifecycle@12.1.8
+  - @pnpm/modules-cleaner@11.0.27
+  - @pnpm/link-bins@6.2.14
+
 ## 17.3.12
 
 ### Patch Changes

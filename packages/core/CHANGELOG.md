@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 2.9.6
+
+### Patch Changes
+
+- e338f4415: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [e338f4415]
+- Updated dependencies [f04fa1e5d]
+  - @pnpm/build-modules@8.0.7
+  - @pnpm/package-requester@17.0.4
+  - @pnpm/resolve-dependencies@25.1.3
+  - @pnpm/store-controller-types@12.0.1
+  - @pnpm/headless@17.3.13
+  - @pnpm/lifecycle@12.1.8
+  - @pnpm/modules-cleaner@11.0.27
+  - @pnpm/link-bins@6.2.14
+
 ## 2.9.5
 
 ### Patch Changes

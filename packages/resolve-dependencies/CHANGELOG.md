@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 25.1.3
+
+### Patch Changes
+
+- e338f4415: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- f04fa1e5d: When the same package is found several times in the dependency graph, correctly autoinstall its missing peer dependencies at all times [#4820](https://github.com/pnpm/pnpm/issues/4820).
+- Updated dependencies [e338f4415]
+  - @pnpm/store-controller-types@12.0.1
+  - @pnpm/npm-resolver@12.1.8
+
 ## 25.1.2
 
 ### Patch Changes

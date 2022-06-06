@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.4.26
+
+### Patch Changes
+
+- Updated dependencies [e338f4415]
+  - @pnpm/store-controller-types@12.0.1
+  - @pnpm/cli-utils@0.6.58
+  - @pnpm/lifecycle@12.1.8
+  - @pnpm/find-workspace-packages@3.1.50
+  - @pnpm/store-connection-manager@3.2.18
+  - @pnpm/config@13.13.6
+  - @pnpm/link-bins@6.2.14
+
 ## 5.4.25
 
 ### Patch Changes

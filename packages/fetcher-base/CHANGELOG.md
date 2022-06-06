@@ -1,5 +1,11 @@
 # @pnpm/fetcher-base
 
+## 11.1.7
+
+### Patch Changes
+
+- e338f4415: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+
 ## 11.1.6
 
 ### Patch Changes

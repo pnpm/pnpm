@@ -1,5 +1,12 @@
 # @pnpm/directory-fetcher
 
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [e338f4415]
+  - @pnpm/fetcher-base@11.1.7
+
 ## 1.0.7
 
 ### Patch Changes

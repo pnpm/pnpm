@@ -1,5 +1,15 @@
 # @pnpm/build-modules
 
+## 8.0.7
+
+### Patch Changes
+
+- e338f4415: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [e338f4415]
+  - @pnpm/store-controller-types@12.0.1
+  - @pnpm/lifecycle@12.1.8
+  - @pnpm/link-bins@6.2.14
+
 ## 8.0.6
 
 ### Patch Changes
