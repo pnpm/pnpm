@@ -68,12 +68,12 @@ test('hoist a peer dependency in order to reuse it by other dependencies, when i
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm/x/1.0.0',
-    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
-    '/@pnpm/xyz-parent-parent-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_27654037e5acdd5f150a36ba198b4e1a',
+    '/@pnpm/xyz-parent-parent-parent/1.0.0_27654037e5acdd5f150a36ba198b4e1a',
     '/@pnpm/xyz-parent-parent-with-xyz/1.0.0',
-    '/@pnpm/xyz-parent-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
-    '/@pnpm/xyz-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
-    '/@pnpm/xyz/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/xyz-parent-parent/1.0.0_27654037e5acdd5f150a36ba198b4e1a',
+    '/@pnpm/xyz-parent/1.0.0_27654037e5acdd5f150a36ba198b4e1a',
+    '/@pnpm/xyz/1.0.0_27654037e5acdd5f150a36ba198b4e1a',
     '/@pnpm/y/1.0.0',
     '/@pnpm/z/1.0.0',
   ])
@@ -90,14 +90,14 @@ test('don\'t hoist a peer dependency when there is a root dependency by that nam
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm/x/1.0.0',
-    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
-    '/@pnpm/xyz-parent-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
+    '/@pnpm/xyz-parent-parent-parent/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
     '/@pnpm/xyz-parent-parent-with-xyz/1.0.0',
-    '/@pnpm/xyz-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
-    '/@pnpm/xyz-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
-    '/@pnpm/xyz-parent/1.0.0_e5suan7fvtov6fikg25btc2odi',
-    '/@pnpm/xyz/1.0.0_c3hmehglzcfufab5hu6m6d76li',
-    '/@pnpm/xyz/1.0.0_e5suan7fvtov6fikg25btc2odi',
+    '/@pnpm/xyz-parent-parent/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
+    '/@pnpm/xyz-parent/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
+    '/@pnpm/xyz-parent/1.0.0_27654037e5acdd5f150a36ba198b4e1a',
+    '/@pnpm/xyz/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
+    '/@pnpm/xyz/1.0.0_27654037e5acdd5f150a36ba198b4e1a',
     '/@pnpm/y/1.0.0',
     '/@pnpm/y/2.0.0',
     '/@pnpm/z/1.0.0',
@@ -114,11 +114,11 @@ test('don\'t auto-install a peer dependency, when that dependency is in the root
   ], await testDefaults({ autoInstallPeers: true }))
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
-    '/@pnpm/xyz-parent-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
-    '/@pnpm/xyz-parent-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
-    '/@pnpm/xyz-parent/1.0.0_c3hmehglzcfufab5hu6m6d76li',
-    '/@pnpm/xyz/1.0.0_c3hmehglzcfufab5hu6m6d76li',
+    '/@pnpm/xyz-parent-parent-parent-parent/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
+    '/@pnpm/xyz-parent-parent-parent/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
+    '/@pnpm/xyz-parent-parent/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
+    '/@pnpm/xyz-parent/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
+    '/@pnpm/xyz/1.0.0_16cec21ccbc88b42803d3d3ccf0ffe5a',
     '/@pnpm/y/2.0.0',
     '/@pnpm/z/1.0.0',
     '/peer-a/1.0.0',
@@ -134,7 +134,7 @@ test('don\'t install the same missing peer dependency twice', async () => {
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm/y/1.0.0',
-    '/has-has-y-peer-peer/1.0.0_c7ewbmm644hn6ztbh6kbjiyhkq',
+    '/has-has-y-peer-peer/1.0.0_@pnpm+y@1.0.0+has-y-peer@1.0.0',
     '/has-y-peer/1.0.0_@pnpm+y@1.0.0',
   ])
 })
