@@ -2722,16 +2722,16 @@ importers:
       '@pnpm/cli-utils': workspace:0.7.10
       '@pnpm/error': workspace:3.0.1
       '@pnpm/logger': ^4.0.0
+      '@pnpm/os.env.path-extender': ^0.2.3
       '@pnpm/plugin-commands-setup': workspace:2.0.11
       '@pnpm/prepare': workspace:*
-      execa: npm:safe-execa@^0.1.1
       render-help: ^1.0.1
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
-      '@pnpm/error': link:../error
-      execa: /safe-execa/0.1.1
+      '@pnpm/os.env.path-extender': 0.2.3
       render-help: 1.0.2
     devDependencies:
+      '@pnpm/error': link:../error
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-setup': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
@@ -4963,6 +4963,11 @@ packages:
     resolution: {integrity: sha512-VhUGKR5jvAtoBHgHAB3Kfc9g42ocVUws9iOafGAQ+xjR8uLokUCReXDpLXRRtrqw8N8yyh3gLNpCJs/AYadA1g==}
     engines: {node: '>=12.17'}
 
+  /@pnpm/constants/6.1.0:
+    resolution: {integrity: sha512-L6AiU3OXv9kjKGTJN9j8n1TeJGDcLX9atQlZvAkthlvbXjvKc5SKNWESc/eXhr5nEfuMWhQhiKHDJCpYejmeCQ==}
+    engines: {node: '>=14.19'}
+    dev: false
+
   /@pnpm/core-loggers/6.1.4_@pnpm+logger@4.0.0:
     resolution: {integrity: sha512-vF4Qc8E8e4uCGbVc7USCgqxrRe4eZsz8XEuCTUy6asZFVnNnRY/N1vJaVG3hti/UYKI/1si1dJYibppXhgTimA==}
     engines: {node: '>=12.17'}
@@ -5005,6 +5010,13 @@ packages:
     engines: {node: '>=12.17'}
     dependencies:
       '@pnpm/constants': 5.0.0
+
+  /@pnpm/error/3.0.1:
+    resolution: {integrity: sha512-hMlbWbFcfcfolNfSjKjpeaZFow71kNg438LZ8rAd01swiVIYRUf/sRv8gGySru6AijYfz5UqslpIJRDbYBkgQA==}
+    engines: {node: '>=14.19'}
+    dependencies:
+      '@pnpm/constants': 6.1.0
+    dev: false
 
   /@pnpm/exec/2.0.0:
     resolution: {integrity: sha512-b5ALfWEOFQprWKntN7MF8XWCyslBk2c8u20GEDcDDQOs6c0HyHlWxX5lig8riQKdS000U6YyS4L4b32NOleXAQ==}
@@ -5133,6 +5145,30 @@ packages:
     transitivePeerDependencies:
       - bluebird
       - supports-color
+    dev: false
+
+  /@pnpm/os.env.path-extender-posix/0.2.2:
+    resolution: {integrity: sha512-S742bEimO44pwQCoIONSSBs27GxraEEWDhSuQMfR4eX4AbLk4WiEa+fURmrE8Lz8lh+ZobO8Yi5DsAPJXGG9wA==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      '@pnpm/error': 3.0.1
+    dev: false
+
+  /@pnpm/os.env.path-extender-windows/0.2.0:
+    resolution: {integrity: sha512-m5JfJe3I64jKe+9hgKaN0tE2QmY63GuXPg5VY4oN4Z0G4B9exu4I1VEEMU/kyL7D7XfutPAPsXqiLHDNlv6RYg==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      '@pnpm/error': 3.0.1
+      safe-execa: 0.1.1
+      string.prototype.matchall: 4.0.7
+    dev: false
+
+  /@pnpm/os.env.path-extender/0.2.3:
+    resolution: {integrity: sha512-1/hVPGxyR76GdfjsSKDbgz3yTfFWR++2GMl5P2svan9k3PQfnuay41w7Bw2iS+FjQdDxlDDMymRdYY5cD+O/fA==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      '@pnpm/os.env.path-extender-posix': 0.2.2
+      '@pnpm/os.env.path-extender-windows': 0.2.0
     dev: false
 
   /@pnpm/package-is-installable/5.0.13_@pnpm+logger@4.0.0:
@@ -13790,6 +13826,19 @@ packages:
       emoji-regex: 8.0.0
       is-fullwidth-code-point: 3.0.0
       strip-ansi: 6.0.1
+
+  /string.prototype.matchall/4.0.7:
+    resolution: {integrity: sha512-f48okCX7JiwVi1NXCVWcFnZgADDC/n2vePlQ/KUCNqCikLLilQvwjMO8+BHVKvgzH0JB0J9LEPgxOGT02RoETg==}
+    dependencies:
+      call-bind: 1.0.2
+      define-properties: 1.1.4
+      es-abstract: 1.20.1
+      get-intrinsic: 1.1.1
+      has-symbols: 1.0.3
+      internal-slot: 1.0.3
+      regexp.prototype.flags: 1.4.3
+      side-channel: 1.0.4
+    dev: false
 
   /string.prototype.padend/3.1.3:
     resolution: {integrity: sha512-jNIIeokznm8SD/TZISQsZKYu7RJyheFNt84DUPrh482GC8RVp2MKqm2O5oBRdGxbDQoXrhhWtPIWQOiy20svUg==}
