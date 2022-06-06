@@ -877,16 +877,6 @@ async function resolveDependency (
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
   }
-  if (pkg.deprecated) {
-    deprecationLogger.debug({
-      deprecated: pkg.deprecated,
-      depth: options.currentDepth,
-      pkgId: pkgResponse.body.id,
-      pkgName: pkg.name,
-      pkgVersion: pkg.version,
-      prefix: ctx.prefix,
-    })
-  }
 
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
@@ -899,6 +889,17 @@ async function resolveDependency (
   const isNew = !ctx.resolvedPackagesByDepPath[depPath]
 
   if (isNew) {
+    if (pkg.deprecated) {
+      // Report deprecated packages only on first occurrence.
+      deprecationLogger.debug({
+        deprecated: pkg.deprecated,
+        depth: options.currentDepth,
+        pkgId: pkgResponse.body.id,
+        pkgName: pkg.name,
+        pkgVersion: pkg.version,
+        prefix: ctx.prefix,
+      })
+    }
     if (pkgResponse.body.isInstallable === false || !parentIsInstallable) {
       ctx.skipped.add(pkgResponse.body.id)
     }
