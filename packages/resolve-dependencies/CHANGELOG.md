@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 27.1.4
+
+### Patch Changes
+
+- 9f5352014: When the same package is found several times in the dependency graph, correctly autoinstall its missing peer dependencies at all times [#4820](https://github.com/pnpm/pnpm/issues/4820).
+
 ## 27.1.3
 
 ### Patch Changes

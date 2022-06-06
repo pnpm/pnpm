@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "5.0.12",
+  "version": "5.0.13",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:5.0.10",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-script-runners": "workspace:5.0.12",
+    "@pnpm/plugin-commands-script-runners": "workspace:5.0.13",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.19.0",
     "@types/is-windows": "^1.0.0",
@@ -52,7 +52,7 @@
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/lifecycle": "workspace:13.0.3",
     "@pnpm/package-bins": "workspace:6.0.1",
-    "@pnpm/plugin-commands-installation": "workspace:10.0.11",
+    "@pnpm/plugin-commands-installation": "workspace:10.0.12",
     "@pnpm/read-package-json": "workspace:6.0.2",
     "@pnpm/read-project-manifest": "workspace:3.0.2",
     "@pnpm/sort-packages": "workspace:3.0.2",

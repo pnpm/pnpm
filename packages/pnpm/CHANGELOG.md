@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.1.9
+
+### Patch Changes
+
+- When the same package is found several times in the dependency graph, correctly autoinstall its missing peer dependencies at all times [#4820](https://github.com/pnpm/pnpm/issues/4820).
+
 ## 7.1.8
 
 ### Patch Changes

@@ -35,7 +35,7 @@
     "@pnpm/constants": "workspace:6.1.0",
     "@pnpm/filter-workspace-packages": "workspace:5.0.10",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-installation": "workspace:10.0.11",
+    "@pnpm/plugin-commands-installation": "workspace:10.0.12",
     "@pnpm/plugin-commands-listing": "workspace:5.0.10",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.19.0",
