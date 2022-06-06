@@ -12,12 +12,13 @@ import {
   createNodeId,
   nodeIdContainsSequence,
 } from './nodeIdUtils'
-import resolveDependencies, {
+import {
   ChildrenByParentDepPath,
   DependenciesTree,
   LinkedDependency,
   PendingNode,
   PkgAddress,
+  resolveRootDependencies,
   ResolvedPackage,
   ResolvedPackagesByDepPath,
 } from './resolveDependencies'
@@ -147,7 +148,7 @@ export default async function<T> (
       updateDepth: -1,
       workspacePackages: opts.workspacePackages,
     }
-    directDepsByImporterId[importer.id] = await resolveDependencies(
+    directDepsByImporterId[importer.id] = await resolveRootDependencies(
       resolveCtx,
       importer.preferredVersions ?? {},
       importer.wantedDependencies,
