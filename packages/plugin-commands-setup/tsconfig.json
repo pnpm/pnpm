@@ -15,9 +15,6 @@
     },
     {
       "path": "../cli-utils"
-    },
-    {
-      "path": "../error"
     }
   ]
 }

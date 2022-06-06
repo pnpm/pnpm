@@ -1,11 +1,13 @@
 import fs from 'fs'
-import os from 'os'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import logger from '@pnpm/logger'
+import {
+  addDirToEnvPath,
+  ConfigReport,
+  PathExtenderReport,
+} from '@pnpm/os.env.path-extender'
 import renderHelp from 'render-help'
-import { setupWindowsEnvironmentPath } from './setupOnWindows'
-import { BadShellSectionError } from './errors'
 
 export const rcOptionsTypes = () => ({})
 
@@ -69,108 +71,46 @@ export async function handler (
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
   }
-  const currentShell = detectCurrentShell()
-  const updateOutput = await updateShell(currentShell, opts.pnpmHomeDir, { force: opts.force ?? false })
-  return `${updateOutput}
-
-Setup complete. Open a new terminal to start using pnpm.`
-}
-
-function detectCurrentShell () {
-  if (process.env.ZSH_VERSION) return 'zsh'
-  if (process.env.BASH_VERSION) return 'bash'
-  if (process.env.FISH_VERSION) return 'fish'
-  return typeof process.env.SHELL === 'string' ? path.basename(process.env.SHELL) : null
-}
-
-async function updateShell (
-  currentShell: string | null,
-  pnpmHomeDir: string,
-  opts: { force: boolean }
-): Promise<string> {
-  switch (currentShell) {
-  case 'bash':
-  case 'zsh': {
-    return reportShellChange(await setupShell(currentShell, pnpmHomeDir, opts))
-  }
-  case 'fish': {
-    return reportShellChange(await setupFishShell(pnpmHomeDir, opts))
-  }
-  }
-
-  if (process.platform === 'win32') {
-    return setupWindowsEnvironmentPath(pnpmHomeDir, opts)
-  }
-
-  return 'Could not infer shell type.'
-}
-
-function reportShellChange ({ action, configFile }: ShellSetupResult): string {
-  switch (action) {
-  case 'created': return `Created ${configFile}`
-  case 'added': return `Appended new lines to ${configFile}`
-  case 'updated': return `Replaced configuration in ${configFile}`
-  case 'skipped': return `Configuration already up-to-date in ${configFile}`
-  }
-}
-
-type ShellSetupAction = 'created' | 'added' | 'updated' | 'skipped'
-
-interface ShellSetupResult {
-  configFile: string
-  action: ShellSetupAction
-}
-
-async function setupShell (shell: 'bash' | 'zsh', pnpmHomeDir: string, opts: { force: boolean }): Promise<ShellSetupResult> {
-  const configFile = path.join(os.homedir(), `.${shell}rc`)
-  const content = `# pnpm
-export PNPM_HOME="${pnpmHomeDir}"
-export PATH="$PNPM_HOME:$PATH"
-# pnpm end`
-  return {
-    action: await updateShellConfig(configFile, content, opts),
-    configFile,
-  }
-}
-
-async function setupFishShell (pnpmHomeDir: string, opts: { force: boolean }): Promise<ShellSetupResult> {
-  const configFile = path.join(os.homedir(), '.config/fish/config.fish')
-  const content = `# pnpm
-set -gx PNPM_HOME "${pnpmHomeDir}"
-set -gx PATH "$PNPM_HOME" $PATH
-# pnpm end`
-  return {
-    action: await updateShellConfig(configFile, content, opts),
-    configFile,
-  }
-}
-
-async function updateShellConfig (
-  configFile: string,
-  newContent: string,
-  opts: { force: boolean }
-): Promise<ShellSetupAction> {
-  if (!fs.existsSync(configFile)) {
-    await fs.promises.writeFile(configFile, newContent, 'utf8')
-    return 'created'
-  }
-  const configContent = await fs.promises.readFile(configFile, 'utf8')
-  const match = configContent.match(/# pnpm[\s\S]*# pnpm end/)
-  if (!match) {
-    await fs.promises.appendFile(configFile, `\n${newContent}`, 'utf8')
-    return 'added'
-  }
-  if (match[0] !== newContent) {
-    if (!opts.force) {
-      throw new BadShellSectionError({ current: match[1], wanted: newContent, configFile })
+  try {
+    const report = await addDirToEnvPath(opts.pnpmHomeDir, {
+      configSectionName: 'pnpm',
+      proxyVarName: 'PNPM_HOME',
+      overwrite: opts.force,
+      position: 'start',
+    })
+    return renderSetupOutput(report)
+  } catch (err: any) { // eslint-disable-line
+    switch (err.code) {
+    case 'ERR_PNPM_BAD_ENV_FOUND':
+      err.hint = 'If you want to override the existing env variable, use the --force option'
+      break
+    case 'ERR_PNPM_BAD_SHELL_SECTION':
+      err.hint = 'If you want to override the existing configuration section, use the --force option'
+      break
     }
-    const newConfigContent = replaceSection(configContent, newContent)
-    await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
-    return 'updated'
+    throw err
   }
-  return 'skipped'
 }
 
-function replaceSection (originalContent: string, newSection: string): string {
-  return originalContent.replace(/# pnpm[\s\S]*# pnpm end/g, newSection)
+function renderSetupOutput (report: PathExtenderReport) {
+  if (report.oldSettings === report.newSettings) {
+    return 'No changes to the environment were made. Everything is already up-to-date.'
+  }
+  const output = []
+  if (report.configFile) {
+    output.push(reportConfigChange(report.configFile))
+  }
+  output.push(`Next configuration changes were made:
+${report.newSettings}`)
+  output.push('Setup complete. Open a new terminal to start using pnpm.')
+  return output.join('\n\n')
+}
+
+function reportConfigChange (configReport: ConfigReport): string {
+  switch (configReport.changeType) {
+  case 'created': return `Created ${configReport.path}`
+  case 'appended': return `Appended new lines to ${configReport.path}`
+  case 'modified': return `Replaced configuration in ${configReport.path}`
+  case 'skipped': return `Configuration already up-to-date in ${configReport.path}`
+  }
 }

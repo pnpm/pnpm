@@ -12,9 +12,8 @@
     "node": ">=14.19"
   },
   "scripts": {
-    "lint": "eslint src/**/*.ts test/**/*.ts",
-    "_test": "jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint src/**/*.ts",
+    "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
@@ -31,8 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-setup#readme",
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.7.10",
-    "@pnpm/error": "workspace:3.0.1",
-    "execa": "npm:safe-execa@^0.1.1",
+    "@pnpm/os.env.path-extender": "^0.2.3",
     "render-help": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
