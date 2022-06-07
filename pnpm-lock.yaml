@@ -444,7 +444,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/sinon': ^10.0.6
       '@yarnpkg/core': 3.2.0
-      '@yarnpkg/extensions': 1.1.0-rc.1
+      '@yarnpkg/extensions': 1.1.0-rc.2
       '@zkochan/npm-package-arg': ^2.0.1
       '@zkochan/rimraf': ^2.1.2
       deep-require-cwd: 1.0.0
@@ -507,7 +507,7 @@ importers:
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
       '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
-      '@yarnpkg/extensions': 1.1.0-rc.1_@yarnpkg+core@3.2.0
+      '@yarnpkg/extensions': 1.1.0-rc.2_@yarnpkg+core@3.2.0
       '@zkochan/npm-package-arg': 2.0.1
       '@zkochan/rimraf': 2.1.2
       dependency-path: link:../dependency-path
@@ -6031,8 +6031,8 @@ packages:
       tunnel: 0.0.6
     dev: false
 
-  /@yarnpkg/extensions/1.1.0-rc.1_@yarnpkg+core@3.2.0:
-    resolution: {integrity: sha512-qQF7VrEteDam8AbDSXibLRzjIHfrvfuLxDyscmW9z8HrQfJHrVythuz4ihv5KoOKEq0bChNgwMle0kJXt2BTaw==}
+  /@yarnpkg/extensions/1.1.0-rc.2_@yarnpkg+core@3.2.0:
+    resolution: {integrity: sha512-TX60+kKIonc6E5RLo6KVYpiHHgeAcOCBmGDhYiDIFy7RHBgioABEoUeQQlwm2I83vawPmAMn7LpYwwdj2BmUsg==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
       '@yarnpkg/core': '*'
@@ -9473,7 +9473,7 @@ packages:
       source-map: 0.6.1
       wordwrap: 1.0.0
     optionalDependencies:
-      uglify-js: 3.15.5
+      uglify-js: 3.16.0
 
   /har-schema/2.0.0:
     resolution: {integrity: sha512-Oqluz6zhGX8cyRaTQlFMPw80bSJVG2x/cFb8ZPhUILGgHka9SsokCCOQgpveePerqidZOrT14ipqfJb7ILcW5Q==}
@@ -14537,8 +14537,8 @@ packages:
     engines: {node: '>=4.2.0'}
     hasBin: true
 
-  /uglify-js/3.15.5:
-    resolution: {integrity: sha512-hNM5q5GbBRB5xB+PMqVRcgYe4c8jbyZ1pzZhS6jbq54/4F2gFK869ZheiE5A8/t+W5jtTNpWef/5Q9zk639FNQ==}
+  /uglify-js/3.16.0:
+    resolution: {integrity: sha512-FEikl6bR30n0T3amyBh3LoiBdqHRy/f4H80+My34HOesOKyHfOsxAPAxOoqC0JUnC1amnO0IwkYC3sko51caSw==}
     engines: {node: '>=0.8.0'}
     hasBin: true
     requiresBuild: true
