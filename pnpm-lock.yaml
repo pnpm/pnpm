@@ -345,7 +345,7 @@ importers:
       '@pnpm/config': workspace:15.1.4
       '@pnpm/constants': workspace:6.1.0
       '@pnpm/error': workspace:3.0.1
-      '@pnpm/npm-conf': 1.0.1
+      '@pnpm/npm-conf': 1.0.3
       '@pnpm/pnpmfile': workspace:2.0.2
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:3.0.2
@@ -364,7 +364,7 @@ importers:
     dependencies:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
-      '@pnpm/npm-conf': 1.0.1
+      '@pnpm/npm-conf': 1.0.3
       '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
@@ -5109,6 +5109,13 @@ packages:
       write-json-file: 4.3.0
     dev: true
 
+  /@pnpm/network.ca-file/1.0.1:
+    resolution: {integrity: sha512-gkINruT2KUhZLTaiHxwCOh1O4NVnFT0wLjWFBHmTz9vpKag/C/noIMJXBxFe4F0mYpUVX2puLwAieLYFg2NvoA==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      graceful-fs: 4.2.10
+    dev: false
+
   /@pnpm/nopt/0.2.1:
     resolution: {integrity: sha512-zkgDE6q3Y6KeZPjqXCk/hRQ2t6iw9JXbdnYZghwpe/HR73e4VmV5JZ5QSFypmSd5Sx4+gjNfAqME5BVAOBCk9g==}
     engines: {node: '>=6'}
@@ -5116,19 +5123,20 @@ packages:
     dependencies:
       abbrev: 1.1.1
 
-  /@pnpm/npm-conf/1.0.1:
-    resolution: {integrity: sha512-h5bZlJviHraLs0x12bn7gyewj4QIciNWjg5m9v9oTXw+dXHqeXf3wqpu66R919t2+59Bt268OUWyy/6gvZIstw==}
-    engines: {node: '>=14'}
-    dependencies:
-      config-chain: 1.1.13
-    dev: false
-
   /@pnpm/npm-conf/1.0.2:
     resolution: {integrity: sha512-NxJkEZQoSbf+pFWK+OfSdNGot99T1FM/poszx+/hK2U20RsEaBOE/uQWDaiZyxDf+iOSjtn++lVCKhPOHE+Jbg==}
     engines: {node: '>=12'}
     dependencies:
       config-chain: 1.1.13
     dev: true
+
+  /@pnpm/npm-conf/1.0.3:
+    resolution: {integrity: sha512-oirP749eS35c4opAFSfXsIuprMyjhixLXOE7HnpoqIUqINA1KBRPW03AaY4mt5xAjby1Rsi9s+u+xcrXpyUCOg==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@pnpm/network.ca-file': 1.0.1
+      config-chain: 1.1.13
+    dev: false
 
   /@pnpm/npm-lifecycle/2.0.0-1:
     resolution: {integrity: sha512-eUeRVUxnr9xP50ESMuRDrWYN/AQmaV2g/Wvs3ckHBx7XFJw8ljix66L7R1S1FoUqxNn0BeyPeIE9ANwn/syIAQ==}
@@ -12666,7 +12674,7 @@ packages:
     dev: true
 
   /proto-list/1.2.4:
-    resolution: {integrity: sha1-IS1b/hMYMGpCD2QCuOJv85ZHqEk=}
+    resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
 
   /protocol-buffers-encodings/1.1.1:
     resolution: {integrity: sha512-5aFshI9SbhtcMiDiZZu3g2tMlZeS5lhni//AGJ7V34PQLU5JA91Cva7TIs6inZhYikS3OpnUzAUuL6YtS0CyDA==}
