@@ -12,8 +12,8 @@ const DEFAULT_MAX_SOCKETS = 50
 const AGENT_CACHE = new LRU({ max: 50 })
 
 export interface AgentOptions {
-  ca?: string
-  cert?: string
+  ca?: string | string[]
+  cert?: string | string[]
   httpProxy?: string
   httpsProxy?: string
   key?: string
@@ -37,8 +37,8 @@ export default function getAgent (uri: string, opts: AgentOptions) {
       : '>no-proxy<',
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
-    `ca:${(isHttps && opts.ca) || '>no-ca<'}`,
-    `cert:${(isHttps && opts.cert) || '>no-cert<'}`,
+    `ca:${(isHttps && opts.ca?.toString()) || '>no-ca<'}`,
+    `cert:${(isHttps && opts.cert?.toString()) || '>no-cert<'}`,
     `key:${(isHttps && opts.key) || '>no-key<'}`,
   ].join(':')
   /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
@@ -143,8 +143,8 @@ function getProxyUri (
 function getProxy (
   proxyUrl: URL,
   opts: {
-    ca?: string
-    cert?: string
+    ca?: string | string[]
+    cert?: string | string[]
     key?: string
     timeout?: number
     localAddress?: string
