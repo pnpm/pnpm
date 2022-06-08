@@ -29,6 +29,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import {
+  AllowedDeprecatedVersions,
   Dependencies,
   DependencyManifest,
   PackageManifest,
@@ -119,6 +120,7 @@ export interface ChildrenByParentDepPath {
 export interface ResolutionContext {
   autoInstallPeers: boolean
   allowBuild?: (pkgName: string) => boolean
+  allowedDeprecatedVersions: AllowedDeprecatedVersions
   updatedSet: Set<string>
   defaultTag: string
   dryRun: boolean
@@ -889,7 +891,10 @@ async function resolveDependency (
   const isNew = !ctx.resolvedPackagesByDepPath[depPath]
 
   if (isNew) {
-    if (pkg.deprecated) {
+    if (
+      pkg.deprecated &&
+      (!ctx.allowedDeprecatedVersions[pkg.name] || !semver.satisfies(pkg.version, ctx.allowedDeprecatedVersions[pkg.name]))
+    ) {
       // Report deprecated packages only on first occurrence.
       deprecationLogger.debug({
         deprecated: pkg.deprecated,
