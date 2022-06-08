@@ -347,7 +347,7 @@ importers:
       '@pnpm/constants': workspace:5.0.0
       '@pnpm/error': workspace:2.1.0
       '@pnpm/global-bin-dir': workspace:3.0.1
-      '@pnpm/npm-conf': 1.0.2
+      '@pnpm/npm-conf': 1.0.3
       '@pnpm/pnpmfile': workspace:1.2.6
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:2.0.13
@@ -366,7 +366,7 @@ importers:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
       '@pnpm/global-bin-dir': link:../global-bin-dir
-      '@pnpm/npm-conf': 1.0.2
+      '@pnpm/npm-conf': 1.0.3
       '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
@@ -5071,6 +5071,13 @@ packages:
       write-json-file: 4.3.0
     dev: true
 
+  /@pnpm/network.ca-file/1.0.1:
+    resolution: {integrity: sha512-gkINruT2KUhZLTaiHxwCOh1O4NVnFT0wLjWFBHmTz9vpKag/C/noIMJXBxFe4F0mYpUVX2puLwAieLYFg2NvoA==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      graceful-fs: 4.2.10
+    dev: false
+
   /@pnpm/nopt/0.2.1:
     resolution: {integrity: sha512-zkgDE6q3Y6KeZPjqXCk/hRQ2t6iw9JXbdnYZghwpe/HR73e4VmV5JZ5QSFypmSd5Sx4+gjNfAqME5BVAOBCk9g==}
     engines: {node: '>=6'}
@@ -5083,6 +5090,15 @@ packages:
     engines: {node: '>=12'}
     dependencies:
       config-chain: 1.1.13
+    dev: true
+
+  /@pnpm/npm-conf/1.0.3:
+    resolution: {integrity: sha512-oirP749eS35c4opAFSfXsIuprMyjhixLXOE7HnpoqIUqINA1KBRPW03AaY4mt5xAjby1Rsi9s+u+xcrXpyUCOg==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@pnpm/network.ca-file': 1.0.1
+      config-chain: 1.1.13
+    dev: false
 
   /@pnpm/npm-lifecycle/1.0.4:
     resolution: {integrity: sha512-iEBd+wKi9dyo/vQuhxCPDiw33Liv2OCc5V4DpE01ij07vGshflP7p5GL8xkH16fBXxXAvPZ3wIs6wj4aNMt97A==}

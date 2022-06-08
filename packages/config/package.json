@@ -35,7 +35,7 @@
     "@pnpm/constants": "workspace:5.0.0",
     "@pnpm/error": "workspace:2.1.0",
     "@pnpm/global-bin-dir": "workspace:3.0.1",
-    "@pnpm/npm-conf": "1.0.2",
+    "@pnpm/npm-conf": "1.0.3",
     "@pnpm/pnpmfile": "workspace:1.2.6",
     "@pnpm/read-project-manifest": "workspace:2.0.13",
     "@pnpm/types": "workspace:7.10.0",
