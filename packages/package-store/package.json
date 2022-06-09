@@ -36,7 +36,7 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:6.1.5",
+    "@pnpm/client": "workspace:6.1.6",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.1.16",
     "@pnpm/prepare": "workspace:*",

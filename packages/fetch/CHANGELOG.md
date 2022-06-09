@@ -1,5 +1,12 @@
 # @pnpm/fetch
 
+## 4.2.6
+
+### Patch Changes
+
+- Updated dependencies [c86716f43]
+  - @pnpm/npm-registry-agent@5.1.0
+
 ## 4.2.5
 
 ### Patch Changes

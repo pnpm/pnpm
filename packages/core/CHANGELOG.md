@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 2.9.7
+
+### Patch Changes
+
+- Updated dependencies [9aff9b6bb]
+  - @pnpm/resolve-dependencies@25.1.4
+  - @pnpm/lockfile-to-pnp@0.4.54
+  - @pnpm/headless@17.3.14
+  - @pnpm/package-requester@17.0.4
+
 ## 2.9.6
 
 ### Patch Changes

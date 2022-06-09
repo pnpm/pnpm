@@ -1,5 +1,11 @@
 # @pnpm/npm-registry-agent
 
+## 5.1.0
+
+### Minor Changes
+
+- c86716f43: The ca and cert options may accept an array of string.
+
 ## 5.0.2
 
 ### Patch Changes

@@ -56,7 +56,7 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:4.2.5",
+    "@pnpm/fetch": "workspace:4.2.6",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/npm-resolver": "workspace:12.1.8",
     "@pnpm/test-fixtures": "workspace:*",

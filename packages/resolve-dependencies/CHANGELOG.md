@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 25.1.4
+
+### Patch Changes
+
+- 9aff9b6bb: Report only the first occurence of a deprecated package.
+  - @pnpm/npm-resolver@12.1.8
+
 ## 25.1.3
 
 ### Patch Changes

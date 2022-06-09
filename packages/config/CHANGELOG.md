@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 13.14.0
+
+### Minor Changes
+
+- c86716f43: The ca and cert options may accept an array of string.
+
+### Patch Changes
+
+- 8272d8a30: Update npm-conf.
+
 ## 13.13.6
 
 ### Patch Changes

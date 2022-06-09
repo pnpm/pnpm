@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.32.21
+
+### Patch Changes
+
+- Report only the first occurence of a deprecated package.
+
 ## 6.32.20
 
 ### Patch Changes
