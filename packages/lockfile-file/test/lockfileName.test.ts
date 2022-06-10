@@ -1,6 +1,6 @@
-import { getCurrentBranch } from '@pnpm/git-utils/test/utils/mock'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { getWantedLockfileName } from '@pnpm/lockfile-file/lib/lockfileName'
+import { getWantedLockfileName } from '../lib/lockfileName'
+import { getCurrentBranch } from '../../git-utils/test/utils/mock'
 
 describe('lockfileName', () => {
   afterEach(() => {

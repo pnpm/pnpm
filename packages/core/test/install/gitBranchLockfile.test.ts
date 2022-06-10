@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
-import { getCurrentBranch } from '@pnpm/git-utils/test/utils/mock'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, mutateModules } from '@pnpm/core'
 import { testDefaults } from '../utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { ProjectManifest } from '@pnpm/types'
 import writeYamlFile from 'write-yaml-file'
+import { getCurrentBranch } from '../../../git-utils/test/utils/mock'
 
 test('install with git-branch-lockfile = true', async () => {
   prepareEmpty()

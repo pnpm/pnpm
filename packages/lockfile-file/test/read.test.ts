@@ -1,5 +1,4 @@
 import path from 'path'
-import { getCurrentBranch } from '@pnpm/git-utils/test/utils/mock'
 import {
   existsWantedLockfile,
   readCurrentLockfile,
@@ -8,6 +7,7 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import tempy from 'tempy'
+import { getCurrentBranch } from '../../git-utils/test/utils/mock'
 
 process.chdir(__dirname)
 

@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { getCurrentBranch } from '@pnpm/git-utils/test/utils/mock'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   readCurrentLockfile,
@@ -9,6 +8,7 @@ import {
 } from '@pnpm/lockfile-file'
 import tempy from 'tempy'
 import yaml from 'yaml-tag'
+import { getCurrentBranch } from '../../git-utils/test/utils/mock'
 
 test('writeLockfiles()', async () => {
   const projectPath = tempy.directory()
