@@ -346,6 +346,7 @@ importers:
       '@pnpm/constants': workspace:6.1.0
       '@pnpm/error': workspace:3.0.1
       '@pnpm/git-utils': workspace:0.0.0
+      '@pnpm/matcher': workspace:3.0.0
       '@pnpm/npm-conf': 1.0.3
       '@pnpm/pnpmfile': workspace:2.0.3
       '@pnpm/prepare': workspace:*
@@ -366,6 +367,7 @@ importers:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
       '@pnpm/git-utils': link:../git-utils
+      '@pnpm/matcher': link:../matcher
       '@pnpm/npm-conf': 1.0.3
       '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/read-project-manifest': link:../read-project-manifest
