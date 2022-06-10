@@ -4,12 +4,11 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
-import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { fromDir as readPackageFromDir, safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
-import { DependencyManifest, PackageManifest } from '@pnpm/types'
+import { DependencyManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
-import graphSequencer from '@pnpm/graph-sequencer'
-import filter from 'ramda/src/filter'
+import buildSequence, { DependenciesGraph, DependenciesGraphNode } from './buildSequence'
 
 export { DepsStateCache }
 
@@ -38,21 +37,9 @@ export default async (
 ) => {
   const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
   // postinstall hooks
-  const nodesToBuild = new Set<string>()
-  getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
-  const onlyFromBuildGraph = filter((depPath: string) => nodesToBuild.has(depPath))
 
-  const nodesToBuildArray = Array.from(nodesToBuild)
-  const graph = new Map(
-    nodesToBuildArray
-      .map((depPath) => [depPath, onlyFromBuildGraph(Object.values(depGraph[depPath].children))])
-  )
-  const graphSequencerResult = graphSequencer({
-    graph,
-    groups: [nodesToBuildArray],
-  })
-  const chunks = graphSequencerResult.chunks as string[][]
   const buildDepOpts = { ...opts, warn }
+  const chunks = buildSequence(depGraph, rootDepPaths)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => depGraph[depPath].requiresBuild && !depGraph[depPath].isBuilt)
     if (opts.depsToBuild != null) {
@@ -145,49 +132,6 @@ async function buildDependency (
   }
 }
 
-function getSubgraphToBuild (
-  graph: DependenciesGraph,
-  entryNodes: string[],
-  nodesToBuild: Set<string>,
-  walked: Set<string>
-) {
-  let currentShouldBeBuilt = false
-  for (const depPath of entryNodes) {
-    if (!graph[depPath]) continue // packages that are already in node_modules are skipped
-    if (nodesToBuild.has(depPath)) {
-      currentShouldBeBuilt = true
-    }
-    if (walked.has(depPath)) continue
-    walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, Object.values(graph[depPath].children), nodesToBuild, walked) ||
-      graph[depPath].requiresBuild
-    if (childShouldBeBuilt) {
-      nodesToBuild.add(depPath)
-      currentShouldBeBuilt = true
-    }
-  }
-  return currentShouldBeBuilt
-}
-
-export interface DependenciesGraphNode {
-  children: {[alias: string]: string}
-  depPath: string
-  dir: string
-  fetchingBundledManifest?: () => Promise<PackageManifest>
-  filesIndexFile: string
-  hasBin: boolean
-  hasBundledDependencies: boolean
-  installable?: boolean
-  isBuilt?: boolean
-  optional: boolean
-  optionalDependencies: Set<string>
-  requiresBuild?: boolean
-}
-
-export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode
-}
-
 export async function linkBinsOfDependencies (
   depNode: DependenciesGraphNode,
   depGraph: DependenciesGraph,
@@ -226,7 +170,7 @@ export async function linkBinsOfDependencies (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: await dep.fetchingBundledManifest?.() ?? (await readPackageFromDir(dep.dir) as DependencyManifest),
+      manifest: await dep.fetchingBundledManifest?.() ?? (await safeReadPackageFromDir(dep.dir) as DependencyManifest) ?? {},
     }))
   )
 

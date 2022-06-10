@@ -397,8 +397,21 @@ function reportPeerDependencyIssuesError (
   err: Error,
   msg: { issuesByProjects: PeerDependencyIssuesByProjects }
 ) {
+  const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
+  const hints: string[] = []
+  if (hasMissingPeers) {
+    hints.push('If you want peer dependencies to be automatically installed, add "auto-install-peers=true" to an .npmrc file at the root of your project.')
+  }
+  hints.push('If you don\'t want pnpm to fail on peer dependency issues, add "strict-peer-dependencies=false" to an .npmrc file at the root of your project.')
   return {
     title: err.message,
-    body: renderPeerIssues(msg.issuesByProjects),
+    body: `${renderPeerIssues(msg.issuesByProjects)}
+${hints.map((hint) => `hint: ${hint}`).join('\n')}
+`,
   }
+}
+
+function getHasMissingPeers (issuesByProjects: PeerDependencyIssuesByProjects) {
+  return Object.values(issuesByProjects)
+    .some((issues) => Object.values(issues.missing).flat().some(({ optional }) => !optional))
 }

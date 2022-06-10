@@ -1,10 +1,12 @@
 import {
+  AllowedDeprecatedVersions,
   PackageExtension,
   PeerDependencyRules,
   ProjectManifest,
 } from '@pnpm/types'
 
 export default function getOptionsFromRootManifest (manifest: ProjectManifest): {
+  allowedDeprecatedVersions?: AllowedDeprecatedVersions
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
@@ -19,7 +21,9 @@ export default function getOptionsFromRootManifest (manifest: ProjectManifest): 
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
   const packageExtensions = manifest.pnpm?.packageExtensions
   const peerDependencyRules = manifest.pnpm?.peerDependencyRules
+  const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
   return {
+    allowedDeprecatedVersions,
     overrides,
     neverBuiltDependencies,
     onlyBuiltDependencies,

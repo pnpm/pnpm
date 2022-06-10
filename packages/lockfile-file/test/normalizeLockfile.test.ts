@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { normalizeLockfile } from '@pnpm/lockfile-file/lib/write'
+import { normalizeLockfile } from '../lib/write'
 
 test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {
   expect(normalizeLockfile({

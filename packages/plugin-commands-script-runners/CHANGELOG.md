@@ -1,5 +1,85 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/plugin-commands-installation@10.1.0
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/lifecycle@13.0.4
+  - @pnpm/package-bins@6.0.2
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/read-project-manifest@3.0.3
+  - @pnpm/sort-packages@3.0.3
+
+## 5.0.13
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.0.12
+
+## 5.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+- @pnpm/plugin-commands-installation@10.0.11
+- @pnpm/lifecycle@13.0.3
+- @pnpm/config@15.1.4
+
+## 5.0.11
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.0.10
+
+## 5.0.10
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+  - @pnpm/plugin-commands-installation@10.0.9
+
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+  - @pnpm/plugin-commands-installation@10.0.8
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [190f0b331]
+  - @pnpm/plugin-commands-installation@10.0.7
+  - @pnpm/cli-utils@0.7.7
+
+## 5.0.7
+
+### Patch Changes
+
+- dddff3709: `pnpm dlx` shouldn't modify the lockfile in the current working directory [#4743](https://github.com/pnpm/pnpm/issues/4743).
+
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+  - @pnpm/plugin-commands-installation@10.0.6
+
 ## 5.0.5
 
 ### Patch Changes

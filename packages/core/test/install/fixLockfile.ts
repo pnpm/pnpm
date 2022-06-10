@@ -21,7 +21,7 @@ test('fix broken lockfile with --fix-lockfile', async () => {
     packages: {
       '/@types/semver/5.3.31': {
         // resolution: {
-        //   integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+        //   integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         // },
       },
       '/core-js-pure/3.16.2': {
@@ -51,7 +51,7 @@ test('fix broken lockfile with --fix-lockfile', async () => {
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(2)
   expect(lockfile.packages?.['/@types/semver/5.3.31']).toBeTruthy()
   expect(lockfile.packages?.['/@types/semver/5.3.31']?.resolution).toEqual({
-    integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+    integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
   })
   expect(lockfile.packages?.['/core-js-pure/3.16.2']).toBeTruthy()
   expect(lockfile.packages?.['/core-js-pure/3.16.2']?.resolution).toEqual({

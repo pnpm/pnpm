@@ -1,5 +1,47 @@
 # @pnpm/plugin-commands-setup
 
+## 2.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.11
+
+## 2.0.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.9
+
+## 2.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.8
+
+## 2.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 2.0.7
+
+### Patch Changes
+
+- e6a9f157d: `pnpm setup` should not fail on Windows if `PNPM_HOME` is not yet in the system registry [#4757](https://github.com/pnpm/pnpm/issues/4757)
+
+## 2.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.6
+
 ## 2.0.5
 
 ### Patch Changes

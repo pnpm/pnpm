@@ -1,4 +1,4 @@
-import createPeerDependencyPatcher from '@pnpm/core/lib/install/createPeerDependencyPatcher'
+import createPeerDependencyPatcher from '../../lib/install/createPeerDependencyPatcher'
 
 test('createPeerDependencyPatcher() ignores missing', () => {
   const patcher = createPeerDependencyPatcher({

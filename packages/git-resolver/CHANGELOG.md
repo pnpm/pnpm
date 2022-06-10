@@ -1,5 +1,18 @@
 # @pnpm/git-resolver
 
+## 6.0.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.2
+- @pnpm/fetch@5.0.2
+
+## 6.0.2
+
+### Patch Changes
+
+- 0fa446d10: Resolve commits from GitHub via https.
+
 ## 6.0.1
 
 ### Patch Changes

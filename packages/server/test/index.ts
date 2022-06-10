@@ -53,7 +53,7 @@ test('server', async () => {
     }
   )
 
-  expect((await response.bundledManifest!()).name).toBe('is-positive')
+  expect((await response.bundledManifest!())?.name).toBe('is-positive')
   expect(response.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
 
   expect(response.body.manifest!.name).toBe('is-positive')
@@ -89,7 +89,7 @@ test('fetchPackage', async () => {
     pkg: {
       id: pkgId,
       resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },

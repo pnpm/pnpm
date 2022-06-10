@@ -1,5 +1,89 @@
 # @pnpm/resolve-dependencies
 
+## 27.2.0
+
+### Minor Changes
+
+- 4d39e4a0c: A new setting is supported for ignoring specific deprecation messages: `pnpm.allowedDeprecatedVersions`. The setting should be provided in the `pnpm` section of the root `package.json` file. The below example will mute any deprecation warnings about the `request` package and warnings about `express` v1:
+
+  ```json
+  {
+    "pnpm": {
+      "allowedDeprecatedVersions": {
+        "request": "*",
+        "express": "1"
+      }
+    }
+  }
+  ```
+
+  Related issue: [#4306](https://github.com/pnpm/pnpm/issues/4306)
+  Related PR: [#4864](https://github.com/pnpm/pnpm/pull/4864)
+
+### Patch Changes
+
+- 26413c30c: Report only the first occurence of a deprecated package.
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/manifest-utils@3.0.3
+  - @pnpm/npm-resolver@13.0.3
+  - @pnpm/pick-registry-for-package@3.0.2
+  - @pnpm/prune-lockfile@4.0.5
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/resolver-base@9.0.2
+  - @pnpm/store-controller-types@13.0.3
+
+## 27.1.4
+
+### Patch Changes
+
+- 9f5352014: When the same package is found several times in the dependency graph, correctly autoinstall its missing peer dependencies at all times [#4820](https://github.com/pnpm/pnpm/issues/4820).
+
+## 27.1.3
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/npm-resolver@13.0.2
+
+## 27.1.2
+
+### Patch Changes
+
+- 2b543c774: Correctly detect repeated dependency sequence during resolution.
+
+## 27.1.1
+
+### Patch Changes
+
+- 45238e358: Don't fail on projects with linked dependencies, when `auto-install-peers` is set to `true` [#4796](https://github.com/pnpm/pnpm/issues/4796).
+
+## 27.1.0
+
+### Minor Changes
+
+- 190f0b331: New option added for automatically installing missing peer dependencies: `autoInstallPeers`.
+
+### Patch Changes
+
+- Updated dependencies [190f0b331]
+  - @pnpm/prune-lockfile@4.0.4
+
+## 27.0.4
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-utils@4.0.3
+  - @pnpm/prune-lockfile@4.0.3
+
 ## 27.0.3
 
 ### Patch Changes

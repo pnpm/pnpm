@@ -1,5 +1,60 @@
 # @pnpm/plugin-commands-server
 
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-meta@3.0.2
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/server@12.0.3
+  - @pnpm/store-connection-manager@4.1.9
+
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+- @pnpm/server@12.0.2
+- @pnpm/store-connection-manager@4.1.8
+- @pnpm/config@15.1.4
+
+## 4.0.9
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+  - @pnpm/store-connection-manager@4.1.7
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+  - @pnpm/store-connection-manager@4.1.6
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+  - @pnpm/store-connection-manager@4.1.5
+  - @pnpm/server@12.0.1
+
 ## 4.0.5
 
 ### Patch Changes

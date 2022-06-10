@@ -2,13 +2,13 @@ import path from 'path'
 import fs from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
+import loadNpmConf from '@pnpm/npm-conf'
+import npmTypes from '@pnpm/npm-conf/lib/types'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import matcher from '@pnpm/matcher'
 import camelcase from 'camelcase'
-import loadNpmConf from '@zkochan/npm-conf'
-import npmTypes from '@zkochan/npm-conf/lib/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
@@ -296,7 +296,7 @@ export default async (
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
-      checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
+      await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
     } else {
       throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
@@ -358,6 +358,15 @@ export default async (
   }
 
   pnpmConfig.packageManager = packageManager
+
+  if (env.NODE_ENV) {
+    if (cliOptions.production) {
+      pnpmConfig.only = 'production'
+    }
+    if (cliOptions.dev) {
+      pnpmConfig.only = 'dev'
+    }
+  }
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
     pnpmConfig.production = true

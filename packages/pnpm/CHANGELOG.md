@@ -1,5 +1,87 @@
 # pnpm
 
+## 7.2.0
+
+### Minor Changes
+
+- A new setting is supported for ignoring specific deprecation messages: `pnpm.allowedDeprecatedVersions`. The setting should be provided in the `pnpm` section of the root `package.json` file. The below example will mute any deprecation warnings about the `request` package and warnings about `express` v1:
+
+  ```json
+  {
+    "pnpm": {
+      "allowedDeprecatedVersions": {
+        "request": "*",
+        "express": "1"
+      }
+    }
+  }
+  ```
+
+  Related issue: [#4306](https://github.com/pnpm/pnpm/issues/4306)
+  Related PR: [#4864](https://github.com/pnpm/pnpm/pull/4864)
+
+### Patch Changes
+
+- Update the compatibility database.
+- Report only the first occurrence of a deprecated package.
+- Add better hints to the peer dependency issue errors.
+
+## 7.1.9
+
+### Patch Changes
+
+- When the same package is found several times in the dependency graph, correctly autoinstall its missing peer dependencies at all times [#4820](https://github.com/pnpm/pnpm/issues/4820).
+
+## 7.1.8
+
+### Patch Changes
+
+- Suggest updating using Corepack, when pnpm was installed via Corepack.
+- It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Fix pre-compiled pnpm binaries crashing when NODE_MODULES is set.
+
+## 7.1.7
+
+### Patch Changes
+
+- Improve the performance of the build sequence calculation step [#4815](https://github.com/pnpm/pnpm/pull/4815).
+- Correctly detect repeated dependency sequence during resolution [#4813](https://github.com/pnpm/pnpm/pull/4813).
+
+## 7.1.6
+
+### Patch Changes
+
+- Don't fail on projects with linked dependencies, when `auto-install-peers` is set to `true` [#4796](https://github.com/pnpm/pnpm/issues/4796).
+- `NODE_ENV=production pnpm install --dev` should only install dev deps [#4745](https://github.com/pnpm/pnpm/pull/4745).
+
+## 7.1.5
+
+### Patch Changes
+
+- Correctly detect the active Node.js version, when the pnpm CLI is bundled to an executable [#4203](https://github.com/pnpm/pnpm/issues/4203).
+
+## 7.1.3
+
+### Patch Changes
+
+- When `auto-install-peers` is set to `true`, automatically install missing peer dependencies without writing them to `package.json` as dependencies. This makes pnpm handle peer dependencies the same way as npm v7 [#4776](https://github.com/pnpm/pnpm/pull/4776).
+
+## 7.1.2
+
+### Patch Changes
+
+- `pnpm setup` should not fail on Windows if `PNPM_HOME` is not yet in the system registry [#4757](https://github.com/pnpm/pnpm/issues/4757)
+- `pnpm dlx` shouldn't modify the lockfile in the current working directory [#4743](https://github.com/pnpm/pnpm/issues/4743).
+
+## 7.1.1
+
+### Patch Changes
+
+- When the global bin directory is set to a symlink, check not only the symlink in the PATH but also the target of the symlink [#4744](https://github.com/pnpm/pnpm/issues/4744).
+- Sanitize the directory names created inside `node_modules/.pnpm` and inside the global store [#4716](https://github.com/pnpm/pnpm/issues/4716)
+- All arguments after `pnpm create <pkg>` should be passed to the executed create app package. So `pnpm create next-app --typescript` should work`.
+- Resolve commits from GitHub via https [#4734](https://github.com/pnpm/pnpm/pull/4734).
+
 ## 7.1.0
 
 ### Minor Changes

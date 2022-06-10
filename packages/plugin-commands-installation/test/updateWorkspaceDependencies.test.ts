@@ -2,7 +2,7 @@ import PnpmError from '@pnpm/error'
 import {
   createWorkspaceSpecs,
   updateToWorkspacePackagesFromManifest,
-} from '@pnpm/plugin-commands-installation/lib/updateWorkspaceDependencies'
+} from '../lib/updateWorkspaceDependencies'
 
 const INCLUDE_ALL = {
   dependencies: true,

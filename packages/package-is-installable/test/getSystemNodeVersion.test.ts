@@ -1,4 +1,4 @@
-import { getSystemNodeVersionNonCached } from '@pnpm/package-is-installable/lib/getSystemNodeVersion'
+import { getSystemNodeVersionNonCached } from '../lib/getSystemNodeVersion'
 import * as execa from 'execa'
 
 jest.mock('execa', () => ({

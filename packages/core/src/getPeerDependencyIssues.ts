@@ -49,6 +49,7 @@ export async function getPeerDependencyIssues (
     projectsToResolve,
     {
       currentLockfile: ctx.currentLockfile,
+      allowedDeprecatedVersions: {},
       defaultUpdateDepth: -1,
       dryRun: true,
       engineStrict: false,

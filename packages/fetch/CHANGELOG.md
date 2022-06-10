@@ -1,5 +1,13 @@
 # @pnpm/fetch
 
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [d5730ba81]
+  - @pnpm/npm-registry-agent@6.1.0
+  - @pnpm/core-loggers@7.0.2
+
 ## 5.0.1
 
 ### Patch Changes

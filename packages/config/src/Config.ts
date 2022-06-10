@@ -85,9 +85,9 @@ export interface Config {
   noProxy?: string | boolean
 
   // ssl
-  cert?: string
+  cert?: string | string[]
   key?: string
-  ca?: string
+  ca?: string | string[]
   strictSsl?: boolean
 
   userAgent?: string

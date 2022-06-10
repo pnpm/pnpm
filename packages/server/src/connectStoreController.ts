@@ -11,7 +11,7 @@ import { DependencyManifest } from '@pnpm/types'
 
 import pLimit from 'p-limit'
 import pShare from 'promise-share'
-import uuid from 'uuid'
+import { v4 as uuidv4 } from 'uuid'
 
 export type StoreServerController = StoreController & {
   stop: () => Promise<void>
@@ -88,7 +88,7 @@ async function requestPackage (
   wantedDependency: WantedDependency,
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
-  const msgId = uuid.v4()
+  const msgId = uuidv4()
 
   return limitedFetch(`${remotePrefix}/requestPackage`, {
     msgId,
@@ -133,7 +133,7 @@ function fetchPackage (
     finishing: () => Promise<void>
     inStoreLocation: string
   } {
-  const msgId = uuid.v4()
+  const msgId = uuidv4()
 
   return limitedFetch(`${remotePrefix}/fetchPackage`, {
     msgId,

@@ -136,7 +136,7 @@ export default async function (
         difference(
           Object.keys(getAllDependenciesFromManifest(project.manifest)),
           resolvedImporter.directDependencies
-            .filter((dep, index) => project.wantedDependencies[index].isNew === true)
+            .filter((dep, index) => project.wantedDependencies[index]?.isNew === true)
             .map(({ alias }) => alias) || []
         ),
         project.modulesDir
@@ -248,7 +248,7 @@ async function finishLockfileUpdates (
       // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
       const pkgJson = await depNode.fetchingBundledManifest()
       depNode.requiresBuild = Boolean(
-        pkgJson.scripts != null && (
+        pkgJson?.scripts != null && (
           Boolean(pkgJson.scripts.preinstall) ||
           Boolean(pkgJson.scripts.install) ||
           Boolean(pkgJson.scripts.postinstall)

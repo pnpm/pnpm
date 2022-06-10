@@ -1,5 +1,37 @@
 # @pnpm/package-requester
 
+## 18.0.7
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/cafs@4.0.4
+  - @pnpm/core-loggers@7.0.2
+  - dependency-path@9.1.3
+  - @pnpm/fetcher-base@12.0.3
+  - @pnpm/package-is-installable@6.0.4
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/resolver-base@9.0.2
+  - @pnpm/store-controller-types@13.0.3
+
+## 18.0.6
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/cafs@4.0.3
+  - @pnpm/fetcher-base@12.0.2
+  - @pnpm/store-controller-types@13.0.2
+
+## 18.0.5
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+
 ## 18.0.4
 
 ### Patch Changes

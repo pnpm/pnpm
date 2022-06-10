@@ -1,4 +1,4 @@
-import normalizeArch from '@pnpm/plugin-commands-env/lib/normalizeArch'
+import normalizeArch from '../lib/normalizeArch'
 
 test.each([
   ['win32', 'ia32', 'x86'],

@@ -7,6 +7,7 @@ import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registr
 import { WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
+  AllowedDeprecatedVersions,
   PackageExtension,
   PeerDependencyRules,
   ReadPackageHook,
@@ -16,6 +17,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface StrictInstallOptions {
+  autoInstallPeers: boolean
   forceSharedLockfile: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
@@ -87,6 +89,7 @@ export interface StrictInstallOptions {
   enableModulesDir: boolean
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
+  allowedDeprecatedVersions: AllowedDeprecatedVersions
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
@@ -109,6 +112,8 @@ const defaults = async (opts: InstallOptions) => {
     version: pnpmPkgJson.version,
   }
   return {
+    allowedDeprecatedVersions: {},
+    autoInstallPeers: false,
     childConcurrency: 5,
     depth: 0,
     enablePnp: false,

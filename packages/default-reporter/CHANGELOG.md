@@ -1,5 +1,55 @@
 # @pnpm/default-reporter
 
+## 9.1.1
+
+### Patch Changes
+
+- 9b7941c81: Add better hints to the peer dependency issue errors.
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/config@15.2.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/render-peer-issues@2.0.2
+
+## 9.1.0
+
+### Minor Changes
+
+- 2493b8ef3: Suggest to update using Corepack when pnpm was installed via Corepack.
+
+### Patch Changes
+
+- @pnpm/config@15.1.4
+
+## 9.0.8
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+
+## 9.0.6
+
+### Patch Changes
+
+- 190f0b331: Add hints to the peer dependencies error.
+
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+
 ## 9.0.4
 
 ### Patch Changes

@@ -2,6 +2,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
+  AllowedDeprecatedVersions,
   ProjectManifest,
   ReadPackageHook,
   Registries,
@@ -12,12 +13,13 @@ import {
   createNodeId,
   nodeIdContainsSequence,
 } from './nodeIdUtils'
-import resolveDependencies, {
+import {
   ChildrenByParentDepPath,
   DependenciesTree,
   LinkedDependency,
   PendingNode,
   PkgAddress,
+  resolveRootDependencies,
   ResolvedPackage,
   ResolvedPackagesByDepPath,
 } from './resolveDependencies'
@@ -52,7 +54,9 @@ export interface ImporterToResolveGeneric<T> extends Importer<T> {
 }
 
 export interface ResolveDependenciesOptions {
+  autoInstallPeers?: boolean
   allowBuild?: (pkgName: string) => boolean
+  allowedDeprecatedVersions: AllowedDeprecatedVersions
   currentLockfile: Lockfile
   dryRun: boolean
   engineStrict: boolean
@@ -84,7 +88,9 @@ export default async function<T> (
 
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
+    autoInstallPeers: opts.autoInstallPeers === true,
     allowBuild: opts.allowBuild,
+    allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
@@ -135,6 +141,7 @@ export default async function<T> (
         depPath: importer.id,
         rootDir: importer.rootDir,
       },
+      parentPkgAliases: {},
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
@@ -144,7 +151,7 @@ export default async function<T> (
       updateDepth: -1,
       workspacePackages: opts.workspacePackages,
     }
-    directDepsByImporterId[importer.id] = await resolveDependencies(
+    directDepsByImporterId[importer.id] = await resolveRootDependencies(
       resolveCtx,
       importer.preferredVersions ?? {},
       importer.wantedDependencies,

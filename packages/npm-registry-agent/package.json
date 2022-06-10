@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-registry-agent",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "description": "HTTP agent for fetching from npm registry",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -18,7 +18,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "devDependencies": {
-    "@pnpm/npm-registry-agent": "workspace:6.0.0",
+    "@pnpm/npm-registry-agent": "workspace:6.1.0",
     "@types/http-proxy-agent": "^4.0.0",
     "@types/lru-cache": "^5.1.0"
   },

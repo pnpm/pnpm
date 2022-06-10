@@ -1,5 +1,59 @@
 # @pnpm/plugin-commands-env
 
+## 2.1.10
+
+### Patch Changes
+
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/fetcher-base@12.0.3
+  - @pnpm/fetch@5.0.2
+  - @pnpm/create-cafs-store@1.0.3
+  - @pnpm/tarball-fetcher@10.0.4
+
+## 2.1.9
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/fetcher-base@12.0.2
+  - @pnpm/cli-utils@0.7.10
+  - @pnpm/create-cafs-store@1.0.2
+  - @pnpm/tarball-fetcher@10.0.3
+  - @pnpm/config@15.1.4
+
+## 2.1.8
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+
+## 2.1.7
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+
+## 2.1.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+
 ## 2.1.4
 
 ### Patch Changes

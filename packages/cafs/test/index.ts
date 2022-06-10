@@ -1,4 +1,6 @@
 import { createReadStream, promises as fs } from 'fs'
+import { DependencyManifest } from '@pnpm/types'
+import pDefer from 'p-defer'
 import path from 'path'
 import tempy from 'tempy'
 import createCafs, {
@@ -25,7 +27,8 @@ describe('cafs', () => {
   it('replaces an already existing file, if the integrity of it was broken', async () => {
     const storeDir = tempy.directory()
     const srcDir = path.join(__dirname, 'fixtures/one-file')
-    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir)
+    const manifest = pDefer<DependencyManifest>()
+    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir, manifest)
 
     let filesIndex = await addFiles()
     const { integrity } = await filesIndex['foo.txt'].writeResult
@@ -37,6 +40,7 @@ describe('cafs', () => {
     filesIndex = await addFiles()
     await filesIndex['foo.txt'].writeResult
     expect(await fs.readFile(filePath, 'utf8')).toBe('foo\n')
+    expect(await manifest.promise).toEqual(undefined)
   })
 })
 

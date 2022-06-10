@@ -1,5 +1,33 @@
 # @pnpm/build-modules
 
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/lifecycle@13.0.4
+  - @pnpm/link-bins@7.1.2
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/store-controller-types@13.0.3
+
+## 9.1.3
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/lifecycle@13.0.3
+  - @pnpm/link-bins@7.1.1
+
+## 9.1.2
+
+### Patch Changes
+
+- 971f2c4a5: Improve the performance of the build sequence calculation step.
+
 ## 9.1.1
 
 ### Patch Changes

@@ -1,5 +1,52 @@
 # @pnpm/plugin-commands-init
 
+## 1.0.11
+
+### Patch Changes
+
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/write-project-manifest@3.0.2
+
+## 1.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+- @pnpm/config@15.1.4
+
+## 1.0.9
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+
+## 1.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+
 ## 1.0.5
 
 ### Patch Changes

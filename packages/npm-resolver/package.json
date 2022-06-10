@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "13.0.2",
+  "version": "13.0.3",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,13 +34,13 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:7.0.1",
+    "@pnpm/core-loggers": "workspace:7.0.2",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/fetching-types": "workspace:3.0.0",
     "@pnpm/graceful-fs": "workspace:2.0.0",
     "@pnpm/resolve-workspace-range": "workspace:3.0.0",
-    "@pnpm/resolver-base": "workspace:9.0.1",
-    "@pnpm/types": "workspace:8.0.1",
+    "@pnpm/resolver-base": "workspace:9.0.2",
+    "@pnpm/types": "workspace:8.1.0",
     "@zkochan/retry": "^0.2.0",
     "encode-registry": "^3.0.0",
     "load-json-file": "^6.2.0",
@@ -56,9 +56,9 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:5.0.1",
+    "@pnpm/fetch": "workspace:5.0.2",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/npm-resolver": "workspace:13.0.2",
+    "@pnpm/npm-resolver": "workspace:13.0.3",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/lru-cache": "^5.1.0",
     "@types/normalize-path": "^3.0.0",

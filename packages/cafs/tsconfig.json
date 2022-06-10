@@ -17,6 +17,9 @@
     },
     {
       "path": "../store-controller-types"
+    },
+    {
+      "path": "../types"
     }
   ]
 }

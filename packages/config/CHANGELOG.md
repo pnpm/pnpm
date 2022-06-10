@@ -1,5 +1,37 @@
 # @pnpm/config
 
+## 15.2.0
+
+### Minor Changes
+
+- d5730ba81: The ca and cert options may accept an array of string.
+
+### Patch Changes
+
+- bc80631d3: Update npm-conf.
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/pnpmfile@2.0.3
+  - @pnpm/read-project-manifest@3.0.3
+
+## 15.1.4
+
+### Patch Changes
+
+- ae2f845c5: `NODE_ENV=production pnpm install --dev` should only install dev deps [#4745](https://github.com/pnpm/pnpm/pull/4745).
+
+## 15.1.3
+
+### Patch Changes
+
+- 05159665d: Do not return a default value for the node-version setting.
+
+## 15.1.2
+
+### Patch Changes
+
+- af22c6c4f: When the global bin directory is set to a symlink, check not only the symlink in the PATH but also the target of the symlink [#4744](https://github.com/pnpm/pnpm/issues/4744).
+
 ## 15.1.1
 
 ### Patch Changes
