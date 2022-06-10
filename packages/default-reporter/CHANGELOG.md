@@ -1,5 +1,18 @@
 # @pnpm/default-reporter
 
+## 9.1.1
+
+### Patch Changes
+
+- 9b7941c81: Add better hints to the peer dependency issue errors.
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/config@15.2.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/render-peer-issues@2.0.2
+
 ## 9.1.0
 
 ### Minor Changes

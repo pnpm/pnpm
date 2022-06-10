@@ -1,5 +1,48 @@
 # @pnpm/plugin-commands-installation
 
+## 10.1.0
+
+### Minor Changes
+
+- 4d39e4a0c: A new setting is supported for ignoring specific deprecation messages: `pnpm.allowedDeprecatedVersions`. The setting should be provided in the `pnpm` section of the root `package.json` file. The below example will mute any deprecation warnings about the `request` package and warnings about `express` v1:
+
+  ```json
+  {
+    "pnpm": {
+      "allowedDeprecatedVersions": {
+        "request": "*",
+        "express": "1"
+      }
+    }
+  }
+  ```
+
+  Related issue: [#4306](https://github.com/pnpm/pnpm/issues/4306)
+  Related PR: [#4864](https://github.com/pnpm/pnpm/pull/4864)
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [c1238946f]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/core@5.3.0
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/find-workspace-packages@4.0.11
+  - @pnpm/manifest-utils@3.0.3
+  - @pnpm/outdated@10.0.6
+  - @pnpm/package-store@13.0.7
+  - @pnpm/plugin-commands-rebuild@6.1.10
+  - @pnpm/pnpmfile@2.0.3
+  - @pnpm/read-project-manifest@3.0.3
+  - @pnpm/resolver-base@9.0.2
+  - @pnpm/sort-packages@3.0.3
+  - @pnpm/store-connection-manager@4.1.9
+  - @pnpm/filter-workspace-packages@5.0.11
+
 ## 10.0.12
 
 ### Patch Changes

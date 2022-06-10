@@ -1,5 +1,31 @@
 # pnpm
 
+## 7.2.0
+
+### Minor Changes
+
+- A new setting is supported for ignoring specific deprecation messages: `pnpm.allowedDeprecatedVersions`. The setting should be provided in the `pnpm` section of the root `package.json` file. The below example will mute any deprecation warnings about the `request` package and warnings about `express` v1:
+
+  ```json
+  {
+    "pnpm": {
+      "allowedDeprecatedVersions": {
+        "request": "*",
+        "express": "1"
+      }
+    }
+  }
+  ```
+
+  Related issue: [#4306](https://github.com/pnpm/pnpm/issues/4306)
+  Related PR: [#4864](https://github.com/pnpm/pnpm/pull/4864)
+
+### Patch Changes
+
+- Update the compatibility database.
+- Report only the first occurrence of a deprecated package.
+- Add better hints to the peer dependency issue errors.
+
 ## 7.1.9
 
 ### Patch Changes

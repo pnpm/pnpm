@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 8.1.0
+
+### Minor Changes
+
+- 4d39e4a0c: Add new setting to pnpm field of the manifest: allowedDeprecatedVersions.
+
 ## 8.0.1
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pick-registry-for-package",
   "description": "Picks the right registry for the package from a registries config",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -27,12 +27,12 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:8.0.1"
+    "@pnpm/types": "workspace:8.1.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/pick-registry-for-package#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/pick-registry-for-package": "workspace:3.0.1"
+    "@pnpm/pick-registry-for-package": "workspace:3.0.2"
   },
   "exports": {
     ".": "./lib/index.js"

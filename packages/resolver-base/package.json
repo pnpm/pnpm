@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolver-base",
-  "version": "9.0.1",
+  "version": "9.0.2",
   "description": "Types for pnpm-compatible resolvers",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -27,14 +27,14 @@
   "license": "MIT",
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/resolver-base#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:8.0.1"
+    "@pnpm/types": "workspace:8.1.0"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/resolver-base": "workspace:9.0.1"
+    "@pnpm/resolver-base": "workspace:9.0.2"
   },
   "exports": {
     ".": "./lib/index.js"

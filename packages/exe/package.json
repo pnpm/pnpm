@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/exe",
   "description": "Fast, disk space efficient package manager",
-  "version": "7.1.9",
+  "version": "7.2.0",
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"
@@ -11,14 +11,14 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "optionalDependencies": {
-    "@pnpm/linux-arm64": "workspace:7.1.9",
-    "@pnpm/linux-x64": "workspace:7.1.9",
-    "@pnpm/macos-arm64": "workspace:7.1.9",
-    "@pnpm/macos-x64": "workspace:7.1.9",
-    "@pnpm/win-x64": "workspace:7.1.9"
+    "@pnpm/linux-arm64": "workspace:7.2.0",
+    "@pnpm/linux-x64": "workspace:7.2.0",
+    "@pnpm/macos-arm64": "workspace:7.2.0",
+    "@pnpm/macos-x64": "workspace:7.2.0",
+    "@pnpm/win-x64": "workspace:7.2.0"
   },
   "devDependencies": {
-    "@pnpm/exe": "workspace:7.1.9",
+    "@pnpm/exe": "workspace:7.2.0",
     "@zkochan/pkg": "0.0.0-2",
     "execa": "npm:safe-execa@^0.1.1"
   },

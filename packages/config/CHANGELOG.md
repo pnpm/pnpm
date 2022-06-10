@@ -1,5 +1,19 @@
 # @pnpm/config
 
+## 15.2.0
+
+### Minor Changes
+
+- d5730ba81: The ca and cert options may accept an array of string.
+
+### Patch Changes
+
+- bc80631d3: Update npm-conf.
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/pnpmfile@2.0.3
+  - @pnpm/read-project-manifest@3.0.3
+
 ## 15.1.4
 
 ### Patch Changes
