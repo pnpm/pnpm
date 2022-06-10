@@ -2,7 +2,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import PATH from 'path-name'
-import { getCurrentBranch } from '@pnpm/git-utils/test/utils/mock'
+import { getCurrentBranch } from '../../git-utils/test/utils/mock'
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'

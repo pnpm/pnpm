@@ -6529,7 +6529,7 @@ packages:
     dev: true
 
   /array-union/2.1.0:
-    resolution: {integrity: sha1-t5hCCtvrHego2ErNii4j0+/oXo0=}
+    resolution: {integrity: sha512-HGyxoOTYUyCM6stUe6EJgnd4EoewAI7zMdfqO+kGjnlZmBDz/cR5pf8r/cR4Wq60sL/p0IkcjUEEPwS3GFrIyw==}
     engines: {node: '>=8'}
 
   /array-uniq/1.0.3:
@@ -6792,7 +6792,7 @@ packages:
       wrap-ansi: 7.0.0
 
   /brace-expansion/1.1.11:
-    resolution: {integrity: sha1-PH/L9SnYcibz0vUrlm/1Jx60Qd0=}
+    resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
@@ -8981,7 +8981,7 @@ packages:
       pkg-dir: 4.2.0
 
   /findup/0.1.5:
-    resolution: {integrity: sha512-Udxo3C9A6alt2GZ2MNsgnIvX7De0V3VGxeP/x98NSVgSlizcDHdmJza61LI7zJy4OEtSiJyE72s0/+tBl5/ZxA==}
+    resolution: {integrity: sha1-itkpozk7rGJ5V6fl3kYjsGsOLOs=}
     engines: {node: '>=0.6'}
     hasBin: true
     dependencies:
@@ -9324,7 +9324,7 @@ packages:
     dev: true
 
   /github-from-package/0.0.0:
-    resolution: {integrity: sha512-SyHy3T1v2NUXn29OsWdxmK6RwHD+vkj3v8en8AOBZ1wBQ/hCAQ5bAQTD02kW4W9tUp/3Qh6J8r9EvntiyCmOOw==}
+    resolution: {integrity: sha1-l/tdlr/eiXMxPyDoKI75oWf6ZM4=}
     dev: true
 
   /glob-parent/5.1.2:
@@ -10058,7 +10058,7 @@ packages:
     dev: true
 
   /is-path-cwd/2.2.0:
-    resolution: {integrity: sha1-Z9Q7gmZKe1GR/ZEZEn6zAASKn9s=}
+    resolution: {integrity: sha512-w942bTcih8fdJPJmQHFzkS76NEP8Kzzvmw92cXsazb8intwLqPibPPdXf4ANdKV3rYMuuQYGIWtvz9JilB3NFQ==}
     engines: {node: '>=6'}
 
   /is-path-inside/3.0.3:
@@ -11193,7 +11193,7 @@ packages:
     dev: true
 
   /manage-path/2.0.0:
-    resolution: {integrity: sha512-NJhyB+PJYTpxhxZJ3lecIGgh4kwIY2RAh44XvAz9UlqthlQwtPBf62uBVR8XaD8CRuSjQ6TnZH2lNJkbLPZM2A==}
+    resolution: {integrity: sha1-9M+EV7km7u4qg7FzUBQUvHbrlZc=}
     dev: true
 
   /map-age-cleaner/0.1.3:
@@ -11359,7 +11359,7 @@ packages:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
 
   /merge2/1.4.1:
-    resolution: {integrity: sha1-Q2iJL4hekHRVpv19xVwMnUBJkK4=}
+    resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
   /methods/1.1.2:
@@ -11589,7 +11589,7 @@ packages:
     dev: true
 
   /mute-stream/0.0.7:
-    resolution: {integrity: sha512-r65nCZhrbXXb6dXOACihYApHw2Q6pV0M3V0PSxd74N0+D8nzAdEAITq2oAjA1jVnKI+tGvEBUpqiMh0+rW6zDQ==}
+    resolution: {integrity: sha1-MHXOk7whuPq0PhvE2n6BFe0ee6s=}
     dev: true
 
   /mv/2.1.1:
@@ -12004,7 +12004,7 @@ packages:
       mimic-fn: 2.1.0
 
   /opt-cli/1.5.1:
-    resolution: {integrity: sha512-iRFQBiQjXZ+LX/8pis04prUhS6FOYcJiZRouofN3rUJEB282b/e0s3jp9vT7aHgXY6TUpgPwu12f0i+qF40Kjw==}
+    resolution: {integrity: sha1-BNtEexPJa5kusxaFJm9O0NlzbcI=}
     hasBin: true
     dependencies:
       commander: 2.9.0
@@ -12344,7 +12344,7 @@ packages:
     dev: true
 
   /path-type/4.0.0:
-    resolution: {integrity: sha1-hO0BwKe6OAr+CdkKjBgNzZ0DBDs=}
+    resolution: {integrity: sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==}
     engines: {node: '>=8'}
 
   /peek-stream/1.1.3:
@@ -13619,11 +13619,11 @@ packages:
     engines: {node: '>=0.10.0'}
 
   /spawn-command/0.0.2:
-    resolution: {integrity: sha512-zC8zGoGkmc8J9ndvml8Xksr1Amk9qBujgbF0JAIWO7kXr43w0h/0GJNM/Vustixu+YE8N/MTrQ7N31FvHUACxQ==}
+    resolution: {integrity: sha1-lUThpDygRfhTGqwaSMspva5iM44=}
     dev: true
 
   /spawn-command/0.0.2-1:
-    resolution: {integrity: sha512-n98l9E2RMSJ9ON1AKisHzz7V42VDiBQGY6PB1BwRglz99wpVsSuGzQ+jOi6lFXBGVTCrRpltvjm+/XA+tpeJrg==}
+    resolution: {integrity: sha1-YvXpRmmBwbeW3Fkpk34RycaSG9A=}
     dev: true
 
   /spawndamnit/2.0.0:
@@ -14099,7 +14099,7 @@ packages:
       next-tick: 1.1.0
 
   /tiny-each-async/2.0.3:
-    resolution: {integrity: sha512-5ROII7nElnAirvFn8g7H7MtpfV1daMcyfTGQwsn/x2VtyV+VPiO5CjReCJtWLvoKTDEDmZocf3cNPraiMnBXLA==}
+    resolution: {integrity: sha1-jru/1tYpXxNwAD+7NxYq/loKUdE=}
     dev: false
 
   /tinylogic/1.0.3:
