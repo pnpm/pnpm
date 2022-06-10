@@ -112,6 +112,7 @@ export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDepe
 
 export interface PeerDependencyRules {
   ignoreMissing?: string[]
+  ignoreVersion?: string[]
   allowedVersions?: Record<string, string>
 }
 
