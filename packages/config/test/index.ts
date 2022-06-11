@@ -802,5 +802,6 @@ test('getConfig() should read cafile', async () => {
     },
   })
   expect(config).toBeDefined()
-  expect(config.ca).toBe('xxx')
+  expect(config.ca).toStrictEqual([`xxx
+-----END CERTIFICATE-----`])
 })
