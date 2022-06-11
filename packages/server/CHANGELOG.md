@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 12.0.4
+
+### Patch Changes
+
+- 8c8156165: Update uuid.
+
 ## 12.0.3
 
 ### Patch Changes

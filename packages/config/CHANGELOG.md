@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.2.1
+
+### Patch Changes
+
+- 25798aad1: Don't fail when the cafile setting is specified [#4877](https://github.com/pnpm/pnpm/issues/4877). This fixes a regression introduced in pnpm v7.2.0.
+
 ## 15.2.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-env",
-  "version": "2.1.10",
+  "version": "2.1.11",
   "description": "pnpm commands for managing Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,8 +30,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-env#readme",
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.7.11",
-    "@pnpm/config": "workspace:15.2.0",
+    "@pnpm/cli-utils": "workspace:0.7.12",
+    "@pnpm/config": "workspace:15.2.1",
     "@pnpm/create-cafs-store": "workspace:1.0.3",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/fetch": "workspace:5.0.2",
@@ -50,7 +50,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/plugin-commands-env": "workspace:2.1.10",
+    "@pnpm/plugin-commands-env": "workspace:2.1.11",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
     "@types/semver": "^7.3.4",
