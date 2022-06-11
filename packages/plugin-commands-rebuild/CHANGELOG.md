@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.4.28
+
+### Patch Changes
+
+- Updated dependencies [c8445ce6e]
+  - @pnpm/config@13.14.1
+  - @pnpm/cli-utils@0.6.60
+  - @pnpm/store-connection-manager@3.2.20
+  - @pnpm/find-workspace-packages@3.1.52
+
 ## 5.4.27
 
 ### Patch Changes

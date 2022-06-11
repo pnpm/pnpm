@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.32.22
+
+### Patch Changes
+
+- c8445ce6e: Don't fail when the cafile setting is specified [#4877](https://github.com/pnpm/pnpm/issues/4877). This fixes a regression introduced in pnpm v6.32.21.
+- 518d4a251: Add better hints to the peer dependency issue errors.
+
 ## 6.32.21
 
 ### Patch Changes

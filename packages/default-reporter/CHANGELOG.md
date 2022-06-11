@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 8.6.2
+
+### Patch Changes
+
+- 518d4a251: Add better hints to the peer dependency issue errors.
+- Updated dependencies [c8445ce6e]
+  - @pnpm/config@13.14.1
+
 ## 8.6.1
 
 ### Patch Changes
