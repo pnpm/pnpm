@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=14.19"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",

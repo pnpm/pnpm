@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=14.19"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",
@@ -28,8 +28,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/sort-packages#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:8.1.0",
-    "@pnpm/graph-sequencer": "1.0.0"
+    "@pnpm/graph-sequencer": "1.0.0",
+    "@pnpm/types": "workspace:8.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

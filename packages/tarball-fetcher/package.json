@@ -23,7 +23,7 @@
     "tarball"
   ],
   "engines": {
-    "node": ">=14.19"
+    "node": ">=14.6"
   },
   "license": "MIT",
   "bugs": {
@@ -45,9 +45,9 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
+    "@pnpm/create-cafs-store": "workspace:1.0.3",
     "@pnpm/fetch": "workspace:5.0.2",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/create-cafs-store": "workspace:1.0.3",
     "@pnpm/tarball-fetcher": "workspace:10.0.4",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.27.39",

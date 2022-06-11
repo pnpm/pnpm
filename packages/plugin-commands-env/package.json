@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=14.19"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
@@ -32,10 +32,10 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.7.11",
     "@pnpm/config": "workspace:15.2.0",
+    "@pnpm/create-cafs-store": "workspace:1.0.3",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/fetch": "workspace:5.0.2",
     "@pnpm/fetcher-base": "workspace:12.0.3",
-    "@pnpm/create-cafs-store": "workspace:1.0.3",
     "@pnpm/store-path": "workspace:6.0.0",
     "@pnpm/tarball-fetcher": "workspace:10.0.4",
     "@zkochan/cmd-shim": "^5.2.2",
