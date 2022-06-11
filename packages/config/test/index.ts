@@ -790,3 +790,17 @@ test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-
   expect(config.sideEffectsCacheRead).toBeTruthy()
   expect(config.sideEffectsCacheWrite).toBeTruthy()
 })
+
+test('getConfig() should read cafile', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      cafile: path.join(__dirname, 'cafile.txt'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config).toBeDefined()
+  expect(config.ca).toBe('xxx')
+})

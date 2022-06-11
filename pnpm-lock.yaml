@@ -345,7 +345,7 @@ importers:
       '@pnpm/config': workspace:15.2.0
       '@pnpm/constants': workspace:6.1.0
       '@pnpm/error': workspace:3.0.1
-      '@pnpm/npm-conf': 1.0.3
+      '@pnpm/npm-conf': 1.0.4
       '@pnpm/pnpmfile': workspace:2.0.3
       '@pnpm/prepare': workspace:*
       '@pnpm/read-project-manifest': workspace:3.0.3
@@ -364,7 +364,7 @@ importers:
     dependencies:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
-      '@pnpm/npm-conf': 1.0.3
+      '@pnpm/npm-conf': 1.0.4
       '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
@@ -5129,6 +5129,15 @@ packages:
     dependencies:
       '@pnpm/network.ca-file': 1.0.1
       config-chain: 1.1.13
+    dev: true
+
+  /@pnpm/npm-conf/1.0.4:
+    resolution: {integrity: sha512-o5YFq/+ksEJMbSzzkaQDHlp00aonLDU5xNPVTRL12hTWBbVSSeWXxPukq75h+mvXnoOWT95vV2u1HSTw2C4XOw==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@pnpm/network.ca-file': 1.0.1
+      config-chain: 1.1.13
+    dev: false
 
   /@pnpm/npm-lifecycle/2.0.0-1:
     resolution: {integrity: sha512-eUeRVUxnr9xP50ESMuRDrWYN/AQmaV2g/Wvs3ckHBx7XFJw8ljix66L7R1S1FoUqxNn0BeyPeIE9ANwn/syIAQ==}
