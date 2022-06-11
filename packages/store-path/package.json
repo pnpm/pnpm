@@ -22,7 +22,7 @@
     "store"
   ],
   "engines": {
-    "node": ">=14.19"
+    "node": ">=14.6"
   },
   "license": "MIT",
   "bugs": {
