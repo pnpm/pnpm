@@ -792,6 +792,21 @@ test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-
   expect(config.sideEffectsCacheWrite).toBeTruthy()
 })
 
+test('getConfig() should read cafile', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      cafile: path.join(__dirname, 'cafile.txt'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config).toBeDefined()
+  expect(config.ca).toStrictEqual([`xxx
+-----END CERTIFICATE-----`])
+})
+
 test('respect merge-git-branch-lockfiles-branch-pattern', async () => {
   {
     const { config } = await getConfig({
