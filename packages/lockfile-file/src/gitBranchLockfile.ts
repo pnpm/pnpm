@@ -12,7 +12,7 @@ export async function cleanGitBranchLockfiles (lockfileDir: string) {
   await Promise.all(
     gitBranchLockfiles.map(async file => {
       const filepath: string = path.join(lockfileDir, file)
-      await fs.rm(filepath)
+      await fs.unlink(filepath)
     })
   )
 }
