@@ -54,6 +54,7 @@ test('all expected options passed down to HttpsAgent', () => {
 test('all expected options passed down to proxy agent', () => {
   const opts = {
     httpsProxy: 'https://user:pass@my.proxy:1234/foo',
+    noProxy: 'qar.com, bar.com',
     ...OPTS,
   }
   expect(getAgent('https://foo.com/bar', opts)).toEqual({
@@ -68,6 +69,24 @@ test('all expected options passed down to proxy agent', () => {
     path: '/foo',
     port: '1234',
     protocol: 'https:',
+    rejectUnauthorized: true,
+    timeout: 6,
+  })
+})
+
+test("don't use a proxy when the URL is in noProxy", () => {
+  const opts = {
+    httpsProxy: 'https://user:pass@my.proxy:1234/foo',
+    noProxy: 'foo.com, bar.com',
+    ...OPTS,
+  }
+  expect(getAgent('https://foo.com/bar', opts)).toEqual({
+    __type: 'https',
+    ca: 'ca',
+    cert: 'cert',
+    key: 'key',
+    localAddress: 'localAddress',
+    maxSockets: 5,
     rejectUnauthorized: true,
     timeout: 6,
   })
