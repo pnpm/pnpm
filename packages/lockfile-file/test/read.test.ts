@@ -244,7 +244,7 @@ test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles
   expect(lockfile?.importers).toEqual({
     '.': {
       specifiers: {
-        'is-positive': '1.0.0',
+        'is-positive': '2.0.0',
       },
     },
   })
