@@ -8,7 +8,9 @@ import {
 } from '@pnpm/lockfile-file'
 import tempy from 'tempy'
 import yaml from 'yaml-tag'
-import { getCurrentBranch } from '../../git-utils/test/utils/mock'
+import { getCurrentBranch } from '@pnpm/git-utils'
+
+jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
 test('writeLockfiles()', async () => {
   const projectPath = tempy.directory()
@@ -196,7 +198,7 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
 
 test('writeLockfiles() when useGitBranchLockfile', async () => {
   const branchName: string = 'branch'
-  getCurrentBranch.mockReturnValue(branchName)
+  getCurrentBranch['mockReturnValue'](branchName)
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {

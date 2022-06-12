@@ -2,13 +2,15 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import PATH from 'path-name'
-import { getCurrentBranch } from '../../git-utils/test/utils/mock'
+import { getCurrentBranch } from '@pnpm/git-utils'
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 
 import symlinkDir from 'symlink-dir'
+
+jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
 // To override any local settings,
 // we force the default values of config
@@ -854,7 +856,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
 
     await fs.writeFile('.npmrc', npmrc, 'utf8')
 
-    getCurrentBranch.mockReturnValue('develop')
+    getCurrentBranch['mockReturnValue']('develop')
     const { config } = await getConfig({
       cliOptions: {
         global: false,
@@ -869,7 +871,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(false)
   }
   {
-    getCurrentBranch.mockReturnValue('main')
+    getCurrentBranch['mockReturnValue']('main')
     const { config } = await getConfig({
       cliOptions: {
         global: false,
@@ -882,7 +884,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(true)
   }
   {
-    getCurrentBranch.mockReturnValue('release/1.0.0')
+    getCurrentBranch['mockReturnValue']('release/1.0.0')
     const { config } = await getConfig({
       cliOptions: {
         global: false,

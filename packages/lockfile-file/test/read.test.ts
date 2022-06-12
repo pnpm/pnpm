@@ -1,4 +1,5 @@
 import path from 'path'
+import { getCurrentBranch } from '@pnpm/git-utils'
 import {
   existsWantedLockfile,
   readCurrentLockfile,
@@ -7,7 +8,8 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import tempy from 'tempy'
-import { getCurrentBranch } from '../../git-utils/test/utils/mock'
+
+jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
 process.chdir(__dirname)
 
@@ -193,7 +195,7 @@ test('existsWantedLockfile()', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile', async () => {
-  getCurrentBranch.mockReturnValue('branch')
+  getCurrentBranch['mockReturnValue']('branch')
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
   })
@@ -233,7 +235,7 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles', async () => {
-  getCurrentBranch.mockReturnValue('branch')
+  getCurrentBranch['mockReturnValue']('branch')
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
     useGitBranchLockfile: true,

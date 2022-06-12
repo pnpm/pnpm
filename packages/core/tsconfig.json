@@ -52,6 +52,9 @@
       "path": "../get-context"
     },
     {
+      "path": "../git-utils"
+    },
+    {
       "path": "../headless"
     },
     {

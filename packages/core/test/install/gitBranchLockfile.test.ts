@@ -5,14 +5,16 @@ import { install, mutateModules } from '@pnpm/core'
 import { testDefaults } from '../utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { ProjectManifest } from '@pnpm/types'
+import { getCurrentBranch } from '@pnpm/git-utils'
 import writeYamlFile from 'write-yaml-file'
-import { getCurrentBranch } from '../../../git-utils/test/utils/mock'
+
+jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
 test('install with git-branch-lockfile = true', async () => {
   prepareEmpty()
 
   const branchName: string = 'main-branch'
-  getCurrentBranch.mockReturnValue(branchName)
+  getCurrentBranch['mockReturnValue'](branchName)
 
   const opts = await testDefaults({
     useGitBranchLockfile: true,
@@ -32,7 +34,7 @@ test('install with git-branch-lockfile = true and no lockfile changes', async ()
   prepareEmpty()
 
   const branchName: string = 'main-branch'
-  getCurrentBranch.mockReturnValue(branchName)
+  getCurrentBranch['mockReturnValue'](branchName)
 
   const manifest: ProjectManifest = {
     dependencies: {
@@ -84,7 +86,7 @@ test('install a workspace with git-branch-lockfile = true', async () => {
   ])
 
   const branchName: string = 'main-branch'
-  getCurrentBranch.mockReturnValue(branchName)
+  getCurrentBranch['mockReturnValue'](branchName)
 
   const opts = await testDefaults({
     useGitBranchLockfile: true,
@@ -119,7 +121,7 @@ test('install with --merge-git-branch-lockfiles', async () => {
   prepareEmpty()
 
   const branchName: string = 'main-branch'
-  getCurrentBranch.mockReturnValue(branchName)
+  getCurrentBranch['mockReturnValue'](branchName)
 
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
   await writeYamlFile(otherLockfilePath, {

@@ -407,6 +407,7 @@ importers:
       '@pnpm/error': workspace:3.0.1
       '@pnpm/filter-lockfile': workspace:6.0.5
       '@pnpm/get-context': workspace:6.1.3
+      '@pnpm/git-utils': workspace:0.0.0
       '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/headless': workspace:18.1.11
       '@pnpm/hoist': workspace:6.1.3
@@ -532,6 +533,7 @@ importers:
       '@pnpm/cafs': link:../cafs
       '@pnpm/client': link:../client
       '@pnpm/core': 'link:'
+      '@pnpm/git-utils': link:../git-utils
       '@pnpm/logger': 4.0.0
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
