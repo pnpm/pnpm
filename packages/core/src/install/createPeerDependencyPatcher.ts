@@ -1,4 +1,4 @@
-import { PeerDependencyRules, ReadPackageHook } from '@pnpm/types'
+import { PeerDependencyRules, ReadPackageHook, Dependencies } from '@pnpm/types'
 import matcher from '@pnpm/matcher'
 import isEmpty from 'ramda/src/isEmpty'
 
@@ -6,12 +6,14 @@ export default function (
   peerDependencyRules: PeerDependencyRules
 ): ReadPackageHook {
   const ignoreMissingPatterns = [...new Set(peerDependencyRules.ignoreMissing ?? [])]
-  const ignoreVersionPatterns = [...new Set(peerDependencyRules.ignoreVersion ?? [])]
+  const ignoreMissingMatcher = matcher(ignoreMissingPatterns)
+  const allowAnyPatterns = [...new Set(peerDependencyRules.allowAny ?? [])]
   return ((pkg) => {
     if (isEmpty(pkg.peerDependencies)) return pkg
+    const allowAnyPeerDeps = getAllowAnyPeerDeps(allowAnyPatterns, pkg.peerDependencies ?? {})
     for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
       if (
-        matcher(ignoreMissingPatterns)(peerName) &&
+        ignoreMissingMatcher(peerName) &&
         !pkg.peerDependenciesMeta?.[peerName]?.optional
       ) {
         pkg.peerDependenciesMeta = pkg.peerDependenciesMeta ?? {}
@@ -19,9 +21,7 @@ export default function (
           optional: true,
         }
       }
-      if (peerVersion !== '*' && matcher(ignoreVersionPatterns)(peerName)) {
-        pkg.peerDependencies![peerName] = '*'
-      } else if (
+      if (
         peerDependencyRules.allowedVersions?.[peerName] &&
         peerVersion !== '*'
       ) {
@@ -41,10 +41,22 @@ export default function (
         }
       }
     }
+    pkg.peerDependencies = { ...pkg.peerDependencies, ...allowAnyPeerDeps }
     return pkg
   }) as ReadPackageHook
 }
 
 function parseVersions (versions: string) {
   return versions.split('||').map(v => v.trim())
+}
+
+function getAllowAnyPeerDeps (allowAnyPatterns: string[], peerDependencies: Dependencies) {
+  const allowAnyMatcher = matcher(allowAnyPatterns)
+  const allowAnyPeerDeps = {}
+  Object.keys(peerDependencies ?? {}).forEach(peerDependency => {
+    if (allowAnyMatcher(peerDependency)) {
+      allowAnyPeerDeps[peerDependency] = '*'
+    }
+  })
+  return allowAnyPeerDeps
 }

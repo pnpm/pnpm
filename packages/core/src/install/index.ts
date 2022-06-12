@@ -530,7 +530,7 @@ export function createReadPackageHook (
     (
       !isEmpty(peerDependencyRules.ignoreMissing) ||
       !isEmpty(peerDependencyRules.allowedVersions) ||
-      !isEmpty(peerDependencyRules.ignoreVersion)
+      !isEmpty(peerDependencyRules.allowAny)
     )
   ) {
     hooks.push(createPeerDependencyPatcher(peerDependencyRules))

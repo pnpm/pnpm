@@ -58,9 +58,9 @@ test('createPeerDependencyPatcher() extends peer ranges', () => {
   })
 })
 
-test('createPeerDependencyPatcher() ignores peer versions from ignoreVersion', () => {
+test('createPeerDependencyPatcher() ignores peer versions from allowAny', () => {
   const patcher = createPeerDependencyPatcher({
-    ignoreVersion: ['foo', 'bar'],
+    allowAny: ['foo', 'bar'],
   })
   const patchedPkg = patcher({
     peerDependencies: {
