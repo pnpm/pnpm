@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:6.1.4",
     "@pnpm/fetching-types": "workspace:2.2.1",
-    "@pnpm/npm-registry-agent": "workspace:5.1.0",
+    "@pnpm/network.agent": "0.0.3",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "3.0.0-beta.9"
   },

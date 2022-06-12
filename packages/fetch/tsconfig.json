@@ -14,9 +14,6 @@
     },
     {
       "path": "../fetching-types"
-    },
-    {
-      "path": "../npm-registry-agent"
     }
   ]
 }
