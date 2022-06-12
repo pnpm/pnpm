@@ -27,7 +27,7 @@ export interface AgentOptions {
 export default function getAgent (uri: string, opts: AgentOptions) {
   const parsedUri = new URL(uri)
   const isHttps = parsedUri.protocol === 'https:'
-  const pxuri = getProxyUri(uri, opts)
+  const pxuri = !checkNoProxy(uri, opts) ? getProxyUri(uri, opts) : undefined
 
   /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
   const key = [
@@ -110,7 +110,6 @@ function getProxyUri (
   opts: {
     httpProxy?: string
     httpsProxy?: string
-    noProxy?: boolean | string
   }
 ) {
   const { protocol } = new URL(uri)
@@ -137,7 +136,7 @@ function getProxyUri (
 
   const parsedProxy = (typeof proxy === 'string') ? new URL(proxy) : proxy
 
-  return !checkNoProxy(uri, opts) && parsedProxy
+  return parsedProxy
 }
 
 function getProxy (
