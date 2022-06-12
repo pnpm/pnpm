@@ -812,7 +812,7 @@ importers:
       '@pnpm/fetch': workspace:5.0.2
       '@pnpm/fetching-types': workspace:3.0.0
       '@pnpm/logger': ^4.0.0
-      '@pnpm/npm-registry-agent': workspace:6.1.0
+      '@pnpm/network.agent': 0.0.3
       '@zkochan/retry': ^0.2.0
       cpy-cli: ^3.1.1
       nock: 12.0.3
@@ -820,7 +820,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/fetching-types': link:../fetching-types
-      '@pnpm/npm-registry-agent': link:../npm-registry-agent
+      '@pnpm/network.agent': 0.0.3
       '@zkochan/retry': 0.2.0
       node-fetch: 3.0.0-beta.9
     devDependencies:
@@ -1688,27 +1688,6 @@ importers:
       normalize-registry-url: 2.0.0
     devDependencies:
       '@pnpm/normalize-registries': 'link:'
-
-  packages/npm-registry-agent:
-    specifiers:
-      '@pnpm/npm-registry-agent': workspace:6.1.0
-      '@types/http-proxy-agent': ^4.0.0
-      '@types/lru-cache': ^5.1.0
-      agentkeepalive: ^4.1.3
-      http-proxy-agent: ^5.0.0
-      https-proxy-agent: ^5.0.0
-      lru-cache: ^6.0.0
-      socks-proxy-agent: 6.1.1
-    dependencies:
-      agentkeepalive: 4.2.1
-      http-proxy-agent: 5.0.0
-      https-proxy-agent: 5.0.1
-      lru-cache: 6.0.0
-      socks-proxy-agent: 6.1.1
-    devDependencies:
-      '@pnpm/npm-registry-agent': 'link:'
-      '@types/http-proxy-agent': 4.0.1
-      '@types/lru-cache': 5.1.1
 
   packages/npm-resolver:
     specifiers:
@@ -5110,11 +5089,34 @@ packages:
       write-json-file: 4.3.0
     dev: true
 
+  /@pnpm/network.agent/0.0.3:
+    resolution: {integrity: sha512-+KOFMfdZ0+lDrk5tQVh4uCALRbsrwfnNlvqQOCysbE2GuDSfjqIPvc8ZLkaLs5oNgvsvDhmUi0OSrVH+Ru0RBA==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      '@pnpm/network.proxy-agent': 0.0.3
+      agentkeepalive: 4.2.1
+      lru-cache: 7.10.1
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
+
   /@pnpm/network.ca-file/1.0.1:
     resolution: {integrity: sha512-gkINruT2KUhZLTaiHxwCOh1O4NVnFT0wLjWFBHmTz9vpKag/C/noIMJXBxFe4F0mYpUVX2puLwAieLYFg2NvoA==}
     engines: {node: '>=12.22.0'}
     dependencies:
       graceful-fs: 4.2.10
+
+  /@pnpm/network.proxy-agent/0.0.3:
+    resolution: {integrity: sha512-+JcKCzLrxPTl9OYKvYYtoBVF8OH3uMDAaeWW8I5BGqWzpkFU6AI/xESRd0kBw4oMIBw4unHry00II8qB2o3eCA==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      http-proxy-agent: 5.0.0
+      https-proxy-agent: 5.0.1
+      lru-cache: 7.10.1
+      socks-proxy-agent: 6.1.1
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
 
   /@pnpm/nopt/0.2.1:
     resolution: {integrity: sha512-zkgDE6q3Y6KeZPjqXCk/hRQ2t6iw9JXbdnYZghwpe/HR73e4VmV5JZ5QSFypmSd5Sx4+gjNfAqME5BVAOBCk9g==}
@@ -5348,6 +5350,7 @@ packages:
   /@tootallnate/once/2.0.0:
     resolution: {integrity: sha512-XCuKFP5PS55gnMVu3dty8KPatLqUoy/ZYzDzAGCQ8JNFCkLXzmI7vNHCR+XpbZaMWQK/vQubr7PkYq8g470J/A==}
     engines: {node: '>= 10'}
+    dev: false
 
   /@tsconfig/node10/1.0.8:
     resolution: {integrity: sha512-6XFfSQmMgq0CFLY1MslA/CPUfhIL919M1rMsa5lP2P097N2Wd1sSX0tx1u4olM16fLNhtHZpRhedZJphNJqmZg==}
@@ -5462,15 +5465,6 @@ packages:
 
   /@types/http-cache-semantics/4.0.1:
     resolution: {integrity: sha512-SZs7ekbP8CN0txVG2xVRH6EgKmEm31BOxA07vkFaETzZz1xh+cbt8BcI0slpymvwhx5dlFnQG2rTlPVQn+iRPQ==}
-
-  /@types/http-proxy-agent/4.0.1:
-    resolution: {integrity: sha512-2XJTByP9C14Kcq5ClvPRfOgFJxklhuru7xmuSPcNr2CPwRGdpCgIdUUNc0MDb25+bzaSolVN0u4RKH7M+CMimg==}
-    deprecated: This is a stub types definition. http-proxy-agent provides its own type definitions, so you do not need this installed.
-    dependencies:
-      http-proxy-agent: 5.0.0
-    transitivePeerDependencies:
-      - supports-color
-    dev: true
 
   /@types/is-ci/3.0.0:
     resolution: {integrity: sha512-Q0Op0hdWbYd1iahB+IFNQcWXFq4O0Q5MwQP7uN0souuQ4rPg1vEYcnIOfr1gY+M+6rc8FGoRaBO1mOOvL29sEQ==}
@@ -9618,6 +9612,7 @@ packages:
       debug: 4.3.4
     transitivePeerDependencies:
       - supports-color
+    dev: false
 
   /http-signature/1.2.0:
     resolution: {integrity: sha512-CAbnr6Rz4CYQkLYUtSNXxQPUH2gK8f3iWexVlsnMeD+GjlsQ0Xsy1cOX+mN3dtxYomRy21CiOzU8Uhw6OwncEQ==}
@@ -11109,6 +11104,11 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       yallist: 4.0.0
+
+  /lru-cache/7.10.1:
+    resolution: {integrity: sha512-BQuhQxPuRl79J5zSXRP+uNzPOyZw2oFI9JLRQ80XswSvg21KMKNtQza9eF42rfI/3Z40RvzBdXgziEkudzjo8A==}
+    engines: {node: '>=12'}
+    dev: false
 
   /lru-cache/7.9.0:
     resolution: {integrity: sha512-lkcNMUKqdJk96TuIXUidxaPuEg5sJo/+ZyVE2BDFnuZGzwXem7d8582eG8vbu4todLfT14snP6iHriCHXXi5Rw==}
