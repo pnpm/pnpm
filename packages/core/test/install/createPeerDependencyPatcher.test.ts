@@ -17,6 +17,23 @@ test('createPeerDependencyPatcher() ignores missing', () => {
   })
 })
 
+test('createPeerDependencyPatcher() pattern matches to ignore missing', () => {
+  const patcher = createPeerDependencyPatcher({
+    ignoreMissing: ['f*r'],
+  })
+  const patchedPkg = patcher({
+    peerDependencies: {
+      foobar: '*',
+      bar: '*',
+    },
+  })
+  expect(patchedPkg['peerDependenciesMeta']).toStrictEqual({
+    foobar: {
+      optional: true,
+    },
+  })
+})
+
 test('createPeerDependencyPatcher() extends peer ranges', () => {
   const patcher = createPeerDependencyPatcher({
     allowedVersions: {
@@ -38,6 +55,26 @@ test('createPeerDependencyPatcher() extends peer ranges', () => {
     bar: '0',
     qar: '*',
     baz: '*',
+  })
+})
+
+test('createPeerDependencyPatcher() ignores peer versions from allowAny', () => {
+  const patcher = createPeerDependencyPatcher({
+    allowAny: ['foo', 'bar'],
+  })
+  const patchedPkg = patcher({
+    peerDependencies: {
+      foo: '2',
+      bar: '2',
+      qar: '2',
+      baz: '2',
+    },
+  })
+  expect(patchedPkg['peerDependencies']).toStrictEqual({
+    foo: '*',
+    bar: '*',
+    qar: '2',
+    baz: '2',
   })
 })
 
