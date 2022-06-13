@@ -25,6 +25,10 @@ export async function runPostinstallHooks (
   if (pkg.scripts == null) {
     pkg.scripts = {}
   }
+  if (opts.patchPath) {
+    pkg.scripts['pnpm:patch'] = `git apply ${opts.patchPath}`
+    await runLifecycleHook('pnpm:patch', pkg, opts)
+  }
 
   if (!pkg.scripts.install) {
     await checkBindingGyp(opts.pkgRoot, pkg.scripts)
@@ -42,7 +46,8 @@ export async function runPostinstallHooks (
 
   return pkg.scripts.preinstall != null ||
     pkg.scripts.install != null ||
-    pkg.scripts.postinstall != null
+    pkg.scripts.postinstall != null ||
+    Boolean(opts.patchPath)
 }
 
 /**

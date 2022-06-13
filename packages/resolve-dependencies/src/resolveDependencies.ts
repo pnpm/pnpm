@@ -4,6 +4,7 @@ import {
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
+import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import PnpmError from '@pnpm/error'
 import {
   Lockfile,
@@ -129,6 +130,7 @@ export interface ResolutionContext {
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
   outdatedDependencies: {[pkgId: string]: string}
   childrenByParentDepPath: ChildrenByParentDepPath
+  patchedDependencies?: Record<string, string>
   pendingNodes: PendingNode[]
   wantedLockfile: Lockfile
   currentLockfile: Lockfile
@@ -195,6 +197,10 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
+  patchFile?: {
+    path: string
+    hash: string
+  }
   prepare: boolean
   depPath: string
   requiresBuild: boolean | SafePromiseDefer<boolean>
@@ -915,12 +921,18 @@ async function resolveDependency (
       status: 'resolved',
     })
 
-    ctx.resolvedPackagesByDepPath[depPath] = getResolvedPackage({
+    let patchPath = ctx.patchedDependencies?.[`${pkg.name}@${pkg.version}`]
+    if (patchPath) {
+      patchPath = path.join(ctx.lockfileDir, patchPath)
+    }
+
+    ctx.resolvedPackagesByDepPath[depPath] = await getResolvedPackage({
       allowBuild: ctx.allowBuild,
       dependencyLockfile: currentPkg.dependencyLockfile,
       depPath,
       force: ctx.force,
       hasBin,
+      patchPath,
       pkg,
       pkgResponse,
       prepare,
@@ -1005,19 +1017,20 @@ function pkgIsLeaf (pkg: PackageManifest) {
     isEmpty(pkg.peerDependencies ?? {})
 }
 
-function getResolvedPackage (
+async function getResolvedPackage (
   options: {
     allowBuild?: (pkgName: string) => boolean
     dependencyLockfile?: PackageSnapshot
     depPath: string
     force: boolean
     hasBin: boolean
+    patchPath?: string
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
     wantedDependency: WantedDependency
   }
-) {
+): Promise<ResolvedPackage> {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
 
   const requiresBuild = (options.allowBuild == null || options.allowBuild(options.pkg.name))
@@ -1046,6 +1059,9 @@ function getResolvedPackage (
     name: options.pkg.name,
     optional: options.wantedDependency.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
+    patchFile: options.patchPath
+      ? { path: options.patchPath, hash: await createBase32HashFromFile(options.patchPath) }
+      : undefined,
     peerDependencies: peerDependencies ?? {},
     peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     prepare: options.prepare,

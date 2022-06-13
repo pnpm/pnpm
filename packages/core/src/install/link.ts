@@ -406,7 +406,7 @@ async function linkAllPkgs (
 
       let targetEngine: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode.depPath, opts.depGraph, opts.depsStateCache)
+        targetEngine = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, depNode.patchFile?.hash)
       }
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild = await depNode.requiresBuild()

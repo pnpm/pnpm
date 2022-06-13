@@ -59,17 +59,17 @@ export default async function (
     // This is duplicated in @pnpm/package-requester
     const integrity: Record<string, PackageFileInfo> = {}
     await Promise.all(
-      Object.keys(sideEffectsIndex)
-        .map(async (filename) => {
+      Object.entries(sideEffectsIndex)
+        .map(async ([filename, { writeResult, mode, size }]) => {
           const {
             checkedAt,
             integrity: fileIntegrity,
-          } = await sideEffectsIndex[filename].writeResult
+          } = await writeResult
           integrity[filename] = {
             checkedAt,
             integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
-            mode: sideEffectsIndex[filename].mode,
-            size: sideEffectsIndex[filename].size,
+            mode,
+            size,
           }
         })
     )

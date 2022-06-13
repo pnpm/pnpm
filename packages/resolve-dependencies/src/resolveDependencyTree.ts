@@ -67,6 +67,7 @@ export interface ResolveDependenciesOptions {
   }
   nodeVersion: string
   registries: Registries
+  patchedDependencies?: Record<string, string>
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
@@ -103,6 +104,7 @@ export default async function<T> (
     lockfileDir: opts.lockfileDir,
     nodeVersion: opts.nodeVersion,
     outdatedDependencies: {} as {[pkgId: string]: string},
+    patchedDependencies: opts.patchedDependencies,
     pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
     preferWorkspacePackages: opts.preferWorkspacePackages,

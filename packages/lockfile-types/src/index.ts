@@ -8,6 +8,7 @@ export interface Lockfile {
   onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
+  patchedDependencies?: Record<string, string>
 }
 
 export interface ProjectSnapshot {

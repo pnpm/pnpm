@@ -1125,6 +1125,7 @@ importers:
       '@pnpm/client': workspace:7.1.5
       '@pnpm/constants': workspace:6.1.0
       '@pnpm/core-loggers': workspace:7.0.3
+      '@pnpm/crypto.base32-hash': workspace:1.0.0
       '@pnpm/error': workspace:3.0.1
       '@pnpm/filter-lockfile': workspace:6.0.6
       '@pnpm/headless': workspace:18.2.0
@@ -1173,6 +1174,7 @@ importers:
       '@pnpm/calc-dep-state': link:../calc-dep-state
       '@pnpm/constants': link:../constants
       '@pnpm/core-loggers': link:../core-loggers
+      '@pnpm/crypto.base32-hash': link:../crypto.base32-hash
       '@pnpm/error': link:../error
       '@pnpm/filter-lockfile': link:../filter-lockfile
       '@pnpm/hoist': link:../hoist
@@ -3211,6 +3213,7 @@ importers:
     specifiers:
       '@pnpm/constants': workspace:6.1.0
       '@pnpm/core-loggers': workspace:7.0.3
+      '@pnpm/crypto.base32-hash': workspace:1.0.0
       '@pnpm/error': workspace:3.0.1
       '@pnpm/lockfile-types': workspace:4.0.3
       '@pnpm/lockfile-utils': workspace:4.0.5
@@ -3246,6 +3249,7 @@ importers:
     dependencies:
       '@pnpm/constants': link:../constants
       '@pnpm/core-loggers': link:../core-loggers
+      '@pnpm/crypto.base32-hash': link:../crypto.base32-hash
       '@pnpm/error': link:../error
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/lockfile-utils': link:../lockfile-utils

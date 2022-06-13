@@ -681,7 +681,7 @@ async function linkAllPkgs (
 
       let targetEngine: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode.dir, opts.depGraph, opts.depsStateCache)
+        targetEngine = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, depNode.patchFile?.hash)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

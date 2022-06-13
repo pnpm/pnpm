@@ -23,6 +23,7 @@ import {
   DepHierarchy,
   DirectDependenciesByImporterId,
   LockfileToDepGraphResult,
+  tryReadPatchFile,
 } from './lockfileToDepGraph'
 
 export interface LockfileToHoistedDepGraphOptions {
@@ -208,6 +209,7 @@ async function fetchDeps (
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
       prepare: pkgSnapshot.prepare === true,
       requiresBuild: pkgSnapshot.requiresBuild === true,
+      patchFile: await tryReadPatchFile(opts.lockfileDir, opts.lockfile, pkgName, pkgVersion),
     }
     opts.pkgLocationByDepPath[depPath] = dir
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
