@@ -527,7 +527,11 @@ export function createReadPackageHook (
   }
   if (
     peerDependencyRules != null &&
-    (!isEmpty(peerDependencyRules.ignoreMissing) || !isEmpty(peerDependencyRules.allowedVersions))
+    (
+      !isEmpty(peerDependencyRules.ignoreMissing) ||
+      !isEmpty(peerDependencyRules.allowedVersions) ||
+      !isEmpty(peerDependencyRules.allowAny)
+    )
   ) {
     hooks.push(createPeerDependencyPatcher(peerDependencyRules))
   }
