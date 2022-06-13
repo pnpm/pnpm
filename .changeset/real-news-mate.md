@@ -1,5 +1,16 @@
 ---
 "@pnpm/core": minor
+"pnpm": minor
 ---
 
-Support pattern matching for peer dependency ignoreMissing and add allowAny support
+The `pnpm.peerDependencyRules.ignoreMissing` setting may accept package name patterns. So you may ignore any missing `@babel/*` peer dependencies, for instance:
+
+```json
+{
+  "pnpm": {
+    "peerDependencyRules": {
+      "ignoreMissing": ["@babel/*"]
+    }
+  }
+}
+```
