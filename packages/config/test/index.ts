@@ -2,12 +2,15 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import PATH from 'path-name'
+import { getCurrentBranch } from '@pnpm/git-utils'
 import getConfig from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 
 import symlinkDir from 'symlink-dir'
+
+jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
 // To override any local settings,
 // we force the default values of config
@@ -804,4 +807,93 @@ test('getConfig() should read cafile', async () => {
   expect(config).toBeDefined()
   expect(config.ca).toStrictEqual([`xxx
 -----END CERTIFICATE-----`])
+})
+
+test('respect merge-git-branch-lockfiles-branch-pattern', async () => {
+  {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.mergeGitBranchLockfilesBranchPattern).toBeUndefined()
+    expect(config.mergeGitBranchLockfiles).toBeUndefined()
+  }
+  {
+    prepareEmpty()
+
+    const npmrc = [
+      'merge-git-branch-lockfiles-branch-pattern[]=main',
+      'merge-git-branch-lockfiles-branch-pattern[]=release/**',
+    ].join('\n')
+
+    await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {
+        global: false,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.mergeGitBranchLockfilesBranchPattern).toEqual(['main', 'release/**'])
+  }
+})
+
+test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-branch-lockfiles-branch-pattern', async () => {
+  prepareEmpty()
+  {
+    const npmrc = [
+      'merge-git-branch-lockfiles-branch-pattern[]=main',
+      'merge-git-branch-lockfiles-branch-pattern[]=release/**',
+    ].join('\n')
+
+    await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+    getCurrentBranch['mockReturnValue']('develop')
+    const { config } = await getConfig({
+      cliOptions: {
+        global: false,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.mergeGitBranchLockfilesBranchPattern).toEqual(['main', 'release/**'])
+    expect(config.mergeGitBranchLockfiles).toBe(false)
+  }
+  {
+    getCurrentBranch['mockReturnValue']('main')
+    const { config } = await getConfig({
+      cliOptions: {
+        global: false,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    expect(config.mergeGitBranchLockfiles).toBe(true)
+  }
+  {
+    getCurrentBranch['mockReturnValue']('release/1.0.0')
+    const { config } = await getConfig({
+      cliOptions: {
+        global: false,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    expect(config.mergeGitBranchLockfiles).toBe(true)
+  }
 })

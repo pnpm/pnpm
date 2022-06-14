@@ -82,6 +82,8 @@ export interface GetContextOptions {
   registries: Registries
   storeDir: string
   useLockfile: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
   virtualStoreDir?: string
 
   hoistPattern?: string[] | undefined
@@ -176,6 +178,8 @@ export default async function getContext<T> (
       projects: importersContext.projects,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       virtualStoreDir,
     }),
   }
@@ -376,6 +380,8 @@ export async function getContextForSingleImporter (
     registries: Registries
     storeDir: string
     useLockfile: boolean
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
     virtualStoreDir?: string
 
     hoistPattern?: string[] | undefined
@@ -479,6 +485,8 @@ export async function getContextForSingleImporter (
       projects: [{ id: importerId, rootDir: opts.dir }],
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       virtualStoreDir,
     }),
   }

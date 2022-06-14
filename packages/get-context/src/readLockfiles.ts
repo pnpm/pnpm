@@ -34,6 +34,8 @@ export default async function (
     lockfileDir: string
     registry: string
     useLockfile: boolean
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
     virtualStoreDir: string
   }
 ): Promise<{
@@ -49,6 +51,8 @@ export default async function (
   const lockfileOpts = {
     ignoreIncompatible: opts.force || isCI,
     wantedVersion: LOCKFILE_VERSION,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   const fileReads = [] as Array<Promise<Lockfile | undefined | null>>
   let lockfileHadConflicts: boolean = false
@@ -73,7 +77,7 @@ export default async function (
       fileReads.push(readWantedLockfile(opts.lockfileDir, lockfileOpts))
     }
   } else {
-    if (await existsWantedLockfile(opts.lockfileDir)) {
+    if (await existsWantedLockfile(opts.lockfileDir, lockfileOpts)) {
       logger.warn({
         message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
         prefix: opts.lockfileDir,

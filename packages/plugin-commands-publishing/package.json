@@ -63,6 +63,7 @@
     "@pnpm/config": "workspace:15.2.1",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/exportable-manifest": "workspace:3.0.3",
+    "@pnpm/git-utils": "workspace:0.0.0",
     "@pnpm/lifecycle": "workspace:13.0.4",
     "@pnpm/package-bins": "workspace:6.0.2",
     "@pnpm/pick-registry-for-package": "workspace:3.0.2",

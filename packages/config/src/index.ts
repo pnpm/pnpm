@@ -6,6 +6,8 @@ import loadNpmConf from '@pnpm/npm-conf'
 import npmTypes from '@pnpm/npm-conf/lib/types'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { getCurrentBranch } from '@pnpm/git-utils'
+import matcher from '@pnpm/matcher'
 import camelcase from 'camelcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
@@ -36,6 +38,8 @@ export const types = Object.assign({
   bail: Boolean,
   'cache-dir': String,
   'child-concurrency': Number,
+  'merge-git-branch-lockfiles': Boolean,
+  'merge-git-branch-lockfiles-branch-pattern': Array,
   color: ['always', 'auto', 'never'],
   'config-dir': String,
   dev: [null, true],
@@ -53,6 +57,7 @@ export const types = Object.assign({
   'global-dir': String,
   'global-path': String,
   'global-pnpmfile': String,
+  'git-branch-lockfile': Boolean,
   hoist: Boolean,
   'hoist-pattern': Array,
   'ignore-pnpmfile': Boolean,
@@ -185,6 +190,7 @@ export default async (
       'bitbucket.org',
     ],
     globalconfig: npmDefaults.globalconfig,
+    'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
@@ -260,6 +266,21 @@ export default async (
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
     return false
+  })()
+  pnpmConfig.useGitBranchLockfile = (() => {
+    if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
+    return false
+  })()
+  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+    if (typeof pnpmConfig['mergeGitBranchLockfiles'] === 'boolean') return pnpmConfig['mergeGitBranchLockfiles']
+    if (pnpmConfig['mergeGitBranchLockfilesBranchPattern'] != null && pnpmConfig['mergeGitBranchLockfilesBranchPattern'].length > 0) {
+      const branch = await getCurrentBranch()
+      if (branch) {
+        const branchMatcher = matcher(pnpmConfig['mergeGitBranchLockfilesBranchPattern'])
+        return branchMatcher(branch)
+      }
+    }
+    return undefined
   })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
 

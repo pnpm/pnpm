@@ -10,6 +10,7 @@ import isEmpty from 'ramda/src/isEmpty'
 import writeFileAtomicCB from 'write-file-atomic'
 import logger from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
+import { getWantedLockfileName } from './lockfileName'
 
 async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => (err != null) ? reject(err) : resolve()))
@@ -28,9 +29,12 @@ export async function writeWantedLockfile (
   wantedLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
   }
 ) {
-  return writeLockfile(WANTED_LOCKFILE, pkgPath, wantedLockfile, opts)
+  const wantedLockfileName: string = await getWantedLockfileName(opts)
+  return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile, opts)
 }
 
 export async function writeCurrentLockfile (
@@ -142,9 +146,12 @@ export default async function writeLockfiles (
     wantedLockfileDir: string
     currentLockfile: Lockfile
     currentLockfileDir: string
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
   }
 ) {
-  const wantedLockfilePath = path.join(opts.wantedLockfileDir, WANTED_LOCKFILE)
+  const wantedLockfileName: string = await getWantedLockfileName(opts)
+  const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
   // empty lockfile is not saved

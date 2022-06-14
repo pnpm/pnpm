@@ -345,6 +345,8 @@ importers:
       '@pnpm/config': workspace:15.2.1
       '@pnpm/constants': workspace:6.1.0
       '@pnpm/error': workspace:3.0.1
+      '@pnpm/git-utils': workspace:0.0.0
+      '@pnpm/matcher': workspace:3.0.0
       '@pnpm/npm-conf': 1.0.4
       '@pnpm/pnpmfile': workspace:2.0.3
       '@pnpm/prepare': workspace:*
@@ -364,6 +366,8 @@ importers:
     dependencies:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
+      '@pnpm/git-utils': link:../git-utils
+      '@pnpm/matcher': link:../matcher
       '@pnpm/npm-conf': 1.0.4
       '@pnpm/pnpmfile': link:../pnpmfile
       '@pnpm/read-project-manifest': link:../read-project-manifest
@@ -403,6 +407,7 @@ importers:
       '@pnpm/error': workspace:3.0.1
       '@pnpm/filter-lockfile': workspace:6.0.5
       '@pnpm/get-context': workspace:6.1.3
+      '@pnpm/git-utils': workspace:0.0.0
       '@pnpm/graph-sequencer': 1.0.0
       '@pnpm/headless': workspace:18.1.11
       '@pnpm/hoist': workspace:6.1.3
@@ -530,6 +535,7 @@ importers:
       '@pnpm/cafs': link:../cafs
       '@pnpm/client': link:../client
       '@pnpm/core': 'link:'
+      '@pnpm/git-utils': link:../git-utils
       '@pnpm/logger': 4.0.0
       '@pnpm/package-store': link:../package-store
       '@pnpm/prepare': link:../../privatePackages/prepare
@@ -1080,6 +1086,17 @@ importers:
       '@types/semver': 7.3.9
       is-windows: 1.0.2
 
+  packages/git-utils:
+    specifiers:
+      '@pnpm/git-utils': workspace:0.0.0
+      execa: npm:safe-execa@^0.1.1
+      tempy: ^1.0.0
+    dependencies:
+      execa: /safe-execa/0.1.1
+    devDependencies:
+      '@pnpm/git-utils': 'link:'
+      tempy: 1.0.1
+
   packages/graceful-fs:
     specifiers:
       '@pnpm/graceful-fs': workspace:2.0.0
@@ -1379,6 +1396,7 @@ importers:
     specifiers:
       '@pnpm/constants': workspace:6.1.0
       '@pnpm/error': workspace:3.0.1
+      '@pnpm/git-utils': workspace:0.0.0
       '@pnpm/lockfile-file': workspace:5.0.4
       '@pnpm/lockfile-types': workspace:4.0.2
       '@pnpm/logger': ^4.0.0
@@ -1404,6 +1422,7 @@ importers:
     dependencies:
       '@pnpm/constants': link:../constants
       '@pnpm/error': link:../error
+      '@pnpm/git-utils': link:../git-utils
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/merge-lockfile-changes': link:../merge-lockfile-changes
       '@pnpm/types': link:../types
@@ -2408,6 +2427,7 @@ importers:
       '@pnpm/error': workspace:3.0.1
       '@pnpm/exportable-manifest': workspace:3.0.3
       '@pnpm/filter-workspace-packages': workspace:5.0.12
+      '@pnpm/git-utils': workspace:0.0.0
       '@pnpm/lifecycle': workspace:13.0.4
       '@pnpm/logger': ^4.0.0
       '@pnpm/package-bins': workspace:6.0.2
@@ -2453,6 +2473,7 @@ importers:
       '@pnpm/config': link:../config
       '@pnpm/error': link:../error
       '@pnpm/exportable-manifest': link:../exportable-manifest
+      '@pnpm/git-utils': link:../git-utils
       '@pnpm/lifecycle': link:../lifecycle
       '@pnpm/package-bins': link:../package-bins
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
@@ -8967,7 +8988,7 @@ packages:
       pkg-dir: 4.2.0
 
   /findup/0.1.5:
-    resolution: {integrity: sha512-Udxo3C9A6alt2GZ2MNsgnIvX7De0V3VGxeP/x98NSVgSlizcDHdmJza61LI7zJy4OEtSiJyE72s0/+tBl5/ZxA==}
+    resolution: {integrity: sha1-itkpozk7rGJ5V6fl3kYjsGsOLOs=}
     engines: {node: '>=0.6'}
     hasBin: true
     dependencies:
@@ -9310,7 +9331,7 @@ packages:
     dev: true
 
   /github-from-package/0.0.0:
-    resolution: {integrity: sha512-SyHy3T1v2NUXn29OsWdxmK6RwHD+vkj3v8en8AOBZ1wBQ/hCAQ5bAQTD02kW4W9tUp/3Qh6J8r9EvntiyCmOOw==}
+    resolution: {integrity: sha1-l/tdlr/eiXMxPyDoKI75oWf6ZM4=}
     dev: true
 
   /glob-parent/5.1.2:
@@ -11185,7 +11206,7 @@ packages:
     dev: true
 
   /manage-path/2.0.0:
-    resolution: {integrity: sha512-NJhyB+PJYTpxhxZJ3lecIGgh4kwIY2RAh44XvAz9UlqthlQwtPBf62uBVR8XaD8CRuSjQ6TnZH2lNJkbLPZM2A==}
+    resolution: {integrity: sha1-9M+EV7km7u4qg7FzUBQUvHbrlZc=}
     dev: true
 
   /map-age-cleaner/0.1.3:
@@ -11581,7 +11602,7 @@ packages:
     dev: true
 
   /mute-stream/0.0.7:
-    resolution: {integrity: sha512-r65nCZhrbXXb6dXOACihYApHw2Q6pV0M3V0PSxd74N0+D8nzAdEAITq2oAjA1jVnKI+tGvEBUpqiMh0+rW6zDQ==}
+    resolution: {integrity: sha1-MHXOk7whuPq0PhvE2n6BFe0ee6s=}
     dev: true
 
   /mv/2.1.1:
@@ -11996,7 +12017,7 @@ packages:
       mimic-fn: 2.1.0
 
   /opt-cli/1.5.1:
-    resolution: {integrity: sha512-iRFQBiQjXZ+LX/8pis04prUhS6FOYcJiZRouofN3rUJEB282b/e0s3jp9vT7aHgXY6TUpgPwu12f0i+qF40Kjw==}
+    resolution: {integrity: sha1-BNtEexPJa5kusxaFJm9O0NlzbcI=}
     hasBin: true
     dependencies:
       commander: 2.9.0
@@ -13611,11 +13632,11 @@ packages:
     engines: {node: '>=0.10.0'}
 
   /spawn-command/0.0.2:
-    resolution: {integrity: sha512-zC8zGoGkmc8J9ndvml8Xksr1Amk9qBujgbF0JAIWO7kXr43w0h/0GJNM/Vustixu+YE8N/MTrQ7N31FvHUACxQ==}
+    resolution: {integrity: sha1-lUThpDygRfhTGqwaSMspva5iM44=}
     dev: true
 
   /spawn-command/0.0.2-1:
-    resolution: {integrity: sha512-n98l9E2RMSJ9ON1AKisHzz7V42VDiBQGY6PB1BwRglz99wpVsSuGzQ+jOi6lFXBGVTCrRpltvjm+/XA+tpeJrg==}
+    resolution: {integrity: sha1-YvXpRmmBwbeW3Fkpk34RycaSG9A=}
     dev: true
 
   /spawndamnit/2.0.0:
@@ -14091,7 +14112,7 @@ packages:
       next-tick: 1.1.0
 
   /tiny-each-async/2.0.3:
-    resolution: {integrity: sha512-5ROII7nElnAirvFn8g7H7MtpfV1daMcyfTGQwsn/x2VtyV+VPiO5CjReCJtWLvoKTDEDmZocf3cNPraiMnBXLA==}
+    resolution: {integrity: sha1-jru/1tYpXxNwAD+7NxYq/loKUdE=}
     dev: false
 
   /tinylogic/1.0.3:

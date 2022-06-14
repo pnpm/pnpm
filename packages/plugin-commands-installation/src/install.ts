@@ -33,6 +33,8 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'merge-git-branch-lockfiles',
+    'merge-git-branch-lockfiles-branch-pattern',
     'modules-dir',
     'network-concurrency',
     'node-linker',
@@ -138,6 +140,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Fix broken lockfile entries automatically',
             name: '--fix-lockfile',
+          },
+          {
+            description: 'Merge lockfiles were generated on git branch',
+            name: '--merge-git-branch-lockfiles',
           },
           {
             description: 'The directory in which dependencies will be installed (instead of node_modules)',

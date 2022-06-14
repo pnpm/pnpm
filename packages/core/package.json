@@ -72,6 +72,7 @@
     "@pnpm/cafs": "workspace:4.0.4",
     "@pnpm/client": "workspace:7.1.4",
     "@pnpm/core": "workspace:5.3.1",
+    "@pnpm/git-utils": "workspace:0.0.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:13.0.7",
     "@pnpm/prepare": "workspace:*",

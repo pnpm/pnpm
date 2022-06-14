@@ -6,6 +6,7 @@ import PnpmError from '@pnpm/error'
 import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import runNpm from '@pnpm/run-npm'
 import { ProjectManifest } from '@pnpm/types'
+import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import pick from 'ramda/src/pick'
@@ -14,7 +15,6 @@ import renderHelp from 'render-help'
 import tempy from 'tempy'
 import * as pack from './pack'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
-import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 
 export function rcOptionsTypes () {
   return pick([

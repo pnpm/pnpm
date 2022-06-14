@@ -129,7 +129,7 @@ export default async function link (
   } else {
     newPkg = opts.manifest
   }
-  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
+  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile, useGitBranchLockfile: opts.useGitBranchLockfile, mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles }
   if (opts.useLockfile) {
     await writeLockfiles({
       currentLockfile: updatedCurrentLockfile,

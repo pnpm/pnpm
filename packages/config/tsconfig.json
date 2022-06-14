@@ -19,6 +19,12 @@
       "path": "../error"
     },
     {
+      "path": "../git-utils"
+    },
+    {
+      "path": "../matcher"
+    },
+    {
       "path": "../pnpmfile"
     },
     {
