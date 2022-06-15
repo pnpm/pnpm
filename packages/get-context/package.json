@@ -12,6 +12,7 @@
     "node": ">=14.6"
   },
   "scripts": {
+    "start": "pnpm tsc --watch",
     "lint": "eslint src/**/*.ts",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
