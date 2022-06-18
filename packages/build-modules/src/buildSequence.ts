@@ -14,7 +14,8 @@ export interface DependenciesGraphNode {
   isBuilt?: boolean
   optional: boolean
   optionalDependencies: Set<string>
-  requiresBuild?: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  requiresBuild?: boolean | any // this is a durty workaround added in https://github.com/pnpm/pnpm/pull/4898
 }
 
 export interface DependenciesGraph {

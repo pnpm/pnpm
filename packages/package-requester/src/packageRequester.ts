@@ -51,7 +51,7 @@ import renameOverwrite from 'rename-overwrite'
 import semver from 'semver'
 import ssri from 'ssri'
 import equalOrSemverEqual from './equalOrSemverEqual'
-import safeDeferredPromise from './safeDeferredPromise'
+import safePromiseDefer from 'safe-promise-defer'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -441,7 +441,7 @@ function fetchToStore (
 
         if ((pkgFilesIndex?.files) != null) {
           const manifest = opts.fetchRawManifest
-            ? safeDeferredPromise<DependencyManifest | undefined>()
+            ? safePromiseDefer<DependencyManifest | undefined>()
             : undefined
           if (
             (
@@ -498,7 +498,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // eslint-disable-line
 
       const fetchManifest = opts.fetchRawManifest
-        ? safeDeferredPromise<DependencyManifest | undefined>()
+        ? safePromiseDefer<DependencyManifest | undefined>()
         : undefined
       if (fetchManifest != null) {
         fetchManifest()

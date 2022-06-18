@@ -19,13 +19,13 @@ interface ImportOptions {
 type ImportFunction = (to: string, opts: ImportOptions) => Promise<string | undefined>
 
 export default (
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 ): ImportFunction => {
   const importPackage = createImportPackage(packageImportMethod)
   return async (to, opts) => limitLinking(async () => importPackage(to, opts))
 }
 
-function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
+function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy') {
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
   // - clone: clone the packages, no fallback
@@ -41,6 +41,8 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   case 'auto': {
     return createAutoImporter()
   }
+  case 'clone-or-copy':
+    return createCloneOrCopyImporter()
   case 'copy':
     packageImportMethodLogger.debug({ method: 'copy' })
     return copyPkg
@@ -84,6 +86,29 @@ function createAutoImporter (): ImportFunction {
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return auto(to, opts)
     }
+  }
+}
+
+function createCloneOrCopyImporter (): ImportFunction {
+  let auto = initialAuto
+
+  return async (to, opts) => auto(to, opts)
+
+  async function initialAuto (
+    to: string,
+    opts: ImportOptions
+  ): Promise<string | undefined> {
+    try {
+      if (!await clonePkg(to, opts)) return undefined
+      packageImportMethodLogger.debug({ method: 'clone' })
+      auto = clonePkg
+      return 'clone'
+    } catch (err: any) { // eslint-disable-line
+      // ignore
+    }
+    packageImportMethodLogger.debug({ method: 'copy' })
+    auto = copyPkg
+    return auto(to, opts)
   }
 }
 
