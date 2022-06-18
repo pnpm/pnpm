@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-script-runners
 
+## 4.6.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@8.4.24
+- @pnpm/lifecycle@12.1.9
+- @pnpm/config@13.14.1
+
 ## 4.6.17
 
 ### Patch Changes

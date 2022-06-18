@@ -1,5 +1,12 @@
 # @pnpm/store-controller-types
 
+## 12.0.2
+
+### Patch Changes
+
+- Updated dependencies [79f284339]
+  - @pnpm/fetcher-base@11.2.0
+
 ## 12.0.1
 
 ### Patch Changes

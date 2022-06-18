@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 26.0.0
+
+### Major Changes
+
+- 79f284339: `requiresBuild` is sometimes a function that return a boolean promise.
+
+### Patch Changes
+
+- @pnpm/npm-resolver@12.1.8
+- @pnpm/store-controller-types@12.0.2
+
 ## 25.1.4
 
 ### Patch Changes

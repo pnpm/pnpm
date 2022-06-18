@@ -1,5 +1,11 @@
 # pnpm
 
+## 6.32.23
+
+### Patch Changes
+
+- Packages that should be built are always cloned or copied from the store. This is required to prevent the postinstall scripts from modifying the original source files of the package [#4898](https://github.com/pnpm/pnpm/pull/4898).
+
 ## 6.32.22
 
 ### Patch Changes

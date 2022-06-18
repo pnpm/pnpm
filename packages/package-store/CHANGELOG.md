@@ -1,5 +1,21 @@
 # @pnpm/package-store
 
+## 12.2.0
+
+### Minor Changes
+
+- 79f284339: New optional option added to package importer: `requiresBuild`. When `requiresBuild` is `true`, the package should only be imported using cloning or copying.
+- 79f284339: New import method added: `clone-or-copy`.
+
+### Patch Changes
+
+- Updated dependencies [79f284339]
+- Updated dependencies [79f284339]
+  - @pnpm/package-requester@17.0.5
+  - @pnpm/fetcher-base@11.2.0
+  - @pnpm/cafs@3.0.18
+  - @pnpm/store-controller-types@12.0.2
+
 ## 12.1.16
 
 ### Patch Changes

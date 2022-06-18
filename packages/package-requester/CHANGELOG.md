@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 17.0.5
+
+### Patch Changes
+
+- 79f284339: Use `safe-promise-defer`.
+- Updated dependencies [79f284339]
+  - @pnpm/fetcher-base@11.2.0
+  - @pnpm/cafs@3.0.18
+  - @pnpm/store-controller-types@12.0.2
+
 ## 17.0.4
 
 ### Patch Changes

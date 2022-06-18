@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.4.29
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@3.2.21
+- @pnpm/store-controller-types@12.0.2
+- @pnpm/lifecycle@12.1.9
+- @pnpm/config@13.14.1
+- @pnpm/link-bins@6.2.14
+
 ## 5.4.28
 
 ### Patch Changes

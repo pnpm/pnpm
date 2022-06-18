@@ -1,5 +1,12 @@
 # @pnpm/git-resolver
 
+## 5.1.20
+
+### Patch Changes
+
+- Updated dependencies [6161c0b19]
+  - @pnpm/fetch@4.2.7
+
 ## 5.1.19
 
 ### Patch Changes

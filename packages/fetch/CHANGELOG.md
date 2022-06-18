@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 4.2.7
+
+### Patch Changes
+
+- 6161c0b19: Use @pnpm/network.agent instead of @pnpm/npm-registry-agent.
+
 ## 4.2.6
 
 ### Patch Changes

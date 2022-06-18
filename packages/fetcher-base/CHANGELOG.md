@@ -1,5 +1,11 @@
 # @pnpm/fetcher-base
 
+## 11.2.0
+
+### Minor Changes
+
+- 79f284339: New optional option added to package importer: `requiresBuild`. When `requiresBuild` is `true`, the package should only be imported using cloning or copying.
+
 ## 11.1.7
 
 ### Patch Changes

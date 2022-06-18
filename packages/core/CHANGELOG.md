@@ -1,5 +1,23 @@
 # @pnpm/core
 
+## 2.9.9
+
+### Patch Changes
+
+- 79f284339: Packages that should be built are always cloned or copied from the store. This is required to prevent the postinstall scripts from modifying the original source files of the package.
+- Updated dependencies [79f284339]
+- Updated dependencies [79f284339]
+- Updated dependencies [79f284339]
+- Updated dependencies [79f284339]
+  - @pnpm/build-modules@8.0.8
+  - @pnpm/v6.resolve-dependencies@26.0.0
+  - @pnpm/headless@17.3.16
+  - @pnpm/package-requester@17.0.5
+  - @pnpm/store-controller-types@12.0.2
+  - @pnpm/lifecycle@12.1.9
+  - @pnpm/modules-cleaner@11.0.28
+  - @pnpm/link-bins@6.2.14
+
 ## 2.9.8
 
 ### Patch Changes

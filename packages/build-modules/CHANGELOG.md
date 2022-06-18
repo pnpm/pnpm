@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 8.0.8
+
+### Patch Changes
+
+- 79f284339: `requiresBuild` may be of any value. This is just a workaround to a typing issue. `requiresBuild` will always be boolean.
+  - @pnpm/store-controller-types@12.0.2
+  - @pnpm/lifecycle@12.1.9
+  - @pnpm/link-bins@6.2.14
+
 ## 8.0.7
 
 ### Patch Changes

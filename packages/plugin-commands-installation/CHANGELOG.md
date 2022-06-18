@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.24
+
+### Patch Changes
+
+- Updated dependencies [79f284339]
+- Updated dependencies [79f284339]
+- Updated dependencies [79f284339]
+  - @pnpm/core@2.9.9
+  - @pnpm/package-store@12.2.0
+  - @pnpm/store-connection-manager@3.2.21
+  - @pnpm/outdated@9.0.37
+  - @pnpm/plugin-commands-rebuild@5.4.29
+  - @pnpm/config@13.14.1
+
 ## 8.4.23
 
 ### Patch Changes
