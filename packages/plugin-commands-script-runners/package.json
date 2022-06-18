@@ -38,7 +38,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-script-runners": "workspace:5.0.15",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "2.19.0",
+    "@pnpm/registry-mock": "2.20.0",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.27.39",
     "is-windows": "^1.0.2",
