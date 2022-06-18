@@ -157,6 +157,7 @@ function toLockfileDependency (
     result['hasBin'] = true
   }
   const requiresBuildIsKnown = typeof pkg.requiresBuild === 'boolean'
+  let pending = false
   if (requiresBuildIsKnown) {
     if (pkg.requiresBuild) {
       result['requiresBuild'] = true
@@ -173,9 +174,10 @@ function toLockfileDependency (
     result['requiresBuild'] = true
   } else {
     pendingRequiresBuilds.push(opts.depPath)
+    pending = true
   }
-  if (!requiresBuildIsKnown && typeof result['requiresBuild'] === 'boolean') {
-    pkg.requiresBuild['resolve'](result['requiresBuild'])
+  if (!requiresBuildIsKnown && !pending) {
+    pkg.requiresBuild['resolve'](result['requiresBuild'] ?? false)
   }
   /* eslint-enable @typescript-eslint/dot-notation */
   return result
