@@ -22,7 +22,7 @@ function createPackageImporter (
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
-    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.targetEngine)
+    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const pkgImportMethod = (opts.requiresBuild && !isBuilt)
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)

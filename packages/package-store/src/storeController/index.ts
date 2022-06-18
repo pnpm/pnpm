@@ -53,7 +53,7 @@ export default async function (
     upload,
   }
 
-  async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) {
+  async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, sideEffectsCacheKey: string}) {
     const sideEffectsIndex = await cafs.addFilesFromDir(builtPkgLocation)
     // TODO: move this to a function
     // This is duplicated in @pnpm/package-requester
@@ -80,7 +80,7 @@ export default async function (
       filesIndex = { files: integrity }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-    filesIndex.sideEffects[opts.engine] = integrity
+    filesIndex.sideEffects[opts.sideEffectsCacheKey] = integrity
     await writeJsonFile(opts.filesIndexFile, filesIndex, { indent: undefined })
   }
 }

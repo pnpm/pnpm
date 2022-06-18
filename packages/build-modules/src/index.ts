@@ -94,9 +94,9 @@ async function buildDependency (
     })
     if (hasSideEffects && opts.sideEffectsCacheWrite) {
       try {
-        const engine = calcDepState(depGraph, opts.depsStateCache, depPath, depNode.patchFile?.hash)
+        const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, depNode.patchFile?.hash)
         await opts.storeController.upload(depNode.dir, {
-          engine,
+          sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err: any) { // eslint-disable-line
