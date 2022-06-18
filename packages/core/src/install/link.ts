@@ -19,7 +19,7 @@ import {
   DependenciesGraph,
   DependenciesGraphNode,
   LinkedDependency,
-} from '@pnpm/resolve-dependencies'
+} from '@pnpm/v6.resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {

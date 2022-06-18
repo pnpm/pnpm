@@ -428,13 +428,13 @@ importers:
       '@pnpm/read-project-manifest': workspace:2.0.13
       '@pnpm/registry-mock': 2.20.0
       '@pnpm/remove-bins': workspace:2.0.14
-      '@pnpm/resolve-dependencies': workspace:@pnpm/v6.resolve-dependencies@25.1.4
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/store-controller-types': workspace:12.0.1
       '@pnpm/store-path': ^5.0.0
       '@pnpm/symlink-dependency': workspace:4.0.13
       '@pnpm/test-fixtures': workspace:*
       '@pnpm/types': workspace:7.10.0
+      '@pnpm/v6.resolve-dependencies': workspace:25.1.4
       '@pnpm/which-version-is-pinned': workspace:1.0.0
       '@types/fs-extra': ^9.0.13
       '@types/is-ci': ^3.0.0
@@ -502,11 +502,11 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/remove-bins': link:../remove-bins
-      '@pnpm/resolve-dependencies': link:../resolve-dependencies
       '@pnpm/resolver-base': link:../resolver-base
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
+      '@pnpm/v6.resolve-dependencies': link:../resolve-dependencies
       '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
       '@yarnpkg/extensions': /@pnpm/extensions/0.0.0_@yarnpkg+core@3.2.0-rc.9
       '@zkochan/npm-package-arg': 2.0.1
@@ -3164,10 +3164,10 @@ importers:
       '@pnpm/pick-registry-for-package': workspace:2.0.11
       '@pnpm/prune-lockfile': workspace:3.0.17
       '@pnpm/read-package-json': workspace:5.0.12
-      '@pnpm/resolve-dependencies': workspace:@pnpm/v6.resolve-dependencies@25.1.4
       '@pnpm/resolver-base': workspace:8.1.6
       '@pnpm/store-controller-types': workspace:12.0.1
       '@pnpm/types': workspace:7.10.0
+      '@pnpm/v6.resolve-dependencies': workspace:25.1.4
       '@pnpm/which-version-is-pinned': workspace:1.0.0
       '@types/ramda': 0.27.39
       '@types/semver': ^7.3.9
@@ -3220,7 +3220,7 @@ importers:
       version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/logger': 4.0.0
-      '@pnpm/resolve-dependencies': 'link:'
+      '@pnpm/v6.resolve-dependencies': 'link:'
       '@types/ramda': 0.27.39
       '@types/semver': 7.3.9
 

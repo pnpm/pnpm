@@ -1,5 +1,5 @@
 ---
-"@pnpm/create-cafs-store": minor
+"@pnpm/package-store": minor
 "@pnpm/fetcher-base": minor
 ---
 

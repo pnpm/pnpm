@@ -37,11 +37,11 @@ import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
   DependenciesGraph,
   DependenciesGraphNode,
-} from '@pnpm/resolve-dependencies'
+} from '@pnpm/v6.resolve-dependencies'
 import getWantedDependencies, {
   PinnedVersion,
   WantedDependency,
-} from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
+} from '@pnpm/v6.resolve-dependencies/lib/getWantedDependencies'
 import {
   PreferredVersions,
 } from '@pnpm/resolver-base'
