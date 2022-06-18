@@ -1,5 +1,20 @@
 # @pnpm/config
 
+## 15.3.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/git-utils@0.1.0
+  - @pnpm/pnpmfile@2.0.4
+  - @pnpm/read-project-manifest@3.0.4
+
 ## 15.2.1
 
 ### Patch Changes

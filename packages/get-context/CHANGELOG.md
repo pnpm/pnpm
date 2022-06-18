@@ -1,5 +1,21 @@
 # @pnpm/get-context
 
+## 6.2.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/read-projects-context@6.0.5
+
 ## 6.1.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/default-resolver
 
+## 15.0.5
+
+### Patch Changes
+
+- @pnpm/local-resolver@8.0.4
+- @pnpm/npm-resolver@13.0.4
+- @pnpm/resolver-base@9.0.3
+- @pnpm/git-resolver@6.0.4
+- @pnpm/tarball-resolver@6.0.3
+
 ## 15.0.4
 
 ### Patch Changes

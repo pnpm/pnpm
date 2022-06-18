@@ -1,5 +1,15 @@
 # dependency-path
 
+## 9.1.4
+
+### Patch Changes
+
+- 725636a90: Use @pnpm/crypto.base32-hash.
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - @pnpm/crypto.base32-hash@1.0.0
+
 ## 9.1.3
 
 ### Patch Changes

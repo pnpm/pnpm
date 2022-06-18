@@ -1,6 +1,6 @@
 {
   "name": "dependency-path",
-  "version": "9.1.3",
+  "version": "9.1.4",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,14 +31,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path#readme",
   "dependencies": {
-    "@pnpm/crypto.base32-hash": "workspace:0.0.0",
-    "@pnpm/types": "workspace:8.1.0",
+    "@pnpm/crypto.base32-hash": "workspace:1.0.0",
+    "@pnpm/types": "workspace:8.2.0",
     "encode-registry": "^3.0.0",
     "semver": "^7.3.4"
   },
   "devDependencies": {
     "@types/semver": "^7.3.4",
-    "dependency-path": "workspace:9.1.3"
+    "dependency-path": "workspace:9.1.4"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

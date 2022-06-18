@@ -1,5 +1,12 @@
 # @pnpm/render-peer-issues
 
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+
 ## 2.0.2
 
 ### Patch Changes

@@ -1,5 +1,75 @@
 # @pnpm/core
 
+## 5.4.0
+
+### Minor Changes
+
+- fb5bbfd7a: A new setting added: `pnpm.peerDependencyRules.allowAny`. `allowAny` is an array of package name patterns, any peer dependency matching the pattern will be resolved from any version, regardless of the range specified in `peerDependencies`. For instance:
+
+  ```
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "allowAny": ["@babel/*", "eslint"]
+      }
+    }
+  }
+  ```
+
+  The above setting will mute any warnings about peer dependency version mismatches related to `@babel/` packages or `eslint`.
+
+- fb5bbfd7a: The `pnpm.peerDependencyRules.ignoreMissing` setting may accept package name patterns. So you may ignore any missing `@babel/*` peer dependencies, for instance:
+
+  ```json
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "ignoreMissing": ["@babel/*"]
+      }
+    }
+  }
+  ```
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- 0abfe1718: Packages that should be built are always cloned or copied from the store. This is required to prevent the postinstall scripts from modifying the original source files of the package.
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [56cf04cb3]
+- Updated dependencies [725636a90]
+- Updated dependencies [0abfe1718]
+  - @pnpm/types@8.2.0
+  - @pnpm/build-modules@9.1.5
+  - @pnpm/resolve-dependencies@28.0.0
+  - @pnpm/headless@18.2.0
+  - @pnpm/get-context@6.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - dependency-path@9.1.4
+  - @pnpm/package-requester@18.0.8
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/filter-lockfile@6.0.6
+  - @pnpm/hoist@6.1.4
+  - @pnpm/lifecycle@13.0.5
+  - @pnpm/link-bins@7.1.3
+  - @pnpm/lockfile-to-pnp@0.5.10
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/lockfile-walker@5.0.5
+  - @pnpm/manifest-utils@3.0.4
+  - @pnpm/modules-cleaner@12.0.8
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/normalize-registries@3.0.3
+  - @pnpm/prune-lockfile@4.0.6
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/read-project-manifest@3.0.4
+  - @pnpm/remove-bins@3.0.4
+  - @pnpm/resolver-base@9.0.3
+  - @pnpm/store-controller-types@13.0.4
+  - @pnpm/symlink-dependency@5.0.3
+
 ## 5.3.1
 
 ### Patch Changes

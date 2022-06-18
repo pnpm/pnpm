@@ -1,5 +1,12 @@
 # @pnpm/fetch
 
+## 5.0.3
+
+### Patch Changes
+
+- 9d5bf09c0: Use @pnpm/network.agent instead of @pnpm/npm-registry-agent.
+  - @pnpm/core-loggers@7.0.3
+
 ## 5.0.2
 
 ### Patch Changes

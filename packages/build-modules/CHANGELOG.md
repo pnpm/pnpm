@@ -1,5 +1,18 @@
 # @pnpm/build-modules
 
+## 9.1.5
+
+### Patch Changes
+
+- 0abfe1718: `requiresBuild` may be of any value. This is just a workaround to a typing issue. `requiresBuild` will always be boolean.
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/lifecycle@13.0.5
+  - @pnpm/link-bins@7.1.3
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/store-controller-types@13.0.4
+
 ## 9.1.4
 
 ### Patch Changes

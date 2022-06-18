@@ -1,5 +1,40 @@
 # @pnpm/headless
 
+## 18.2.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- 0abfe1718: Packages that should be built are always cloned or copied from the store. This is required to prevent the postinstall scripts from modifying the original source files of the package.
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [56cf04cb3]
+- Updated dependencies [725636a90]
+- Updated dependencies [0abfe1718]
+  - @pnpm/types@8.2.0
+  - @pnpm/build-modules@9.1.5
+  - @pnpm/lockfile-file@5.1.0
+  - dependency-path@9.1.4
+  - @pnpm/package-requester@18.0.8
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/filter-lockfile@6.0.6
+  - @pnpm/hoist@6.1.4
+  - @pnpm/lifecycle@13.0.5
+  - @pnpm/link-bins@7.1.3
+  - @pnpm/lockfile-to-pnp@0.5.10
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/modules-cleaner@12.0.8
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/package-is-installable@6.0.5
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/read-project-manifest@3.0.4
+  - @pnpm/store-controller-types@13.0.4
+  - @pnpm/symlink-dependency@5.0.3
+  - @pnpm/real-hoist@0.2.5
+
 ## 18.1.11
 
 ### Patch Changes

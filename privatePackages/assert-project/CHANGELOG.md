@@ -1,5 +1,19 @@
 # @pnpm/assert-project
 
+## 2.3.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/assert-store@1.0.38
+
 ## 2.2.23
 
 ### Patch Changes

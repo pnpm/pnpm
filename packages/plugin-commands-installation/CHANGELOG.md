@@ -1,5 +1,33 @@
 # @pnpm/plugin-commands-installation
 
+## 10.2.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/core@5.4.0
+  - @pnpm/types@8.2.0
+  - @pnpm/config@15.3.0
+  - @pnpm/cli-utils@0.7.13
+  - @pnpm/find-workspace-packages@4.0.13
+  - @pnpm/manifest-utils@3.0.4
+  - @pnpm/outdated@10.0.7
+  - @pnpm/package-store@13.0.8
+  - @pnpm/plugin-commands-rebuild@6.1.12
+  - @pnpm/pnpmfile@2.0.4
+  - @pnpm/read-project-manifest@3.0.4
+  - @pnpm/resolver-base@9.0.3
+  - @pnpm/sort-packages@3.0.4
+  - @pnpm/store-connection-manager@4.1.11
+  - @pnpm/filter-workspace-packages@5.0.13
+
 ## 10.1.1
 
 ### Patch Changes

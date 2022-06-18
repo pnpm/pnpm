@@ -1,5 +1,20 @@
 # @pnpm/lockfile-file
 
+## 5.1.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/git-utils@0.1.0
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/merge-lockfile-changes@3.0.3
+
 ## 5.0.4
 
 ### Patch Changes

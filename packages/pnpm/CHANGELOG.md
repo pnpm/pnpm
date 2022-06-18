@@ -1,5 +1,41 @@
 # pnpm
 
+## 7.3.0
+
+### Minor Changes
+
+- A new setting added: `pnpm.peerDependencyRules.allowAny`. `allowAny` is an array of package name patterns, any peer dependency matching the pattern will be resolved from any version, regardless of the range specified in `peerDependencies`. For instance:
+
+  ```
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "allowAny": ["@babel/*", "eslint"]
+      }
+    }
+  }
+  ```
+
+  The above setting will mute any warnings about peer dependency version mismatches related to `@babel/` packages or `eslint`.
+
+- The `pnpm.peerDependencyRules.ignoreMissing` setting may accept package name patterns. So you may ignore any missing `@babel/*` peer dependencies, for instance:
+
+  ```json
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "ignoreMissing": ["@babel/*"]
+      }
+    }
+  }
+  ```
+
+- **Experimental.** New settings added: `use-git-branch-lockfile`, `merge-git-branch-lockfiles`, `merge-git-branch-lockfiles-branch-pattern` [#4475](https://github.com/pnpm/pnpm/pull/4475).
+
+### Patch Changes
+
+- Packages that should be built are always cloned or copied from the store. This is required to prevent the postinstall scripts from modifying the original source files of the package.
+
 ## 7.2.1
 
 ### Patch Changes

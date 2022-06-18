@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.1.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/config@15.3.0
+  - @pnpm/git-utils@0.1.0
+  - @pnpm/cli-utils@0.7.13
+  - @pnpm/exportable-manifest@3.0.4
+  - @pnpm/lifecycle@13.0.5
+  - @pnpm/package-bins@6.0.3
+  - @pnpm/pick-registry-for-package@3.0.3
+  - @pnpm/resolver-base@9.0.3
+  - @pnpm/sort-packages@3.0.4
+  - @pnpm/client@7.1.5
+
 ## 5.0.13
 
 ### Patch Changes
