@@ -50,6 +50,7 @@ import {
   splitNodeId,
 } from './nodeIdUtils'
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
+import safePromiseDefer, { SafePromiseDefer } from 'safe-promise-defer'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -196,7 +197,7 @@ export interface ResolvedPackage {
   hasBundledDependencies: boolean
   prepare: boolean
   depPath: string
-  requiresBuild: boolean | undefined // added to fix issue #1201
+  requiresBuild: boolean | SafePromiseDefer<boolean>
   additionalInfo: {
     deprecated?: string
     bundleDependencies?: string[]
@@ -1020,7 +1021,7 @@ function getResolvedPackage (
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
 
   const requiresBuild = (options.allowBuild == null || options.allowBuild(options.pkg.name))
-    ? ((options.dependencyLockfile != null) ? Boolean(options.dependencyLockfile.requiresBuild) : undefined)
+    ? ((options.dependencyLockfile != null) ? Boolean(options.dependencyLockfile.requiresBuild) : safePromiseDefer<boolean>())
     : false
 
   return {

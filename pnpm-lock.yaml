@@ -1892,6 +1892,7 @@ importers:
       promise-share: ^1.0.0
       ramda: ^0.27.1
       rename-overwrite: ^4.0.2
+      safe-promise-defer: ^1.0.1
       semver: ^7.3.4
       ssri: ^8.0.1
       tempy: ^1.0.0
@@ -1915,6 +1916,7 @@ importers:
       promise-share: 1.0.0
       ramda: 0.27.2
       rename-overwrite: 4.0.2
+      safe-promise-defer: 1.0.1
       semver: 7.3.7
       ssri: 8.0.1
     devDependencies:
@@ -3224,9 +3226,11 @@ importers:
       is-inner-link: ^4.0.0
       is-subdir: ^1.1.1
       path-exists: ^4.0.0
+      promise-share: ^1.0.0
       ramda: ^0.27.1
       rename-overwrite: ^4.0.2
       replace-string: ^3.1.0
+      safe-promise-defer: ^1.0.1
       semver: ^7.3.4
       semver-range-intersect: ^0.3.1
       version-selector-type: ^3.0.0
@@ -3253,9 +3257,11 @@ importers:
       is-inner-link: 4.0.0
       is-subdir: 1.2.0
       path-exists: 4.0.0
+      promise-share: 1.0.0
       ramda: 0.27.2
       rename-overwrite: 4.0.2
       replace-string: 3.1.0
+      safe-promise-defer: 1.0.1
       semver: 7.3.7
       semver-range-intersect: 0.3.1
       version-selector-type: 3.0.0
@@ -13342,6 +13348,13 @@ packages:
       '@zkochan/which': 2.0.3
       execa: 5.1.1
       path-name: 1.0.0
+
+  /safe-promise-defer/1.0.1:
+    resolution: {integrity: sha512-nKdAwtdSxWQpV2AIjU9rw5j/Pgt9+u+pegXJahWQY9D8G0tNvHnJnpL3zVJ1kKtWTo7s/Rvp9ZUDBtPPMpLctA==}
+    engines: {node: '>=12'}
+    dependencies:
+      promise-share: 1.0.0
+    dev: false
 
   /safe-regex/1.1.0:
     resolution: {integrity: sha512-aJXcif4xnaNUzvUuC5gcb46oTS7zvg4jpMTnuqtrEPlR3vFr4pxtdTwaF1Qs3Enjn9HK+ZlwQui+a7z0SywIzg==}

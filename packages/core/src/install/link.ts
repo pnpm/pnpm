@@ -408,6 +408,9 @@ async function linkAllPkgs (
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
         targetEngine = calcDepState(depNode.depPath, opts.depGraph, opts.depsStateCache)
       }
+      if (typeof depNode.requiresBuild === 'function') {
+        depNode.requiresBuild = await depNode.requiresBuild()
+      }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
