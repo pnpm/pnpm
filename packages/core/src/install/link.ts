@@ -412,6 +412,7 @@ async function linkAllPkgs (
         filesResponse,
         force: opts.force,
         targetEngine,
+        requiresBuild: depNode.requiresBuild,
       })
       if (importMethod) {
         progressLogger.debug({

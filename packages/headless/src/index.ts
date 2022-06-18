@@ -686,6 +686,7 @@ async function linkAllPkgs (
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
+        requiresBuild: depNode.requiresBuild,
         targetEngine,
       })
       if (importMethod) {
