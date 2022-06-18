@@ -1,7 +1,6 @@
-import crypto from 'crypto'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { Registries } from '@pnpm/types'
 import encodeRegistry from 'encode-registry'
-import { base32 } from 'rfc4648'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string) {
@@ -162,8 +161,4 @@ export function createPeersFolderSuffix (peers: Array<{name: string, version: st
     return `_${createBase32Hash(folderName)}`
   }
   return `_${folderName}`
-}
-
-function createBase32Hash (str: string): string {
-  return base32.stringify(crypto.createHash('md5').update(str).digest()).replace(/(=+)$/, '').toLowerCase()
 }

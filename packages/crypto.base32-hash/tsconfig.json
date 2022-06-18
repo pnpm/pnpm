@@ -8,12 +8,5 @@
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../crypto.base32-hash"
-    },
-    {
-      "path": "../types"
-    }
-  ]
+  "references": []
 }
