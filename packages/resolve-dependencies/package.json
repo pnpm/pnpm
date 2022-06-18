@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/resolve-dependencies",
+  "name": "@pnpm/v6.resolve-dependencies",
   "version": "25.1.4",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
@@ -62,7 +62,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/resolve-dependencies": "workspace:25.1.4",
+    "@pnpm/resolve-dependencies": "workspace:@pnpm/v6.resolve-dependencies@25.1.4",
     "@types/ramda": "0.27.39",
     "@types/semver": "^7.3.9"
   },
